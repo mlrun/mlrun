@@ -33,6 +33,7 @@ import mlrun.common.schemas
 import mlrun.common.secrets
 import mlrun.common.secrets as mlsecrets
 import mlrun.errors
+import mlrun.k8s_utils
 import mlrun.platforms.iguazio
 import mlrun.runtimes
 import mlrun.runtimes.pod
@@ -1284,25 +1285,25 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
 
     def list_user_token_secrets(
         self,
-        username: str,
+        user_id: str,
         namespace: typing.Optional[str] = None,
     ) -> list[mlrun.common.schemas.SecretTokenInfo]:
         """
         List all offline token secrets for a given user.
 
-        :param username: The username whose tokens should be listed. Use "*" to list all users' tokens.
+        :param user_id: The user ID whose tokens should be listed.
         :param namespace: Kubernetes namespace where the secrets are stored.
-        :return: List of SecretTokenInfo objects, each containing the token name, expiration and username.
+        :return: List of SecretTokenInfo objects, each containing the token name, expiration and user id.
         """
         namespace = self.resolve_namespace(namespace)
         # Always filter by auth token label to only get auth token secrets
         # Use None as value to perform "label exists" check (more efficient than fetching all secrets)
         labels = {mlrun_constants.MLRunInternalLabels.auth_token_name: None}
         # "*" means list all users' tokens, so skip the username filter
-        if username != "*":
+        if user_id != "*":
             # Validate username is a valid K8s label value
-            verify_field_regex("username", username, regex.label_value)
-            labels[mlrun_constants.MLRunInternalLabels.auth_username] = username
+            verify_field_regex("username", user_id, regex.label_value)
+            labels[mlrun_constants.MLRunInternalLabels.auth_userid] = user_id
 
         k8s_secrets = self.list_secrets(namespace=namespace, labels=labels)
 
@@ -1384,16 +1385,16 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
         )
 
         expiration = self._decode_secret_expiration(k8s_secret)
-        username = k8s_secret.metadata.labels.get(
-            mlrun_constants.MLRunInternalLabels.auth_username
+        user_id = k8s_secret.metadata.labels.get(
+            mlrun_constants.MLRunInternalLabels.auth_userid
         )
-        if expiration is None or username is None:
+        if expiration is None or user_id is None:
             return None
 
         return mlrun.common.schemas.SecretTokenInfo(
             name=token_name,
             expiration=expiration,
-            username=username,
+            user_id=user_id,
         )
 
     def _decode_secret_expiration(self, k8s_secret) -> typing.Optional[datetime]:
@@ -1430,18 +1431,18 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
 
     def get_user_token_secret_value(
         self,
-        username: str,
+        user_id: str,
         token_name: str,
         namespace: typing.Optional[str] = None,
     ) -> str:
         """
         Retrieve the offline token string for a specific user and token name.
 
-        This method locates the Kubernetes secret associated with the given user
+        This method locates the Kubernetes secret associated with the given user ID
         and token name, decodes the base64-encoded YAML in the `tokensFile` field,
         and extracts the requested offline token string.
 
-        :param username: The owner of the token.
+        :param user_id: The user ID of the token owner.
         :param token_name: The logical name of the token to retrieve.
         :param namespace: Kubernetes namespace where the secret is stored.
                           If empty, the default namespace will be used.
@@ -1452,10 +1453,10 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
             data fails.
         """
 
-        k8s_secret = self._get_user_token_secret(username, token_name, namespace)
+        k8s_secret = self._get_user_token_secret(user_id, token_name, namespace)
         if not k8s_secret:
             raise mlrun.errors.MLRunNotFoundError(
-                f"Token '{token_name}' not found for user '{username}'"
+                f"Token '{token_name}' not found for user_id '{user_id}'"
             )
         return self._extract_token_from_secret(k8s_secret)
 
@@ -1472,21 +1473,21 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
         :raises mlrun.errors.MLRunRuntimeError: If decoding/parsing fails.
         """
         try:
-            username = k8s_secret.metadata.labels[
-                mlrun_constants.MLRunInternalLabels.auth_username
+            user_id = k8s_secret.metadata.labels[
+                mlrun_constants.MLRunInternalLabels.auth_userid
             ]
             token_name = k8s_secret.metadata.labels[
                 mlrun_constants.MLRunInternalLabels.auth_token_name
             ]
         except KeyError as exc:
             raise mlrun.errors.MLRunRuntimeError(
-                f"Secret {k8s_secret.metadata.name} is missing required labels for username or token name"
+                f"Secret {k8s_secret.metadata.name} is missing required labels for user_id or token name"
             ) from exc
         try:
             encoded_tokens_file = k8s_secret.data.get("tokensFile")
             if not encoded_tokens_file:
                 raise mlrun.errors.MLRunNotFoundError(
-                    f"Token '{token_name}' not found in secret for user '{username}'"
+                    f"Token '{token_name}' not found in secret for user_id '{user_id}'"
                 )
 
             decoded_yaml = base64.b64decode(encoded_tokens_file).decode("utf-8")
@@ -1496,12 +1497,12 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
 
             if not token_entry or not token_entry.get("token"):
                 raise mlrun.errors.MLRunNotFoundError(
-                    f"Token '{token_name}' not found in secret for user '{username}'"
+                    f"Token '{token_name}' not found in secret for user_id '{user_id}'"
                 )
 
             logger.debug(
                 "Successfully extracted offline token from secret",
-                username=username,
+                user_id=user_id,
                 token_name=token_name,
             )
             return token_entry["token"]
@@ -1511,7 +1512,7 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
         except Exception as exc:
             logger.error(
                 "Failed decoding token from secret",
-                username=username,
+                user_id=user_id,
                 token_name=token_name,
                 exc=mlrun.errors.err_to_str(exc),
             )
@@ -1521,25 +1522,25 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
 
     def delete_user_token_secret(
         self,
-        username: str,
+        user_id: str,
         token_name: str,
         namespace: typing.Optional[str] = None,
     ) -> None:
         """
         Delete a Kubernetes secret corresponding to a user's offline token.
 
-        :param username: Owner of the token.
+        :param user_id: User ID of the token owner.
         :param token_name: Logical name of the token.
         :param namespace: Kubernetes namespace where the secret is stored.
         :raises mlrun.errors.MLRunNotFoundError: If the secret does not exist.
         :raises mlrun.errors.MLRunRuntimeError: If deletion fails for any reason.
         """
         namespace = self.resolve_namespace(namespace)
-        secret_name = self._resolve_auth_secret_name(username, token_name)
+        secret_name = self._resolve_auth_secret_name(user_id, token_name)
 
         logger.debug(
             "Deleting user token secret from Kubernetes",
-            username=username,
+            user_id=user_id,
             token_name=token_name,
             secret_name=secret_name,
             namespace=namespace,
@@ -1553,35 +1554,35 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
             logger.debug(
                 "Successfully deleted user token secret",
                 secret_name=secret_name,
-                username=username,
+                user_id=user_id,
                 namespace=namespace,
             )
         except k8s_client_rest.ApiException as exc:
             if exc.status == 404:
                 raise mlrun.errors.MLRunNotFoundError(
-                    f"Secret for token '{token_name}' not found for user '{username}'"
+                    f"Secret for token '{token_name}' not found for user_id '{user_id}'"
                 ) from exc
             raise mlrun.errors.MLRunRuntimeError(
-                f"Failed to delete secret for token '{token_name}' for user '{username}'"
+                f"Failed to delete secret for token '{token_name}' for user_id '{user_id}'"
             ) from exc
         except Exception as exc:
             raise mlrun.errors.MLRunRuntimeError(
-                f"Unexpected error deleting secret for token '{token_name}' for user '{username}'"
+                f"Unexpected error deleting secret for token '{token_name}' for user_id '{user_id}'"
             ) from exc
 
     def _get_user_token_secret(
         self,
-        username: str,
+        user_id: str,
         token_name: str,
         namespace: typing.Optional[str] = None,
     ):
         # Validate username and token_name are valid K8s label values
-        verify_field_regex("username", username, regex.label_value)
+        verify_field_regex("user_id", user_id, regex.label_value)
         verify_field_regex("token_name", token_name, regex.label_value)
 
         namespace = self.resolve_namespace(namespace)
         labels = {
-            mlrun_constants.MLRunInternalLabels.auth_username: username,
+            mlrun_constants.MLRunInternalLabels.auth_userid: user_id,
             mlrun_constants.MLRunInternalLabels.auth_token_name: token_name,
         }
 

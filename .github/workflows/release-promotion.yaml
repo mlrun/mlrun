@@ -123,7 +123,7 @@ jobs:
 
   promote-docker-images:
     name: Promote Docker images from source to target
-    runs-on: self-hosted
+    runs-on: mlrun-release
     needs: [prepare-inputs, matrix-prep]
     strategy:
       fail-fast: false
@@ -160,12 +160,21 @@ jobs:
           password: ${{ secrets.ARTIFACTORY_PASSWORD }}
 
       - name: Pull, retag and push Docker image
+        if: ${{ matrix.image-name != 'test' }}
         run: |
           image_name="${{ matrix.image-name }}"
           if [ "${{ matrix.image-name }}" = "api" ]; then
             image_name="mlrun-api"
           fi
-          SOURCE_IMAGE="${{ secrets.ARTIFACTORY_URL }}/${{ github.event.inputs.source_artifactory_docker_repo }}/${image_name}:${{ needs.prepare-inputs.outputs.version }}"
+          
+          # Compute Python version suffix (e.g., -py39) when include-suffix is true
+          python_version_suffix=""
+          if [[ "${{ matrix.include-suffix }}" == "true" ]]; then
+            # Convert 3.9 -> py39
+            python_version_suffix="-py$(echo '${{ matrix.python-version }}' | tr -d '.')"
+          fi
+          
+          SOURCE_IMAGE="${{ secrets.ARTIFACTORY_URL }}/${{ github.event.inputs.source_artifactory_docker_repo }}/${image_name}:${{ needs.prepare-inputs.outputs.version }}${python_version_suffix}"
           
           echo "Pulling image: $SOURCE_IMAGE"
           docker pull "$SOURCE_IMAGE"
@@ -176,7 +185,7 @@ jobs:
             registry=$(echo "$registry" | xargs)  # trim whitespace
             
             # Determine the target image based on registry
-            TARGET_IMAGE="${registry}${{ github.event.inputs.target_docker_repo }}/${image_name}:${{ needs.prepare-inputs.outputs.version }}"
+            TARGET_IMAGE="${registry}${{ github.event.inputs.target_docker_repo }}/${image_name}:${{ needs.prepare-inputs.outputs.version }}${python_version_suffix}"
 
             echo "Tagging image as: $TARGET_IMAGE"
             docker tag "$SOURCE_IMAGE" "$TARGET_IMAGE"
@@ -184,71 +193,38 @@ jobs:
             echo "Pushing image: $TARGET_IMAGE"
             docker push "$TARGET_IMAGE"
             
-            echo "✅ Successfully promoted ${{ matrix.image-name }} to $registry"
+            echo "✅ Successfully promoted ${{ matrix.image-name }}${python_version_suffix} to $registry"
           done
 
   promote-ui-image:
     name: Promote UI Docker image from source to target
-    runs-on: self-hosted
+    runs-on: mlrun-release
     if: "!contains(github.event.inputs.skip_images, 'ui')"
     needs: [prepare-inputs]
     steps:
-      - name: Docker login (ghcr.io)
-        uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # 3.6.0
-        with:
-          registry: ghcr.io
-          username: ${{ github.repository_owner }}
-          password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Docker login (quay.io)
-        continue-on-error: true
-        uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # 3.6.0
+      - name: Generate GitHub App Token for ui repo
+        id: ui-app-token
+        uses: actions/create-github-app-token@v2
         with:
-          registry: quay.io
-          username: ${{ secrets.QUAY_IO_DOCKER_REGISTRY_USERNAME }}
-          password: ${{ secrets.QUAY_IO_DOCKER_REGISTRY_PASSWORD }}
-
-      - name: Docker login (docker.com)
-        continue-on-error: true
-        uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # 3.6.0
+          app-id: ${{ secrets.GH_APP_ID }}
+          private-key: ${{ secrets.GH_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: ui
+      - uses: convictional/trigger-workflow-and-wait@f69fa9eedd3c62a599220f4d5745230e237904be # 1.6.5
         with:
-          registry: registry.hub.docker.com
-          username: ${{ secrets.DOCKER_HUB_DOCKER_REGISTRY_USERNAME }}
-          password: ${{ secrets.DOCKER_HUB_DOCKER_REGISTRY_PASSWORD }}
+          owner: ${{ github.repository_owner }}
+          repo: ui
+          github_token: ${{ steps.ui-app-token.outputs.token }}
+          workflow_file_name: ui-promotion.yaml
+          ref: development
+          wait_interval: 60
+          client_payload: "{\"version\": \"${{ needs.prepare-inputs.outputs.version }}\"}"
 
-      - name: Docker login (Source Artifactory)
-        uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # 3.6.0
-        with:
-          registry: ${{ secrets.ARTIFACTORY_URL }}
-          username: ${{ secrets.ARTIFACTORY_USERNAME }}
-          password: ${{ secrets.ARTIFACTORY_PASSWORD }}
-
-      - name: Pull, retag and push UI Docker image
-        run: |
-          SOURCE_IMAGE="${{ secrets.ARTIFACTORY_URL }}/${{ github.event.inputs.source_artifactory_docker_repo }}/mlrun/mlrun-ui:${{ needs.prepare-inputs.outputs.version }}"
-          
-          echo "Pulling image: $SOURCE_IMAGE"
-          docker pull "$SOURCE_IMAGE"
-          
-          # Loop through target registries and push to each
-          IFS=',' read -ra REGISTRIES <<< "${{ github.event.inputs.target_docker_registries }}"
-          for registry in "${REGISTRIES[@]}"; do
-            registry=$(echo "$registry" | xargs)  # trim whitespace
-            
-            TARGET_IMAGE="${registry}${{ github.event.inputs.target_docker_repo }}/mlrun/mlrun-ui:${{ needs.prepare-inputs.outputs.version }}"
-            
-            echo "Tagging image as: $TARGET_IMAGE"
-            docker tag "$SOURCE_IMAGE" "$TARGET_IMAGE"
-            
-            echo "Pushing image: $TARGET_IMAGE"
-            docker push "$TARGET_IMAGE"
-            
-            echo "✅ Successfully promoted ui to $registry"
-          done
 
   promote-pypi-package:
     name: Promote PyPI package from source to target Artifactory
-    runs-on: self-hosted
+    runs-on: mlrun-release
     needs: [ prepare-inputs, promote-docker-images, promote-ui-image ]
     steps:
       - name: Download package from source PyPI repo
@@ -266,13 +242,13 @@ jobs:
 
       - name: Set up uv
         if: github.event.inputs.skip_publish_pypi != 'true'
-        uses: astral-sh/setup-uv@ed21f2f24f8dd64503750218de024bcf64c7250a # 7.1.5
+        uses: astral-sh/setup-uv@61cb8a9741eeb8a550a1b8544337180c0fc8476b # 7.2.0
 
       - name: Upload package to target PyPI repo
         if: github.event.inputs.skip_publish_pypi != 'true'
         env:
-          UV_PUBLISH_USERNAME: ${{ secrets.ARTIFACTORY_USERNAME }}
-          UV_PUBLISH_PASSWORD: ${{ secrets.ARTIFACTORY_PASSWORD }}
+          UV_PUBLISH_USERNAME: ${{ secrets.PYPI_USERNAME }}
+          UV_PUBLISH_PASSWORD: ${{ secrets.PYPI_PASSWORD }}
         run: |
           uv publish dist/*
           echo "✅ Successfully promoted PyPI package"

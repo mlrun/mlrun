@@ -34,7 +34,7 @@ hack/**
 
 # Top level files, CI, automation, packaging & test infra is owned by liranbg
 * @liranbg
-.github/** @liranbg
+.github/** @liranbg @assaf758
 .run/** @liranbg
 automation/** @liranbg
 dockerfiles/** @liranbg

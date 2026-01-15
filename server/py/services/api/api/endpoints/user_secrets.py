@@ -78,7 +78,7 @@ async def list_secret_tokens(
     )
     return await run_in_threadpool(
         services.api.crud.Secrets().list_secret_tokens,
-        username=target_username,
+        auth_info,
     )
 
 
@@ -116,7 +116,7 @@ async def revoke_secret_token(
         services.api.crud.Secrets().revoke_secret_token,
         name,
         target_username,
-        auth_info.request_headers,
+        auth_info,
     )
 
 

@@ -3515,9 +3515,7 @@ class SQLDB(DBInterface):
             else:
                 projects.append(
                     mlrun.common.formatters.ProjectFormat.format_obj(
-                        self._transform_project_record_to_schema(
-                            project_record
-                        ),
+                        self._transform_project_record_to_schema(project_record),
                         format_,
                     )
                 )

@@ -297,7 +297,7 @@ class MLRunPatcher:
         # make sure the mlrun images are pulled from the input registry
         # and not the system registry as the system registry wont include the newly built image
         if Constants.mlrun in targets and image_registry:
-            # ensure no "mlrun/" suffix. the reason is that usually we client would use "mlrun/mlrun" image
+            # ensure no "mlrun/" suffix. the reason is that usually client would use "mlrun/mlrun" image
             # which then translates to registry.com/mlrun/mlrun/mlrun. so when we trim the "mlrun/" from registry
             # it will translate to registry.com/mlrun/mlrun as expected.
             # note: the images would still be pushed to the input registry (e.g registry.com/mlrun).

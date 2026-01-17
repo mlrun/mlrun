@@ -1180,7 +1180,7 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
 
     def store_user_token_secret(
         self,
-        username: str,
+        auth_info: mlrun.common.schemas.AuthInfo,
         token_name: str,
         token: str,
         expiration: int,
@@ -1198,7 +1198,7 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
         - `tokensFile`: Base64-encoded YAML containing the token and its name.
         - `tokenExpiration`: Token expiration as a string.
 
-        :param username: The user who owns the token.
+        :param auth_info: Authentication info containing the user_id.
         :param token_name: The logical name for the token.
         :param token: The offline token string (JWT).
         :param expiration: The token's expiration timestamp (int UNIX epoch).
@@ -1207,13 +1207,19 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
         :param namespace: Kubernetes namespace for the secret.
         :return: SecretEventActions.{created, updated, skipped}
         """
+        user_id = auth_info.user_id
+
+        # Validate username and token_name are valid K8s label values
+        verify_field_regex("user_id", user_id, regex.label_value)
+        verify_field_regex("token_name", token_name, regex.label_value)
+
         labels = {
-            mlrun_constants.MLRunInternalLabels.auth_username: username,
+            mlrun_constants.MLRunInternalLabels.auth_userid: user_id,
             mlrun_constants.MLRunInternalLabels.auth_token_name: token_name,
         }
 
         create = False
-        k8s_secret = self._get_user_token_secret(username, token_name, namespace)
+        k8s_secret = self._get_user_token_secret(user_id, token_name, namespace)
         if not k8s_secret:
             create = True
 
@@ -1222,7 +1228,7 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
             self._create_secret(
                 labels=labels,
                 namespace=namespace,
-                secret_name=self._resolve_auth_secret_name(username, token_name),
+                secret_name=self._resolve_auth_secret_name(user_id, token_name),
                 secrets=self._encode_user_token(token_name, token, expiration),
                 encoded=True,
             )
@@ -1233,7 +1239,7 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
             self._update_secret(
                 k8s_secret=k8s_secret,
                 namespace=namespace,
-                secret_name=self._resolve_auth_secret_name(username, token_name),
+                secret_name=self._resolve_auth_secret_name(user_id, token_name),
                 secrets=self._encode_user_token(token_name, token, expiration),
                 encoded=True,
             )
@@ -1291,9 +1297,9 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
         """
         List all offline token secrets for a given user.
 
-        :param user_id: The user ID whose tokens should be listed.
+        :param user_id: The username whose tokens should be listed.
         :param namespace: Kubernetes namespace where the secrets are stored.
-        :return: List of SecretTokenInfo objects, each containing the token name, expiration and user id.
+        :return: List of SecretTokenInfo objects, each containing the token name, expiration and username.
         """
         namespace = self.resolve_namespace(namespace)
         # Always filter by auth token label to only get auth token secrets
@@ -1394,7 +1400,7 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
         return mlrun.common.schemas.SecretTokenInfo(
             name=token_name,
             expiration=expiration,
-            user_id=user_id,
+            username=user_id,
         )
 
     def _decode_secret_expiration(self, k8s_secret) -> typing.Optional[datetime]:
@@ -1576,9 +1582,6 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
         token_name: str,
         namespace: typing.Optional[str] = None,
     ):
-        # Validate username and token_name are valid K8s label values
-        verify_field_regex("user_id", user_id, regex.label_value)
-        verify_field_regex("token_name", token_name, regex.label_value)
 
         namespace = self.resolve_namespace(namespace)
         labels = {

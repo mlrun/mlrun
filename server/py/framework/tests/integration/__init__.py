@@ -11,20 +11,3 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-pytest_plugins = [
-    "services.api.migrations.tests.base.conftest",
-    "services.api.migrations.tests.base.migrations_tests",
-    "services.api.migrations.tests.mysql.conftest",
-]
-
-
-from services.api.migrations.tests.base.migrations_tests import (  # noqa
-    test_model_definitions_match_ddl,
-    test_single_head_revision,
-    test_up_down_consistency,
-    test_upgrade,
-    test_notification_params_to_secret_params,
-)
-
-if __name__ == "__main__":
-    pass

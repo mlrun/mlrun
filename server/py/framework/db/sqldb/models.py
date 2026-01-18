@@ -13,7 +13,6 @@
 # limitations under the License.
 import functools
 import json
-import os
 import pickle
 import uuid
 import warnings
@@ -26,10 +25,12 @@ from sqlalchemy import (
     BOOLEAN,
     JSON,
     Column,
+    Enum,
     ForeignKey,
     ForeignKeyConstraint,
     Index,
     Integer,
+    MetaData,
     PrimaryKeyConstraint,
     Table,
     UniqueConstraint,
@@ -40,11 +41,15 @@ from sqlalchemy.engine import Connection
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import Mapper, Session, declared_attr, relationship
 
+import mlrun.common
 import mlrun.common.db.dialects
 import mlrun.common.schemas
+import mlrun.common.schemas.partition_interval
+import mlrun.utils
 
+import framework.db
 import framework.db.sqldb.base
-import framework.db.sqldb.partititioner
+import framework.db.sqldb.partition_bootstrapper
 import framework.db.sqldb.sql_types
 
 Base = declarative_base()
@@ -895,24 +900,30 @@ with warnings.catch_warnings():
         def full_object(self, value):
             self._full_object = json.dumps(value, default=str)
 
+    class TablePartitionInterval(Base):
+        __tablename__ = "table_partition_interval"
+
+        table_name: str = Column(
+            framework.db.sqldb.sql_types.Utf8BinText,
+            primary_key=True,
+        )
+
+        interval = Column(
+            Enum(
+                mlrun.common.schemas.partition_interval.PartitionInterval,
+                name="partition_interval",
+                native_enum=False,
+                create_constraint=True,
+            ),
+            nullable=False,
+        )
+
     class AlertActivation(Base):
         __tablename__ = "alert_activations"
-
-        # partition setup at import
-        _interval_name = os.getenv("PARTITION_INTERVAL", "YEARWEEK").upper()
-        if not mlrun.common.schemas.partition.PartitionInterval.is_valid(
-            _interval_name
-        ):
-            raise ValueError(
-                f"Partition interval must be one of: "
-                f"{mlrun.common.schemas.partition.PartitionInterval.valid_intervals()}"
-            )
-        _interval = mlrun.common.schemas.partition.PartitionInterval(_interval_name)
-        _expr = _interval.get_partition_expression(column_name="activation_time")
-        _pname, _pval = _interval.get_partition_info(datetime.utcnow())[0]
-
         __table_args__ = (
-            PrimaryKeyConstraint("id", "activation_time", name="_alert_activation_uc"),
+            PrimaryKeyConstraint(
+                "id", "activation_time", "partition_key", name="_alert_activation_uc"
+            ),
             Index("ix_alert_activation_project_name", "project", "name"),
             Index(
                 "ix_alert_activation_project_activation_time",
@@ -922,6 +933,7 @@ with warnings.catch_warnings():
             {
                 "mysql_engine": "InnoDB",
                 "mysql_charset": "utf8mb4",
+                "postgresql_partition_by": "RANGE (partition_key)",
             },
         )
 
@@ -933,6 +945,8 @@ with warnings.catch_warnings():
         activation_time = Column(
             framework.db.sqldb.sql_types.DateTime(timezone=True), nullable=False
         )
+        partition_key = Column(Integer, nullable=False)
+
         name = Column(framework.db.sqldb.sql_types.Utf8BinText(), nullable=False)
         project = Column(framework.db.sqldb.sql_types.Utf8BinText(), nullable=False)
         data = Column(JSON)
@@ -1033,7 +1047,7 @@ with warnings.catch_warnings():
             return f"{self.key}"
 
 
-def event_listen_for_dialects(
+def _event_listen_for_dialects(
     target: Any,
     identifier: str,
     relevant_dialects: list[str],
@@ -1093,7 +1107,7 @@ def event_listen_for_dialects(
     return decorator
 
 
-@event_listen_for_dialects(
+@_event_listen_for_dialects(
     target=AlertActivation.__table__,
     identifier="before_create",
     relevant_dialects=[mlrun.common.db.dialects.Dialects.SQLITE],
@@ -1106,12 +1120,12 @@ def _disable_autoinc_on_sqlite(
     table.c.id.autoincrement = False
 
 
-@event_listen_for_dialects(
+@_event_listen_for_dialects(
     target=AlertActivation,
     identifier="before_insert",
     relevant_dialects=[mlrun.common.db.dialects.Dialects.SQLITE],
 )
-def _sqlite_autoincrement(
+def alert_activations_sqlite_autoincrement(
     _: Mapper,
     connection: Connection,
     target: AlertActivation,
@@ -1123,7 +1137,7 @@ def _sqlite_autoincrement(
         target.id = next_id
 
 
-@event_listen_for_dialects(
+@_event_listen_for_dialects(
     target=AlertActivation.__table__,
     identifier="after_create",
     relevant_dialects=[
@@ -1136,27 +1150,90 @@ def bootstrap_partitions(
     connection: Connection,
     **_,
 ) -> None:
-    interval_name = os.getenv("PARTITION_INTERVAL", "YEARWEEK").upper()
-    if not mlrun.common.schemas.partition.PartitionInterval.is_valid(interval_name):
-        raise ValueError(
-            f"Partition interval must be one of: "
-            f"{mlrun.common.schemas.partition.PartitionInterval.valid_intervals()}"
-        )
-    interval = mlrun.common.schemas.PartitionInterval(interval_name)
-
-    partition_expression = interval.get_partition_expression("activation_time")
-    partition_name, partition_value = interval.get_partition_info(datetime.utcnow())[0]
-
+    partition_interval = mlrun.common.schemas.partition_interval.PartitionInterval.get_partition_interval_from_env()
     dialect = connection.dialect.name
+
     with Session(bind=connection) as session:
-        # Ensure the partitioner is initialized for the dialect
-        framework.db.sqldb.partititioner.RangePartitioner(dialect).bootstrap(
+        framework.db.sqldb.partition_bootstrapper.PartitionBootstrapper(
+            dialect
+        ).bootstrap(
+            partition_interval=partition_interval,
             session=session,
             table_name=table.name,
-            partition_expression=partition_expression,
-            first_partition_name=partition_name,
-            first_partition_upper_bound=partition_value,
+            partitions_count=1,  # Create a single partition for the initial bootstrap
         )
+
+
+@_event_listen_for_dialects(
+    target=AlertActivation.__table__,
+    identifier="after_create",
+    relevant_dialects=[
+        mlrun.common.db.dialects.Dialects.MYSQL,
+        mlrun.common.db.dialects.Dialects.POSTGRESQL,
+    ],
+)
+def set_alert_activations_partition_interval(
+    table: Table,
+    connection: Connection,
+    **_,
+) -> None:
+    """This is required for integration tests,as they don't set the partition interval for
+    alert_activations via alembic migration.
+    """
+    partition_interval = mlrun.common.schemas.partition_interval.PartitionInterval.get_partition_interval_from_env()
+    with Session(bind=connection) as session:
+        import framework.db.sqldb.db
+
+        db = framework.db.sqldb.db.SQLDB()
+        db.set_partition_interval_for_table(
+            session=session,
+            table_name=table.name,
+            partition_interval=partition_interval,
+        )
+
+
+@_event_listen_for_dialects(
+    target=Base.metadata,
+    identifier="before_create",
+    relevant_dialects=[mlrun.common.db.dialects.Dialects.POSTGRESQL],
+)
+def postgres_create_utf8_bin(
+    _: MetaData,
+    connection: Connection,
+    **__,
+):
+    """
+    Ensure a binary, deterministic UTF-8 collation exists in PostgreSQL before
+    schema creation.
+
+    PostgreSQL does not ship with a built-in `utf8_bin` collation equivalent to
+    MySQL's `utf8_bin`. In order to achieve consistent, byte-wise string
+    comparison semantics across databases (case-sensitive, accent-sensitive,
+    and fully deterministic), we explicitly create a custom collation named
+    `utf8_bin`.
+
+    This function is registered as a SQLAlchemy `before_create` event listener
+    and runs once per database initialization *before* any tables are created.
+    The collation is therefore guaranteed to exist when columns later declare:
+
+        Text(collation="utf8_bin")
+
+    Key properties of the created collation:
+    - Uses the `libc` provider with locale `C` for byte-wise comparisons
+    - Marked as `deterministic` so it is safe for indexes and constraints
+    - Created conditionally (`IF NOT EXISTS`) to allow repeated runs and
+      parallel migrations without failure
+
+    This is part of the cross-dialect compatibility layer that allows
+    `Utf8BinText` columns to behave consistently on MySQL, PostgreSQL, and
+    SQLite.
+    """
+    connection.execute(
+        text(
+            "CREATE COLLATION IF NOT EXISTS utf8_bin "
+            "(provider = 'libc', locale = 'C', deterministic = true)"
+        )
+    )
 
 
 # Must be after all table definitions

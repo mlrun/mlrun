@@ -103,7 +103,7 @@ class MLRunInternalLabels:
     workflow = "workflow"
     feature_vector = "feature-vector"
 
-    auth_username = f"{MLRUN_LABEL_PREFIX}user"
+    auth_userid = f"{MLRUN_LABEL_PREFIX}user-id"
     auth_token_name = f"{MLRUN_LABEL_PREFIX}token"
 
     @classmethod
@@ -130,3 +130,7 @@ class DeployStatusTextKind(mlrun.common.types.StrEnum):
 class WorkflowSubmitMode(mlrun.common.types.StrEnum):
     direct = "direct"  # call KFP retry API directly
     rerun = "rerun"  # launch a RerunRunner function
+
+
+class InternalAnnotations:
+    auth_username = f"{MLRUN_LABEL_PREFIX}user"

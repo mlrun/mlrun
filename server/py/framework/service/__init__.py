@@ -391,7 +391,14 @@ class Service(ABC):
         chief_version = semver.version.Version.parse(clusterization_spec.chief_version)
         unstable_chief = chief_version.build == "unstable"
         unstable_worker = worker_version.build == "unstable"
-        if not (unstable_chief or unstable_worker) and worker_version != chief_version:
+        chief_worker_mismatch_version = (
+            not (unstable_chief or unstable_worker) and worker_version != chief_version
+        )
+
+        if (
+            chief_worker_mismatch_version
+            and not mlconf.httpdb.clusterization.worker.sync_with_chief.allow_version_mismatch
+        ):
             self._logger.warning(
                 "Chief version is different than worker version, denying response",
                 chief_version=chief_version,

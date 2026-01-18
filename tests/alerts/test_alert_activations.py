@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import datetime
+from datetime import UTC
 
 import pytest
 
@@ -28,7 +29,7 @@ def sample_alert_activations():
                 name="alert1",
                 project="project1",
                 severity=mlrun.common.schemas.alert.AlertSeverity.LOW,
-                activation_time=datetime.datetime.utcnow(),
+                activation_time=datetime.datetime.now(UTC),
                 entity_id="123456",
                 entity_kind=mlrun.common.schemas.alert.EventEntityKind.MODEL_ENDPOINT_RESULT,
                 event_kind=mlrun.common.schemas.alert.EventKind.DATA_DRIFT_SUSPECTED,
@@ -41,7 +42,7 @@ def sample_alert_activations():
                 name="alert1",
                 project="project2",
                 severity=mlrun.common.schemas.alert.AlertSeverity.LOW,
-                activation_time=datetime.datetime.utcnow(),
+                activation_time=datetime.datetime.now(UTC),
                 entity_id="123456",
                 entity_kind=mlrun.common.schemas.alert.EventEntityKind.MODEL_ENDPOINT_RESULT,
                 event_kind=mlrun.common.schemas.alert.EventKind.DATA_DRIFT_DETECTED,
@@ -54,7 +55,7 @@ def sample_alert_activations():
                 name="alert2",
                 project="project3",
                 severity=mlrun.common.schemas.alert.AlertSeverity.HIGH,
-                activation_time=datetime.datetime.utcnow(),
+                activation_time=datetime.datetime.now(UTC),
                 entity_id="1234",
                 entity_kind=mlrun.common.schemas.alert.EventEntityKind.JOB,
                 event_kind=mlrun.common.schemas.alert.EventKind.FAILED,
@@ -67,7 +68,7 @@ def sample_alert_activations():
                 name="alert3",
                 project="project3",
                 severity=mlrun.common.schemas.alert.AlertSeverity.MEDIUM,
-                activation_time=datetime.datetime.utcnow(),
+                activation_time=datetime.datetime.now(UTC),
                 entity_id="1234",
                 entity_kind=mlrun.common.schemas.alert.EventEntityKind.JOB,
                 event_kind=mlrun.common.schemas.alert.EventKind.FAILED,

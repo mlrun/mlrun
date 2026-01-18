@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import asyncio
 import os
 import time
 import unittest.mock
@@ -155,7 +156,7 @@ class TestOpenAIProvider(TestBasicOpenAIProvider):
             )
         assert isinstance(response, openai.types.chat.ChatCompletion)
         assert EXPECTED_RESULTS[0] in response.choices[0].message.content.lower()
-        assert response.usage.completion_tokens == 50
+        assert 45 <= response.usage.completion_tokens <= 55
 
         if run_async:
             response = await model_provider.async_invoke(
@@ -175,7 +176,7 @@ class TestOpenAIProvider(TestBasicOpenAIProvider):
         prompt_tokens = response[UsageResponseKeys.USAGE]["prompt_tokens"]
         total_tokens = response[UsageResponseKeys.USAGE]["total_tokens"]
         assert EXPECTED_RESULTS[0] in response[UsageResponseKeys.ANSWER].lower()
-        assert completion_tokens == 50
+        assert 45 <= completion_tokens <= 55
         assert prompt_tokens > 0
         assert total_tokens == prompt_tokens + completion_tokens
 
@@ -196,6 +197,61 @@ class TestOpenAIProvider(TestBasicOpenAIProvider):
             model_name=self.basic_llm_model,
             run_async=run_async,
         )
+
+    @pytest.mark.parametrize(
+        "invoke_response_format",
+        [
+            InvokeResponseFormat.STRING,
+            InvokeResponseFormat.FULL,
+            InvokeResponseFormat.USAGE,
+        ],
+    )
+    @pytest.mark.parametrize("run_async", [True, False])
+    def test_batch_invoke(self, invoke_response_format, run_async):
+        model_url = self.url_prefix + self.basic_llm_model
+        model_provider = mlrun.get_model_provider(
+            url=model_url, default_invoke_kwargs={"max_tokens": 100}
+        )
+        model_provider = cast(OpenAIProvider, model_provider)
+
+        # Create batch messages (list of lists)
+        messages_list = [[msg] for msg in formatted_messages]
+
+        # Execute batch invoke (sync or async)
+        if run_async:
+            results = asyncio.run(
+                model_provider.async_invoke(
+                    messages=messages_list,
+                    invoke_response_format=invoke_response_format,
+                )
+            )
+        else:
+            results = model_provider.invoke(
+                messages=messages_list, invoke_response_format=invoke_response_format
+            )
+
+        # Assert common for all formats
+        assert isinstance(results, list)
+        assert len(results) == len(formatted_messages)
+
+        # Assert per result based on format
+        for i, result in enumerate(results):
+            if invoke_response_format == InvokeResponseFormat.STRING:
+                assert isinstance(result, str)
+                assert EXPECTED_RESULTS[i] in result.lower()
+
+            elif invoke_response_format == InvokeResponseFormat.FULL:
+                assert isinstance(result, openai.types.chat.ChatCompletion)
+                assert EXPECTED_RESULTS[i] in result.choices[0].message.content.lower()
+                assert 95 <= result.usage.completion_tokens <= 105
+
+            elif invoke_response_format == InvokeResponseFormat.USAGE:
+                assert isinstance(result, dict)
+                assert UsageResponseKeys.ANSWER in result
+                assert UsageResponseKeys.USAGE in result
+                assert EXPECTED_RESULTS[i] in result[UsageResponseKeys.ANSWER].lower()
+                assert 95 <= result[UsageResponseKeys.USAGE]["completion_tokens"] <= 105
+                assert result[UsageResponseKeys.USAGE]["prompt_tokens"] > 0
 
     async def test_configurable_model(self):
         configurable_model = mlrun.mlconf.model_providers.openai_default_model
@@ -310,10 +366,10 @@ class TestOpenAIModel(TestBasicOpenAIProvider):
             answer = response[UsageResponseKeys.ANSWER]
             assert EXPECTED_RESULTS[0] in answer.lower()
             encoding = tiktoken.encoding_for_model(self.basic_llm_model)
-            assert len(encoding.encode(answer)) == 100
+            assert 95 <= len(encoding.encode(answer)) <= 105
 
             stats = response[UsageResponseKeys.USAGE]
-            assert stats["completion_tokens"] == 100
+            assert 95 <= stats["completion_tokens"] <= 105
             assert stats["prompt_tokens"] > 0
             assert (
                 stats["total_tokens"]

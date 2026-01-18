@@ -1315,7 +1315,7 @@ def test_tracked_model_runner_with_error_handler(
     if as_responder:
         step = graph.to(model_runner_step).respond()
     else:
-        step = graph.to(model_runner_step)
+        step = graph.to(model_runner_step).to("Echo", name="echo_step").respond()
     if all_graph_handler:
         graph.error_handler("echo_error", handler="handle_error")
     else:

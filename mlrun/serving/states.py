@@ -3231,11 +3231,14 @@ class RootFlowStep(FlowStep):
                     not step.next
                     or (
                         step.next
-                        and all(
-                            [
-                                self.steps[step].kind == "error_step"
-                                for next_step in step.next
-                            ]
+                        and (
+                            all(
+                                [
+                                    self.steps[next_step_name].kind == "error_step"
+                                    or step.name in self[next_step_name].cycle_from
+                                    for next_step_name in step.next
+                                ]
+                            )
                         )
                     )
                 )
@@ -3440,7 +3443,8 @@ class RootFlowStep(FlowStep):
                 )
         super().init_object(context, namespace, mode, reset=reset, **extra_kwargs)
         if (
-            getattr(context.server, "http_trigger", False)
+            not extra_kwargs.get("no_responder_allowed", False)
+            and getattr(context.server, "http_trigger", False)
             and not self.have_responder_step()
         ):
             if self.engine == "async":

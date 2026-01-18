@@ -160,7 +160,7 @@ class StoreyFeatureMerger(BaseMerger):
             cache.cache_table(featureset.uri, driver.get_table_object())
 
         server.init_states(context=None, namespace=None, resource_cache=cache)
-        server.init_object(None)
+        server.init_object(None, no_responder_allowed=True)
 
         service = OnlineVectorService(
             self.vector,

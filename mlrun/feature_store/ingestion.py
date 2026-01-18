@@ -65,13 +65,13 @@ def init_featureset_graph(
             return_df=return_df,
             context=server.context,
         )
-        server.init_object(namespace)
+        server.init_object(namespace, no_responder_allowed=True)
         return graph.wait_for_completion()
     else:
         # for initialize all the validators of the feature set
         cache.cache_resource(featureset.uri, featureset, True)
 
-    server.init_object(namespace)
+    server.init_object(namespace, no_responder_allowed=True)
 
     # if the source is a dataframe iterator we load/write it in chunks
     chunk_id = 0
@@ -163,7 +163,7 @@ def run_spark_graph(df, featureset, namespace, spark):
             )
     server = create_graph_server(graph=graph, parameters={})
     server.init_states(context=None, namespace=namespace, resource_cache=cache)
-    server.init_object(namespace)
+    server.init_object(namespace, no_responder_allowed=True)
     server.context.spark = spark
     event = MockEvent(body=df)
     return server.run(event, get_body=True)

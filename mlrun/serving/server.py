@@ -234,8 +234,14 @@ class GraphServer(ModelObj):
 
         context.root = self.graph
 
-    def init_object(self, namespace):
-        self.graph.init_object(self.context, namespace, self.load_mode, reset=True)
+    def init_object(self, namespace, no_responder_allowed: bool = False):
+        self.graph.init_object(
+            self.context,
+            namespace,
+            self.load_mode,
+            reset=True,
+            no_responder_allowed=no_responder_allowed,
+        )
 
     def test(
         self,

@@ -70,9 +70,9 @@ def test_no_merger(with_queue):
     if with_queue:
         graph.add_step("$queue", "q1", path="").after_step("add2", "add3").to(
             "Gather", function="some_function"
-        )
+        ).respond()
     else:
-        graph.add_step("Gather").after_step("add2", "add3")
+        graph.add_step("Gather").after_step("add2", "add3").respond()
 
     server = fn.to_mock_server()
     for data in [5, 10, 15]:
@@ -135,7 +135,7 @@ def test_delayed():
 
     graph.add_step(Merge(name="Merge", max_behind=3), after=["add2", "add3"]).to(
         "Gather"
-    )
+    ).respond()
 
     fn.verbose = True
     server = fn.to_mock_server()

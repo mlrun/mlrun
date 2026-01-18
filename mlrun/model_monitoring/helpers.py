@@ -545,7 +545,8 @@ def _get_monitoring_schedules_folder_path(project: str) -> str:
     return cast(
         str,
         mlrun.mlconf.get_model_monitoring_file_target_path(
-            project=project, kind=mm_constants.FileTargetKind.MONITORING_SCHEDULES
+            project=project,
+            kind=mm_constants.FileTargetKind.MONITORING_SCHEDULES,
         ),
     )
 

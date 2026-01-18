@@ -1,8 +1,8 @@
+<!-- This file provides guidance to AI agents. -->
+
 # Project Overview
 
 **MLRun** is an open-source AI orchestration platform for rapidly building and managing continuous (gen) AI and ML applications across their lifecycle. MLRun automates the delivery of production data pipelines, ML workflows, and online applications, significantly reducing engineering efforts, time to production, and computational resources. It integrates into development and CI/CD environments, breaks silos between data, ML, software, and DevOps/MLOps teams, and supports both community edition (CE) deployments and enterprise features when running in Iguazio systems.
-
----
 
 ## Repository Structure
 
@@ -21,7 +21,6 @@ This repository contains two major Python codebases plus Go services:
 - **`examples/`** – Jupyter notebooks and example scripts demonstrating MLRun features.
 - **`.github/`** – GitHub workflows (build, CI, system tests, security scans, release pipelines), issue templates, PR template, CODEOWNERS.
 
----
 
 ## Build & Development Commands
 
@@ -86,8 +85,6 @@ make upgrade-mlrun-api-deps-lock
 MLRUN_UV_UPGRADE_FLAG="--upgrade-package <package-name>" make upgrade-mlrun-api-deps-lock
 ```
 
----
-
 ## Code Style & Conventions
 
 ### Formatter & Linter
@@ -107,7 +104,9 @@ MLRUN_UV_UPGRADE_FLAG="--upgrade-package <package-name>" make upgrade-mlrun-api-
 - **Local code imports**: use `import X` or `import X as Y` (NOT `from X import Y`).
 - **External packages**: use `import X`. `from X import Y` is acceptable.
 - **Import boundaries**: `mlrun.common` must NOT import higher-level `mlrun.*` modules (enforced by import-linter in `pyproject.toml`).
-- **Forbidden imports**: MLRun code should NOT import `kfp` directly; use `mlrun_pipelines` adapters instead.
+- **Forbidden imports**:
+  - In `mlrun/`, do NOT import `kfp` directly; use `mlrun_pipelines` adapters instead.
+  - In `mlrun/`, do NOT import `server/py` (server-side code).
 
 ### Type Hints & Docstrings
 
@@ -158,8 +157,6 @@ async def handler():
 - Follow conventional commit format: `[<Scope>] Verb changes made` (e.g., `[API] Add endpoint to list runs`).
 - Use imperative verbs (Add, Fix, Update, Refactor).
 - Include `fix` or `bug` keywords for bugfix PRs (auto-categorized in release notes).
-
----
 
 ## Architecture Notes
 
@@ -240,8 +237,6 @@ async def handler():
 5. Log collector gRPC service streams logs from pod to persistent storage.
 6. Run results/artifacts stored in DB and object storage.
 
----
-
 ## Testing Strategy
 
 ### Test Types & Tools
@@ -250,8 +245,6 @@ async def handler():
 - **Integration Tests**: pytest with Docker containers (MySQL, Postgres via `pytest-mock-resources`), K8s interactions (via test clusters).
 - **System Tests**: end-to-end tests against live MLRun CE or Iguazio system (marked with `@pytest.mark.enterprise` for enterprise-only features).
 - **Coverage**: tracked via `coverage.py` (configured in `pyproject.toml`).
-
----
 
 ## Security & Compliance
 
@@ -313,8 +306,6 @@ async def verify_permissions(
 - Use `mlrun.secrets` module for secret management (integrates with Kubernetes secrets, Vault).
 - Sanitize request/response payloads before logging.
 
----
-
 ## Agent Guardrails
 
 ### Files NEVER to Modify (Without Team Approval)
@@ -336,8 +327,6 @@ async def verify_permissions(
 - **DRY**: Extract helpers instead of copy/pasting logic across modules.
 - **KISS**: Prefer straightforward solutions; minimize abstractions.
 - **YAGNI**: Don't add "future-proof" frameworks without concrete need.
-
----
 
 ### Environment Variables
 
@@ -364,9 +353,6 @@ Key configuration variables (see `mlrun/config.py` and `hack/*.env` for examples
 - **Import-time feature flags**: check `mlrun.mlconf.<feature>` (e.g., `mlrun.mlconf.igz_version` for Iguazio integration).
 - **Runtime feature flags**: controlled via `mlrun.common.schemas.FeatureFlags` (server-side).
 
-
----
-
 ## Further Reading
 
 ### Documentation
@@ -390,8 +376,6 @@ Key configuration variables (see `mlrun/config.py` and `hack/*.env` for examples
 - **MLRun Docs**: [docs.mlrun.org](https://docs.mlrun.org/) (stable version on ReadTheDocs).
 - **Tutorials**: [Tutorials](https://docs.mlrun.org/en/stable/tutorials/index.html) (Jupyter notebooks).
 - **API Reference**: [API Reference](https://docs.mlrun.org/en/stable/api/index.html) (auto-generated from docstrings).
-- **GitHub Discussions**: [mlrun/mlrun discussions](https://github.com/mlrun/mlrun/discussions) (community Q&A).
-- **Slack**: [MLOps Live Slack](https://mlopslive.slack.com) (MLOps Live community).
 
 ### Internal Docs
 

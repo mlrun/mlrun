@@ -121,32 +121,6 @@ async def revoke_secret_token(
     )
 
 
-async def _is_system_admin(
-    auth_info: mlrun.common.schemas.AuthInfo,
-    action: mlrun.common.schemas.AuthorizationAction,
-) -> bool:
-    """
-    Check if the authenticated user has system admin privileges for token operations.
-
-    System admin privileges are determined by querying the authorization provider
-    for permissions on the 'tokens' resource in the 'mgmt' namespace.
-
-    :param auth_info: Authentication information of the user.
-    :param action: The authorization action to check (read, delete, etc.).
-    :return: True if the user has system admin privileges, False otherwise.
-    """
-    return (
-        await framework.utils.auth.verifier.AuthVerifier().query_resource_permissions(
-            mlrun.common.schemas.AuthorizationResourceTypes.tokens,
-            "",
-            action,
-            auth_info,
-            raise_on_forbidden=False,
-            resource_namespace=mlrun.common.schemas.AuthorizationResourceNamespace.mgmt,
-        )
-    )
-
-
 async def _resolve_target_username_for_list_secret_tokens(
     auth_info: mlrun.common.schemas.AuthInfo,
     username: Optional[str],
@@ -158,7 +132,7 @@ async def _resolve_target_username_for_list_secret_tokens(
       - None, "", or self -> return auth_info.user id (own tokens)
       - any other username -> raise MLRunAccessDeniedError
 
-    Admin users:
+    Users with System-Admin permissions:
       - None or "" -> return auth_info.username (own tokens)
       - "*" -> return None (all users)
       - specific username -> return that username
@@ -167,13 +141,17 @@ async def _resolve_target_username_for_list_secret_tokens(
     if not username:
         return auth_info.username
 
-    is_admin = await _is_system_admin(
-        auth_info, mlrun.common.schemas.AuthorizationAction.read
+    has_system_admin_permissions = await framework.utils.auth.verifier.AuthVerifier().query_global_resource_permissions(
+        resource_type=mlrun.common.schemas.AuthorizationResourceTypes.tokens,
+        action=mlrun.common.schemas.AuthorizationAction.read,
+        auth_info=auth_info,
+        raise_on_forbidden=False,
+        resource_namespace=mlrun.common.schemas.AuthorizationResourceNamespace.mgmt,
     )
 
     # "*" wildcard -> system-admin only, returns all users
     if username == "*":
-        if not is_admin:
+        if not has_system_admin_permissions:
             raise mlrun.errors.MLRunAccessDeniedError(
                 "Only system admins can list tokens for all users"
             )
@@ -181,7 +159,7 @@ async def _resolve_target_username_for_list_secret_tokens(
 
     # Specific username provided
     # Regular users can only query themselves
-    if not is_admin and username != auth_info.username:
+    if not has_system_admin_permissions and username != auth_info.username:
         raise mlrun.errors.MLRunAccessDeniedError(
             "Only system admins can list tokens for other users"
         )
@@ -200,7 +178,7 @@ async def _resolve_target_username_for_revoke_secret_tokens(
       - None, "", or self -> return auth_info.username (own token)
       - any other username -> raise MLRunAccessDeniedError
 
-    Admin users:
+    Users with System-Admin permissions:
       - None or "" -> return auth_info.username (own token)
       - specific username -> return that username
     """
@@ -208,13 +186,17 @@ async def _resolve_target_username_for_revoke_secret_tokens(
     if not username:
         return auth_info.username
 
-    is_admin = await _is_system_admin(
-        auth_info, mlrun.common.schemas.AuthorizationAction.delete
+    has_system_admin_permissions = await framework.utils.auth.verifier.AuthVerifier().query_global_resource_permissions(
+        resource_type=mlrun.common.schemas.AuthorizationResourceTypes.tokens,
+        action=mlrun.common.schemas.AuthorizationAction.delete,
+        auth_info=auth_info,
+        raise_on_forbidden=False,
+        resource_namespace=mlrun.common.schemas.AuthorizationResourceNamespace.mgmt,
     )
 
     # Specific username provided
     # Regular users can only revoke their own tokens
-    if not is_admin and username != auth_info.username:
+    if not has_system_admin_permissions and username != auth_info.username:
         raise mlrun.errors.MLRunAccessDeniedError(
             "Only system admins can delete tokens for other users"
         )

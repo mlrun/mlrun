@@ -37,11 +37,10 @@ import mlrun.k8s_utils
 import mlrun.platforms.iguazio
 import mlrun.runtimes
 import mlrun.runtimes.pod
-from mlrun.utils import logger, regex
+from mlrun.utils import logger
 from mlrun.utils.helpers import (
     run_with_retry,
     to_non_empty_values_dict,
-    verify_field_regex,
 )
 
 import framework.utils.runtimes.mpijob
@@ -720,6 +719,7 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
         namespace: str = "",
         type_: str = SecretTypes.opaque,
         labels: typing.Optional[dict] = None,
+        annotations: typing.Optional[dict] = None,
         encoded: bool = False,
     ):
         """
@@ -736,6 +736,7 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
          if empty.
         :param type_: Kubernetes secret type (default: Opaque).
         :param labels: Optional dictionary of labels to attach to the secret.
+        :param annotations: Optional dictionary of annotations to attach to the secret.
         :param encoded: Whether the secret values are already base64-encoded. Defaults to False.
         """
         logger.debug("Creating secret", secret_name=secret_name)
@@ -752,6 +753,7 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
                 name=secret_name,
                 namespace=namespace,
                 labels=labels,
+                annotations=annotations,
             ),
             data=secret_data,
         )
@@ -1198,7 +1200,7 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
         - `tokensFile`: Base64-encoded YAML containing the token and its name.
         - `tokenExpiration`: Token expiration as a string.
 
-        :param auth_info: Authentication info containing the user_id.
+        :param auth_info: Authentication information containing user_id and username.
         :param token_name: The logical name for the token.
         :param token: The offline token string (JWT).
         :param expiration: The token's expiration timestamp (int UNIX epoch).
@@ -1209,17 +1211,25 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
         """
         user_id = auth_info.user_id
 
-        # Validate username and token_name are valid K8s label values
-        verify_field_regex("user_id", user_id, regex.label_value)
-        verify_field_regex("token_name", token_name, regex.label_value)
+        # Sanitize user_id and token_name to be valid K8s label values
+        sanitized_user_id = mlrun.k8s_utils.sanitize_label_value(user_id or "")
+        sanitized_token_name = mlrun.k8s_utils.sanitize_label_value(token_name or "")
 
         labels = {
-            mlrun_constants.MLRunInternalLabels.auth_userid: user_id,
-            mlrun_constants.MLRunInternalLabels.auth_token_name: token_name,
+            mlrun_constants.MLRunInternalLabels.auth_userid: sanitized_user_id,
+            mlrun_constants.MLRunInternalLabels.auth_token_name: sanitized_token_name,
         }
 
+        annotations = {}
+        if auth_info.username:
+            annotations[mlrun_constants.InternalAnnotations.auth_username] = (
+                mlrun.k8s_utils.sanitize_label_value(auth_info.username)
+            )
+
         create = False
-        k8s_secret = self._get_user_token_secret(user_id, token_name, namespace)
+        k8s_secret = self._get_user_token_secret(
+            sanitized_user_id, sanitized_token_name, namespace
+        )
         if not k8s_secret:
             create = True
 
@@ -1227,8 +1237,11 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
             # Secret does not exist (or labels mismatch) → create it
             self._create_secret(
                 labels=labels,
+                annotations=annotations,
                 namespace=namespace,
-                secret_name=self._resolve_auth_secret_name(user_id, token_name),
+                secret_name=self._resolve_auth_secret_name(
+                    sanitized_user_id, sanitized_token_name
+                ),
                 secrets=self._encode_user_token(token_name, token, expiration),
                 encoded=True,
             )
@@ -1247,9 +1260,11 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
 
         return None
 
-    def _resolve_auth_secret_name(self, username: str, token: str) -> str:
+    def _resolve_auth_secret_name(self, user_id: str, token_name: str) -> str:
         return mlrun.mlconf.secret_stores.kubernetes.auth_secret_name.format(
-            hashed_access_key=hashlib.sha224((username + token).encode()).hexdigest()
+            hashed_access_key=hashlib.sha224(
+                (user_id + token_name).encode()
+            ).hexdigest()
         )
 
     def _encode_user_token(
@@ -1297,9 +1312,9 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
         """
         List all offline token secrets for a given user.
 
-        :param user_id: The username whose tokens should be listed.
+        :param user_id: The user id whose tokens should be listed.
         :param namespace: Kubernetes namespace where the secrets are stored.
-        :return: List of SecretTokenInfo objects, each containing the token name, expiration and username.
+        :return: List of SecretTokenInfo objects, each containing the token name, expiration and user id.
         """
         namespace = self.resolve_namespace(namespace)
         # Always filter by auth token label to only get auth token secrets
@@ -1307,9 +1322,9 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
         labels = {mlrun_constants.MLRunInternalLabels.auth_token_name: None}
         # "*" means list all users' tokens, so skip the username filter
         if user_id != "*":
-            # Validate username is a valid K8s label value
-            verify_field_regex("username", user_id, regex.label_value)
-            labels[mlrun_constants.MLRunInternalLabels.auth_userid] = user_id
+            # Sanitize user_id to be a valid K8s label value
+            sanitized_user_id = mlrun.k8s_utils.sanitize_label_value(user_id)
+            labels[mlrun_constants.MLRunInternalLabels.auth_userid] = sanitized_user_id
 
         k8s_secrets = self.list_secrets(namespace=namespace, labels=labels)
 
@@ -1319,9 +1334,6 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
             token_info = self._convert_secret_to_token_info(k8s_secret)
             if token_info:
                 secret_tokens.append(token_info)
-
-        # Sort by username (A-Z), then by token name (A-Z)
-        secret_tokens.sort(key=lambda t: (t.user_id, t.name))
 
         return secret_tokens
 

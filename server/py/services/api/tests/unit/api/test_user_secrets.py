@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-import unittest.mock
 from http import HTTPStatus
 
 import pytest
@@ -33,24 +32,45 @@ _AUTH_USERNAME = "auth-user"
 _AUTH_USER_ID = "auth-user-id"
 
 
-def _auth_info() -> mlrun.common.schemas.AuthInfo:
+@pytest.fixture
+def auth_info() -> mlrun.common.schemas.AuthInfo:
     return mlrun.common.schemas.AuthInfo(username=_AUTH_USERNAME, user_id=_AUTH_USER_ID)
 
 
-def _mock_is_system_admin(
-    monkeypatch,
-    expected_action: mlrun.common.schemas.AuthorizationAction,
-    is_admin: bool,
-):
-    async def _fake_is_system_admin(
-        auth_info: mlrun.common.schemas.AuthInfo,
-        action_to_check: mlrun.common.schemas.AuthorizationAction,
-    ) -> bool:
-        assert auth_info.username == _AUTH_USERNAME
-        assert action_to_check == expected_action
-        return is_admin
+@pytest.fixture
+def mock_query_global_resource_permissions(monkeypatch):
+    """Fixture that returns a function to mock query_global_resource_permissions."""
 
-    monkeypatch.setattr(user_secrets, "_is_system_admin", _fake_is_system_admin)
+    def _mock(
+        expected_action: mlrun.common.schemas.AuthorizationAction,
+        has_permission: bool,
+    ):
+        async def _fake_query_global_resource_permissions(
+            self,
+            resource_type,
+            action,
+            auth_info,
+            raise_on_forbidden=True,
+            resource_namespace=mlrun.common.schemas.AuthorizationResourceNamespace.resources,
+        ) -> bool:
+            assert auth_info.username == _AUTH_USERNAME
+            assert action == expected_action
+            assert (
+                resource_type == mlrun.common.schemas.AuthorizationResourceTypes.tokens
+            )
+            assert (
+                resource_namespace
+                == mlrun.common.schemas.AuthorizationResourceNamespace.mgmt
+            )
+            return has_permission
+
+        monkeypatch.setattr(
+            user_secrets.framework.utils.auth.verifier.AuthVerifier,
+            "query_global_resource_permissions",
+            _fake_query_global_resource_permissions,
+        )
+
+    return _mock
 
 
 def test_iguazio_v4_only_dependency(db: Session, client: TestClient):
@@ -67,87 +87,58 @@ def test_iguazio_v4_only_dependency(db: Session, client: TestClient):
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
-    "action, allowed",
-    [
-        (mlrun.common.schemas.AuthorizationAction.read, True),  # System admin
-        (mlrun.common.schemas.AuthorizationAction.read, False),  # Non-system admin
-        (mlrun.common.schemas.AuthorizationAction.delete, True),  # System admin
-        (mlrun.common.schemas.AuthorizationAction.delete, False),  # Non-system admin
-    ],
-)
-async def test_is_system_admin_check(
-    monkeypatch,
-    action: mlrun.common.schemas.AuthorizationAction,
-    allowed: bool,
-):
-    # "System admin" for user-secrets token operations is defined as:
-    # having permission on the mgmt-scoped "tokens" resource.
-    query_mock = unittest.mock.AsyncMock(return_value=allowed)
-    monkeypatch.setattr(
-        user_secrets.framework.utils.auth.verifier.AuthVerifier(),
-        "query_resource_permissions",
-        query_mock,
-    )
-
-    auth_info = _auth_info()
-
-    result = await user_secrets._is_system_admin(auth_info, action)
-
-    assert result is allowed
-    query_mock.assert_called_once_with(
-        mlrun.common.schemas.AuthorizationResourceTypes.tokens,
-        "",
-        action,
-        auth_info,
-        raise_on_forbidden=False,
-        resource_namespace=mlrun.common.schemas.AuthorizationResourceNamespace.mgmt,
-    )
-
-
-@pytest.mark.asyncio
-@pytest.mark.parametrize(
-    "is_admin, username_param, expected_result, expected_error_message",
+    "has_system_admin_permission, username_param, expected_result, expected_error_message",
     [
         # Regular users
-        (False, None, "auth-user", None),  # Username is None -> self
-        (False, "", "auth-user", None),  # Username is "" -> self
-        (False, "auth-user", "auth-user", None),  # Username is self -> self
+        # Username is None -> self
+        (False, None, "auth-user", None),
+        # Username is "" -> self
+        (False, "", "auth-user", None),
+        # Username is self -> self
+        (False, "auth-user", "auth-user", None),
+        # Username is other user -> forbidden
         (
             False,
             "other-user",
             None,
             "Only system admins can list tokens for other users",
-        ),  # Username is other user -> forbidden
+        ),
+        # Username is wildcard -> forbidden
         (
             False,
             "*",
             None,
             "Only system admins can list tokens for all users",
-        ),  # Username is wildcard -> forbidden
+        ),
         # Admin users
-        (True, None, "auth-user", None),  # Username is None -> self
-        (True, "", "auth-user", None),  # Username is "" -> self
+        # Username is None -> self
+        (True, None, "auth-user", None),
+        # Username is "" -> self
+        (True, "", "auth-user", None),
+        # Username is "*" -> all users (wildcard passed through)
         (
             True,
             "*",
             "*",
             None,
-        ),  # Username is "*" -> all users (wildcard passed through)
-        (True, "some-user", "some-user", None),  # Username is some-user -> some-user
-        (True, "auth-user", "auth-user", None),  # Username is self -> self
+        ),
+        # Username is some-user -> some-user
+        (True, "some-user", "some-user", None),
+        # Username is self -> self
+        (True, "auth-user", "auth-user", None),
     ],
 )
 async def test_resolve_target_username_for_list(
-    monkeypatch,
-    is_admin: bool,
+    mock_query_global_resource_permissions,
+    auth_info: mlrun.common.schemas.AuthInfo,
+    has_system_admin_permission: bool,
     username_param: str | None,
     expected_result: str | None,
     expected_error_message: str | None,
 ):
-    _mock_is_system_admin(
-        monkeypatch, mlrun.common.schemas.AuthorizationAction.read, is_admin
+    mock_query_global_resource_permissions(
+        mlrun.common.schemas.AuthorizationAction.read, has_system_admin_permission
     )
-    auth_info = _auth_info()
 
     if expected_error_message:
         # When a non-admin provides `username`, we expect an error.
@@ -167,36 +158,44 @@ async def test_resolve_target_username_for_list(
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
-    "is_admin, username_param, expected_result, expected_error_message",
+    "has_system_admin_permission, username_param, expected_result, expected_error_message",
     [
         # Regular users
-        (False, None, "auth-user", None),  # Username is None -> self
-        (False, "", "auth-user", None),  # Username is "" -> self
-        (False, "auth-user", "auth-user", None),  # Username is self -> self
+        # Username is None -> self
+        (False, None, "auth-user", None),
+        # Username is "" -> self
+        (False, "", "auth-user", None),
+        # Username is self -> self
+        (False, "auth-user", "auth-user", None),
+        # Username is other user -> forbidden
         (
             False,
             "other-user",
             None,
             "Only system admins can delete tokens for other users",
-        ),  # Username is other user -> forbidden
+        ),
         # Admin users
-        (True, None, "auth-user", None),  # Username is None -> self
-        (True, "", "auth-user", None),  # Username is "" -> self
-        (True, "some-user", "some-user", None),  # Username is specific -> that user
-        (True, "auth-user", "auth-user", None),  # Username is self -> self
+        # Username is None -> self
+        (True, None, "auth-user", None),
+        # Username is "" -> self
+        (True, "", "auth-user", None),
+        # Username is specific -> that user
+        (True, "some-user", "some-user", None),
+        # Username is self -> self
+        (True, "auth-user", "auth-user", None),
     ],
 )
 async def test_resolve_target_username_for_revoke(
-    monkeypatch,
-    is_admin: bool,
+    mock_query_global_resource_permissions,
+    auth_info: mlrun.common.schemas.AuthInfo,
+    has_system_admin_permission: bool,
     username_param: str | None,
     expected_result: str | None,
     expected_error_message: str | None,
 ):
-    _mock_is_system_admin(
-        monkeypatch, mlrun.common.schemas.AuthorizationAction.delete, is_admin
+    mock_query_global_resource_permissions(
+        mlrun.common.schemas.AuthorizationAction.delete, has_system_admin_permission
     )
-    auth_info = _auth_info()
 
     if expected_error_message:
         with pytest.raises(

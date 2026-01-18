@@ -101,8 +101,10 @@ MLRUN_UV_UPGRADE_FLAG="--upgrade-package <package-name>" make upgrade-mlrun-api-
 
 ### Imports
 
-- **Local code imports**: use `import X` or `import X as Y` (NOT `from X import Y`).
-- **External packages**: use `import X`. `from X import Y` is acceptable.
+- **Internal (repo) imports**: **SHOULD** prefer module imports (`import pkg.mod`) or aliases (`import pkg.mod as mod`) to reduce circular-import risk and make boundaries explicit.
+  - Example (preferred): `import mlrun.utils`
+  - Example (avoid): `from mlrun.utils import logger`
+- **External packages**: `from X import Y` is acceptable when it improves readability.
 - **Import boundaries**: `mlrun.common` must NOT import higher-level `mlrun.*` modules (enforced by import-linter in `pyproject.toml`).
 - **Forbidden imports**:
   - In `mlrun/`, do NOT import `kfp` directly; use `mlrun_pipelines` adapters instead.

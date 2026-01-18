@@ -560,6 +560,72 @@ def test_store_user_token_secret_stores_user_id_in_label(k8s_helper, user_id):
     assert labels[mlrun_constants.MLRunInternalLabels.auth_token_name] == token_name
 
 
+@pytest.mark.parametrize(
+    "username, expected_sanitized_username",
+    [
+        # Username is None - no annotation expected
+        (None, None),
+        # Username is empty string - no annotation expected
+        ("", None),
+        # Normal username
+        ("test-user", "test-user"),
+        # Username with @ symbol (common in email-style usernames)
+        ("user@example.com", "user-example.com"),
+        # Username with spaces
+        ("user name", "user-name"),
+        # Username with special characters
+        ("user!@#$%^&*()", "user----------"),
+        # Username starting with number (valid in labels)
+        ("123user", "123user"),
+        # Username ending with hyphen (valid in labels)
+        ("user-", "user-"),
+        # Username with consecutive dots (valid in labels)
+        ("user..name", "user..name"),
+        # Very long username (exceeds 63 char limit, gets truncated)
+        ("a" * 100, "a" * 63),
+        # Long username with invalid characters at truncation point
+        ("user@example.com" + "x" * 60, "user-example.com" + "x" * 47),
+    ],
+)
+def test_store_user_token_secret_username_annotation(
+    k8s_helper, username, expected_sanitized_username
+):
+    """Test that username is stored in annotation and properly sanitized."""
+    import uuid
+
+    k8s_helper.list_secrets = mock.MagicMock(return_value=[])
+
+    user_id = str(uuid.uuid4())
+    auth_info = mlrun.common.schemas.AuthInfo(user_id=user_id, username=username)
+    token_name = "my-token"
+    token_value = "abc123"
+    expiration = 9999
+
+    result = k8s_helper.store_user_token_secret(
+        auth_info=auth_info,
+        token_name=token_name,
+        token=token_value,
+        expiration=expiration,
+        namespace="default",
+    )
+
+    # Verify creation succeeded
+    assert result == mlrun.common.schemas.SecretEventActions.created
+    k8s_helper._create_secret.assert_called_once()
+
+    annotations = k8s_helper._create_secret.call_args.kwargs["annotations"]
+
+    if expected_sanitized_username is None:
+        # Username was None or empty - annotation should not be present
+        assert mlrun_constants.InternalAnnotations.auth_username not in annotations
+    else:
+        # Username provided - annotation should contain sanitized value
+        assert (
+            annotations[mlrun_constants.InternalAnnotations.auth_username]
+            == expected_sanitized_username
+        )
+
+
 def test_store_user_token_secret_secret_naming(k8s_helper):
     """Test that secret name is derived from user_id + token_name hash."""
     k8s_helper.list_secrets = mock.MagicMock(return_value=[])

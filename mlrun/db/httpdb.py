@@ -5408,7 +5408,7 @@ class HTTPRunDB(RunDBInterface):
             tokens_response = db.list_secret_tokens()
             for token in tokens_response.secret_tokens:
                 print(
-                    f"Username: {token.username}, Token name: {token.token_name}, "
+                    f"User ID: {token.user_id}, Token name: {token.token_name}, "
                     f"Expiration: {token.expiration}"
                 )
 

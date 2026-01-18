@@ -24,6 +24,7 @@ import mlrun.common.constants
 import mlrun.common.schemas
 import mlrun.common.secrets
 import mlrun.errors
+import mlrun.k8s_utils
 import mlrun.utils.helpers
 import mlrun.utils.regex
 import mlrun.utils.singleton
@@ -547,10 +548,8 @@ class Secrets(
         :return: RevokeSecretTokenResponse with revoked=True if token was revoked,
                  or revoked=False if token was not found.
         """
-        # Validate token_name is a valid K8s label value
-        mlrun.utils.helpers.verify_field_regex(
-            "token_name", token_name, mlrun.utils.regex.label_value
-        )
+        # Sanitize token_name to be a valid K8s label value
+        sanitized_token_name = mlrun.k8s_utils.sanitize_label_value(token_name or "")
 
         # Resolve the target user_id from the username
         target_user_id = self._resolve_target_user_id(auth_info, username)
@@ -560,21 +559,21 @@ class Secrets(
             target_user_id=target_user_id,
             target_username=username,
             requesting_user=auth_info.username,
-            token_name=token_name,
+            token_name=sanitized_token_name,
         )
 
         try:
             # Get the offline token string
             token = self.secrets_provider.get_user_token_secret_value(
                 user_id=target_user_id,
-                token_name=token_name,
+                token_name=sanitized_token_name,
             )
         except mlrun.errors.MLRunNotFoundError:
             logger.warning(
                 "Token not found, nothing to revoke",
                 target_user_id=target_user_id,
                 target_username=username,
-                token_name=token_name,
+                token_name=sanitized_token_name,
             )
             return mlrun.common.schemas.RevokeSecretTokenResponse(revoked=False)
 
@@ -587,25 +586,25 @@ class Secrets(
         try:
             self.secrets_provider.delete_user_token_secret(
                 user_id=target_user_id,
-                token_name=token_name,
+                token_name=sanitized_token_name,
             )
         except Exception as exc:
             logger.error(
                 "Token revoked but failed to delete associated secret",
                 target_user_id=target_user_id,
                 target_username=username,
-                token_name=token_name,
+                token_name=sanitized_token_name,
                 exc=mlrun.errors.err_to_str(exc),
             )
             raise mlrun.errors.MLRunRuntimeError(
-                f"Token '{token_name}' revoked, but failed to delete associated secret"
+                f"Token '{sanitized_token_name}' revoked, but failed to delete associated secret"
             ) from exc
 
         logger.debug(
             "Finished revoking secret token for user",
             target_user_id=target_user_id,
             target_username=username,
-            token_name=token_name,
+            token_name=sanitized_token_name,
         )
         return mlrun.common.schemas.RevokeSecretTokenResponse(revoked=True)
 

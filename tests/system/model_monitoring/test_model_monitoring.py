@@ -2061,7 +2061,7 @@ class TestModelInferenceTSDBRecord(TestMLRunSystemModelMonitoring):
             # TODO: activate ad-hoc mode when ML-5792 is done
         )
 
-        sleep(180)
+        sleep(210)
 
         self._test_v3io_tsdb_record()
 
@@ -2124,7 +2124,7 @@ class TestModelEndpointGetMetrics(TestMLRunSystemModelMonitoring):
     """Test get_model_endpoint_monitoring_metrics functionality."""
 
     project_name = "model-endpoint-get-metrics"
-    image: Optional[str] = None
+    image: Optional[str] = "artifactory.iguazeng.com:10557/davids/mlrun:1.11.0"
 
     @staticmethod
     def _generate_event(
@@ -2233,7 +2233,7 @@ class TestModelEndpointGetMetrics(TestMLRunSystemModelMonitoring):
             ),
         )
         # wait for the nuclio function to check for the stream inputs
-        sleep(15)
+        sleep(45)
         expected_for_mep1 = [
             "invocations",
             "metric1",

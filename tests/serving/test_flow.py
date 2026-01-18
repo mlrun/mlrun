@@ -486,3 +486,9 @@ def test_sync_flow_with_branches():
     graph.add_step(name="gather", class_name="Gather", after=["s1", "s2"])
     with pytest.raises(mlrun.serving.states.GraphError):
         fn.to_mock_server()
+
+
+# ML-11985
+def test_mrs_rejects_bad_after_param():
+    with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
+        ModelRunnerStep(name="my_model_runner", after="I-shouldn't-be-passed-directly"),

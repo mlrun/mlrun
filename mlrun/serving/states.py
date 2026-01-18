@@ -148,6 +148,8 @@ class BaseStep(ModelObj):
         self._parent = None
         self.comment = None
         self.context = None
+        if after and not isinstance(after, list):
+            raise mlrun.errors.MLRunInvalidArgumentError("after must be a list")
         self.after = after or []
         self._next = None
         self.shape = shape

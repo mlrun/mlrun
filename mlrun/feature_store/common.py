@@ -20,7 +20,7 @@ from mlrun.common.schemas import AuthorizationVerificationInput
 from mlrun.runtimes import BaseRuntime
 from mlrun.runtimes.function_reference import FunctionReference
 from mlrun.runtimes.utils import enrich_function_from_dict
-from mlrun.utils import StorePrefix, logger
+from mlrun.utils import StorePrefix, helpers, logger
 
 from ..common.helpers import parse_versioned_object_uri
 from ..config import config
@@ -134,8 +134,8 @@ def verify_feature_set_permissions(
 ):
     project, _, _, _ = parse_feature_set_uri(feature_set.uri)
 
-    resource = (
-        mlrun.common.schemas.AuthorizationResourceTypes.feature_set.to_resource_string(
+    resource = helpers.attach_authorization_namespace_prefix(
+        resource=mlrun.common.schemas.AuthorizationResourceTypes.feature_set.to_resource_string(
             project, "feature-set"
         )
     )

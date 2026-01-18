@@ -79,6 +79,7 @@ async def list_secret_tokens(
     return await run_in_threadpool(
         services.api.crud.Secrets().list_secret_tokens,
         auth_info,
+        target_username,
     )
 
 
@@ -154,7 +155,7 @@ async def _resolve_target_username_for_list_secret_tokens(
     Resolve the target username for LIST token operations.
 
     Regular users:
-      - None, "", or self -> return auth_info.username (own tokens)
+      - None, "", or self -> return auth_info.user id (own tokens)
       - any other username -> raise MLRunAccessDeniedError
 
     Admin users:

@@ -153,6 +153,33 @@ class Client(BaseClient, project_follower.Member):
             "Failed to revoke offline token from Iguazio",
         )
 
+    def get_user_id_by_username(
+        self,
+        username: str,
+        request_headers: typing.Optional[dict] = None,
+    ) -> str:
+        """
+        Translate a username to user_id by querying the Iguazio management API.
+
+        This is used when an admin wants to perform operations on another user's tokens.
+        The admin provides a username, but K8s secrets are indexed by user_id.
+
+        :param username: The username to translate to user_id.
+        :param request_headers: Request headers for authentication with the Iguazio API.
+        :return: The user_id corresponding to the username.
+        :raises mlrun.errors.MLRunUnauthorizedError: If the request fails or the user is not found.
+        """
+
+        def _get_user_id():
+            self._client.set_override_auth_headers(request_headers)
+            return self._client.get_user(username).metadata.id
+
+        return self._try_callback_with_httpx_exceptions(
+            _get_user_id,
+            mlrun.errors.MLRunUnauthorizedError,
+            f"Failed to get user id of '{username}' from Iguazio",
+        )
+
     def create_project(
         self,
         session: sqlalchemy.orm.Session,

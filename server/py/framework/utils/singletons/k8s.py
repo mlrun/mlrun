@@ -1321,7 +1321,7 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
                 secret_tokens.append(token_info)
 
         # Sort by username (A-Z), then by token name (A-Z)
-        secret_tokens.sort(key=lambda t: (t.username, t.name))
+        secret_tokens.sort(key=lambda t: (t.user_id, t.name))
 
         return secret_tokens
 
@@ -1400,7 +1400,7 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
         return mlrun.common.schemas.SecretTokenInfo(
             name=token_name,
             expiration=expiration,
-            username=user_id,
+            user_id=user_id,
         )
 
     def _decode_secret_expiration(self, k8s_secret) -> typing.Optional[datetime]:
@@ -1582,7 +1582,6 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
         token_name: str,
         namespace: typing.Optional[str] = None,
     ):
-
         namespace = self.resolve_namespace(namespace)
         labels = {
             mlrun_constants.MLRunInternalLabels.auth_userid: user_id,

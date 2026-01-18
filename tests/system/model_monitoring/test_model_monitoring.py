@@ -2124,7 +2124,7 @@ class TestModelEndpointGetMetrics(TestMLRunSystemModelMonitoring):
     """Test get_model_endpoint_monitoring_metrics functionality."""
 
     project_name = "model-endpoint-get-metrics"
-    image: Optional[str] = "artifactory.iguazeng.com:10557/davids/mlrun:1.11.0"
+    image: Optional[str] = None
 
     @staticmethod
     def _generate_event(

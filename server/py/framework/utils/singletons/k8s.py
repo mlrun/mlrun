@@ -1223,9 +1223,7 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
             )
 
         create = False
-        k8s_secret = self._get_user_token_secret(
-            user_id, token_name, namespace
-        )
+        k8s_secret = self._get_user_token_secret(user_id, token_name, namespace)
         if not k8s_secret:
             create = True
 
@@ -1235,9 +1233,7 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
                 labels=labels,
                 annotations=annotations,
                 namespace=namespace,
-                secret_name=self._resolve_auth_secret_name(
-                    user_id, token_name
-                ),
+                secret_name=self._resolve_auth_secret_name(user_id, token_name),
                 secrets=self._encode_user_token(token_name, token, expiration),
                 encoded=True,
             )

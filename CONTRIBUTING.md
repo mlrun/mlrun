@@ -33,7 +33,7 @@ git clone git@github.com:<your username>/mlrun.git
 cd mlrun
 ```
 
-Set up a virtualenv (we recommend using [venv](https://docs.python.org/3.9/library/venv.html))
+Set up a virtualenv (we recommend using [venv](https://docs.python.org/3.11/library/venv.html))
 ```shell script
 python -m venv venv
 source venv/bin/activate

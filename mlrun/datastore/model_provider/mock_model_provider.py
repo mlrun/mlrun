@@ -60,29 +60,27 @@ class MockModelProvider(ModelProvider):
 
         pass
 
-    def invoke(
+    def _single_invoke(
         self,
-        messages: Union[list[dict], list[list[dict]], Any],
-        invoke_response_format: InvokeResponseFormat = InvokeResponseFormat.FULL,
-        **invoke_kwargs,
-    ) -> Union[str, dict[str, Any], list[dict[str, Any]], Any]:
+        messages: list[dict],
+        invoke_response_format: InvokeResponseFormat,
+        counter: Optional[int] = None,
+    ) -> Union[dict[str, Any], str]:
+        """
+        Handle a single invocation. Raises error if message contains ERROR keyword.
+        """
         text_response = (
             "You are using a mock model provider, no actual inference is performed."
         )
+        # Add counter to text response if counter exists (including 0)
+        if counter is not None:
+            text_response = f"{text_response} (Item {counter})"
+
         usage = {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
 
-        is_batch = self._validate_and_detect_batch_invocation(messages)
-        if is_batch:
-            # Return list of mock responses with counter
-            results = []
-            for idx in range(len(messages)):
-                results.append(
-                    {
-                        UsageResponseKeys.ANSWER: f"{text_response} (Item {idx})",
-                        UsageResponseKeys.USAGE: usage,
-                    }
-                )
-            return results
+        # Raise error if message contains "ERROR" keyword
+        if any("ERROR" in msg.get("content", "") for msg in messages):
+            raise RuntimeError("Mock error triggered by ERROR keyword in message")
 
         if invoke_response_format == InvokeResponseFormat.STRING:
             return text_response
@@ -101,6 +99,26 @@ class MockModelProvider(ModelProvider):
             raise mlrun.errors.MLRunInvalidArgumentError(
                 f"Unsupported invoke response format: {invoke_response_format}"
             )
+
+    def invoke(
+        self,
+        messages: Union[list[dict], list[list[dict]], Any],
+        invoke_response_format: InvokeResponseFormat = InvokeResponseFormat.FULL,
+        **invoke_kwargs,
+    ) -> Union[str, dict[str, Any], list[dict[str, Any]], Any]:
+        is_batch = self._validate_and_detect_batch_invocation(messages)
+        if is_batch:
+            # Return list of mock responses with counter
+            results = []
+            for idx, msg_list in enumerate(messages):
+                result = self._single_invoke(
+                    msg_list, invoke_response_format, counter=idx
+                )
+                results.append(result)
+            return results
+
+        # Single invocation
+        return self._single_invoke(messages, invoke_response_format)
 
     async def async_invoke(
         self,

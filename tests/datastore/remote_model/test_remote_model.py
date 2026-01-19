@@ -89,3 +89,53 @@ class TestMockModelProvider:
         assert event["labels"] == {}
         assert event["model"] == "my_endpoint"
         assert event["metrics"] is None
+
+    def test_llmodel_batch_with_errors(self, rundb_mock):
+        """Test that batch processing fails fast when MockModelProvider raises error"""
+        project = mlrun.new_project("test-mock-model-batch-errors", save=False)
+        model_url = "mock://my-mock-model"
+
+        # Append error input to INPUT_DATA - the ERROR keyword will trigger mock error
+        inputs = INPUT_DATA + [
+            {
+                "question": "ERROR - this should fail",
+                "depth_level": "basic",
+                "persona": "teacher",
+                "tone": "formal",
+            }
+        ]
+
+        model_artifact, llm_prompt_artifact, function = setup_remote_model_test(
+            project,
+            model_url,
+            execution_mechanism="naive",
+        )
+        function.set_tracking("dummy://", enable_tracking=True)
+
+        mocked_get_store_artifact = create_mocked_get_store_artifact(
+            {
+                model_artifact.uri: model_artifact,
+                llm_prompt_artifact.uri: llm_prompt_artifact,
+            }
+        )
+        with unittest.mock.patch(
+            "mlrun.artifacts.llm_prompt.mlrun.datastore.store_manager.get_store_artifact",
+            side_effect=lambda *args, **kwargs: mocked_get_store_artifact(
+                *args, **kwargs
+            ),
+        ):
+            server = function.to_mock_server()
+
+        try:
+            # Should raise RuntimeError with "Mock error triggered" message
+            with pytest.raises(
+                RuntimeError, match=".*Mock error triggered by ERROR keyword.*"
+            ):
+                server.test(body=inputs)
+        finally:
+            server.wait_for_completion()
+        dummy_stream = server.context.stream.output_stream
+        event = dummy_stream.event_list[0]
+        assert event["effective_sample_count"] == len(inputs)
+        assert event["request"]["inputs"] == inputs
+        assert "Mock error triggered by ERROR keyword" in event["error"]

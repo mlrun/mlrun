@@ -489,6 +489,6 @@ def test_sync_flow_with_branches():
 
 
 # ML-11985
-def test_mrs_rejects_bad_after_param():
-    with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
-        ModelRunnerStep(name="my_model_runner", after="I-shouldn't-be-passed-directly")
+def test_mrs_wraps_after():
+    after = "other-step"
+    assert ModelRunnerStep(name="my_model_runner", after=after).after == [after]

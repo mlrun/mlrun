@@ -117,3 +117,4 @@ tests/coverage_reports/*.html
 mlrun.env
 **/mlrun.env
 tests/system/mlrun.env
+AGENTS.local.md

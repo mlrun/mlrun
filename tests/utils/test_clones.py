@@ -69,7 +69,8 @@ def test_add_credentials_git_remote_url(url, secrets, enriched):
 
 @pytest.mark.parametrize("project", [None, "my-project"])
 def test_load_source_code_success(tmp_path, project):
-    source_uri = "store://artifacts/my-project/handler.py"
+    project_name = project or "my-project"
+    source_uri = f"store://artifacts/{project_name}/handler.py"
     target_dir = str(tmp_path / "target")
     artifact_target_path = "s3://bucket/artifacts/handler.py"
 

@@ -1,0 +1,539 @@
+diff --git a/mlrun/common/schemas/__init__.py b/mlrun/common/schemas/__init__.py
+index a2961001f..b0a81df09 100644
+--- a/mlrun/common/schemas/__init__.py
++++ b/mlrun/common/schemas/__init__.py
+@@ -42,6 +42,7 @@ from .artifact import (
+ )
+ from .auth import (
+     AuthInfo,
++    AuthInfoKind,
+     AuthorizationAction,
+     AuthorizationResourceNamespace,
+     AuthorizationResourceTypes,
+diff --git a/mlrun/common/schemas/auth.py b/mlrun/common/schemas/auth.py
+index 8538e5eba..00125a7a6 100644
+--- a/mlrun/common/schemas/auth.py
++++ b/mlrun/common/schemas/auth.py
+@@ -118,6 +118,11 @@ class AuthorizationVerificationInput(pydantic.v1.BaseModel):
+     action: AuthorizationAction
+ 
+ 
++class AuthInfoKind(mlrun.common.types.StrEnum):
++    user = "user"
++    service_account = "serviceaccount"
++
++
+ class AuthInfo(pydantic.v1.BaseModel):
+     # Keep request headers for inter-service communication
+     request_headers: typing.Optional[dict[str, str]] = None
+@@ -136,6 +141,7 @@ class AuthInfo(pydantic.v1.BaseModel):
+     user_unix_id: typing.Optional[int] = None
+     projects_role: typing.Optional[ProjectsRole] = None
+     planes: list[str] = []
++    kind: AuthInfoKind = AuthInfoKind.user
+ 
+     def get_member_ids(self) -> list[str]:
+         member_ids = []
+@@ -150,6 +156,9 @@ class AuthInfo(pydantic.v1.BaseModel):
+     def get_session(self) -> str:
+         return self.data_session or self.session
+ 
++    def is_service_account(self) -> bool:
++        return self.kind == AuthInfoKind.service_account
++
+ 
+ class Credentials(pydantic.v1.BaseModel):
+     access_key: typing.Optional[str]
+diff --git a/mlrun/config.py b/mlrun/config.py
+index 8b9d03c69..903361118 100644
+--- a/mlrun/config.py
++++ b/mlrun/config.py
+@@ -281,7 +281,14 @@ default_config = {
+                     "kfp_pod_user_unix_id": 5,
+                 },
+             },
+-            "service_account": {"default": None},
++            "service_account": {
++                "default": None,
++                "forbidden_service_accounts": [
++                    "mlrun-api",
++                    "iguazio",
++                    "nuclio",
++                ],
++            },
+             "state_thresholds": {
+                 "default": {
+                     "pending_scheduled": "1h",
+diff --git a/mlrun/runtimes/base.py b/mlrun/runtimes/base.py
+index 8100c9b68..1480a7edd 100644
+--- a/mlrun/runtimes/base.py
++++ b/mlrun/runtimes/base.py
+@@ -144,7 +144,9 @@ class FunctionSpec(ModelObj):
+     def build(self, build):
+         self._build = self._verify_dict(build, "build", ImageBuilder)
+ 
+-    def validate_service_account(self, allowed_service_accounts):
++    def validate_service_account(
++        self, allowed_service_accounts, forbidden_service_accounts
++    ):
+         pass
+ 
+ 
+@@ -254,7 +256,10 @@ class BaseRuntime(ModelObj):
+         pass
+ 
+     def validate_and_enrich_service_account(
+-        self, allowed_service_account, default_service_account
++        self,
++        allowed_service_account,
++        forbidden_service_accounts,
++        default_service_account,
+     ):
+         pass
+ 
+diff --git a/mlrun/runtimes/pod.py b/mlrun/runtimes/pod.py
+index 003a3741d..b8c8d723e 100644
+--- a/mlrun/runtimes/pod.py
++++ b/mlrun/runtimes/pod.py
+@@ -377,7 +377,9 @@ class KubeResourceSpec(FunctionSpec):
+             for volume_mount in volume_mounts:
+                 self._set_volume_mount(volume_mount, volume_mounts_field_name)
+ 
+-    def validate_service_account(self, allowed_service_accounts):
++    def validate_service_account(
++        self, allowed_service_accounts, forbidden_service_accounts
++    ):
+         if (
+             allowed_service_accounts
+             and self.service_account not in allowed_service_accounts
+@@ -386,6 +388,14 @@ class KubeResourceSpec(FunctionSpec):
+                 f"Function service account {self.service_account} is not in allowed "
+                 + f"service accounts {allowed_service_accounts}"
+             )
++        if (
++            forbidden_service_accounts
++            and self.service_account in forbidden_service_accounts
++        ):
++            raise mlrun.errors.MLRunInvalidArgumentError(
++                f"Function service account {self.service_account} is in forbidden "
++                + f"service accounts {forbidden_service_accounts}"
++            )
+ 
+     def with_volumes(
+         self,
+@@ -1207,7 +1217,10 @@ class KubeResource(BaseRuntime):
+         self.apply(modifier(**mount_params_dict))
+ 
+     def validate_and_enrich_service_account(
+-        self, allowed_service_accounts, default_service_account
++        self,
++        allowed_service_accounts,
++        forbidden_service_accounts,
++        default_service_account,
+     ):
+         if not self.spec.service_account:
+             if default_service_account:
+@@ -1216,7 +1229,9 @@ class KubeResource(BaseRuntime):
+                     f"Setting default service account to function: {default_service_account}"
+                 )
+ 
+-        self.spec.validate_service_account(allowed_service_accounts)
++        self.spec.validate_service_account(
++            allowed_service_accounts, forbidden_service_accounts
++        )
+ 
+     def _configure_mlrun_build_with_source(
+         self, source, workdir=None, handler=None, pull_at_runtime=True, target_dir=None
+diff --git a/server/py/framework/api/utils.py b/server/py/framework/api/utils.py
+index 13b7eeb38..52b035c9a 100644
+--- a/server/py/framework/api/utils.py
++++ b/server/py/framework/api/utils.py
+@@ -358,7 +358,7 @@ def apply_enrichment_and_validation_on_function(
+ 
+     # Validate function's service-account, based on allowed SAs for the project, if existing in a project-secret.
+     if validate_service_account:
+-        process_function_service_account(function)
++        process_function_service_account(function, auth_info)
+ 
+     if mask_sensitive_data:
+         mask_function_sensitive_data(function, auth_info)
+@@ -750,7 +750,9 @@ def try_perform_auto_mount(function, auth_info: mlrun.common.schemas.AuthInfo):
+     function.try_auto_mount_based_on_config(override_params)
+ 
+ 
+-def process_function_service_account(function):
++def process_function_service_account(
++    function, auth_info: mlrun.common.schemas.AuthInfo = None
++):
+     # If we're not running inside k8s, skip this check as it's not relevant.
+     if not framework.utils.singletons.k8s.get_k8s_helper(
+         silent=True
+@@ -759,15 +761,20 @@ def process_function_service_account(function):
+ 
+     (
+         allowed_service_accounts,
++        forbidden_service_accounts,
+         default_service_account,
+-    ) = resolve_project_default_service_account(function.metadata.project)
++    ) = resolve_project_default_service_account(
++        function.metadata.project, auth_info=auth_info
++    )
+ 
+     function.validate_and_enrich_service_account(
+-        allowed_service_accounts, default_service_account
++        allowed_service_accounts, forbidden_service_accounts, default_service_account
+     )
+ 
+ 
+-def resolve_project_default_service_account(project_name: str):
++def resolve_project_default_service_account(
++    project_name: str, auth_info: mlrun.common.schemas.AuthInfo = None
++):
+     allowed_service_accounts = services.api.crud.secrets.Secrets().get_project_secret(
+         project_name,
+         mlrun.common.schemas.SecretProviderName.kubernetes,
+@@ -783,6 +790,38 @@ def resolve_project_default_service_account(project_name: str):
+             for service_account in allowed_service_accounts.split(",")
+         ]
+ 
++    forbidden_service_accounts = (
++        mlrun.mlconf.function.spec.service_account.forbidden_service_accounts[:]
++    )
++    forbidden_service_accounts_secret = (
++        services.api.crud.secrets.Secrets().get_project_secret(
++            project_name,
++            mlrun.common.schemas.SecretProviderName.kubernetes,
++            services.api.crud.secrets.Secrets().generate_client_project_secret_key(
++                services.api.crud.secrets.SecretsClientType.service_accounts,
++                "forbidden",
++            ),
++            allow_secrets_from_k8s=True,
++            allow_internal_secrets=True,
++        )
++    )
++    if forbidden_service_accounts_secret:
++        forbidden_service_accounts.extend(
++            [
++                service_account.strip()
++                for service_account in forbidden_service_accounts_secret.split(",")
++            ]
++        )
++
++    # If the auth info's service account is in the forbidden list, remove it from there to allow the current request to
++    # proceed.
++    if (
++        auth_info
++        and auth_info.is_service_account()
++        and auth_info.username in forbidden_service_accounts
++    ):
++        forbidden_service_accounts.remove(auth_info.username)
++
+     default_service_account = services.api.crud.secrets.Secrets().get_project_secret(
+         project_name,
+         mlrun.common.schemas.SecretProviderName.kubernetes,
+@@ -801,15 +840,22 @@ def resolve_project_default_service_account(project_name: str):
+     # Sanity check on project configuration
+     if (
+         default_service_account
+-        and allowed_service_accounts
+-        and default_service_account not in allowed_service_accounts
++        and (
++            allowed_service_accounts
++            and default_service_account not in allowed_service_accounts
++        )
++        or (
++            forbidden_service_accounts
++            and default_service_account in forbidden_service_accounts
++        )
+     ):
+         raise mlrun.errors.MLRunInvalidArgumentError(
+             f"Default service account {default_service_account} is not in list of allowed "
+-            + f"service accounts {allowed_service_accounts}"
++            + f"service accounts {allowed_service_accounts} or is in the list of forbidden service accounts "
++            + f"{forbidden_service_accounts}"
+         )
+ 
+-    return allowed_service_accounts, default_service_account
++    return allowed_service_accounts, forbidden_service_accounts, default_service_account
+ 
+ 
+ def ensure_function_security_context(
+diff --git a/server/py/framework/utils/clients/iguazio/v4.py b/server/py/framework/utils/clients/iguazio/v4.py
+index e59ba1ceb..3a1e0d64f 100644
+--- a/server/py/framework/utils/clients/iguazio/v4.py
++++ b/server/py/framework/utils/clients/iguazio/v4.py
+@@ -369,11 +369,14 @@ class Client(BaseClient, project_follower.Member):
+         """
+         Extract and return AuthInfo from a valid session verification response.
+         """
+-        username, user_id, group_ids = self._parse_auth_response_data(response_body)
++        username, user_id, group_ids, resource_type = self._parse_auth_response_data(
++            response_body
++        )
+         return mlrun.common.schemas.AuthInfo(
+             username=username,
+             user_id=user_id,
+             user_group_ids=group_ids,
++            kind=mlrun.common.schemas.AuthInfoKind(resource_type),
+         )
+ 
+     @property
+@@ -437,7 +440,7 @@ class Client(BaseClient, project_follower.Member):
+     @staticmethod
+     def _parse_auth_response_data(
+         response_body: typing.Mapping[typing.Any, typing.Any],
+-    ) -> tuple[str, str, list[str]]:
++    ) -> tuple[str, str, list[str], str]:
+         """
+         Validate and parse the authentication response body to extract the username, user ID, and group IDs.
+         """
+@@ -458,6 +461,12 @@ class Client(BaseClient, project_follower.Member):
+ 
+         group_ids = []
+ 
++        resource_type = get_in(
++            response_body,
++            "metadata.resourceType",
++            mlrun.common.schemas.AuthInfoKind.user,
++        )
++
+         relationships = response_body.get("relationships")
+         if isinstance(relationships, list):
+             for relationship in relationships:
+@@ -470,7 +479,7 @@ class Client(BaseClient, project_follower.Member):
+                 "Invalid format for 'relationships' in authentication response"
+             )
+ 
+-        return username, user_id, group_ids
++        return username, user_id, group_ids, resource_type
+ 
+ 
+ class AsyncClient(BaseAsyncClient, Client):
+diff --git a/server/py/services/api/launcher.py b/server/py/services/api/launcher.py
+index 7dfb291c0..a697da407 100644
+--- a/server/py/services/api/launcher.py
++++ b/server/py/services/api/launcher.py
+@@ -539,7 +539,7 @@ class ServerSideLauncher(launcher.BaseLauncher):
+ 
+         # Validate function's service-account, based on allowed SAs for the project,
+         # if existing in a project-secret.
+-        framework.api.utils.process_function_service_account(runtime)
++        framework.api.utils.process_function_service_account(runtime, self._auth_info)
+ 
+         framework.api.utils.ensure_function_security_context(runtime, self._auth_info)
+ 
+diff --git a/server/py/services/api/tests/unit/utils/clients/iguazio/test_iguazio_v4.py b/server/py/services/api/tests/unit/utils/clients/iguazio/test_iguazio_v4.py
+index 8bb255a1e..defb729dc 100644
+--- a/server/py/services/api/tests/unit/utils/clients/iguazio/test_iguazio_v4.py
++++ b/server/py/services/api/tests/unit/utils/clients/iguazio/test_iguazio_v4.py
+@@ -15,6 +15,7 @@
+ 
+ import http
+ import unittest.mock
++from contextlib import nullcontext as does_not_raise
+ 
+ import httpx
+ 
+@@ -32,6 +33,7 @@ from server.py.services.api.tests.unit.utils.clients.iguazio.conftest import (
+ )
+ from tests.common_fixtures import aioresponses_mock
+ 
++import framework.utils.clients.iguazio.v4
+ from framework.utils.asyncio import maybe_coroutine
+ 
+ TEST_PROJECT_NAME = "test-project"
+@@ -613,3 +615,87 @@ def _generate_igv4_httpx_exception(
+         request=unittest.mock.MagicMock(),
+         response=mock_response,
+     )
++
++
++@pytest.mark.parametrize(
++    "response_body, expected_result, expectation",
++    [
++        # Valid response
++        (
++            {
++                "metadata": {
++                    "username": "test-user",
++                    "id": "test-id",
++                    "resourceType": "user",
++                },
++                "relationships": [
++                    {
++                        "@type": "type.googleapis.com/group.Group",
++                        "metadata": {"id": "group1"},
++                    },
++                    {
++                        "@type": "type.googleapis.com/group.Group",
++                        "metadata": {"id": "group2"},
++                    },
++                ],
++            },
++            ("test-user", "test-id", ["group1", "group2"], "user"),
++            does_not_raise(),
++        ),
++        # Missing username
++        (
++            {
++                "metadata": {"id": "test-id"},
++                "relationships": [],
++            },
++            None,
++            pytest.raises(mlrun.errors.MLRunUnauthorizedError),
++        ),
++        # Missing user ID
++        (
++            {
++                "metadata": {"username": "test-user"},
++                "relationships": [],
++            },
++            None,
++            pytest.raises(mlrun.errors.MLRunUnauthorizedError),
++        ),
++        # Invalid relationships format
++        (
++            {
++                "metadata": {"username": "test-user", "id": "test-id"},
++                "relationships": "invalid-format",
++            },
++            None,
++            pytest.raises(mlrun.errors.MLRunUnauthorizedError),
++        ),
++        # No relationships (valid case)
++        (
++            {
++                "metadata": {"username": "test-user", "id": "test-id"},
++            },
++            ("test-user", "test-id", [], "user"),
++            does_not_raise(),
++        ),
++        # Relationships with invalid group type
++        (
++            {
++                "metadata": {"username": "test-user", "id": "test-id"},
++                "relationships": [
++                    {
++                        "@type": "invalid-type",
++                        "metadata": {"id": "ignored-group"},
++                    }
++                ],
++            },
++            ("test-user", "test-id", [], "user"),
++            does_not_raise(),
++        ),
++    ],
++)
++def test_parse_auth_response_data(response_body, expected_result, expectation):
++    with expectation:
++        result = framework.utils.clients.iguazio.v4.Client._parse_auth_response_data(
++            response_body
++        )
++        assert result == expected_result
+diff --git a/server/py/services/api/utils/builder.py b/server/py/services/api/utils/builder.py
+index f6760d342..3f42519ef 100644
+--- a/server/py/services/api/utils/builder.py
++++ b/server/py/services/api/utils/builder.py
+@@ -164,6 +164,7 @@ def make_kaniko_pod(
+     extra_labels=None,
+     project_secrets=None,
+     project_default_fucntion_node_selector=None,
++    auth_info: mlrun.common.schemas.AuthInfo = None,
+ ):
+     extra_runtime_spec = {}
+     if not registry:
+@@ -175,6 +176,7 @@ def make_kaniko_pod(
+         project,
+         runtime_spec,
+         project_default_fucntion_node_selector,
++        auth_info,
+     ).items():
+         attr_value = handler(getattr(runtime_spec, attribute, None))
+         if attr_value:
+@@ -550,6 +552,7 @@ def build_image(
+             mlrun_constants.MLRunInternalLabels.tag: runtime.metadata.tag or "latest",
+         },
+         project_default_fucntion_node_selector=project_default_function_node_selector,
++        auth_info=auth_info,
+     )
+ 
+     if to_mount:
+@@ -574,7 +577,10 @@ def build_image(
+ 
+ 
+ def get_kaniko_spec_attributes_from_runtime(
+-    project, runtime_spec, project_default_fucntion_node_selector
++    project,
++    runtime_spec,
++    project_default_fucntion_node_selector,
++    auth_info: mlrun.common.schemas.AuthInfo = None,
+ ):
+     """Get the names of Kaniko spec attributes that are defined for runtime but should also be applied to Kaniko."""
+     # preemption mode scheduling constraints cache
+@@ -585,10 +591,13 @@ def get_kaniko_spec_attributes_from_runtime(
+ 
+         (
+             allowed_service_accounts,
++            forbidden_service_accounts,
+             default_service_account,
+-        ) = resolve_project_default_service_account(project)
++        ) = resolve_project_default_service_account(project, auth_info=auth_info)
+         if attr_value:
+-            runtime_spec.validate_service_account(allowed_service_accounts)
++            runtime_spec.validate_service_account(
++                allowed_service_accounts, forbidden_service_accounts
++            )
+         else:
+             attr_value = default_service_account
+         return attr_value
+diff --git a/tests/runtimes/test_pod.py b/tests/runtimes/test_pod.py
+index 874af63e2..c9b65ebd5 100644
+--- a/tests/runtimes/test_pod.py
++++ b/tests/runtimes/test_pod.py
+@@ -16,6 +16,7 @@ import base64
+ import inspect
+ import json
+ import warnings
++from contextlib import nullcontext as does_not_raise
+ 
+ import kubernetes.client
+ import kubernetes.client as k8s_client
+@@ -563,3 +564,38 @@ def test_validate_not_forbidden_secret(monkeypatch, is_api_server, should_raise)
+             mlrun.common.secrets.validate_not_forbidden_secret(_forbidden_name())
+     else:
+         mlrun.common.secrets.validate_not_forbidden_secret(_forbidden_name())
++
++
++@pytest.mark.parametrize(
++    "service_account, allowed_service_accounts, forbidden_service_accounts, expectation",
++    [
++        (
++            "allowed-sa",
++            ["allowed-sa", "another-sa"],
++            ["forbidden-sa"],
++            does_not_raise(),
++        ),
++        (
++            "forbidden-sa",
++            ["allowed-sa", "another-sa"],
++            ["forbidden-sa"],
++            pytest.raises(mlrun.errors.MLRunInvalidArgumentError),
++        ),
++        (
++            "not-allowed-sa",
++            ["allowed-sa", "another-sa"],
++            ["forbidden-sa"],
++            pytest.raises(mlrun.errors.MLRunInvalidArgumentError),
++        ),
++        ("any-sa", None, None, does_not_raise()),
++    ],
++)
++def test_validate_service(
++    service_account, allowed_service_accounts, forbidden_service_accounts, expectation
++):
++    spec = mlrun.runtimes.pod.KubeResourceSpec(service_account=service_account)
++
++    with expectation:
++        spec.validate_service_account(
++            allowed_service_accounts, forbidden_service_accounts
++        )

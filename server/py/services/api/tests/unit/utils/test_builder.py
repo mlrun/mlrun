@@ -1275,7 +1275,7 @@ def test_make_kaniko_pod_command_using_build_args(
 ):
     with unittest.mock.patch(
         "framework.api.utils.resolve_project_default_service_account",
-        return_value=(None, None),
+        return_value=(None, None, None),
     ):
         function = mlrun.new_function("test", kind="job")
         function.with_preemption_mode("prevent")
@@ -1664,6 +1664,7 @@ def _patch_k8s_helper(monkeypatch):
 def _mock_default_service_account(monkeypatch, service_account):
     resolve_project_default_service_account_mock = unittest.mock.MagicMock()
     resolve_project_default_service_account_mock.return_value = (
+        [],
         [],
         service_account,
     )

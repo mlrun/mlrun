@@ -395,9 +395,6 @@ class HuggingFaceProvider(ModelProvider):
                         typically a list of generated sequences (dictionaries).
                         This format does not include token usage statistics.
 
-                        Note: When using batch processing with FULL mode, the response may include
-                        chat template tokens (e.g., <|user|>, <|assistant|>) in the output.
-
         :param invoke_kwargs:
             Additional keyword arguments passed to the HuggingFace pipeline.
             For batch invocations, you can specify 'batch_size' to control the batch processing size.

@@ -295,12 +295,18 @@ class TestHuggingFaceProvider(TestBasicHuggingFaceProvider):
             InvokeResponseFormat.USAGE,
         ],
     )
-    def test_batch_invoke(self, invoke_response_format):
+    @pytest.mark.parametrize("batch_size", [None, 4])
+    def test_batch_invoke(self, invoke_response_format, batch_size):
         self.setup_datastore_profile()
         model_url = self.url_prefix + self.basic_llm_model
+        default_invoke_kwargs = {"max_new_tokens": 100}
+        # if not set, batch size is according to huggingface_default_batch_size in mlrun config
+        if batch_size is not None:
+            default_invoke_kwargs["batch_size"] = batch_size
         model_provider = mlrun.get_model_provider(
-            url=model_url, default_invoke_kwargs={"max_new_tokens": 100}
+            url=model_url, default_invoke_kwargs=default_invoke_kwargs
         )
+
         model_provider = cast(HuggingFaceProvider, model_provider)
 
         messages_list = [[msg] for msg in formatted_messages]

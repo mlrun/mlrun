@@ -91,7 +91,7 @@ def test_cli_load_source_success(project):
     runner = CliRunner()
     source_uri = "store://artifacts/my-project/handler.py"
 
-    cli_args = ["load-source", "--source-uri", source_uri]
+    cli_args = ["load-source", source_uri]
     if project:
         cli_args.extend(["--project", project])
 
@@ -120,7 +120,7 @@ def test_cli_load_source_failure():
     ):
         result = runner.invoke(
             main,
-            ["load-source", "--source-uri", "store://artifacts/project/file.py"],
+            ["load-source", "store://artifacts/project/file.py"],
         )
 
     assert result.exit_code == 1

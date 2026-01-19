@@ -1328,12 +1328,7 @@ def show_or_set_config(
     default=None,
     help="project name (extracted from URI if not provided)",
 )
-@click.option(
-    "--source-uri",
-    "-s",
-    required=True,
-    help="URI of the artifact",
-)
+@click.argument("source_uri", type=str)
 @click.option(
     "--target",
     "-t",
@@ -1341,13 +1336,13 @@ def show_or_set_config(
     help="target directory to write the source file",
 )
 def load_source(project, source_uri, target):
-    """Load source code artifact into a target directory for use by the sidecar.
+    """Load source code artifact into target directory.
 
     This is an internal CLI command used by init containers to prepare
     application source code before the sidecar container starts.
 
     Example:
-        mlrun load-source -p my-project -s store://artifacts/my-project/app.py
+        mlrun load-source store://artifacts/my-project/app.py
     """
 
     try:

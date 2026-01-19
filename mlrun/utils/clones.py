@@ -231,10 +231,8 @@ def load_source_code(
     """
     if not source_uri:
         raise ValueError("source_uri is required")
-
     if not target_dir:
         raise ValueError("target_dir is required")
-
     # Validate that source_uri is a store artifact URI
     if not mlrun.datastore.is_store_uri(source_uri):
         raise ValueError(
@@ -259,5 +257,4 @@ def load_source_code(
     # Download the artifact content to the target directory
     mlrun.get_dataitem(artifact_target_path).download(local_file_path)
 
-    logger.info(f"Successfully loaded source from {source_uri} to {local_file_path}")
     return local_file_path

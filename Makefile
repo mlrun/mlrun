@@ -195,7 +195,7 @@ install-dev-requirements: ## Install dev-requirements relevant for pytest and co
 		$(MLRUN_PIP_NO_CACHE_FLAG) \
 		-r dev-requirements.txt
 
-.PHONY: install-dev-requirements
+.PHONY: install-automation-requirements
 install-automation-requirements: ## Install automation-requirements relevant for CI and automation scripts
 	# relevant for pip package installer only
 	@if [ "$(MLRUN_PYTHON_PACKAGE_INSTALLER)" = "pip" ]; then \

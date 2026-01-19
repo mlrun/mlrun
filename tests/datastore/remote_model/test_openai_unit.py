@@ -111,7 +111,7 @@ class TestOpenAIBatch:
         assert state["max_concurrent_observed"] <= per_batch_limit
 
         expected_duration = (total_messages / per_batch_limit) * latency
-        upper_bound = expected_duration + 0.2
+        upper_bound = expected_duration + 0.1
         assert expected_duration <= duration <= upper_bound
 
     def test_sync_batch_error_handling_fast_fail(
@@ -170,6 +170,18 @@ class TestOpenAIBatch:
                 ["message 1", "message 2", "message 3"],  # list of strings - INVALID
                 "list of strings is not supported",
             ),
+            (
+                [],  # empty list - INVALID
+                "Messages must be a non-empty list of dictionaries or list of lists of dictionaries.",
+            ),
+            (
+                None,  # not a list - INVALID
+                "Messages must be a non-empty list of dictionaries or list of lists of dictionaries.",
+            ),
+            (
+                "single message string",  # string instead of list - INVALID
+                "Messages must be a non-empty list of dictionaries or list of lists of dictionaries.",
+            ),
         ],
     )
     def test_sync_invalid_messages_raises_error(self, invalid_messages, error_match):
@@ -186,8 +198,35 @@ class TestOpenAIBatch:
             provider.invoke(messages=invalid_messages)
 
     @pytest.mark.asyncio
-    async def test_async_batch_concurrency_limit(self, mock_async_single_invoke):
-        """Ensure async batch invocation caps concurrent tasks to openai_batch_max_concurrent."""
+    async def test_sync_batch_invoke_from_event_loop(self, mock_async_single_invoke):
+        """Verify that sync batch invoke works when called from within an event loop."""
+        with unittest.mock.patch(
+            "mlrun.datastore.model_provider.openai_provider.OpenAIProvider._async_single_invoke",
+            mock_async_single_invoke,
+        ):
+            provider = mlrun.get_model_provider(
+                url="openai://gpt-4o-mini",
+                secrets={"OPENAI_API_KEY": "test-key"},
+            )
+
+            messages_list = [
+                [{"role": "user", "content": "message 1"}],
+                [{"role": "user", "content": "message 2"}],
+            ]
+
+            # Should work even when called from within an existing event loop
+            # (Currently will fail with RuntimeError until we fix the asyncio.run() issue)
+            results = provider.invoke(messages=messages_list)
+
+            assert len(results) == 2
+            assert all(result["mock"] == "response" for result in results)
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("use_async", [True, False])
+    async def test_batch_concurrency_limit_from_event_loop(
+        self, mock_async_single_invoke, use_async
+    ):
+        """Ensure batch invocation caps concurrent tasks to openai_batch_max_concurrent."""
         latency = 0.1
         per_batch_limit = mlrun.mlconf.model_providers.openai_batch_max_concurrent
         total_messages = per_batch_limit * 2
@@ -207,7 +246,10 @@ class TestOpenAIBatch:
             ]
 
             start = time.perf_counter()
-            results = await provider.async_invoke(messages=messages_list)
+            if use_async:
+                results = await provider.async_invoke(messages=messages_list)
+            else:
+                results = provider.invoke(messages=messages_list)
             duration = time.perf_counter() - start
 
         state = mock_async_single_invoke.state
@@ -216,14 +258,15 @@ class TestOpenAIBatch:
         assert state["max_concurrent_observed"] <= per_batch_limit
 
         expected_duration = (total_messages / per_batch_limit) * latency
-        upper_bound = expected_duration + 0.2
+        upper_bound = expected_duration + 0.1
         assert expected_duration <= duration <= upper_bound
 
     @pytest.mark.asyncio
-    async def test_async_batch_error_handling_fast_fail(
-        self, mock_async_single_invoke_with_failure
+    @pytest.mark.parametrize("use_async", [True, False])
+    async def test_batch_error_handling_fast_fail_from_event_loop(
+        self, mock_async_single_invoke_with_failure, use_async
     ):
-        """Verify async batch invocation fails fast when one invocation raises an exception."""
+        """Verify batch invocation fails fast when one invocation raises an exception."""
         per_batch_limit = mlrun.mlconf.model_providers.openai_batch_max_concurrent
         fail_on_index = math.ceil(per_batch_limit / 2)
         total_messages = per_batch_limit * 2
@@ -250,7 +293,10 @@ class TestOpenAIBatch:
                 RuntimeError,
                 match=f"Simulated API error on message {fail_on_index}",
             ):
-                await provider.async_invoke(messages=messages_list)
+                if use_async:
+                    await provider.async_invoke(messages=messages_list)
+                else:
+                    provider.invoke(messages=messages_list)
 
             duration = time.perf_counter() - start
 
@@ -277,6 +323,18 @@ class TestOpenAIBatch:
             (
                 ["message 1", "message 2", "message 3"],  # list of strings - INVALID
                 "list of strings is not supported",
+            ),
+            (
+                [],  # empty list - INVALID
+                "Messages must be a non-empty list of dictionaries or list of lists of dictionaries.",
+            ),
+            (
+                None,  # not a list - INVALID
+                "Messages must be a non-empty list of dictionaries or list of lists of dictionaries.",
+            ),
+            (
+                "single message string",  # string instead of list - INVALID
+                "Messages must be a non-empty list of dictionaries or list of lists of dictionaries.",
             ),
         ],
     )

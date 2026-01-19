@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import asyncio
+import concurrent.futures
 import inspect
 from collections.abc import Awaitable, Callable
 from typing import TYPE_CHECKING, Any, Optional, Union
@@ -437,18 +438,35 @@ class OpenAIProvider(ModelProvider):
             Single invocation: A string, dictionary, or `ChatCompletion` object.
             Batch invocation: A list of responses in the same order as input messages.
             Response format depends on `invoke_response_format`.
+
+        :raises:
+            In batch invocation: Any exception from a single item fails the entire batch.
         """
         # Detect if this is a batch invocation
         is_batch = self._validate_and_detect_batch_invocation(messages)
 
         if is_batch:
-            return asyncio.run(
-                self._async_batch_invoke(
-                    messages_list=messages,
-                    invoke_response_format=invoke_response_format,
-                    **invoke_kwargs,
-                )
+            # Prepare the async batch coroutine
+            batch_coro = self._async_batch_invoke(
+                messages_list=messages,
+                invoke_response_format=invoke_response_format,
+                **invoke_kwargs,
             )
+
+            try:
+                asyncio.get_running_loop()
+                in_event_loop = True
+            except RuntimeError:
+                in_event_loop = False
+
+            if in_event_loop:
+                # We're in an event loop - run asyncio.run() in a separate thread
+                with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+                    future = executor.submit(asyncio.run, batch_coro)
+                    return future.result()
+            else:
+                # No running loop, use asyncio.run() directly
+                return asyncio.run(batch_coro)
 
         # Single invocation
         return self._single_invoke(
@@ -520,6 +538,9 @@ class OpenAIProvider(ModelProvider):
             Single invocation: A string, dictionary, or `ChatCompletion` object.
             Batch invocation: A list of responses in the same order as input messages.
             Response format depends on `invoke_response_format`.
+
+        :raises:
+            In batch invocation: Any exception from a single item fails the entire batch.
         """
         # Detect if this is a batch invocation
         is_batch = self._validate_and_detect_batch_invocation(messages)

@@ -1322,20 +1322,20 @@ def show_or_set_config(
 
 
 @main.command(name="load-source")
+@click.argument("source_uri", type=str)
 @click.option(
     "--project",
     "-p",
     default=None,
     help="project name (extracted from URI if not provided)",
 )
-@click.argument("source_uri", type=str)
 @click.option(
     "--target",
     "-t",
     default="/home/mlrun_code",
     help="target directory to write the source file",
 )
-def load_source(project, source_uri, target):
+def load_source(source_uri, project, target):
     """Load source code artifact into target directory.
 
     This is an internal CLI command used by init containers to prepare

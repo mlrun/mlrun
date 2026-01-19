@@ -66,7 +66,7 @@ Other configurables:
          max_replicas=8,
       )
       ```
-   - The default `num_workers` is 2. To modify it, pass it to `add_rabbitmq_trigger()`:
+   - The default `num_workers` is a Nuclio default, which is 1. To modify it, pass it to `add_rabbitmq_trigger()`:
      ```
      function.add_rabbitmq_trigger(
       url="amqp://host:5672",

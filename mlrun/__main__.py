@@ -39,6 +39,7 @@ import mlrun.platforms
 import mlrun.utils.helpers
 from mlrun.common.helpers import parse_versioned_object_uri
 from mlrun.runtimes.mounts import auto_mount as auto_mount_modifier
+from mlrun.utils.clones import load_source_code
 
 from .config import config as mlconf
 from .db import get_run_db
@@ -1318,6 +1319,47 @@ def show_or_set_config(
 
     else:
         print(f"Error: Unsupported config option {op}")
+
+
+@main.command(name="load-source")
+@click.option(
+    "--project",
+    "-p",
+    default=None,
+    help="project name (extracted from URI if not provided)",
+)
+@click.option(
+    "--source-uri",
+    "-s",
+    required=True,
+    help="URI of the artifact",
+)
+@click.option(
+    "--target",
+    "-t",
+    default="/home/mlrun_code",
+    help="target directory to write the source file",
+)
+def load_source(project, source_uri, target):
+    """Load source code artifact into a target directory for use by the sidecar.
+
+    This is an internal CLI command used by init containers to prepare
+    application source code before the sidecar container starts.
+
+    Example:
+        mlrun load-source -p my-project -s store://artifacts/my-project/app.py
+    """
+
+    try:
+        result_path = load_source_code(
+            source_uri=source_uri,
+            target_dir=target,
+            project=project,
+        )
+        print(f"Successfully loaded source to: {result_path}")
+    except Exception as err:
+        print(f"Error loading source: {err_to_str(err)}")
+        exit(1)
 
 
 def fill_params(params, params_dict=None):

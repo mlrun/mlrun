@@ -34,6 +34,10 @@ class Echo(BaseClass):
         return x
 
 
+class NotAStep:
+    pass
+
+
 class RespName(BaseClass):
     def __init__(self, **kwargs):
         self.name = kwargs.get("name")

@@ -83,7 +83,7 @@ class Client(
             project=project,
             patch_mode=patch_mode,
         )
-        response = self._get_project_from_nuclio(name)
+        response = self._get_project_from_nuclio(name, auth_info=auth_info)
         response_body = response.json()
         if project.get("metadata", {}).get("labels") is not None:
             response_body.setdefault("metadata", {}).setdefault("labels", {}).update(

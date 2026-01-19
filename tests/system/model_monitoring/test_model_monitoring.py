@@ -2061,7 +2061,7 @@ class TestModelInferenceTSDBRecord(TestMLRunSystemModelMonitoring):
             # TODO: activate ad-hoc mode when ML-5792 is done
         )
 
-        sleep(180)
+        sleep(210)
 
         self._test_v3io_tsdb_record()
 
@@ -2233,7 +2233,7 @@ class TestModelEndpointGetMetrics(TestMLRunSystemModelMonitoring):
             ),
         )
         # wait for the nuclio function to check for the stream inputs
-        sleep(15)
+        sleep(45)
         expected_for_mep1 = [
             "invocations",
             "metric1",

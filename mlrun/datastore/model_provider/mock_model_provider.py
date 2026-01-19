@@ -23,7 +23,7 @@ from mlrun.datastore.model_provider.model_provider import (
 
 
 class MockModelProvider(ModelProvider):
-    support_async = False
+    support_async = True
 
     def __init__(
         self,
@@ -62,26 +62,39 @@ class MockModelProvider(ModelProvider):
 
     def invoke(
         self,
-        messages: Union[list[dict], Any],
+        messages: Union[list[dict], list[list[dict]], Any],
         invoke_response_format: InvokeResponseFormat = InvokeResponseFormat.FULL,
         **invoke_kwargs,
-    ) -> Union[str, dict[str, Any], Any]:
+    ) -> Union[str, dict[str, Any], list[dict[str, Any]], Any]:
+        text_response = "You are using a mock model provider, no actual inference is performed."
+        usage = {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
+
+        is_batch = self._validate_and_detect_batch_invocation(messages)
+        if is_batch:
+            # Return list of mock responses with counter
+            results = []
+            for idx in range(len(messages)):
+                results.append({
+                    UsageResponseKeys.ANSWER: f"{text_response} (Item {idx})",
+                    UsageResponseKeys.USAGE: usage,
+                })
+            return results
+
         if invoke_response_format == InvokeResponseFormat.STRING:
-            return (
-                "You are using a mock model provider, no actual inference is performed."
-            )
+            return text_response
         elif invoke_response_format == InvokeResponseFormat.FULL:
             return {
-                UsageResponseKeys.USAGE: {"prompt_tokens": 0, "completion_tokens": 0},
-                UsageResponseKeys.ANSWER: "You are using a mock model provider, no actual inference is performed.",
+                UsageResponseKeys.USAGE: usage,
+                UsageResponseKeys.ANSWER: text_response,
                 "extra": {},
             }
         elif invoke_response_format == InvokeResponseFormat.USAGE:
             return {
                 UsageResponseKeys.ANSWER: "You are using a mock model provider, no actual inference is performed.",
-                UsageResponseKeys.USAGE: {"prompt_tokens": 0, "completion_tokens": 0},
+                UsageResponseKeys.USAGE: usage,
             }
         else:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 f"Unsupported invoke response format: {invoke_response_format}"
             )
+

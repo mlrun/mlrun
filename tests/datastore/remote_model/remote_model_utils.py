@@ -19,6 +19,7 @@ import fsspec
 
 import mlrun
 import mlrun.artifacts
+import mlrun.errors
 import mlrun.serving
 from mlrun.datastore.model_provider.model_provider import (
     InvokeResponseFormat,
@@ -85,6 +86,16 @@ formatted_messages = [
     for input_data in INPUT_DATA
     for prompt in PROMPT_TEMPLATE
 ]
+
+
+def create_mocked_get_store_artifact(uri_to_artifact: dict):
+    def mocked_get_store_artifact(uri, **kwargs):
+        artifact = uri_to_artifact.get(uri)
+        if not artifact:
+            raise mlrun.errors.MLRunInvalidArgumentError("Artifact uri not found")
+        return artifact, None
+
+    return mocked_get_store_artifact
 
 
 def setup_remote_model_test(

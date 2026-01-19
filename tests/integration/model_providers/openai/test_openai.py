@@ -41,6 +41,7 @@ from tests.datastore.remote_model.remote_model_utils import (
     EXPECTED_RESULTS,
     INPUT_DATA,
     assert_async_invocations,
+    create_mocked_get_store_artifact,
     formatted_messages,
     setup_remote_model_test,
 )
@@ -51,16 +52,6 @@ config_file_path = os.path.join(here, "test-openai.yml")
 if os.path.exists(config_file_path):
     with open(config_file_path) as yaml_file:
         config = yaml.safe_load(yaml_file).get("env", {})
-
-
-def create_mocked_get_store_artifact(uri_to_artifact: dict):
-    def mocked_get_store_artifact(uri, **kwargs):
-        artifact = uri_to_artifact.get(uri)
-        if not artifact:
-            raise mlrun.errors.MLRunInvalidArgumentError("Artifact uri not found")
-        return artifact, None
-
-    return mocked_get_store_artifact
 
 
 def openai_configured():

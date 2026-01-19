@@ -37,11 +37,9 @@ from tests.datastore.remote_model.remote_model_utils import (
     INPUT_DATA,
     PROMPT_LEGEND,
     PROMPT_TEMPLATE,
+    create_mocked_get_store_artifact,
     formatted_messages,
     setup_remote_model_test,
-)
-from tests.integration.model_providers.model_providers_utils import (
-    create_mocked_get_store_artifact,
 )
 
 

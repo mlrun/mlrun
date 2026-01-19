@@ -1342,7 +1342,7 @@ def load_source(source_uri, project, target):
     application source code before the sidecar container starts.
 
     Example:
-        mlrun load-source store://artifacts/my-project/app.py
+        mlrun load-source store://artifacts/my-project/app.py -t /tmp/mlrun_code
     """
 
     try:

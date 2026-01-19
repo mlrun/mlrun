@@ -218,14 +218,7 @@ class _V3IORecordsChecker:
                 table=mm_constants.V3IOTSDBTables.PREDICTIONS, start="0", end="now"
             )
         else:
-            # TDEngine
-            predictions_df: pd.DataFrame = cls._tsdb_storage._get_records(
-                table=cls._tsdb_storage.tables[
-                    mm_constants.TDEngineSuperTables.PREDICTIONS
-                ].super_table,
-                start=datetime.min,
-                end=datetime.now().astimezone(),
-            )
+            raise ValueError(f"Unsupported TSDB type: {cls._tsdb_storage.type}")
         if should_be_empty:
             assert predictions_df.empty, "Predictions should be empty"
         else:
@@ -2475,14 +2468,7 @@ class TestBatchServingWithSampling(TestMLRunSystemModelMonitoring):
                     end="now",
                 )
             else:
-                # TDEngine
-                predictions_df = self._tsdb_storage._get_records(
-                    table=self._tsdb_storage.tables[
-                        mm_constants.TDEngineSuperTables.PREDICTIONS
-                    ].super_table,
-                    start=datetime.min,
-                    end=datetime.now().astimezone(),
-                )
+                raise ValueError(f"Unsupported TSDB type: {self._tsdb_storage.type}")
             assert (
                 predictions_df.shape[0] == 20
             ), "TSDB predictions data not yet available"
@@ -2525,16 +2511,8 @@ class TestBatchServingWithSampling(TestMLRunSystemModelMonitoring):
             predictions_df: pd.DataFrame = self._tsdb_storage._get_records(
                 table=mm_constants.V3IOTSDBTables.PREDICTIONS, start="0", end="now"
             )
-
         else:
-            # TDEngine
-            predictions_df: pd.DataFrame = self._tsdb_storage._get_records(
-                table=self._tsdb_storage.tables[
-                    mm_constants.TDEngineSuperTables.PREDICTIONS
-                ].super_table,
-                start=datetime.min,
-                end=datetime.now().astimezone(),
-            )
+            raise ValueError(f"Unsupported TSDB type: {self._tsdb_storage.type}")
 
         assert "effective_sample_count" in predictions_df.columns
         assert "estimated_prediction_count" in predictions_df.columns

@@ -61,6 +61,7 @@ jobs:
       - name: Check for broken links
         env:
           FORCE_COLOR: 1  # Force color output
+          REPLACE_STABLE_WITH_LATEST_FOR_LINKCHECK: "True"
         run: MLRUN_PYTHON_VERSION=${{ matrix.python-version }} make linkcheck
   lint:
     name: Lint docs

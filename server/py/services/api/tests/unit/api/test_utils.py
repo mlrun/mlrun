@@ -2088,13 +2088,13 @@ def test_resolve_auth_secret_name(
     )
 
     result = services.api.utils.helpers.resolve_auth_token_secret_name(
-        provided_token, "test-user"
+        provided_token, user_id="test-user"
     )
 
     assert result == expected_secret_name
 
     # Verify the function uses the correct token name (default or provided)
     k8s_helper._get_user_token_secret.assert_called_once_with(
-        username="test-user",
+        user_id="test-user",
         token_name=expected_token_name,
     )

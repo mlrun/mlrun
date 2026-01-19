@@ -882,6 +882,26 @@ def check_if_hub_uri(uri: str) -> bool:
     return uri.startswith(hub_prefix)
 
 
+def lock_hub_uri_version(uri: str, locked_version: str) -> str:
+    """
+    If hub URI has no tag or uses ':latest', replace/add the given version.
+    Otherwise, return the URI unchanged.
+    """
+    name = uri.removeprefix(hub_prefix)
+    if ":" in name:
+        path, tag = name.rsplit(":", 1)
+    else:
+        path, tag = name, "latest"
+    if tag == "latest":
+        logger.info(
+            f"Hub URI '{uri}' does not specify a version (or uses 'latest'). "
+            f"The step will be pinned to version '{locked_version}'."
+        )
+        tag = locked_version
+
+    return f"{hub_prefix}{path}:{tag}"
+
+
 def extend_hub_uri_if_needed(
     uri: str,
     asset_type: HubSourceType = HubSourceType.functions,
@@ -2625,3 +2645,27 @@ def is_async_serving_graph(function_spec) -> bool:
         return True
 
     return False
+
+
+def attach_authorization_namespace_prefix(
+    resource: str,
+    namespace: mlrun.common.schemas.AuthorizationResourceNamespace = (
+        mlrun.common.schemas.AuthorizationResourceNamespace.resources
+    ),
+) -> str:
+    """
+    Attach the authorization namespace prefix to the resource.
+
+    :param resource: The resource string to attach the namespace prefix to.
+    :param namespace: The namespace to attach the prefix to.
+        Defaults to `mlrun.common.schemas.AuthorizationResourceNamespace.resources`.
+    :returns: The resource string with the namespace prefix attached.
+    """
+    if namespace == mlrun.common.schemas.AuthorizationResourceNamespace.resources:
+        namespace_prefix = config.httpdb.authorization.namespaces.resources
+    else:
+        namespace_prefix = config.httpdb.authorization.namespaces.mgmt
+
+    if namespace_prefix:
+        resource = f"/{namespace_prefix}{resource}"
+    return resource

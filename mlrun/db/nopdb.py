@@ -321,21 +321,23 @@ class NopDB(RunDBInterface):
     ):
         pass
 
-    def store_project(
-        self, name: str, project: mlrun.common.schemas.Project
+    def create_project(
+        self, project: mlrun.common.schemas.Project | dict
     ) -> mlrun.common.schemas.Project:
-        pass
+        if isinstance(project, dict):
+            project = mlrun.common.schemas.Project(**project)
+        return project
+
+    def store_project(
+        self, name: str, project: mlrun.common.schemas.Project | dict
+    ) -> mlrun.common.schemas.Project:
+        return self.create_project(project)
 
     def patch_project(
         self,
         name: str,
         project: dict,
         patch_mode: mlrun.common.schemas.PatchMode = mlrun.common.schemas.PatchMode.replace,
-    ) -> mlrun.common.schemas.Project:
-        pass
-
-    def create_project(
-        self, project: mlrun.common.schemas.Project
     ) -> mlrun.common.schemas.Project:
         pass
 

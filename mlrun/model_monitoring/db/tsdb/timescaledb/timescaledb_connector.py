@@ -38,6 +38,7 @@ from mlrun.model_monitoring.db.tsdb.timescaledb.queries.timescaledb_results_quer
     TimescaleDBResultsQueries,
 )
 from mlrun.model_monitoring.db.tsdb.timescaledb.timescaledb_connection import (
+    Statement,
     TimescaleDBConnection,
 )
 from mlrun.model_monitoring.db.tsdb.timescaledb.timescaledb_operations import (
@@ -109,27 +110,27 @@ class TimescaleDBConnector(TSDBConnector):
         )
 
         # Create shared components needed by query classes
-        tables = timescaledb_schema.create_table_schemas(project)
-        pre_aggregate_manager = PreAggregateManager(pre_aggregate_config)
+        self._tables = timescaledb_schema.create_table_schemas(project)
+        self._pre_aggregate_manager = PreAggregateManager(pre_aggregate_config)
 
         # Create specialized query handlers with proper initialization
         self._metrics_queries = TimescaleDBMetricsQueries(
             project=project,
             connection=self._connection,
-            pre_aggregate_manager=pre_aggregate_manager,
-            tables=tables,
+            pre_aggregate_manager=self._pre_aggregate_manager,
+            tables=self._tables,
         )
         self._predictions_queries = TimescaleDBPredictionsQueries(
             project=project,
             connection=self._connection,
-            pre_aggregate_manager=pre_aggregate_manager,
-            tables=tables,
+            pre_aggregate_manager=self._pre_aggregate_manager,
+            tables=self._tables,
         )
         self._results_queries = TimescaleDBResultsQueries(
             connection=self._connection,
             project=project,
-            pre_aggregate_manager=pre_aggregate_manager,
-            tables=tables,
+            pre_aggregate_manager=self._pre_aggregate_manager,
+            tables=self._tables,
         )
 
         # Create operations and stream handlers
@@ -396,10 +397,75 @@ class TimescaleDBConnector(TSDBConnector):
     def get_avg_latency(self, *args, **kwargs):
         return self._predictions_queries.get_avg_latency(*args, **kwargs)
 
-    def count_processed_model_endpoints(self, *args, **kwargs):
-        return self._predictions_queries.count_processed_model_endpoints(
-            *args, **kwargs
-        )
+    def count_processed_model_endpoints(
+        self,
+        start: Optional[datetime.datetime] = None,
+        end: Optional[datetime.datetime] = None,
+        application_names: Optional[list[str] | str] = None,
+    ) -> dict[str, int]:
+        """
+        Count unique endpoints per application from METRICS and APP_RESULTS tables.
+
+        Uses SQL UNION to efficiently count endpoints that have data in EITHER table.
+
+        :param start: Start time for the query (default: last 24 hours)
+        :param end: End time for the query (default: current time)
+        :param application_names: Filter by specific application names
+        :return: Dictionary mapping application_name to endpoint count
+        """
+        # Set default time range
+        start = start or (mlrun.utils.datetime_now() - datetime.timedelta(hours=24))
+        start, end = self._pre_aggregate_manager.get_start_end(start, end)
+
+        metrics_table = self._tables[mm_schemas.TimescaleDBTables.METRICS]
+        app_results_table = self._tables[mm_schemas.TimescaleDBTables.APP_RESULTS]
+        time_column = mm_schemas.WriterEvent.END_INFER_TIME
+        app_column = mm_schemas.WriterEvent.APPLICATION_NAME
+        endpoint_column = mm_schemas.WriterEvent.ENDPOINT_ID
+
+        # Build application filter and params
+        app_filter_metrics = ""
+        app_filter_results = ""
+
+        if application_names:
+            if isinstance(application_names, str):
+                application_names = [application_names]
+            app_names_list = list(application_names)
+            app_placeholders = ", ".join(["%s"] * len(app_names_list))
+            app_filter_metrics = f"AND {app_column} IN ({app_placeholders})"
+            app_filter_results = f"AND {app_column} IN ({app_placeholders})"
+            # Params: metrics (start, end, apps), app_results (start, end, apps)
+            params = [start, end] + app_names_list + [start, end] + app_names_list
+        else:
+            params = [start, end, start, end]
+
+        # Use UNION to combine endpoints from both METRICS and APP_RESULTS tables
+        query_sql = f"""
+        SELECT {app_column}, COUNT(DISTINCT {endpoint_column}) as endpoint_count
+        FROM (
+            SELECT DISTINCT {app_column}, {endpoint_column}
+            FROM {metrics_table.full_name()}
+            WHERE {time_column} >= %s AND {time_column} <= %s
+            {app_filter_metrics}
+
+            UNION
+
+            SELECT DISTINCT {app_column}, {endpoint_column}
+            FROM {app_results_table.full_name()}
+            WHERE {time_column} >= %s AND {time_column} <= %s
+            {app_filter_results}
+        ) combined
+        GROUP BY {app_column}
+        """
+
+        stmt = Statement(query_sql, params)
+        result = self._connection.run(query=stmt)
+
+        if not result or not result.data:
+            return {}
+
+        # Convert result to dict: {application_name: count}
+        return {row[0]: row[1] for row in result.data}
 
     def get_drift_status(self, *args, **kwargs):
         return self._results_queries.get_drift_status(*args, **kwargs)

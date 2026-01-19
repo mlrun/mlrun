@@ -45,7 +45,6 @@ databricks-sdk~=0.20.0
 sqlalchemy~=2.0
 dask==2024.8
 distributed==2024.8
-taos-ws-py==0.3.2
 # TimescaleDB dependencies - optional for model monitoring
 psycopg[binary,pool]~=3.2
 snowflake-connector-python~=3.7

@@ -3373,7 +3373,16 @@ class MlrunProject(ModelObj):
                         function_definition, self, name
                     )
                 except FileNotFoundError as exc:
-                    message = f"File {exc.filename} not found while syncing project functions."
+                    filename = getattr(exc, "filename", None) or getattr(
+                        exc, "filename2", None
+                    )
+                    if not filename:
+                        filename = getattr(exc, "args", ["unknown"])[0]
+                        # "not found" is a common error message, remove it
+                        filename = filename.replace("not found", "").strip()
+                    message = (
+                        f"File {filename} not found while syncing project functions."
+                    )
                     if silent:
                         message += " Skipping function reload"
                         logger.warn(message, name=name)
@@ -3756,7 +3765,8 @@ class MlrunProject(ModelObj):
         :store: if True, allow updating in case project already exists
         """
         self.export(filepath)
-        self.save_to_db(store)
+        project = self.save_to_db(store)
+        self.__dict__.update(project.__dict__)
         return self
 
     def save_to_db(self, store=True):
@@ -3824,25 +3834,26 @@ class MlrunProject(ModelObj):
         Please note that you have to set the credentials before deploying any model monitoring application
         or a tracked serving function.
 
-        For example, the full flow for enabling model monitoring infrastructure with **TDEngine** and **Kafka**, is:
+        For example, the full flow for enabling model monitoring infrastructure with **TimescaleDB** and **Kafka**, is:
 
         .. code-block:: python
 
             import mlrun
             from mlrun.datastore.datastore_profile import (
                 DatastoreProfileKafkaStream,
-                DatastoreProfileTDEngine,
+                DatastoreProfilePostgreSQL,
             )
 
             project = mlrun.get_or_create_project("mm-infra-setup")
 
             # Create and register TSDB profile
-            tsdb_profile = DatastoreProfileTDEngine(
-                name="my-tdengine",
-                host="<tdengine-server-ip-address>",
-                port=6041,
-                user="username",
-                password="<tdengine-password>",
+            tsdb_profile = DatastoreProfilePostgreSQL(
+                name="my-timescaledb",
+                host="<timescaledb-server-ip-address>",
+                port=5432,
+                user="postgres",
+                password="<timescaledb-password>",
+                database="mlrun",
             )
             project.register_datastore_profile(tsdb_profile)
 
@@ -3913,7 +3924,6 @@ class MlrunProject(ModelObj):
                                           monitoring. The supported profiles are:
 
                                           * :py:class:`~mlrun.datastore.datastore_profile.DatastoreProfileV3io`
-                                          * :py:class:`~mlrun.datastore.datastore_profile.DatastoreProfileTDEngine`
                                           * :py:class:`~mlrun.datastore.datastore_profile.DatastoreProfilePostgreSQL`
 
                                           You need to register one of them, and pass the profile's name.

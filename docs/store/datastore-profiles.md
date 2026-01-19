@@ -2,16 +2,17 @@
 # Datastore profiles
 
 Data store profiles serve multiple purposes in MLRun depending on the use: genAI, model monitoring, queues, storage providers. 
+
 In this section:
 - [GenAI datastore profiles](#genai-datastore-profiles)
 - [Model monitoring datastore profiles](#model-monitoring-datastore-profiles)
 - [Queue datastore profiles](#queue-datastore-profiles)
 
-Storage provider data store profiles are described in {ref}`data-stores`.
+Storage provider data store profiles are described in {ref}`datastore`.
 
 ## GenAI datastore profiles
 
-GenAI datastore profiles define credentials and environment variables for accessing models. 
+GenAI datastore profiles define credentials and environment variables for remote-model providers (for predictions). 
 
 ### OpenAI profile
 ```python
@@ -53,14 +54,13 @@ MLRun supports Kafka and V3IO as streaming platforms, and TimescaleDB (PostgreSQ
 TimescaleDB (PostgreSQL) and Kafka are part of the default CE installations. The default confgurations are:
 ```
 # Create and register TSDB profile
-tsdb_profile = DatastoreProfileTDEngine(
-    name=tsdb_profile_name,
-    user="root",
-    password="taosdata",
-    host=f"tdengine-tsdb",
-    port="6041",
-)
-project.register_datastore_profile(tsdb_profile)
+tsdb_profile = DatastoreProfilePostgreSQL(
+    name="my-timescaledb",
+    host="<timescaledb-server-ip-address>",
+    port=5432,
+    user="postgres",
+    password="<timescaledb-password>",
+    database="mlrun",
 
 # Create and register stream profile
 stream_profile = DatastoreProfileKafkaSource(

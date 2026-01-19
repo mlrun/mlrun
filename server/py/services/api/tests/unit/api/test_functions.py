@@ -813,11 +813,7 @@ def test_build_function_masks_access_key(
     mlrun.mlconf.httpdb.authentication.mode = AuthenticationMode.IGUAZIO
     # set auto mount to ensure it doesn't override the access key
     mlrun.mlconf.storage.auto_mount_type = "v3io_credentials"
-    monkeypatch.setattr(
-        framework.utils.clients.iguazio.v3,
-        "AsyncClient",
-        lambda *args, **kwargs: unittest.mock.AsyncMock(),
-    )
+    services.api.tests.unit.api.utils.setup_iguazio_v3_async_client_mock(monkeypatch)
     services.api.tests.unit.api.utils.create_project(client, PROJECT)
     function_dict = {
         "kind": "job",
@@ -882,11 +878,7 @@ def test_build_no_access_key(
     expected_reason,
 ):
     mlrun.mlconf.httpdb.authentication.mode = AuthenticationMode.IGUAZIO
-    monkeypatch.setattr(
-        framework.utils.clients.iguazio.v3,
-        "AsyncClient",
-        lambda *args, **kwargs: unittest.mock.AsyncMock(),
-    )
+    services.api.tests.unit.api.utils.setup_iguazio_v3_async_client_mock(monkeypatch)
 
     services.api.tests.unit.api.utils.create_project(client, PROJECT)
     function_dict = {

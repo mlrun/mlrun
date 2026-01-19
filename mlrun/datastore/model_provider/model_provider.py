@@ -196,7 +196,7 @@ class ModelProvider(BaseRemoteClient):
 
     def invoke(
         self,
-        messages: Union[list[dict], Any],
+        messages: Union[list[dict], list[list[dict]]],
         invoke_response_format: InvokeResponseFormat = InvokeResponseFormat.FULL,
         **invoke_kwargs,
     ) -> Union[str, dict[str, Any], Any]:
@@ -261,7 +261,7 @@ class ModelProvider(BaseRemoteClient):
 
     async def async_invoke(
         self,
-        messages: list[dict],
+        messages: Union[list[dict], list[list[dict]]],
         invoke_response_format=InvokeResponseFormat.FULL,
         **invoke_kwargs,
     ) -> Union[str, dict[str, Any], Any]:

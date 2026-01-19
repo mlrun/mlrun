@@ -200,6 +200,7 @@ default_config = {
     "v3io_framesd": "http://framesd:8080",
     "model_providers": {
         "openai_default_model": "gpt-4o",
+        "openai_batch_max_concurrent": 10,
         "huggingface_default_model": "microsoft/Phi-3-mini-4k-instruct",
     },
     # default node selector to be applied to all functions - json string base64 encoded format
@@ -350,6 +351,9 @@ default_config = {
                     # enabled / disabled
                     "mode": "enabled",
                     "interval": 15,  # seconds
+                    # when set to True, the worker will allow to run even if the chief version is different
+                    # this is useful for development purposes
+                    "allow_version_mismatch": False,
                 },
                 "request_timeout": 45,  # seconds
             },

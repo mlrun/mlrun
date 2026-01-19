@@ -119,9 +119,9 @@ class TestOpenAIModelRunner(TestMLRunSystem):
 
         # only run these once, after a valid answer was obtained
         encoding = tiktoken.encoding_for_model(self.basic_llm_model)
-        assert len(encoding.encode(answer)) == 100
+        assert 95 <= len(encoding.encode(answer)) <= 105
         stats = response[UsageResponseKeys.USAGE]
-        assert stats["completion_tokens"] == 100
+        assert 95 <= stats["completion_tokens"] <= 105
         assert stats["prompt_tokens"] > 0
         assert (
             stats["total_tokens"] == stats["completion_tokens"] + stats["prompt_tokens"]

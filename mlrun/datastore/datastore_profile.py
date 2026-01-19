@@ -526,6 +526,7 @@ class OpenAIProfile(DatastoreProfile):
     base_url: typing.Optional[str] = None
     timeout: typing.Optional[float] = None
     max_retries: typing.Optional[int] = None
+    batch_max_concurrent: typing.Optional[int] = None
 
     def secrets(self) -> dict:
         res = {}
@@ -541,6 +542,9 @@ class OpenAIProfile(DatastoreProfile):
             res["OPENAI_TIMEOUT"] = self.timeout
         if self.max_retries:
             res["OPENAI_MAX_RETRIES"] = self.max_retries
+        #  per batch
+        if self.batch_max_concurrent:
+            res["OPENAI_BATCH_MAX_CONCURRENT"] = self.batch_max_concurrent
         return res
 
     def url(self, subpath):

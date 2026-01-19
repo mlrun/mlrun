@@ -19,7 +19,6 @@ pytest.importorskip(
 )
 
 pytest_plugins = [
-    "services.api.migrations.tests.base.conftest",
     "services.api.migrations.tests.base.migrations_tests",
     "services.api.migrations.tests.postgres.conftest",
 ]

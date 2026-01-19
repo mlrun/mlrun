@@ -66,7 +66,9 @@ class MockModelProvider(ModelProvider):
         invoke_response_format: InvokeResponseFormat = InvokeResponseFormat.FULL,
         **invoke_kwargs,
     ) -> Union[str, dict[str, Any], list[dict[str, Any]], Any]:
-        text_response = "You are using a mock model provider, no actual inference is performed."
+        text_response = (
+            "You are using a mock model provider, no actual inference is performed."
+        )
         usage = {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
 
         is_batch = self._validate_and_detect_batch_invocation(messages)
@@ -74,10 +76,12 @@ class MockModelProvider(ModelProvider):
             # Return list of mock responses with counter
             results = []
             for idx in range(len(messages)):
-                results.append({
-                    UsageResponseKeys.ANSWER: f"{text_response} (Item {idx})",
-                    UsageResponseKeys.USAGE: usage,
-                })
+                results.append(
+                    {
+                        UsageResponseKeys.ANSWER: f"{text_response} (Item {idx})",
+                        UsageResponseKeys.USAGE: usage,
+                    }
+                )
             return results
 
         if invoke_response_format == InvokeResponseFormat.STRING:
@@ -90,7 +94,7 @@ class MockModelProvider(ModelProvider):
             }
         elif invoke_response_format == InvokeResponseFormat.USAGE:
             return {
-                UsageResponseKeys.ANSWER: "You are using a mock model provider, no actual inference is performed.",
+                UsageResponseKeys.ANSWER: text_response,
                 UsageResponseKeys.USAGE: usage,
             }
         else:
@@ -98,3 +102,10 @@ class MockModelProvider(ModelProvider):
                 f"Unsupported invoke response format: {invoke_response_format}"
             )
 
+    async def async_invoke(
+        self,
+        messages: Union[list[dict], list[list[dict]], Any],
+        invoke_response_format: InvokeResponseFormat = InvokeResponseFormat.FULL,
+        **invoke_kwargs,
+    ) -> Union[str, dict[str, Any], list[dict[str, Any]], Any]:
+        return self.invoke(messages, invoke_response_format, **invoke_kwargs)

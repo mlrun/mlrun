@@ -29,7 +29,7 @@ class TestMockModelProvider:
         "execution_mechanism",
         ["process_pool", "dedicated_process", "naive", "asyncio", "thread_pool"],
     )
-    def test_model_runner_batch_with_mock(self, execution_mechanism):
+    def test_llmodel_batch(self, execution_mechanism, rundb_mock):
         """Test batch processing of multiple events with MockModelProvider"""
         project = mlrun.new_project("test-mock-model-batch", save=False)
         model_url = "mock://my-mock-model"
@@ -38,6 +38,7 @@ class TestMockModelProvider:
             model_url,
             execution_mechanism=execution_mechanism,
         )
+        function.set_tracking("dummy://", enable_tracking=True)
 
         mocked_get_store_artifact = create_mocked_get_store_artifact(
             {
@@ -81,3 +82,10 @@ class TestMockModelProvider:
                 assert stats["total_tokens"] == 0
         finally:
             server.wait_for_completion()
+        dummy_stream = server.context.stream.output_stream
+        event = dummy_stream.event_list[0]
+        assert event["effective_sample_count"] == len(INPUT_DATA)
+        assert event["request"]["inputs"] == INPUT_DATA
+        assert event["labels"] == {}
+        assert event["model"] == "my_endpoint"
+        assert event["metrics"] is None

@@ -20,7 +20,7 @@ from mlrun.common.schemas import AuthorizationVerificationInput
 from mlrun.runtimes import BaseRuntime
 from mlrun.runtimes.function_reference import FunctionReference
 from mlrun.runtimes.utils import enrich_function_from_dict
-from mlrun.utils import StorePrefix, logger
+from mlrun.utils import StorePrefix, helpers, logger
 
 from ..common.helpers import parse_versioned_object_uri
 from ..config import config
@@ -81,10 +81,8 @@ def get_feature_set_by_uri(uri, project=None):
     """get feature set object from db by uri"""
     db = mlrun.get_run_db()
     project, name, tag, uid = parse_feature_set_uri(uri, project)
-    resource = (
-        mlrun.common.schemas.AuthorizationResourceTypes.feature_set.to_resource_string(
-            project, "feature-set"
-        )
+    resource = _generate_project_feature_store_resource_string(
+        project=project, resource="feature-set"
     )
 
     auth_input = AuthorizationVerificationInput(
@@ -111,8 +109,8 @@ def get_feature_vector_by_uri(uri, project=None, update=True):
 
     project, name, tag, uid = parse_versioned_object_uri(uri, active_project)
 
-    resource = mlrun.common.schemas.AuthorizationResourceTypes.feature_vector.to_resource_string(
-        project, "feature-vector"
+    resource = _generate_project_feature_store_resource_string(
+        project=project, resource="feature-vector"
     )
 
     if update:
@@ -134,10 +132,8 @@ def verify_feature_set_permissions(
 ):
     project, _, _, _ = parse_feature_set_uri(feature_set.uri)
 
-    resource = (
-        mlrun.common.schemas.AuthorizationResourceTypes.feature_set.to_resource_string(
-            project, "feature-set"
-        )
+    resource = _generate_project_feature_store_resource_string(
+        project=project, resource="feature-set"
     )
     db = feature_set._get_run_db()
 
@@ -163,13 +159,34 @@ def verify_feature_vector_permissions(
 ):
     project = feature_vector._metadata.project or config.active_project
 
-    resource = mlrun.common.schemas.AuthorizationResourceTypes.feature_vector.to_resource_string(
-        project, "feature-vector"
+    resource = _generate_project_feature_store_resource_string(
+        project=project, resource="feature-vector"
     )
 
     db = mlrun.get_run_db()
     auth_input = AuthorizationVerificationInput(resource=resource, action=action)
     db.verify_authorization(auth_input)
+
+
+def _generate_project_feature_store_resource_string(
+    project: str,
+    resource: str,
+) -> str:
+    """
+    Generate the project feature set resource string to use in permissions verification
+    """
+    if resource == "feature-set":
+        return helpers.attach_authorization_namespace_prefix(
+            resource=mlrun.common.schemas.AuthorizationResourceTypes.feature_set.to_resource_string(
+                project, resource
+            )
+        )
+
+    return helpers.attach_authorization_namespace_prefix(
+        resource=mlrun.common.schemas.AuthorizationResourceTypes.feature_vector.to_resource_string(
+            project, resource
+        )
+    )
 
 
 class RunConfig:

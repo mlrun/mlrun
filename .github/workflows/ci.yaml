@@ -246,24 +246,34 @@ jobs:
         include:
           - python-version: "3.11"
             pipeline-adapter: "kfp-v1-8"
+    env:
+      MLRUN_PYTHON_PACKAGE_INSTALLER: uv
     steps:
     - uses: actions/checkout@v6
+
     - name: Set up python ${{ matrix.python-version }}
       uses: actions/setup-python@v6
       with:
         python-version: ${{ matrix.python-version }}
-        cache: 'pip'
+
+    - uses: astral-sh/setup-uv@61cb8a9741eeb8a550a1b8544337180c0fc8476b # 7.2.0
+      with:
+          python-version: ${{ matrix.python-version }}
+          enable-cache: true
+
     - name: Install automation scripts dependencies and add mlrun to dev packages
-      run: make install-automation-requirements && pip install -e .
-      # Install KFP v2 only when the adapter is kfp-v2
-    - name: Install KFP Adapter if required
       run: |
-        if [[ "${{ matrix.pipeline-adapter }}" == "kfp-v2" ]]; then
-          pip install mlrun-pipelines-kfp-v2
-        fi
+        uv venv venv --seed
+        source venv/bin/activate
+        make install-automation-requirements
+        uv pip install -e .
 
     - name: Test package
-      run: MLRUN_PYTHON_VERSION=${{ matrix.python-version }} make test-package
+      run: |
+        source venv/bin/activate
+        make test-package
+      env:
+        MLRUN_PYTHON_VERSION: ${{ matrix.python-version }}
 
   docs:
     name: Build Project Documentation

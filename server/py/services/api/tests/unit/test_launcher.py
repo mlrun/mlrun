@@ -14,6 +14,7 @@
 import pathlib
 import re
 import unittest.mock
+import uuid
 from contextlib import nullcontext as does_not_raise
 
 import pytest
@@ -28,13 +29,17 @@ import mlrun.launcher.factory
 from mlrun.common.types import AuthenticationMode
 from mlrun.config import Config
 
-import framework.utils.clients.iguazio.v3
 import services.api.launcher
 import services.api.tests.unit.api.utils
 
 assets_path = pathlib.Path(__file__).parent / "assets"
 func_path = assets_path / "sample_function.py"
 handler = "hello_word"
+
+
+@pytest.fixture
+def random_project_name():
+    return f"some-project-{uuid.uuid4().hex[:8]}"
 
 
 @pytest.mark.parametrize(
@@ -58,20 +63,17 @@ def test_create_server_side_launcher(is_remote, local, expectation):
 
 
 def test_enrich_runtime_with_auth_info(
-    monkeypatch, k8s_secrets_mock, client: TestClient
+    monkeypatch, k8s_secrets_mock, client: TestClient, random_project_name: str
 ):
-    project = "some-project"
+    project = random_project_name
     mlrun.mlconf.httpdb.authentication.mode = AuthenticationMode.IGUAZIO
-    monkeypatch.setattr(
-        framework.utils.clients.iguazio.v3,
-        "AsyncClient",
-        lambda *args, **kwargs: unittest.mock.AsyncMock(),
-    )
+
+    services.api.tests.unit.api.utils.setup_iguazio_v3_async_client_mock(monkeypatch)
     auth_info = mlrun.common.schemas.auth.AuthInfo(
         access_key="access_key",
         username="username",
     )
-    services.api.tests.unit.api.utils.create_project(client, project)
+    services.api.tests.unit.api.utils.create_project(client, project_name=project)
 
     launcher_kwargs = {"auth_info": auth_info}
     launcher = mlrun.launcher.factory.LauncherFactory().create_launcher(
@@ -149,10 +151,10 @@ def test_validate_state_thresholds_failure(state_thresholds, expected_error):
 
 
 def test_new_function_args_with_default_image_pull_secret(
-    db: sqlalchemy.orm.Session, client: TestClient
+    db: sqlalchemy.orm.Session, client: TestClient, random_project_name: str
 ):
-    project = "some-project"
-    services.api.tests.unit.api.utils.create_project(client, project)
+    project = random_project_name
+    services.api.tests.unit.api.utils.create_project(client, project_name=project)
 
     mlrun.mlconf.function.spec.image_pull_secret = Config(
         {"default": "adam-docker-registry-auth"}

@@ -193,12 +193,12 @@ Currently queues support Iguazio V3IO and Kafka streams.
 
 ## Cyclic graph example
 In agentic systems, loops and iterative refinement are common architectural patterns. Typical use cases:
-- Evaluator–Optimizer loop: An LLM generates a response, a secondary agent evaluates it, and if unsatisfactory, the generation is retried until quality improves or a cap is reached.
+- Evaluator–optimizer loop: An LLM generates a response, a secondary agent evaluates it, and if unsatisfactory, the generation is retried until quality improves or a cap is reached.
 - Multi-agent orchestration: A controller agent invokes specialized sub-agents (retriever, summarizer, planner), then loops back to coordinate or refine based on their results.
 - Guardrail enforcement: A safety or compliance step checks outputs and, on failure, routes control back to the generator until conditions are met.
 
 Cycles are supported for graphs of `flow` topology and `async` engine (storey) with `kind` = `job` and `serving`. You can run it `to_mock_server` and `deploy()`.
-Set a graph as cyclic using `allow_cyclic=True` in `set_topology`, or with `serving.spec.graph.allow_cyclic = True` after the graph is already defined.
+Set a graph as cyclic using `allow_cyclic=True` in `set_topology`, or after the graph is defined with `serving.spec.graph.allow_cyclic = True`.
 
 Cycles can return to the same step, or cycle through multiple steps. Create a multi-step cycle by listing the step names and using `cycle_to`. (See {py:meth}`~mlrun.serving.states.BaseStep.to()` and {py:meth}`~mlrun.serving.states.BaseStep.cycle_to`.) 
 Example of creating a cycle from step 1 through to step 3, and cycling back to step 1:
@@ -256,6 +256,32 @@ function.deploy()
 function.invoke("/", body={...})
 ```
 
+**To ensure that your graph does not become infinite, use one of the following two approaches:**
+- Extend an existing step by implementing `select_outlets` to explicitly control the flow and prevent cycles. 
+Example:
+```python
+class MyStep:
+    def do(self, event):
+        # Process the event
+        ...
+        return event
+
+    def select_outlets(self, event):
+        if event["should_continue"]:
+            return ["continue"]
+        return ["stop"]
+```     
+- Implement a custom step that inherits from `storey.Choice`. Override the `select_outlets` method to control which outlets are selected at runtime. 
+Example:
+```python
+import storey
+
+class MyChoiceStep(storey.Choice):
+    def select_outlets(self, event):
+        if event["should_continue"]:
+            return ["continue"]
+        return ["stop"]The list returned by select_outlets must include only valid step names that follow the current step in the graph flow. If the current step is the responder, use Complete as the outlet name to exit the graph and return the response.
+```
 
 ## Data and feature engineering (using the feature store)
 

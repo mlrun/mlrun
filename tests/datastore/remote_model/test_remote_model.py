@@ -61,7 +61,7 @@ class TestMockModelProvider:
 
             # Assert we got list of 5 responses
             assert isinstance(response, list)
-            assert len(response) == 5
+            assert len(response) == len(INPUT_DATA)
 
             # Verify each response has correct structure
             for i, full_result in enumerate(response):

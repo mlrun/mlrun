@@ -220,7 +220,7 @@ from .schedule import (
 from .secret import (
     AuthSecretData,
     ListSecretTokensResponse,
-    RevokeSecretTokenResponse,
+    DeleteSecretTokenResponse,
     SecretKeysData,
     SecretProviderName,
     SecretsData,

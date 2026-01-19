@@ -1188,9 +1188,9 @@ class RunDBInterface(ABC):
         pass
 
     @abstractmethod
-    def revoke_secret_token(
+    def delete_secret_token(
         self, token_name: str, username: Optional[str] = None
-    ) -> Optional[mlrun.common.schemas.RevokeSecretTokenResponse]:
+    ) -> Optional[mlrun.common.schemas.DeleteSecretTokenResponse]:
         pass
 
     @abstractmethod

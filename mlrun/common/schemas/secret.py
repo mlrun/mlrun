@@ -70,6 +70,6 @@ class ListSecretTokensResponse(BaseModel):
     secret_tokens: list[SecretTokenInfo]
 
 
-class RevokeSecretTokenResponse(BaseModel):
-    # False if token revocation fails
-    revoked: bool = True
+class DeleteSecretTokenResponse(BaseModel):
+    # False if token deletion fails
+    deleted: bool = True

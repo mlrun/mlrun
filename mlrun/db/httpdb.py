@@ -5432,13 +5432,13 @@ class HTTPRunDB(RunDBInterface):
         return mlrun.common.schemas.ListSecretTokensResponse(**response.json())
 
     @mlrun.utils.iguazio_v4_only
-    def revoke_secret_token(
+    def delete_secret_token(
         self, token_name: str, username: Optional[str] = None
-    ) -> mlrun.common.schemas.RevokeSecretTokenResponse:
+    ) -> mlrun.common.schemas.DeleteSecretTokenResponse:
         """
-        Revoke a secret token. Only system-administrators can revoke tokens for other users.
+        Delete a secret token. Only system-administrators can delete tokens for other users.
 
-        :param token_name: The name of the token to revoke.
+        :param token_name: The name of the token to delete.
         :param username: Optional; the username of the token owner.
         """
         endpoint_path = f"user-secrets/tokens/{token_name}"
@@ -5451,12 +5451,12 @@ class HTTPRunDB(RunDBInterface):
             "delete user secret token",
             params=params,
         )
-        result = mlrun.common.schemas.RevokeSecretTokenResponse(**response.json())
+        result = mlrun.common.schemas.DeleteSecretTokenResponse(**response.json())
         user_info = f" for user '{username}'" if username else ""
-        if result.revoked:
-            logger.info(f"Token '{token_name}'{user_info} was successfully revoked.")
+        if result.deleted:
+            logger.info(f"Token '{token_name}'{user_info} was successfully deleted.")
         else:
-            logger.warning(f"Token '{token_name}'{user_info} could not be revoked.")
+            logger.warning(f"Token '{token_name}'{user_info} could not be deleted.")
         return result
 
     @mlrun.utils.iguazio_v4_only

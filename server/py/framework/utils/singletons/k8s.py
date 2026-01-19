@@ -1211,13 +1211,9 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
         """
         user_id = auth_info.user_id
 
-        # Sanitize user_id and token_name to be valid K8s label values
-        sanitized_user_id = mlrun.k8s_utils.sanitize_label_value(user_id or "")
-        sanitized_token_name = mlrun.k8s_utils.sanitize_label_value(token_name or "")
-
         labels = {
-            mlrun_constants.MLRunInternalLabels.auth_userid: sanitized_user_id,
-            mlrun_constants.MLRunInternalLabels.auth_token_name: sanitized_token_name,
+            mlrun_constants.MLRunInternalLabels.auth_userid: user_id,
+            mlrun_constants.MLRunInternalLabels.auth_token_name: token_name,
         }
 
         annotations = {}
@@ -1228,7 +1224,7 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
 
         create = False
         k8s_secret = self._get_user_token_secret(
-            sanitized_user_id, sanitized_token_name, namespace
+            user_id, token_name, namespace
         )
         if not k8s_secret:
             create = True
@@ -1240,7 +1236,7 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
                 annotations=annotations,
                 namespace=namespace,
                 secret_name=self._resolve_auth_secret_name(
-                    sanitized_user_id, sanitized_token_name
+                    user_id, token_name
                 ),
                 secrets=self._encode_user_token(token_name, token, expiration),
                 encoded=True,
@@ -1322,9 +1318,7 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
         labels = {mlrun_constants.MLRunInternalLabels.auth_token_name: None}
         # "*" means list all users' tokens, so skip the username filter
         if user_id != "*":
-            # Sanitize user_id to be a valid K8s label value
-            sanitized_user_id = mlrun.k8s_utils.sanitize_label_value(user_id)
-            labels[mlrun_constants.MLRunInternalLabels.auth_userid] = sanitized_user_id
+            labels[mlrun_constants.MLRunInternalLabels.auth_userid] = user_id
 
         k8s_secrets = self.list_secrets(namespace=namespace, labels=labels)
 

@@ -1423,9 +1423,9 @@ class SQLRunDB(RunDBInterface):
     ) -> mlrun.common.schemas.StoreSecretTokensResponse:
         raise NotImplementedError
 
-    def revoke_secret_token(
+    def delete_secret_token(
         self, token_name: str, username: Optional[str] = None
-    ) -> Optional[mlrun.common.schemas.RevokeSecretTokenResponse]:
+    ) -> Optional[mlrun.common.schemas.DeleteSecretTokenResponse]:
         raise NotImplementedError
 
     def list_secret_tokens(

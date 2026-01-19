@@ -86,9 +86,9 @@ async def list_secret_tokens(
 @router.delete(
     "/tokens/{name}",
     status_code=HTTPStatus.OK.value,
-    response_model=mlrun.common.schemas.RevokeSecretTokenResponse,
+    response_model=mlrun.common.schemas.DeleteSecretTokenResponse,
 )
-async def revoke_secret_token(
+async def delete_secret_token(
     name: str,
     username: Optional[str] = None,
     auth_info: mlrun.common.schemas.AuthInfo = fastapi.Depends(
@@ -96,25 +96,25 @@ async def revoke_secret_token(
     ),
 ):
     """
-    Revoke a secret token.
+    Delete a secret token.
 
     Authorization logic:
     - Regular users:
-      - None, "", or own username -> revokes their own token
+      - None, "", or own username -> deletes their own token
       - Any other username -> raises MLRunAccessDeniedError
     - Admin users:
-      - None or "" -> revokes their own token
-      - Specific username -> revokes that user's token
+      - None or "" -> deletes their own token
+      - Specific username -> deletes that user's token
 
     Returns:
-        RevokeSecretTokenResponse with revoked=True if token was revoked,
-        or revoked=False if token was not found.
+        DeleteSecretTokenResponse with deleted=True if token was deleted,
+        or deleted=False if token was not found.
     """
-    target_username = await _resolve_target_username_for_revoke_secret_tokens(
+    target_username = await _resolve_target_username_for_delete_secret_tokens(
         auth_info, username
     )
     return await run_in_threadpool(
-        services.api.crud.Secrets().revoke_secret_token,
+        services.api.crud.Secrets().delete_secret_token,
         name,
         target_username,
         auth_info,
@@ -167,12 +167,12 @@ async def _resolve_target_username_for_list_secret_tokens(
     return username
 
 
-async def _resolve_target_username_for_revoke_secret_tokens(
+async def _resolve_target_username_for_delete_secret_tokens(
     auth_info: mlrun.common.schemas.AuthInfo,
     username: Optional[str],
 ) -> str:
     """
-    Resolve the target username for REVOKE (delete) token operations.
+    Resolve the target username for DELETE token operations.
 
     Regular users:
       - None, "", or self -> return auth_info.username (own token)
@@ -182,7 +182,7 @@ async def _resolve_target_username_for_revoke_secret_tokens(
       - None or "" -> return auth_info.username (own token)
       - specific username -> return that username
     """
-    # No username provided (or username="") -> revoke own token for both regular user and admin
+    # No username provided (or username="") -> delete own token for both regular user and admin
     if not username:
         return auth_info.username
 
@@ -195,7 +195,7 @@ async def _resolve_target_username_for_revoke_secret_tokens(
     )
 
     # Specific username provided
-    # Regular users can only revoke their own tokens
+    # Regular users can only delete their own tokens
     if not has_system_admin_permissions and username != auth_info.username:
         raise mlrun.errors.MLRunAccessDeniedError(
             "Only system admins can delete tokens for other users"

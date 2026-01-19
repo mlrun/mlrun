@@ -185,7 +185,7 @@ async def test_resolve_target_username_for_list(
         (True, "auth-user", "auth-user", None),
     ],
 )
-async def test_resolve_target_username_for_revoke(
+async def test_resolve_target_username_for_delete(
     mock_query_global_resource_permissions,
     auth_info: mlrun.common.schemas.AuthInfo,
     has_system_admin_permission: bool,
@@ -202,11 +202,11 @@ async def test_resolve_target_username_for_revoke(
             mlrun.errors.MLRunAccessDeniedError,
             match=expected_error_message,
         ):
-            await user_secrets._resolve_target_username_for_revoke_secret_tokens(
+            await user_secrets._resolve_target_username_for_delete_secret_tokens(
                 auth_info, username_param
             )
     else:
-        result = await user_secrets._resolve_target_username_for_revoke_secret_tokens(
+        result = await user_secrets._resolve_target_username_for_delete_secret_tokens(
             auth_info, username_param
         )
         assert result == expected_result

@@ -524,32 +524,30 @@ class Secrets(
             secret_tokens=secret_tokens
         )
 
-    def revoke_secret_token(
+    def delete_secret_token(
         self,
         token_name: str,
         username: str,
         auth_info: mlrun.common.schemas.AuthInfo,
-    ) -> mlrun.common.schemas.RevokeSecretTokenResponse:
+    ) -> mlrun.common.schemas.DeleteSecretTokenResponse:
         """
-        Revoke a stored offline token for a user and delete its corresponding Kubernetes secret.
+        Delete a stored offline token for a user and its corresponding Kubernetes secret.
 
         This method performs two actions:
         1. Calls the Iguazio management service to revoke the offline token.
         2. Removes the Kubernetes secret associated with the token.
 
         :param token_name:
-            Logical name of the token to revoke (used in the Kubernetes secret name).
+            Logical name of the token to delete (used in the Kubernetes secret name).
         :param username:
-            The username of the user who owns the token to be revoked.
+            The username of the user who owns the token to be deleted.
             For regular users, this must be their own username.
             For system admins, this can be any user's username.
         :param auth_info:
             Authentication information of the requesting user.
-        :return: RevokeSecretTokenResponse with revoked=True if token was revoked,
-                 or revoked=False if token was not found.
+        :return: DeleteSecretTokenResponse with deleted=True if token was deleted,
+                 or deleted=False if token was not found.
         """
-        # Sanitize token_name to be a valid K8s label value
-        sanitized_token_name = mlrun.k8s_utils.sanitize_label_value(token_name or "")
 
         # Resolve the target user_id from the username
         target_user_id = self._resolve_target_user_id(auth_info, username)
@@ -559,23 +557,22 @@ class Secrets(
             target_user_id=target_user_id,
             target_username=username,
             requesting_user=auth_info.username,
-            token_name=sanitized_token_name,
         )
 
         try:
             # Get the offline token string
             token = self.secrets_provider.get_user_token_secret_value(
                 user_id=target_user_id,
-                token_name=sanitized_token_name,
+                token_name=token_name,
             )
         except mlrun.errors.MLRunNotFoundError:
             logger.warning(
                 "Token not found, nothing to revoke",
                 target_user_id=target_user_id,
                 target_username=username,
-                token_name=sanitized_token_name,
+                token_name=token_name,
             )
-            return mlrun.common.schemas.RevokeSecretTokenResponse(revoked=False)
+            return mlrun.common.schemas.DeleteSecretTokenResponse(deleted=False)
 
         # Revoke via Iguazio
         # TODO: move init iguazio_client (ML-11077)
@@ -586,27 +583,27 @@ class Secrets(
         try:
             self.secrets_provider.delete_user_token_secret(
                 user_id=target_user_id,
-                token_name=sanitized_token_name,
+                token_name=token_name,
             )
         except Exception as exc:
             logger.error(
                 "Token revoked but failed to delete associated secret",
                 target_user_id=target_user_id,
                 target_username=username,
-                token_name=sanitized_token_name,
+                token_name=token_name,
                 exc=mlrun.errors.err_to_str(exc),
             )
             raise mlrun.errors.MLRunRuntimeError(
-                f"Token '{sanitized_token_name}' revoked, but failed to delete associated secret"
+                f"Token '{token_name}' deleted from Iguazio, but failed to delete associated secret"
             ) from exc
 
         logger.debug(
             "Finished revoking secret token for user",
             target_user_id=target_user_id,
             target_username=username,
-            token_name=sanitized_token_name,
+            token_name=token_name,
         )
-        return mlrun.common.schemas.RevokeSecretTokenResponse(revoked=True)
+        return mlrun.common.schemas.DeleteSecretTokenResponse(deleted=True)
 
     def get_secret_token(
         self,

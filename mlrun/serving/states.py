@@ -2599,7 +2599,6 @@ class FlowStep(BaseStep):
         self._wait_for_result = False
         self._source = None
         self._start_steps = []
-        self.default_final_step = None
         self.allow_cyclic = allow_cyclic
 
     def get_children(self):
@@ -2882,30 +2881,26 @@ class FlowStep(BaseStep):
             raise GraphError(
                 "sync engine can only have one starting step (without .after)"
             )
-
+        default_final_step = None
         if self.final_step:
             if self.final_step not in self.steps:
                 raise GraphError(
                     f"final_step ({self.final_step}) specified and not found in graph steps"
                 )
-            self.default_final_step = self.final_step
+            default_final_step = self.final_step
 
         elif len(self._start_steps) == 1 and not self.allow_cyclic:
             # find the final step in case if a simple sequence of steps
+            # default_final_step is used ony for feature sets therefore we won't be set it when cycles are allowed
             next_obj = self._start_steps[0]
             while next_obj:
                 next = next_obj.next
                 if not next:
-                    self.default_final_step = next_obj.name
+                    default_final_step = next_obj.name
                     break
                 next_obj = self[next[0]] if len(next) == 1 else None
 
-        elif len(self._start_steps) == 1 and self.allow_cyclic:
-            self.default_final_step = self._get_final_step_from_cyclic_graph(
-                self._start_steps[0]
-            )
-
-        return self._start_steps, self.default_final_step, responders
+        return self._start_steps, default_final_step, responders
 
     def set_flow_source(self, source):
         """set the async flow (storey) source"""
@@ -3498,31 +3493,6 @@ class RootFlowStep(FlowStep):
             if isinstance(step, mlrun.serving.MonitoredStep)
         }
 
-    def _get_final_step_from_cyclic_graph(self, step, visited=None):
-        """
-        recursively find the final step in a cyclic graph
-        """
-        if visited is None:
-            visited = set()
-        visited.add(step.name)
-        if not step.next:
-            return step.name
-        # If all next steps list this step in their `cycle_from`, then all outgoing
-        # edges from this step are back-edges within the same cycle, so we treat
-        # this step as the final step in the cyclic subgraph
-        elif all(
-            step.name in self[next_step_name].cycle_from for next_step_name in step.next
-        ):
-            return step.name
-        for next_step_name in step.next:
-            if next_step_name in visited:
-                continue
-            next_step = self[next_step_name]
-            final_step = self._get_final_step_from_cyclic_graph(next_step, visited)
-            if final_step:
-                return final_step
-        return None
-
 
 class HubTaskStep(TaskStep):
     """hub task execution step, runs a class or handler from a hub"""
@@ -4007,7 +3977,9 @@ def _init_async_objects(context, steps, root):
                 )
             if (
                 respond_supported
-                and (not step.next or step.name == root.default_final_step)
+                and (
+                    not step.next or root.allow_cyclic
+                )  # last step can be part of a cycle
                 and hasattr(step, "responder")
                 and step.responder
             ):

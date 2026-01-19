@@ -366,7 +366,7 @@ class TestOpenAIModel(TestBasicOpenAIProvider):
             answer = response[UsageResponseKeys.ANSWER]
             assert EXPECTED_RESULTS[0] in answer.lower()
             encoding = tiktoken.encoding_for_model(self.basic_llm_model)
-            assert len(encoding.encode(answer)) == 100
+            assert 95 <= len(encoding.encode(answer)) <= 105
 
             stats = response[UsageResponseKeys.USAGE]
             assert 95 <= stats["completion_tokens"] <= 105

@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import asyncio
+import concurrent.futures
 import inspect
 from collections.abc import Awaitable, Callable
 from typing import TYPE_CHECKING, Any, Optional, Union
@@ -374,6 +375,42 @@ class OpenAIProvider(ModelProvider):
             response=response,
         )
 
+    def _validate_and_detect_batch_invocation(
+        self, messages: Union[list[dict], list[list[dict]]]
+    ) -> bool:
+        """
+        Validate messages format and detect if this is a batch invocation.
+
+        :param messages: Either a list of message dicts (single) or list of message lists (batch)
+        :return: True if batch invocation, False if single invocation
+        :raises MLRunInvalidArgumentError: If messages format is invalid (mixed types or strings)
+        """
+        if not messages or not isinstance(messages, list):
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Messages must be a non-empty list of dictionaries or list of lists of dictionaries."
+            )
+
+        # Check if user mistakenly passed a list of strings
+        has_str = any(isinstance(item, str) for item in messages)
+        if has_str:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Invalid messages format: list of strings is not supported. "
+                "Messages must be a list of dicts (single invocation) or list of lists of dicts (batch invocation)."
+            )
+
+        has_list = any(isinstance(item, list) for item in messages)
+        has_dict = any(isinstance(item, dict) for item in messages)
+
+        if has_list and has_dict:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Invalid messages format: cannot mix list and dict items. "
+                "Use either all lists for batch invocation or all dicts for single invocation."
+            )
+
+        if has_list:
+            return True
+        return False
+
     def invoke(
         self,
         messages: Union[list[dict], list[list[dict]]],
@@ -437,18 +474,35 @@ class OpenAIProvider(ModelProvider):
             Single invocation: A string, dictionary, or `ChatCompletion` object.
             Batch invocation: A list of responses in the same order as input messages.
             Response format depends on `invoke_response_format`.
+
+        :raises:
+            In batch invocation: Any exception from a single item fails the entire batch.
         """
         # Detect if this is a batch invocation
         is_batch = self._validate_and_detect_batch_invocation(messages)
 
         if is_batch:
-            return asyncio.run(
-                self._async_batch_invoke(
-                    messages_list=messages,
-                    invoke_response_format=invoke_response_format,
-                    **invoke_kwargs,
-                )
+            # Prepare the async batch coroutine
+            batch_coro = self._async_batch_invoke(
+                messages_list=messages,
+                invoke_response_format=invoke_response_format,
+                **invoke_kwargs,
             )
+
+            try:
+                asyncio.get_running_loop()
+                in_event_loop = True
+            except RuntimeError:
+                in_event_loop = False
+
+            if in_event_loop:
+                # We're in an event loop - run asyncio.run() in a separate thread
+                with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+                    future = executor.submit(asyncio.run, batch_coro)
+                    return future.result()
+            else:
+                # No running loop, use asyncio.run() directly
+                return asyncio.run(batch_coro)
 
         # Single invocation
         return self._single_invoke(
@@ -520,6 +574,9 @@ class OpenAIProvider(ModelProvider):
             Single invocation: A string, dictionary, or `ChatCompletion` object.
             Batch invocation: A list of responses in the same order as input messages.
             Response format depends on `invoke_response_format`.
+
+        :raises:
+            In batch invocation: Any exception from a single item fails the entire batch.
         """
         # Detect if this is a batch invocation
         is_batch = self._validate_and_detect_batch_invocation(messages)

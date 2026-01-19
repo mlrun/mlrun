@@ -1055,7 +1055,7 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
         expected_secret_count,
     ):
         token_name = "test-token"
-        auth_info = mlrun.common.schemas.AuthInfo(username="test-user")
+        auth_info = mlrun.common.schemas.AuthInfo(user_id="test-user")
 
         runtime = mlrun.runtimes.kubejob.KubejobRuntime()
         runtime.spec.volume_mounts = initial_volume_mounts.copy()
@@ -1110,7 +1110,7 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
 
     def test_mount_secret_token_to_runtime_non_existing_secret(self):
         token_name = "test-token"
-        auth_info = mlrun.common.schemas.AuthInfo(username="test-user")
+        auth_info = mlrun.common.schemas.AuthInfo(user_id="test-user")
 
         runtime = mlrun.runtimes.kubejob.KubejobRuntime()
 

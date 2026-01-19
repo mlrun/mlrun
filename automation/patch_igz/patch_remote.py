@@ -274,44 +274,55 @@ class MLRunPatcher:
         mlrun_version = image_tag
         image_tag = image_tag.replace("+", "-")
 
-        for target in targets:
-            logger.info(f"Building mlrun docker images: {target}:{image_tag}")
-
         mlrun_docker_registry = self._resolve_docker_registry()
         target_to_image = {
             target: f"{mlrun_docker_registry}/{Constants.targets_to_image_name[target]}:{image_tag}"
             for target in targets
         }
-        if not self._no_build:
-            env = {
-                "MLRUN_VERSION": mlrun_version,
-                "MLRUN_DOCKER_REPO": mlrun_docker_registry,
-            }
 
-            if Constants.mlrun_kfp in targets:
-                # Set the MLRUN_KFP_IMAGE environment variable in the mlrun-api deployment patch,
-                # so that workflow pods will use the correct KFP image from the internal registry.
-                _, overwrite_registry = self._resolve_overwrite_registry()
-                kfp_registry = overwrite_registry or mlrun_docker_registry
-                if kfp_registry:
-                    kfp_image_uri = f"{kfp_registry}/{Constants.mlrun_kfp}:{image_tag}"
+        if self._no_build:
+            return target_to_image
 
-                    mlrun_api_container = self._deploy_patch["mlrun_api"]["spec"][
-                        "template"
-                    ]["spec"]["containers"][0]
-                    env_vars = mlrun_api_container.setdefault("env", [])
-                    for var in env_vars:
-                        if var.get("name") == "MLRUN_KFP_IMAGE":
-                            var["value"] = kfp_image_uri
-                            break
-                    else:
-                        env_vars.append(
-                            {"name": "MLRUN_KFP_IMAGE", "value": kfp_image_uri}
-                        )
+        env = {
+            "MLRUN_VERSION": mlrun_version,
+            "MLRUN_DOCKER_REPO": mlrun_docker_registry,
+        }
 
-            cmd = ["make"]
-            cmd.extend(targets)
-            self._exec_local(cmd, live=True, env=env)
+        mlrun_api_container = self._deploy_patch["mlrun_api"]["spec"]["template"][
+            "spec"
+        ]["containers"][0]
+        env_vars = mlrun_api_container.setdefault("env", [])
+        _, overwrite_registry = self._resolve_overwrite_registry()
+        image_registry = overwrite_registry or mlrun_docker_registry
+        # make sure the mlrun images are pulled from the input registry
+        # and not the system registry as the system registry wont include the newly built image
+        if Constants.mlrun in targets and image_registry:
+            # ensure no "mlrun/" suffix. the reason is that usually client would use "mlrun/mlrun" image
+            # which then translates to registry.com/mlrun/mlrun/mlrun. so when we trim the "mlrun/" from registry
+            # it will translate to registry.com/mlrun/mlrun as expected.
+            # note: the images would still be pushed to the input registry (e.g registry.com/mlrun).
+            mlrun_images_registry = image_registry.rstrip("/").rstrip("/mlrun")
+            env_vars.append(
+                {"name": "MLRUN_IMAGES_REGISTRY", "value": mlrun_images_registry}
+            )
+
+        if Constants.mlrun_kfp in targets and image_registry:
+            # Set the MLRUN_KFP_IMAGE environment variable in the mlrun-api deployment patch,
+            # so that workflow pods will use the correct KFP image from the internal registry.
+            kfp_image_uri = f"{image_registry}/{Constants.mlrun_kfp}:{image_tag}"
+            for var in env_vars:
+                if var.get("name") == "MLRUN_KFP_IMAGE":
+                    var["value"] = kfp_image_uri
+                    break
+            else:
+                env_vars.append({"name": "MLRUN_KFP_IMAGE", "value": kfp_image_uri})
+
+        images_to_log = [f"{target}:{image_tag}" for target in targets]
+        logger.info(f"Building mlrun docker images: {images_to_log}")
+
+        cmd = ["make"]
+        cmd.extend(targets)
+        self._exec_local(cmd, live=True, env=env)
 
         return target_to_image
 

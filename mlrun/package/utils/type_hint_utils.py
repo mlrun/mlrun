@@ -143,8 +143,8 @@ class TypeHintUtils:
             # Look for a builtin type:
             if extracted_type in builtin_types:
                 continue
-            # If it's not a builtin, its should have a full module path, meaning at least one '.' to separate the module and
-            # the class. If it doesn't, we will try to get the class from the main module:
+            # If it's not a builtin, its should have a full module path, meaning at least one '.' to separate the module
+            # and the class. If it doesn't, we will try to get the class from the main module:
             if "." not in extracted_type:
                 logger.warn(
                     f"The type hint string given '{extracted_type}' is not a `builtins` python type. MLRun will try to "
@@ -156,11 +156,11 @@ class TypeHintUtils:
                     )
                 except MLRunInvalidArgumentError:
                     raise MLRunInvalidArgumentError(
-                        f"MLRun tried to get the type hint '{extracted_type}' but it can't as it is not a valid builtin "
-                        f"Python type (one of `list`, `dict`, `str`, `int`, etc.) nor a locally declared type (from "
-                        f"the `__main__` module). Pay attention using only the type as string is not allowed as the "
-                        f"handler's scope is different than MLRun's. To properly give a type hint as string, please "
-                        f"specify the full module path without aliases. For example: do not use `DataFrame` or "
+                        f"MLRun tried to get the type hint '{extracted_type}' but it can't as it is not a valid "
+                        f"builtin Python type (one of `list`, `dict`, `str`, `int`, etc.) nor a locally declared type "
+                        f"(from the `__main__` module). Pay attention using only the type as string is not allowed as "
+                        f"the handler's scope is different than MLRun's. To properly give a type hint as string, "
+                        f"please specify the full module path without aliases. For example: do not use `DataFrame` or "
                         f"`pd.DataFrame`, use `pandas.DataFrame`."
                     )
             # Get the module path and the type class (If we'll wish to support inner classes, the `rsplit` won't

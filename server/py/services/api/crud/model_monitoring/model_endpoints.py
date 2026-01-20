@@ -1007,9 +1007,8 @@ class ModelEndpoints:
                     model_endpoint_object.status.drift_measures,
                     model_endpoint_object.status.drift_measures_timestamp,
                 ) = (drift_measures, drift_measures_timestamp)
-            elif config.model_endpoint_monitoring.writer_graph.writer_version == "v1":
-                # JSON stats files are only created for v1 writer.
-                # For v2+ writer, stats are stored in parquet files only.
+            else:
+                # json option
                 model_endpoint_object = self._add_feature_analysis(
                     model_endpoint_objects=[model_endpoint_object]
                 )[0]

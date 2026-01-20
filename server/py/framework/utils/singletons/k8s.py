@@ -1440,6 +1440,55 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
             )
         return self._extract_token_from_secret(k8s_secret)
 
+    def get_user_secret_tokens_as_igz_yml_data(
+        self,
+        user_id: str,
+        token_name: typing.Optional[str] = None,
+    ) -> list[dict[str, str]]:
+        """
+        Fetch user token(s) from k8s secrets in igz.yml format.
+
+        :param user_id: The user ID.
+        :param token_name: If provided, fetch only this token (strict mode).
+                           If None, fetch all user tokens (auto-discovery mode).
+        :return: List of token dicts with 'name' and 'token' keys, suitable for igz.yml.
+        :raises mlrun.errors.MLRunNotFoundError: If no tokens can be retrieved.
+        """
+        if token_name:
+            # Fetch single token
+            token_value = self.get_user_token_secret_value(
+                user_id=user_id, token_name=token_name
+            )
+            return [{"name": token_name, "token": token_value}]
+
+        # Fetch all tokens
+        all_token_infos = self.list_user_token_secrets(user_id)
+        if not all_token_infos:
+            raise mlrun.errors.MLRunNotFoundError(
+                f"No tokens found for user '{user_id}'"
+            )
+
+        secret_tokens = []
+        for token_info in all_token_infos:
+            try:
+                token_value = self.get_user_token_secret_value(
+                    user_id=user_id, token_name=token_info.name
+                )
+                secret_tokens.append({"name": token_info.name, "token": token_value})
+            except mlrun.errors.MLRunNotFoundError:
+                logger.warning(
+                    "Failed to retrieve token value, skipping",
+                    user_id=user_id,
+                    token_name=token_info.name,
+                )
+
+        if not secret_tokens:
+            raise mlrun.errors.MLRunNotFoundError(
+                f"No valid tokens found for user '{user_id}'"
+            )
+
+        return secret_tokens
+
     def _extract_token_from_secret(
         self,
         k8s_secret: client.V1Secret,

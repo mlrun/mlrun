@@ -153,6 +153,61 @@ class Client(BaseClient, project_follower.Member):
             "Failed to revoke offline token from Iguazio",
         )
 
+    def resolve_token_from_igz_yml(
+        self,
+        igz_yml_content: str,
+        user_id: str,
+        token_name: typing.Optional[str] = None,
+    ) -> str:
+        """
+        Use the iguazio SDK to resolve/validate a token from igz.yml content.
+
+        Creates a temporary file with the provided YAML content and uses the
+        Iguazio SDK's token file resolution to find and validate the token.
+
+        :param igz_yml_content: YAML content with tokens in igz.yml format.
+        :param user_id: The user_id for error messages.
+        :param token_name: Specific token to validate (strict mode), or None (auto-discovery).
+        :return: The resolved token name.
+        :raises MLRunNotFoundError: If no valid token found or validation fails.
+        """
+        import tempfile
+
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".yml", delete=True
+        ) as temp_file:
+            temp_file.write(igz_yml_content)
+            temp_file.flush()
+
+            try:
+                # Create a separate client configured for token file resolution
+                token_file_client = iguazio.Client(
+                    api_url=self._api_url,
+                    auto_login=False,
+                    use_token_file=True,
+                    token_file_path=temp_file.name,
+                    token_name=token_name,
+                    verify_ssl=mlrun.mlconf.iguazio_api_ssl_verify,
+                )
+                result = token_file_client.get_refresh_token()
+                if not result or not result[0]:
+                    raise mlrun.errors.MLRunNotFoundError(
+                        f"No valid tokens found for user id '{user_id}'"
+                    )
+                resolved_name, _ = result
+                return resolved_name
+
+            except ValueError as exc:
+                # Token not found, empty, or failed validation
+                raise mlrun.errors.MLRunNotFoundError(
+                    f"Token '{token_name}' not found or invalid for user id '{user_id}'"
+                ) from exc
+            except RuntimeError as exc:
+                # No valid tokens found after trying all
+                raise mlrun.errors.MLRunNotFoundError(
+                    f"No valid tokens found for user id '{user_id}'"
+                ) from exc
+
     def create_project(
         self,
         session: sqlalchemy.orm.Session,

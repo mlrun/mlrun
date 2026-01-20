@@ -1059,38 +1059,63 @@ def test_get_user_secret_tokens_as_igz_yml_data_single_token_not_found(k8s_helpe
         )
 
 
+def _mock_list_secrets(secrets, namespace=None, labels=None):
+    """
+    Mock for list_secrets that filters by token_name label.
+
+    :param secrets: List of secrets to filter from.
+    """
+    if labels and mlrun_constants.MLRunInternalLabels.auth_token_name in labels:
+        # Filtering by specific token name
+        requested_token = labels[mlrun_constants.MLRunInternalLabels.auth_token_name]
+        return [
+            secret
+            for secret in secrets
+            if secret.metadata.labels.get(
+                mlrun_constants.MLRunInternalLabels.auth_token_name
+            )
+            == requested_token
+        ]
+    # Return all secrets
+    return secrets
+
+
 def test_get_user_secret_tokens_as_igz_yml_data_auto_discovery(k8s_helper):
     """Test fetching all tokens for a user (auto-discovery mode)."""
     user_id = "test-user-id"
     token1_name = "token1"
     token2_name = "token2"
+    token1_value = "value1"
+    token2_value = "value2"
     secret1_name = k8s_helper._resolve_auth_secret_name(user_id, token1_name)
     secret2_name = k8s_helper._resolve_auth_secret_name(user_id, token2_name)
 
     secret1 = _make_user_token_secret(
         secret1_name,
         token_name=token1_name,
-        token_value="value1",
+        token_value=token1_value,
         expiration=1111,
         user_id=user_id,
     )
     secret2 = _make_user_token_secret(
         secret2_name,
         token_name=token2_name,
-        token_value="value2",
+        token_value=token2_value,
         expiration=2222,
         user_id=user_id,
     )
 
-    k8s_helper.list_secrets = mock.MagicMock(return_value=[secret1, secret2])
+    k8s_helper.list_secrets = mock.MagicMock(
+        side_effect=lambda **kwargs: _mock_list_secrets([secret1, secret2], **kwargs)
+    )
 
     result = k8s_helper.get_user_secret_tokens_as_igz_yml_data(
         user_id=user_id, token_name=None
     )
 
     assert len(result) == 2
-    assert {"name": token1_name, "token": "value1"} in result
-    assert {"name": token2_name, "token": "value2"} in result
+    assert {"name": token1_name, "token": token1_value} in result
+    assert {"name": token2_name, "token": token2_value} in result
 
 
 def test_get_user_secret_tokens_as_igz_yml_data_no_tokens(k8s_helper):

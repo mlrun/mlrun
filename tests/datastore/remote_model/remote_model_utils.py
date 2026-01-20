@@ -35,38 +35,43 @@ PROMPT_LEGEND = {
 }
 INPUT_DATA = [
     {
-        "question": "What is the capital of France? Answer with one word first, then provide a historical overview.",
+        "question": "What is the capital of France? Answer with one word first, then provide a historical overview."
+        " Answer in detail with at least 200 words.",
         "depth_level": "detailed",
         "persona": "teacher",
         "tone": "casual",
     },
     {
-        "question": "What is 2 + 2? Answer shortly and then explain with details.",
+        "question": "What is the largest planet in our solar system? First give a one-word answer, "
+        "then provide a detailed explanation in at least 200 words.",
         "depth_level": "basic",
-        "persona": "math teacher",
+        "persona": "astronomy teacher",
         "tone": "simple",
     },
     {
-        "question": "Who wrote Hamlet? Answer shortly and then explain with details.",
+        "question": "Who wrote Hamlet? Answer shortly and then explain with details.  "
+        "Answer in detail with at least 200 words.",
         "depth_level": "basic",
         "persona": "literature professor",
         "tone": "formal",
     },
     {
-        "question": "What color is the sky on a clear day? Answer shortly and then explain with details.",
+        "question": "What color is the sky on a clear day? Answer shortly and then "
+        "Answer in detail with at least 200 words.",
         "depth_level": "basic",
         "persona": "child",
         "tone": "fun",
     },
     {
-        "question": "What planet do we live on? Answer shortly and then explain with details.",
+        "question": "What planet do we live on? Answer shortly and then explain with details. "
+        "Answer in detail with at least 200 words.",
         "depth_level": "basic",
         "persona": "astronaut",
         "tone": "educational",
     },
 ]
 
-EXPECTED_RESULTS = ["paris", "4", "shakespeare", "blue", "earth"]
+EXPECTED_RESULTS = ["paris", "jupiter", "shakespeare", "blue", "earth"]
 
 PROMPT_TEMPLATE = [
     {

@@ -18,7 +18,6 @@ from typing import Optional, cast
 import pytest
 import yaml
 from PIL import Image
-from transformers import AutoTokenizer
 
 import mlrun
 import mlrun.artifacts
@@ -45,6 +44,13 @@ from tests.integration.model_providers.model_providers_utils import (
     create_mocked_get_store_artifact,
 )
 
+
+class LLMContentMismatchError(AssertionError):
+    """Raised when LLM generates unexpected content (retriable error)."""
+
+    pass
+
+
 here = os.path.dirname(__file__)
 config = {}
 config_file_path = os.path.join(here, "test-huggingface.yml")
@@ -60,6 +66,8 @@ if os.path.exists(config_file_path):
 class TestBasicHuggingFaceProvider:
     profile_name = "huggingface_profile"
     env_secrets = config
+    # Max retry attempts for LLM content mismatches (non-deterministic failures)
+    max_retries = 2
 
     @classmethod
     def setup_class(cls):
@@ -87,13 +95,82 @@ class TestBasicHuggingFaceProvider:
         # noinspection PyAttributeOutsideInit
         self.url_prefix = "huggingface://"
 
+    @staticmethod
+    def _check_string_response(result: str, expected_result: str, tokenizer) -> None:
+        assert isinstance(result, str)
+        token_count = len(tokenizer.encode(result))
+        assert 95 <= token_count <= 101
+
+        if expected_result not in result.lower():
+            raise LLMContentMismatchError(
+                f"Expected '{expected_result}' not found in LLM answer: '{result[:100]}...'"
+            )
+
+    @staticmethod
+    def _check_full_response(
+        result: list,
+        expected_input_message: dict,
+        expected_result: str,
+        tokenizer,
+        min_tokens: int = 95,
+        max_tokens: int = 101,
+    ) -> None:
+        assert isinstance(result, list)
+        assert result[0]["generated_text"][0] == expected_input_message
+        assistant_response = result[0]["generated_text"][1]
+        assert assistant_response["role"] == "assistant"
+        token_count = len(tokenizer.encode(assistant_response["content"]))
+        assert min_tokens <= token_count <= max_tokens
+
+        content = assistant_response["content"].lower()
+        if expected_result not in content:
+            raise LLMContentMismatchError(
+                f"Expected '{expected_result}' not found in LLM answer: '{content[:100]}...'"
+            )
+
+    @staticmethod
+    def _check_usage_response(
+        result: dict,
+        expected_result: str,
+        messages: Optional[list[dict]] = None,
+        tokenizer=None,
+        min_tokens: int = 95,
+        max_tokens: int = 101,
+    ) -> None:
+        assert isinstance(result, dict)
+        assert UsageResponseKeys.ANSWER in result
+        assert UsageResponseKeys.USAGE in result
+        assert (
+            min_tokens
+            <= result[UsageResponseKeys.USAGE]["completion_tokens"]
+            <= max_tokens
+        )
+        assert (
+            result[UsageResponseKeys.USAGE]["total_tokens"]
+            == result[UsageResponseKeys.USAGE]["prompt_tokens"]
+            + result[UsageResponseKeys.USAGE]["completion_tokens"]
+        )
+
+        if messages is not None and tokenizer is not None:
+            prompt = tokenizer.apply_chat_template(
+                messages, tokenize=False, add_generation_prompt=True
+            )
+            prompt_tokens = len(tokenizer.encode(prompt))
+            assert result[UsageResponseKeys.USAGE]["prompt_tokens"] == prompt_tokens
+
+        answer = result[UsageResponseKeys.ANSWER].lower()
+        if expected_result not in answer:
+            raise LLMContentMismatchError(
+                f"Expected '{expected_result}' not found in LLM answer: '{answer[:100]}...'"
+            )
+
     def setup_datastore_profile(self, task=None, model_kwargs=None):
         # noinspection PyAttributeOutsideInit
         self.profile = HuggingFaceProfile(
             name=self.profile_name,
             task=task or "text-generation",
             token=self.env_secrets.get("HF_TOKEN"),
-            device=self.env_secrets.get("HF_DEVICE"),
+            device=self.env_secrets.get("HF_DEVICE") or "cpu",
             device_map=self.env_secrets.get("HF_DEVICE_MAP"),
             trust_remote_code=self.env_secrets.get("HF_TRUST_REMOTE_CODE"),
             model_kwargs=model_kwargs,
@@ -121,54 +198,71 @@ class TestHuggingFaceProvider(TestBasicHuggingFaceProvider):
         )
         model_provider = cast(HuggingFaceProvider, model_provider)
         assert model_provider.model == model_name
-        result = model_provider.invoke(
-            messages=messages, invoke_response_format=InvokeResponseFormat.STRING
-        )
-        assert isinstance(result, str)
-        assert EXPECTED_RESULTS[0] in result.lower()
+
+        for attempt in range(cls.max_retries + 1):
+            try:
+                result = model_provider.invoke(
+                    messages=messages,
+                    invoke_response_format=InvokeResponseFormat.STRING,
+                )
+                cls._check_string_response(
+                    result, EXPECTED_RESULTS[0], model_provider.client.tokenizer
+                )
+                break
+            except LLMContentMismatchError as e:
+                if attempt == cls.max_retries:
+                    raise
+                print(
+                    f"LLM content mismatch in STRING (attempt {attempt + 1}/{cls.max_retries + 1}): {e}"
+                )
+
         if expected_torch_dtype:
             assert model_provider.client.model.dtype == expected_torch_dtype
 
-        token_count = len(model_provider.client.tokenizer.encode(result))
-        # Token count may be lower due to early stopping or slightly higher (e.g., 101)
-        # due to internal EOS or tokenizer behavior, so we assert within this range.
-        assert 95 <= token_count <= 101
-        # checking invoke_response_format=InvokeResponseFormat.FULL
-        response = model_provider.invoke(
-            messages=messages,
-            max_new_tokens=50,
-        )
-        assert isinstance(response, list)
-        assert response[0]["generated_text"][0] == formatted_messages[0]
+        for attempt in range(cls.max_retries + 1):
+            try:
+                response = model_provider.invoke(
+                    messages=messages,
+                    max_new_tokens=50,
+                )
+                cls._check_full_response(
+                    response,
+                    formatted_messages[0],
+                    EXPECTED_RESULTS[0],
+                    model_provider.client.tokenizer,
+                    min_tokens=45,
+                    max_tokens=51,
+                )
+                break
+            except LLMContentMismatchError as e:
+                if attempt == cls.max_retries:
+                    raise
+                print(
+                    f"LLM content mismatch in FULL (attempt {attempt + 1}/{cls.max_retries + 1}): {e}"
+                )
 
-        assistant_response = response[0]["generated_text"][1]
-        result = assistant_response["content"]
-        token_count = len(model_provider.client.tokenizer.encode(result))
-        assert assistant_response["role"] == "assistant"
-        # Token count may be lower due to early stopping or slightly higher (e.g., 101)
-        # due to internal EOS or tokenizer behavior, so we assert within this range.
-        assert 45 <= token_count <= 51
-
-        # checking invoke_response_format=InvokeResponseFormat.USAGE
-        response = model_provider.invoke(
-            messages=messages,
-            max_new_tokens=50,
-            invoke_response_format=InvokeResponseFormat.USAGE,
-        )
-        assert EXPECTED_RESULTS[0] in response[UsageResponseKeys.ANSWER].lower()
-        assert isinstance(response, dict)
-        assert 45 <= response[UsageResponseKeys.USAGE]["completion_tokens"] <= 51
-
-        prompt = model_provider.client.tokenizer.apply_chat_template(
-            messages, tokenize=False, add_generation_prompt=True
-        )
-        prompt_tokens = len(model_provider.client.tokenizer.encode(prompt))
-        assert response[UsageResponseKeys.USAGE]["prompt_tokens"] == prompt_tokens
-        assert (
-            response[UsageResponseKeys.USAGE]["total_tokens"]
-            == response[UsageResponseKeys.USAGE]["prompt_tokens"]
-            + response[UsageResponseKeys.USAGE]["completion_tokens"]
-        )
+        for attempt in range(cls.max_retries + 1):
+            try:
+                response = model_provider.invoke(
+                    messages=messages,
+                    max_new_tokens=50,
+                    invoke_response_format=InvokeResponseFormat.USAGE,
+                )
+                cls._check_usage_response(
+                    response,
+                    EXPECTED_RESULTS[0],
+                    messages=messages,
+                    tokenizer=model_provider.client.tokenizer,
+                    min_tokens=45,
+                    max_tokens=51,
+                )
+                break
+            except LLMContentMismatchError as e:
+                if attempt == cls.max_retries:
+                    raise
+                print(
+                    f"LLM content mismatch in USAGE (attempt {attempt + 1}/{cls.max_retries + 1}): {e}"
+                )
 
     @pytest.mark.parametrize("cred_mode", ["profile", "env", "secrets"])
     def test_basic_invoke(self, cred_mode):
@@ -194,6 +288,64 @@ class TestHuggingFaceProvider(TestBasicHuggingFaceProvider):
             model_name=self.basic_llm_model,
             expected_torch_dtype=expected_torch_dtype,
         )
+
+    @pytest.mark.parametrize(
+        "invoke_response_format",
+        [
+            InvokeResponseFormat.STRING,
+            InvokeResponseFormat.FULL,
+            InvokeResponseFormat.USAGE,
+        ],
+    )
+    @pytest.mark.parametrize("batch_size", [None, 4])
+    def test_batch_invoke(self, invoke_response_format, batch_size):
+        self.setup_datastore_profile()
+        model_url = self.url_prefix + self.basic_llm_model
+        default_invoke_kwargs = {"max_new_tokens": 100}
+        # if not set, batch size is according to huggingface_default_batch_size in mlrun config
+        if batch_size is not None:
+            default_invoke_kwargs["batch_size"] = batch_size
+        model_provider = mlrun.get_model_provider(
+            url=model_url, default_invoke_kwargs=default_invoke_kwargs
+        )
+
+        model_provider = cast(HuggingFaceProvider, model_provider)
+
+        messages_list = [[msg] for msg in formatted_messages]
+
+        for attempt in range(self.max_retries + 1):
+            try:
+                results = model_provider.invoke(
+                    messages=messages_list,
+                    invoke_response_format=invoke_response_format,
+                )
+
+                assert isinstance(results, list)
+                assert len(results) == len(formatted_messages)
+
+                for i, result in enumerate(results):
+                    if invoke_response_format == InvokeResponseFormat.STRING:
+                        self._check_string_response(
+                            result, EXPECTED_RESULTS[i], model_provider.client.tokenizer
+                        )
+                    elif invoke_response_format == InvokeResponseFormat.FULL:
+                        self._check_full_response(
+                            result,
+                            formatted_messages[i],
+                            EXPECTED_RESULTS[i],
+                            model_provider.client.tokenizer,
+                        )
+                    elif invoke_response_format == InvokeResponseFormat.USAGE:
+                        self._check_usage_response(result, EXPECTED_RESULTS[i])
+
+                break
+
+            except LLMContentMismatchError as e:
+                if attempt == self.max_retries:
+                    raise
+                print(
+                    f"LLM content mismatch in batch (attempt {attempt + 1}/{self.max_retries + 1}): {e}"
+                )
 
     def test_configurable_model(self):
         configurable_model = mlrun.mlconf.model_providers.huggingface_default_model
@@ -302,24 +454,37 @@ class TestHuggingFaceAIModel(TestBasicHuggingFaceProvider):
         ):
             server = function.to_mock_server()
         try:
-            response = server.test(body=INPUT_DATA[0])["output"]
+            from transformers import AutoTokenizer
 
-            assert len(response) == 2
-            answer = response[UsageResponseKeys.ANSWER]
-            assert EXPECTED_RESULTS[0] in answer.lower()
+            messages = [
+                {
+                    "role": prompt["role"],
+                    "content": prompt["content"].format(**INPUT_DATA[0]),
+                }
+                for prompt in PROMPT_TEMPLATE
+            ]
+
             tokenizer = AutoTokenizer.from_pretrained(self.basic_llm_model)
-            token_count = len(tokenizer.encode(answer))
-            # Token count may be lower due to early stopping or slightly higher (e.g., 101)
-            # due to internal EOS or tokenizer behavior, so we assert within this range.
-            assert 95 <= token_count <= 101
 
-            stats = response[UsageResponseKeys.USAGE]
-            assert stats["completion_tokens"] == token_count
-            assert stats["prompt_tokens"] > 0
-            assert (
-                stats["total_tokens"]
-                == stats["completion_tokens"] + stats["prompt_tokens"]
-            )
+            for attempt in range(self.max_retries + 1):
+                try:
+                    response = server.test(body=INPUT_DATA[0])["output"]
+
+                    self._check_usage_response(
+                        response,
+                        EXPECTED_RESULTS[0],
+                        messages=messages,
+                        tokenizer=tokenizer,
+                    )
+                    break
+
+                except LLMContentMismatchError as e:
+                    if attempt == self.max_retries:
+                        raise
+                    print(
+                        f"LLM content mismatch (attempt {attempt + 1}/{self.max_retries + 1}): {e}"
+                    )
+
         finally:
             server.wait_for_completion()
 

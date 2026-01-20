@@ -225,8 +225,9 @@ class Client:
     ):
         await self._ensure_async_session()
         self._prepare_auth_kwargs(kwargs)
-        framework.utils.clients.helpers.enrich_headers(
-            headers=kwargs.get("headers", {}), path=path
+        kwargs["headers"] = framework.utils.clients.helpers.enrich_headers(
+            headers=kwargs.get("headers"),
+            path=path,
         )
         response = await self._session.request(
             method=method,

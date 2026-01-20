@@ -240,8 +240,9 @@ class Client(
         if kwargs.get("timeout") is None:
             kwargs["timeout"] = 20
 
-        framework.utils.clients.helpers.enrich_headers(
-            headers=kwargs.get("headers", {}), path=path
+        kwargs["headers"] = framework.utils.clients.helpers.enrich_headers(
+            headers=kwargs.get("headers"),
+            path=path,
         )
 
         # requests no longer supports header values to be enum (https://github.com/psf/requests/pull/6154)

@@ -316,7 +316,7 @@ class Client(BaseClient, project_follower.Member):
         try:
             with self._client.with_headers(
                 clients_helpers.enrich_headers(
-                    self._service_account_token_client.auth_headers
+                    headers=self._service_account_token_client.auth_headers
                 )
             ):
                 return self._client.get_project_policy_assignments(project=project)
@@ -414,7 +414,7 @@ class Client(BaseClient, project_follower.Member):
             # Inject auth headers and context id to headers for logging correlation
             with self._client.with_headers(
                 clients_helpers.enrich_headers(
-                    self._service_account_token_client.auth_headers
+                    headers=self._service_account_token_client.auth_headers
                 )
             ):
                 return callback()

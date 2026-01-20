@@ -15,10 +15,11 @@ import mlrun.common.schemas
 from mlrun.utils import logger
 
 
-def enrich_headers(headers: dict, path: str | None = None):
+def enrich_headers(headers: dict | None = None, path: str | None = None) -> dict:
     """
     Enrich headers with context id for logging correlation and project role header for project paths
     """
+    headers = headers or {}
 
     logger.inject_context_id_header(headers)
 
@@ -29,3 +30,5 @@ def enrich_headers(headers: dict, path: str | None = None):
         and mlrun.common.schemas.HeaderNames.projects_role not in headers
     ):
         headers[mlrun.common.schemas.HeaderNames.projects_role] = "mlrun"
+
+    return headers

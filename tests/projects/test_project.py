@@ -2712,3 +2712,42 @@ def test_project_enrich():
     # override precedence: other wins on collisions
     assert base.spec.owner == "bob"
     assert base.status.state == "online"
+
+
+def test_project_enrich_skips_none_fields():
+    """
+    Cover the additive enrichment behavior: if the incoming project doesn't provide a value
+    for a field (e.g. status=None), enrichment must not override the current value.
+
+    This specifically covers `MlrunProject._enrich()`:
+    `if other_value is None: continue`
+    """
+    base = mlrun.projects.project.MlrunProject(
+        metadata=mlrun.projects.project.ProjectMetadata(
+            name="p1",
+        ),
+        spec=mlrun.projects.project.ProjectSpec(
+            source="repo1",
+        ),
+    )
+    base.status = mlrun.projects.project.ProjectStatus(state="offline")
+    base_status_id = id(base.status)
+
+    other = mlrun.projects.project.MlrunProject(
+        metadata=mlrun.projects.project.ProjectMetadata(
+            name="p1",
+        ),
+        spec=mlrun.projects.project.ProjectSpec(
+            source="repo1",
+        ),
+    )
+    # `status=None` is normalized by the public setter into an empty ProjectStatus(),
+    # so to cover the exact "other_value is None" branch we set the private field directly.
+    other._status = None
+    assert other.status is None
+
+    base._enrich(other)
+
+    # `other` didn't provide status, so base.status should be preserved (same object, same state)
+    assert id(base.status) == base_status_id
+    assert base.status.state == "offline"

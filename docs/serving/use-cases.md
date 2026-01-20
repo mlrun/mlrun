@@ -276,6 +276,7 @@ Example:
 ```python
 import storey
 
+
 class MyChoiceStep(storey.Choice):
     def select_outlets(self, event):
         if event["should_continue"]:

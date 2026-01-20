@@ -230,12 +230,12 @@ def load_source_code(
     :returns: Path to the loaded file
     """
     if not source_uri:
-        raise ValueError("source_uri is required")
+        raise mlrun.errors.MLRunInvalidArgumentError("source_uri is required")
     if not target_dir:
-        raise ValueError("target_dir is required")
+        raise mlrun.errors.MLRunInvalidArgumentError("target_dir is required")
     # Validate that source_uri is a store artifact URI
     if not mlrun.datastore.is_store_uri(source_uri):
-        raise ValueError(
+        raise mlrun.errors.MLRunInvalidArgumentError(
             f"source_uri must be a store artifact URI (store://...), got: {source_uri}"
         )
 
@@ -255,6 +255,11 @@ def load_source_code(
     local_file_path = os.path.join(target_dir, filename)
 
     # Download the artifact content to the target directory
-    mlrun.get_dataitem(artifact_target_path).download(local_file_path)
+    try:
+        mlrun.get_dataitem(artifact_target_path).download(local_file_path)
+    except Exception as exc:
+        raise mlrun.errors.MLRunRuntimeError(
+            f"Failed to download artifact from {artifact_target_path} to {local_file_path}"
+        ) from exc
 
     return local_file_path

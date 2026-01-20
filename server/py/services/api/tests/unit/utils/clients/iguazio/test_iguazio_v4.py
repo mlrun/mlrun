@@ -445,7 +445,7 @@ def test_resolve_token_from_igz_yml_success(iguazio_client, monkeypatch):
 
     # Mock iguazio.Client for the token file client
     mock_token_client = unittest.mock.Mock()
-    mock_token_client.get_offline_token.return_value = ("my-token", "jwt-value")
+    mock_token_client.get_refresh_token.return_value = ("my-token", "jwt-value")
 
     with unittest.mock.patch("iguazio.Client", return_value=mock_token_client):
         result = iguazio_client.resolve_token_from_igz_yml(
@@ -453,7 +453,7 @@ def test_resolve_token_from_igz_yml_success(iguazio_client, monkeypatch):
         )
 
     assert result == "my-token"
-    mock_token_client.get_offline_token.assert_called_once()
+    mock_token_client.get_refresh_token.assert_called_once()
 
 
 @pytest.mark.parametrize("iguazio_client", [("v4", "sync")], indirect=True)
@@ -462,7 +462,7 @@ def test_resolve_token_from_igz_yml_auto_discovery(iguazio_client, monkeypatch):
     igz_yml_content = "secretTokens:\n- name: default\n  token: jwt-default\n- name: other\n  token: jwt-other\n"
 
     mock_token_client = unittest.mock.Mock()
-    mock_token_client.get_offline_token.return_value = ("default", "jwt-default")
+    mock_token_client.get_refresh_token.return_value = ("default", "jwt-default")
 
     with unittest.mock.patch(
         "iguazio.Client", return_value=mock_token_client
@@ -515,7 +515,7 @@ def test_resolve_token_from_igz_yml_sdk_returns_none(iguazio_client):
     igz_yml_content = "secretTokens:\n- name: some-token\n  token: jwt-value\n"
 
     mock_token_client = unittest.mock.Mock()
-    mock_token_client.get_offline_token.return_value = (None, None)
+    mock_token_client.get_refresh_token.return_value = (None, None)
 
     with unittest.mock.patch("iguazio.Client", return_value=mock_token_client):
         with pytest.raises(

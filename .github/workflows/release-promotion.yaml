@@ -37,7 +37,7 @@ on:
       source_artifactory_docker_repo:
         description: 'Source Artifactory Docker repository name'
         required: false
-        default: 'mlrun-staging'
+        default: 'mlrun-staging/mlrun'
         type: string
       target_docker_registries:
         description: 'Comma separated list of target docker registries to push promoted images to (e.g., ghcr.io/,quay.io/,registry.hub.docker.com/)'

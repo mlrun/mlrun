@@ -488,8 +488,7 @@ class BytesPackager(ListPackager):
     """
 
     PACKABLE_OBJECT_TYPE = bytes
-    # Disable bundling since bytes items must be integers (0-255), and IntPackager doesn't support
-    # file unpacking, making bundling from files impractical.
+    # Disable bundling since bytes bundling seem impractical.
     BUNDLE_FROM_LIST = False
 
     def pack_result(self, obj: bytes, key: str) -> dict:

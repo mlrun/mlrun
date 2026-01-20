@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import collections
+import inspect
 import typing
 
 import pytest
@@ -62,11 +63,80 @@ def test_is_typing_type(type_hint: type, expected_result: bool):
 
 
 @pytest.mark.parametrize(
+    "type_hint, expected_result",
+    [
+        # Pure type hints (cannot be instantiated, return True):
+        (typing.Union, True),
+        (typing.TypeVar("A", int, str), True),
+        (typing.ForwardRef("pandas.DataFrame"), True),
+        (typing.Callable, True),
+        (typing.Literal, True),
+        (typing.Optional, True),
+        (typing.Annotated, True),
+        (typing.Final, True),
+        (typing.ClassVar, True),
+        # Generic aliases (not pure, return False):
+        (list[int], False),
+        (tuple[int, str], False),
+        (dict[str, int], False),
+        (typing.List[int], False),  # noqa: UP006
+        (typing.Dict[str, int], False),  # noqa: UP006
+        (typing.Tuple[int, str], False),  # noqa: UP006
+        # Regular types (not typing types, return False):
+        (list, False),
+        (int, False),
+        (str, False),
+        (SomeClass, False),
+    ],
+)
+def test_is_pure_hint(type_hint: type, expected_result: bool):
+    """
+    Test the `TypeHintUtils.is_pure_hint` function with multiple types.
+
+    :param type_hint:       The type to check.
+    :param expected_result: The expected result.
+    """
+    assert TypeHintUtils.is_pure_hint(type_hint=type_hint) == expected_result
+
+
+@pytest.mark.parametrize(
+    "type_hint, expected_result",
+    [
+        # Generic aliases (have origin and args):
+        (list[int], (list, (int,))),
+        (dict[str, int], (dict, (str, int))),
+        (tuple[int, str], (tuple, (int, str))),
+        (typing.List[int], (list, (int,))),  # noqa: UP006
+        (typing.Dict[str, int], (dict, (str, int))),  # noqa: UP006
+        (typing.Tuple[int, str], (tuple, (int, str))),  # noqa: UP006
+        # Typing special forms with args:
+        (typing.Optional[int], (typing.Union, (int, type(None)))),
+        (typing.Union[int, str], (typing.Union, (int, str))),
+        # Ellipsis in tuple (should be filtered out):
+        (tuple[int, ...], (tuple, (int,))),
+        # Non-generic types (no origin, return empty):
+        (list, (list, inspect.Parameter.empty)),
+        (int, (int, inspect.Parameter.empty)),
+        (str, (str, inspect.Parameter.empty)),
+        (SomeClass, (SomeClass, inspect.Parameter.empty)),
+    ],
+)
+def test_deconstruct_type_hint(type_hint: type, expected_result: tuple):
+    """
+    Test the `TypeHintUtils.deconstruct_type_hint` function with multiple types.
+
+    :param type_hint:       The type hint to deconstruct.
+    :param expected_result: The expected (origin, args) tuple.
+    """
+    assert TypeHintUtils.deconstruct_type_hint(type_hint=type_hint) == expected_result
+
+
+@pytest.mark.parametrize(
     "type_string, expected_type",
     [
         ("int", int),
         ("list", list),
-        ("typing.Tuple[int, str]", tuple[int, str]),
+        ("typing.Tuple[int, str]", typing.Tuple[int, str]),  # noqa: UP006
         ("tuple[int, str]", tuple[int, str]),
         ("dict[str, int]", dict[str, int]),
         ("typing.Optional[float]", typing.Optional[float]),

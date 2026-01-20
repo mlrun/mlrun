@@ -343,26 +343,68 @@ def test_clear_packagers_outputs():
         (
             "*list",
             [0.12111, 0.56111],
-            {"list_0": 0.12, "list_1": 0.56},
+            {"list_0": 0.12111, "list_1": 0.56111},
         ),
         (
             "*set",
             {0.12111, 0.56111},
-            {"set_0": 0.12, "set_1": 0.56},
+            {"set_0": 0.12111, "set_1": 0.56111},
         ),
         (
             "*",
             (0.12111, 0.56111),
-            {"_0": 0.12, "_1": 0.56},
+            {"_0": 0.12111, "_1": 0.56111},
         ),
         (
             "*dict",
             {"a": 0.12111, "b": 0.56111},
-            {"dict_a": 0.12, "dict_b": 0.56},
+            {"dict_a": 0.12111, "dict_b": 0.56111},
+        ),
+        (
+            "*dict",
+            {
+                "a": [1.11, [2.22, 3.333, 4.4444], 5.55555],
+                "b": {"c": 6.23, "d": [7.77, 8.8888]},
+            },
+            {
+                "dict_a_0": 1.11,
+                "dict_a_1_0": 2.22,
+                "dict_a_1_1": 3.333,
+                "dict_a_1_2": 4.4444,
+                "dict_a_2": 5.55555,
+                "dict_b_c": 6.23,
+                "dict_b_d_0": 7.77,
+                "dict_b_d_1": 8.8888,
+            },
+        ),
+        (
+            "2*dict",
+            {
+                "a": [1.11, [2.22, 3.333, 4.4444], 5.55555],
+                "b": {"c": 6.23, "d": [7.77, 8.8888]},
+            },
+            {
+                "dict_a_0": 1.11,
+                "dict_a_1": [2.22, 3.333, 4.4444],
+                "dict_a_2": 5.55555,
+                "dict_b_c": 6.23,
+                "dict_b_d": [7.77, 8.8888],
+            },
+        ),
+        (
+            "1*dict",
+            {
+                "a": [1.11, [2.22, 3.333, 4.4444], 5.55555],
+                "b": {"c": 6.23, "d": [7.77, 8.8888]},
+            },
+            {
+                "dict_a": [1.11, [2.22, 3.333, 4.4444], 5.55555],
+                "dict_b": {"c": 6.23, "d": [7.77, 8.8888]},
+            },
         ),
     ],
 )
-def test_arbitrary_log_hint(
+def test_unbundling_log_hint(
     key: str,
     obj: list | dict | tuple | set,
     expected_results: dict[str, float] | str,
@@ -378,7 +420,6 @@ def test_arbitrary_log_hint(
     packagers_manager = PackagersManager()
     packagers_manager.collect_packagers(
         packagers=[
-            PackagerC,  # For packing the float items
             "mlrun.package.packagers.python_standard_library_packagers.DictPackager",
             "mlrun.package.packagers.python_standard_library_packagers.ListPackager",
             "mlrun.package.packagers.python_standard_library_packagers.SetPackager",
@@ -389,7 +430,7 @@ def test_arbitrary_log_hint(
     # Pack an arbitrary amount of objects:
     try:
         packagers_manager.pack(
-            obj=obj, log_hint={"key": key, "artifact_type": "result", "n_round": 2}
+            obj=obj, log_hint={"key": key, "artifact_type": "result"}
         )
     except MLRunInvalidArgumentError as error:
         # Catch only if the expected results is a string, otherwise it is a legitimate exception:

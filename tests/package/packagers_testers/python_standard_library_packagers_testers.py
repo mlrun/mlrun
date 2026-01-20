@@ -398,7 +398,7 @@ class DictPackagerTester(PackagerTester):
         ),
         PackTest(
             pack_handler="pack_dict_for_bundling",
-            log_hint="*items",
+            log_hint="1*items",
             validation_function=validate_bundled_dict,
         ),
         *[
@@ -443,7 +443,7 @@ class DictPackagerTester(PackagerTester):
         ],
         PackToUnpackTest(
             pack_handler="pack_dict_for_bundling",
-            log_hint="*items: object",
+            log_hint="1*items: object",
             unpack_handler="unpack_bundled_dict",
         ),
     ]
@@ -523,7 +523,7 @@ class ListPackagerTester(PackagerTester):
         ),
         PackTest(
             pack_handler="pack_list_for_bundling",
-            log_hint="*items",
+            log_hint="1*items",
             validation_function=validate_bundled_list,
         ),
         *[
@@ -568,7 +568,7 @@ class ListPackagerTester(PackagerTester):
         ],
         PackToUnpackTest(
             pack_handler="pack_list_for_bundling",
-            log_hint="*items: object",
+            log_hint="1*items: object",
             unpack_handler="unpack_bundled_list",
         ),
     ]
@@ -650,7 +650,7 @@ class TuplePackagerTester(PackagerTester):
         ),
         PackTest(
             pack_handler="pack_tuple_for_bundling",
-            log_hint="*items",
+            log_hint="1*items",
             validation_function=validate_bundled_tuple,
         ),
         *[
@@ -695,7 +695,7 @@ class TuplePackagerTester(PackagerTester):
         ],
         PackToUnpackTest(
             pack_handler="pack_tuple_for_bundling",
-            log_hint="*items: object",
+            log_hint="1*items: object",
             unpack_handler="unpack_bundled_tuple",
         ),
     ]
@@ -779,7 +779,7 @@ class SetPackagerTester(PackagerTester):
         ),
         PackTest(
             pack_handler="pack_set_for_bundling",
-            log_hint="*items",
+            log_hint="1*items",
             validation_function=validate_bundled_set,
         ),
         *[
@@ -824,7 +824,7 @@ class SetPackagerTester(PackagerTester):
         ],
         PackToUnpackTest(
             pack_handler="pack_set_for_bundling",
-            log_hint="*items: object",
+            log_hint="1*items: object",
             unpack_handler="unpack_bundled_set",
         ),
     ]
@@ -910,7 +910,7 @@ class FrozensetPackagerTester(PackagerTester):
         ),
         PackTest(
             pack_handler="pack_frozenset_for_bundling",
-            log_hint="*items",
+            log_hint="1*items",
             validation_function=validate_bundled_frozenset,
         ),
         *[
@@ -955,7 +955,7 @@ class FrozensetPackagerTester(PackagerTester):
         ],
         PackToUnpackTest(
             pack_handler="pack_frozenset_for_bundling",
-            log_hint="*items: object",
+            log_hint="1*items: object",
             unpack_handler="unpack_bundled_frozenset",
         ),
     ]

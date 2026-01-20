@@ -73,7 +73,7 @@ class TypeHintUtils:
             is types.GenericAlias  # Python objects as type hints: list[int], dict[str, int], etc.
             or type(type_hint)
             is type(
-                list[int]
+                typing.List[int]  # noqa: UP006
             )  # Typing module type hints: List[int], Dict[str, int], etc.
         ):
             return False

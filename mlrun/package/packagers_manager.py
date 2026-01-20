@@ -214,9 +214,25 @@ class PackagersManager:
             # Inner call with unbundle level provided - override the extracted level:
             unbundle_level = _unbundle_level
 
-        # Check if unbundling is required:
+        # If unbundling is required, check the object can be unbundled (we don't want to fail on non-unbundle-able
+        # object as it is common that a user function might return a list[object] | object, so the expected log hint
+        # would be with *):
+        objects_to_pack = None
         if unbundle_level:
-            objects_to_pack = self._unbundle(bundled_object=obj)
+            try:
+                objects_to_pack = self._unbundle(bundled_object=obj)
+            except MLRunPackageUnbundlingError as unbundling_error:
+                if "No packager was found to unbundle the object" not in str(
+                    unbundling_error
+                ):
+                    raise unbundling_error
+                logger.debug(
+                    f"Unbundle level was not reached for '{log_hint_key}', but it cannot be unbundled (there is no "
+                    f"packager that can unbundle it) so we continue to pack it as a single object."
+                )
+
+        # If unbundling was performed, pack each of the unbundled objects separately:
+        if objects_to_pack is not None:
             if isinstance(objects_to_pack, dict):
                 objects_to_pack = {
                     f"{log_hint_key}_{dict_key}": dict_obj
@@ -228,9 +244,9 @@ class PackagersManager:
                 }
             # Go over the collected keys and objects and pack them (with decreased unbundle level):
             unbundle_level = (
-                unbundle_level - 1
-                if isinstance(unbundle_level, int)
-                else unbundle_level
+                unbundle_level
+                if isinstance(unbundle_level, bool)
+                else unbundle_level - 1
             )
             packages = []
             for key, per_key_obj in objects_to_pack.items():

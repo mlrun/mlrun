@@ -301,7 +301,7 @@ class DefaultPackager(Packager, metaclass=_DefaultPackagerMeta):
     #: The default artifact type to unpack from.
     DEFAULT_UNPACKING_ARTIFACT_TYPE = ArtifactType.OBJECT
 
-    #: Whether the `PACKABLE_OBJECT_TYPE` can be constructed from a list to be used as a collection.
+    #: Whether the `PACKABLE_OBJECT_TYPE` can be used as a bundle and be initialized from a list.
     BUNDLE_FROM_LIST = False
 
     #: Whether the `PACKABLE_OBJECT_TYPE` can be used as a bundle and be initialized from a dictionary.

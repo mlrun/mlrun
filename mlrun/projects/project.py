@@ -3765,11 +3765,14 @@ class MlrunProject(ModelObj):
         :store: if True, allow updating in case project already exists
         """
         self.export(filepath)
-        project = self.save_to_db(store)
+        project: MlrunProject = self.save_to_db(store)
+
+        # Update this object with the enriched project returned by the API,
+        # without losing runtime-only fields that aren't serialized (e.g. `spec.context`).
         self._enrich(project)
         return self
 
-    def save_to_db(self, store=True):
+    def save_to_db(self, store=True) -> "MlrunProject":
         """save project to database
 
         :store: if True, allow updating in case project already exists

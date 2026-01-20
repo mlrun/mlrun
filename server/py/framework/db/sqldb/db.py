@@ -3383,7 +3383,7 @@ class SQLDB(DBInterface):
     # ---- Projects ----
     def create_project(self, session: Session, project: mlrun.common.schemas.Project):
         logger.debug("Creating project in DB", project_name=project.metadata.name)
-        created = datetime.utcnow()
+        created = datetime.now(UTC)
         project.metadata.created = created
         # TODO: handle taking out the functions/workflows/artifacts out of the project and save them separately
         project_record = Project(
@@ -3468,7 +3468,7 @@ class SQLDB(DBInterface):
     ) -> mlrun.common.schemas.ProjectOut:
         project_record = self._get_project_record(session, name, project_id)
 
-        return self._transform_project_record_to_schema(session, project_record)
+        return self._transform_project_record_to_schema(project_record)
 
     def delete_project(
         self,
@@ -3515,9 +3515,7 @@ class SQLDB(DBInterface):
             else:
                 projects.append(
                     mlrun.common.formatters.ProjectFormat.format_obj(
-                        self._transform_project_record_to_schema(
-                            session, project_record
-                        ),
+                        self._transform_project_record_to_schema(project_record),
                         format_,
                     )
                 )
@@ -6255,27 +6253,8 @@ class SQLDB(DBInterface):
         return model_endpoint_full_dict
 
     def _transform_project_record_to_schema(
-        self, session: Session, project_record: Project
+        self, project_record: Project
     ) -> mlrun.common.schemas.ProjectOut:
-        # in projects that was created before 0.6.0 the full object wasn't created properly - fix that, and return
-        if not project_record.full_object:
-            project = mlrun.common.schemas.Project(
-                metadata=mlrun.common.schemas.ProjectMetadata(
-                    name=project_record.name,
-                    created=project_record.created,
-                ),
-                spec=mlrun.common.schemas.ProjectSpec(
-                    description=project_record.description,
-                    source=project_record.source,
-                    default_function_node_selector=project_record.default_function_node_selector,
-                ),
-                status=mlrun.common.schemas.ObjectStatus(
-                    state=project_record.state,
-                ),
-            )
-            self.store_project(session, project_record.name, project)
-            return mlrun.common.schemas.ProjectOut(**project.dict())
-        # TODO: handle transforming the functions/workflows/artifacts references to real objects
         return mlrun.common.schemas.ProjectOut(**project_record.full_object)
 
     def _transform_notification_record_to_spec_and_status(

@@ -1,18 +1,17 @@
-(datastore-profies)=
-# Datastore profiles
+(profies)=
+# Profiles
 
-Data store profiles serve multiple purposes in MLRun depending on the use: genAI, model monitoring, queues, storage providers. 
+Profiles are containers for credentials for a remote service, for example, storage, model or stream service. 
 
 In this section:
-- [GenAI datastore profiles](#genai-datastore-profiles)
-- [Model monitoring datastore profiles](#model-monitoring-datastore-profiles)
-- [Queue datastore profiles](#queue-datastore-profiles)
+- [Model provider profiles](#model-provider-profiles)
+- [Source and target profiles](#source-and-target-profiles)
 
 Storage provider datastore profiles are described in {ref}`datastore`.
 
-## GenAI datastore profiles
+## Model provider profiles
 
-GenAI datastore profiles define credentials and environment variables for remote-model providers (for predictions). 
+Model provider profiles define credentials and environment variables for remote-model providers (for predictions). 
 
 ### OpenAI profile
 ```python
@@ -52,7 +51,7 @@ See also:
 - {py:class}`~mlrun.datastore.datastore_profile.HuggingFaceProfile`
 - [Integrating a Hugging Face image classification model with MLRun](../genai/deployment/hf-model-image-classification.ipynb)
 
-## Model monitoring datastore profiles
+## Source and target profiles
 
 Model monitoring datastore profiles define the streaming and TSDB platforms required to run model monitoring.
 MLRun supports Kafka and V3IO as streaming platforms, and TimescaleDB (PostgreSQL) and V3IO as TSDB platforms.
@@ -89,7 +88,7 @@ stream_profile = DatastoreProfileV3io(
 ```
 See also
 -  {py:class}`~mlrun.projects.MlrunProject.set_model_monitoring_credentials`.
-- [Configuring TDengine and Kafka for model monitoring](../install-mlrun-ce/mlrun-ce-development-notes.html#configuring-tdengine-and-kafka-for-model-monitoring)
+- [Configuring TDengine and Kafka for model monitoring](../install-mlrun-ce/mlrun-ce-development-notes.md#configuring-tdengine-and-kafka-for-model-monitoring)
 
 ## Queue datastore profiles
 

@@ -8,7 +8,7 @@ In this section:
 - [Model monitoring datastore profiles](#model-monitoring-datastore-profiles)
 - [Queue datastore profiles](#queue-datastore-profiles)
 
-Storage provider data store profiles are described in {ref}`datastore`.
+Storage provider datastore profiles are described in {ref}`datastore`.
 
 ## GenAI datastore profiles
 
@@ -25,6 +25,9 @@ open_ai_profile = OpenAIProfile(
     timeout=os.environ.get("OPENAI_TIMEOUT"),
     max_retries=os.environ.get("OPENAI_MAX_RETRIES"),
 )
+
+project.register_datastore_profile(open_ai_profile)
+model_url = f"ds://openai_profile/model-name"
 ```
 See also:
 - {py:class}`~mlrun.datastore.datastore_profile.OpenAIProfile`
@@ -40,6 +43,9 @@ profile = HuggingFaceProfile(
     device_map=os.environ.get("HF_DEVICE_MAP"),
     trust_remote_code=os.environ.get("HF_TRUST_REMOTE_CODE"),
 )
+
+# Register the profile with the project
+project.register_datastore_profile(profile)
 ```
 
 See also:
@@ -81,7 +87,9 @@ stream_profile = DatastoreProfileV3io(
     v3io_access_key=mlrun.mlconf.get_v3io_access_key(),
 )
 ```
-See {py:class}`~mlrun.projects.MlrunProject.set_model_monitoring_credentials`.
+See also
+-  {py:class}`~mlrun.projects.MlrunProject.set_model_monitoring_credentials`.
+- [Configuring TDengine and Kafka for model monitoring](../install-mlrun-ce/mlrun-ce-development-notes.html#configuring-tdengine-and-kafka-for-model-monitoring)
 
 ## Queue datastore profiles
 

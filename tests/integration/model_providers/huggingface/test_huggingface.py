@@ -49,6 +49,13 @@ class LLMContentMismatchError(AssertionError):
     pass
 
 
+
+class LLMContentMismatchError(AssertionError):
+    """Raised when LLM generates unexpected content (retriable error)."""
+
+    pass
+
+
 here = os.path.dirname(__file__)
 config = {}
 config_file_path = os.path.join(here, "test-huggingface.yml")

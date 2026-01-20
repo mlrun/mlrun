@@ -442,7 +442,8 @@ class Client(BaseClient, project_follower.Member):
         response_body: typing.Mapping[typing.Any, typing.Any],
     ) -> tuple[str, str, list[str], str]:
         """
-        Validate and parse the authentication response body to extract the username, user ID, and group IDs.
+        Validate and parse the authentication response body to extract the username, user ID, group IDs and type of
+        authentication (user or service account).
         """
         if not isinstance(response_body, dict):
             raise mlrun.errors.MLRunBadRequestError("Expected dict in response body")

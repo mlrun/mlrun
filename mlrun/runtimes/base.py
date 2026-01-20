@@ -257,7 +257,7 @@ class BaseRuntime(ModelObj):
 
     def validate_and_enrich_service_account(
         self,
-        allowed_service_account,
+        allowed_service_accounts,
         forbidden_service_accounts,
         default_service_account,
     ):

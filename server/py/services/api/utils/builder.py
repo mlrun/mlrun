@@ -587,13 +587,13 @@ def get_kaniko_spec_attributes_from_runtime(
     _preemption_enrichment_result = {}
 
     def service_account_handler(attr_value):
-        from framework.api.utils import resolve_project_default_service_account
+        from framework.api.utils import resolve_project_service_account_details
 
         (
             allowed_service_accounts,
             forbidden_service_accounts,
             default_service_account,
-        ) = resolve_project_default_service_account(project, auth_info=auth_info)
+        ) = resolve_project_service_account_details(project, auth_info=auth_info)
         if attr_value:
             runtime_spec.validate_service_account(
                 allowed_service_accounts, forbidden_service_accounts

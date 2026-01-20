@@ -763,7 +763,7 @@ def process_function_service_account(
         allowed_service_accounts,
         forbidden_service_accounts,
         default_service_account,
-    ) = resolve_project_default_service_account(
+    ) = resolve_project_service_account_details(
         function.metadata.project, auth_info=auth_info
     )
 
@@ -772,7 +772,7 @@ def process_function_service_account(
     )
 
 
-def resolve_project_default_service_account(
+def resolve_project_service_account_details(
     project_name: str, auth_info: mlrun.common.schemas.AuthInfo = None
 ):
     allowed_service_accounts = services.api.crud.secrets.Secrets().get_project_secret(

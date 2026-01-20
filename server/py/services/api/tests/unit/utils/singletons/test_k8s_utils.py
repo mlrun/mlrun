@@ -1023,6 +1023,147 @@ def test_delete_user_token_secret_unexpected_error(k8s_helper):
     )
 
 
+def test_get_user_secret_tokens_as_igz_yml_data_single_token(k8s_helper):
+    """Test fetching a single token by name (strict mode)."""
+    user_id = "test-user-id"
+    token_name = "my-token"
+    token_value = "abc123"
+    secret_name = k8s_helper._resolve_auth_secret_name(user_id, token_name)
+
+    existing_secret = _make_user_token_secret(
+        secret_name,
+        token_name=token_name,
+        token_value=token_value,
+        expiration=9999,
+        user_id=user_id,
+    )
+    k8s_helper.list_secrets = mock.MagicMock(return_value=[existing_secret])
+
+    result = k8s_helper.get_user_secret_tokens_as_igz_yml_data(
+        user_id=user_id, token_name=token_name
+    )
+
+    assert result == [{"name": token_name, "token": token_value}]
+
+
+def test_get_user_secret_tokens_as_igz_yml_data_single_token_not_found(k8s_helper):
+    """Test that MLRunNotFoundError is raised when requested token doesn't exist."""
+    user_id = "test-user-id"
+    token_name = "missing-token"
+
+    k8s_helper.list_secrets = mock.MagicMock(return_value=None)
+
+    with pytest.raises(mlrun.errors.MLRunNotFoundError):
+        k8s_helper.get_user_secret_tokens_as_igz_yml_data(
+            user_id=user_id, token_name=token_name
+        )
+
+
+def test_get_user_secret_tokens_as_igz_yml_data_auto_discovery(k8s_helper):
+    """Test fetching all tokens for a user (auto-discovery mode)."""
+    user_id = "test-user-id"
+    token1_name = "token1"
+    token2_name = "token2"
+    secret1_name = k8s_helper._resolve_auth_secret_name(user_id, token1_name)
+    secret2_name = k8s_helper._resolve_auth_secret_name(user_id, token2_name)
+
+    secret1 = _make_user_token_secret(
+        secret1_name,
+        token_name=token1_name,
+        token_value="value1",
+        expiration=1111,
+        user_id=user_id,
+    )
+    secret2 = _make_user_token_secret(
+        secret2_name,
+        token_name=token2_name,
+        token_value="value2",
+        expiration=2222,
+        user_id=user_id,
+    )
+
+    k8s_helper.list_secrets = mock.MagicMock(return_value=[secret1, secret2])
+
+    result = k8s_helper.get_user_secret_tokens_as_igz_yml_data(
+        user_id=user_id, token_name=None
+    )
+
+    assert len(result) == 2
+    assert {"name": token1_name, "token": "value1"} in result
+    assert {"name": token2_name, "token": "value2"} in result
+
+
+def test_get_user_secret_tokens_as_igz_yml_data_no_tokens(k8s_helper):
+    """Test that MLRunNotFoundError is raised when user has no tokens."""
+    user_id = "test-user-id"
+
+    k8s_helper.list_secrets = mock.MagicMock(return_value=[])
+
+    with pytest.raises(
+        mlrun.errors.MLRunNotFoundError, match=f"No tokens found for user '{user_id}'"
+    ):
+        k8s_helper.get_user_secret_tokens_as_igz_yml_data(
+            user_id=user_id, token_name=None
+        )
+
+
+def test_get_user_secret_tokens_as_igz_yml_data_partial_failure(k8s_helper):
+    """Test that partial failures (MLRunNotFoundError) are skipped and valid tokens are returned."""
+    user_id = "test-user-id"
+    token1_name = "token1"
+    token2_name = "token2"
+
+    # Mock list_user_token_secrets to return both tokens
+    k8s_helper.list_user_token_secrets = mock.MagicMock(
+        return_value=[
+            mlrun.common.schemas.SecretTokenInfo(name=token1_name, expiration=1111),
+            mlrun.common.schemas.SecretTokenInfo(name=token2_name, expiration=2222),
+        ]
+    )
+
+    # Mock get_user_token_secret_value: token1 succeeds, token2 fails
+    def mock_get_token_value(user_id, token_name, namespace=None):
+        if token_name == token1_name:
+            return "value1"
+        raise mlrun.errors.MLRunNotFoundError(f"Token {token_name} not found")
+
+    k8s_helper.get_user_token_secret_value = mock.MagicMock(
+        side_effect=mock_get_token_value
+    )
+
+    result = k8s_helper.get_user_secret_tokens_as_igz_yml_data(
+        user_id=user_id, token_name=None
+    )
+
+    # Only token1 should be returned
+    assert result == [{"name": token1_name, "token": "value1"}]
+
+
+def test_get_user_secret_tokens_as_igz_yml_data_all_tokens_fail(k8s_helper):
+    """Test that MLRunNotFoundError is raised when all token fetches fail."""
+    user_id = "test-user-id"
+
+    # Mock list_user_token_secrets to return a token
+    k8s_helper.list_user_token_secrets = mock.MagicMock(
+        return_value=[
+            mlrun.common.schemas.SecretTokenInfo(name="bad-token", expiration=1111),
+        ]
+    )
+
+    # Mock get_user_token_secret_value to always fail
+    k8s_helper.get_user_token_secret_value = mock.MagicMock(
+        side_effect=mlrun.errors.MLRunNotFoundError("Token not found")
+    )
+
+    with pytest.raises(
+        mlrun.errors.MLRunNotFoundError,
+        match=f"No valid tokens found for user '{user_id}'",
+    ):
+        k8s_helper.get_user_secret_tokens_as_igz_yml_data(
+            user_id=user_id, token_name=None
+        )
+
+
 def _make_user_token_secret(
     secret_name,
     token_name="my-token",

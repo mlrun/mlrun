@@ -144,8 +144,7 @@ class MonitoringPreProcessor(storey.MapClass):
             if all_dicts:
                 # Check if all dicts have the same keys
                 same_keys = (
-                    len(set(tuple(sorted(item.keys())) for item in data_from_path))
-                    == 1
+                    len(set(tuple(sorted(item.keys())) for item in data_from_path)) == 1
                 )
 
                 if same_keys:

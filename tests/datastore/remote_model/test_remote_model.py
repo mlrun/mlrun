@@ -86,7 +86,13 @@ class TestMockModelProvider:
         dummy_stream = server.context.stream.output_stream
         event = dummy_stream.event_list[0]
         assert event["effective_sample_count"] == 1
-        assert event["request"]["inputs"] == input_data
+        assert event["request"]["input_schema"] == list(input_data.keys())
+        assert event["request"]["inputs"] == [list(input_data.values())]
+        assert event["resp"]["output_schema"] == UsageResponseKeys.fields()
+        assert len(event["resp"]["outputs"]) == 1
+        output = event["resp"]["outputs"][0]
+        assert output[0] == answer
+        assert output[1] == stats
         assert event["labels"] == {}
         assert event["model"] == "my_endpoint"
         assert event["error"] is None
@@ -96,7 +102,9 @@ class TestMockModelProvider:
         "execution_mechanism",
         ["process_pool", "dedicated_process", "naive", "asyncio", "thread_pool"],
     )
-    def test_llmodel_single_invocation_with_error(self, execution_mechanism, rundb_mock):
+    def test_llmodel_single_invocation_with_error(
+        self, execution_mechanism, rundb_mock
+    ):
         """Test single invocation with error using MockModelProvider"""
         project = mlrun.new_project("test-mock-model-single-error", save=False)
         model_url = "mock://my-mock-model"
@@ -143,8 +151,14 @@ class TestMockModelProvider:
         dummy_stream = server.context.stream.output_stream
         event = dummy_stream.event_list[0]
         assert event["effective_sample_count"] == 1
-        assert event["request"]["inputs"] == input_data
+        assert event["request"]["input_schema"] == list(input_data.keys())
+        assert event["request"]["inputs"] == [list(input_data.values())]
+        assert event["resp"]["output_schema"] is None
+        assert event["resp"]["outputs"] == [None]
         assert "Mock error triggered by ERROR keyword" in event["error"]
+        assert event["model"] == "my_endpoint"
+        assert event["labels"] == {}
+        assert event["metrics"] is None
 
     @pytest.mark.parametrize(
         "execution_mechanism",
@@ -273,5 +287,12 @@ class TestMockModelProvider:
         dummy_stream = server.context.stream.output_stream
         event = dummy_stream.event_list[0]
         assert event["effective_sample_count"] == len(inputs)
-        assert event["request"]["inputs"] == inputs
+        assert event["request"]["input_schema"] == list(inputs[0].keys())
+        for i, input_as_list in enumerate(event["request"]["inputs"]):
+            assert input_as_list == list(inputs[i].values())
+        assert event["resp"]["output_schema"] is None
+        assert event["resp"]["outputs"] == [None]
         assert "Mock error triggered by ERROR keyword" in event["error"]
+        assert event["model"] == "my_endpoint"
+        assert event["labels"] == {}
+        assert event["metrics"] is None

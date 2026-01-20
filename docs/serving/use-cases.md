@@ -280,8 +280,9 @@ class MyChoiceStep(storey.Choice):
     def select_outlets(self, event):
         if event["should_continue"]:
             return ["continue"]
-        return ["stop"]The list returned by select_outlets must include only valid step names that follow the current step in the graph flow. If the current step is the responder, use Complete as the outlet name to exit the graph and return the response.
+        return ["stop"]
 ```
+The list returned by `select_outlets` must include only valid step names that follow the current step in the graph flow. If the current step is the responder, use Complete as the outlet name to exit the graph and return the response.
 
 ## Data and feature engineering (using the feature store)
 

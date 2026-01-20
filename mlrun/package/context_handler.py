@@ -15,9 +15,7 @@
 import inspect
 import os
 from collections import OrderedDict
-from typing import Union
 
-from mlrun.datastore import DataItem
 from mlrun.errors import MLRunInvalidArgumentError
 from mlrun.execution import MLClientCtx
 from mlrun.run import get_or_create_ctx
@@ -161,7 +159,7 @@ class ContextHandler:
         parsed_args = []
         type_hints_keys = list(type_hints.keys())
         for i, argument in enumerate(args):
-            if isinstance(argument, DataItem):
+            if argument in self._context.inputs:
                 parsed_args.append(
                     self._packagers_manager.unpack(
                         data_item=argument,
@@ -174,7 +172,7 @@ class ContextHandler:
 
         # Parse the keyword arguments:
         for key, value in kwargs.items():
-            if isinstance(value, DataItem):
+            if key in self._context.inputs:
                 kwargs[key] = self._packagers_manager.unpack(
                     data_item=value, type_hint=type_hints[key]
                 )
@@ -184,7 +182,7 @@ class ContextHandler:
     def log_outputs(
         self,
         outputs: list,
-        log_hints: list[Union[dict[str, str], str, None]],
+        log_hints: list[dict[str, str] | str | None],
     ):
         """
         Log the given outputs as artifacts (or results) with the stored context. Errors raised during the packing will
@@ -231,15 +229,6 @@ class ContextHandler:
 
         # Clear packagers outputs:
         self._packagers_manager.clear_packagers_outputs()
-
-    def set_labels(self, labels: dict[str, str]):
-        """
-        Set the given labels with the stored context.
-
-        :param labels: The labels to set.
-        """
-        for key, value in labels.items():
-            self._context.set_label(key=key, value=value)
 
     def _collect_packagers(
         self, packagers: list[str], is_mandatory: bool, is_custom_packagers: bool
@@ -313,7 +302,7 @@ class ContextHandler:
     def _validate_objects_to_log_hints_length(
         self,
         outputs: list,
-        log_hints: list[Union[dict[str, str], str, None]],
+        log_hints: list[dict[str, str] | str | None],
     ):
         """
         Validate the outputs and log hints are the same length. If they are not, warnings will be printed on what will

@@ -16,7 +16,7 @@ import json
 import os
 import pathlib
 import tempfile
-from typing import Any, Optional, Union
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -33,14 +33,13 @@ from tests.package.usage_assets import BaseClass, InheritingClass
 RETURNS_LOG_HINTS = [
     "my_array",
     "my_df",
-    "my_file: path",
     {"key": "my_dict", "artifact_type": "object"},
     "my_list:  file",
     "my_int",
     "my_str : result",
     "my_object: object",
-    "**my_df_dict_",
-    "*my_array_list_",
+    "*my_df_dict",
+    "*my_array_list",
 ]
 
 
@@ -48,7 +47,6 @@ def log_artifacts_and_results() -> (
     tuple[
         np.ndarray,
         pd.DataFrame,
-        str,
         dict,
         list,
         int,
@@ -75,6 +73,7 @@ def log_artifacts_and_results() -> (
     file_path = os.path.join(context.artifact_path, "my_file.txt")
     with open(file_path, "w") as file:
         file.write("123")
+    context.log_artifact(item="manually_logged_file", local_path=file_path)
 
     dataframes = {
         "abc": pd.DataFrame(np.random.rand(5, 5)),
@@ -86,7 +85,6 @@ def log_artifacts_and_results() -> (
     return (
         np.ones((10, 20)),
         pd.DataFrame(np.zeros((20, 10))),
-        file_path,
         {"a": [1, 2, 3, 4], "b": [5, 6, 7, 8]},
         [["A"], ["B"], [""]],
         3,
@@ -100,7 +98,7 @@ def log_artifacts_and_results() -> (
 def _assert_parsing(
     my_array: np.ndarray,
     my_df: mlrun.DataItem,
-    my_file: Union[int, mlrun.DataItem],
+    manually_logged_file: str | mlrun.DataItem,
     my_dict: dict,
     my_list: list,
     my_object: Pipeline,
@@ -109,7 +107,6 @@ def _assert_parsing(
     my_df_dict: dict[str, pd.DataFrame],
     my_array_list: list[np.ndarray],
 ):
-    # TODO: Uncomment the inner assertions once the packagers collection unpacking is added to the PR.
     assert isinstance(my_array, np.ndarray)
     assert np.all(my_array == np.ones((10, 20)))
 
@@ -118,9 +115,9 @@ def _assert_parsing(
     assert my_df.shape == (20, 10)
     assert my_df.sum().sum() == 0
 
-    assert isinstance(my_file, mlrun.DataItem)
-    my_file = my_file.local()
-    with open(my_file) as file:
+    assert isinstance(manually_logged_file, mlrun.DataItem)
+    manually_logged_file = manually_logged_file.local()
+    with open(manually_logged_file) as file:
         file_content = file.read()
     assert file_content == "123"
 
@@ -135,12 +132,15 @@ def _assert_parsing(
 
     assert isinstance(my_df_dict, dict)
     assert list(my_df_dict.keys()) == ["abc", "def", "ghi"]
-    # for v in my_df_dict.values():
-    #     assert isinstance(v, pd.DataFrame)
+    for v in my_df_dict.values():
+        assert isinstance(v, pd.DataFrame)
 
     assert isinstance(my_array_list, list)
-    # for v in my_array_list:
-    #     assert isinstance(v, np.ndarray)
+    for v in my_array_list:
+        assert isinstance(
+            v,
+            np.ndarray if mlrun.mlconf.packagers.auto_unpack_inputs else mlrun.DataItem,
+        )
 
     return [my_str] * my_int
 
@@ -148,19 +148,19 @@ def _assert_parsing(
 def parse_inputs_from_type_annotations(
     my_array: np.ndarray,
     my_df: mlrun.DataItem,
-    my_file: Union[int, mlrun.DataItem],
+    manually_logged_file: str | mlrun.DataItem,
     my_dict: dict,
     my_list: list,
     my_object: Pipeline,
     my_int: int,
     my_str: str,
     my_df_dict: dict[str, pd.DataFrame],
-    my_array_list: list[np.ndarray],
+    my_array_list: list,
 ):
     _assert_parsing(
         my_array=my_array,
         my_df=my_df,
-        my_file=my_file,
+        manually_logged_file=manually_logged_file,
         my_dict=my_dict,
         my_list=my_list,
         my_object=my_object,
@@ -174,7 +174,7 @@ def parse_inputs_from_type_annotations(
 def parse_inputs_from_mlrun_function(
     my_array,
     my_df,
-    my_file,
+    manually_logged_file,
     my_dict,
     my_list,
     my_object,
@@ -188,7 +188,7 @@ def parse_inputs_from_mlrun_function(
         _assert_auto_unpacking(
             my_array=my_array,
             my_df=my_df,
-            my_file=my_file,
+            manually_logged_file=manually_logged_file,
             my_dict=my_dict,
             my_list=my_list,
             my_object=my_object,
@@ -199,7 +199,7 @@ def parse_inputs_from_mlrun_function(
         _assert_parsing(
             my_array=my_array,
             my_df=my_df,
-            my_file=my_file,
+            manually_logged_file=manually_logged_file,
             my_dict=my_dict,
             my_list=my_list,
             my_object=my_object,
@@ -236,17 +236,17 @@ def test_mlconf_packagers_enabled(rundb_mock, is_enabled: bool, returns: list):
         local=True,
     )
 
-    # There should always be at least one output - the manually logged result:
+    # There should always be at least two outputs - the manually logged result and artifact:
     if is_enabled and returns:
-        # Plus all configured returning values ("**my_df_dict_" yields 3 outputs + "*my_array_list_" yields 10
+        # Plus all configured returning values ("*my_df_dict_" yields 3 outputs + "*my_array_list_" yields 10
         # outputs - 2, the keys):
         assert (
             len(log_artifacts_and_results_run.outputs)
-            == 1 + len(RETURNS_LOG_HINTS) + 3 + 10 - 2
+            == 2 + len(RETURNS_LOG_HINTS) + 3 + 10 - 2
         )
     else:
         # Plus the default logged output as string MLRun did before packagers and log hints:
-        assert len(log_artifacts_and_results_run.outputs) == 1 + 1
+        assert len(log_artifacts_and_results_run.outputs) == 2 + 1
 
 
 def test_parse_inputs_from_type_annotations(rundb_mock):
@@ -275,7 +275,9 @@ def test_parse_inputs_from_type_annotations(rundb_mock):
             "my_list": log_artifacts_and_results_run.outputs["my_list"],
             "my_array": log_artifacts_and_results_run.outputs["my_array"],
             "my_df": log_artifacts_and_results_run.outputs["my_df"],
-            "my_file": log_artifacts_and_results_run.outputs["my_file"],
+            "manually_logged_file": log_artifacts_and_results_run.outputs[
+                "manually_logged_file"
+            ],
             "my_object": log_artifacts_and_results_run.outputs["my_object"],
             "my_dict": log_artifacts_and_results_run.outputs["my_dict"],
             "my_df_dict": {
@@ -335,18 +337,20 @@ def test_parse_inputs_from_mlrun_function(rundb_mock):
             "my_array : numpy.ndarray": log_artifacts_and_results_run.outputs[
                 "my_array"
             ],
-            "my_df": log_artifacts_and_results_run.outputs["my_df"],
-            "my_file": log_artifacts_and_results_run.outputs["my_file"],
+            "my_df : mlrun.DataItem": log_artifacts_and_results_run.outputs["my_df"],
+            "manually_logged_file": log_artifacts_and_results_run.outputs[
+                "manually_logged_file"
+            ],
             "my_object: sklearn.pipeline.Pipeline": log_artifacts_and_results_run.outputs[
                 "my_object"
             ],
             "my_dict: dict": log_artifacts_and_results_run.outputs["my_dict"],
-            "my_df_dict": {
+            "my_df_dict: dict[pandas.DataFrame]": {
                 "abc": log_artifacts_and_results_run.outputs["my_df_dict_abc"],
                 "def": log_artifacts_and_results_run.outputs["my_df_dict_def"],
                 "ghi": log_artifacts_and_results_run.outputs["my_df_dict_ghi"],
             },
-            "my_array_list": [
+            "my_array_list: list": [
                 log_artifacts_and_results_run.outputs["my_array_list_0"],
                 log_artifacts_and_results_run.outputs["my_array_list_1"],
                 log_artifacts_and_results_run.outputs["my_array_list_2"],
@@ -373,11 +377,18 @@ def test_parse_inputs_from_mlrun_function(rundb_mock):
 
 
 def _assert_auto_unpacking(
-    my_array, my_df, my_file, my_dict, my_list, my_object, my_df_dict, my_array_list
+    my_array,
+    my_df,
+    manually_logged_file,
+    my_dict,
+    my_list,
+    my_object,
+    my_df_dict,
+    my_array_list,
 ):
     if not mlrun.mlconf.packagers.auto_unpack_inputs:
         # Make sure all inputs are DataItems (were not unpacked):
-        for obj in [my_array, my_df, my_file, my_dict, my_list, my_object]:
+        for obj in [my_array, my_df, manually_logged_file, my_dict, my_list, my_object]:
             assert isinstance(obj, mlrun.DataItem)
 
         for v in my_df_dict.values():
@@ -388,15 +399,16 @@ def _assert_auto_unpacking(
     else:
         assert isinstance(my_array, np.ndarray)
         assert isinstance(my_df, pd.DataFrame)
-        assert isinstance(my_file, str)
+        assert isinstance(
+            manually_logged_file, mlrun.DataItem
+        )  # Not logged via packager.
         assert isinstance(my_dict, dict)
         assert isinstance(my_list, list)
         assert isinstance(my_object, Pipeline)
-        # TODO: Uncomment the inner assertions once the packagers collection unpacking is added to the PR.
-        # for v in my_df_dict.values():
-        #     assert isinstance(v, pd.DataFrame)
-        # for v in my_array_list:
-        #     assert isinstance(v, np.ndarray)
+        for v in my_df_dict.values():
+            assert isinstance(v, pd.DataFrame)
+        for v in my_array_list:
+            assert isinstance(v, np.ndarray)
 
 
 @pytest.mark.parametrize("auto_unpack_inputs", [True, False])
@@ -432,7 +444,9 @@ def test_parse_inputs_with_mlconf_packagers_auto_unpack_inputs(
             "my_list": log_artifacts_and_results_run.outputs["my_list"],
             "my_array": log_artifacts_and_results_run.outputs["my_array"],
             "my_df": log_artifacts_and_results_run.outputs["my_df"],
-            "my_file": log_artifacts_and_results_run.outputs["my_file"],
+            "manually_logged_file": log_artifacts_and_results_run.outputs[
+                "manually_logged_file"
+            ],
             "my_object": log_artifacts_and_results_run.outputs["my_object"],
             "my_dict": log_artifacts_and_results_run.outputs["my_dict"],
             "my_df_dict": {
@@ -541,7 +555,6 @@ def test_log_with_and_without_packagers(rundb_mock, auto_unpack_inputs: bool):
         [
             "my_array",
             "my_df",
-            "my_file: path",
             {"key": "my_dict", "artifact_type": "object"},
         ],
         None,
@@ -582,32 +595,34 @@ def test_log_outputs_with_mlconf_packagers_auto_pack_outputs(
         local=True,
     )
 
-    # There should always be at least one output - the manually logged result:
+    # There should always be at least two outputs - the manually logged result and artifact:
     if auto_pack_outputs:
-        # 'auto_pack_outputs' is set, assert all returning values (notice there are no '**' and '*' in "my_df_dict_" and
+        # 'auto_pack_outputs' is set, assert all returning values (notice there are no '*' in "my_df_dict_" and
         # "my_array_list_" now):
-        assert len(log_artifacts_and_results_run.outputs) == 1 + len(RETURNS_LOG_HINTS)
-        # Check for the manually logged result:
+        assert len(log_artifacts_and_results_run.outputs) == 2 + len(RETURNS_LOG_HINTS)
+        # Check for the manually logged result and artifact:
         assert "manually_logged_result" in log_artifacts_and_results_run.outputs
+        assert "manually_logged_file" in log_artifacts_and_results_run.outputs
         # Check the auto-logged outputs:
         key = "test-run-test" if auto_pack_key else "test-run-artifact"
         for i in range(
             len(log_artifacts_and_results_run.outputs)
-            - (1 + (len(returns) if returns else 0))
+            - (2 + (len(returns) if returns else 0))
         ):
             assert f"{key}-{i}" in log_artifacts_and_results_run.outputs
         # Check the outputs from the 'returns' parameter:
         if returns:
-            for i in returns:
-                if isinstance(i, str):
+            for log_hint in returns:
+                if isinstance(log_hint, str):
                     assert (
-                        i.split(":")[0].strip() in log_artifacts_and_results_run.outputs
+                        log_hint.split(":")[0].strip()
+                        in log_artifacts_and_results_run.outputs
                     )
-                elif isinstance(i, dict):
-                    assert i["key"] in log_artifacts_and_results_run.outputs
+                elif isinstance(log_hint, dict):
+                    assert log_hint["key"] in log_artifacts_and_results_run.outputs
     else:
         # Plus the default logged output as string MLRun did before packagers and log hints if returns is not set:
-        assert len(log_artifacts_and_results_run.outputs) == 1 + (
+        assert len(log_artifacts_and_results_run.outputs) == 2 + (
             len(returns) if returns else 1
         )
 
@@ -620,10 +635,10 @@ class BaseClassPackager(DefaultPackager):
         self,
         data_item: DataItem,
         pickle_module_name: str = "cloudpickle",
-        object_module_name: Optional[str] = None,
-        python_version: Optional[str] = None,
-        pickle_module_version: Optional[str] = None,
-        object_module_version: Optional[str] = None,
+        object_module_name: str | None = None,
+        python_version: str | None = None,
+        pickle_module_version: str | None = None,
+        object_module_version: str | None = None,
     ) -> Any:
         base_class = super().unpack_object(
             data_item=data_item,
@@ -641,19 +656,19 @@ class BaseClassPackager(DefaultPackager):
         return base_class
 
 
-def func_to_pack_base_class(a: int, b: Optional[str] = None) -> BaseClass:
+def func_to_pack_base_class(a: int, b: str | None = None) -> BaseClass:
     if b:
         return InheritingClass(a=a, b=b)
     return BaseClass(a=a)
 
 
-def func_to_unpack_base_class(base_class: BaseClass, a: int, b: Optional[str] = None):
+def func_to_unpack_base_class(base_class: BaseClass, a: int, b: str | None = None):
     assert isinstance(base_class, BaseClass)
     assert base_class.a == a - 1
 
 
 def func_to_unpack_inheriting_class(
-    base_class: InheritingClass, a: int, b: Optional[str] = None
+    base_class: InheritingClass, a: int, b: str | None = None
 ):
     assert isinstance(base_class, InheritingClass)
     assert base_class.b == b

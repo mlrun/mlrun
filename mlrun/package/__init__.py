@@ -16,7 +16,6 @@ import functools
 import inspect
 from collections import OrderedDict
 from collections.abc import Callable
-from typing import Optional, Union
 
 import mlrun
 
@@ -40,8 +39,8 @@ from .utils import (
 
 
 def handler(
-    outputs: Optional[list[Union[str, dict[str, str]]]] = None,
-    inputs: Union[bool, dict[str, Union[str, type]]] = True,
+    outputs: list[str | dict[str, str]] | None = None,
+    inputs: bool | dict[str, str | type] = True,
 ):
     """
     MLRun's handler is a decorator to wrap a function and enable parsing inputs (`mlrun.DataItem`) using type hints and

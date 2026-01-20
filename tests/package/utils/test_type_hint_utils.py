@@ -48,8 +48,7 @@ class AnotherClass(SomeClass):
         (SomeClass, False),
         (list[int], True),
         (tuple[int, str], True),
-        # TODO: Uncomment once we support Python >= 3.10:
-        # (str | int, True),
+        (str | int, True),
     ],
 )
 def test_is_typing_type(type_hint: type, expected_result: bool):
@@ -67,7 +66,17 @@ def test_is_typing_type(type_hint: type, expected_result: bool):
     [
         ("int", int),
         ("list", list),
+        ("typing.Tuple[int, str]", typing.Tuple[int, str]),
+        ("tuple[int, str]", tuple[int, str]),
+        ("dict[str, int]", dict[str, int]),
+        ("typing.Optional[float]", typing.Optional[float]),
+        ("typing.Union[str, int]", typing.Union[str, int]),
+        ("str | int", str | int),
         ("tests.package.utils.test_type_hint_utils.SomeClass", SomeClass),
+        (
+            'dict[str, set[tests.package.utils.test_type_hint_utils.SomeClass]] | None | typing.Literal["A", "B"]',
+            dict[str, set[SomeClass]] | None | typing.Literal["A", "B"],
+        ),
         (
             "fail",
             "MLRun tried to get the type hint 'fail' but it can't as it is not a valid builtin Python type (one of "
@@ -82,9 +91,18 @@ def test_is_typing_type(type_hint: type, expected_result: bool):
             "module_not_exist.Fail",
             "MLRun tried to get the type hint 'Fail' but the module 'module_not_exist' cannot be imported.",
         ),
+        ("list[int", "Make sure the type hint is a valid python type hint structure"),
+        (
+            "int | str |",
+            "Make sure the type hint is a valid python type hint structure",
+        ),
+        (
+            "typing.List[]",
+            "Make sure the type hint is a valid python type hint structure",
+        ),
     ],
 )
-def test_parse_type_hint(type_string: str, expected_type: typing.Union[str, type]):
+def test_parse_type_hint(type_string: str, expected_type: str | type):
     """
     Test the `TypeHintUtils.parse_type_hint` function with multiple types.
 
@@ -94,7 +112,7 @@ def test_parse_type_hint(type_string: str, expected_type: typing.Union[str, type
     """
     try:
         parsed_type = TypeHintUtils.parse_type_hint(type_hint=type_string)
-        assert parsed_type is expected_type
+        assert parsed_type == expected_type
     except MLRunInvalidArgumentError as error:
         if isinstance(expected_type, str):
             assert expected_type in str(error)

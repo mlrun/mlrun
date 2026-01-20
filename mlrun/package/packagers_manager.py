@@ -177,7 +177,7 @@ class PackagersManager:
         self,
         obj: Any,
         log_hint: dict[str, str],
-        _unbundle_level: int = None,
+        _unbundle_level: int | None = None,
     ) -> Artifact | dict | None | list[Artifact | dict | None]:
         """
         Pack an object using one of the manager's packagers.
@@ -514,7 +514,7 @@ class PackagersManager:
     def _get_packager_for_bundling(
         self,
         bundle_hint: type,
-        collection_type: type[dict] | type[list] = None,
+        collection_type: type[dict] | type[list] | None = None,
     ) -> Packager | None:
         """
         Look for a packager that can bundle the given type hint on the provided collection type (list or dict).

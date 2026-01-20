@@ -14,6 +14,7 @@
 
 import tempfile
 from pathlib import Path
+
 import pytest
 
 from mlrun.package.utils import StructFileSupportedFormat

@@ -289,9 +289,7 @@ class DictPackager(_BuiltinCollectionPackager):
     PACKABLE_OBJECT_TYPE = dict
     BUNDLE_FROM_DICT = True
 
-    def unpack_file(
-        self, data_item: DataItem, file_format: str | None = None
-    ) -> dict:
+    def unpack_file(self, data_item: DataItem, file_format: str | None = None) -> dict:
         """
         Unpack a dictionary from file.
 
@@ -318,9 +316,7 @@ class ListPackager(_BuiltinCollectionPackager):
     PACKABLE_OBJECT_TYPE = list
     BUNDLE_FROM_LIST = True
 
-    def unpack_file(
-        self, data_item: DataItem, file_format: str | None = None
-    ) -> list:
+    def unpack_file(self, data_item: DataItem, file_format: str | None = None) -> list:
         """
         Unpack a list from file.
 
@@ -390,9 +386,7 @@ class TuplePackager(ListPackager):
         """
         return super().pack_file(obj=list(obj), key=key, file_format=file_format)
 
-    def unpack_file(
-        self, data_item: DataItem, file_format: str | None = None
-    ) -> tuple:
+    def unpack_file(self, data_item: DataItem, file_format: str | None = None) -> tuple:
         """
         Unpack a tuple from file.
 
@@ -437,9 +431,7 @@ class SetPackager(ListPackager):
         """
         return super().pack_file(obj=list(obj), key=key, file_format=file_format)
 
-    def unpack_file(
-        self, data_item: DataItem, file_format: str | None = None
-    ) -> set:
+    def unpack_file(self, data_item: DataItem, file_format: str | None = None) -> set:
         """
         Unpack a set from file.
 
@@ -525,9 +517,7 @@ class BytesPackager(ListPackager):
         """
         return super().pack_file(obj=list(obj), key=key, file_format=file_format)
 
-    def unpack_file(
-        self, data_item: DataItem, file_format: str | None = None
-    ) -> bytes:
+    def unpack_file(self, data_item: DataItem, file_format: str | None = None) -> bytes:
         """
         Unpack a bytes from file.
 

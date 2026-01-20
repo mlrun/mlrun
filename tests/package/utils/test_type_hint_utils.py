@@ -66,7 +66,7 @@ def test_is_typing_type(type_hint: type, expected_result: bool):
     [
         ("int", int),
         ("list", list),
-        ("typing.Tuple[int, str]", typing.Tuple[int, str]),
+        ("typing.Tuple[int, str]", tuple[int, str]),
         ("tuple[int, str]", tuple[int, str]),
         ("dict[str, int]", dict[str, int]),
         ("typing.Optional[float]", typing.Optional[float]),

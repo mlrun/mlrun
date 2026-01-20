@@ -815,6 +815,7 @@ def resolve_project_service_account_details(
 
     # If the auth info's service account is in the forbidden list, remove it from there to allow the current request to
     # proceed.
+    # TODO: In the future we should avoid running jobs as a service account that is in the forbidden list altogether.
     if (
         auth_info
         and auth_info.is_service_account()

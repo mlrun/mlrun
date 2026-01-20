@@ -27,6 +27,7 @@ from typing import IO, Optional, Union
 import orjson
 import pydantic.v1
 
+import mlrun.common.schemas
 from mlrun import errors
 from mlrun.config import config
 
@@ -353,6 +354,12 @@ class Logger:
 
     def bind(self, **kw_args):
         self._bound_variables.update(kw_args)
+
+    @staticmethod
+    def inject_context_id_header(headers):
+        if mlrun.common.schemas.HeaderNames.igz_ctx not in headers:
+            if (ctx_id := context_id_var.get()) is not None:
+                headers[mlrun.common.schemas.HeaderNames.igz_ctx] = ctx_id
 
     def _update_bound_vars_and_log(
         self, level, message, *args, exc_info=None, **kw_args

@@ -12,13 +12,20 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import mlrun.common.schemas
+from mlrun.utils import logger
 
 
-def add_project_role_headers_if_needed(path: str, kwargs: dict):
-    if "projects" in path:
-        if mlrun.common.schemas.HeaderNames.projects_role not in kwargs.get(
-            "headers", {}
-        ):
-            kwargs.setdefault("headers", {})[
-                mlrun.common.schemas.HeaderNames.projects_role
-            ] = "mlrun"
+def enrich_headers(headers: dict, path: str | None = None):
+    """
+    Enrich headers with context id for logging correlation and project role header for project paths
+    """
+
+    logger.inject_context_id_header(headers)
+
+    if (
+        mlrun.mlconf.httpdb.projects.leader == "mlrun"
+        and path is not None
+        and "projects" in path
+        and mlrun.common.schemas.HeaderNames.projects_role not in headers
+    ):
+        headers[mlrun.common.schemas.HeaderNames.projects_role] = "mlrun"

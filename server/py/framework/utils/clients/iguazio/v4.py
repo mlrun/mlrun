@@ -29,6 +29,7 @@ import mlrun.common.types
 import mlrun.errors
 from mlrun.utils import get_in
 
+import framework.utils.clients.helpers as clients_helpers
 import framework.utils.clients.service_account_token as service_account_token
 import framework.utils.projects.remotes.follower as project_follower
 from framework.utils.clients.iguazio.base import BaseAsyncClient, BaseClient
@@ -312,11 +313,13 @@ class Client(BaseClient, project_follower.Member):
     def _project_policies_exist(
         self, project: str, auth_info: mlrun.common.schemas.AuthInfo
     ) -> bool:
-        self._client.set_override_auth_headers(
-            self._service_account_token_client.auth_headers
-        )
         try:
-            self._client.get_project_policy_assignments(project=project)
+            with self._client.with_headers(
+                clients_helpers.enrich_headers(
+                    self._service_account_token_client.auth_headers
+                )
+            ):
+                return self._client.get_project_policy_assignments(project=project)
         except httpx.HTTPStatusError as exc:
             error_message, ctx = self._extract_response_error(exc.response)
             if exc.response.status_code == httpx.codes.NOT_FOUND:
@@ -408,7 +411,13 @@ class Client(BaseClient, project_follower.Member):
         failure_message: str,
     ) -> typing.Any:
         try:
-            return callback()
+            # Inject auth headers and context id to headers for logging correlation
+            with self._client.with_headers(
+                clients_helpers.enrich_headers(
+                    self._service_account_token_client.auth_headers
+                )
+            ):
+                return callback()
         except httpx.HTTPStatusError as exc:
             error_message, ctx = self._extract_response_error(exc.response)
             self._logger.warning(

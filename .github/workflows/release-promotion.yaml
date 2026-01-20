@@ -174,7 +174,7 @@ jobs:
             python_version_suffix="-py$(echo '${{ matrix.python-version }}' | tr -d '.')"
           fi
           
-          SOURCE_IMAGE="${{ secrets.ARTIFACTORY_URL }}/${{ github.event.inputs.source_artifactory_docker_repo }}/${image_name}:${{ needs.prepare-inputs.outputs.version }}${python_version_suffix}"
+          SOURCE_IMAGE="${{ secrets.ARTIFACTORY_URL }}${{ github.event.inputs.source_artifactory_docker_repo }}/${image_name}:${{ needs.prepare-inputs.outputs.version }}${python_version_suffix}"
           
           echo "Pulling image: $SOURCE_IMAGE"
           docker pull "$SOURCE_IMAGE"

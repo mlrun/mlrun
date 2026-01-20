@@ -35,7 +35,7 @@ on:
       artifactory_docker_repo:
         description: 'Artifactory docker repository name'
         required: false
-        default: 'mlrun-staging/mlrun'
+        default: 'mlrun-staging'
         type: string
       artifactory_pypi_repo:
         description: 'Artifactory PyPI repository name'
@@ -95,7 +95,6 @@ jobs:
         env:
           BUMP_VERSION_MODE_INPUT: ${{ github.event.inputs.bump_version_mode }}
           VERSION_INPUT: ${{ github.event.inputs.version }}
-          ARTIFACTORY_DOCKER_REPO: ${{ github.event.inputs.artifactory_docker_repo }}
           ARTIFACTORY_PYPI_REPO: ${{ github.event.inputs.artifactory_pypi_repo }}
           UI_REF_INPUT: ${{ github.event.inputs.ui_ref }}
 
@@ -106,7 +105,7 @@ jobs:
     with:
       version: ${{ needs.prepare-inputs.outputs.version }}
       runner: 'mlrun-release'
-      docker_repo: ${{ inputs.artifactory_docker_repo }}
+      docker_repo: ${{ inputs.artifactory_docker_repo }}/mlrun
       is_private_release: true
       # On the fork the caches needs to be disabled because ghcr is hardcoded and used for caches. 
       # Having to use mlrun ( due to some product limitations) causes permission issues on forks only, we could set this to true once merged.

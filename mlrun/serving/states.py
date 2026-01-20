@@ -148,7 +148,7 @@ class BaseStep(ModelObj):
         self._parent = None
         self.comment = None
         self.context = None
-        self.after = after or []
+        self.after = after
         self._next = None
         self.shape = shape
         self.on_error = None
@@ -183,6 +183,19 @@ class BaseStep(ModelObj):
         elif key not in self.next:
             self._next.append(key)
         return self
+
+    @property
+    def after(self):
+        return self._after
+
+    @after.setter
+    def after(self, value):
+        if value is None:
+            value = []
+        elif not isinstance(value, list):
+            value = [value]
+
+        self._after = value
 
     def after_step(self, *after, append=True):
         """specify the previous step names"""

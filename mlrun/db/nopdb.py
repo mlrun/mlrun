@@ -325,7 +325,7 @@ class NopDB(RunDBInterface):
         self, project: mlrun.common.schemas.Project | dict
     ) -> mlrun.common.schemas.Project:
         if isinstance(project, dict):
-            project = mlrun.common.schemas.Project(**project)
+            project = mlrun.projects.MlrunProject.from_dict(project)
         return project
 
     def store_project(

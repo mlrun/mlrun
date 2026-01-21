@@ -35,8 +35,8 @@ from server.py.services.api.tests.unit.utils.clients.iguazio.conftest import (
 )
 from tests.common_fixtures import aioresponses_mock
 
-import framework.utils.clients.iguazio.v4
 import framework.utils.clients.helpers as clients_helpers
+import framework.utils.clients.iguazio.v4
 from framework.utils.asyncio import maybe_coroutine
 
 TEST_PROJECT_NAME = "test-project"

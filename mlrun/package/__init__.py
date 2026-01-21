@@ -21,9 +21,11 @@ import mlrun
 from mlrun.config import config
 from mlrun.package.context_handler import ContextHandler
 from mlrun.package.errors import (
+    MLRunPackageBundlingError,
     MLRunPackageCollectionError,
     MLRunPackageError,
     MLRunPackagePackingError,
+    MLRunPackageUnbundlingError,
     MLRunPackageUnpackingError,
 )
 from mlrun.package.packager import Packager

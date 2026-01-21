@@ -1,11 +1,13 @@
 (install-remote)=
-# Set up your environment <!-- omit in toc -->
+# Set up your client environment <!-- omit in toc -->
 
-You can write your code on a local machine while running your functions on a remote cluster. This tutorial explains how to set this up.
+This guide will walk you through the steps required to set up your MLRun client environment, 
+making sure you're ready to get started with building and managing AI workflow with MLRun.
 
 **In this section**
 - [Prerequisites](#prerequisites)
 - [MLRun client supported OS](#mlrun-client-supported-os)
+- [MLRun client backward compatibility](#MLRun-client-backward-compatibility)
 - [Set up your client environment](#set-up-your-client-environment)
 - [Configure remote environment](#configure-remote-environment)
 
@@ -25,6 +27,18 @@ The MLRun client supports:
 - Linux
 - Mac
 - Windows via WSL
+
+(MLRun-client-backward-compatibility)=
+## MLRun client backward compatibility 
+
+Starting from MLRun v1.3.0, the MLRun server is compatible with the client and images of the previous two minor MLRun releases. When you upgrade to v1.3.0, for example, you can continue to use your v1.1- and v1.2-based images, but v1.0-based images are not compatible.
+
+After you update the MLRun package client version by running `pip install mlrun==<"new-client-version">`, you must update the images to use the same client version you installed.
+For example, when running this command `pip install mlrun==1.8.0` you must update your images to use MLRun v1.8.0 by adding `mlrun==<"new-client-version">` as a function requirement. See {py:meth}`~mlrun.runtimes.BaseRuntime.with_requirements`.
+
+```{admonition} Important
+The feature store is not backward compatible. 
+```
 
 ## Set up your client environment
 
@@ -104,7 +118,7 @@ It creates the following environment file:
 MLRUN_DBPATH=http://localhost:8080
 ```
 
-MLRUN_DBPATH saves the URL endpoint of the MLRun APIs service endpoint. Since it is localhost, username and access_key are not required (as in [Example 2](#ex2)). 
+MLRUN_DBPATH saves the URL endpoint of the MLRun APIs service endpoint. Since it is localhost, the username and access_key are not required (as in [Example 2](#ex2)). 
 
 (ex2)=
 **Example 2**<br>
@@ -130,7 +144,7 @@ page, and select **Access Keys** from the menu. In the **Access Keys** window, e
 key and copy it. Alternatively, you can get the access key by checking the value of the `V3IO_ACCESS_KEY` environment variable in a web shell or Jupyter Notebook service.
 
 ```{admonition} Note
-If the MLRUN_DBPATH points to a remote iguazio cluster and the V3IO_API and/or V3IO_FRAMESD vars are not set, they are inferred from the DBPATH.
+If the MLRUN_DBPATH points to a remote Iguazio cluster and the V3IO_API and/or V3IO_FRAMESD vars are not set, they are inferred from the DBPATH.
 ```
 
 **Explanation:**
@@ -160,7 +174,8 @@ mlrun.set_environment("http://localhost:8080", artifact_path="./")
 mlrun.set_environment("<remote-service-url>", access_key="xyz", username="joe")
 ```
 
-For more explanations read the documentation [mlrun.set_environment](https://docs.mlrun.org/en/stable/api/mlrun.html#mlrun.set_environment).
+For more explanations read the documentation on {py:meth}`~mlrun.set_environment`.
+
 (using-your-ide-e-g-pycharm-or-vscode)=
 ### Using your IDE (e.g. PyCharm or VSCode)
 
@@ -194,7 +209,7 @@ You can use PyCharm with MLRun remote by changing the environment variables conf
 
 1. From the main menu, choose **Run | Edit Configurations**.
 
-    ![Edit configurations](../_static/images/pycharm/remote-pycharm-run_edit_configurations.png)
+    ![Edit configurations](./_static/images/pycharm/remote-pycharm-run_edit_configurations.png)
     
 
 2. To set-up default values for all Python configurations, on the left-hand pane of the run/debug configuration dialog, expand the 
@@ -202,12 +217,12 @@ You can use PyCharm with MLRun remote by changing the environment variables conf
 you can edit a specific file configuration by choosing the corresponding file on the left-hand pane. Choose the **Environment Variables** 
 edit box and expand it to edit the environment variables.
 
-    ![Edit configuration screen](../_static/images/pycharm/remote-pycharm-edit_configurations_screen.png)
+    ![Edit configuration screen](./_static/images/pycharm/remote-pycharm-edit_configurations_screen.png)
     
 
 3. Add the environment variable and value of `MLRUN_DBPATH`.
 
-    ![Environment variables](../_static/images/pycharm/remote-pycharm-environment_variables.png)
+    ![Environment variables](./_static/images/pycharm/remote-pycharm-environment_variables.png)
     
 
    > If the remote service is on an instance of the Iguazio AI Platform, also set the environment variables and values of `V3IO_USERNAME`, and `V3IO_ACCESS_KEY`.
@@ -219,11 +234,11 @@ file that's stored in a `.vscode` folder in your workspace.
 
 To initialize debug configurations, first select the **Run** view in the sidebar:
 
-<img src="../_static/images/vscode/debug-icon.png" alt="run-icon" width="200" />
+<img src="./_static/images/vscode/debug-icon.png" alt="run-icon" width="200" />
 
 If you don't yet have any configurations defined, you'll see a button to Run and Debug, as well as a link to create a configuration (launch.json) file:
 
-<img src="../_static/images/vscode/debug-start.png" alt="debug-toolbar" width="400" />
+<img src="./_static/images/vscode/debug-start.png" alt="debug-toolbar" width="400" />
 
 To generate a `launch.json` file with Python configurations:
 
@@ -231,7 +246,7 @@ To generate a `launch.json` file with Python configurations:
 
 2. A configuration menu opens from the Command Palette. Select the type of debug configuration you want for the opened file. For now, in the 
 **Select a debug configuration** menu that appears, select **Python File**.
-![Debug configurations menu](../_static/images/vscode/debug-configurations.png)
+![Debug configurations menu](./_static/images/vscode/debug-configurations.png)
 
 ```{admonition} Note
 Starting a debugging session through the Debug Panel, **F5** or **Run > Start Debugging**, when no configuration exists also brings up the 
@@ -241,7 +256,7 @@ debug configuration menu, but does not create a launch.json file.
 3. The Python extension then creates and opens a `launch.json` file that contains a pre-defined configuration based on what you previously 
 selected, in this case **Python File**. You can modify configurations (to add arguments, for example), and also add custom configurations.
 
-   ![Configuration json](../_static/images/vscode/configuration-json.png)
+   ![Configuration json](./_static/images/vscode/configuration-json.png)
 
 #### Set environment file in debug configuration
 

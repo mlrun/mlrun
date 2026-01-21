@@ -104,12 +104,12 @@ def test_async_basic():
 
     queue.to(name="s3", class_name="ChainWithContext", function="some_other_function")
 
+    # plot the graph for test & debug
+    flow.plot(f"{results}/serving/async.png")
+    server = function.to_mock_server()
+    server.context.visits = {}
+    logger.info(f"\nAsync Flow:\n{flow.to_yaml()}")
     try:
-        # plot the graph for test & debug
-        flow.plot(f"{results}/serving/async.png")
-        server = function.to_mock_server()
-        server.context.visits = {}
-        logger.info(f"\nAsync Flow:\n{flow.to_yaml()}")
         resp = server.test(body=[])
     finally:
         server.wait_for_completion()
@@ -1476,6 +1476,7 @@ def test_cyclic_to_first_step(method):
         server.wait_for_completion()
 
 
+# ML-11938
 @pytest.mark.parametrize("method", ["add_step", "to"])
 def test_cyclic_from_last_step(method):
     function = mlrun.new_function("tests", kind="serving", project="x")

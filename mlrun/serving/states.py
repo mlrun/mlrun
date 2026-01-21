@@ -2890,8 +2890,8 @@ class FlowStep(BaseStep):
             default_final_step = self.final_step
 
         elif len(self._start_steps) == 1 and not self.allow_cyclic:
-            # find the final step in case if a simple sequence of steps
-            # default_final_step is used ony for feature sets therefore we won't be set it when cycles are allowed
+            # find the final step in case of a simple sequence of steps
+            # default_final_step is used only for feature sets therefore it won't be set when cycles are allowed
             next_obj = self._start_steps[0]
             while next_obj:
                 next = next_obj.next

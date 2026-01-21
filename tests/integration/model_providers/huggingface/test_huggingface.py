@@ -49,13 +49,6 @@ class LLMContentMismatchError(AssertionError):
     pass
 
 
-
-class LLMContentMismatchError(AssertionError):
-    """Raised when LLM generates unexpected content (retriable error)."""
-
-    pass
-
-
 here = os.path.dirname(__file__)
 config = {}
 config_file_path = os.path.join(here, "test-huggingface.yml")
@@ -481,6 +474,80 @@ class TestHuggingFaceAIModel(TestBasicHuggingFaceProvider):
                         messages=messages,
                         tokenizer=tokenizer,
                     )
+                    break
+
+                except LLMContentMismatchError as e:
+                    if attempt == self.max_retries:
+                        raise
+                    print(
+                        f"LLM content mismatch (attempt {attempt + 1}/{self.max_retries + 1}): {e}"
+                    )
+
+        finally:
+            server.wait_for_completion()
+
+    @pytest.mark.parametrize(
+        "execution_mechanism",
+        ["process_pool", "dedicated_process", "naive", "thread_pool"],
+    )
+    def test_model_runner_batch_with_hf(self, execution_mechanism):
+        """Test batch processing of multiple events with HuggingFace model"""
+        project = mlrun.new_project("test-hf-model-batch", save=False)
+        model_url = self.url_prefix + self.basic_llm_model
+        model_artifact, llm_prompt_artifact, function = setup_remote_model_test(
+            project,
+            model_url,
+            execution_mechanism=execution_mechanism,
+            default_config={"max_new_tokens": 100},
+        )
+        mocked_get_store_artifact = create_mocked_get_store_artifact(
+            {
+                model_artifact.uri: model_artifact,
+                llm_prompt_artifact.uri: llm_prompt_artifact,
+            }
+        )
+        with (
+            unittest.mock.patch(
+                "mlrun.artifacts.llm_prompt.mlrun.datastore.store_manager.get_store_artifact",
+                side_effect=lambda *args, **kwargs: mocked_get_store_artifact(
+                    *args, **kwargs
+                ),
+            ),
+        ):
+            server = function.to_mock_server()
+        try:
+            from transformers import AutoTokenizer
+
+            tokenizer = AutoTokenizer.from_pretrained(self.basic_llm_model)
+
+            for attempt in range(self.max_retries + 1):
+                try:
+                    # Send all 5 INPUT_DATA events as batch
+                    response = server.test(body=INPUT_DATA)
+
+                    # Assert we got list of 5 responses
+                    assert isinstance(response, list)
+                    assert len(response) == len(INPUT_DATA)
+
+                    # Verify each response
+                    for i, full_result in enumerate(response):
+                        result = full_result["output"]
+                        assert len(result) == 2  # answer + usage
+
+                        messages = [
+                            {
+                                "role": prompt["role"],
+                                "content": prompt["content"].format(**INPUT_DATA[i]),
+                            }
+                            for prompt in PROMPT_TEMPLATE
+                        ]
+
+                        self._check_usage_response(
+                            result,
+                            EXPECTED_RESULTS[i],
+                            messages=messages,
+                            tokenizer=tokenizer,
+                        )
                     break
 
                 except LLMContentMismatchError as e:

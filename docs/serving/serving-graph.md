@@ -28,10 +28,12 @@ The serving graphs are used by [MLRun’s Feature Store](../feature-store/featur
 
 ```{toctree}
 :maxdepth: 1
+basic-example
 getting-started
 use-cases
 model-serving-get-started
 deploying-graphs
 demos
 graph-advanced-cfg
+router
 ```

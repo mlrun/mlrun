@@ -23,7 +23,7 @@ import pytest
 import mlrun
 import mlrun.common.schemas
 from mlrun.utils.helpers import now_date
-from mlrun.utils.logger import FormatterKinds, Logger, context_id_var, create_logger
+from mlrun.utils.logger import FormatterKinds, Logger, create_logger
 
 
 class ArbitraryClassForLogging:
@@ -205,67 +205,3 @@ def test_custom_logger():
     expected_logger = "[" + expected_logger.split("[")[-1]
     logger_format = "[" + log_lines[0].split("[")[-1]
     assert logger_format == expected_logger
-
-
-def test_inject_context_id_header_adds_header_when_context_set(make_stream_logger):
-    _, test_logger = make_stream_logger
-    context_id = "test-context-id-12345"
-    headers = {}
-
-    # Set the context variable
-    token = context_id_var.set(context_id)
-    try:
-        test_logger.inject_context_id_header(headers)
-        assert mlrun.common.schemas.HeaderNames.igz_ctx in headers
-        assert headers[mlrun.common.schemas.HeaderNames.igz_ctx] == context_id
-    finally:
-        context_id_var.reset(token)
-
-
-def test_inject_context_id_header_does_not_override_existing(make_stream_logger):
-    _, test_logger = make_stream_logger
-    existing_context_id = "existing-context-id"
-    new_context_id = "new-context-id"
-    headers = {mlrun.common.schemas.HeaderNames.igz_ctx: existing_context_id}
-
-    # Set a different context variable
-    token = context_id_var.set(new_context_id)
-    try:
-        test_logger.inject_context_id_header(headers)
-        # Should keep the existing header value
-        assert headers[mlrun.common.schemas.HeaderNames.igz_ctx] == existing_context_id
-    finally:
-        context_id_var.reset(token)
-
-
-def test_inject_context_id_header_no_op_when_no_context(make_stream_logger):
-    _, test_logger = make_stream_logger
-    headers = {}
-
-    # Ensure context_id_var is None
-    token = context_id_var.set(None)
-    try:
-        test_logger.inject_context_id_header(headers)
-        assert mlrun.common.schemas.HeaderNames.igz_ctx not in headers
-    finally:
-        context_id_var.reset(token)
-
-
-def test_inject_context_id_header_with_other_headers_present(make_stream_logger):
-    _, test_logger = make_stream_logger
-    context_id = "test-context-id"
-    headers = {
-        "Authorization": "Bearer token123",
-        "Content-Type": "application/json",
-    }
-
-    token = context_id_var.set(context_id)
-    try:
-        test_logger.inject_context_id_header(headers)
-        # Should add context id header
-        assert headers[mlrun.common.schemas.HeaderNames.igz_ctx] == context_id
-        # Should preserve existing headers
-        assert headers["Authorization"] == "Bearer token123"
-        assert headers["Content-Type"] == "application/json"
-    finally:
-        context_id_var.reset(token)

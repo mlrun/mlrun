@@ -34,7 +34,7 @@ class TestMockModelProviderTracking(
     """Test MockModelProvider with tracking using real function deployment"""
 
     project_name = "mock-model-tracking-test"
-    image = "artifactory.iguazeng.com:10557/tomerm/mlrun:llmodel_batch"
+    image = "mlrun/mlrun"
 
     def _verify_parquet_contents(self, v3io_df, endpoint_name, batch_len):
         """Verify parquet contents by splitting by request_id and validating each group"""
@@ -55,8 +55,8 @@ class TestMockModelProviderTracking(
                     f"Unexpected group size: {len(group)} for request_id {request_id}"
                 )
 
-        assert single_group is not None, "Single invocation group not found"
-        assert batch_group is not None, "Batch invocation group not found"
+        assert not single_group.empty
+        assert not batch_group.empty
 
         self._verify_single_parquet_row(
             single_group.iloc[0], endpoint_name, INPUT_DATA[0]
@@ -69,7 +69,7 @@ class TestMockModelProviderTracking(
         """Verify a single parquet row matches expected input and output structure"""
         assert row["endpoint_name"] == endpoint_name
         assert row["model_class"] == "LLModel"
-        assert row["effective_sample_count"] == 1
+        assert row["effective_sample_count"] == row["estimated_prediction_count"] == 1
         expected_feature_names = list(expected_input.keys())
 
         assert list(row["feature_names"]) == expected_feature_names
@@ -100,18 +100,21 @@ class TestMockModelProviderTracking(
             len(timestamps) == 1
         ), f"Expected same timestamp for all batch rows, got {len(timestamps)} different values"
 
-        if "latency" in batch_sorted.columns:
-            latencies = batch_sorted["latency"].unique()
-            assert (
-                len(latencies) == 1
-            ), f"Expected same latency for all batch rows, got {len(latencies)} different values"
+        latencies = batch_sorted["latency"].unique()
+        assert (
+            len(latencies) == 1
+        ), f"Expected same latency for all batch rows, got {len(latencies)} different values"
 
         for i, (idx, row) in enumerate(batch_sorted.iterrows()):
             expected_input = inputs_sorted[i]
 
             assert row["endpoint_name"] == endpoint_name
             assert row["model_class"] == "LLModel"
-            assert row["effective_sample_count"] == len(expected_inputs)
+            assert (
+                row["effective_sample_count"]
+                == row["estimated_prediction_count"]
+                == len(expected_inputs)
+            )
 
             expected_feature_names = list(expected_input.keys())
             assert list(row["feature_names"]) == expected_feature_names
@@ -126,6 +129,8 @@ class TestMockModelProviderTracking(
             assert (
                 f"(Item {i})" in row["answer"]
             ), f"Expected '(Item {i})' in answer for batch row {i}"
+
+            #  TODO : extract usage data to different columns
             assert isinstance(row["usage"], dict)
             assert row["usage"]["prompt_tokens"] == 0
             assert row["usage"]["completion_tokens"] == 0

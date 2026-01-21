@@ -42,6 +42,7 @@ from .artifact import (
 )
 from .auth import (
     AuthInfo,
+    AuthInfoKind,
     AuthorizationAction,
     AuthorizationResourceNamespace,
     AuthorizationResourceTypes,

@@ -593,8 +593,8 @@ class TestNuclioRuntime(TestMLRunSystemModelMonitoring):
             "flow", engine="async", allow_cyclic=True, max_iterations=6
         )
         graph.to(class_name="Counter", name="count").to(
-            name="route", class_name="Route", cycle_to="count"
-        ).to(name="end", class_name="Echo").respond()
+            name="route", class_name="Route", cycle_to="count", end="Complete"
+        ).respond()
         # Deploy the function
         function.deploy()
 

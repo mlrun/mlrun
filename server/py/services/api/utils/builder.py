@@ -164,6 +164,7 @@ def make_kaniko_pod(
     extra_labels=None,
     project_secrets=None,
     project_default_fucntion_node_selector=None,
+    auth_info: mlrun.common.schemas.AuthInfo = None,
 ):
     extra_runtime_spec = {}
     if not registry:
@@ -175,6 +176,7 @@ def make_kaniko_pod(
         project,
         runtime_spec,
         project_default_fucntion_node_selector,
+        auth_info,
     ).items():
         attr_value = handler(getattr(runtime_spec, attribute, None))
         if attr_value:
@@ -550,6 +552,7 @@ def build_image(
             mlrun_constants.MLRunInternalLabels.tag: runtime.metadata.tag or "latest",
         },
         project_default_fucntion_node_selector=project_default_function_node_selector,
+        auth_info=auth_info,
     )
 
     if to_mount:
@@ -574,21 +577,27 @@ def build_image(
 
 
 def get_kaniko_spec_attributes_from_runtime(
-    project, runtime_spec, project_default_fucntion_node_selector
+    project,
+    runtime_spec,
+    project_default_fucntion_node_selector,
+    auth_info: mlrun.common.schemas.AuthInfo = None,
 ):
     """Get the names of Kaniko spec attributes that are defined for runtime but should also be applied to Kaniko."""
     # preemption mode scheduling constraints cache
     _preemption_enrichment_result = {}
 
     def service_account_handler(attr_value):
-        from framework.api.utils import resolve_project_default_service_account
+        from framework.api.utils import resolve_project_service_account_details
 
         (
             allowed_service_accounts,
+            forbidden_service_accounts,
             default_service_account,
-        ) = resolve_project_default_service_account(project)
+        ) = resolve_project_service_account_details(project, auth_info=auth_info)
         if attr_value:
-            runtime_spec.validate_service_account(allowed_service_accounts)
+            runtime_spec.validate_service_account(
+                allowed_service_accounts, forbidden_service_accounts
+            )
         else:
             attr_value = default_service_account
         return attr_value

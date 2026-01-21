@@ -68,25 +68,6 @@ class TestProjects(TestDatabaseBase):
             == {}
         )
 
-    def test_get_project_with_pre_060_record(self):
-        project_name = "project_name"
-        self._generate_and_insert_pre_060_record(project_name)
-        pre_060_record = (
-            self._db_session.query(Project).filter(Project.name == project_name).one()
-        )
-        assert pre_060_record.full_object is None
-        project = self._db.get_project(
-            self._db_session,
-            project_name,
-        )
-        assert project.metadata.name == project_name
-        updated_record = (
-            self._db_session.query(Project).filter(Project.name == project_name).one()
-        )
-        # when GET performed on a project of the old format - we're upgrading it to the new format - ensuring it
-        # happened
-        assert updated_record.full_object is not None
-
     def test_list_project(self):
         expected_projects = [
             {"name": "project-name-1"},

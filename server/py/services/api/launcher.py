@@ -539,7 +539,7 @@ class ServerSideLauncher(launcher.BaseLauncher):
 
         # Validate function's service-account, based on allowed SAs for the project,
         # if existing in a project-secret.
-        framework.api.utils.process_function_service_account(runtime)
+        framework.api.utils.process_function_service_account(runtime, self._auth_info)
 
         framework.api.utils.ensure_function_security_context(runtime, self._auth_info)
 

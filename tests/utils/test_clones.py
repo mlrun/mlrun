@@ -12,10 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
 import unittest.mock
 
 import pytest
 
+import mlrun.datastore
 import mlrun.utils.clones
 
 
@@ -63,3 +65,100 @@ def test_add_credentials_git_remote_url(url, secrets, enriched):
         assert url == resolved_url
     assert secrets.get("GIT_TOKEN", "") in resolved_url
     assert enriched is url_enriched
+
+
+@pytest.mark.parametrize("project", [None, "my-project"])
+def test_load_source_code_success(tmp_path, project):
+    project_name = project or "my-project"
+    source_uri = f"store://artifacts/{project_name}/handler.py"
+    target_dir = str(tmp_path / "target")
+    artifact_target_path = "s3://bucket/artifacts/handler.py"
+
+    mock_artifact = unittest.mock.MagicMock()
+    mock_artifact.get_target_path.return_value = artifact_target_path
+    mock_dataitem = unittest.mock.MagicMock()
+
+    with (
+        unittest.mock.patch.object(mlrun.datastore, "is_store_uri", return_value=True),
+        unittest.mock.patch.object(
+            mlrun.datastore, "get_store_resource", return_value=mock_artifact
+        ) as mock_get_resource,
+        unittest.mock.patch(
+            "mlrun.get_dataitem", return_value=mock_dataitem
+        ) as mock_get_dataitem,
+    ):
+        result = mlrun.utils.clones.load_source_code(
+            source_uri=source_uri,
+            target_dir=target_dir,
+            project=project,
+        )
+
+    expected_path = os.path.join(target_dir, "handler.py")
+
+    # Assert returned path is under target_dir
+    assert result == expected_path
+    assert result.startswith(target_dir)
+
+    # Assert directory was actually created
+    assert os.path.isdir(target_dir)
+
+    mock_get_resource.assert_called_once_with(source_uri, project=project)
+
+    # Assert get_dataitem is called with the artifact's target path
+    mock_get_dataitem.assert_called_once_with(artifact_target_path)
+
+    # Assert download is called with the local destination path
+    mock_dataitem.download.assert_called_once_with(expected_path)
+
+
+@pytest.mark.parametrize(
+    "source_uri,target_dir,is_store_uri_return,artifact_target_path,error_match",
+    [
+        # Missing source_uri
+        ("", "/tmp/target", True, "s3://path", "source_uri is required"),
+        # Missing target_dir
+        (
+            "store://artifacts/project/file.py",
+            "",
+            True,
+            "s3://path",
+            "target_dir is required",
+        ),
+        # Invalid store URI
+        (
+            "http://not-a-store/file.py",
+            "/tmp/target",
+            False,
+            "s3://path",
+            "must be a store artifact URI",
+        ),
+        # Artifact without target path
+        (
+            "store://artifacts/project/file.py",
+            "/tmp/target",
+            True,
+            None,
+            "does not have a valid target path",
+        ),
+    ],
+)
+def test_load_source_code_failures(
+    source_uri, target_dir, is_store_uri_return, artifact_target_path, error_match
+):
+    # Test various failure scenarios for load_source_code
+    mock_artifact = unittest.mock.MagicMock()
+    mock_artifact.get_target_path.return_value = artifact_target_path
+
+    with (
+        unittest.mock.patch.object(
+            mlrun.datastore, "is_store_uri", return_value=is_store_uri_return
+        ),
+        unittest.mock.patch.object(
+            mlrun.datastore, "get_store_resource", return_value=mock_artifact
+        ),
+    ):
+        with pytest.raises(ValueError, match=error_match):
+            mlrun.utils.clones.load_source_code(
+                source_uri=source_uri,
+                target_dir=target_dir,
+            )

@@ -5408,7 +5408,7 @@ class HTTPRunDB(RunDBInterface):
             tokens_response = db.list_secret_tokens()
             for token in tokens_response.secret_tokens:
                 print(
-                    f"User ID: {token.user_id}, Token name: {token.token_name}, "
+                    f"User ID: {token.user_id}, Token name: {token.name}, "
                     f"Expiration: {token.expiration}"
                 )
 
@@ -5452,11 +5452,16 @@ class HTTPRunDB(RunDBInterface):
             params=params,
         )
         result = mlrun.common.schemas.DeleteSecretTokenResponse(**response.json())
-        user_info = f" for user '{username}'" if username else ""
         if result.deleted:
-            logger.info(f"Token '{token_name}'{user_info} was successfully deleted.")
+            logger.info(
+                "Token was successfully deleted",
+                token_name=token_name,
+                username=username,
+            )
         else:
-            logger.warning(f"Token '{token_name}'{user_info} could not be deleted.")
+            logger.info(
+                "Token could not be deleted", token_name=token_name, username=username
+            )
         return result
 
     @mlrun.utils.iguazio_v4_only

@@ -1190,7 +1190,7 @@ class RunDBInterface(ABC):
     @abstractmethod
     def delete_secret_token(
         self, token_name: str, username: Optional[str] = None
-    ) -> Optional[mlrun.common.schemas.DeleteSecretTokenResponse]:
+    ) -> mlrun.common.schemas.DeleteSecretTokenResponse:
         pass
 
     @abstractmethod

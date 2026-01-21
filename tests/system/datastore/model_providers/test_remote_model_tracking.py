@@ -12,11 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from time import sleep
 
+import pandas as pd
 import pytest
+from datastore.remote_model.remote_model_utils import INPUT_DATA
 
 import mlrun
+import mlrun.common.schemas.model_monitoring.constants as mm_constants
 from tests.datastore.remote_model.remote_model_utils import (
     setup_remote_model_test,
 )
@@ -32,6 +36,101 @@ class TestMockModelProviderTracking(
     project_name = "mock-model-tracking-test"
     image = "artifactory.iguazeng.com:10557/tomerm/mlrun:llmodel_batch"
 
+    def _verify_parquet_contents(self, v3io_df, endpoint_name, batch_len):
+        """Verify parquet contents by splitting by request_id and validating each group"""
+        grouped = v3io_df.groupby("request_id")
+
+        # Should have 2 request groups: 1 single invocation + 1 batch invocation
+        assert len(grouped) == 2, f"Expected 2 request groups, got {len(grouped)}"
+        single_group = None
+        batch_group = None
+
+        for request_id, group in grouped:
+            if len(group) == 1:
+                single_group = group
+            elif len(group) == batch_len:
+                batch_group = group
+            else:
+                raise AssertionError(
+                    f"Unexpected group size: {len(group)} for request_id {request_id}"
+                )
+
+        assert single_group is not None, "Single invocation group not found"
+        assert batch_group is not None, "Batch invocation group not found"
+
+        self._verify_single_parquet_row(
+            single_group.iloc[0], endpoint_name, INPUT_DATA[0]
+        )
+
+        # Verify batch invocation group
+        self._verify_batch_parquet_rows(batch_group, endpoint_name, INPUT_DATA)
+
+    def _verify_single_parquet_row(self, row, endpoint_name, expected_input):
+        """Verify a single parquet row matches expected input and output structure"""
+        assert row["endpoint_name"] == endpoint_name
+        assert row["model_class"] == "LLModel"
+        assert row["effective_sample_count"] == 1
+        expected_feature_names = list(expected_input.keys())
+
+        assert list(row["feature_names"]) == expected_feature_names
+
+        assert list(row["label_names"]) == ["answer", "usage"]
+
+        for key in expected_input:
+            assert (
+                row[key] == expected_input[key]
+            ), f"Field {key} mismatch: {row[key]} != {expected_input[key]}"
+
+        assert "mock model provider" in row["answer"].lower()
+
+        #  TODO : extract usage data to different columns
+        assert isinstance(row["usage"], dict)
+        assert row["usage"]["prompt_tokens"] == 0
+        assert row["usage"]["completion_tokens"] == 0
+        assert row["usage"]["total_tokens"] == 0
+
+    def _verify_batch_parquet_rows(self, batch_group, endpoint_name, expected_inputs):
+        """Verify batch parquet rows match expected inputs and output structure"""
+        batch_sorted = batch_group.sort_values(by="question").reset_index(drop=True)
+        inputs_sorted = sorted(expected_inputs, key=lambda x: x["question"])
+
+        # All batch rows must have same timestamp and latency (processed together)
+        timestamps = batch_sorted["timestamp"].unique()
+        assert (
+            len(timestamps) == 1
+        ), f"Expected same timestamp for all batch rows, got {len(timestamps)} different values"
+
+        if "latency" in batch_sorted.columns:
+            latencies = batch_sorted["latency"].unique()
+            assert (
+                len(latencies) == 1
+            ), f"Expected same latency for all batch rows, got {len(latencies)} different values"
+
+        for i, (idx, row) in enumerate(batch_sorted.iterrows()):
+            expected_input = inputs_sorted[i]
+
+            assert row["endpoint_name"] == endpoint_name
+            assert row["model_class"] == "LLModel"
+            assert row["effective_sample_count"] == len(expected_inputs)
+
+            expected_feature_names = list(expected_input.keys())
+            assert list(row["feature_names"]) == expected_feature_names
+            assert list(row["label_names"]) == ["answer", "usage"]
+
+            for key in expected_input:
+                assert (
+                    row[key] == expected_input[key]
+                ), f"Row {i}, field {key} mismatch: {row[key]} != {expected_input[key]}"
+
+            assert "mock model provider" in row["answer"].lower()
+            assert (
+                f"(Item {i})" in row["answer"]
+            ), f"Expected '(Item {i})' in answer for batch row {i}"
+            assert isinstance(row["usage"], dict)
+            assert row["usage"]["prompt_tokens"] == 0
+            assert row["usage"]["completion_tokens"] == 0
+            assert row["usage"]["total_tokens"] == 0
+
     @pytest.mark.parametrize(
         "execution_mechanism",
         ["process_pool", "dedicated_process", "naive", "asyncio", "thread_pool"],
@@ -41,7 +140,7 @@ class TestMockModelProviderTracking(
         mlrun_model_name = "mock_model"
         endpoint_name = "my_endpoint"
         model_url = "mock://my-mock-model"
-
+        batch_len = len(INPUT_DATA)
         model_artifact, llm_prompt_artifact, function = setup_remote_model_test(
             self.project,
             model_url,
@@ -50,7 +149,6 @@ class TestMockModelProviderTracking(
             execution_mechanism=execution_mechanism,
         )
 
-        # Enable model monitoring
         self.set_mm_credentials()
         function.set_tracking()
         self.project.enable_model_monitoring(
@@ -59,23 +157,35 @@ class TestMockModelProviderTracking(
         )
 
         function.deploy()
+        with ThreadPoolExecutor(max_workers=4) as executor:
+            futures = [
+                executor.submit(
+                    self._check_single_invocation,
+                    function.invoke,
+                    mlrun_model_name,
+                ),
+                executor.submit(
+                    self._check_batch_invocation,
+                    function.invoke,
+                    mlrun_model_name,
+                ),
+                executor.submit(
+                    self._check_single_invocation_with_error,
+                    function.invoke,
+                    mlrun_model_name,
+                ),
+                executor.submit(
+                    self._check_batch_invocation_with_error,
+                    function.invoke,
+                    mlrun_model_name,
+                ),
+            ]
 
-        # Test 1: Single invocation
-        self._check_single_invocation(function.invoke, mlrun_model_name)
+        for future in as_completed(futures):
+            future.result()
 
-        # Test 2: Batch invocation
-        self._check_batch_invocation(function.invoke, mlrun_model_name)
-
-        # Test 3: Single invocation with error
-        self._check_single_invocation_with_error(function.invoke, mlrun_model_name)
-
-        # Test 4: Batch invocation with error
-        self._check_batch_invocation_with_error(function.invoke, mlrun_model_name)
-
-        # Wait for monitoring data to be written
         sleep(5)
 
-        # Verify model endpoint was created and tracked
         endpoint = (
             mlrun.get_run_db()
             .list_model_endpoints(
@@ -83,22 +193,52 @@ class TestMockModelProviderTracking(
             )
             .endpoints[0]
         )
-
-        # Verify endpoint name
         assert endpoint.metadata.name == endpoint_name
 
-        # Wait for metrics to be processed
         sleep(180)
 
-        # Get model endpoint with feature analysis
+        function_name = function.metadata.name
         mep = mlrun.db.get_run_db().get_model_endpoint(
             name=endpoint_name,
             project=self.project.name,
-            function_name=function.metadata.name,
+            function_name=function_name,
             function_tag="latest",
             feature_analysis=True,
             tsdb_metrics=True,
         )
-
-        # Verify monitoring data was captured for batch invocation
         assert mep is not None
+
+        tsdb_client = mlrun.model_monitoring.get_tsdb_connector(
+            project=self.project.name, profile=self.mm_tsdb_profile
+        )
+        predictions = tsdb_client._get_records(
+            table=mm_constants.V3IOTSDBTables.PREDICTIONS, start="now-50m", end="now"
+        )
+
+        assert len(predictions) == 2
+        single_predication = (
+            predictions[predictions["estimated_prediction_count"] == 1]
+            .iloc[0]
+            .to_dict()
+        )
+        batch_prediction = (
+            predictions[predictions["estimated_prediction_count"] == batch_len]
+            .iloc[0]
+            .to_dict()
+        )
+        assert single_predication
+        assert batch_prediction
+        assert single_predication["effective_sample_count"] == 1
+        assert batch_prediction["effective_sample_count"] == batch_len
+
+        v3io_df = pd.read_parquet(
+            f"v3io:///projects/{self.project.name}/artifacts/model-endpoints/parquet/key={mep.metadata.uid}"
+        )
+        assert len(v3io_df) == batch_len + 1
+
+        self._verify_parquet_contents(v3io_df, endpoint_name, batch_len)
+
+        error_df = tsdb_client.get_error_count(endpoint_ids=mep.metadata.uid)
+        assert len(error_df) == 1
+        error_dict = error_df.head(1).to_dict(orient="records")[0]
+        assert error_dict["error_count"] == 2

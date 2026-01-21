@@ -44,8 +44,6 @@ class BaseMockModelProviderTest:
         assert stats["completion_tokens"] == 0
         assert stats["total_tokens"] == 0
 
-        return answer, stats
-
     def _verify_batch_response(self, batch_response):
         """Verify structure and content of batch invocation responses"""
         # Assert we got list of responses
@@ -70,7 +68,7 @@ class BaseMockModelProviderTest:
             assert stats["completion_tokens"] == 0
             assert stats["total_tokens"] == 0
 
-    def _verify_single_tracking(self, event, input_data, answer, stats):
+    def _verify_single_tracking(self, event, input_data):
         """Verify tracking data for single invocation"""
         assert event["effective_sample_count"] == 1
         assert event["request"]["input_schema"] == list(input_data.keys())
@@ -78,8 +76,10 @@ class BaseMockModelProviderTest:
         assert event["resp"]["output_schema"] == UsageResponseKeys.fields()
         assert len(event["resp"]["outputs"]) == 1
         output = event["resp"]["outputs"][0]
-        assert output[0] == answer
-        assert output[1] == stats
+        assert "mock model provider" in output[0]  # answer
+        assert output[1]["prompt_tokens"] == 0
+        assert output[1]["completion_tokens"] == 0
+        assert output[1]["total_tokens"] == 0
         assert event["labels"] == {}
         assert event["model"] == "my_endpoint"
         assert event["error"] is None
@@ -146,7 +146,7 @@ class BaseMockModelProviderTest:
             assert isinstance(response, dict)
             response = response["output"]
 
-        return self._verify_single_response(response)
+        self._verify_single_response(response)
 
     def _check_batch_invocation(
         self, invoke_func, mlrun_model_name: Optional[str] = None
@@ -255,14 +255,14 @@ class TestMockModelProvider(BaseMockModelProviderTest):
 
         try:
             # Test single invocation and get answer/stats
-            answer, stats = self._check_single_invocation(server.test)
+            self._check_single_invocation(server.test)
         finally:
             server.wait_for_completion()
 
         # Verify tracking data
         dummy_stream = server.context.stream.output_stream
         event = dummy_stream.event_list[0]
-        self._verify_single_tracking(event, input_data, answer, stats)
+        self._verify_single_tracking(event, input_data)
 
     @pytest.mark.parametrize(
         "execution_mechanism",

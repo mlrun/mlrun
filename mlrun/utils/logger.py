@@ -356,7 +356,7 @@ class Logger:
         self._bound_variables.update(kw_args)
 
     @staticmethod
-    def inject_context_id_header(headers):
+    def inject_context_id_header(headers: dict):
         if mlrun.common.schemas.HeaderNames.igz_ctx not in headers:
             if (ctx_id := context_id_var.get()) is not None:
                 headers[mlrun.common.schemas.HeaderNames.igz_ctx] = ctx_id

@@ -16,6 +16,7 @@
 import http
 import unittest.mock
 
+import deepdiff
 import httpx
 
 # Skip the entire test module if running under Python < 3.11
@@ -33,6 +34,7 @@ from server.py.services.api.tests.unit.utils.clients.iguazio.conftest import (
 )
 from tests.common_fixtures import aioresponses_mock
 
+import framework.utils.clients.helpers as clients_helpers
 from framework.utils.asyncio import maybe_coroutine
 
 TEST_PROJECT_NAME = "test-project"
@@ -448,9 +450,6 @@ def test_revoke_offline_token_success(
 
     iguazio_client.revoke_offline_token(token, request_headers)
 
-    iguazio_client._client.set_override_auth_headers.assert_called_once_with(
-        request_headers
-    )
     iguazio_client._client.revoke_offline_token.assert_called_once()
 
 
@@ -461,9 +460,6 @@ def test_create_project(
     project = _generate_igv4_project()
 
     iguazio_client.create_project(mock_session, project, auth_info=igv4_auth_info)
-    iguazio_client._client.set_override_auth_headers.assert_called_once_with(
-        igv4_auth_info.request_headers
-    )
     iguazio_client._client.create_default_project_policies.assert_called_once_with(
         project=TEST_PROJECT_NAME
     )
@@ -491,12 +487,8 @@ def test_patch_project(
     )
 
     if not owner:
-        iguazio_client._client.set_override_auth_headers.assert_not_called()
         iguazio_client._client.update_project_owner.assert_not_called()
     else:
-        iguazio_client._client.set_override_auth_headers.assert_called_once_with(
-            igv4_auth_info.request_headers
-        )
         iguazio_client._client.update_project_owner.assert_called_once_with(
             project=TEST_PROJECT_NAME,
             options=iguazio.schemas.UpdateProjectOwnerOptionsV1(owner=owner),
@@ -527,9 +519,6 @@ def test_store_project(
 
     iguazio_client.store_project(
         mock_session, TEST_PROJECT_NAME, project, auth_info=igv4_auth_info
-    )
-    iguazio_client._client.set_override_auth_headers.assert_called_with(
-        igv4_auth_info.request_headers
     )
 
     # create_project is always called first (which calls create_default_project_policies)
@@ -562,9 +551,6 @@ def test_delete_project(mock_session, iguazio_client, igv4_auth_info):
             mock_session, TEST_PROJECT_NAME, auth_info=igv4_auth_info
         )
 
-    iguazio_client._client.set_override_auth_headers.assert_called_once_with(
-        auth_headers
-    )
     iguazio_client._client.delete_project_policies.assert_called_once_with(
         project=TEST_PROJECT_NAME
     )
@@ -598,6 +584,87 @@ def test_try_callback_with_httpx_exceptions(internal_exception, iguazio_client):
                 f"{final_failure_message}: {internal_error_message}, ctx={ctx}"
                 == str(exc.value)
             )
+
+
+@pytest.mark.parametrize(
+    "existing_headers, expected_headers",
+    [
+        (
+            # Not overriding existing headers
+            {"Authorization": "Bearer token123"},
+            {
+                "Authorization": "Bearer token123",
+                mlrun.common.schemas.HeaderNames.igz_ctx: "test-context-id-v4-12345",
+            },
+        ),
+        (
+            # Enriching empty headers
+            {},
+            {mlrun.common.schemas.HeaderNames.igz_ctx: "test-context-id-v4-12345"},
+        ),
+        (
+            # Overriding existing context ID header
+            {
+                mlrun.common.schemas.HeaderNames.igz_ctx: "existing-context-id",
+            },
+            {
+                mlrun.common.schemas.HeaderNames.igz_ctx: "existing-context-id",
+            },
+        ),
+    ],
+)
+def test_enrich_headers_injects_context_id(existing_headers, expected_headers):
+    """Verify that enrich_headers injects context ID into headers"""
+
+    context_id = "test-context-id-v4-12345"
+    headers = existing_headers
+
+    token = context_id_var.set(context_id)
+    try:
+        enriched_headers = clients_helpers.enrich_headers(headers)
+        # enrich_headers modifies in place, so check the original dict
+        assert deepdiff.DeepDiff(enriched_headers, expected_headers) == {}
+    finally:
+        context_id_var.reset(token)
+
+
+def test_no_context_id_when_not_set():
+    """Verify that no context ID is added when context_id_var is not set"""
+    headers = {"Authorization": "Bearer token123"}
+
+    token = context_id_var.set(None)
+    try:
+        clients_helpers.enrich_headers(headers)
+        # Should not add context ID header
+        assert mlrun.common.schemas.HeaderNames.igz_ctx not in headers
+    finally:
+        context_id_var.reset(token)
+
+
+@pytest.mark.parametrize("iguazio_client", [("v4", "sync")], indirect=True)
+def test_context_id_passed_to_with_headers(
+    mock_session, iguazio_client, igv4_auth_info, mock_service_account_auth_headers
+):
+    """Verify that context ID is passed through with_headers context manager"""
+    context_id = "v4-callback-context-id"
+    project = _generate_igv4_project()
+
+    token = context_id_var.set(context_id)
+    try:
+        iguazio_client.create_project(mock_session, project, auth_info=igv4_auth_info)
+
+        # Verify with_headers was called
+        iguazio_client._client.with_headers.assert_called()
+
+        # Get the headers that were passed to with_headers
+        call_args = iguazio_client._client.with_headers.call_args
+        if call_args and call_args[0]:
+            headers_arg = call_args[0][0]
+            # The headers should contain the context ID
+            assert mlrun.common.schemas.HeaderNames.igz_ctx in headers_arg
+            assert headers_arg[mlrun.common.schemas.HeaderNames.igz_ctx] == context_id
+    finally:
+        context_id_var.reset(token)
 
 
 @pytest.fixture
@@ -643,113 +710,3 @@ def _generate_igv4_httpx_exception(
         request=unittest.mock.MagicMock(),
         response=mock_response,
     )
-
-
-@pytest.mark.parametrize("iguazio_client", [("v4", "sync")], indirect=True)
-def test_enrich_headers_injects_context_id(iguazio_client):
-    """Verify that enrich_headers injects context ID into headers"""
-    import framework.utils.clients.helpers as clients_helpers
-
-    context_id = "test-context-id-v4-12345"
-    headers = {"Authorization": "Bearer token123"}
-
-    token = context_id_var.set(context_id)
-    try:
-        clients_helpers.enrich_headers(headers)
-        # enrich_headers modifies in place, so check the original dict
-        assert mlrun.common.schemas.HeaderNames.igz_ctx in headers
-        assert headers[mlrun.common.schemas.HeaderNames.igz_ctx] == context_id
-    finally:
-        context_id_var.reset(token)
-
-
-@pytest.mark.parametrize("iguazio_client", [("v4", "sync")], indirect=True)
-def test_enrich_headers_does_not_override_existing_context_id(iguazio_client):
-    """Verify that enrich_headers does not override existing context ID"""
-    import framework.utils.clients.helpers as clients_helpers
-
-    existing_context_id = "existing-context-id"
-    new_context_id = "new-context-id"
-    headers = {mlrun.common.schemas.HeaderNames.igz_ctx: existing_context_id}
-
-    token = context_id_var.set(new_context_id)
-    try:
-        clients_helpers.enrich_headers(headers)
-        # Should keep the existing header value
-        assert headers[mlrun.common.schemas.HeaderNames.igz_ctx] == existing_context_id
-    finally:
-        context_id_var.reset(token)
-
-
-@pytest.mark.parametrize("iguazio_client", [("v4", "sync")], indirect=True)
-def test_context_id_passed_to_with_headers(
-    mock_session, iguazio_client, igv4_auth_info, mock_service_account_auth_headers
-):
-    """Verify that context ID is passed through with_headers context manager"""
-    context_id = "v4-callback-context-id"
-    project = _generate_igv4_project()
-
-    token = context_id_var.set(context_id)
-    try:
-        iguazio_client.create_project(mock_session, project, auth_info=igv4_auth_info)
-
-        # Verify with_headers was called
-        iguazio_client._client.with_headers.assert_called()
-
-        # Get the headers that were passed to with_headers
-        call_args = iguazio_client._client.with_headers.call_args
-        if call_args and call_args[0]:
-            headers_arg = call_args[0][0]
-            # The headers should contain the context ID
-            assert mlrun.common.schemas.HeaderNames.igz_ctx in headers_arg
-            assert headers_arg[mlrun.common.schemas.HeaderNames.igz_ctx] == context_id
-    finally:
-        context_id_var.reset(token)
-
-
-@pytest.mark.parametrize("iguazio_client", [("v4", "sync")], indirect=True)
-def test_delete_project_passes_context_id(mock_session, iguazio_client, igv4_auth_info):
-    """Verify that delete_project passes context ID to the iguazio client"""
-    context_id = "delete-context-id-v4"
-    auth_headers = {"Authorization": "Bearer service-account-token"}
-
-    with unittest.mock.patch(
-        "framework.utils.clients.service_account_token.Client.auth_headers",
-        auth_headers,
-    ):
-        token = context_id_var.set(context_id)
-        try:
-            iguazio_client.delete_project(
-                mock_session, TEST_PROJECT_NAME, auth_info=igv4_auth_info
-            )
-
-            # Verify with_headers was called with enriched headers
-            iguazio_client._client.with_headers.assert_called()
-
-            # Get the headers that were passed
-            call_args = iguazio_client._client.with_headers.call_args
-            if call_args and call_args[0]:
-                headers_arg = call_args[0][0]
-                assert headers_arg is not None
-                assert mlrun.common.schemas.HeaderNames.igz_ctx in headers_arg
-                assert (
-                    headers_arg[mlrun.common.schemas.HeaderNames.igz_ctx] == context_id
-                )
-        finally:
-            context_id_var.reset(token)
-
-
-@pytest.mark.parametrize("iguazio_client", [("v4", "sync")], indirect=True)
-def test_no_context_id_when_not_set(iguazio_client):
-    """Verify that no context ID is added when context_id_var is not set"""
-    import framework.utils.clients.helpers as clients_helpers
-
-    headers = {"Authorization": "Bearer token123"}
-
-    token = context_id_var.set(None)
-    try:
-        clients_helpers.enrich_headers(headers)
-        # Should not add context ID header
-        assert mlrun.common.schemas.HeaderNames.igz_ctx not in headers
-    finally:
-        context_id_var.reset(token)

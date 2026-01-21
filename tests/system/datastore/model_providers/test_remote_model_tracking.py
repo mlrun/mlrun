@@ -12,33 +12,34 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import json
+from time import sleep
 
 import pytest
 
-from mlrun.datastore.model_provider.model_provider import UsageResponseKeys
+import mlrun
 from tests.datastore.remote_model.remote_model_utils import (
-    INPUT_DATA,
     setup_remote_model_test,
 )
-from tests.system.base import TestMLRunSystem
+from tests.datastore.remote_model.test_remote_model import BaseMockModelProviderTest
+from tests.system.model_monitoring import TestMLRunSystemModelMonitoring
 
 
-@TestMLRunSystem.skip_test_if_env_not_configured
-class TestMockModelProviderTracking(TestMLRunSystem):
+class TestMockModelProviderTracking(
+    BaseMockModelProviderTest, TestMLRunSystemModelMonitoring
+):
     """Test MockModelProvider with tracking using real function deployment"""
 
     project_name = "mock-model-tracking-test"
     image = "artifactory.iguazeng.com:10557/tomerm/mlrun:llmodel_batch"
-
 
     @pytest.mark.parametrize(
         "execution_mechanism",
         ["process_pool", "dedicated_process", "naive", "asyncio", "thread_pool"],
     )
     def test_llmodel_tracking(self, execution_mechanism):
-        """Test single and batch invocations with MockModelProvider"""
+        """Test single and batch invocations with MockModelProvider with model monitoring"""
         mlrun_model_name = "mock_model"
+        endpoint_name = "my_endpoint"
         model_url = "mock://my-mock-model"
 
         model_artifact, llm_prompt_artifact, function = setup_remote_model_test(
@@ -48,53 +49,56 @@ class TestMockModelProviderTracking(TestMLRunSystem):
             image=self.image,
             execution_mechanism=execution_mechanism,
         )
+
+        # Enable model monitoring
+        self.set_mm_credentials()
+        function.set_tracking()
+        self.project.enable_model_monitoring(
+            deploy_histogram_data_drift_app=False,
+            image=self.image,
+        )
+
         function.deploy()
 
         # Test 1: Single invocation
-        response = function.invoke(
-            f"v2/models/{mlrun_model_name}/infer",
-            json.dumps(INPUT_DATA[0]),
-        )["output"]
-
-        # Verify single response structure
-        assert len(response) == 2  # answer + usage
-        answer = response[UsageResponseKeys.ANSWER]
-        stats = response[UsageResponseKeys.USAGE]
-
-        # Verify mock message (no counter for single invocation)
-        assert "mock model provider" in answer.lower()
-        assert "(Item" not in answer  # No counter for single invocation
-
-        # Verify mock usage stats (should be 0)
-        assert stats["prompt_tokens"] == 0
-        assert stats["completion_tokens"] == 0
-        assert stats["total_tokens"] == 0
+        self._check_single_invocation(function.invoke, mlrun_model_name)
 
         # Test 2: Batch invocation
-        batch_response = function.invoke(
-            f"v2/models/{mlrun_model_name}/infer",
-            json.dumps(INPUT_DATA),
+        self._check_batch_invocation(function.invoke, mlrun_model_name)
+
+        # Test 3: Single invocation with error
+        self._check_single_invocation_with_error(function.invoke, mlrun_model_name)
+
+        # Test 4: Batch invocation with error
+        self._check_batch_invocation_with_error(function.invoke, mlrun_model_name)
+
+        # Wait for monitoring data to be written
+        sleep(5)
+
+        # Verify model endpoint was created and tracked
+        endpoint = (
+            mlrun.get_run_db()
+            .list_model_endpoints(
+                self.project_name, metric_list=["error_count"], tsdb_metrics=True
+            )
+            .endpoints[0]
         )
 
-        # Assert we got list of 5 responses
-        assert isinstance(batch_response, list)
-        assert len(batch_response) == len(INPUT_DATA)
+        # Verify endpoint name
+        assert endpoint.metadata.name == endpoint_name
 
-        # Verify each response has correct structure
-        for i, full_result in enumerate(batch_response):
-            result = full_result["output"]
-            assert len(result) == 2  # answer + usage
+        # Wait for metrics to be processed
+        sleep(180)
 
-            # Get answer and usage
-            answer = result[UsageResponseKeys.ANSWER]
-            stats = result[UsageResponseKeys.USAGE]
+        # Get model endpoint with feature analysis
+        mep = mlrun.db.get_run_db().get_model_endpoint(
+            name=endpoint_name,
+            project=self.project.name,
+            function_name=function.metadata.name,
+            function_tag="latest",
+            feature_analysis=True,
+            tsdb_metrics=True,
+        )
 
-            # Verify mock message includes item index
-            assert f"(Item {i})" in answer
-            assert "mock model provider" in answer.lower()
-
-            # Verify mock usage stats (should be 0)
-            assert stats["prompt_tokens"] == 0
-            assert stats["completion_tokens"] == 0
-            assert stats["total_tokens"] == 0
-
+        # Verify monitoring data was captured for batch invocation
+        assert mep is not None

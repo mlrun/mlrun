@@ -738,6 +738,35 @@ batch_run = project.run_function(
     },
 )
 ```
+### Data store profiles
+  ```python
+  from mlrun.datastore.datastore_profile import (
+      DatastoreProfileKafkaStream,
+      DatastoreProfilePostgreSQL,
+  )
+  # Create and register TSDB profile
+  tsdb_profile = DatastoreProfilePostgreSQL(
+      name=tsdb_profile_name,
+      user="postgres",
+      password="postgres",
+      host="timescaledb",
+      port=5432,
+      database="postgres",
+  )
+  project.register_datastore_profile(tsdb_profile)
+  # Create and register stream profile
+  stream_profile = DatastoreProfileKafkaStream(
+      name=stream_profile_name,
+      brokers="kafka-stream:9092",
+      topics=[],
+  )
+  project.register_datastore_profile(stream_profile)
+  # Set model monitoring credentials and enable the infrastructure
+  project.set_model_monitoring_credentials(
+      tsdb_profile_name=tsdb_profile.name,
+      stream_profile_name=stream_profile.name,
+  )
+```
 
 ## Alerts and notifications
 

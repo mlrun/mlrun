@@ -202,6 +202,7 @@ default_config = {
         "openai_default_model": "gpt-4o",
         "openai_batch_max_concurrent": 10,
         "huggingface_default_model": "microsoft/Phi-3-mini-4k-instruct",
+        "huggingface_default_batch_size": 8,
     },
     # default node selector to be applied to all functions - json string base64 encoded format
     "default_function_node_selector": "e30=",
@@ -281,7 +282,14 @@ default_config = {
                     "kfp_pod_user_unix_id": 5,
                 },
             },
-            "service_account": {"default": None},
+            "service_account": {
+                "default": None,
+                "forbidden_service_accounts": [
+                    "mlrun-api",
+                    "iguazio",
+                    "nuclio",
+                ],
+            },
             "state_thresholds": {
                 "default": {
                     "pending_scheduled": "1h",

@@ -358,7 +358,7 @@ def apply_enrichment_and_validation_on_function(
 
     # Validate function's service-account, based on allowed SAs for the project, if existing in a project-secret.
     if validate_service_account:
-        process_function_service_account(function)
+        process_function_service_account(function, auth_info)
 
     if mask_sensitive_data:
         mask_function_sensitive_data(function, auth_info)
@@ -750,7 +750,9 @@ def try_perform_auto_mount(function, auth_info: mlrun.common.schemas.AuthInfo):
     function.try_auto_mount_based_on_config(override_params)
 
 
-def process_function_service_account(function):
+def process_function_service_account(
+    function, auth_info: mlrun.common.schemas.AuthInfo = None
+):
     # If we're not running inside k8s, skip this check as it's not relevant.
     if not framework.utils.singletons.k8s.get_k8s_helper(
         silent=True
@@ -759,15 +761,20 @@ def process_function_service_account(function):
 
     (
         allowed_service_accounts,
+        forbidden_service_accounts,
         default_service_account,
-    ) = resolve_project_default_service_account(function.metadata.project)
+    ) = resolve_project_service_account_details(
+        function.metadata.project, auth_info=auth_info
+    )
 
     function.validate_and_enrich_service_account(
-        allowed_service_accounts, default_service_account
+        allowed_service_accounts, forbidden_service_accounts, default_service_account
     )
 
 
-def resolve_project_default_service_account(project_name: str):
+def resolve_project_service_account_details(
+    project_name: str, auth_info: mlrun.common.schemas.AuthInfo = None
+):
     allowed_service_accounts = services.api.crud.secrets.Secrets().get_project_secret(
         project_name,
         mlrun.common.schemas.SecretProviderName.kubernetes,
@@ -782,6 +789,39 @@ def resolve_project_default_service_account(project_name: str):
             service_account.strip()
             for service_account in allowed_service_accounts.split(",")
         ]
+
+    forbidden_service_accounts = (
+        mlrun.mlconf.function.spec.service_account.forbidden_service_accounts[:]
+    )
+    forbidden_service_accounts_secret = (
+        services.api.crud.secrets.Secrets().get_project_secret(
+            project_name,
+            mlrun.common.schemas.SecretProviderName.kubernetes,
+            services.api.crud.secrets.Secrets().generate_client_project_secret_key(
+                services.api.crud.secrets.SecretsClientType.service_accounts,
+                "forbidden",
+            ),
+            allow_secrets_from_k8s=True,
+            allow_internal_secrets=True,
+        )
+    )
+    if forbidden_service_accounts_secret:
+        forbidden_service_accounts.extend(
+            [
+                service_account.strip()
+                for service_account in forbidden_service_accounts_secret.split(",")
+            ]
+        )
+
+    # If the auth info's service account is in the forbidden list, remove it from there to allow the current request to
+    # proceed.
+    # TODO: In the future we should avoid running jobs as a service account that is in the forbidden list altogether.
+    if (
+        auth_info
+        and auth_info.is_service_account()
+        and auth_info.username in forbidden_service_accounts
+    ):
+        forbidden_service_accounts.remove(auth_info.username)
 
     default_service_account = services.api.crud.secrets.Secrets().get_project_secret(
         project_name,
@@ -801,15 +841,22 @@ def resolve_project_default_service_account(project_name: str):
     # Sanity check on project configuration
     if (
         default_service_account
-        and allowed_service_accounts
-        and default_service_account not in allowed_service_accounts
+        and (
+            allowed_service_accounts
+            and default_service_account not in allowed_service_accounts
+        )
+        or (
+            forbidden_service_accounts
+            and default_service_account in forbidden_service_accounts
+        )
     ):
         raise mlrun.errors.MLRunInvalidArgumentError(
             f"Default service account {default_service_account} is not in list of allowed "
-            + f"service accounts {allowed_service_accounts}"
+            + f"service accounts {allowed_service_accounts} or is in the list of forbidden service accounts "
+            + f"{forbidden_service_accounts}"
         )
 
-    return allowed_service_accounts, default_service_account
+    return allowed_service_accounts, forbidden_service_accounts, default_service_account
 
 
 def ensure_function_security_context(

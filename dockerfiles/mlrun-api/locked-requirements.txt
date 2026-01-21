@@ -2970,9 +2970,9 @@ sortedcontainers==2.4.0 \
     # via
     #   distributed
     #   snowflake-connector-python
-soupsieve==2.8.1 \
-    --hash=sha256:4cf733bc50fa805f5df4b8ef4740fc0e0fa6218cf3006269afd3f9d6d80fd350 \
-    --hash=sha256:a11fe2a6f3d76ab3cf2de04eb339c1be5b506a8a47f2ceb6d139803177f85434
+soupsieve==2.8.2 \
+    --hash=sha256:0f4c2f6b5a5fb97a641cf69c0bd163670a0e45e6d6c01a2107f93a6a6f93c51a \
+    --hash=sha256:78a66b0fdee2ab40b7199dc3e747ee6c6e231899feeaae0b9b98a353afd48fd8
     # via beautifulsoup4
 sqlalchemy==2.0.45 \
     --hash=sha256:0209d9753671b0da74da2cfbb9ecf9c02f72a759e4b018b3ab35f244c91842c7 \
@@ -3044,8 +3044,8 @@ starlette==0.49.3 \
     --hash=sha256:1c14546f299b5901a1ea0e34410575bc33bbd741377a10484a54445588d00284 \
     --hash=sha256:b579b99715fdc2980cf88c8ec96d3bf1ce16f5a8051a7c2b84ef9b1cdecaea2f
     # via fastapi
-storey==1.11.6 \
-    --hash=sha256:52285fff5f247de257265d44b75d91ebf6d6d7433bc7044afd4a6006f8916e62
+storey==1.11.7 \
+    --hash=sha256:e769d3656ca0e576a204840fb27b93c663c4c5b51a1b2fcebfc6944c123133f7
     # via -r requirements.txt
 tabulate==0.8.10 \
     --hash=sha256:0ba055423dbaa164b9e456abe7920c5e8ed33fcc16f6d1b2f2d152c8e1e8b4fc \

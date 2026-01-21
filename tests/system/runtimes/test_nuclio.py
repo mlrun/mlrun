@@ -176,9 +176,21 @@ class TestNuclioRuntime(TestMLRunSystemModelMonitoring):
             image=self.image,
             kind="serving",
         )
+
+        model_artifact = self.project.log_model(
+            "my_model",
+            model_url="mock://my-model-url",
+            default_config={"model_version": "4"},
+        )
+
         graph = function.set_topology("flow")
         model_runner = ModelRunnerStep(name="model-runner")
-        model_runner.add_model("my_llm", "mlrun.serving.states.LLModel", "naive")
+        model_runner.add_model(
+            "my_llm",
+            "mlrun.serving.states.LLModel",
+            "naive",
+            model_artifact=model_artifact,
+        )
         graph.to(model_runner).respond()
         deployment = function.deploy()
         assert deployment == function.get_url()  # check function url

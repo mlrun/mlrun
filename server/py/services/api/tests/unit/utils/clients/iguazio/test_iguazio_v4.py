@@ -15,6 +15,7 @@
 
 import http
 import unittest.mock
+from contextlib import nullcontext as does_not_raise
 
 import httpx
 
@@ -32,6 +33,7 @@ from server.py.services.api.tests.unit.utils.clients.iguazio.conftest import (
 )
 from tests.common_fixtures import aioresponses_mock
 
+import framework.utils.clients.iguazio.v4
 from framework.utils.asyncio import maybe_coroutine
 
 TEST_PROJECT_NAME = "test-project"
@@ -613,3 +615,87 @@ def _generate_igv4_httpx_exception(
         request=unittest.mock.MagicMock(),
         response=mock_response,
     )
+
+
+@pytest.mark.parametrize(
+    "response_body, expected_result, expectation",
+    [
+        # Valid response
+        (
+            {
+                "metadata": {
+                    "username": "test-user",
+                    "id": "test-id",
+                    "resourceType": "user",
+                },
+                "relationships": [
+                    {
+                        "@type": "type.googleapis.com/group.Group",
+                        "metadata": {"id": "group1"},
+                    },
+                    {
+                        "@type": "type.googleapis.com/group.Group",
+                        "metadata": {"id": "group2"},
+                    },
+                ],
+            },
+            ("test-user", "test-id", ["group1", "group2"], "user"),
+            does_not_raise(),
+        ),
+        # Missing username
+        (
+            {
+                "metadata": {"id": "test-id"},
+                "relationships": [],
+            },
+            None,
+            pytest.raises(mlrun.errors.MLRunUnauthorizedError),
+        ),
+        # Missing user ID
+        (
+            {
+                "metadata": {"username": "test-user"},
+                "relationships": [],
+            },
+            None,
+            pytest.raises(mlrun.errors.MLRunUnauthorizedError),
+        ),
+        # Invalid relationships format
+        (
+            {
+                "metadata": {"username": "test-user", "id": "test-id"},
+                "relationships": "invalid-format",
+            },
+            None,
+            pytest.raises(mlrun.errors.MLRunUnauthorizedError),
+        ),
+        # No relationships (valid case)
+        (
+            {
+                "metadata": {"username": "test-user", "id": "test-id"},
+            },
+            ("test-user", "test-id", [], "user"),
+            does_not_raise(),
+        ),
+        # Relationships with invalid group type
+        (
+            {
+                "metadata": {"username": "test-user", "id": "test-id"},
+                "relationships": [
+                    {
+                        "@type": "invalid-type",
+                        "metadata": {"id": "ignored-group"},
+                    }
+                ],
+            },
+            ("test-user", "test-id", [], "user"),
+            does_not_raise(),
+        ),
+    ],
+)
+def test_parse_auth_response_data(response_body, expected_result, expectation):
+    with expectation:
+        result = framework.utils.clients.iguazio.v4.Client._parse_auth_response_data(
+            response_body
+        )
+        assert result == expected_result

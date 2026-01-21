@@ -88,7 +88,7 @@ def test_extend_artifact_path():
         assert extend_artifact_path(test, "yz") == expected[i]
 
 
-def test_model_artifact_validators():
+def test_model_artifact_validators(new_project_factory):
     with pytest.raises(
         mlrun.errors.MLRunInvalidArgumentError,
         match="Arguments 'model_file' and 'model_url' cannot be"
@@ -108,7 +108,7 @@ def test_model_artifact_validators():
             body=b"dummy_model_content",
             model_url="http://localhost:8080/v2/models/mymodel/infer",
         )
-    project = mlrun.new_project("test-project", save=False)
+    project = new_project_factory("test-project", save=False)
     with pytest.raises(
         mlrun.errors.MLRunInvalidArgumentError,
         match="log_artifact of ModelArtifact does not accept arguments for both upload and model_url parameters",
@@ -432,8 +432,8 @@ def test_log_artifact_with_target_path_and_upload_options(
         ("artifact.key", does_not_raise()),
     ],
 )
-def test_log_artifact_with_invalid_key(artifact_key, expected):
-    project = mlrun.new_project("test-project")
+def test_log_artifact_with_invalid_key(artifact_key, expected, new_project_factory):
+    project = new_project_factory("test-project")
     target_path = "s3://some/path"
     artifact = mlrun.artifacts.Artifact(
         key=artifact_key, body="123", target_path=target_path
@@ -662,8 +662,8 @@ def test_resolve_body_hash_path(
         assert expected_target_path == target_path
 
 
-def test_inline_body():
-    project = mlrun.new_project("inline", save=False)
+def test_inline_body(new_project_factory):
+    project = new_project_factory("inline", save=False)
 
     # log an artifact and save the content/body in the object (inline)
     artifact = project.log_artifact(
@@ -680,9 +680,9 @@ def test_inline_body():
     assert artifact.metadata.key == "y"
 
 
-def test_register_artifacts(rundb_mock):
+def test_register_artifacts(rundb_mock, new_project_factory):
     project_name = "my-projects"
-    project = mlrun.new_project(project_name)
+    project = new_project_factory(project_name)
     artifact_key = "my-art"
     artifact_tag = "v1"
     project.set_artifact(
@@ -699,9 +699,9 @@ def test_register_artifacts(rundb_mock):
     assert artifact.tree == expected_tree
 
 
-def test_producer_in_exported_artifact():
+def test_producer_in_exported_artifact(new_project_factory):
     project_name = "my-project"
-    project = mlrun.new_project(project_name, save=False)
+    project = new_project_factory(project_name, save=False)
 
     artifact = project.log_artifact(
         "x", body="123", is_inline=True, artifact_path=results_dir

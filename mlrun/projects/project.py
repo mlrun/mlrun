@@ -3765,11 +3765,14 @@ class MlrunProject(ModelObj):
         :store: if True, allow updating in case project already exists
         """
         self.export(filepath)
-        project = self.save_to_db(store)
-        self.__dict__.update(project.__dict__)
+        project: MlrunProject = self.save_to_db(store)
+
+        # Update this object with the enriched project returned by the API,
+        # without losing runtime-only fields that aren't serialized (e.g. `spec.context`).
+        self._enrich(project)
         return self
 
-    def save_to_db(self, store=True):
+    def save_to_db(self, store=True) -> "MlrunProject":
         """save project to database
 
         :store: if True, allow updating in case project already exists
@@ -5834,6 +5837,51 @@ class MlrunProject(ModelObj):
 
     def _resolve_artifact_owner(self):
         return os.getenv("V3IO_USERNAME") or self.spec.owner
+
+    def _enrich(self, other: "MlrunProject"):
+        """
+        Enrich this project in-place using values from another project object.
+
+        The enrichment is performed for the fields listed in `self._dict_fields`:
+        `kind`, `metadata`, `spec`, and `status`.
+
+        - For string fields (currently `kind`), the value is overwritten from `other`.
+        - For object fields (e.g. `metadata`, `spec`, `status`), this performs a shallow
+          merge between the dict representations of both objects (using dict union),
+          preferring values from `other` on key collisions.
+
+        Note that this method mutates the underlying private objects (`self._metadata`,
+        `self._spec`, `self._status`) by setting attributes per merged key.
+
+        :param other: Project object providing the desired values to merge into `self`.
+        """
+        for field in self._dict_fields:
+            current_value = getattr(self, field, None)
+            other_value = getattr(other, field, None)
+
+            # Enrichment is additive: if `other` doesn't provide a value, keep the current one as-is.
+            if other_value is None:
+                continue
+
+            if isinstance(current_value, str):
+                setattr(self, field, other_value)
+                continue
+
+            # If current value is missing, we can safely take the other value as-is (there is nothing to preserve).
+            if current_value is None:
+                setattr(self, field, other_value)
+                continue
+
+            # We intentionally do NOT replace the whole object (e.g. `self.spec = other.spec`) because
+            # some values are not serialized and can be lost during assignment (e.g. `spec.context`).
+            # A shallow merge of the known fields preserves existing runtime-only values on `self`.
+            current_dict = current_value.to_dict()
+            other_dict = other_value.to_dict()
+            merged_dict = current_dict | other_dict
+
+            target_object = getattr(self, f"_{field}")
+            for key, value in merged_dict.items():
+                setattr(target_object, key, value)
 
 
 def _set_as_current_active_project(project: MlrunProject):

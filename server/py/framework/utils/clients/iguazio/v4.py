@@ -369,11 +369,14 @@ class Client(BaseClient, project_follower.Member):
         """
         Extract and return AuthInfo from a valid session verification response.
         """
-        username, user_id, group_ids = self._parse_auth_response_data(response_body)
+        username, user_id, group_ids, resource_type = self._parse_auth_response_data(
+            response_body
+        )
         return mlrun.common.schemas.AuthInfo(
             username=username,
             user_id=user_id,
             user_group_ids=group_ids,
+            kind=mlrun.common.schemas.AuthInfoKind(resource_type),
         )
 
     @property
@@ -437,9 +440,10 @@ class Client(BaseClient, project_follower.Member):
     @staticmethod
     def _parse_auth_response_data(
         response_body: typing.Mapping[typing.Any, typing.Any],
-    ) -> tuple[str, str, list[str]]:
+    ) -> tuple[str, str, list[str], str]:
         """
-        Validate and parse the authentication response body to extract the username, user ID, and group IDs.
+        Validate and parse the authentication response body to extract the username, user ID, group IDs and type of
+        authentication (user or service account).
         """
         if not isinstance(response_body, dict):
             raise mlrun.errors.MLRunBadRequestError("Expected dict in response body")
@@ -458,6 +462,12 @@ class Client(BaseClient, project_follower.Member):
 
         group_ids = []
 
+        resource_type = get_in(
+            response_body,
+            "metadata.resourceType",
+            mlrun.common.schemas.AuthInfoKind.user,
+        )
+
         relationships = response_body.get("relationships")
         if isinstance(relationships, list):
             for relationship in relationships:
@@ -470,7 +480,7 @@ class Client(BaseClient, project_follower.Member):
                 "Invalid format for 'relationships' in authentication response"
             )
 
-        return username, user_id, group_ids
+        return username, user_id, group_ids, resource_type
 
 
 class AsyncClient(BaseAsyncClient, Client):

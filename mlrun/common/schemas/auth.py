@@ -118,6 +118,11 @@ class AuthorizationVerificationInput(pydantic.v1.BaseModel):
     action: AuthorizationAction
 
 
+class AuthInfoKind(mlrun.common.types.StrEnum):
+    user = "user"
+    service_account = "serviceaccount"
+
+
 class AuthInfo(pydantic.v1.BaseModel):
     # Keep request headers for inter-service communication
     request_headers: typing.Optional[dict[str, str]] = None
@@ -136,6 +141,7 @@ class AuthInfo(pydantic.v1.BaseModel):
     user_unix_id: typing.Optional[int] = None
     projects_role: typing.Optional[ProjectsRole] = None
     planes: list[str] = []
+    kind: AuthInfoKind = AuthInfoKind.user
 
     def get_member_ids(self) -> list[str]:
         member_ids = []
@@ -149,6 +155,9 @@ class AuthInfo(pydantic.v1.BaseModel):
 
     def get_session(self) -> str:
         return self.data_session or self.session
+
+    def is_service_account(self) -> bool:
+        return self.kind == AuthInfoKind.service_account
 
 
 class Credentials(pydantic.v1.BaseModel):

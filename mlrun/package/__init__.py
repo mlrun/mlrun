@@ -18,19 +18,18 @@ from collections import OrderedDict
 from collections.abc import Callable
 
 import mlrun
-
-from ..config import config
-from .context_handler import ContextHandler
-from .errors import (
+from mlrun.config import config
+from mlrun.package.context_handler import ContextHandler
+from mlrun.package.errors import (
     MLRunPackageCollectionError,
     MLRunPackageError,
     MLRunPackagePackingError,
     MLRunPackageUnpackingError,
 )
-from .packager import Packager
-from .packagers import DefaultPackager
-from .packagers_manager import PackagersManager
-from .utils import (
+from mlrun.package.packager import Packager
+from mlrun.package.packagers import DefaultPackager
+from mlrun.package.packagers_manager import PackagersManager
+from mlrun.package.utils import (
     ArchiveSupportedFormat,
     ArtifactType,
     LogHintKey,

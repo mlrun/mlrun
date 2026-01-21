@@ -21,15 +21,14 @@ from typing import Any
 from mlrun.artifacts import Artifact
 from mlrun.datastore import DataItem
 from mlrun.errors import MLRunInvalidArgumentError
-
-from ..utils import (
+from mlrun.package.packagers.default_packager import DefaultPackager
+from mlrun.package.utils import (
     DEFAULT_ARCHIVE_FORMAT,
     DEFAULT_STRUCT_FILE_FORMAT,
     ArchiveSupportedFormat,
     ArtifactType,
     StructFileSupportedFormat,
 )
-from .default_packager import DefaultPackager
 
 # ----------------------------------------------------------------------------------------------------------------------
 # builtins packagers:

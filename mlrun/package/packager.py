@@ -18,8 +18,7 @@ from typing import Any
 
 from mlrun.artifacts import Artifact
 from mlrun.datastore import DataItem
-
-from .utils import TypeHintUtils
+from mlrun.package.utils import TypeHintUtils
 
 
 class Packager(ABC):

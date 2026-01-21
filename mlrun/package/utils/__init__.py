@@ -12,12 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from ._archiver import ArchiveSupportedFormat
-from ._formatter import StructFileSupportedFormat
-from ._pickler import Pickler
-from ._supported_format import SupportedFormat
-from .log_hint_utils import LogHintKey, LogHintUtils
-from .type_hint_utils import TypeHintUtils
+from mlrun.package.utils._archiver import ArchiveSupportedFormat
+from mlrun.package.utils._formatter import StructFileSupportedFormat
+from mlrun.package.utils._pickler import Pickler
+from mlrun.package.utils._supported_format import SupportedFormat
+from mlrun.package.utils.log_hint_utils import LogHintKey, LogHintUtils
+from mlrun.package.utils.type_hint_utils import TypeHintUtils
 
 # The default pickle module to use for pickling objects:
 DEFAULT_PICKLE_MODULE = "cloudpickle"

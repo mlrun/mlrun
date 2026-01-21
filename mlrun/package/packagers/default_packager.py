@@ -21,11 +21,15 @@ import docstring_parser
 
 from mlrun.artifacts import Artifact
 from mlrun.datastore import DataItem
+from mlrun.package.errors import MLRunPackagePackingError, MLRunPackageUnpackingError
+from mlrun.package.packager import Packager
+from mlrun.package.utils import (
+    DEFAULT_PICKLE_MODULE,
+    ArtifactType,
+    Pickler,
+    TypeHintUtils,
+)
 from mlrun.utils import logger
-
-from ..errors import MLRunPackagePackingError, MLRunPackageUnpackingError
-from ..packager import Packager
-from ..utils import DEFAULT_PICKLE_MODULE, ArtifactType, Pickler, TypeHintUtils
 
 
 class _DefaultPackagerMeta(ABCMeta):

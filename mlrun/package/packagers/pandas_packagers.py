@@ -24,9 +24,8 @@ import pandas as pd
 from mlrun.artifacts import Artifact, DatasetArtifact
 from mlrun.datastore import DataItem
 from mlrun.errors import MLRunInvalidArgumentError
-
-from ..utils import ArtifactType, SupportedFormat
-from .default_packager import DefaultPackager
+from mlrun.package.packagers.default_packager import DefaultPackager
+from mlrun.package.utils import ArtifactType, SupportedFormat
 
 
 class _Formatter(ABC):

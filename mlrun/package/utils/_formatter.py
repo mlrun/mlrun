@@ -19,7 +19,7 @@ from typing import Any
 
 import yaml
 
-from ._supported_format import SupportedFormat
+from mlrun.package.utils._supported_format import SupportedFormat
 
 
 class _Formatter(ABC):

@@ -23,6 +23,9 @@ import mlrun.errors
 from mlrun.artifacts import Artifact
 from mlrun.artifacts.base import verify_target_path
 from mlrun.datastore import DataItem, get_store_resource, store_manager
+from mlrun.package.packager import Packager
+from mlrun.package.packagers.default_packager import DefaultPackager
+from mlrun.package.utils import LogHintKey, LogHintUtils, TypeHintUtils
 from mlrun.utils import logger
 
 from .errors import (
@@ -32,9 +35,6 @@ from .errors import (
     MLRunPackageUnbundlingError,
     MLRunPackageUnpackingError,
 )
-from .packager import Packager
-from .packagers.default_packager import DefaultPackager
-from .utils import LogHintKey, LogHintUtils, TypeHintUtils
 
 
 class PackagersManager:

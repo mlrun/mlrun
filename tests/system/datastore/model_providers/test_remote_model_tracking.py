@@ -91,22 +91,24 @@ class TestMockModelProviderTracking(
 
     def _verify_batch_parquet_rows(self, batch_group, endpoint_name, expected_inputs):
         """Verify batch parquet rows match expected inputs and output structure"""
-        batch_sorted = batch_group.sort_values(by="question").reset_index(drop=True)
-        inputs_sorted = sorted(expected_inputs, key=lambda x: x["question"])
-
-        # All batch rows must have same timestamp and latency (processed together)
-        timestamps = batch_sorted["timestamp"].unique()
+        timestamps = batch_group["timestamp"].unique()
         assert (
             len(timestamps) == 1
         ), f"Expected same timestamp for all batch rows, got {len(timestamps)} different values"
 
-        latencies = batch_sorted["latency"].unique()
+        latencies = batch_group["latency"].unique()
         assert (
             len(latencies) == 1
         ), f"Expected same latency for all batch rows, got {len(latencies)} different values"
 
-        for i, (idx, row) in enumerate(batch_sorted.iterrows()):
-            expected_input = inputs_sorted[i]
+        # Order rows by original INPUT_DATA position for straightforward index-based comparison
+        batch_group["original_index"] = batch_group["question"].map(
+            {inp["question"]: i for i, inp in enumerate(expected_inputs)}
+        )
+        batch_sorted = batch_group.sort_values("original_index").reset_index(drop=True)
+
+        for i, row in batch_sorted.iterrows():
+            expected_input = expected_inputs[i]
 
             assert row["endpoint_name"] == endpoint_name
             assert row["model_class"] == "LLModel"
@@ -126,11 +128,8 @@ class TestMockModelProviderTracking(
                 ), f"Row {i}, field {key} mismatch: {row[key]} != {expected_input[key]}"
 
             assert "mock model provider" in row["answer"].lower()
-            assert (
-                f"(Item {i})" in row["answer"]
-            ), f"Expected '(Item {i})' in answer for batch row {i}"
+            assert f"(Item {i})" in row["answer"], f"Expected '(Item {i})' in answer"
 
-            #  TODO : extract usage data to different columns
             assert isinstance(row["usage"], dict)
             assert row["usage"]["prompt_tokens"] == 0
             assert row["usage"]["completion_tokens"] == 0

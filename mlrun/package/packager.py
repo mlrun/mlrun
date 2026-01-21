@@ -85,7 +85,7 @@ class Packager(ABC):
         ...     handler="my_function",
         ...     inputs={
         ...         "data": {
-                        "a": "store://my_item1_Artifact",
+        ...             "a": "store://my_item1_Artifact",
         ...             "b": "store://my_item2_Artifact",
         ...         }
         ...     },

@@ -12,21 +12,18 @@ MLRun uses packagers: classes that perform 2 tasks:
 #. **Parsing inputs** - automatically cast the runtime's inputs (user's input passed to the function via the ``inputs`` parameter of the ``run`` method) to the relevant hinted type.  (Does not require handling of data items.)
 #. **Logging outputs** - automatically save, log, and upload the function's returned objects by the provided log hints (user's input passed to the function via the ``returns`` parameter of the ``run`` method). (Does not require handling of files and artifacts.)
 
-.. currentmodule:: mlrun.package
-
 .. autosummary::
    :toctree: ./generated_rsts
    :template: class_summary.rst
 
-   packager.Packager
-   packagers.default_packager.DefaultPackager
-   packagers_manager.PackagersManager
-
+   mlrun.package.packager.Packager
+   mlrun.package.packagers.default_packager.DefaultPackager
+   mlrun.package.packagers_manager.PackagersManager
 
 .. autosummary::
    :toctree: ./generated_rsts
 
-   errors
+   mlrun.package.errors
 
 .. rubric:: Packagers
 
@@ -38,8 +35,8 @@ available by default at the start of each run.
    :toctree: ./generated_rsts
    :template: module_summary.rst
 
-   packagers.python_standard_library_packagers
-   packagers.numpy_packagers
-   packagers.pandas_packagers
+   mlrun.package.packagers.python_standard_library_packagers
+   mlrun.package.packagers.numpy_packagers
+   mlrun.package.packagers.pandas_packagers
 
 

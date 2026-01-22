@@ -75,10 +75,7 @@ class ModelMonitoringApplicationResult(_ModelMonitoringApplicationDataRes):
             mm_constants.ResultData.RESULT_VALUE: self.value,
             mm_constants.ResultData.RESULT_KIND: self.kind.value,
             mm_constants.ResultData.RESULT_STATUS: self.status.value,
-            # ML-11777: Store NULL instead of "{}" when extra_data is empty (saves 6 bytes/row)
-            mm_constants.ResultData.RESULT_EXTRA_DATA: json.dumps(self.extra_data)
-            if self.extra_data
-            else None,
+            mm_constants.ResultData.RESULT_EXTRA_DATA: json.dumps(self.extra_data),
         }
 
     @validator("extra_data")

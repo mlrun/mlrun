@@ -21,13 +21,14 @@ import tiktoken
 from mlrun.datastore.datastore_profile import (
     OpenAIProfile,
 )
-from mlrun.datastore.model_provider.model_provider import UsageResponseKeys
 from tests.datastore.remote_model.remote_model_utils import (
     EXPECTED_RESULTS,
     INPUT_DATA,
-    LLMContentMismatchError,
     assert_async_invocations,
+    retry_on_content_mismatch,
     setup_remote_model_test,
+    validate_openai_batch_response,
+    validate_openai_single_response,
 )
 from tests.system.base import TestMLRunSystem
 
@@ -47,7 +48,7 @@ class TestOpenAIModelRunner(TestMLRunSystem):
     """Applying basic model endpoint CRUD operations through MLRun API"""
 
     project_name = "openai-system-test"
-    image = "mlrun/mlrun"
+    image = "artifactory.iguazeng.com:10557/tomerm/mlrun:llmodel_batch"
     profile_name = "my_openai_profile"
 
     @classmethod
@@ -80,9 +81,7 @@ class TestOpenAIModelRunner(TestMLRunSystem):
         "execution_mechanism",
         ["process_pool", "dedicated_process", "naive", "asyncio", "thread_pool"],
     )
-    def test_basic_openai_test_basic_openai_model_runnermodel_runner(
-        self, execution_mechanism
-    ):
+    def test_basic_openai_model_runner(self, execution_mechanism):
         mlrun_model_name = "sync_invoke_model"
         model_artifact, llm_prompt_artifact, function = setup_remote_model_test(
             self.project,
@@ -95,75 +94,27 @@ class TestOpenAIModelRunner(TestMLRunSystem):
         )
         function.deploy()
 
-        encoding = tiktoken.encoding_for_model(self.basic_llm_model)
+        def _test_single():
+            response = function.invoke(
+                f"v2/models/{mlrun_model_name}/infer",
+                json.dumps(INPUT_DATA[0]),
+            )["output"]
+            validate_openai_single_response(
+                response, EXPECTED_RESULTS[0], self.basic_llm_model
+            )
 
-        for attempt in range(MAX_ATTEMPTS):
-            try:
-                response = function.invoke(
-                    f"v2/models/{mlrun_model_name}/infer",
-                    json.dumps(INPUT_DATA[0]),
-                )["output"]
+        retry_on_content_mismatch(_test_single, MAX_ATTEMPTS)
 
-                assert len(response) == 2
-                answer = response[UsageResponseKeys.ANSWER]
-                if EXPECTED_RESULTS[0] not in answer.lower():
-                    raise LLMContentMismatchError(
-                        f"Expected '{EXPECTED_RESULTS[0]}' in answer, got: {answer}"
-                    )
+        def _test_batch():
+            batch_response = function.invoke(
+                f"v2/models/{mlrun_model_name}/infer",
+                json.dumps(INPUT_DATA),
+            )
+            validate_openai_batch_response(
+                batch_response, EXPECTED_RESULTS, self.basic_llm_model
+            )
 
-                assert 95 <= len(encoding.encode(answer)) <= 105
-                stats = response[UsageResponseKeys.USAGE]
-                assert 95 <= stats["completion_tokens"] <= 105
-                assert stats["prompt_tokens"] > 0
-                assert (
-                    stats["total_tokens"]
-                    == stats["completion_tokens"] + stats["prompt_tokens"]
-                )
-
-                break
-            except LLMContentMismatchError as e:
-                if attempt == MAX_ATTEMPTS - 1:
-                    raise
-                print(
-                    f"LLM content mismatch in single invocation (attempt {attempt + 1}/{MAX_ATTEMPTS}): {e}"
-                )
-
-        for attempt in range(MAX_ATTEMPTS):
-            try:
-                batch_response = function.invoke(
-                    f"v2/models/{mlrun_model_name}/infer",
-                    json.dumps(INPUT_DATA),
-                )
-
-                assert isinstance(batch_response, list)
-                assert len(batch_response) == len(INPUT_DATA)
-
-                for i, full_result in enumerate(batch_response):
-                    result = full_result["output"]
-                    assert len(result) == 2
-                    answer = result[UsageResponseKeys.ANSWER]
-                    if EXPECTED_RESULTS[i] not in answer.lower():
-                        raise LLMContentMismatchError(
-                            f"Expected '{EXPECTED_RESULTS[i]}' in batch item {i}, got: {answer}"
-                        )
-
-                    assert 95 <= len(encoding.encode(answer)) <= 105
-
-                    stats = result[UsageResponseKeys.USAGE]
-                    assert 95 <= stats["completion_tokens"] <= 105
-                    assert stats["prompt_tokens"] > 0
-                    assert (
-                        stats["total_tokens"]
-                        == stats["completion_tokens"] + stats["prompt_tokens"]
-                    )
-
-                break
-            except LLMContentMismatchError as e:
-                if attempt == MAX_ATTEMPTS - 1:
-                    raise
-                print(
-                    f"LLM content mismatch in batch invocation (attempt {attempt + 1}/{MAX_ATTEMPTS}): {e}"
-                )
+        retry_on_content_mismatch(_test_batch, MAX_ATTEMPTS)
 
     def test_model_runner_with_openai_async(self):
         mlrun_model_name = "async_invoke_model"

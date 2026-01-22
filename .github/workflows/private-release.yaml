@@ -182,6 +182,8 @@ jobs:
 
   create-tag:
     name: Create tag
+    # TODO enable once we want to push tags again  
+    if: false
     runs-on: ubuntu-latest
     needs: [prepare-inputs, trigger-and-wait-for-ui-image-building, trigger-and-wait-for-mlrun-image-building, publish-to-artifactory]
     steps:

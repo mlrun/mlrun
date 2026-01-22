@@ -37,17 +37,11 @@ from tests.datastore.remote_model.remote_model_utils import (
     INPUT_DATA,
     PROMPT_LEGEND,
     PROMPT_TEMPLATE,
+    LLMContentMismatchError,
     create_mocked_get_store_artifact,
     formatted_messages,
     setup_remote_model_test,
 )
-
-
-class LLMContentMismatchError(AssertionError):
-    """Raised when LLM generates unexpected content (retriable error)."""
-
-    pass
-
 
 here = os.path.dirname(__file__)
 config = {}

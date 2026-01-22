@@ -28,6 +28,13 @@ from mlrun.datastore.model_provider.model_provider import (
 from mlrun.serving import ModelRunnerStep
 from mlrun.serving.states import LLModel  # noqa
 
+
+class LLMContentMismatchError(AssertionError):
+    """Raised when LLM generates unexpected content (retriable error)."""
+
+    pass
+
+
 PROMPT_LEGEND = {
     "question": {"field": None, "description": None},
     "depth_level": {"field": None, "description": None},

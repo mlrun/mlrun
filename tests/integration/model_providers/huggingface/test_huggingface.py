@@ -500,7 +500,9 @@ class TestHuggingFaceAIModel(TestBasicHuggingFaceProvider):
 
             def _test():
                 batch_response = server.test(body=INPUT_DATA)
-                validate_llm_batch_response_system(batch_response, EXPECTED_RESULTS, tokenizer)
+                validate_llm_batch_response_system(
+                    batch_response, EXPECTED_RESULTS, tokenizer
+                )
 
             retry_on_content_mismatch(_test, self.max_retries + 1)
 

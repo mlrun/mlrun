@@ -48,7 +48,7 @@ class TestOpenAIModelRunner(TestMLRunSystem):
     """Applying basic model endpoint CRUD operations through MLRun API"""
 
     project_name = "openai-system-test"
-    image = "artifactory.iguazeng.com:10557/tomerm/mlrun:llmodel_batch"
+    image = "mlrun/mlrun"
     profile_name = "my_openai_profile"
 
     @classmethod

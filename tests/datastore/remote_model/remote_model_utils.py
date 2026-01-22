@@ -35,6 +35,107 @@ class LLMContentMismatchError(AssertionError):
     pass
 
 
+def retry_on_content_mismatch(func, max_attempts=3, *args, **kwargs):
+    """
+    Execute func with retry logic for LLMContentMismatchError.
+    Other exceptions fail immediately.
+    """
+    for attempt in range(max_attempts):
+        try:
+            return func(*args, **kwargs)
+        except LLMContentMismatchError as e:
+            if attempt == max_attempts - 1:
+                raise
+            print(f"LLM content mismatch (attempt {attempt + 1}/{max_attempts}): {e}")
+    return None
+
+
+def validate_llm_single_response(
+    response,
+    expected_result,
+    encoding_or_tokenizer,
+    min_tokens=95,
+    max_tokens=105,
+):
+    from mlrun.datastore.model_provider.model_provider import UsageResponseKeys
+
+    assert isinstance(response, dict), f"Expected dict response, got {type(response)}"
+    assert len(response) == 2, f"Expected 2 keys in response, got {len(response)}"
+    assert UsageResponseKeys.ANSWER in response
+    assert UsageResponseKeys.USAGE in response
+
+    answer = response[UsageResponseKeys.ANSWER]
+    if expected_result not in answer.lower():
+        raise LLMContentMismatchError(
+            f"Expected '{expected_result}' in answer, got: {answer[:100]}..."
+        )
+
+    token_count = len(encoding_or_tokenizer.encode(answer))
+    assert (
+        min_tokens <= token_count <= max_tokens
+    ), f"Token count {token_count} not in range [{min_tokens}, {max_tokens}]"
+
+    stats = response[UsageResponseKeys.USAGE]
+    assert isinstance(stats, dict)
+    assert (
+        min_tokens <= stats["completion_tokens"] <= max_tokens
+    ), f"Completion tokens {stats['completion_tokens']} not in range [{min_tokens}, {max_tokens}]"
+    assert stats["prompt_tokens"] > 0
+    assert stats["total_tokens"] == stats["completion_tokens"] + stats["prompt_tokens"]
+
+
+def validate_llm_batch_response_system(
+    batch_response,
+    expected_results,
+    encoding_or_tokenizer,
+    min_tokens=95,
+    max_tokens=105,
+):
+    assert isinstance(
+        batch_response, list
+    ), f"Expected list response, got {type(batch_response)}"
+    assert len(batch_response) == len(
+        expected_results
+    ), f"Expected {len(expected_results)} responses, got {len(batch_response)}"
+
+    for i, full_result in enumerate(batch_response):
+        result = full_result["output"]
+        validate_llm_single_response(
+            result,
+            expected_results[i],
+            encoding_or_tokenizer,
+            min_tokens,
+            max_tokens,
+        )
+
+
+def get_openai_encoding(model_name):
+    """Get tiktoken encoding for OpenAI model."""
+    import tiktoken
+
+    return tiktoken.encoding_for_model(model_name)
+
+
+def validate_openai_single_response(
+    response, expected_result, model_name, min_tokens=95, max_tokens=105
+):
+    """OpenAI-specific single response validation."""
+    encoding = get_openai_encoding(model_name)
+    validate_llm_single_response(
+        response, expected_result, encoding, min_tokens, max_tokens
+    )
+
+
+def validate_openai_batch_response(
+    batch_response, expected_results, model_name, min_tokens=95, max_tokens=105
+):
+    """OpenAI-specific batch response validation."""
+    encoding = get_openai_encoding(model_name)
+    validate_llm_batch_response_system(
+        batch_response, expected_results, encoding, min_tokens, max_tokens
+    )
+
+
 PROMPT_LEGEND = {
     "question": {"field": None, "description": None},
     "depth_level": {"field": None, "description": None},

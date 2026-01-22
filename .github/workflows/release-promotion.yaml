@@ -132,27 +132,42 @@ jobs:
 
       - name: Login to registries with skopeo
         run: |
+          mkdir -p $GITHUB_WORKSPACE/.skopeo
+          AUTHFILE="$GITHUB_WORKSPACE/.skopeo/auth.json"
+          
           # Login to source registry (Artifactory)
           skopeo login "${{ secrets.ARTIFACTORY_URL }}" \
             -u "${{ secrets.ARTIFACTORY_USERNAME }}" \
-            -p "${{ secrets.ARTIFACTORY_PASSWORD }}"
+            -p "${{ secrets.ARTIFACTORY_PASSWORD }}" \
+            --authfile "$AUTHFILE"
           
           # Login to target registries
           skopeo login ghcr.io \
             -u "${{ github.repository_owner }}" \
-            -p "${{ secrets.GITHUB_TOKEN }}"
+            -p "${{ secrets.GITHUB_TOKEN }}" \
+            --authfile "$AUTHFILE"
           
           skopeo login quay.io \
             -u "${{ secrets.QUAY_IO_DOCKER_REGISTRY_USERNAME }}" \
-            -p "${{ secrets.QUAY_IO_DOCKER_REGISTRY_PASSWORD }}"
+            -p "${{ secrets.QUAY_IO_DOCKER_REGISTRY_PASSWORD }}" \
+            --authfile "$AUTHFILE"
           
           skopeo login docker.io \
             -u "${{ secrets.DOCKER_HUB_DOCKER_REGISTRY_USERNAME }}" \
-            -p "${{ secrets.DOCKER_HUB_DOCKER_REGISTRY_PASSWORD }}"
+            -p "${{ secrets.DOCKER_HUB_DOCKER_REGISTRY_PASSWORD }}" \
+            --authfile "$AUTHFILE"
+          
+          # Also login to registry.hub.docker.com (alias used in target registries)
+          skopeo login registry.hub.docker.com \
+            -u "${{ secrets.DOCKER_HUB_DOCKER_REGISTRY_USERNAME }}" \
+            -p "${{ secrets.DOCKER_HUB_DOCKER_REGISTRY_PASSWORD }}" \
+            --authfile "$AUTHFILE"
 
       - name: Copy Docker image with skopeo (preserves digest)
         if: ${{ matrix.image-name != 'test' }}
         run: |
+          AUTHFILE="$GITHUB_WORKSPACE/.skopeo/auth.json"
+          
           image_name="${{ matrix.image-name }}"
           if [ "${{ matrix.image-name }}" = "api" ]; then
             image_name="mlrun-api"
@@ -176,7 +191,7 @@ jobs:
             TARGET_IMAGE="docker://${registry}${{ github.event.inputs.target_docker_repo }}/${image_name}:${{ needs.prepare-inputs.outputs.version }}${python_version_suffix}"
 
             echo "Copying image to: $TARGET_IMAGE"
-            skopeo copy --all "$SOURCE_IMAGE" "$TARGET_IMAGE"
+            skopeo copy --all --authfile "$AUTHFILE" "$SOURCE_IMAGE" "$TARGET_IMAGE"
             
             echo "✅ Successfully promoted ${{ matrix.image-name }}${python_version_suffix} to $registry (digest preserved)"
           done
@@ -212,6 +227,11 @@ jobs:
     runs-on: mlrun-release
     needs: [ prepare-inputs, promote-docker-images, promote-ui-image ]
     steps:
+      - name: Setup Python 3.11 venv
+        run: |
+          python3.11 -m venv $GITHUB_WORKSPACE/.venv-promotion
+          echo "$GITHUB_WORKSPACE/.venv-promotion/bin" >> $GITHUB_PATH
+
       - name: Download package from source PyPI repo
         if: github.event.inputs.skip_publish_pypi != 'true'
         run: |

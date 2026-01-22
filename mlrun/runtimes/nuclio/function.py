@@ -20,7 +20,6 @@ import warnings
 from dataclasses import dataclass
 from datetime import datetime
 from time import sleep
-from urllib.parse import urlparse, urlunparse
 
 import inflection
 import nuclio
@@ -50,7 +49,7 @@ from mlrun.platforms.iguazio import (
 )
 from mlrun.runtimes.base import FunctionStatus, RunError
 from mlrun.runtimes.mounts import VolumeMount, mount_v3io, v3io_cred
-from mlrun.runtimes.nuclio.triggers import RabbitMQTrigger
+from mlrun.runtimes.nuclio.triggers import RabbitMQTrigger, extract_credentials_from_url
 from mlrun.runtimes.pod import KubeResource, KubeResourceSpec
 from mlrun.runtimes.utils import get_item_name, log_std
 from mlrun.utils import get_in, logger, update_in
@@ -1254,37 +1253,20 @@ class RemoteRuntime(KubeResource):
         if not url or not isinstance(url, str):
             return
 
-        try:
-            parsed = urlparse(url)
-        except Exception:
-            raise mlrun.errors.MLRunValueError("invalid URL format")
+        creds = extract_credentials_from_url(url)
 
         # Only process if credentials are present in the URL
-        if not (parsed.username or parsed.password):
+        if not creds.username and not creds.password:
             return
 
-        # Extract credentials
-        username = parsed.username or ""
-        password = parsed.password or ""
-
-        # Reconstruct clean URL
-        hostname = parsed.hostname or ""
-        netloc = f"{hostname}:{parsed.port}" if parsed.port else hostname
-
-        clean_url = urlunparse(
-            (
-                parsed.scheme,
-                netloc,
-                parsed.path,
-                parsed.params,
-                parsed.query,
-                parsed.fragment,
-            )
-        )
-
         # Update trigger safely
-        trigger["url"] = clean_url
-        trigger.update({"username": username, "password": password})
+        trigger["url"] = creds.url
+        trigger.update(
+            {
+                "username": creds.username or "",
+                "password": creds.password or "",
+            }
+        )
 
     def _trigger_of_kind_exists(self, kind: str) -> bool:
         if not self.spec.config:

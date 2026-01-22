@@ -13,7 +13,7 @@
 # limitations under the License.
 
 from typing import NamedTuple, Optional
-from urllib.parse import unquote, urlparse
+from urllib.parse import unquote, urlparse, urlunparse
 
 from nuclio.triggers import NuclioTrigger
 
@@ -36,7 +36,7 @@ def _first_not_none(*values):
     return None
 
 
-def _extract_credentials_from_url(url: str) -> UrlCredentials:
+def extract_credentials_from_url(url: str) -> UrlCredentials:
     """
     Extract credentials from URL and return clean URL without embedded credentials.
 
@@ -51,11 +51,18 @@ def _extract_credentials_from_url(url: str) -> UrlCredentials:
         return UrlCredentials(url, None, None)
 
     # Reconstruct URL without credentials
-    clean_url = f"{parsed.scheme}://{parsed.hostname}"
-    if parsed.port:
-        clean_url += f":{parsed.port}"
-    if parsed.path:
-        clean_url += parsed.path
+    hostname = parsed.hostname or ""
+    netloc = f"{hostname}:{parsed.port}" if parsed.port else hostname
+    clean_url = urlunparse(
+        (
+            parsed.scheme,
+            netloc,
+            parsed.path,
+            parsed.params,
+            parsed.query,
+            parsed.fragment,
+        )
+    )
 
     # Decode URL-encoded characters (e.g., %40 -> @, %20 -> space)
     username = unquote(parsed.username) if parsed.username else None
@@ -190,7 +197,7 @@ class RabbitMQTrigger(NuclioTrigger):
             )
 
         # Extract credentials from URL if not provided explicitly
-        creds = _extract_credentials_from_url(url)
+        creds = extract_credentials_from_url(url)
         url = creds.url
         username = _first_not_none(username, creds.username)
         password = _first_not_none(password, creds.password)

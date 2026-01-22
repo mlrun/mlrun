@@ -34,7 +34,6 @@ from mlrun.datastore.datastore_profile import (
 )
 from mlrun.datastore.model_provider.model_provider import (
     InvokeResponseFormat,
-    UsageResponseKeys,
 )
 from mlrun.datastore.model_provider.openai_provider import OpenAIProvider
 from tests.datastore.remote_model.remote_model_utils import (
@@ -164,14 +163,9 @@ class TestOpenAIProvider(TestBasicOpenAIProvider):
                 invoke_response_format=InvokeResponseFormat.USAGE,
             )
 
-        assert isinstance(response, dict)
-        completion_tokens = response[UsageResponseKeys.USAGE]["completion_tokens"]
-        prompt_tokens = response[UsageResponseKeys.USAGE]["prompt_tokens"]
-        total_tokens = response[UsageResponseKeys.USAGE]["total_tokens"]
-        assert EXPECTED_RESULTS[0] in response[UsageResponseKeys.ANSWER].lower()
-        assert 45 <= completion_tokens <= 55
-        assert prompt_tokens > 0
-        assert total_tokens == prompt_tokens + completion_tokens
+        validate_openai_single_response(
+            response, EXPECTED_RESULTS[0], model_name, min_tokens=45, max_tokens=55
+        )
 
     @pytest.mark.parametrize("cred_mode", ["profile", "env", "secrets"])
     @pytest.mark.parametrize("run_async", [True, False])

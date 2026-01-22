@@ -40,7 +40,10 @@ from tests.datastore.remote_model.remote_model_utils import (
     LLMContentMismatchError,
     create_mocked_get_store_artifact,
     formatted_messages,
+    retry_on_content_mismatch,
     setup_remote_model_test,
+    validate_llm_batch_response_system,
+    validate_llm_single_response,
 )
 
 here = os.path.dirname(__file__)
@@ -240,15 +243,15 @@ class TestHuggingFaceProvider(TestBasicHuggingFaceProvider):
                     max_new_tokens=50,
                     invoke_response_format=InvokeResponseFormat.USAGE,
                 )
-                cls._check_usage_response(
+                validate_llm_single_response(
                     response,
                     EXPECTED_RESULTS[0],
-                    messages=messages,
-                    tokenizer=model_provider.client.tokenizer,
+                    model_provider.client.tokenizer,
                     min_tokens=45,
                     max_tokens=51,
                 )
                 break
+
             except LLMContentMismatchError as e:
                 if attempt == cls.max_retries:
                     raise
@@ -328,7 +331,9 @@ class TestHuggingFaceProvider(TestBasicHuggingFaceProvider):
                             model_provider.client.tokenizer,
                         )
                     elif invoke_response_format == InvokeResponseFormat.USAGE:
-                        self._check_usage_response(result, EXPECTED_RESULTS[i])
+                        validate_llm_single_response(
+                            result, EXPECTED_RESULTS[i], model_provider.client.tokenizer
+                        )
 
                 break
 
@@ -448,34 +453,13 @@ class TestHuggingFaceAIModel(TestBasicHuggingFaceProvider):
         try:
             from transformers import AutoTokenizer
 
-            messages = [
-                {
-                    "role": prompt["role"],
-                    "content": prompt["content"].format(**INPUT_DATA[0]),
-                }
-                for prompt in PROMPT_TEMPLATE
-            ]
-
             tokenizer = AutoTokenizer.from_pretrained(self.basic_llm_model)
 
-            for attempt in range(self.max_retries + 1):
-                try:
-                    response = server.test(body=INPUT_DATA[0])["output"]
+            def _test():
+                response = server.test(body=INPUT_DATA[0])["output"]
+                validate_llm_single_response(response, EXPECTED_RESULTS[0], tokenizer)
 
-                    self._check_usage_response(
-                        response,
-                        EXPECTED_RESULTS[0],
-                        messages=messages,
-                        tokenizer=tokenizer,
-                    )
-                    break
-
-                except LLMContentMismatchError as e:
-                    if attempt == self.max_retries:
-                        raise
-                    print(
-                        f"LLM content mismatch (attempt {attempt + 1}/{self.max_retries + 1}): {e}"
-                    )
+            retry_on_content_mismatch(_test, self.max_retries + 1)
 
         finally:
             server.wait_for_completion()
@@ -514,42 +498,11 @@ class TestHuggingFaceAIModel(TestBasicHuggingFaceProvider):
 
             tokenizer = AutoTokenizer.from_pretrained(self.basic_llm_model)
 
-            for attempt in range(self.max_retries + 1):
-                try:
-                    # Send all 5 INPUT_DATA events as batch
-                    response = server.test(body=INPUT_DATA)
+            def _test():
+                batch_response = server.test(body=INPUT_DATA)
+                validate_llm_batch_response_system(batch_response, EXPECTED_RESULTS, tokenizer)
 
-                    # Assert we got list of 5 responses
-                    assert isinstance(response, list)
-                    assert len(response) == len(INPUT_DATA)
-
-                    # Verify each response
-                    for i, full_result in enumerate(response):
-                        result = full_result["output"]
-                        assert len(result) == 2  # answer + usage
-
-                        messages = [
-                            {
-                                "role": prompt["role"],
-                                "content": prompt["content"].format(**INPUT_DATA[i]),
-                            }
-                            for prompt in PROMPT_TEMPLATE
-                        ]
-
-                        self._check_usage_response(
-                            result,
-                            EXPECTED_RESULTS[i],
-                            messages=messages,
-                            tokenizer=tokenizer,
-                        )
-                    break
-
-                except LLMContentMismatchError as e:
-                    if attempt == self.max_retries:
-                        raise
-                    print(
-                        f"LLM content mismatch (attempt {attempt + 1}/{self.max_retries + 1}): {e}"
-                    )
+            retry_on_content_mismatch(_test, self.max_retries + 1)
 
         finally:
             server.wait_for_completion()

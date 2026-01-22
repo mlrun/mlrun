@@ -21,6 +21,7 @@ import requests_mock as requests_mock_package
 import mlrun.common.schemas
 import mlrun.config
 import mlrun.errors
+from mlrun.utils.logger import context_id_var
 
 import framework.utils.clients.nuclio
 
@@ -500,6 +501,118 @@ def test_get_dashboard_version(
     requests_mock.get(f"{api_url}/api/versions", json=response_body)
     nuclio_dashboard_version = nuclio_client.get_dashboard_version()
     assert nuclio_dashboard_version == label
+
+
+def test_request_includes_context_id_header(
+    api_url: str,
+    nuclio_client: framework.utils.clients.nuclio.Client,
+    requests_mock: requests_mock_package.Mocker,
+):
+    """Verify that when context_id_var is set, outgoing requests include x-igz-ctx header"""
+    context_id = "test-context-id-12345"
+    project_name = "test-project"
+
+    response_body = _generate_project_body(project_name, with_spec=True)
+
+    def verify_context_header(request, context):
+        # Verify the context ID header is present in the request
+        assert (
+            mlrun.common.schemas.HeaderNames.igz_ctx in request.headers
+        ), f"Expected {mlrun.common.schemas.HeaderNames.igz_ctx} header in request"
+        assert request.headers[mlrun.common.schemas.HeaderNames.igz_ctx] == context_id
+        context.status_code = http.HTTPStatus.OK.value
+        return response_body
+
+    requests_mock.get(
+        f"{api_url}/api/projects/{project_name}",
+        json=verify_context_header,
+    )
+
+    # Set the context variable
+    token = context_id_var.set(context_id)
+    try:
+        nuclio_client.get_project(None, project_name)
+    finally:
+        context_id_var.reset(token)
+
+
+def test_request_includes_context_id_header_on_project_store(
+    api_url: str,
+    nuclio_client: framework.utils.clients.nuclio.Client,
+    requests_mock: requests_mock_package.Mocker,
+):
+    """Verify context ID is propagated on project store operations"""
+    context_id = "store-context-id-67890"
+    project_name = "test-project"
+
+    response_body = _generate_project_body(project_name, with_spec=True)
+
+    def _verify_context_header(request, context, status_code):
+        assert mlrun.common.schemas.HeaderNames.igz_ctx in request.headers
+        assert request.headers[mlrun.common.schemas.HeaderNames.igz_ctx] == context_id
+        context.status_code = status_code
+        return response_body
+
+    def verify_context_header_get(request, context):
+        return _verify_context_header(request, context, http.HTTPStatus.OK.value)
+
+    def verify_context_header_put(request, context):
+        return _verify_context_header(
+            request, context, http.HTTPStatus.NO_CONTENT.value
+        )
+
+    # Mock project response so store will update
+    requests_mock.get(
+        f"{api_url}/api/projects/{project_name}",
+        json=verify_context_header_get,
+    )
+    requests_mock.put(
+        f"{api_url}/api/projects/{project_name}",
+        json=verify_context_header_put,
+    )
+
+    token = context_id_var.set(context_id)
+    try:
+        nuclio_client.store_project(
+            None,
+            project_name,
+            mlrun.common.schemas.Project(
+                metadata=mlrun.common.schemas.ProjectMetadata(name=project_name),
+                spec=mlrun.common.schemas.ProjectSpec(),
+            ),
+        )
+    finally:
+        context_id_var.reset(token)
+
+
+def test_request_without_context_id_when_not_set(
+    api_url: str,
+    nuclio_client: framework.utils.clients.nuclio.Client,
+    requests_mock: requests_mock_package.Mocker,
+):
+    """Verify that when context_id_var is not set, x-igz-ctx header is not included"""
+    project_name = "test-project"
+    response_body = _generate_project_body(project_name, with_spec=True)
+
+    def verify_no_context_header(request, context):
+        # Header should not be present when context is None
+        assert (
+            mlrun.common.schemas.HeaderNames.igz_ctx not in request.headers
+        ), f"Did not expect {mlrun.common.schemas.HeaderNames.igz_ctx} header when context is not set"
+        context.status_code = http.HTTPStatus.OK.value
+        return response_body
+
+    requests_mock.get(
+        f"{api_url}/api/projects/{project_name}",
+        json=verify_no_context_header,
+    )
+
+    # Ensure context is None
+    token = context_id_var.set(None)
+    try:
+        nuclio_client.get_project(None, project_name)
+    finally:
+        context_id_var.reset(token)
 
 
 def _generate_project_body(

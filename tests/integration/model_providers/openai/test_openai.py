@@ -44,6 +44,8 @@ from tests.datastore.remote_model.remote_model_utils import (
     create_mocked_get_store_artifact,
     formatted_messages,
     setup_remote_model_test,
+    validate_openai_batch_response,
+    validate_openai_single_response,
 )
 
 here = os.path.dirname(__file__)
@@ -237,12 +239,9 @@ class TestOpenAIProvider(TestBasicOpenAIProvider):
                 assert 95 <= result.usage.completion_tokens <= 105
 
             elif invoke_response_format == InvokeResponseFormat.USAGE:
-                assert isinstance(result, dict)
-                assert UsageResponseKeys.ANSWER in result
-                assert UsageResponseKeys.USAGE in result
-                assert EXPECTED_RESULTS[i] in result[UsageResponseKeys.ANSWER].lower()
-                assert 95 <= result[UsageResponseKeys.USAGE]["completion_tokens"] <= 105
-                assert result[UsageResponseKeys.USAGE]["prompt_tokens"] > 0
+                validate_openai_single_response(
+                    result, EXPECTED_RESULTS[i], self.basic_llm_model
+                )
 
     async def test_configurable_model(self):
         configurable_model = mlrun.mlconf.model_providers.openai_default_model
@@ -353,18 +352,8 @@ class TestOpenAIModel(TestBasicOpenAIProvider):
             server = function.to_mock_server()
         try:
             response = server.test(body=INPUT_DATA[0])["output"]
-            assert len(response) == 2
-            answer = response[UsageResponseKeys.ANSWER]
-            assert EXPECTED_RESULTS[0] in answer.lower()
-            encoding = tiktoken.encoding_for_model(self.basic_llm_model)
-            assert 95 <= len(encoding.encode(answer)) <= 105
-
-            stats = response[UsageResponseKeys.USAGE]
-            assert 95 <= stats["completion_tokens"] <= 105
-            assert stats["prompt_tokens"] > 0
-            assert (
-                stats["total_tokens"]
-                == stats["completion_tokens"] + stats["prompt_tokens"]
+            validate_openai_single_response(
+                response, EXPECTED_RESULTS[0], self.basic_llm_model
             )
         finally:
             server.wait_for_completion()
@@ -485,35 +474,9 @@ class TestOpenAIModel(TestBasicOpenAIProvider):
         ):
             server = function.to_mock_server()
         try:
-            # Send all 5 INPUT_DATA events as batch
-            # need to be a list, so in batch step, we will be able to split the events back to the original ones
-            response = server.test(body=INPUT_DATA)
-
-            # Assert we got list of 5 responses
-            assert isinstance(response, list)
-            assert len(response) == 5
-
-            encoding = tiktoken.encoding_for_model(self.basic_llm_model)
-
-            # Verify each response
-            for i, full_result in enumerate(response):
-                result = full_result["output"]
-                assert len(result) == 2  # answer + usage
-                answer = result[UsageResponseKeys.ANSWER]
-
-                # Check expected result is in answer
-                assert EXPECTED_RESULTS[i] in answer.lower()
-
-                # Verify token count
-                assert len(encoding.encode(answer)) == 100
-
-                # Verify usage stats
-                stats = result[UsageResponseKeys.USAGE]
-                assert 95 <= stats["completion_tokens"] <= 105
-                assert stats["prompt_tokens"] > 0
-                assert (
-                    stats["total_tokens"]
-                    == stats["completion_tokens"] + stats["prompt_tokens"]
-                )
+            batch_response = server.test(body=INPUT_DATA)
+            validate_openai_batch_response(
+                batch_response, EXPECTED_RESULTS, self.basic_llm_model
+            )
         finally:
             server.wait_for_completion()

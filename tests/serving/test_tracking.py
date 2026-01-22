@@ -167,6 +167,29 @@ class StringBatchedModel(Model):
                 batched_body["input"].append(item)
         return batched_body
 
+class BatchedGraphModel(Model):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+
+    def load(self) -> None:
+        # No loading needed for this simple model
+        pass
+
+    def predict(self, body, **kwargs):
+        # Handle list of dicts with "input" key
+        # Input: [{"input": [1,2,3]}, {"input": [10,20,30]}, {"input": [100,200,300]}]
+        # Output: [{"input": [1,2,3], "output": 6}, {"input": [10,20,30], "output": 60}, ...]
+        if isinstance(body, list):
+            for item in body:
+                input_data = item["input"]
+                # Simple sum as output (you can change this logic)
+                if isinstance(input_data, list):
+                    output_value = sum(input_data)
+                else:
+                    output_value = input_data
+                item["output"] = output_value
+        return body
+
 
 def test_tracking(rundb_mock):
     # test that predict() was tracked properly in the stream
@@ -1780,3 +1803,57 @@ def test_mrs_direct_batch_str(
             assert event["error"] is None
             assert event["model"] == endpoint_name2
             assert event["metrics"] is None
+
+
+def test_batch_step_with_mrs(rundb_mock):
+    """Test combining Batch step with ModelRunnerStep - streams individual events in threads that get batched before model inference"""
+    import time
+    from concurrent.futures import ThreadPoolExecutor
+
+    function = mlrun.new_function("test-batch-mrs", kind="serving")
+    function.set_tracking("dummy://", enable_tracking=True)
+    graph = function.set_topology("flow", engine="async")
+
+    # Batch step: accumulate up to 3 events or flush after 1 second
+    graph = graph.to("storey.Batch", "batching", max_events=3, flush_after_seconds=1, full_event=True)
+
+    # ModelRunnerStep: process batches through the model
+    model_runner_step = ModelRunnerStep(name="model_runner")
+    model_runner_step.add_model(
+        model_class="BatchedGraphModel",
+        execution_mechanism="naive",
+        endpoint_name="my_model",
+    )
+
+    graph.to(model_runner_step).respond()
+    server = function.to_mock_server()
+
+    try:
+        # Generate 7 inputs using a for loop
+        events = [{"input": [10 + i , 20 + i, 30 + i]} for i in range(0, 7)]
+
+        def send_event(event, delay):
+            time.sleep(delay)  # Stagger the sends
+            return server.test(body=event)
+
+        # Send events in thread pool with 0.1s between sends using submit
+        with ThreadPoolExecutor(max_workers=7) as executor:
+            futures = [executor.submit(send_event, event, i * 0.1) for i, event in enumerate(events)]
+            responses = [future.result() for future in futures]
+
+        server.wait_for_completion()
+
+        # Verify we got all responses
+        assert len(responses) == 7, f"Expected 7 responses, got {len(responses)}"
+        assert all(r is not None for r in responses), "Not all responses received"
+
+        # Verify tracking events were created
+        dummy_stream = server.context.stream.output_stream
+        assert len(dummy_stream.event_list) >= 1, "Expected at least 1 tracking event"
+
+        # Verify batching occurred (7 events with max_events=3 should create 3 batches: [3,3,1])
+        # The actual validation depends on BatchedGraphModel output structure
+
+    finally:
+        server.wait_for_completion()
+

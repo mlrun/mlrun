@@ -367,7 +367,8 @@ class AppResultTable(TimescaleDBSchema):
             mm_schemas.ResultData.RESULT_VALUE: _TimescaleDBColumnType(
                 "DOUBLE PRECISION"
             ),
-            mm_schemas.ResultData.RESULT_STATUS: _TimescaleDBColumnType("INTEGER"),
+            # ML-11777: Changed from INTEGER to SMALLINT (values are only 0-2, saves 2 bytes/row)
+            mm_schemas.ResultData.RESULT_STATUS: _TimescaleDBColumnType("SMALLINT"),
             mm_schemas.ResultData.RESULT_EXTRA_DATA: _TimescaleDBColumnType(
                 "VARCHAR", RESULT_EXTRA_DATA_MAX_LENGTH
             ),
@@ -376,12 +377,16 @@ class AppResultTable(TimescaleDBSchema):
                 "VARCHAR", 64
             ),
             mm_schemas.ResultData.RESULT_NAME: _TimescaleDBColumnType("VARCHAR", 64),
-            mm_schemas.ResultData.RESULT_KIND: _TimescaleDBColumnType("INTEGER"),
+            # ML-11777: Changed from INTEGER to SMALLINT (values are only 0-2, saves 2 bytes/row)
+            mm_schemas.ResultData.RESULT_KIND: _TimescaleDBColumnType("SMALLINT"),
         }
+        # Note: TimescaleDB automatically creates an index on the time column (end_infer_time DESC)
+        # when creating the hypertable, so we don't need to create one explicitly.
+        # Removed indexes based on usage analysis (ML-11777):
+        # - end_infer_time ASC: 0 scans, redundant with auto-created DESC index
+        # - (application_name, result_name): 0 scans, never used in production
         indexes = [
             mm_schemas.WriterEvent.ENDPOINT_ID,
-            f"{mm_schemas.WriterEvent.APPLICATION_NAME}, {mm_schemas.ResultData.RESULT_NAME}",
-            mm_schemas.WriterEvent.END_INFER_TIME,
         ]
         super().__init__(
             table_name=table_name,
@@ -415,13 +420,16 @@ class Metrics(TimescaleDBSchema):
             ),
             mm_schemas.MetricData.METRIC_NAME: _TimescaleDBColumnType("VARCHAR", 64),
         }
+        # Note: TimescaleDB automatically creates an index on the time column (end_infer_time DESC)
+        # when creating the hypertable, so we don't need to create one explicitly.
+        # Removed indexes based on ML-11777 analysis:
+        # - end_infer_time ASC: redundant with auto-created DESC index
+        # - (application_name, end_infer_time): redundant, covered by composite index below
         indexes = [
             mm_schemas.WriterEvent.ENDPOINT_ID,
             f"{mm_schemas.WriterEvent.APPLICATION_NAME}, {mm_schemas.MetricData.METRIC_NAME}",
-            mm_schemas.WriterEvent.END_INFER_TIME,
-            f"{mm_schemas.WriterEvent.END_INFER_TIME}, {mm_schemas.WriterEvent.ENDPOINT_ID},\
-                        {mm_schemas.WriterEvent.APPLICATION_NAME}",
-            f"{mm_schemas.WriterEvent.APPLICATION_NAME}, {mm_schemas.WriterEvent.END_INFER_TIME}",
+            f"{mm_schemas.WriterEvent.END_INFER_TIME}, {mm_schemas.WriterEvent.ENDPOINT_ID}, "
+            f"{mm_schemas.WriterEvent.APPLICATION_NAME}",
         ]
         super().__init__(
             table_name=table_name,
@@ -458,6 +466,12 @@ class Predictions(TimescaleDBSchema):
             mm_schemas.WriterEvent.ENDPOINT_ID: _TimescaleDBColumnType("VARCHAR", 64),
         }
 
+        # Note: TimescaleDB automatically creates an index on the time column (end_infer_time DESC)
+        # when creating the hypertable.
+        # ML-11777 analysis: All indexes here are heavily used (millions of scans).
+        # - endpoint_id: 9M+ scans
+        # - end_infer_time ASC: 5M+ scans - KEPT because actively used for time-range queries
+        # - (end_infer_time, endpoint_id): 19M+ scans (most used composite)
         indexes = [
             mm_schemas.WriterEvent.ENDPOINT_ID,
             mm_schemas.WriterEvent.END_INFER_TIME,
@@ -487,10 +501,12 @@ class Errors(TimescaleDBSchema):
             mm_schemas.WriterEvent.ENDPOINT_ID: _TimescaleDBColumnType("VARCHAR", 64),
             mm_schemas.EventFieldType.ERROR_TYPE: _TimescaleDBColumnType("VARCHAR", 64),
         }
+        # Note: TimescaleDB automatically creates an index on the time column (time DESC)
+        # when creating the hypertable, so we don't need to create one explicitly.
+        # Removed: time ASC index (redundant with auto-created DESC index)
         indexes = [
             mm_schemas.WriterEvent.ENDPOINT_ID,
             mm_schemas.EventFieldType.ERROR_TYPE,
-            mm_schemas.EventFieldType.TIME,
         ]
         super().__init__(
             table_name=table_name,

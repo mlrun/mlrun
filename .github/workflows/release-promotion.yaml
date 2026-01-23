@@ -129,39 +129,45 @@ jobs:
       fail-fast: false
       matrix: ${{ fromJson(needs.matrix-prep.outputs.matrix) }}
     steps:
-      - name: Docker login (ghcr.io)
-        uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # 3.6.0
-        with:
-          registry: ghcr.io
-          username: ${{ github.repository_owner }}
-          password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Docker login (quay.io)
-        continue-on-error: true
-        uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # 3.6.0
-        with:
-          registry: quay.io
-          username: ${{ secrets.QUAY_IO_DOCKER_REGISTRY_USERNAME }}
-          password: ${{ secrets.QUAY_IO_DOCKER_REGISTRY_PASSWORD }}
+      - name: Login to registries with skopeo
+        run: |
+          mkdir -p $GITHUB_WORKSPACE/.skopeo
+          AUTHFILE="$GITHUB_WORKSPACE/.skopeo/auth.json"
+          
+          # Login to source registry (Artifactory)
+          skopeo login "${{ secrets.ARTIFACTORY_URL }}" \
+            -u "${{ secrets.ARTIFACTORY_USERNAME }}" \
+            -p "${{ secrets.ARTIFACTORY_PASSWORD }}" \
+            --authfile "$AUTHFILE"
+          
+          # Login to target registries
+          skopeo login ghcr.io \
+            -u "${{ github.repository_owner }}" \
+            -p "${{ secrets.GITHUB_TOKEN }}" \
+            --authfile "$AUTHFILE"
+          
+          skopeo login quay.io \
+            -u "${{ secrets.QUAY_IO_DOCKER_REGISTRY_USERNAME }}" \
+            -p "${{ secrets.QUAY_IO_DOCKER_REGISTRY_PASSWORD }}" \
+            --authfile "$AUTHFILE"
+          
+          skopeo login docker.io \
+            -u "${{ secrets.DOCKER_HUB_DOCKER_REGISTRY_USERNAME }}" \
+            -p "${{ secrets.DOCKER_HUB_DOCKER_REGISTRY_PASSWORD }}" \
+            --authfile "$AUTHFILE"
+          
+          # Also login to registry.hub.docker.com (alias used in target registries)
+          skopeo login registry.hub.docker.com \
+            -u "${{ secrets.DOCKER_HUB_DOCKER_REGISTRY_USERNAME }}" \
+            -p "${{ secrets.DOCKER_HUB_DOCKER_REGISTRY_PASSWORD }}" \
+            --authfile "$AUTHFILE"
 
-      - name: Docker login (docker.com)
-        continue-on-error: true
-        uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # 3.6.0
-        with:
-          registry: registry.hub.docker.com
-          username: ${{ secrets.DOCKER_HUB_DOCKER_REGISTRY_USERNAME }}
-          password: ${{ secrets.DOCKER_HUB_DOCKER_REGISTRY_PASSWORD }}
-
-      - name: Docker login (Source Artifactory)
-        uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # 3.6.0
-        with:
-          registry: ${{ secrets.ARTIFACTORY_URL }}
-          username: ${{ secrets.ARTIFACTORY_USERNAME }}
-          password: ${{ secrets.ARTIFACTORY_PASSWORD }}
-
-      - name: Pull, retag and push Docker image
+      - name: Copy Docker image with skopeo (preserves digest)
         if: ${{ matrix.image-name != 'test' }}
         run: |
+          AUTHFILE="$GITHUB_WORKSPACE/.skopeo/auth.json"
+          
           image_name="${{ matrix.image-name }}"
           if [ "${{ matrix.image-name }}" = "api" ]; then
             image_name="mlrun-api"
@@ -170,30 +176,24 @@ jobs:
           # Compute Python version suffix (e.g., -py39) when include-suffix is true
           python_version_suffix=""
           if [[ "${{ matrix.include-suffix }}" == "true" ]]; then
-            # Convert 3.9 -> py39
             python_version_suffix="-py$(echo '${{ matrix.python-version }}' | tr -d '.')"
           fi
           
-          SOURCE_IMAGE="${{ secrets.ARTIFACTORY_URL }}/${{ github.event.inputs.source_artifactory_docker_repo }}/${image_name}:${{ needs.prepare-inputs.outputs.version }}${python_version_suffix}"
+          SOURCE_IMAGE="docker://${{ secrets.ARTIFACTORY_URL }}/${{ github.event.inputs.source_artifactory_docker_repo }}/${image_name}:${{ needs.prepare-inputs.outputs.version }}${python_version_suffix}"
           
-          echo "Pulling image: $SOURCE_IMAGE"
-          docker pull "$SOURCE_IMAGE"
+          echo "Source image: $SOURCE_IMAGE"
           
-          # Loop through target registries and push to each
+          # Loop through target registries and copy to each
           IFS=',' read -ra REGISTRIES <<< "${{ github.event.inputs.target_docker_registries }}"
           for registry in "${REGISTRIES[@]}"; do
             registry=$(echo "$registry" | xargs)  # trim whitespace
             
-            # Determine the target image based on registry
-            TARGET_IMAGE="${registry}${{ github.event.inputs.target_docker_repo }}/${image_name}:${{ needs.prepare-inputs.outputs.version }}${python_version_suffix}"
+            TARGET_IMAGE="docker://${registry}${{ github.event.inputs.target_docker_repo }}/${image_name}:${{ needs.prepare-inputs.outputs.version }}${python_version_suffix}"
 
-            echo "Tagging image as: $TARGET_IMAGE"
-            docker tag "$SOURCE_IMAGE" "$TARGET_IMAGE"
+            echo "Copying image to: $TARGET_IMAGE"
+            skopeo copy --all --authfile "$AUTHFILE" "$SOURCE_IMAGE" "$TARGET_IMAGE"
             
-            echo "Pushing image: $TARGET_IMAGE"
-            docker push "$TARGET_IMAGE"
-            
-            echo "✅ Successfully promoted ${{ matrix.image-name }}${python_version_suffix} to $registry"
+            echo "✅ Successfully promoted ${{ matrix.image-name }}${python_version_suffix} to $registry (digest preserved)"
           done
 
   promote-ui-image:
@@ -227,6 +227,11 @@ jobs:
     runs-on: mlrun-release
     needs: [ prepare-inputs, promote-docker-images, promote-ui-image ]
     steps:
+      - name: Setup Python 3.11 venv
+        run: |
+          python3.11 -m venv $GITHUB_WORKSPACE/.venv-promotion
+          echo "$GITHUB_WORKSPACE/.venv-promotion/bin" >> $GITHUB_PATH
+
       - name: Download package from source PyPI repo
         if: github.event.inputs.skip_publish_pypi != 'true'
         run: |

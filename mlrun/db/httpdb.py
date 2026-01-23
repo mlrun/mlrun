@@ -34,7 +34,6 @@ from pydantic.v1 import parse_obj_as
 import mlrun
 import mlrun.auth
 import mlrun.common.constants
-import mlrun.configuration_context
 import mlrun.common.formatters
 import mlrun.common.runtimes
 import mlrun.common.schemas
@@ -2348,13 +2347,6 @@ class HTTPRunDB(RunDBInterface):
                 arguments
             )
 
-        # Add auth token from context manager if set
-        auth_token_name = (
-            mlrun.configuration_context.MLRunConfigurationContext.get_auth_token_name()
-        )
-        if auth_token_name:
-            headers[mlrun.common.schemas.HeaderNames.auth_token_name] = auth_token_name
-
         if not path.isfile(pipe_file):
             raise OSError(f"File {pipe_file} doesnt exist")
         with open(pipe_file, "rb") as fp:
@@ -4077,14 +4069,6 @@ class HTTPRunDB(RunDBInterface):
         :param fetch_credentials_from_sys_config: If true, fetch the credentials from the system configuration.
 
         """
-        # Add auth token from context manager if set
-        headers = {}
-        auth_token_name = (
-            mlrun.configuration_context.MLRunConfigurationContext.get_auth_token_name()
-        )
-        if auth_token_name:
-            headers[mlrun.common.schemas.HeaderNames.auth_token_name] = auth_token_name
-
         self.api_call(
             method=mlrun.common.types.HTTPMethod.PUT,
             path=f"projects/{project}/model-monitoring/",
@@ -4094,7 +4078,6 @@ class HTTPRunDB(RunDBInterface):
                 "deploy_histogram_data_drift_app": deploy_histogram_data_drift_app,
                 "fetch_credentials_from_sys_config": fetch_credentials_from_sys_config,
             },
-            headers=headers or None,
             timeout=300,  # 5 minutes
         )
 

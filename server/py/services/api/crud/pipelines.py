@@ -604,7 +604,6 @@ class Pipelines(
         data: bytes,
         arguments: typing.Optional[dict] = None,
         auth_info: typing.Optional[mlrun.common.schemas.AuthInfo] = None,
-        token_name: typing.Optional[str] = None,
     ):
         if arguments is None:
             arguments = {}
@@ -621,10 +620,12 @@ class Pipelines(
             "Writing pipeline to temp file", content_type=content_type
         )
 
+        # TODO In ML-11600, pass the token name from the request
+        provided_token_name = None
         # Workflows do not go through launcher/runtime handler
         # So enrichment, validation and secret retrieval need to be done here
         auth_secret_name = services.api.utils.helpers.resolve_auth_token_secret_name(
-            provided_token_name=token_name, user_id=auth_info.user_id
+            provided_token_name=provided_token_name, user_id=auth_info.user_id
         )
 
         data = mlrun_pipelines.common.ops.process_kfp_workflow_secret_references(

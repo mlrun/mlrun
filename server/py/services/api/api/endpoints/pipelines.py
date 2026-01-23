@@ -484,11 +484,6 @@ async def _create_pipeline(
     if arguments_data:
         arguments = ast.literal_eval(arguments_data)
 
-    # Get auth token name from header (set by mlrun.MLRunConfigurationContext)
-    auth_token_name = request.headers.get(
-        mlrun.common.schemas.HeaderNames.auth_token_name
-    )
-
     run = await fastapi.concurrency.run_in_threadpool(
         services.api.crud.Pipelines().create_pipeline,
         experiment_name,
@@ -497,7 +492,6 @@ async def _create_pipeline(
         data,
         arguments,
         auth_info,
-        auth_token_name,
     )
 
     return {

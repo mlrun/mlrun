@@ -87,6 +87,7 @@ class MonitoringDeployment:
         model_monitoring_access_key: typing.Optional[str] = None,
         parquet_batching_max_events: int = mlrun.mlconf.model_endpoint_monitoring.parquet_batching_max_events,
         max_parquet_save_interval: int = mlrun.mlconf.model_endpoint_monitoring.parquet_batching_timeout_secs,
+        auth_token_name: typing.Optional[str] = None,
     ) -> None:
         """
         Initialize a MonitoringDeployment object, which handles the deployment & scheduling of:
@@ -103,6 +104,8 @@ class MonitoringDeployment:
         :param max_parquet_save_interval:   Maximum number of seconds to hold events before they are written to the
                                             monitoring parquet target. Note that this value will be used to handle the
                                             offset by the scheduled batch job.
+        :param auth_token_name:             The auth token name to use for deployed functions
+                                            (set by mlrun.MLRunConfigurationContext).
         """
         self.project = project
         self.auth_info = auth_info
@@ -110,11 +113,26 @@ class MonitoringDeployment:
         self.model_monitoring_access_key = model_monitoring_access_key
         self._parquet_batching_max_events = parquet_batching_max_events
         self._max_parquet_save_interval = max_parquet_save_interval
+        self._auth_token_name = auth_token_name
         self._secret_provider = services.api.crud.secrets.get_project_secret_provider(
             project=project
         )
         self.__stream_profile = None
         self.__tsdb_connector = None
+
+    def _apply_auth_token_to_function(
+        self, fn: mlrun.runtimes.nuclio.function.RemoteRuntime
+    ) -> None:
+        """
+        Apply the auth token name to a function if set.
+        This is used when deploying model monitoring functions with a specific auth token
+        (set by MLRunConfigurationContext on the client side).
+        Context manager settings override any existing function-level settings.
+        """
+        if self._auth_token_name:
+            if not fn.spec.auth:
+                fn.spec.auth = {}
+            fn.spec.auth["token_name"] = self._auth_token_name
 
     @property
     def _stream_profile(self) -> mlrun.datastore.datastore_profile.DatastoreProfile:
@@ -213,6 +231,7 @@ class MonitoringDeployment:
             fn = self._initial_model_monitoring_stream_processing_function(
                 stream_image=stream_image, parquet_target=parquet_target
             )
+            self._apply_auth_token_to_function(fn)
             fn = services.api.api.endpoints.nuclio._deploy_function(
                 db_session=self.db_session,
                 auth_info=self.auth_info,
@@ -274,6 +293,7 @@ class MonitoringDeployment:
                     interval=f"{self._get_trigger_frequency(base_period)}m"
                 ),
             )
+            self._apply_auth_token_to_function(fn)
             fn = services.api.api.endpoints.nuclio._deploy_function(
                 db_session=self.db_session,
                 auth_info=self.auth_info,
@@ -312,6 +332,7 @@ class MonitoringDeployment:
             fn = self._initial_model_monitoring_writer_function(
                 writer_image=writer_image
             )
+            self._apply_auth_token_to_function(fn)
             fn = services.api.api.endpoints.nuclio._deploy_function(
                 db_session=self.db_session,
                 auth_info=self.auth_info,
@@ -833,6 +854,7 @@ class MonitoringDeployment:
                 mm_constants.ModelMonitoringAppLabel.VAL,
             )
 
+            self._apply_auth_token_to_function(func)
             fn = services.api.api.endpoints.nuclio._deploy_function(
                 db_session=self.db_session,
                 auth_info=self.auth_info,

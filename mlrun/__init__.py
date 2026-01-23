@@ -25,12 +25,15 @@ __all__ = [
     "auto_mount",
     "VolumeMount",
     "sync_secret_tokens",
+    "MLRunConfigurationContext",
 ]
 
 from os import environ, path
 from typing import Optional
 
 import dotenv
+
+import mlrun.configuration_context
 
 from .common.constants import MLRUN_ACTIVE_PROJECT
 from .config import config as mlconf
@@ -78,6 +81,7 @@ VolumeMount = mounts.VolumeMount
 mount_v3io = mounts.mount_v3io
 v3io_cred = mounts.v3io_cred
 auto_mount = mounts.auto_mount
+MLRunConfigurationContext = mlrun.configuration_context.MLRunConfigurationContext
 
 
 def get_version():

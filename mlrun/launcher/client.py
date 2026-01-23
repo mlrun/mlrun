@@ -16,7 +16,9 @@ from typing import Optional
 
 import IPython.display
 
+import mlrun
 import mlrun.common.constants as mlrun_constants
+import mlrun.configuration_context
 import mlrun.errors
 import mlrun.launcher.base as launcher
 import mlrun.lists
@@ -83,6 +85,11 @@ class ClientBaseLauncher(launcher.BaseLauncher, abc.ABC):
                 "{{run.user}}",
                 run.metadata.labels[mlrun_constants.MLRunInternalLabels.owner],
             )
+
+        # Copy auth from function to run (function.spec.auth is not serialized,
+        # so we need to copy it to run.spec.auth which IS serialized)
+        ClientBaseLauncher._enrich_run_auth_from_function(runtime, run)
+
         db = runtime._get_db()
         if db and runtime.kind != "handler":
             struct = runtime.to_dict()
@@ -90,6 +97,32 @@ class ClientBaseLauncher(launcher.BaseLauncher, abc.ABC):
                 struct, runtime.metadata.name, runtime.metadata.project, versioned=True
             )
             run.spec.function = runtime._function_uri(hash_key=hash_key)
+
+    @staticmethod
+    def _enrich_run_auth_from_function(
+        runtime: "mlrun.runtimes.BaseRuntime", run: "mlrun.run.RunObject"
+    ):
+        """
+        Copy auth from function.spec.auth to run.spec.auth.
+        Also applies auth token from context (set by MLRunConfigurationContext).
+        Context manager settings override function-level settings.
+        """
+        func_auth = getattr(runtime.spec, "auth", None)
+        if func_auth:
+            if not run.spec.auth:
+                run.spec.auth = func_auth.copy()
+            else:
+                # Merge function auth into run auth, run auth takes precedence
+                run.spec.auth = {**func_auth, **run.spec.auth}
+
+        # Context manager overrides everything
+        auth_token_name = (
+            mlrun.configuration_context.MLRunConfigurationContext.get_auth_token_name()
+        )
+        if auth_token_name:
+            if not run.spec.auth:
+                run.spec.auth = {}
+            run.spec.auth["token_name"] = auth_token_name
 
     @staticmethod
     def _refresh_function_metadata(runtime: "mlrun.runtimes.BaseRuntime"):

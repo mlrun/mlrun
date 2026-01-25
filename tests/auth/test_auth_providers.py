@@ -224,75 +224,50 @@ def test_authenticated_user_id():
     assert provider.authenticated_user_id == "test-user"
 
 
-def test_fetch_token_uses_standard_retry_outside_runtime(monkeypatch):
-    """When not running in a runtime, fetch_token should use run_with_retry."""
-    monkeypatch.setenv("MLRUN_RUNTIME_KIND", "")
-
-    provider = IGTokenProvider.__new__(IGTokenProvider)
-    provider._max_retries = 2
-
-    with patch(
-        "mlrun.utils.helpers.run_with_retry"
-    ) as mock_run_with_retry, patch(
-        "mlrun.utils.helpers.retry_until_successful"
-    ) as mock_retry_until_successful:
-        provider.fetch_token()
-
-        # Should use run_with_retry, not retry_until_successful
-        mock_run_with_retry.assert_called_once()
-        mock_retry_until_successful.assert_not_called()
-
-
-def test_fetch_token_uses_timeout_retry_in_runtime(monkeypatch):
-    """When running in a runtime, fetch_token should use retry_until_successful."""
-    monkeypatch.setenv("MLRUN_RUNTIME_KIND", "job")
+@pytest.mark.parametrize(
+    "runtime_kind,timeout,backoff,expect_timeout_retry",
+    [
+        # Not in runtime: use standard retry
+        ("", 120, 10, False),
+        # In runtime with timeout enabled: use timeout-based retry
+        ("job", 120, 10, True),
+        # In runtime but timeout disabled (0): use standard retry
+        ("job", 0, 10, False),
+    ],
+)
+def test_fetch_token_retry_strategy(
+    monkeypatch, runtime_kind, timeout, backoff, expect_timeout_retry
+):
+    """Test that fetch_token uses the correct retry strategy based on runtime context."""
+    monkeypatch.setenv("MLRUN_RUNTIME_KIND", runtime_kind)
     monkeypatch.setattr(
-        "mlrun.mlconf.auth_with_oauth_token.runtime_token_refresh_timeout", 120
+        "mlrun.mlconf.auth_with_oauth_token.runtime_token_refresh_timeout", timeout
     )
     monkeypatch.setattr(
-        "mlrun.mlconf.auth_with_oauth_token.runtime_token_refresh_backoff", 10
+        "mlrun.mlconf.auth_with_oauth_token.runtime_token_refresh_backoff", backoff
     )
 
     provider = IGTokenProvider.__new__(IGTokenProvider)
     provider._max_retries = 2
 
-    with patch(
-        "mlrun.utils.helpers.run_with_retry"
-    ) as mock_run_with_retry, patch(
-        "mlrun.utils.helpers.retry_until_successful"
-    ) as mock_retry_until_successful:
+    with (
+        patch("mlrun.utils.helpers.run_with_retry") as mock_run_with_retry,
+        patch(
+            "mlrun.utils.helpers.retry_until_successful"
+        ) as mock_retry_until_successful,
+    ):
         provider.fetch_token()
 
-        # Should use retry_until_successful, not run_with_retry
-        mock_retry_until_successful.assert_called_once()
-        mock_run_with_retry.assert_not_called()
-
-        # Verify timeout and backoff parameters from config
-        call_kwargs = mock_retry_until_successful.call_args
-        assert call_kwargs.kwargs["timeout"] == 120
-        assert call_kwargs.kwargs["backoff"] == 10
-
-
-def test_fetch_token_uses_standard_retry_when_runtime_timeout_disabled(monkeypatch):
-    """When runtime_token_refresh_timeout is 0, use standard retry even in runtime."""
-    monkeypatch.setenv("MLRUN_RUNTIME_KIND", "job")
-    monkeypatch.setattr(
-        "mlrun.mlconf.auth_with_oauth_token.runtime_token_refresh_timeout", 0
-    )
-
-    provider = IGTokenProvider.__new__(IGTokenProvider)
-    provider._max_retries = 2
-
-    with patch(
-        "mlrun.utils.helpers.run_with_retry"
-    ) as mock_run_with_retry, patch(
-        "mlrun.utils.helpers.retry_until_successful"
-    ) as mock_retry_until_successful:
-        provider.fetch_token()
-
-        # Should use run_with_retry when timeout is disabled
-        mock_run_with_retry.assert_called_once()
-        mock_retry_until_successful.assert_not_called()
+        if expect_timeout_retry:
+            mock_retry_until_successful.assert_called_once()
+            mock_run_with_retry.assert_not_called()
+            # Verify timeout and backoff parameters from config
+            call_kwargs = mock_retry_until_successful.call_args
+            assert call_kwargs.kwargs["timeout"] == timeout
+            assert call_kwargs.kwargs["backoff"] == backoff
+        else:
+            mock_run_with_retry.assert_called_once()
+            mock_retry_until_successful.assert_not_called()
 
 
 def test_runtime_retry_succeeds_after_initial_failures(encoded_jwt_token, monkeypatch):
@@ -329,9 +304,7 @@ def test_runtime_retry_succeeds_after_initial_failures(encoded_jwt_token, monkey
         # Third call returns new valid token
         return "new-valid-token"
 
-    monkeypatch.setattr(
-        "mlrun.auth.utils.load_offline_token", mock_load_offline_token
-    )
+    monkeypatch.setattr("mlrun.auth.utils.load_offline_token", mock_load_offline_token)
 
     # Mock session to fail for old token, succeed for new token
     mock_session = MagicMock()

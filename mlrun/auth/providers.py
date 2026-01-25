@@ -337,9 +337,7 @@ class IGTokenProvider(DynamicTokenProvider):
             # In runtime: use timeout-based retry to handle Kubelet propagation delay
             # Each retry re-reads the refresh token from the file
             logger.debug(
-                "Using runtime token refresh retry mode. "
-                "Will retry for up to the configured timeout to handle potential "
-                "Kubelet propagation delays when refresh token is updated.",
+                "Using runtime token refresh retry mode with timeout-based retries",
                 timeout_seconds=runtime_timeout,
                 backoff_seconds=runtime_backoff,
             )

@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import base64
 import pathlib
 import typing
 
@@ -20,7 +19,6 @@ import kubernetes.client as k8s_client
 
 import mlrun
 import mlrun.common.schemas
-import mlrun.runtimes.utils
 import mlrun.utils
 
 import framework.utils.singletons.k8s
@@ -52,24 +50,14 @@ class KanikoImageBuilder(image_builder.BaseImageBuilder):
         project_default_fucntion_node_selector: typing.Optional[dict] = None,
         auth_info: typing.Optional[mlrun.common.schemas.AuthInfo] = None,
     ) -> framework.utils.singletons.k8s.BasePod:
-        extra_runtime_spec: dict = {}
-        if not registry:
-            # if registry was not given, infer it from the image destination
-            registry = dest.partition("/")[0]
-
-        # set kaniko's spec attributes from the runtime spec
-        for attribute, handler in self.get_builder_spec_attributes_from_runtime(
+        registry = self._resolve_registry(dest, registry)
+        extra_runtime_spec = self._extract_extra_runtime_spec(
             project,
             runtime_spec,
             project_default_fucntion_node_selector,
             auth_info,
-        ).items():
-            attr_value = handler(getattr(runtime_spec, attribute, None))
-            if attr_value:
-                extra_runtime_spec[attribute] = attr_value
-
-        if not dockertext and not dockerfile:
-            raise ValueError("docker file or text must be specified")
+        )
+        self._validate_dockerfile_or_text(dockertext, dockerfile)
 
         if dockertext:
             dockerfile = "/empty/Dockerfile"
@@ -116,8 +104,7 @@ class KanikoImageBuilder(image_builder.BaseImageBuilder):
             resources=resources,
             labels=extra_labels,
         )
-        envs = (builder_env or []) + (project_secrets or [])
-        kpod.env = envs or None
+        kpod.env = self._combine_builder_envs(builder_env, project_secrets)
 
         if mlrun.mlconf.is_pip_ca_configured():
             items = [
@@ -138,49 +125,20 @@ class KanikoImageBuilder(image_builder.BaseImageBuilder):
                 sub_path=pathlib.Path(mlrun.mlconf.httpdb.builder.pip_ca_path).name,
             )
 
-        if dockertext or inline_code or requirements:
-            kpod.mount_empty()
-            commands = []
-            env = {}
-            if dockertext:
-                # set and encode docker content to the DOCKERFILE environment variable in the kaniko pod
-                env["DOCKERFILE"] = base64.b64encode(dockertext.encode("utf-8")).decode(
-                    "utf-8"
-                )
-                # dump dockerfile content and decode to Dockerfile destination
-                commands.append("echo ${DOCKERFILE} | base64 -d > /empty/Dockerfile")
-            if inline_code:
-                filename = inline_path or "main.py"
-                env["CODE"] = base64.b64encode(inline_code.encode("utf-8")).decode(
-                    "utf-8"
-                )
-                commands.append("echo ${CODE} | base64 -d > /empty/" + filename)
-            if requirements:
-                # set and encode requirements to the REQUIREMENTS environment variable in the kaniko pod
-                requirements_file_content = "{}\n".format("\n".join(requirements))
-                env["REQUIREMENTS"] = base64.b64encode(
-                    requirements_file_content.encode("utf-8")
-                ).decode("utf-8")
-                # dump requirement content and decode to the requirement.txt destination
-                commands.append(
-                    "echo ${REQUIREMENTS}" + " | " + f"base64 -d > {requirements_path}"
-                )
-
-            kpod.append_init_container(
-                mlrun.mlconf.httpdb.builder.kaniko_init_container_image,
-                args=["sh", "-c", "; ".join(commands)],
-                env=env,
-                name="create-dockerfile",
-            )
+        self._create_dockerfile_init_container(
+            kpod,
+            mlrun.mlconf.httpdb.builder.kaniko_init_container_image,
+            dockertext,
+            inline_code,
+            inline_path,
+            requirements,
+            requirements_path,
+        )
 
         # when using ECR we need init container to create the image repository
         if mlrun.utils.helpers.is_ecr_url(registry):
-            end = dest.find(":")
-            if end == -1:
-                end = len(dest)
-            repo = dest[dest.find("/") + 1 : end]
-
-            self._configure_ecr_env_and_init_container(kpod, registry, repo)
+            dest_repo = self._extract_repo_from_dest(dest)
+            self._configure_ecr_env_and_init_container(kpod, registry, dest_repo)
 
         # mount regular docker config secret
         elif secret_name:

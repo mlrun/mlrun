@@ -13,29 +13,30 @@
 # limitations under the License.
 
 
+import mlrun
 import mlrun.common.schemas
-from mlrun.config import config
 
-from services.api.utils.image_builder.base import AbstractBaseImageBuilder
-from services.api.utils.image_builder.buildah import BuildahImageBuilder
-from services.api.utils.image_builder.kaniko import KanikoImageBuilder
+import services.api.utils.image_builder.base as image_builder
+import services.api.utils.image_builder.buildah as buildah_image_builder
+import services.api.utils.image_builder.kaniko as kaniko_image_builder
 
 
 class ImageBuilderFactory:
     _builders: dict[
-        mlrun.common.schemas.ContainerBuilderKind, type[AbstractBaseImageBuilder]
+        mlrun.common.schemas.ContainerBuilderKind,
+        type[image_builder.AbstractBaseImageBuilder],
     ] = {
-        mlrun.common.schemas.ContainerBuilderKind.kaniko: KanikoImageBuilder,
-        mlrun.common.schemas.ContainerBuilderKind.buildah: BuildahImageBuilder,
+        mlrun.common.schemas.ContainerBuilderKind.kaniko: kaniko_image_builder.KanikoImageBuilder,
+        mlrun.common.schemas.ContainerBuilderKind.buildah: buildah_image_builder.BuildahImageBuilder,
     }
 
     @classmethod
     def create_builder(
         cls, kind: mlrun.common.schemas.ContainerBuilderKind | None = None
-    ) -> AbstractBaseImageBuilder:
+    ) -> image_builder.AbstractBaseImageBuilder:
         if kind is None:
             kind = (
-                config.httpdb.builder.container_builder_kind
+                mlrun.mlconf.httpdb.builder.container_builder_kind
                 or mlrun.common.schemas.ContainerBuilderKind.kaniko.value
             )
             kind = mlrun.common.schemas.ContainerBuilderKind(kind)

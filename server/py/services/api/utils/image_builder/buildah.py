@@ -13,21 +13,20 @@
 # limitations under the License.
 
 
-import base64
 import typing
 
-from kubernetes import client
+import kubernetes.client as k8s_client
 
+import mlrun
 import mlrun.common.schemas
 import mlrun.utils
-from mlrun.config import config
 
 import framework.utils.singletons.k8s
-from services.api.utils import builder as builder_utils
-from services.api.utils.image_builder.base import BaseImageBuilder
+import services.api.utils.builder as builder_utils
+import services.api.utils.image_builder.base as image_builder
 
 
-class BuildahImageBuilder(BaseImageBuilder):
+class BuildahImageBuilder(image_builder.BaseImageBuilder):
     def make_build_pod(
         self,
         project: str,
@@ -42,31 +41,23 @@ class BuildahImageBuilder(BaseImageBuilder):
         secret_name: typing.Optional[str] = None,
         name: str = "",
         verbose: bool = False,
-        builder_env: typing.Optional[list[client.V1EnvVar]] = None,
+        builder_env: typing.Optional[list[k8s_client.V1EnvVar]] = None,
         runtime_spec=None,
         registry: typing.Optional[str] = None,
         extra_args: str = "",
         extra_labels: typing.Optional[dict] = None,
-        project_secrets: typing.Optional[list[client.V1EnvVar]] = None,
+        project_secrets: typing.Optional[list[k8s_client.V1EnvVar]] = None,
         project_default_fucntion_node_selector: typing.Optional[dict] = None,
         auth_info: typing.Optional[mlrun.common.schemas.AuthInfo] = None,
     ) -> framework.utils.singletons.k8s.BasePod:
-        extra_runtime_spec: dict = {}
-        if not registry:
-            registry = dest.partition("/")[0]
-
-        for attribute, handler in self.get_builder_spec_attributes_from_runtime(
+        registry = self._resolve_registry(dest, registry)
+        extra_runtime_spec = self._extract_extra_runtime_spec(
             project,
             runtime_spec,
             project_default_fucntion_node_selector,
             auth_info,
-        ).items():
-            attr_value = handler(getattr(runtime_spec, attribute, None))
-            if attr_value:
-                extra_runtime_spec[attribute] = attr_value
-
-        if not dockertext and not dockerfile:
-            raise ValueError("docker file or text must be specified")
+        )
+        self._validate_dockerfile_or_text(dockertext, dockerfile)
 
         context_source = None
         if "://" in context and not context.startswith("/"):
@@ -77,10 +68,10 @@ class BuildahImageBuilder(BaseImageBuilder):
             dockerfile = "/empty/Dockerfile"
 
         tls_verify_pull = self._resolve_tls_verify_mode(
-            config.httpdb.builder.insecure_pull_registry_mode, secret_name
+            mlrun.mlconf.httpdb.builder.insecure_pull_registry_mode, secret_name
         )
         self._resolve_tls_verify_mode(
-            config.httpdb.builder.insecure_push_registry_mode, secret_name
+            mlrun.mlconf.httpdb.builder.insecure_push_registry_mode, secret_name
         )
 
         build_args_flags = self._buildah_build_args_flags(
@@ -122,7 +113,7 @@ class BuildahImageBuilder(BaseImageBuilder):
 
         kpod = framework.utils.singletons.k8s.BasePod(
             name or "mlrun-build",
-            config.httpdb.builder.buildah_image,
+            mlrun.mlconf.httpdb.builder.buildah_image,
             command=["/bin/sh", "-c"],
             args=["set -e; " + build_cmd + "; " + push_cmd],
             kind="build",
@@ -133,57 +124,35 @@ class BuildahImageBuilder(BaseImageBuilder):
         )
 
         kpod.mount_empty(name="varlibcontainers", mount_path="/var/lib/containers")
+        kpod.env = self._combine_builder_envs(builder_env, project_secrets)
 
-        envs = (builder_env or []) + (project_secrets or [])
-        kpod.env = envs or None
-
-        if dockertext or inline_code or requirements:
-            kpod.mount_empty()
-            commands = []
-            env = {}
-            if dockertext:
-                env["DOCKERFILE"] = base64.b64encode(dockertext.encode("utf-8")).decode(
-                    "utf-8"
-                )
-                commands.append("echo ${DOCKERFILE} | base64 -d > /empty/Dockerfile")
-            if inline_code:
-                filename = inline_path or "main.py"
-                env["CODE"] = base64.b64encode(inline_code.encode("utf-8")).decode(
-                    "utf-8"
-                )
-                commands.append("echo ${CODE} | base64 -d > /empty/" + filename)
-            if requirements:
-                requirements_file_content = "{}\n".format("\n".join(requirements))
-                env["REQUIREMENTS"] = base64.b64encode(
-                    requirements_file_content.encode("utf-8")
-                ).decode("utf-8")
-                commands.append(
-                    "echo ${REQUIREMENTS}" + " | " + f"base64 -d > {requirements_path}"
-                )
-
-            kpod.append_init_container(
-                config.httpdb.builder.kaniko_init_container_image,
-                args=["sh", "-c", "; ".join(commands)],
-                env=env,
-                name="create-dockerfile",
-            )
+        self._create_dockerfile_init_container(
+            kpod,
+            mlrun.mlconf.httpdb.builder.buildah_init_container_image,
+            dockertext,
+            inline_code,
+            inline_path,
+            requirements,
+            requirements_path,
+        )
 
         if context_source:
             self._materialize_remote_context(kpod, context_source)
 
         if mlrun.utils.helpers.is_ecr_url(registry):
-            end = dest.find(":")
-            if end == -1:
-                end = len(dest)
-            repo = dest[dest.find("/") + 1 : end]
+            repo = self._extract_repo_from_dest(dest)
             kpod.env = kpod.env or []
-            kpod.env.append(client.V1EnvVar(name="DOCKER_CONFIG", value="/tmp/.docker"))
-            self.configure_buildah_ecr_env_and_init_container(kpod, registry, repo)
+            kpod.env.append(
+                k8s_client.V1EnvVar(name="DOCKER_CONFIG", value="/tmp/.docker")
+            )
+            self._configure_ecr_env_and_init_container(kpod, registry, repo)
         elif secret_name:
             items = [{"key": ".dockerconfigjson", "path": "config.json"}]
             kpod.mount_secret(secret_name, "/tmp/.docker", items=items)
             kpod.env = kpod.env or []
-            kpod.env.append(client.V1EnvVar(name="DOCKER_CONFIG", value="/tmp/.docker"))
+            kpod.env.append(
+                k8s_client.V1EnvVar(name="DOCKER_CONFIG", value="/tmp/.docker")
+            )
 
         builder_utils._validate_extra_args(extra_args)
 
@@ -201,12 +170,10 @@ class BuildahImageBuilder(BaseImageBuilder):
 
     def _buildah_build_args_flags(
         self,
-        builder_env: typing.Optional[list[client.V1EnvVar]],
-        project_secrets: typing.Optional[list[client.V1EnvVar]],
+        builder_env: typing.Optional[list[k8s_client.V1EnvVar]],
+        project_secrets: typing.Optional[list[k8s_client.V1EnvVar]],
         extra_args: str,
     ) -> list[str]:
-        from services.api.utils import builder as builder_utils
-
         builder_env = builder_env or []
         project_secrets = project_secrets or []
 
@@ -243,7 +210,7 @@ class BuildahImageBuilder(BaseImageBuilder):
             )
 
             kpod.append_init_container(
-                config.httpdb.builder.buildah_init_container_image,
+                mlrun.mlconf.httpdb.builder.buildah_init_container_image,
                 command=["/bin/sh"],
                 args=["-c", f"set -e; apk add --no-cache wget tar; {cmd}"],
                 name="fetch-context",
@@ -263,18 +230,18 @@ class BuildahImageBuilder(BaseImageBuilder):
         )
 
         kpod.append_init_container(
-            config.httpdb.builder.buildah_git_init_container_image,
+            mlrun.mlconf.httpdb.builder.buildah_git_init_container_image,
             command=["/bin/sh"],
             args=["-c", f"set -e; rm -rf /context/*; {clone_cmd}"],
             name="clone-context",
         )
 
-    def configure_buildah_ecr_env_and_init_container(
+    def _configure_ecr_env_and_init_container(
         self, kpod: framework.utils.singletons.k8s.BasePod, registry: str, repo: str
     ):
         kpod.mount_empty(name="docker-config", mount_path="/tmp/.docker")
 
-        assume_instance_role = not config.httpdb.builder.docker_registry_secret
+        assume_instance_role = not mlrun.mlconf.httpdb.builder.docker_registry_secret
         region = registry.split(".")[3]
 
         command = (
@@ -302,12 +269,12 @@ class BuildahImageBuilder(BaseImageBuilder):
                 aws_credentials_file_env_value
             )
             kpod.mount_secret(
-                config.httpdb.builder.docker_registry_secret,
+                mlrun.mlconf.httpdb.builder.docker_registry_secret,
                 path="/tmp/aws",
             )
 
         kpod.append_init_container(
-            config.httpdb.builder.kaniko_aws_cli_image,
+            mlrun.mlconf.httpdb.builder.kaniko_aws_cli_image,
             command=["/bin/sh"],
             args=["-c", command],
             env=init_container_env,

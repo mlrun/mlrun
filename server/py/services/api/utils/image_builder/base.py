@@ -14,6 +14,7 @@
 
 
 import abc
+import base64
 import typing
 
 import kubernetes.client as k8s_client
@@ -59,7 +60,101 @@ class AbstractBaseImageBuilder(abc.ABC):
 
 
 class BaseImageBuilder(abc.ABC):
-    def get_builder_spec_attributes_from_runtime(
+    def _resolve_registry(self, dest: str, registry: typing.Optional[str]) -> str:
+        """Resolve the registry from destination if not provided."""
+        if not registry:
+            registry = dest.partition("/")[0]
+        return registry
+
+    def _validate_dockerfile_or_text(
+        self, dockertext: typing.Optional[str], dockerfile: typing.Optional[str]
+    ) -> None:
+        """Validate that docker file or text is specified."""
+        if not dockertext and not dockerfile:
+            raise ValueError("docker file or text must be specified")
+
+    def _extract_extra_runtime_spec(
+        self,
+        project: str,
+        runtime_spec: mlrun.runtimes.pod.KubeResourceSpec,
+        project_default_fucntion_node_selector: typing.Optional[dict],
+        auth_info: typing.Optional[mlrun.common.schemas.AuthInfo],
+    ) -> dict:
+        """Extract runtime spec attributes to apply to the builder pod."""
+        extra_runtime_spec: dict = {}
+        for attribute, handler in self._get_builder_spec_attributes_from_runtime(
+            project,
+            runtime_spec,
+            project_default_fucntion_node_selector,
+            auth_info,
+        ).items():
+            attr_value = handler(getattr(runtime_spec, attribute, None))
+            if attr_value:
+                extra_runtime_spec[attribute] = attr_value
+        return extra_runtime_spec
+
+    def _combine_builder_envs(
+        self,
+        builder_env: typing.Optional[list[k8s_client.V1EnvVar]],
+        project_secrets: typing.Optional[list[k8s_client.V1EnvVar]],
+    ) -> typing.Optional[list[k8s_client.V1EnvVar]]:
+        """Combine builder env and project secrets into a single list."""
+        envs = (builder_env or []) + (project_secrets or [])
+        return envs or None
+
+    def _extract_repo_from_dest(self, dest: str) -> str:
+        """Extract repository name from destination for ECR."""
+        end = dest.find(":")
+        if end == -1:
+            end = len(dest)
+        return dest[dest.find("/") + 1 : end]
+
+    def _create_dockerfile_init_container(
+        self,
+        kpod: framework.utils.singletons.k8s.BasePod,
+        init_container_image: str,
+        dockertext: typing.Optional[str],
+        inline_code: typing.Optional[str],
+        inline_path: typing.Optional[str],
+        requirements: typing.Optional[list],
+        requirements_path: typing.Optional[str],
+    ) -> None:
+        """Create init container for dockerfile, inline code, and requirements."""
+        if not (dockertext or inline_code or requirements):
+            return
+
+        kpod.mount_empty()
+        commands = []
+        env = {}
+
+        if dockertext:
+            env["DOCKERFILE"] = base64.b64encode(dockertext.encode("utf-8")).decode(
+                "utf-8"
+            )
+            commands.append("echo ${DOCKERFILE} | base64 -d > /empty/Dockerfile")
+
+        if inline_code:
+            filename = inline_path or "main.py"
+            env["CODE"] = base64.b64encode(inline_code.encode("utf-8")).decode("utf-8")
+            commands.append("echo ${CODE} | base64 -d > /empty/" + filename)
+
+        if requirements:
+            requirements_file_content = "{}\n".format("\n".join(requirements))
+            env["REQUIREMENTS"] = base64.b64encode(
+                requirements_file_content.encode("utf-8")
+            ).decode("utf-8")
+            commands.append(
+                "echo ${REQUIREMENTS}" + " | " + f"base64 -d > {requirements_path}"
+            )
+
+        kpod.append_init_container(
+            init_container_image,
+            args=["sh", "-c", "; ".join(commands)],
+            env=env,
+            name="create-dockerfile",
+        )
+
+    def _get_builder_spec_attributes_from_runtime(
         self,
         project: str,
         runtime_spec: mlrun.runtimes.pod.KubeResourceSpec,

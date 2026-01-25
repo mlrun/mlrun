@@ -763,11 +763,11 @@ def test_build_function_force_build(
     with (
         unittest.mock.patch(
             "services.api.utils.builder.make_dockerfile", return_value=""
-        ),
+        ) as make_dockerfile_mock,
         unittest.mock.patch(
-            "services.api.utils.builder.make_kaniko_pod",
+            "services.api.utils.image_builder.kaniko.KanikoImageBuilder.make_build_pod",
             return_value=framework.utils.singletons.k8s.BasePod(),
-        ),
+        ) as make_build_pod_mock,
         unittest.mock.patch(
             "services.api.utils.builder.resolve_image_target",
             return_value=(".test/my-beautiful-image",),
@@ -796,12 +796,9 @@ def test_build_function_force_build(
         )
         assert response.status_code == HTTPStatus.OK.value
 
-        assert services.api.utils.builder.make_kaniko_pod.call_count == expected
-        assert services.api.utils.builder.make_dockerfile.call_count == expected
-        assert (
-            framework.utils.singletons.k8s.get_k8s_helper().create_pod.call_count
-            == expected
-        )
+        assert make_build_pod_mock.call_count == expected
+        assert make_dockerfile_mock.call_count == expected
+        assert mock_get_k8s_helper.return_value.create_pod.call_count == expected
 
 
 def test_build_function_masks_access_key(

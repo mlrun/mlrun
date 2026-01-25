@@ -93,6 +93,7 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
             mlrun.mlconf.kubernetes.kubeconfig_path or kube_config_path or None
         )
         self.running_inside_kubernetes_cluster = False
+        self.v1api: client.CoreV1Api | None = None
         self._create_clients(log, silent)
 
     def _create_clients(

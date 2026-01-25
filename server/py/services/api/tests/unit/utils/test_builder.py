@@ -34,6 +34,7 @@ from mlrun.runtimes import RuntimeKinds
 import framework.api.utils
 import framework.utils.singletons.k8s
 import services.api.utils.builder
+import services.api.utils.image_builder.factory as image_builder_factory
 
 
 def test_build_runtime_use_base_image_when_no_build():
@@ -54,8 +55,8 @@ def test_build_runtime_use_base_image_when_no_build():
 def test_build_runtime_enrich_base_image(monkeypatch):
     _patch_k8s_helper(monkeypatch)
     with unittest.mock.patch(
-        "services.api.utils.builder.make_kaniko_pod", new=unittest.mock.MagicMock()
-    ):
+        "services.api.utils.image_builder.factory.ImageBuilderFactory.create_builder",
+    ) as make_build_pod_mock:
         docker_registry = "default.docker.registry/default-repository"
         config.httpdb.builder.docker_registry = docker_registry
 
@@ -72,14 +73,16 @@ def test_build_runtime_enrich_base_image(monkeypatch):
             fn,
         )
 
-        dockerfile = services.api.utils.builder.make_kaniko_pod.call_args[1][
+        dockerfile = make_build_pod_mock.return_value.make_build_pod.call_args[1][
             "dockertext"
         ]
         dockerfile_lines = dockerfile.splitlines()
         assert dockerfile_lines[0] == f"FROM {docker_registry}/{base_image}"
 
         # verify that the target image is populated properly
-        target_image = services.api.utils.builder.make_kaniko_pod.call_args[0][2]
+        target_image = make_build_pod_mock.return_value.make_build_pod.call_args[1][
+            "dest"
+        ]
         assert (
             target_image
             == f"{docker_registry}/func-{fn.metadata.project}-{fn.metadata.name}:{fn.metadata.tag}"
@@ -803,11 +806,10 @@ def test_kaniko_pod_spec_user_service_account_enrichment(monkeypatch):
 def test_builder_workdir(monkeypatch, source_code_target_dir, expected_source_dir):
     _patch_k8s_helper(monkeypatch)
     with unittest.mock.patch(
-        "services.api.utils.builder.make_kaniko_pod", new=unittest.mock.MagicMock()
-    ):
+        "services.api.utils.image_builder.factory.ImageBuilderFactory.create_builder",
+    ) as make_build_pod_mock:
         docker_registry = "default.docker.registry/default-repository"
         config.httpdb.builder.docker_registry = docker_registry
-
         function = mlrun.new_function(
             "some-function",
             "some-project",
@@ -822,7 +824,7 @@ def test_builder_workdir(monkeypatch, source_code_target_dir, expected_source_di
             mlrun.common.schemas.AuthInfo(),
             function,
         )
-        dockerfile = services.api.utils.builder.make_kaniko_pod.call_args[1][
+        dockerfile = make_build_pod_mock.return_value.make_build_pod.call_args[1][
             "dockertext"
         ]
         dockerfile_lines = dockerfile.splitlines()
@@ -858,8 +860,8 @@ def test_builder_workdir(monkeypatch, source_code_target_dir, expected_source_di
 def test_builder_source(monkeypatch, source, expectation, expected_v3io_remote):
     _patch_k8s_helper(monkeypatch)
     with unittest.mock.patch(
-        "services.api.utils.builder.make_kaniko_pod", new=unittest.mock.MagicMock()
-    ):
+        "services.api.utils.image_builder.factory.ImageBuilderFactory.create_builder",
+    ) as make_build_pod_mock:
         docker_registry = "default.docker.registry/default-repository"
         config.httpdb.builder.docker_registry = docker_registry
 
@@ -878,7 +880,7 @@ def test_builder_source(monkeypatch, source, expectation, expected_v3io_remote):
                 function,
             )
 
-            dockerfile = services.api.utils.builder.make_kaniko_pod.call_args[1][
+            dockerfile = make_build_pod_mock.return_value.make_build_pod.call_args[1][
                 "dockertext"
             ]
             dockerfile_lines = dockerfile.splitlines()
@@ -1115,8 +1117,8 @@ def test_mlrun_base_image_with_requirements(
     _patch_k8s_helper(monkeypatch)
 
     with unittest.mock.patch(
-        "services.api.utils.builder.make_kaniko_pod", new=unittest.mock.MagicMock()
-    ):
+        "services.api.utils.image_builder.factory.ImageBuilderFactory.create_builder",
+    ) as make_build_pod_mock:
         function = mlrun.new_function(
             "some-function",
             "some-project",
@@ -1133,7 +1135,7 @@ def test_mlrun_base_image_with_requirements(
             mlrun_version_specifier=mlrun_version_specifier,
         )
 
-        requirements = services.api.utils.builder.make_kaniko_pod.call_args[1][
+        requirements = make_build_pod_mock.return_value.make_build_pod.call_args[1][
             "requirements"
         ]
         if expected_mlrun_version is None:
@@ -1243,6 +1245,13 @@ def test_make_dockerfile_with_build_and_extra_args(
 
 
 @pytest.mark.parametrize(
+    "builder_kind",
+    [
+        mlrun.common.schemas.ContainerBuilderKind.kaniko,
+        mlrun.common.schemas.ContainerBuilderKind.buildah,
+    ],
+)
+@pytest.mark.parametrize(
     "builder_env,extra_args,parsed_extra_args",
     [
         ([client.V1EnvVar(name="GIT_TOKEN", value="f1a2b3c4d5e6f7g8h9i")], "", []),
@@ -1270,39 +1279,45 @@ def test_make_dockerfile_with_build_and_extra_args(
         ),
     ],
 )
-def test_make_kaniko_pod_command_using_build_args(
-    builder_env, extra_args, parsed_extra_args
+def test_make_builder_pod_command_using_build_args(
+    builder_kind, builder_env, extra_args, parsed_extra_args, mocked_k8s_helper
 ):
-    with unittest.mock.patch(
-        "framework.api.utils.resolve_project_service_account_details",
-        return_value=(None, None, None),
-    ):
-        function = mlrun.new_function("test", kind="job")
-        function.with_preemption_mode("prevent")
-        function.spec.node_selector = {"some": "selector"}
-        function.spec.tolerations = []
-        function.spec.affinity = None
+    function = mlrun.new_function("test", kind="job")
+    function.with_preemption_mode("prevent")
+    function.spec.node_selector = {"some": "selector"}
+    function.spec.tolerations = []
+    function.spec.affinity = None
 
-        # now call make_kaniko_pod with this function
-        kpod = services.api.utils.builder.make_kaniko_pod(
-            project="test",
-            context="/context",
-            dest="docker-hub/",
-            dockerfile="./Dockerfile",
-            builder_env=builder_env,
-            extra_args=extra_args,
-            runtime_spec=function.spec,
-        )
+    builder = image_builder_factory.ImageBuilderFactory.create_builder(
+        kind=builder_kind,
+    )
+
+    # now call builder pod with this function
+    kpod = builder.make_build_pod(
+        project="test",
+        context="/context",
+        dest="docker-hub/",
+        dockerfile="./Dockerfile",
+        builder_env=builder_env,
+        extra_args=extra_args,
+        runtime_spec=function.spec,
+    )
 
     expected_env_vars = [f"{env_var.name}={env_var.value}" for env_var in builder_env]
     if extra_args:
         expected_env_vars.extend(parsed_extra_args)
 
-    args = kpod.args
-    actual_env_vars = [
-        args[i + 1] for i in range(len(args)) if args[i] == "--build-arg"
-    ]
-    assert expected_env_vars == actual_env_vars
+    if builder_kind == mlrun.common.schemas.ContainerBuilderKind.kaniko:
+        args = kpod.args
+        actual_env_vars = [
+            args[i + 1] for i in range(len(args)) if args[i] == "--build-arg"
+        ]
+        assert expected_env_vars == actual_env_vars
+    else:
+        # Buildah wraps commands into a single shell string, so validate by substring presence.
+        cmd = " ".join(kpod.args) if isinstance(kpod.args, list) else str(kpod.args)
+        for expected in expected_env_vars:
+            assert f"--build-arg {expected}" in cmd
 
 
 @pytest.mark.parametrize(
@@ -1442,7 +1457,7 @@ def test_validate_extra_args(extra_args, expected):
 )
 def test_validate_and_merge_args_with_extra_args(args, extra_args, expected_result):
     assert (
-        services.api.utils.builder._validate_and_merge_args_with_extra_args(
+        services.api.utils.builder.validate_and_merge_args_with_extra_args(
             args, extra_args
         )
         == expected_result
@@ -1523,7 +1538,10 @@ def test_parse_extra_args_for_dockerfile(extra_args, expected_result):
         ),
     ],
 )
-def test_matching_args_dockerfile_and_kpod(builder_env, source, extra_args):
+@pytest.mark.parametrize("builder_kind", ["kaniko", "buildah"])
+def test_matching_args_dockerfile_and_kpod(
+    monkeypatch, builder_env, source, extra_args, builder_kind
+):
     dock = services.api.utils.builder.make_dockerfile(
         base_image="mlrun/mlrun",
         builder_env=builder_env,
@@ -1531,18 +1549,20 @@ def test_matching_args_dockerfile_and_kpod(builder_env, source, extra_args):
         commands=None,
         extra_args=extra_args,
     )
-    with unittest.mock.patch(
-        "services.api.utils.builder.get_kaniko_spec_attributes_from_runtime",
-        return_value={},
-    ):
-        kpod = services.api.utils.builder.make_kaniko_pod(
-            project="test",
-            context="/context",
-            dest="docker-hub/",
-            dockerfile="./Dockerfile",
-            builder_env=builder_env,
-            extra_args=extra_args,
-        )
+    builder = image_builder_factory.ImageBuilderFactory.create_builder(
+        kind=builder_kind
+    )
+    function = mlrun.new_function("test", kind="job")
+    _mock_default_service_account(monkeypatch, "dummy")
+    kpod = builder.make_build_pod(
+        project="test",
+        context="/context",
+        dest="docker-hub/",
+        dockerfile="./Dockerfile",
+        builder_env=builder_env,
+        extra_args=extra_args,
+        runtime_spec=function.spec,
+    )
 
     kpod_args = kpod.args
     kpod_build_args = [

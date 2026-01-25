@@ -16,7 +16,7 @@ import pathlib
 import re
 import textwrap
 import typing
-from base64 import b64decode, b64encode
+from base64 import b64decode
 from collections import defaultdict
 from os import path
 from urllib.parse import urlparse
@@ -31,11 +31,11 @@ import mlrun.model
 import mlrun.runtimes.utils
 import mlrun.utils
 from mlrun.config import config
-from mlrun.k8s_utils import enrich_preemption_mode
 from mlrun.utils.helpers import remove_image_protocol_prefix
 
 import framework.utils.helpers
 import framework.utils.singletons.k8s
+import services.api.utils.image_builder.factory as image_builder_factory
 
 
 def make_dockerfile(
@@ -144,240 +144,6 @@ def make_dockerfile(
     return dock
 
 
-def make_kaniko_pod(
-    project: str,
-    context,
-    dest,
-    dockerfile=None,
-    dockertext=None,
-    inline_code=None,
-    inline_path=None,
-    requirements=None,
-    requirements_path=None,
-    secret_name=None,
-    name="",
-    verbose=False,
-    builder_env=None,
-    runtime_spec=None,
-    registry=None,
-    extra_args="",
-    extra_labels=None,
-    project_secrets=None,
-    project_default_fucntion_node_selector=None,
-    auth_info: mlrun.common.schemas.AuthInfo = None,
-):
-    extra_runtime_spec = {}
-    if not registry:
-        # if registry was not given, infer it from the image destination
-        registry = dest.partition("/")[0]
-
-    # set kaniko's spec attributes from the runtime spec
-    for attribute, handler in get_kaniko_spec_attributes_from_runtime(
-        project,
-        runtime_spec,
-        project_default_fucntion_node_selector,
-        auth_info,
-    ).items():
-        attr_value = handler(getattr(runtime_spec, attribute, None))
-        if attr_value:
-            extra_runtime_spec[attribute] = attr_value
-
-    if not dockertext and not dockerfile:
-        raise ValueError("docker file or text must be specified")
-
-    if dockertext:
-        dockerfile = "/empty/Dockerfile"
-
-    args = [
-        "--dockerfile",
-        dockerfile,
-        "--context",
-        context,
-        "--destination",
-        dest,
-        "--image-fs-extract-retry",
-        config.httpdb.builder.kaniko_image_fs_extraction_retries,
-        "--push-retry",
-        config.httpdb.builder.kaniko_image_push_retry,
-    ]
-    for value, flag in [
-        (config.httpdb.builder.insecure_pull_registry_mode, "--insecure-pull"),
-        (config.httpdb.builder.insecure_push_registry_mode, "--insecure"),
-    ]:
-        if value == "disabled":
-            continue
-        if value == "enabled" or (value == "auto" and not secret_name):
-            args.append(flag)
-    if verbose:
-        args += ["--verbosity", "debug"]
-
-    args = _add_kaniko_args_with_all_build_args(
-        args, builder_env, project_secrets, extra_args
-    )
-
-    # While requests mainly affect scheduling, setting a limit may prevent Kaniko
-    # from finishing successfully (destructive), since we're not allowing to override the default
-    # specifically for the Kaniko pod, we're setting only the requests
-    # we cannot specify gpu requests without specifying gpu limits, so we set requests without gpu field
-    default_requests = config.get_default_function_pod_requirement_resources(
-        "requests", with_gpu=False
-    )
-    resources = {
-        "requests": mlrun.runtimes.utils.generate_resources(
-            mem=default_requests.get("memory"), cpu=default_requests.get("cpu")
-        )
-    }
-    # Some cloud providers add a toleration when a GPU limit is set.
-    # If the Kaniko pod inherits a GPU-related node selector from the function
-    # but lacks a GPU limit, it may get stuck in a pending state due to unsatisfiable scheduling.
-    # Setting GPU limits to zero ensures tolerations are applied while preventing GPU allocation.
-    if runtime_spec:
-        gpu_resources = mlrun.utils.get_enriched_gpu_limits(
-            runtime_spec.resources.get("limits", {})
-        )
-        if gpu_resources:
-            resources["limits"] = gpu_resources
-
-    kpod = framework.utils.singletons.k8s.BasePod(
-        name or "mlrun-build",
-        config.httpdb.builder.kaniko_image,
-        args=args,
-        kind="build",
-        project=project,
-        default_pod_spec_attributes=extra_runtime_spec,
-        resources=resources,
-        labels=extra_labels,
-    )
-    envs = (builder_env or []) + (project_secrets or [])
-    kpod.env = envs or None
-
-    if config.is_pip_ca_configured():
-        items = [
-            {
-                "key": config.httpdb.builder.pip_ca_secret_key,
-                "path": pathlib.Path(config.httpdb.builder.pip_ca_path).name,
-            }
-        ]
-        kpod.mount_secret(
-            config.httpdb.builder.pip_ca_secret_name,
-            str(
-                pathlib.Path(context)
-                / pathlib.Path(config.httpdb.builder.pip_ca_path).name
-            ),
-            items=items,
-            # using sub_path so file will be mounted inside kaniko pod as regular file and not symlink (if it's symlink
-            # it's then not working inside the job image itself)
-            sub_path=pathlib.Path(config.httpdb.builder.pip_ca_path).name,
-        )
-
-    if dockertext or inline_code or requirements:
-        kpod.mount_empty()
-        commands = []
-        env = {}
-        if dockertext:
-            # set and encode docker content to the DOCKERFILE environment variable in the kaniko pod
-            env["DOCKERFILE"] = b64encode(dockertext.encode("utf-8")).decode("utf-8")
-            # dump dockerfile content and decode to Dockerfile destination
-            commands.append("echo ${DOCKERFILE} | base64 -d > /empty/Dockerfile")
-        if inline_code:
-            name = inline_path or "main.py"
-            env["CODE"] = b64encode(inline_code.encode("utf-8")).decode("utf-8")
-            commands.append("echo ${CODE} | base64 -d > /empty/" + name)
-        if requirements:
-            # set and encode requirements to the REQUIREMENTS environment variable in the kaniko pod
-            requirements_file_content = "{}\n".format("\n".join(requirements))
-            env["REQUIREMENTS"] = b64encode(
-                requirements_file_content.encode("utf-8")
-            ).decode("utf-8")
-            # dump requirement content and decode to the requirement.txt destination
-            commands.append(
-                "echo ${REQUIREMENTS}" + " | " + f"base64 -d > {requirements_path}"
-            )
-
-        kpod.append_init_container(
-            config.httpdb.builder.kaniko_init_container_image,
-            args=["sh", "-c", "; ".join(commands)],
-            env=env,
-            name="create-dockerfile",
-        )
-
-    # when using ECR we need init container to create the image repository
-    if mlrun.utils.helpers.is_ecr_url(registry):
-        end = dest.find(":")
-        if end == -1:
-            end = len(dest)
-        repo = dest[dest.find("/") + 1 : end]
-
-        configure_kaniko_ecr_env_and_init_container(kpod, registry, repo)
-
-    # mount regular docker config secret
-    elif secret_name:
-        items = [{"key": ".dockerconfigjson", "path": "config.json"}]
-        kpod.mount_secret(secret_name, "/kaniko/.docker", items=items)
-
-    return kpod
-
-
-def configure_kaniko_ecr_env_and_init_container(kpod, registry, repo):
-    # if no secret is given, assume ec2 instance has attached role which provides read/write access to ECR
-    assume_instance_role = not config.httpdb.builder.docker_registry_secret
-    region = registry.split(".")[3]
-
-    # fail silently in order to ignore "repository already exists" errors
-    # if any other error occurs - kaniko will fail similarly
-    command = (
-        f"aws ecr create-repository --region {region} --repository-name {repo} || true"
-        + f" && aws ecr create-repository --region {region} --repository-name {repo}/cache || true"
-    )
-    init_container_env = {}
-
-    kpod.env = kpod.env or []
-
-    # project secret might conflict with the attached instance role/docker registry secret
-    # ensure "AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY" have no values or else kaniko will fail
-    # due to credentials conflict / lack of permission on given credentials
-    kpod.env = kpod.env = [
-        env_var
-        for env_var in kpod.env
-        if env_var.name not in ["AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY"]
-    ]
-
-    if assume_instance_role:
-        # assume instance role has permissions to register and store a container image
-        # https://github.com/GoogleContainerTools/kaniko#pushing-to-amazon-ecr
-        # we only need this in the kaniko container
-        kpod.env.append(client.V1EnvVar(name="AWS_SDK_LOAD_CONFIG", value="true"))
-
-    else:
-        aws_credentials_file_env_key = "AWS_SHARED_CREDENTIALS_FILE"
-        aws_credentials_file_env_value = "/tmp/aws/credentials"
-
-        # set the credentials file location in the init container
-        init_container_env[aws_credentials_file_env_key] = (
-            aws_credentials_file_env_value
-        )
-
-        # set the kaniko container AWS credentials location to the mount's path
-        kpod.env.append(
-            client.V1EnvVar(
-                name=aws_credentials_file_env_key, value=aws_credentials_file_env_value
-            )
-        )
-        # mount the AWS credentials secret
-        kpod.mount_secret(
-            config.httpdb.builder.docker_registry_secret,
-            path="/tmp/aws",
-        )
-
-    kpod.append_init_container(
-        config.httpdb.builder.kaniko_aws_cli_image,
-        command=["/bin/sh"],
-        args=["-c", command],
-        env=init_container_env,
-        name="create-repos",
-    )
-
-
 def build_image(
     auth_info: mlrun.common.schemas.AuthInfo,
     project: str,
@@ -464,7 +230,7 @@ def build_image(
             if not fragment.startswith("refs/"):
                 source = source.replace("#" + fragment, f"#refs/heads/{fragment}")
 
-        # set remote source as kaniko's build context and copy it
+        # set remote source as builder's build context and copy it
         context = source
         source_to_copy = "."
 
@@ -528,11 +294,11 @@ def build_image(
         project_secrets=project_secrets,
         extra_args=extra_args,
     )
-
-    kpod = make_kaniko_pod(
-        project,
-        context,
-        image_target,
+    builder = image_builder_factory.ImageBuilderFactory.create_builder()
+    kpod = builder.make_build_pod(
+        project=project,
+        context=context,
+        dest=image_target,
         dockertext=dock,
         inline_code=inline_code,
         inline_path=inline_path,
@@ -574,76 +340,6 @@ def build_image(
             "Build started", pod=pod, namespace=ns, project=project, image=image_target
         )
         return f"build:{pod}"
-
-
-def get_kaniko_spec_attributes_from_runtime(
-    project,
-    runtime_spec,
-    project_default_fucntion_node_selector,
-    auth_info: mlrun.common.schemas.AuthInfo = None,
-):
-    """Get the names of Kaniko spec attributes that are defined for runtime but should also be applied to Kaniko."""
-    # preemption mode scheduling constraints cache
-    _preemption_enrichment_result = {}
-
-    def service_account_handler(attr_value):
-        from framework.api.utils import resolve_project_service_account_details
-
-        (
-            allowed_service_accounts,
-            forbidden_service_accounts,
-            default_service_account,
-        ) = resolve_project_service_account_details(project, auth_info=auth_info)
-        if attr_value:
-            runtime_spec.validate_service_account(
-                allowed_service_accounts, forbidden_service_accounts
-            )
-        else:
-            attr_value = default_service_account
-        return attr_value
-
-    def get_merged_node_selector(attr_value):
-        attr_value = mlrun.utils.to_non_empty_values_dict(
-            mlrun.utils.helpers.merge_dicts_with_precedence(
-                mlrun.mlconf.get_default_function_node_selector(),
-                project_default_fucntion_node_selector,
-                attr_value,
-            )
-        )
-        return attr_value
-
-    def preemption_mode_handler(key):
-        if key not in _preemption_enrichment_result:
-            keys = ["node_selector", "tolerations", "affinity"]
-            values = enrich_preemption_mode(
-                preemption_mode=runtime_spec.preemption_mode,
-                node_selector=get_merged_node_selector(runtime_spec.node_selector),
-                affinity=runtime_spec.affinity,
-                tolerations=runtime_spec.tolerations,
-            )
-            _preemption_enrichment_result.update(dict(zip(keys, values)))
-        return _preemption_enrichment_result[key]
-
-    def node_selector_handler(attr_value):
-        return preemption_mode_handler("node_selector")
-
-    def affinity_handler(attr_value):
-        return preemption_mode_handler("affinity")
-
-    def tolerations_handler(attr_value):
-        return preemption_mode_handler("tolerations")
-
-    def identity_handler(attr_value):
-        return attr_value
-
-    return {
-        "node_name": identity_handler,
-        "node_selector": node_selector_handler,
-        "affinity": affinity_handler,
-        "tolerations": tolerations_handler,
-        "priority_class_name": identity_handler,
-        "service_account": service_account_handler,
-    }
 
 
 def resolve_mlrun_install_command_version(
@@ -909,6 +605,52 @@ def resolve_image_target(
     return image_target
 
 
+def validate_and_merge_args_with_extra_args(args: list, extra_args: str) -> list:
+    """
+    Validate and merge the given args and extra_args for builder pod.
+
+    :return: A merged list of strings containing the command-line arguments
+             from 'args' and 'extra_args' in args format.
+
+    :raises ValueError: If an arg in 'extra_args' is duplicated with different values then in the 'args'.
+    """
+    if not extra_args:
+        return args
+    extra_args = _parse_extra_args(extra_args)
+    # Create a set to store the keys from the --build-arg flags in args
+    build_arg_keys = {
+        key: value
+        for arg in args
+        if arg == "--build-arg"
+        for key, value in [args[args.index(arg) + 1].split("=")]
+    }
+
+    # Create a new list to store the merged args and extra_args
+    merged_args = args[:]
+
+    # Iterate through extra_args and add flags and their values to the merged_args list
+    for flag, values in extra_args.items():
+        if flag == "--build-arg":
+            for value in values:
+                key, val = value.split("=")
+                if key not in build_arg_keys:
+                    merged_args.extend([flag, f"{key}={val}"])
+                    build_arg_keys[key] = val
+                else:
+                    if build_arg_keys[key] != val:
+                        raise ValueError(
+                            f"Duplicate --build-arg '{key}' with different values"
+                        )
+        elif flag not in args:
+            if not values:
+                merged_args.append(flag)
+            else:
+                for val in values:
+                    merged_args.extend([flag, val])
+
+    return merged_args
+
+
 def _generate_builder_env(
     project: str, builder_env: dict
 ) -> (list[client.V1EnvVar], list[client.V1EnvVar]):
@@ -928,26 +670,6 @@ def _generate_builder_env(
     for key, value in builder_env.items():
         env.append(client.V1EnvVar(name=key, value=value))
     return env, project_secrets
-
-
-def _add_kaniko_args_with_all_build_args(
-    args, builder_env, project_secrets, extra_args
-):
-    builder_env = builder_env or []
-    project_secrets = project_secrets or []
-
-    # Utilizing plain values as they were explicitly compiled by the user
-    for env in builder_env:
-        args.extend(["--build-arg", f"{env.name}={env.value}"])
-
-    # Utilizing '$' ensures that the value is not in plain text but rather read from the injected environment variables
-    for secret in project_secrets:
-        args.extend(["--build-arg", f"{secret.name}=${secret.name}"])
-
-    # Combine all the arguments into the Dockerfile
-    args = _validate_and_merge_args_with_extra_args(args, extra_args)
-
-    return args
 
 
 def _parse_extra_args_for_dockerfile(extra_args: str) -> dict:
@@ -1089,52 +811,6 @@ def _validate_extra_args(extra_args: str):
                     f"Invalid arguments format: '{','.join(invalid_build_arg_values)}'."
                     " Please make sure all arguments are in a valid format"
                 )
-
-
-def _validate_and_merge_args_with_extra_args(args: list, extra_args: str) -> list:
-    """
-    Validate and merge the given args and extra_args for Kaniko pod.
-
-    :return: A merged list of strings containing the command-line arguments
-             from 'args' and 'extra_args' in args format.
-
-    :raises ValueError: If an arg in 'extra_args' is duplicated with different values then in the 'args'.
-    """
-    if not extra_args:
-        return args
-    extra_args = _parse_extra_args(extra_args)
-    # Create a set to store the keys from the --build-arg flags in args
-    build_arg_keys = {
-        key: value
-        for arg in args
-        if arg == "--build-arg"
-        for key, value in [args[args.index(arg) + 1].split("=")]
-    }
-
-    # Create a new list to store the merged args and extra_args
-    merged_args = args[:]
-
-    # Iterate through extra_args and add flags and their values to the merged_args list
-    for flag, values in extra_args.items():
-        if flag == "--build-arg":
-            for value in values:
-                key, val = value.split("=")
-                if key not in build_arg_keys:
-                    merged_args.extend([flag, f"{key}={val}"])
-                    build_arg_keys[key] = val
-                else:
-                    if build_arg_keys[key] != val:
-                        raise ValueError(
-                            f"Duplicate --build-arg '{key}' with different values"
-                        )
-        elif flag not in args:
-            if not values:
-                merged_args.append(flag)
-            else:
-                for val in values:
-                    merged_args.extend([flag, val])
-
-    return merged_args
 
 
 def _resolve_function_image_name(function, image: typing.Optional[str] = None) -> str:

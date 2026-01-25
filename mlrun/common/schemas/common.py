@@ -12,11 +12,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import enum
 import typing
 
 import pydantic.v1
 
 import mlrun.errors
+
+
+class ContainerBuilderKind(str, enum.Enum):
+    kaniko = "kaniko"
+    buildah = "buildah"
 
 
 class ImageBuilder(pydantic.v1.BaseModel):

@@ -563,6 +563,9 @@ default_config = {
             # pip install <requirement_specifier>, e.g. mlrun==0.5.4, mlrun~=0.5,
             # git+https://github.com/mlrun/mlrun@development. by default uses the version
             "mlrun_version_specifier": "",
+            # container image builder kind used when building images inside kubernetes cluster
+            # options: "kaniko", "buildah"
+            "container_builder_kind": "kaniko",
             "kaniko_image": "gcr.io/kaniko-project/executor:v1.23.2",  # kaniko builder image
             "kaniko_init_container_image": "alpine:3.20",
             # image for kaniko init container when docker registry is ECR
@@ -572,6 +575,10 @@ default_config = {
             "kaniko_image_fs_extraction_retries": "3",
             # kaniko sometimes fails to push image to registry due to network issues
             "kaniko_image_push_retry": "3",
+            # buildah builder image (rootless / daemonless)
+            "buildah_image": "quay.io/buildah/stable:v1.42",
+            # buildah sometimes fails to push image to registry due to network issues
+            "buildah_image_push_retry": "3",
             # additional docker build args in json encoded base64 format
             "build_args": "",
             "pip_ca_secret_name": "",
@@ -1156,7 +1163,7 @@ class Config:
         return enrichment_group_id
 
     @staticmethod
-    def get_parsed_igz_version() -> typing.Optional[semver.VersionInfo]:
+    def get_parsed_igz_version() -> semver.VersionInfo | None:
         if not config.igz_version:
             return None
         try:
@@ -1552,7 +1559,7 @@ def _verify_gpu_requests_and_limits(
         )
 
 
-def _convert_resources_to_str(config: typing.Optional[dict] = None):
+def _convert_resources_to_str(config: dict | None = None):
     resources_types = ["cpu", "memory", "gpu"]
     resource_requirements = ["requests", "limits"]
     if not config.get("default_function_pod_resources"):

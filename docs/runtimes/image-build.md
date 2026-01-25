@@ -17,8 +17,14 @@ if one of the following is true:
 - The code runs Nuclio functions, which are packaged as images (the build is triggered by MLRun and executed by 
   Nuclio)
 
-The build process in MLRun is based on [Kaniko](https://github.com/GoogleContainerTools/kaniko) and automated by MLRun -
-MLRun generates the Dockerfile for the build process, and configures Kaniko with parameters needed for the build.
+The build process in MLRun is executed inside the cluster by a pluggable container builder and automated by MLRun.
+MLRun generates the Dockerfile for the build process, and configures the selected builder with the parameters needed
+for the build.
+
+- **Default builder**: [Kaniko](https://github.com/GoogleContainerTools/kaniko)
+- **Alternative builder (experimental)**: Buildah
+
+To select the builder, set `MLRUN_HTTPDB__BUILDER__CONTAINER_BUILDER_KIND` to `kaniko` (default) or `buildah`.
 
 Building images is done through functions provided by the {py:class}`~mlrun.projects.MlrunProject` class. By using 
 project functions, the same process is used to build and deploy a stand-alone function or functions serving as steps 
@@ -131,10 +137,16 @@ the registry requires credentials, create a Kubernetes secret containing these c
 `secret_name` parameter.
 
 #### Using ECR as a registry
-When using ECR as registry, MLRun uses Kaniko's ECR credentials helper, in which case the secret provided should contain
-AWS credentials needed to create ECR repositories, as described [here](https://github.com/GoogleContainerTools/kaniko#pushing-to-amazon-ecr).
-MLRun detects automatically that the registry is an ECR registry based on its URL and configures Kaniko to
-use the ECR helper. For example:
+When using ECR as a registry, MLRun detects automatically that the registry is an ECR registry based on its URL and
+configures the selected builder to authenticate to ECR.
+
+For Kaniko, MLRun uses Kaniko's ECR flow, in which case the secret provided should contain AWS credentials needed to
+create ECR repositories, as described [here](https://github.com/GoogleContainerTools/kaniko#pushing-to-amazon-ecr).
+
+For Buildah (experimental), MLRun creates the repository (if needed) and generates a Docker `config.json` using
+`aws ecr get-login-password`, then mounts it into the builder pod.
+
+For example:
 
 ```python
 # AWS credentials stored in a k8s secret -
@@ -155,8 +167,8 @@ credentials. To build this image, the instance role that has access to ECR must 
 
 #### Using self-signed registry
 If you need to build your function and push the resulting container image to an external Docker registry that uses a self-signed SSL certificate,
-you can use Kaniko with the `--skip-tls-verify` flag.
-When using this flag, Kaniko ignores the SSL certificate verification while pulling base images and/or pushing the final built image to the registry over HTTPS.
+you can use the builder's `--skip-tls-verify` flag.
+When using this flag, the builder ignores SSL certificate verification while pulling base images and/or pushing the final built image to the registry over HTTPS.
 
 ```{admonition} Caution
 Using the `--skip-tls-verify` flag poses security risks since it bypasses SSL certificate validation.
@@ -176,7 +188,7 @@ Add the certificate authority to the trusted list. If you use a certificate that
 
 
 ### Build environment variables
-It is possible to pass environment variables that will be set in the Kaniko pod that executes the build. This 
+It is possible to pass environment variables that will be set in the builder pod that executes the build. This 
 may be useful to pass important information needed for the build process. The variables are passed as a dictionary in
 the `builder_env` parameter, for example:
 
@@ -188,18 +200,18 @@ project.build_function(
 ```
 
 ### Extra arguments
-It is also possible to pass custom arguments and flags to Kaniko.
+It is also possible to pass custom arguments and flags to the selected builder.
 The `extra_args` parameter can be utilized in {py:func}`~mlrun.projects.build_image()`, 
 {py:func}`~mlrun.projects.build_function()`, or during the deployment of the function. It provides a way to fine-tune 
-the Kaniko build process according to your specific needs.
+the build process according to your specific needs.
 
 You can provide the `extra_args` as a string in the format of a CLI command line, just as you would when using 
-Kaniko directly, for example:
+the builder directly, for example:
 
 ```python
 project.build_function(
     "<function-name>",
-    extra_args="--build arg GIT_TOKEN=token --skip-tls-verify",
+    extra_args="--build-arg GIT_TOKEN=token --skip-tls-verify",
 )
 ```
 

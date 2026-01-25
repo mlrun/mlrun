@@ -15,10 +15,12 @@
 
 import abc
 import base64
+import pathlib
 import typing
 
 import kubernetes.client as k8s_client
 
+import mlrun
 import mlrun.common.schemas
 import mlrun.k8s_utils
 import mlrun.runtimes.pod
@@ -152,6 +154,37 @@ class BaseImageBuilder(abc.ABC):
             args=["sh", "-c", "; ".join(commands)],
             env=env,
             name="create-dockerfile",
+        )
+
+    def _mount_pip_ca_secret(
+        self,
+        kpod: framework.utils.singletons.k8s.BasePod,
+        context: str,
+    ) -> None:
+        """Mount pip CA certificate secret if configured.
+
+        This allows pip to verify SSL certificates when installing packages
+        from a private PyPI server that uses a custom CA.
+        """
+        if not mlrun.mlconf.is_pip_ca_configured():
+            return
+
+        items = [
+            {
+                "key": mlrun.mlconf.httpdb.builder.pip_ca_secret_key,
+                "path": pathlib.Path(mlrun.mlconf.httpdb.builder.pip_ca_path).name,
+            }
+        ]
+        kpod.mount_secret(
+            mlrun.mlconf.httpdb.builder.pip_ca_secret_name,
+            str(
+                pathlib.Path(context)
+                / pathlib.Path(mlrun.mlconf.httpdb.builder.pip_ca_path).name
+            ),
+            items=items,
+            # using sub_path so file will be mounted inside the build pod as regular file
+            # and not symlink (if it's symlink it won't work inside the job image itself)
+            sub_path=pathlib.Path(mlrun.mlconf.httpdb.builder.pip_ca_path).name,
         )
 
     def _get_builder_spec_attributes_from_runtime(

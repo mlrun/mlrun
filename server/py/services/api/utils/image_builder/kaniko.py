@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import pathlib
 import typing
 
 import kubernetes.client as k8s_client
@@ -106,24 +105,7 @@ class KanikoImageBuilder(image_builder.BaseImageBuilder):
         )
         kpod.env = self._combine_builder_envs(builder_env, project_secrets)
 
-        if mlrun.mlconf.is_pip_ca_configured():
-            items = [
-                {
-                    "key": mlrun.mlconf.httpdb.builder.pip_ca_secret_key,
-                    "path": pathlib.Path(mlrun.mlconf.httpdb.builder.pip_ca_path).name,
-                }
-            ]
-            kpod.mount_secret(
-                mlrun.mlconf.httpdb.builder.pip_ca_secret_name,
-                str(
-                    pathlib.Path(context)
-                    / pathlib.Path(mlrun.mlconf.httpdb.builder.pip_ca_path).name
-                ),
-                items=items,
-                # using sub_path so file will be mounted inside kaniko pod as regular file and not symlink
-                # (if it's symlink it's then not working inside the job image itself)
-                sub_path=pathlib.Path(mlrun.mlconf.httpdb.builder.pip_ca_path).name,
-            )
+        self._mount_pip_ca_secret(kpod, context)
 
         self._create_dockerfile_init_container(
             kpod,

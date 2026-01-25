@@ -126,6 +126,8 @@ class BuildahImageBuilder(image_builder.BaseImageBuilder):
         kpod.mount_empty(name="varlibcontainers", mount_path="/var/lib/containers")
         kpod.env = self._combine_builder_envs(builder_env, project_secrets)
 
+        self._mount_pip_ca_secret(kpod, context)
+
         self._create_dockerfile_init_container(
             kpod,
             mlrun.mlconf.httpdb.builder.buildah_init_container_image,

@@ -169,22 +169,21 @@ class BaseImageBuilder(abc.ABC):
         if not mlrun.mlconf.is_pip_ca_configured():
             return
 
-        items = [
-            {
-                "key": mlrun.mlconf.httpdb.builder.pip_ca_secret_key,
-                "path": pathlib.Path(mlrun.mlconf.httpdb.builder.pip_ca_path).name,
-            }
-        ]
+        path = pathlib.Path(mlrun.mlconf.httpdb.builder.pip_ca_path).name
+        secret_key = mlrun.mlconf.httpdb.builder.pip_ca_secret_key
+        secret_name = mlrun.mlconf.httpdb.builder.pip_ca_secret_name
         kpod.mount_secret(
-            mlrun.mlconf.httpdb.builder.pip_ca_secret_name,
-            str(
-                pathlib.Path(context)
-                / pathlib.Path(mlrun.mlconf.httpdb.builder.pip_ca_path).name
-            ),
-            items=items,
+            secret_name,
+            str(pathlib.Path(context) / path),
+            items=[
+                {
+                    "key": secret_key,
+                    "path": path,
+                }
+            ],
             # using sub_path so file will be mounted inside the build pod as regular file
             # and not symlink (if it's symlink it won't work inside the job image itself)
-            sub_path=pathlib.Path(mlrun.mlconf.httpdb.builder.pip_ca_path).name,
+            sub_path=path,
         )
 
     def _get_builder_spec_attributes_from_runtime(

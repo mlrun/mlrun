@@ -21,6 +21,9 @@ class Echo(storey.MapClass):
 
 
 class Route:
+    def __init__(self, end="end"):
+        self.end = end
+
     def do(self, event):
         print("Before routing", event)
         return event
@@ -28,7 +31,7 @@ class Route:
     def select_outlets(self, event):
         if event.get("go_cyclic"):
             return ["count"]
-        return ["end"]
+        return [self.end]
 
 
 class Counter:

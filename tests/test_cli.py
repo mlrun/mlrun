@@ -12,9 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import pathlib
+import unittest.mock
+
+import pytest
+from click.testing import CliRunner
 
 import mlrun.projects
-from mlrun.__main__ import load_notification
+from mlrun.__main__ import load_notification, main
 from mlrun.artifacts.plots import PlotArtifact
 from mlrun.lists import ArtifactList
 
@@ -76,3 +80,48 @@ def generate_artifact(name, uid=None, kind=None):
         artifact["metadata"]["uid"] = uid
 
     return artifact
+
+
+@pytest.mark.parametrize(
+    "project",
+    [None, "my-project"],
+)
+def test_cli_load_source_success(project):
+    # Test load-source CLI with and without an explicit project
+    runner = CliRunner()
+    source_uri = "store://artifacts/my-project/handler.py"
+
+    cli_args = ["load-source", source_uri]
+    if project:
+        cli_args.extend(["--project", project])
+
+    with unittest.mock.patch(
+        "mlrun.__main__.load_source_code",
+        return_value="/home/mlrun_code/handler.py",
+    ) as mock_load:
+        result = runner.invoke(main, cli_args)
+
+    assert result.exit_code == 0
+    assert "Successfully loaded source to:" in result.output
+    mock_load.assert_called_once_with(
+        source_uri=source_uri,
+        target_dir="/home/mlrun_code",
+        project=project,
+    )
+
+
+def test_cli_load_source_failure():
+    # Test that CLI properly reports errors and exits with code 1
+    runner = CliRunner()
+
+    with unittest.mock.patch(
+        "mlrun.__main__.load_source_code",
+        side_effect=ValueError("Artifact not found"),
+    ):
+        result = runner.invoke(
+            main,
+            ["load-source", "store://artifacts/project/file.py"],
+        )
+
+    assert result.exit_code == 1
+    assert "Error loading source:" in result.output

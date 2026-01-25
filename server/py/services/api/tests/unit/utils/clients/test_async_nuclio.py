@@ -15,6 +15,7 @@
 import http
 
 import pytest
+from aioresponses import CallbackResult
 from aioresponses import aioresponses as aioresponses_
 
 import mlrun.common.constants
@@ -22,6 +23,7 @@ import mlrun.common.schemas
 import mlrun.config
 import mlrun.errors
 import mlrun.runtimes.nuclio.api_gateway
+from mlrun.utils.logger import context_id_var
 
 import framework.utils.clients.async_nuclio
 
@@ -202,3 +204,111 @@ async def test_nuclio_get_v3io_shard_lags(
         container_name=payload["containerName"],
         stream_path=payload["streamPath"],
     )
+
+
+@pytest.mark.asyncio
+async def test_async_request_includes_context_id_header(
+    api_url,
+    nuclio_client,
+    mock_aioresponse,
+):
+    """Verify that when context_id_var is set, outgoing async requests include x-igz-ctx header"""
+    context_id = "async-context-id-12345"
+    project_name = "default-project"
+    api_gateway_name = "test-gateway"
+
+    def verify_context_header(url, **kwargs):
+        headers = kwargs.get("headers", {})
+        assert (
+            mlrun.common.schemas.HeaderNames.igz_ctx in headers
+        ), f"Expected {mlrun.common.schemas.HeaderNames.igz_ctx} header in async request"
+        assert headers[mlrun.common.schemas.HeaderNames.igz_ctx] == context_id
+        return CallbackResult(
+            status=http.HTTPStatus.OK,
+            payload={
+                "metadata": {"name": f"{project_name}-{api_gateway_name}"},
+                "spec": {
+                    "name": api_gateway_name,
+                    "upstreams": [
+                        {"nucliofunction": {"name": "test-function"}, "percentage": 100}
+                    ],
+                },
+            },
+        )
+
+    request_url = f"{api_url}/api/api_gateways/{project_name}-{api_gateway_name}"
+    mock_aioresponse.get(request_url, callback=verify_context_header)
+
+    # Set the context variable
+    token = context_id_var.set(context_id)
+    try:
+        await nuclio_client.get_api_gateway(api_gateway_name, project_name)
+    finally:
+        context_id_var.reset(token)
+
+
+@pytest.mark.asyncio
+async def test_async_request_includes_context_id_on_delete(
+    api_url,
+    nuclio_client,
+    mock_aioresponse,
+):
+    """Verify context ID is propagated on delete operations"""
+    context_id = "delete-context-id-67890"
+    project_name = "default"
+    function_name = "test-function"
+
+    def verify_context_header(url, **kwargs):
+        headers = kwargs.get("headers", {})
+        assert mlrun.common.schemas.HeaderNames.igz_ctx in headers
+        assert headers[mlrun.common.schemas.HeaderNames.igz_ctx] == context_id
+        return CallbackResult(status=http.HTTPStatus.NO_CONTENT)
+
+    request_url = f"{api_url}/api/functions/"
+    mock_aioresponse.delete(request_url, callback=verify_context_header)
+
+    token = context_id_var.set(context_id)
+    try:
+        await nuclio_client.delete_function(function_name, project_name)
+    finally:
+        context_id_var.reset(token)
+
+
+@pytest.mark.asyncio
+async def test_async_request_without_context_id_when_not_set(
+    api_url,
+    nuclio_client,
+    mock_aioresponse,
+):
+    """Verify that when context_id_var is not set, x-igz-ctx header is not included"""
+    project_name = "default-project"
+    api_gateway_name = "test-gateway"
+
+    def verify_no_context_header(url, **kwargs):
+        headers = kwargs.get("headers", {})
+        # Header should not be present when context is None
+        assert (
+            mlrun.common.schemas.HeaderNames.igz_ctx not in headers
+        ), f"Did not expect {mlrun.common.schemas.HeaderNames.igz_ctx} header when context is not set"
+        return CallbackResult(
+            status=http.HTTPStatus.OK,
+            payload={
+                "metadata": {"name": f"{project_name}-{api_gateway_name}"},
+                "spec": {
+                    "name": api_gateway_name,
+                    "upstreams": [
+                        {"nucliofunction": {"name": "test-function"}, "percentage": 100}
+                    ],
+                },
+            },
+        )
+
+    request_url = f"{api_url}/api/api_gateways/{project_name}-{api_gateway_name}"
+    mock_aioresponse.get(request_url, callback=verify_no_context_header)
+
+    # Ensure context is None
+    token = context_id_var.set(None)
+    try:
+        await nuclio_client.get_api_gateway(api_gateway_name, project_name)
+    finally:
+        context_id_var.reset(token)

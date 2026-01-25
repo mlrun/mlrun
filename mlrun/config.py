@@ -282,7 +282,14 @@ default_config = {
                     "kfp_pod_user_unix_id": 5,
                 },
             },
-            "service_account": {"default": None},
+            "service_account": {
+                "default": None,
+                "forbidden_service_accounts": [
+                    "mlrun-api",
+                    "iguazio",
+                    "nuclio",
+                ],
+            },
             "state_thresholds": {
                 "default": {
                     "pending_scheduled": "1h",

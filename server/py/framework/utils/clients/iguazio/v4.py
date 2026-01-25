@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import tempfile
 import typing
 
 import httpx
@@ -171,7 +172,6 @@ class Client(BaseClient, project_follower.Member):
         :return: The resolved token name.
         :raises MLRunNotFoundError: If no valid token found or validation fails.
         """
-        import tempfile
 
         with tempfile.NamedTemporaryFile(
             mode="w", suffix=".yml", delete=True

@@ -156,7 +156,7 @@ class Client(BaseClient, project_follower.Member):
     def get_user_id_by_username(
         self,
         username: str,
-        request_headers: typing.Optional[dict] = None,
+        auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
     ) -> str:
         """
         Translate a username to user_id by querying the Iguazio management API.
@@ -171,13 +171,13 @@ class Client(BaseClient, project_follower.Member):
         """
 
         def _get_user_id():
-            self._client.set_override_auth_headers(request_headers)
-            return self._client.get_user(username).metadata.id
+            return self._client.get_user(username).metadata
 
         return self._try_callback_with_httpx_exceptions(
             _get_user_id,
             mlrun.errors.MLRunUnauthorizedError,
             f"Failed to get user id of '{username}' from Iguazio",
+            auth_headers=auth_info.request_headers,
         )
 
     def create_project(

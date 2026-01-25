@@ -659,30 +659,8 @@ class Secrets(
             return "*"
 
         # Different user - need to translate username to user_id
-        return self._get_user_id_by_username(username, auth_info.request_headers)
-
-    def _get_user_id_by_username(
-        self,
-        username: str,
-        request_headers: typing.Optional[dict] = None,
-    ) -> str:
-        """
-        Translate a username to user_id by querying the Iguazio management API.
-
-        :param username: The username to translate.
-        :param request_headers: Request headers for authentication with the Iguazio API.
-        :return: The user_id corresponding to the username.
-        :raises mlrun.errors.MLRunNotFoundError: If the user is not found.
-        :raises mlrun.errors.MLRunUnauthorizedError: If the request is unauthorized.
-        """
-        # TODO: move init iguazio_client (ML-11077)
         iguazio_client = framework.utils.clients.iguazio.v4.Client()
-        try:
-            return iguazio_client.get_user_id_by_username(username, request_headers)
-        except mlrun.errors.MLRunUnauthorizedError as exc:
-            raise mlrun.errors.MLRunNotFoundError(
-                f"User '{username}' not found"
-            ) from exc
+        return iguazio_client.get_user_id_by_username(username, auth_info)
 
     def _resolve_project_secret_key(
         self,

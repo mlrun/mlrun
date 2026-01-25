@@ -5886,7 +5886,17 @@ def _init_function_from_dict(
         )
 
     elif url.endswith(".py"):
-        if in_context and with_repo:
+        # For application runtime we set the source path directly, deploy() will upload it as artifact
+        if kind == mlrun.runtimes.RuntimeKinds.application:
+            func = new_function(
+                name,
+                image=image,
+                kind=kind,
+                handler=handler,
+                tag=tag,
+            )
+            func.spec.build.source = url
+        elif in_context and with_repo:
             # when load_source_on_run is used we allow not providing image as code will be loaded pre-run. ML-4994
             if (
                 not image

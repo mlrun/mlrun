@@ -87,6 +87,8 @@ class MLRunInternalLabels:
     app_name = f"{MLRUN_LABEL_PREFIX}app-name"
     endpoint_id = f"{MLRUN_LABEL_PREFIX}endpoint-id"
     endpoint_name = f"{MLRUN_LABEL_PREFIX}endpoint-name"
+    function_name = f"{MLRUN_LABEL_PREFIX}function-name"
+    system_generated = f"{MLRUN_LABEL_PREFIX}system-generated"
     host = "host"
     job_type = "job-type"
     kind = "kind"

@@ -911,6 +911,12 @@ default_config = {
         # Default is empty because if set, searches for the specific token name in the file, if empty, it will look
         # for a token named "default", if "default" does not exist, it will use the first token in the file
         "token_name": "",
+        # Timeout in seconds for token refresh retries when running inside an MLRun runtime.
+        # This allows time for Kubelet to propagate updated tokens from secrets to mounted files.
+        # Set to 0 to disable runtime-specific retry behavior.
+        "runtime_token_refresh_timeout": 120,
+        # Backoff interval in seconds between token refresh retry attempts when running in a runtime.
+        "runtime_token_refresh_backoff": 10,
     },
     # a runtime computed value. Do not set it manually.
     "auth_token_endpoint": "",

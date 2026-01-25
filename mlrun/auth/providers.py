@@ -313,6 +313,56 @@ class IGTokenProvider(DynamicTokenProvider):
     def authenticated_user_id(self) -> typing.Optional[str]:
         return mlrun.auth.utils.resolve_jwt_subject(self._token, raise_on_error=True)
 
+    def fetch_token(self):
+        """
+        Fetch a new access token from the token endpoint.
+
+        When running inside an MLRun runtime, uses a timeout-based retry mechanism to handle
+        the case where the offline token is being updated in a Kubernetes secret. This allows
+        time for Kubelet to propagate the new token to the mounted file.
+
+        When running outside a runtime (e.g., user SDK), uses quick retries without delays.
+        """
+        runtime_timeout = mlconf.auth_with_oauth_token.runtime_token_refresh_timeout
+        runtime_backoff = mlconf.auth_with_oauth_token.runtime_token_refresh_backoff
+        is_runtime = mlrun.utils.helpers.is_running_in_runtime()
+
+        logger.debug(
+            "Starting access token refresh",
+            is_runtime=is_runtime,
+            runtime_retry_enabled=is_runtime and runtime_timeout > 0,
+        )
+
+        if is_runtime and runtime_timeout > 0:
+            # In runtime: use timeout-based retry to handle Kubelet propagation delay
+            # Each retry re-reads the refresh token from the file
+            logger.debug(
+                "Using runtime token refresh retry mode. "
+                "Will retry for up to the configured timeout to handle potential "
+                "Kubelet propagation delays when refresh token is updated.",
+                timeout_seconds=runtime_timeout,
+                backoff_seconds=runtime_backoff,
+            )
+            mlrun.utils.helpers.retry_until_successful(
+                backoff=runtime_backoff,
+                timeout=runtime_timeout,
+                logger=logger,
+                verbose=True,
+                _function=self._fetch_token,
+            )
+            logger.debug("Successfully refreshed access token in runtime mode")
+        else:
+            # Not in runtime: use standard quick retries
+            logger.debug(
+                "Using standard token refresh mode",
+                max_retries=self._max_retries,
+            )
+            mlrun.utils.helpers.run_with_retry(
+                retry_count=self._max_retries,
+                func=self._fetch_token,
+            )
+            logger.debug("Successfully refreshed access token")
+
     def _cleanup(self):
         self._token = None
         self._token_total_lifetime = 0

@@ -176,15 +176,7 @@ class BuildahImageBuilder(image_builder.BaseImageBuilder):
         project_secrets: typing.Optional[list[k8s_client.V1EnvVar]],
         extra_args: str,
     ) -> list[str]:
-        builder_env = builder_env or []
-        project_secrets = project_secrets or []
-
-        flags: list[str] = []
-        for env in builder_env:
-            flags.extend(["--build-arg", f"{env.name}={env.value}"])
-
-        for secret in project_secrets:
-            flags.extend(["--build-arg", f"{secret.name}=${secret.name}"])
+        flags = self._generate_build_args(builder_env, project_secrets)
 
         if not extra_args:
             return flags
@@ -194,7 +186,7 @@ class BuildahImageBuilder(image_builder.BaseImageBuilder):
             flags.extend(["--build-arg", val])
 
         if "--skip-tls-verify" in parsed:
-            flags.extend(["--tls-verify=false"])
+            flags.append("--tls-verify=false")
 
         return flags
 
@@ -257,12 +249,7 @@ class BuildahImageBuilder(image_builder.BaseImageBuilder):
 
         init_container_env = {}
 
-        kpod.env = kpod.env or []
-        kpod.env = [
-            env_var
-            for env_var in kpod.env
-            if env_var.name not in ["AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY"]
-        ]
+        self._filter_aws_credentials_from_env(kpod)
 
         if not assume_instance_role:
             aws_credentials_file_env_key = "AWS_SHARED_CREDENTIALS_FILE"

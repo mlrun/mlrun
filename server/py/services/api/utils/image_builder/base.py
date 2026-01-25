@@ -186,6 +186,43 @@ class BaseImageBuilder(abc.ABC):
             sub_path=path,
         )
 
+    def _generate_build_args(
+        self,
+        builder_env: typing.Optional[list[k8s_client.V1EnvVar]],
+        project_secrets: typing.Optional[list[k8s_client.V1EnvVar]],
+    ) -> list[str]:
+        """Generate --build-arg flags from builder env and project secrets.
+
+        Builder env values are used directly (plain text).
+        Project secrets use $ reference to read from injected environment variables.
+        """
+        builder_env = builder_env or []
+        project_secrets = project_secrets or []
+
+        args: list[str] = []
+        for env in builder_env:
+            args.extend(["--build-arg", f"{env.name}={env.value}"])
+
+        for secret in project_secrets:
+            args.extend(["--build-arg", f"{secret.name}=${secret.name}"])
+
+        return args
+
+    def _filter_aws_credentials_from_env(
+        self, kpod: framework.utils.singletons.k8s.BasePod
+    ) -> None:
+        """Filter AWS credentials from pod env to avoid conflicts.
+
+        Project secrets might conflict with attached instance role or docker registry secret.
+        Remove AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY to prevent credential conflicts.
+        """
+        kpod.env = kpod.env or []
+        kpod.env = [
+            env_var
+            for env_var in kpod.env
+            if env_var.name not in ["AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY"]
+        ]
+
     def _get_builder_spec_attributes_from_runtime(
         self,
         project: str,

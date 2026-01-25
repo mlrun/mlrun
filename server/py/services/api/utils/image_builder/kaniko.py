@@ -144,16 +144,7 @@ class KanikoImageBuilder(image_builder.BaseImageBuilder):
         )
         init_container_env = {}
 
-        kpod.env = kpod.env or []
-
-        # project secret might conflict with the attached instance role/docker registry secret
-        # ensure "AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY" have no values or else kaniko will fail
-        # due to credentials conflict / lack of permission on given credentials
-        kpod.env = [
-            env_var
-            for env_var in kpod.env
-            if env_var.name not in ["AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY"]
-        ]
+        self._filter_aws_credentials_from_env(kpod)
 
         if assume_instance_role:
             # assume instance role has permissions to register and store a container image
@@ -200,19 +191,5 @@ class KanikoImageBuilder(image_builder.BaseImageBuilder):
         project_secrets: typing.Optional[list[k8s_client.V1EnvVar]],
         extra_args: str,
     ) -> list:
-        builder_env = builder_env or []
-        project_secrets = project_secrets or []
-
-        # Utilizing plain values as they were explicitly compiled by the user
-        for env in builder_env:
-            args.extend(["--build-arg", f"{env.name}={env.value}"])
-
-        # Utilizing '$' ensures that the value is not in plain text but rather
-        # read from the injected environment variables
-        for secret in project_secrets:
-            args.extend(["--build-arg", f"{secret.name}=${secret.name}"])
-
-        # Combine all the arguments into the Dockerfile
-        args = builder_utils.validate_and_merge_args_with_extra_args(args, extra_args)
-
-        return args
+        args.extend(self._generate_build_args(builder_env, project_secrets))
+        return builder_utils.validate_and_merge_args_with_extra_args(args, extra_args)

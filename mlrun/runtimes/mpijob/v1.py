@@ -53,6 +53,7 @@ class MPIV1ResourceSpec(MPIResourceSpec):
         graph=None,
         parameters=None,
         track_models=None,
+        auth=None,
     ):
         super().__init__(
             command=command,
@@ -87,6 +88,7 @@ class MPIV1ResourceSpec(MPIResourceSpec):
             graph=graph,
             parameters=parameters,
             track_models=track_models,
+            auth=auth,
         )
         self.clean_pod_policy = clean_pod_policy or MPIJobV1CleanPodPolicies.default()
 

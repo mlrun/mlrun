@@ -34,13 +34,13 @@ from pydantic.v1 import parse_obj_as
 import mlrun
 import mlrun.auth
 import mlrun.common.constants
-import mlrun.configuration_context
 import mlrun.common.formatters
 import mlrun.common.runtimes
 import mlrun.common.schemas
 import mlrun.common.schemas.model_monitoring.constants as mm_constants
 import mlrun.common.schemas.model_monitoring.model_endpoints as mm_endpoints
 import mlrun.common.types
+import mlrun.configuration_context
 import mlrun.k8s_utils
 import mlrun.platforms
 import mlrun.projects

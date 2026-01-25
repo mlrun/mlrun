@@ -62,6 +62,7 @@ class RemoteSparkSpec(KubeResourceSpec):
         graph=None,
         parameters=None,
         track_models=None,
+        auth=None,
     ):
         super().__init__(
             command=command,
@@ -95,6 +96,7 @@ class RemoteSparkSpec(KubeResourceSpec):
             graph=graph,
             parameters=parameters,
             track_models=track_models,
+            auth=auth,
         )
         self.provider = provider
 

@@ -35,7 +35,7 @@ import framework.utils.projects.remotes.follower as project_follower
 from framework.utils.clients.iguazio.base import BaseAsyncClient, BaseClient
 
 _GROUP_TYPE_KEY = "@type"
-_GROUP_TYPE_VALUE = "type.googleapis.com/group.Group"
+_GROUP_TYPE_VALUE = "type.googleapis.com/usergroup.Group"
 
 
 class Client(BaseClient, project_follower.Member):

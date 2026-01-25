@@ -62,7 +62,7 @@ class EventStreamProcessor:
         )
 
         self.tsdb_configurations = {}
-        if not mlrun.mlconf.is_ce_mode():
+        if not mlrun.mlconf.is_ce_mode() and not mlrun.mlconf.is_iguazio_v4_mode():
             self._initialize_v3io_configurations(
                 model_monitoring_access_key=model_monitoring_access_key
             )

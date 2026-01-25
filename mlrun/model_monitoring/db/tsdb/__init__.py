@@ -41,7 +41,7 @@ class ObjectTSDBFactory(enum.Enum):
         """
 
         if self == self.v3io_tsdb:
-            if mlrun.mlconf.is_ce_mode():
+            if mlrun.mlconf.is_ce_mode() or mlrun.mlconf.is_iguazio_v4_mode():
                 raise mlrun.errors.MLRunInvalidArgumentError(
                     f"{self.v3io_tsdb} is not supported in CE mode."
                 )

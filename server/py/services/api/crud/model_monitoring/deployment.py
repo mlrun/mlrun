@@ -14,7 +14,6 @@
 
 import asyncio
 import json
-import os
 import time
 import traceback
 import typing
@@ -259,14 +258,15 @@ class MonitoringDeployment:
             )
 
             # Propagate store-prefix override from the deploying pod into the controller if present.
-            monitoring_store_prefix_env = os.getenv(
-                "MLRUN_MODEL_ENDPOINT_MONITORING__STORE_PREFIXES__DEFAULT"
+            monitoring_store_prefix_env = mlrun.get_secret_or_env(
+                key=mm_constants.DEFAULT_STORE_PREFIX_ENV, default=None
             )
             if monitoring_store_prefix_env is not None:
                 fn.set_env(
-                    "MLRUN_MODEL_ENDPOINT_MONITORING__STORE_PREFIXES__DEFAULT",
-                    monitoring_store_prefix_env,
+                    name=mm_constants.DEFAULT_STORE_PREFIX_ENV,
+                    value=monitoring_store_prefix_env,
                 )
+
             minutes = base_period
             hours = days = 0
             batch_dict = {

@@ -206,6 +206,7 @@ class NuclioSpec(KubeResourceSpec):
             graph=graph,
             parameters=parameters,
             track_models=track_models,
+            auth=auth,
         )
 
         self.base_spec = base_spec or {}
@@ -229,7 +230,6 @@ class NuclioSpec(KubeResourceSpec):
         # When True it will set Nuclio spec.noBaseImagesPull to False (negative logic)
         # indicate that the base image should be pulled from the container registry (not cached)
         self.base_image_pull = False
-        self.auth = auth or {}
 
     def generate_nuclio_volumes(self):
         nuclio_volumes = []

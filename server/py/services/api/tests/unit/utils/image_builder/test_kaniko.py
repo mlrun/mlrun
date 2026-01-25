@@ -13,23 +13,23 @@
 # limitations under the License.
 
 
-from kubernetes import client
+import kubernetes.client as k8s_client
 
 import mlrun
 
-from services.api.utils.image_builder.kaniko import KanikoImageBuilder
+import services.api.utils.image_builder.kaniko as kaniko_image_builder
 
 
-def test_kaniko_image_builder_adds_build_args_from_builder_env(mocked_k8s_helper):
+def test_kaniko_image_builder_with_build_args(mocked_k8s_helper):
     function = mlrun.new_function("test", kind="job")
 
-    builder = KanikoImageBuilder()
+    builder = kaniko_image_builder.KanikoImageBuilder()
     kpod = builder.make_build_pod(
         project="test",
         context="/context",
         dest="docker-hub/repo:image",
         dockerfile="./Dockerfile",
-        builder_env=[client.V1EnvVar(name="GIT_TOKEN", value="token")],
+        builder_env=[k8s_client.V1EnvVar(name="GIT_TOKEN", value="token")],
         runtime_spec=function.spec,
     )
 

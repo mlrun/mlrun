@@ -17,31 +17,32 @@ import os
 import pathlib
 import typing
 
+import kubernetes.client as k8s_client
 import pytest
 import yaml
+from testcontainers.core.network import Network
+from testcontainers.registry import DockerRegistryContainer
+
+import mlrun.utils.helpers
 
 import framework.utils.singletons.k8s
+from .utils import wait_for_pod_phase
 
 if typing.TYPE_CHECKING:
     import testcontainers.k3s
 
-from kubernetes import client as k8s_client
 
 from .utils import create_or_replace_k8s_resource, ensure_k8s_resource_deleted
 
 
 @pytest.fixture(scope="session")
 def docker_network():
-    from testcontainers.core.network import Network
-
     with Network() as network:
         yield network
 
 
 @pytest.fixture(scope="session")
 def registry_container(docker_network):
-    from testcontainers.registry import DockerRegistryContainer
-
     registry = (
         DockerRegistryContainer()
         .with_network(docker_network)
@@ -70,11 +71,6 @@ def k3s_registries_config_path(tmp_path_factory: pytest.TempPathFactory) -> str:
 
 
 @pytest.fixture(scope="session")
-def in_cluster_registry_url() -> str:
-    return "distribution-registry:5000"
-
-
-@pytest.fixture(scope="session")
 def k3s(docker_network, registry_container, k3s_registries_config_path):
     logging.getLogger("urllib3").setLevel(logging.WARNING)
     logging.getLogger("testcontainers").setLevel(logging.DEBUG)
@@ -87,9 +83,6 @@ def k3s(docker_network, registry_container, k3s_registries_config_path):
         .with_network(docker_network)
         .with_volume_mapping(
             k3s_registries_config_path, "/etc/rancher/k3s/registries.yaml", "ro"
-        )
-        .with_kwargs(
-            privileged=True,
         )
         .with_name("k3s")
     )
@@ -128,16 +121,6 @@ def bad_ca_kubeconfig_path(
     return str(path)
 
 
-def _k8s_helper_from_config(
-    cfg_path: str,
-) -> framework.utils.singletons.k8s.K8sHelper:
-    return framework.utils.singletons.k8s.K8sHelper(
-        kube_config_path=cfg_path,
-        silent=False,
-        log=False,
-    )
-
-
 @pytest.fixture
 def invalid_ssl_ca_k8s_helper(
     bad_ca_kubeconfig_path: str,
@@ -150,21 +133,32 @@ def valid_k8s_helper(valid_kubeconfig_path) -> framework.utils.singletons.k8s.K8
     return _k8s_helper_from_config(valid_kubeconfig_path)
 
 
-@pytest.fixture
-def distribution_registry_k8s_service(
+@pytest.fixture(scope="session")
+def session_k8s_helper(
+    tmp_path_factory: pytest.TempPathFactory,
+    k3s: "testcontainers.k3s.K3SContainer",
+) -> framework.utils.singletons.k8s.K8sHelper:
+    raw_kubeconfig = yaml.safe_load(k3s.config_yaml())
+    path = tmp_path_factory.mktemp("kubeconfig") / "kubeconfig.yaml"
+    yaml.safe_dump(raw_kubeconfig, path.open("w"))
+    return _k8s_helper_from_config(str(path))
+
+
+@pytest.fixture(scope="session")
+def k3s_registry_service(
     registry_container,
     docker_network,
-    valid_k8s_helper: framework.utils.singletons.k8s.K8sHelper,
+    session_k8s_helper: framework.utils.singletons.k8s.K8sHelper,
 ):
+    """Create a K8s Service routing to the registry container, wait for DNS."""
     namespace = "default"
-    name = "distribution-registry"
-    port = 5000
+    name, port = "distribution-registry", 5000
+    registry_url = f"{name}:{port}"
 
     # Reload the container to ensure we have the latest network settings
     wrapped = registry_container.get_wrapped_container()
     wrapped.reload()
 
-    # Get the IP address of the registry container
     networks = wrapped.attrs["NetworkSettings"]["Networks"]
     ip = next(
         (
@@ -179,9 +173,6 @@ def distribution_registry_k8s_service(
             f"Failed resolving registry container IP. Networks: {networks}"
         )
 
-    # Create the service and endpoints in the k8s cluster
-    # The service is used to access the registry from the k8s cluster
-    # The endpoints are used to route traffic to the registry.
     service = k8s_client.V1Service(
         metadata=k8s_client.V1ObjectMeta(name=name, namespace=namespace),
         spec=k8s_client.V1ServiceSpec(
@@ -199,13 +190,78 @@ def distribution_registry_k8s_service(
     )
 
     create_or_replace_k8s_resource(
-        valid_k8s_helper, "service", name, service, namespace
+        session_k8s_helper, "service", name, service, namespace
     )
     create_or_replace_k8s_resource(
-        valid_k8s_helper, "endpoints", name, endpoints, namespace
+        session_k8s_helper, "endpoints", name, endpoints, namespace
     )
 
-    yield {"ip": ip, "port": port}
+    # Wait for DNS to propagate before allowing tests to run.
+    # This is critical for Kaniko which validates push permissions (via DNS lookup)
+    # before starting the build.
+    _wait_for_service_dns(session_k8s_helper, name, namespace)
 
-    ensure_k8s_resource_deleted(valid_k8s_helper, "endpoints", name, namespace)
-    ensure_k8s_resource_deleted(valid_k8s_helper, "service", name, namespace)
+    yield registry_url
+
+    ensure_k8s_resource_deleted(session_k8s_helper, "endpoints", name, namespace)
+    ensure_k8s_resource_deleted(session_k8s_helper, "service", name, namespace)
+
+
+def _k8s_helper_from_config(
+    cfg_path: str,
+) -> framework.utils.singletons.k8s.K8sHelper:
+    return framework.utils.singletons.k8s.K8sHelper(
+        kube_config_path=cfg_path,
+        silent=False,
+        log=False,
+    )
+
+
+def _wait_for_service_dns(
+    k8s_helper: framework.utils.singletons.k8s.K8sHelper,
+    service_name: str,
+    namespace: str,
+    timeout_seconds: int = 5 * 60,
+) -> None:
+    """
+    Wait until the Kubernetes service DNS is resolvable from within the cluster.
+
+    This creates a temporary pod that attempts to resolve the service DNS name.
+    Kaniko performs DNS lookups before building, so we must ensure DNS is propagated
+    before running build tests.
+    """
+
+    # Create a pod that tries to resolve the DNS and exits
+    pod = k8s_helper.v1api.create_namespaced_pod(
+        namespace=namespace,
+        body=k8s_client.V1Pod(
+            metadata=k8s_client.V1ObjectMeta(
+                generate_name=f"dns-check-{service_name}", namespace=namespace
+            ),
+            spec=k8s_client.V1PodSpec(
+                restart_policy="OnFailure",
+                containers=[
+                    k8s_client.V1Container(
+                        name="dns-check",
+                        image="gcr.io/iguazio/busybox:stable",
+                        command=[
+                            "/bin/sh",
+                            "-c",
+                            f"nslookup {service_name}.{namespace}.svc.cluster.local",
+                        ],
+                    )
+                ],
+            ),
+        ),
+    )
+    mlrun.utils.helpers.retry_until_successful(
+        backoff=3,
+        timeout=timeout_seconds,
+        logger=logging,
+        verbose=True,
+        _function=wait_for_pod_phase,
+        k8s=k8s_helper,
+        name=pod.metadata.name,
+        namespace=namespace,
+        desired_phases={"succeeded"},
+    )

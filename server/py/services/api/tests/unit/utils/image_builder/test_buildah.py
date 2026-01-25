@@ -13,17 +13,17 @@
 # limitations under the License.
 
 
-from kubernetes import client
+import kubernetes.client as k8s_client
 
 import mlrun
 
-from services.api.utils.image_builder.buildah import BuildahImageBuilder
+import services.api.utils.image_builder.buildah as buildah_image_builder
 
 
 def test_buildah_builder_basic_pod_with_secret(mocked_k8s_helper):
     runtime_spec = _make_runtime_spec()
 
-    builder = BuildahImageBuilder()
+    builder = buildah_image_builder.BuildahImageBuilder()
     kpod = builder.make_build_pod(
         project="test",
         context="/context",
@@ -31,7 +31,7 @@ def test_buildah_builder_basic_pod_with_secret(mocked_k8s_helper):
         dockerfile="/context/Dockerfile",
         secret_name="reg-secret",
         runtime_spec=runtime_spec,
-        builder_env=[client.V1EnvVar(name="A", value="b")],
+        builder_env=[k8s_client.V1EnvVar(name="A", value="b")],
         project_secrets=[],
     )
 
@@ -49,9 +49,9 @@ def test_buildah_builder_basic_pod_with_secret(mocked_k8s_helper):
     assert "/tmp/.docker" in mount_paths
 
 
-def test_buildah_builder_remote_git_context_adds_init_container(mocked_k8s_helper):
+def test_buildah_builder_remote_git_context(mocked_k8s_helper):
     runtime_spec = _make_runtime_spec()
-    builder = BuildahImageBuilder()
+    builder = buildah_image_builder.BuildahImageBuilder()
     kpod = builder.make_build_pod(
         project="test",
         context="git://github.com/mlrun/mlrun#refs/heads/development",

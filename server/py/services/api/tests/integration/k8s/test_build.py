@@ -28,8 +28,7 @@ from services.api.tests.integration.k8s.utils import dump_pod_logs, wait_for_pod
 @pytest.mark.integration
 @pytest.mark.parametrize("builder_kind", ["kaniko", "buildah"])
 def test_function_build_and_run_image(
-    in_cluster_registry_url: str,
-    distribution_registry_k8s_service,
+    k3s_registry_service: str,
     valid_kubeconfig_path: str,
     monkeypatch,
     builder_kind: str,
@@ -47,7 +46,7 @@ def test_function_build_and_run_image(
 
     # Configure builder to push to the local test registry
     monkeypatch.setattr(
-        mlrun.mlconf.httpdb.builder, "docker_registry", in_cluster_registry_url
+        mlrun.mlconf.httpdb.builder, "docker_registry", k3s_registry_service
     )
     monkeypatch.setattr(mlrun.mlconf.httpdb.builder, "docker_registry_secret", "")
     monkeypatch.setattr(
@@ -63,14 +62,14 @@ def test_function_build_and_run_image(
     project = "it"
     name = "build-run"
     tag = uuid.uuid4().hex[:12]
-    image = f"{in_cluster_registry_url}/mlrun-it/{builder_kind}:{tag}"
+    image = f"{k3s_registry_service}/mlrun-it/{builder_kind}:{tag}"
     marker = f"mlrun-integration-{builder_kind}-{tag}"
 
     fn = mlrun.new_function(name=name, kind="job")
     fn.metadata.project = project
     fn.metadata.namespace = "default"
     fn.spec.build.image = image
-    fn.spec.build.base_image = "python:3.11-slim"
+    fn.spec.build.base_image = "gcr.io/iguazio/python:3.11-slim"
     fn.spec.build.commands = [f"echo {marker} > /mlrun_build_marker"]
 
     # Trigger build (non-interactive -> create build pod)

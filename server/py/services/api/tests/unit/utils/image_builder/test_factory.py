@@ -15,26 +15,28 @@
 
 import pytest
 
-from mlrun.config import config
+import mlrun
 
-from services.api.utils.image_builder.buildah import BuildahImageBuilder
-from services.api.utils.image_builder.factory import ImageBuilderFactory
-from services.api.utils.image_builder.kaniko import KanikoImageBuilder
+import services.api.utils.image_builder.buildah as buildah_image_builder
+import services.api.utils.image_builder.factory as image_builder_factory
+import services.api.utils.image_builder.kaniko as kaniko_image_builder
 
 
 @pytest.mark.parametrize(
     "kind_config,kind_param,expected_cls",
     [
-        ("kaniko", None, KanikoImageBuilder),
-        ("buildah", None, BuildahImageBuilder),
-        ("kaniko", "buildah", BuildahImageBuilder),
-        (None, None, KanikoImageBuilder),
-        (None, "buildah", BuildahImageBuilder),
+        ("kaniko", None, kaniko_image_builder.KanikoImageBuilder),
+        ("buildah", None, buildah_image_builder.BuildahImageBuilder),
+        ("kaniko", "buildah", buildah_image_builder.BuildahImageBuilder),
+        (None, None, kaniko_image_builder.KanikoImageBuilder),
+        (None, "buildah", buildah_image_builder.BuildahImageBuilder),
     ],
 )
 def test_image_builder_factory_create_builder(
     kind_config, kind_param, expected_cls, monkeypatch
 ):
-    monkeypatch.setattr(config.httpdb.builder, "container_builder_kind", kind_config)
-    builder = ImageBuilderFactory.create_builder(kind=kind_param)
+    monkeypatch.setattr(
+        mlrun.mlconf.httpdb.builder, "container_builder_kind", kind_config
+    )
+    builder = image_builder_factory.ImageBuilderFactory.create_builder(kind=kind_param)
     assert isinstance(builder, expected_cls)

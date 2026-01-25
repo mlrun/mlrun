@@ -246,8 +246,8 @@ def test_log_dataset_with_column_overflow(monkeypatch, ensure_project):
     assert artifact.status.header_original_length == 6
 
 
-def test_create_dataset_non_existing_label():
-    project = mlrun.new_project("artifact-experiment", save=False)
+def test_create_dataset_non_existing_label(new_project_factory):
+    project = new_project_factory("artifact-experiment", save=False)
     df = pandas.DataFrame(
         {
             "column_1": [0, 1, 2, 3, 4],

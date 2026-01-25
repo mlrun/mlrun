@@ -60,6 +60,7 @@ def extra_requirements() -> dict[str, list[str]]:
             # because confluent kafka supports avro format by default
             "avro~=1.11",
         ],
+        "rabbitmq": ["pika~=1.3"],
         "redis": ["redis~=4.3"],
         "databricks-sdk": ["databricks-sdk~=0.20.0"],
         "sqlalchemy": ["sqlalchemy~=2.0"],

@@ -29,6 +29,7 @@ import mlrun.common.types
 import mlrun.errors
 from mlrun.utils import get_in
 
+import framework.utils.clients.helpers as clients_helpers
 import framework.utils.clients.service_account_token as service_account_token
 import framework.utils.projects.remotes.follower as project_follower
 from framework.utils.clients.iguazio.base import BaseAsyncClient, BaseClient
@@ -143,7 +144,6 @@ class Client(BaseClient, project_follower.Member):
         # Use Iguazio client to revoke the token
         def _revoke_offline_token():
             options = RevokeOfflineTokenOptionsV1(token=token)
-            self._client.set_override_auth_headers(request_headers)
             self._client.revoke_offline_token(options=options)
             self._logger.info("Successfully revoked offline token via Iguazio")
 
@@ -193,7 +193,6 @@ class Client(BaseClient, project_follower.Member):
             #       determine the owner of the project. The iguazio api needs to be updated to accept an explicit owner
             #       parameter so we can use the service account token here.
             #       This isn't required now, but will be for the project sync functionality.
-            self._client.set_override_auth_headers(auth_info.request_headers)
             self._client.create_default_project_policies(project=project.metadata.name)
             self._logger.info(
                 "Successfully created default project policies in Iguazio"
@@ -203,6 +202,7 @@ class Client(BaseClient, project_follower.Member):
             _create_default_project_policies,
             mlrun.errors.MLRunInternalServerError,
             "Failed to create default project policies in Iguazio",
+            auth_headers=auth_info.request_headers,
         )
 
     def store_project(
@@ -217,7 +217,6 @@ class Client(BaseClient, project_follower.Member):
         )
 
         def _update_owner_or_create_policies():
-            self._client.set_override_auth_headers(auth_info.request_headers)
             try:
                 # Try to create policies first
                 self._client.create_default_project_policies(
@@ -244,6 +243,7 @@ class Client(BaseClient, project_follower.Member):
             _update_owner_or_create_policies,
             mlrun.errors.MLRunInternalServerError,
             "Failed to store project owner or create default policies in Iguazio",
+            auth_headers=auth_info.request_headers,
         )
 
     def patch_project(
@@ -263,7 +263,6 @@ class Client(BaseClient, project_follower.Member):
                 return
 
             options = UpdateProjectOwnerOptionsV1(owner=owner)
-            self._client.set_override_auth_headers(auth_info.request_headers)
             self._client.update_project_owner(project=name, options=options)
             self._logger.info("Successfully updated project owner in Iguazio")
 
@@ -271,6 +270,7 @@ class Client(BaseClient, project_follower.Member):
             _update_project_owner,
             mlrun.errors.MLRunInternalServerError,
             "Failed to update project owner in Iguazio",
+            auth_headers=auth_info.request_headers,
         )
 
     def delete_project(
@@ -283,9 +283,6 @@ class Client(BaseClient, project_follower.Member):
         self._logger.debug("Deleting project policies in Iguazio")
 
         def _delete_project_policies():
-            self._client.set_override_auth_headers(
-                self._service_account_token_client.auth_headers
-            )
             self._client.delete_project_policies(project=name)
             self._logger.info("Successfully deleted project policies in Iguazio")
 
@@ -339,11 +336,13 @@ class Client(BaseClient, project_follower.Member):
     def _project_policies_exist(
         self, project: str, auth_info: mlrun.common.schemas.AuthInfo
     ) -> bool:
-        self._client.set_override_auth_headers(
-            self._service_account_token_client.auth_headers
-        )
         try:
-            self._client.get_project_policy_assignments(project=project)
+            with self._client.with_headers(
+                clients_helpers.enrich_headers(
+                    headers=self._service_account_token_client.auth_headers
+                )
+            ):
+                return self._client.get_project_policy_assignments(project=project)
         except httpx.HTTPStatusError as exc:
             error_message, ctx = self._extract_response_error(exc.response)
             if exc.response.status_code == httpx.codes.NOT_FOUND:
@@ -396,11 +395,14 @@ class Client(BaseClient, project_follower.Member):
         """
         Extract and return AuthInfo from a valid session verification response.
         """
-        username, user_id, group_ids = self._parse_auth_response_data(response_body)
+        username, user_id, group_ids, resource_type = self._parse_auth_response_data(
+            response_body
+        )
         return mlrun.common.schemas.AuthInfo(
             username=username,
             user_id=user_id,
             user_group_ids=group_ids,
+            kind=mlrun.common.schemas.AuthInfoKind(resource_type),
         )
 
     @property
@@ -433,9 +435,15 @@ class Client(BaseClient, project_follower.Member):
         callback: typing.Callable[..., typing.Any],
         exception_type: type[Exception],
         failure_message: str,
+        auth_headers: typing.Optional[dict[str, str]] = None,
     ) -> typing.Any:
         try:
-            return callback()
+            headers = auth_headers or self._service_account_token_client.auth_headers
+            # Inject auth headers and context id to headers for logging correlation
+            with self._client.with_headers(
+                clients_helpers.enrich_headers(headers=headers)
+            ):
+                return callback()
         except httpx.HTTPStatusError as exc:
             error_message, ctx = self._extract_response_error(exc.response)
             self._logger.warning(
@@ -464,9 +472,10 @@ class Client(BaseClient, project_follower.Member):
     @staticmethod
     def _parse_auth_response_data(
         response_body: typing.Mapping[typing.Any, typing.Any],
-    ) -> tuple[str, str, list[str]]:
+    ) -> tuple[str, str, list[str], str]:
         """
-        Validate and parse the authentication response body to extract the username, user ID, and group IDs.
+        Validate and parse the authentication response body to extract the username, user ID, group IDs and type of
+        authentication (user or service account).
         """
         if not isinstance(response_body, dict):
             raise mlrun.errors.MLRunBadRequestError("Expected dict in response body")
@@ -485,6 +494,12 @@ class Client(BaseClient, project_follower.Member):
 
         group_ids = []
 
+        resource_type = get_in(
+            response_body,
+            "metadata.resourceType",
+            mlrun.common.schemas.AuthInfoKind.user,
+        )
+
         relationships = response_body.get("relationships")
         if isinstance(relationships, list):
             for relationship in relationships:
@@ -497,7 +512,7 @@ class Client(BaseClient, project_follower.Member):
                 "Invalid format for 'relationships' in authentication response"
             )
 
-        return username, user_id, group_ids
+        return username, user_id, group_ids, resource_type
 
 
 class AsyncClient(BaseAsyncClient, Client):

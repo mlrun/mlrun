@@ -566,20 +566,21 @@ default_config = {
             # container image builder kind used when building images inside kubernetes cluster
             # options: "kaniko", "buildah"
             "container_builder_kind": "kaniko",
-            "kaniko_image": "gcr.io/kaniko-project/executor:v1.23.2",  # kaniko builder image
-            "kaniko_init_container_image": "alpine:3.20",
+            "kaniko_image": "gcr.io/iguazio/kaniko-executor:v1.24.0",  # kaniko builder image
+            "kaniko_init_container_image": "gcr.io/iguazio/alpine:3.22",
             # image for kaniko init container when docker registry is ECR
-            "kaniko_aws_cli_image": "amazon/aws-cli:2.17.16",
+            "kaniko_aws_cli_image": "gcr.io/iguazio/aws-cli:2.27.43",
             # kaniko sometimes fails to get filesystem from image, this is a workaround to retry the process
             # a known issue in Kaniko - https://github.com/GoogleContainerTools/kaniko/issues/1717
             "kaniko_image_fs_extraction_retries": "3",
             # kaniko sometimes fails to push image to registry due to network issues
             "kaniko_image_push_retry": "3",
-            # buildah builder image (rootless / daemonless)
+            # buildah
             "buildah_image": "quay.io/buildah/stable:v1.42",
-            # buildah sometimes fails to push image to registry due to network issues
+            "buildah_init_container_image": "gcr.io/iguazio/alpine:3.22",
+            "buildah_git_init_container_image": "gcr.io/iguazio/alpine-git:2.52.0",
             "buildah_image_push_retry": "3",
-            # additional docker build args in json encoded base64 format
+            # additional container image build args in json encoded base64 format
             "build_args": "",
             "pip_ca_secret_name": "",
             "pip_ca_secret_key": "",

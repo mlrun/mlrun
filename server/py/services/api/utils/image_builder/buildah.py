@@ -13,16 +13,17 @@
 # limitations under the License.
 
 
+import base64
 import typing
 
 from kubernetes import client
 
 import mlrun.common.schemas
-import mlrun.runtimes.utils
 import mlrun.utils
 from mlrun.config import config
 
 import framework.utils.singletons.k8s
+from services.api.utils import builder as builder_utils
 from services.api.utils.image_builder.base import BaseImageBuilder
 
 
@@ -50,13 +51,11 @@ class BuildahImageBuilder(BaseImageBuilder):
         project_default_fucntion_node_selector: typing.Optional[dict] = None,
         auth_info: typing.Optional[mlrun.common.schemas.AuthInfo] = None,
     ) -> framework.utils.singletons.k8s.BasePod:
-        from services.api.utils import builder as builder_utils
-
         extra_runtime_spec: dict = {}
         if not registry:
             registry = dest.partition("/")[0]
 
-        for attribute, handler in self.get_kaniko_spec_attributes_from_runtime(
+        for attribute, handler in self.get_builder_spec_attributes_from_runtime(
             project,
             runtime_spec,
             project_default_fucntion_node_selector,
@@ -80,7 +79,7 @@ class BuildahImageBuilder(BaseImageBuilder):
         tls_verify_pull = self._resolve_tls_verify_mode(
             config.httpdb.builder.insecure_pull_registry_mode, secret_name
         )
-        tls_verify_push = self._resolve_tls_verify_mode(
+        self._resolve_tls_verify_mode(
             config.httpdb.builder.insecure_push_registry_mode, secret_name
         )
 
@@ -91,17 +90,19 @@ class BuildahImageBuilder(BaseImageBuilder):
         )
 
         log_level = "debug" if verbose else "info"
+        common_args = [
+            "--storage-driver=vfs",
+            f"--tls-verify={str(tls_verify_pull).lower()}",
+        ]
 
         build_cmd = " ".join(
             [
                 "buildah",
-                "--log-level",
-                log_level,
-                "bud",
-                "--storage-driver=vfs",
-                f"--tls-verify={'true' if tls_verify_pull else 'false'}",
-                f"--file {dockerfile}",
-                f"--tag {dest}",
+                f"--log-level={log_level}",
+                "build",
+                *common_args,
+                f"--file={dockerfile}",
+                f"--tag={dest}",
                 *build_args_flags,
                 context,
             ]
@@ -109,30 +110,15 @@ class BuildahImageBuilder(BaseImageBuilder):
         push_cmd = " ".join(
             [
                 "buildah",
-                "--log-level",
-                log_level,
+                f"--log-level={log_level}",
                 "push",
-                "--storage-driver=vfs",
-                f"--tls-verify={'true' if tls_verify_push else 'false'}",
+                *common_args,
                 dest,
                 f"docker://{dest}",
             ]
         )
 
-        default_requests = config.get_default_function_pod_requirement_resources(
-            "requests", with_gpu=False
-        )
-        resources = {
-            "requests": mlrun.runtimes.utils.generate_resources(
-                mem=default_requests.get("memory"), cpu=default_requests.get("cpu")
-            )
-        }
-        if runtime_spec:
-            gpu_resources = mlrun.utils.get_enriched_gpu_limits(
-                runtime_spec.resources.get("limits", {})
-            )
-            if gpu_resources:
-                resources["limits"] = gpu_resources
+        resources = self._resolve_resources(runtime_spec)
 
         kpod = framework.utils.singletons.k8s.BasePod(
             name or "mlrun-build",
@@ -156,23 +142,19 @@ class BuildahImageBuilder(BaseImageBuilder):
             commands = []
             env = {}
             if dockertext:
-                from base64 import b64encode
-
-                env["DOCKERFILE"] = b64encode(dockertext.encode("utf-8")).decode(
+                env["DOCKERFILE"] = base64.b64encode(dockertext.encode("utf-8")).decode(
                     "utf-8"
                 )
                 commands.append("echo ${DOCKERFILE} | base64 -d > /empty/Dockerfile")
             if inline_code:
-                from base64 import b64encode
-
                 filename = inline_path or "main.py"
-                env["CODE"] = b64encode(inline_code.encode("utf-8")).decode("utf-8")
+                env["CODE"] = base64.b64encode(inline_code.encode("utf-8")).decode(
+                    "utf-8"
+                )
                 commands.append("echo ${CODE} | base64 -d > /empty/" + filename)
             if requirements:
-                from base64 import b64encode
-
                 requirements_file_content = "{}\n".format("\n".join(requirements))
-                env["REQUIREMENTS"] = b64encode(
+                env["REQUIREMENTS"] = base64.b64encode(
                     requirements_file_content.encode("utf-8")
                 ).decode("utf-8")
                 commands.append(
@@ -261,8 +243,7 @@ class BuildahImageBuilder(BaseImageBuilder):
             )
 
             kpod.append_init_container(
-                # TODO: enrich image from config
-                "alpine:3.20",
+                config.httpdb.builder.buildah_init_container_image,
                 command=["/bin/sh"],
                 args=["-c", f"set -e; apk add --no-cache wget tar; {cmd}"],
                 name="fetch-context",
@@ -282,8 +263,7 @@ class BuildahImageBuilder(BaseImageBuilder):
         )
 
         kpod.append_init_container(
-            # TODO: enrich image from config
-            "alpine/git:2.45.2",
+            config.httpdb.builder.buildah_git_init_container_image,
             command=["/bin/sh"],
             args=["-c", f"set -e; rm -rf /context/*; {clone_cmd}"],
             name="clone-context",

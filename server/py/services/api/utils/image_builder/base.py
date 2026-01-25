@@ -16,11 +16,14 @@
 import abc
 import typing
 
-from kubernetes import client
+import kubernetes.client as k8s_client
 
 import mlrun.common.schemas
 import mlrun.k8s_utils
 import mlrun.runtimes.pod
+import mlrun.runtimes.utils
+import mlrun.utils
+import mlrun.utils.helpers
 
 import framework.api.utils
 import framework.utils.singletons.k8s
@@ -42,12 +45,12 @@ class AbstractBaseImageBuilder(abc.ABC):
         secret_name: typing.Optional[str] = None,
         name: str = "",
         verbose: bool = False,
-        builder_env: typing.Optional[list[client.V1EnvVar]] = None,
+        builder_env: typing.Optional[list[k8s_client.V1EnvVar]] = None,
         runtime_spec=None,
         registry: typing.Optional[str] = None,
         extra_args: str = "",
         extra_labels: typing.Optional[dict] = None,
-        project_secrets: typing.Optional[list[client.V1EnvVar]] = None,
+        project_secrets: typing.Optional[list[k8s_client.V1EnvVar]] = None,
         project_default_fucntion_node_selector: typing.Optional[dict] = None,
         auth_info: typing.Optional[mlrun.common.schemas.AuthInfo] = None,
     ) -> framework.utils.singletons.k8s.BasePod:
@@ -56,7 +59,7 @@ class AbstractBaseImageBuilder(abc.ABC):
 
 
 class BaseImageBuilder(abc.ABC):
-    def get_kaniko_spec_attributes_from_runtime(
+    def get_builder_spec_attributes_from_runtime(
         self,
         project: str,
         runtime_spec: mlrun.runtimes.pod.KubeResourceSpec,
@@ -133,3 +136,30 @@ class BaseImageBuilder(abc.ABC):
             "priority_class_name": identity_handler,
             "service_account": service_account_handler,
         }
+
+    def _resolve_resources(
+        self, runtime_spec: mlrun.runtimes.pod.KubeResourceSpec
+    ) -> dict:
+        # While requests mainly affect scheduling, setting a limit may prevent Builder pod
+        # from finishing successfully (destructive), since we're not allowing to override the default
+        # specifically for the builder pod, we're setting only the requests
+        # we cannot specify gpu requests without specifying gpu limits, so we set requests without gpu field
+        default_requests = mlrun.mlconf.get_default_function_pod_requirement_resources(
+            "requests", with_gpu=False
+        )
+        resources = {
+            "requests": mlrun.runtimes.utils.generate_resources(
+                mem=default_requests.get("memory"), cpu=default_requests.get("cpu")
+            )
+        }
+        # Some cloud providers add a toleration when a GPU limit is set.
+        # If the builder pod inherits a GPU-related node selector from the function
+        # but lacks a GPU limit, it may get stuck in a pending state due to unsatisfiable scheduling.
+        # Setting GPU limits to zero ensures tolerations are applied while preventing GPU allocation.
+        if runtime_spec:
+            gpu_resources = mlrun.utils.get_enriched_gpu_limits(
+                runtime_spec.resources.get("limits", {})
+            )
+            if gpu_resources:
+                resources["limits"] = gpu_resources
+        return resources

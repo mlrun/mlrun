@@ -246,3 +246,58 @@ class TestMockModelProviderTracking(
         assert len(error_df) == 1
         error_dict = error_df.head(1).to_dict(orient="records")[0]
         assert error_dict["error_count"] == 2
+
+    @pytest.mark.parametrize(
+        "execution_mechanism",
+        ["process_pool", "dedicated_process", "naive", "asyncio", "thread_pool"],
+    )
+    def test_llmodel_batch_step_with_graph(self, execution_mechanism):
+        mlrun_model_name = "mock_model"
+        model_url = "mock://my-mock-model"
+
+        model_artifact, llm_prompt_artifact, function = setup_remote_model_test(
+            self.project,
+            model_url,
+            mlrun_model_name=mlrun_model_name,
+            image=self.image,
+            execution_mechanism=execution_mechanism,
+            batch_step=True,
+        )
+
+        # TODO: Add model monitoring setup
+        # self.set_mm_credentials()
+        # function.set_tracking()
+        # self.project.enable_model_monitoring(
+        #     deploy_histogram_data_drift_app=False,
+        #     image=self.image,
+        # )
+
+        function.deploy()
+
+        def send_event(event, delay):
+            sleep(delay)
+            return function.invoke(f"v2/models/{mlrun_model_name}/infer", event)
+
+        with ThreadPoolExecutor(max_workers=len(INPUT_DATA)) as executor:
+            futures = [
+                executor.submit(send_event, input_event, i * 0.1)
+                for i, input_event in enumerate(INPUT_DATA)
+            ]
+            responses = [future.result() for future in futures]
+
+        # Verify we got all responses
+        assert len(responses) == len(
+            INPUT_DATA
+        ), f"Expected {len(INPUT_DATA)} responses, got {len(responses)}"
+        # Verify each response has correct structure
+        for i, response in enumerate(responses):
+            assert "output" in response
+            output = response["output"]
+            self._verify_single_response(output, expect_counter=True)
+        # TODO: Verify tracking data - model monitoring verification
+        # sleep(180)
+        # endpoint_name = "my_endpoint"
+        # function_name = function.metadata.name
+        # mep = mlrun.db.get_run_db().get_model_endpoint(...)
+        # v3io_df = pd.read_parquet(...)
+        # Verify 3 batches (2+2+1) in tracking data

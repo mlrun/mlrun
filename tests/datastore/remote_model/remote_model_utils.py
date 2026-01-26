@@ -216,7 +216,7 @@ def setup_remote_model_test(
     model_class: str = "LLModel",
     default_config: Optional[dict] = None,
     include_llm_artifact=True,
-    batch_step = False
+    batch_step=False,
 ):
     model_artifact = project.log_model(
         mlrun_model_name,
@@ -245,7 +245,11 @@ def setup_remote_model_test(
     graph = function.set_topology("flow", engine="async")
     if batch_step:
         graph = graph.to(
-            "storey.Batch", "my_batching", max_events=2, flush_after_seconds=1, full_event=True,
+            "storey.Batch",
+            "my_batching",
+            max_events=2,
+            flush_after_seconds=1,
+            full_event=True,
         )
     model_runner_step = ModelRunnerStep(name="my_model_runner")
     model_runner_step.add_model(

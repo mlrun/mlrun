@@ -404,19 +404,14 @@ class TestMockModelProvider(BaseMockModelProviderTest):
         "execution_mechanism",
         ["process_pool", "dedicated_process", "naive", "asyncio", "thread_pool"],
     )
-    def test_llmodel_batch_step(
-        self, execution_mechanism, rundb_mock
-    ):
+    def test_llmodel_batch_step(self, execution_mechanism, rundb_mock):
         """Test batch processing using storey.Batch step with LLModel and MockModelProvider"""
 
         project = mlrun.new_project("test-mock-batch-graph", save=False)
         model_url = "mock://my-mock-model"
 
         model_artifact, llm_prompt_artifact, function = setup_remote_model_test(
-            project,
-            model_url,
-            execution_mechanism=execution_mechanism,
-            batch_step=True
+            project, model_url, execution_mechanism=execution_mechanism, batch_step=True
         )
         # TODO : Enable tracking verification for batch step test
         # function.set_tracking("dummy://", enable_tracking=True)

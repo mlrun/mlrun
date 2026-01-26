@@ -79,11 +79,7 @@ def test_build_with_http_remote_context(
     monkeypatch,
     builder_kind: str,
 ):
-    """Test building an image with HTTP remote context source.
-
-    This test verifies that both Kaniko and Buildah can fetch build context
-    from an HTTP URL (tarball) and successfully build an image.
-    """
+    """Test building an image with HTTP context source."""
     k8s = framework.utils.singletons.k8s.K8sHelper(
         kube_config_path=valid_kubeconfig_path,
         silent=False,
@@ -120,18 +116,13 @@ def test_build_with_http_remote_context(
 
 @pytest.mark.integration
 @pytest.mark.parametrize("builder_kind", ["kaniko", "buildah"])
-def test_build_with_git_remote_context(
+def test_build_with_git_context(
     k3s_registry_service: str,
     valid_kubeconfig_path: str,
     monkeypatch,
     builder_kind: str,
 ):
-    """Test building an image with Git remote context source.
-
-    This test verifies that both Kaniko and Buildah can clone a Git repository
-    and use it as build context to successfully build an image.
-    Uses a public GitHub repository with a simple Dockerfile.
-    """
+    """Test building an image with Git context source."""
     k8s = framework.utils.singletons.k8s.K8sHelper(
         kube_config_path=valid_kubeconfig_path,
         silent=False,

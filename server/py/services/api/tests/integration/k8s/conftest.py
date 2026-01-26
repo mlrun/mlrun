@@ -11,28 +11,29 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
 import base64
+import contextlib
 import logging
 import os
 import pathlib
-import typing
 
 import kubernetes.client as k8s_client
 import pytest
+import testcontainers.k3s
 import yaml
+from testcontainers.core.container import DockerContainer
 from testcontainers.core.network import Network
 from testcontainers.registry import DockerRegistryContainer
 
 import mlrun.utils.helpers
 
 import framework.utils.singletons.k8s
-from .utils import wait_for_pod_phase
-
-if typing.TYPE_CHECKING:
-    import testcontainers.k3s
-
-
-from .utils import create_or_replace_k8s_resource, ensure_k8s_resource_deleted
+from .utils import (
+    create_or_replace_k8s_resource,
+    ensure_k8s_resource_deleted,
+    wait_for_pod_phase,
+)
 
 
 @pytest.fixture(scope="session")
@@ -76,7 +77,6 @@ def k3s(docker_network, registry_container, k3s_registries_config_path):
     logging.getLogger("testcontainers").setLevel(logging.DEBUG)
 
     os.environ["TESTCONTAINERS_HOST_OVERRIDE"] = "host.docker.internal"
-    import testcontainers.k3s
 
     container = (
         testcontainers.k3s.K3SContainer()
@@ -151,165 +151,40 @@ def k3s_registry_service(
     session_k8s_helper: framework.utils.singletons.k8s.K8sHelper,
 ):
     """Create a K8s Service routing to the registry container, wait for DNS."""
-    namespace = "default"
-    name, port = "distribution-registry", 5000
-    registry_url = f"{name}:{port}"
-
-    # Reload the container to ensure we have the latest network settings
-    wrapped = registry_container.get_wrapped_container()
-    wrapped.reload()
-
-    networks = wrapped.attrs["NetworkSettings"]["Networks"]
-    ip = next(
-        (
-            details.get("IPAddress")
-            for details in (networks or {}).values()
-            if details.get("IPAddress")
-        ),
-        None,
-    )
-    if not ip:
-        raise RuntimeError(
-            f"Failed resolving registry container IP. Networks: {networks}"
-        )
-
-    service = k8s_client.V1Service(
-        metadata=k8s_client.V1ObjectMeta(name=name, namespace=namespace),
-        spec=k8s_client.V1ServiceSpec(
-            ports=[k8s_client.V1ServicePort(port=port, target_port=port)],
-        ),
-    )
-    endpoints = k8s_client.V1Endpoints(
-        metadata=k8s_client.V1ObjectMeta(name=name, namespace=namespace),
-        subsets=[
-            k8s_client.V1EndpointSubset(
-                addresses=[k8s_client.V1EndpointAddress(ip=ip)],
-                ports=[k8s_client.CoreV1EndpointPort(port=port)],
-            )
-        ],
-    )
-
-    create_or_replace_k8s_resource(
-        session_k8s_helper, "service", name, service, namespace
-    )
-    create_or_replace_k8s_resource(
-        session_k8s_helper, "endpoints", name, endpoints, namespace
-    )
-
-    # Wait for DNS to propagate before allowing tests to run.
-    # This is critical for Kaniko which validates push permissions (via DNS lookup)
-    # before starting the build.
-    _wait_for_service_dns(session_k8s_helper, name, namespace)
-
-    yield registry_url
-
-    ensure_k8s_resource_deleted(session_k8s_helper, "endpoints", name, namespace)
-    ensure_k8s_resource_deleted(session_k8s_helper, "service", name, namespace)
-
-
-def _k8s_helper_from_config(
-    cfg_path: str,
-) -> framework.utils.singletons.k8s.K8sHelper:
-    return framework.utils.singletons.k8s.K8sHelper(
-        kube_config_path=cfg_path,
-        silent=False,
-        log=False,
-    )
+    with _expose_testcontainer_as_k8s_service(
+        registry_container, "distribution-registry", 5000, session_k8s_helper
+    ) as registry_url:
+        # Strip http:// prefix - docker registry uses host:port format
+        yield registry_url.replace("http://", "")
 
 
 @pytest.fixture(scope="session")
 def http_context_server(
+    docker_network,
     session_k8s_helper: framework.utils.singletons.k8s.K8sHelper,
 ):
-    """Create an HTTP server in K8s that serves a simple build context tarball.
-
-    This fixture creates a ConfigMap with a simple Dockerfile and a pod running
-    a busybox httpd server that serves it as a tarball.
-    """
-    namespace = "default"
+    """Create an HTTP server in K8s that serves a simple build http context."""
     name = "http-context-server"
     port = 8080
-    server_url = f"http://{name}:{port}"
 
-    # Create a ConfigMap with a startup script that creates and serves the tarball
-    # The script creates a minimal context directory with a Dockerfile
-    startup_script = """#!/bin/sh
-set -e
-mkdir -p /www/context
-echo 'FROM gcr.io/iguazio/alpine:3.18' > /www/context/Dockerfile
-echo 'RUN echo hello > /hello.txt' >> /www/context/Dockerfile
-cd /www/context && tar -czf /www/context.tar.gz .
-cd /www && httpd -f -p 8080
-"""
-
-    configmap = k8s_client.V1ConfigMap(
-        metadata=k8s_client.V1ObjectMeta(name=name, namespace=namespace),
-        data={"startup.sh": startup_script},
+    # Create a tarball with a simple file and serve it via HTTP
+    cmd = (
+        "mkdir -p /data && "
+        "echo 'FROM gcr.io/iguazio/alpine:3.20' > /data/Dockerfile && "
+        "echo 'RUN echo hello > /hello.txt' >> /data/Dockerfile && "
+        "tar -czf /context.tar.gz -C /data . && "
+        "httpd -f -p 8080 -h /"
     )
-
-    pod = k8s_client.V1Pod(
-        metadata=k8s_client.V1ObjectMeta(name=name, namespace=namespace),
-        spec=k8s_client.V1PodSpec(
-            restart_policy="Always",
-            containers=[
-                k8s_client.V1Container(
-                    name="httpd",
-                    image="gcr.io/iguazio/busybox:stable",
-                    command=["/bin/sh", "/scripts/startup.sh"],
-                    ports=[k8s_client.V1ContainerPort(container_port=port)],
-                    volume_mounts=[
-                        k8s_client.V1VolumeMount(name="scripts", mount_path="/scripts"),
-                    ],
-                )
-            ],
-            volumes=[
-                k8s_client.V1Volume(
-                    name="scripts",
-                    config_map=k8s_client.V1ConfigMapVolumeSource(
-                        name=name, default_mode=0o755
-                    ),
-                ),
-            ],
-        ),
-    )
-
-    service = k8s_client.V1Service(
-        metadata=k8s_client.V1ObjectMeta(name=name, namespace=namespace),
-        spec=k8s_client.V1ServiceSpec(
-            selector={"app": name},
-            ports=[k8s_client.V1ServicePort(port=port, target_port=port)],
-        ),
-    )
-
-    # Add label to pod for service selector
-    pod.metadata.labels = {"app": name}
-
-    create_or_replace_k8s_resource(
-        session_k8s_helper, "config_map", name, configmap, namespace
-    )
-    create_or_replace_k8s_resource(session_k8s_helper, "pod", name, pod, namespace)
-    create_or_replace_k8s_resource(
-        session_k8s_helper, "service", name, service, namespace
-    )
-
-    # Wait for pod to be running
-    wait_for_pod_phase(
-        k8s=session_k8s_helper,
-        name=name,
-        namespace=namespace,
-        desired_phases={"running"},
-        timeout_seconds=120,
-    )
-
-    # Wait for service DNS
-    _wait_for_service_dns(session_k8s_helper, name, namespace)
-
-    yield server_url
-
-    # Cleanup
-    ensure_k8s_resource_deleted(session_k8s_helper, "service", name, namespace)
-    ensure_k8s_resource_deleted(session_k8s_helper, "pod", name, namespace)
-    ensure_k8s_resource_deleted(session_k8s_helper, "config_map", name, namespace)
+    with (
+        DockerContainer("busybox")
+        .with_command(f'sh -c "{cmd}"')
+        .with_exposed_ports(8080)
+        .with_network(docker_network)
+    ) as container:
+        with _expose_testcontainer_as_k8s_service(
+            container, name, port, session_k8s_helper
+        ) as server_url:
+            yield server_url
 
 
 def _wait_for_service_dns(
@@ -359,4 +234,70 @@ def _wait_for_service_dns(
         name=pod.metadata.name,
         namespace=namespace,
         desired_phases={"succeeded"},
+    )
+
+
+@contextlib.contextmanager
+def _expose_testcontainer_as_k8s_service(
+    container: DockerContainer,
+    name: str,
+    port: int,
+    k8s_helper: framework.utils.singletons.k8s.K8sHelper,
+    namespace: str = "default",
+):
+    # Reload the container to ensure we have the latest network settings
+    wrapped = container.get_wrapped_container()
+    wrapped.reload()
+
+    networks = wrapped.attrs["NetworkSettings"]["Networks"]
+    ip = next(
+        (
+            details.get("IPAddress")
+            for details in (networks or {}).values()
+            if details.get("IPAddress")
+        ),
+        None,
+    )
+    if not ip:
+        raise RuntimeError(
+            f"Failed resolving registry container IP. Networks: {networks}"
+        )
+
+    service = k8s_client.V1Service(
+        metadata=k8s_client.V1ObjectMeta(name=name, namespace=namespace),
+        spec=k8s_client.V1ServiceSpec(
+            ports=[k8s_client.V1ServicePort(port=port, target_port=port)],
+        ),
+    )
+    endpoints = k8s_client.V1Endpoints(
+        metadata=k8s_client.V1ObjectMeta(name=name, namespace=namespace),
+        subsets=[
+            k8s_client.V1EndpointSubset(
+                addresses=[k8s_client.V1EndpointAddress(ip=ip)],
+                ports=[k8s_client.CoreV1EndpointPort(port=port)],
+            )
+        ],
+    )
+
+    create_or_replace_k8s_resource(k8s_helper, "service", name, service, namespace)
+    create_or_replace_k8s_resource(k8s_helper, "endpoints", name, endpoints, namespace)
+
+    # Wait for DNS to propagate before allowing tests to run.
+    # This is critical for Kaniko which validates push permissions (via DNS lookup)
+    # before starting the build.
+    _wait_for_service_dns(k8s_helper, name, namespace)
+
+    yield f"http://{name}:{port}"
+
+    ensure_k8s_resource_deleted(k8s_helper, "endpoints", name, namespace)
+    ensure_k8s_resource_deleted(k8s_helper, "service", name, namespace)
+
+
+def _k8s_helper_from_config(
+    cfg_path: str,
+) -> framework.utils.singletons.k8s.K8sHelper:
+    return framework.utils.singletons.k8s.K8sHelper(
+        kube_config_path=cfg_path,
+        silent=False,
+        log=False,
     )

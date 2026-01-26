@@ -350,7 +350,7 @@ def test_resolve_page_params(params, expected_page_params):
         "store_secret_token",
         "store_secret_tokens",
         "list_secret_tokens",
-        "revoke_secret_token",
+        "delete_secret_token",
     ],
 )
 def test_restricted_methods_in_wrong_mode(monkeypatch, method_name):

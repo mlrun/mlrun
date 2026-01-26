@@ -484,10 +484,8 @@ def test_list_pod_events(k8s_helper):
 def test_store_user_token_secret_created(k8s_helper):
     k8s_helper.list_secrets = mock.MagicMock(return_value=[])
 
-    auth_info = mlrun.common.schemas.AuthInfo(
-        user_id="test-user-id",
-        username="test-user",
-    )
+    user_id = "test-user-id"
+    auth_info = mlrun.common.schemas.AuthInfo(user_id=user_id)
     token_name = "my-token"
     token_value = "abc123"
     expiration = 9999
@@ -504,6 +502,11 @@ def test_store_user_token_secret_created(k8s_helper):
     assert result == mlrun.common.schemas.SecretEventActions.created
     k8s_helper._create_secret.assert_called_once()
     k8s_helper._update_secret.assert_not_called()
+
+    # Verify labels contain user_id and token_name
+    labels = k8s_helper._create_secret.call_args.kwargs["labels"]
+    assert labels[mlrun_constants.MLRunInternalLabels.auth_userid] == user_id
+    assert labels[mlrun_constants.MLRunInternalLabels.auth_token_name] == token_name
 
     # Verify that the secrets data passed to _create_secret is properly encoded
     secrets_data = k8s_helper._create_secret.call_args.kwargs["secrets"]
@@ -523,8 +526,47 @@ def test_store_user_token_secret_created(k8s_helper):
 
 
 @pytest.mark.parametrize(
+    "user_id",
+    [
+        "test-user-id",
+        "user123",
+        "my-token-user",
+    ],
+)
+def test_store_user_token_secret_stores_user_id_in_label(k8s_helper, user_id):
+    """Test that user_id is stored in label when creating token secret."""
+    k8s_helper.list_secrets = mock.MagicMock(return_value=[])
+
+    auth_info = mlrun.common.schemas.AuthInfo(user_id=user_id)
+    token_name = "my-token"
+    token_value = "abc123"
+    expiration = 9999
+
+    result = k8s_helper.store_user_token_secret(
+        auth_info=auth_info,
+        token_name=token_name,
+        token=token_value,
+        expiration=expiration,
+        namespace="default",
+    )
+
+    # Verify creation succeeded
+    assert result == mlrun.common.schemas.SecretEventActions.created
+    k8s_helper._create_secret.assert_called_once()
+
+    # Verify labels contain user_id and token_name
+    labels = k8s_helper._create_secret.call_args.kwargs["labels"]
+    assert labels[mlrun_constants.MLRunInternalLabels.auth_userid] == user_id
+    assert labels[mlrun_constants.MLRunInternalLabels.auth_token_name] == token_name
+
+
+@pytest.mark.parametrize(
     "username, expected_sanitized_username",
     [
+        # Username is None - no annotation expected
+        (None, None),
+        # Username is empty string - no annotation expected
+        ("", None),
         # Normal username
         ("test-user", "test-user"),
         # Username with @ symbol (common in email-style usernames)
@@ -540,31 +582,21 @@ def test_store_user_token_secret_created(k8s_helper):
         # Username with consecutive dots (valid in labels)
         ("user..name", "user..name"),
         # Very long username (exceeds 63 char limit, gets truncated)
-        (
-            "a" * 100,
-            "a" * 63,
-        ),
+        ("a" * 100, "a" * 63),
         # Long username with invalid characters at truncation point
-        (
-            "user@example.com" + "x" * 60,
-            "user-example.com" + "x" * 47,
-        ),
+        ("user@example.com" + "x" * 60, "user-example.com" + "x" * 47),
     ],
 )
-def test_store_user_token_secret_sanitizes_username(
+def test_store_user_token_secret_username_annotation(
     k8s_helper, username, expected_sanitized_username
 ):
-    """Test that username is properly sanitized when stored as annotation."""
+    """Test that username is stored in annotation and properly sanitized."""
     import uuid
 
     k8s_helper.list_secrets = mock.MagicMock(return_value=[])
 
-    # Use a proper UUID for user_id
     user_id = str(uuid.uuid4())
-    auth_info = mlrun.common.schemas.AuthInfo(
-        user_id=user_id,
-        username=username,
-    )
+    auth_info = mlrun.common.schemas.AuthInfo(user_id=user_id, username=username)
     token_name = "my-token"
     token_value = "abc123"
     expiration = 9999
@@ -581,31 +613,25 @@ def test_store_user_token_secret_sanitizes_username(
     assert result == mlrun.common.schemas.SecretEventActions.created
     k8s_helper._create_secret.assert_called_once()
 
-    # Verify labels contain user_id (UUID) and token_name
-    labels = k8s_helper._create_secret.call_args.kwargs["labels"]
-    assert labels[mlrun_constants.MLRunInternalLabels.auth_userid] == user_id
-    assert labels[mlrun_constants.MLRunInternalLabels.auth_token_name] == token_name
-
-    # Verify annotations contain sanitized username
     annotations = k8s_helper._create_secret.call_args.kwargs["annotations"]
-    assert (
-        annotations[mlrun_constants.InternalAnnotations.auth_username]
-        == expected_sanitized_username
-    )
+
+    if expected_sanitized_username is None:
+        # Username was None or empty - annotation should not be present
+        assert mlrun_constants.InternalAnnotations.auth_username not in annotations
+    else:
+        # Username provided - annotation should contain sanitized value
+        assert (
+            annotations[mlrun_constants.InternalAnnotations.auth_username]
+            == expected_sanitized_username
+        )
 
 
-def test_store_user_token_secret_with_uuid_user_id(k8s_helper):
-    """Test that user_id as UUID is properly handled in labels and secret naming."""
-    import uuid
-
+def test_store_user_token_secret_secret_naming(k8s_helper):
+    """Test that secret name is derived from user_id + token_name hash."""
     k8s_helper.list_secrets = mock.MagicMock(return_value=[])
 
-    # Use proper UUID format for user_id
-    user_id = str(uuid.uuid4())
-    auth_info = mlrun.common.schemas.AuthInfo(
-        user_id=user_id,
-        username="test-user@example.com",
-    )
+    user_id = "test-user-id"
+    auth_info = mlrun.common.schemas.AuthInfo(user_id=user_id)
     token_name = "my-token"
     token_value = "abc123"
     expiration = 9999
@@ -621,14 +647,6 @@ def test_store_user_token_secret_with_uuid_user_id(k8s_helper):
     # Verify creation succeeded
     assert result == mlrun.common.schemas.SecretEventActions.created
     k8s_helper._create_secret.assert_called_once()
-
-    # Verify labels contain the UUID user_id
-    labels = k8s_helper._create_secret.call_args.kwargs["labels"]
-    assert labels[mlrun_constants.MLRunInternalLabels.auth_userid] == user_id
-
-    # Verify the UUID is valid
-    parsed_uuid = uuid.UUID(labels[mlrun_constants.MLRunInternalLabels.auth_userid])
-    assert str(parsed_uuid) == user_id
 
     # Verify the secret name is derived from user_id + token_name hash
     secret_name = k8s_helper._create_secret.call_args.kwargs["secret_name"]
@@ -637,14 +655,12 @@ def test_store_user_token_secret_with_uuid_user_id(k8s_helper):
 
 
 def test_store_user_token_secret_updated(k8s_helper):
-    auth_info = mlrun.common.schemas.AuthInfo(
-        user_id="test-user-id",
-        username="test-user",
-    )
+    user_id = "test-user-id"
+    auth_info = mlrun.common.schemas.AuthInfo(user_id=user_id)
     token_name = "my-token"
     token_value = "abc123"
     new_expiration = 2000
-    secret_name = k8s_helper._resolve_auth_secret_name(auth_info.user_id, token_name)
+    secret_name = k8s_helper._resolve_auth_secret_name(user_id, token_name)
 
     # Existing secret with older expiration
     existing_secret = _make_user_token_secret(
@@ -652,7 +668,7 @@ def test_store_user_token_secret_updated(k8s_helper):
         token_name=token_name,
         token_value=token_value,
         expiration=1000,
-        user_id=auth_info.user_id,
+        user_id=user_id,
     )
     k8s_helper.read_secret = mock.MagicMock(return_value=existing_secret)
 
@@ -702,20 +718,18 @@ def test_store_user_token_secret_updated(k8s_helper):
 def test_store_user_token_secret_skipped_and_force_update(
     k8s_helper, expiration, force, expected_result, update_called, create_called
 ):
-    auth_info = mlrun.common.schemas.AuthInfo(
-        user_id="test-user-id",
-        username="test-user",
-    )
+    user_id = "test-user-id"
+    auth_info = mlrun.common.schemas.AuthInfo(user_id=user_id)
     token_name = "my-token"
     token_value = "abc123"
-    secret_name = k8s_helper._resolve_auth_secret_name(auth_info.user_id, token_name)
+    secret_name = k8s_helper._resolve_auth_secret_name(user_id, token_name)
 
     existing_secret = _make_user_token_secret(
         secret_name,
         token_name=token_name,
         token_value=token_value,
         expiration=5000,
-        user_id=auth_info.user_id,
+        user_id=user_id,
     )
     k8s_helper.list_secrets = mock.MagicMock(return_value=[existing_secret])
 
@@ -809,13 +823,15 @@ def test_list_user_token_secrets_valid(k8s_helper):
     token1_name = "token1"
     token2_name = "token2"
     user_id = "test-user-id"
+    exp1 = 1111
+    exp2 = 2222
     secret1_name = k8s_helper._resolve_auth_secret_name(user_id, token1_name)
     secret2_name = k8s_helper._resolve_auth_secret_name(user_id, token2_name)
     secret1 = _make_user_token_secret(
-        secret1_name, token_name=token1_name, expiration=1111, user_id=user_id
+        secret1_name, token_name=token1_name, expiration=exp1, user_id=user_id
     )
     secret2 = _make_user_token_secret(
-        secret2_name, token_name=token2_name, expiration=2222, user_id=user_id
+        secret2_name, token_name=token2_name, expiration=exp2, user_id=user_id
     )
 
     k8s_helper.resolve_namespace = mock.MagicMock(return_value="default")
@@ -825,13 +841,16 @@ def test_list_user_token_secrets_valid(k8s_helper):
 
     assert len(result) == 2
     assert result[0].name == token1_name
-    assert result[0].expiration == 1111
+    assert int(result[0].expiration.timestamp()) == exp1
     assert result[1].name == token2_name
-    assert result[1].expiration == 2222
+    assert int(result[1].expiration.timestamp()) == exp2
 
     k8s_helper.list_secrets.assert_called_once_with(
         namespace="default",
-        labels={mlrun_constants.MLRunInternalLabels.auth_userid: "test-user-id"},
+        labels={
+            mlrun_constants.MLRunInternalLabels.auth_token_name: None,
+            mlrun_constants.MLRunInternalLabels.auth_userid: "test-user-id",
+        },
     )
 
 

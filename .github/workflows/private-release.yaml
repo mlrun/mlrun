@@ -16,8 +16,8 @@ name: Private Release
 run-name: Privately ( artifactory only ) releasing ${{ inputs.version }} (${{ github.ref_name }})
 
 permissions:
-  # Read repository contents
-  contents: read
+  # Write repository contents (needed to push tags)
+  contents: write
   packages: write
 
 on:
@@ -98,6 +98,16 @@ jobs:
           ARTIFACTORY_PYPI_REPO: ${{ github.event.inputs.artifactory_pypi_repo }}
           UI_REF_INPUT: ${{ github.event.inputs.ui_ref }}
 
+      - name: Display calculated version
+        run: |
+          echo "## 🚀 Private Release" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Version:** \`${{ steps.resolve.outputs.version }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "**Branch:** \`${{ github.ref_name }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "**Previous Version:** \`${{ steps.resolve.outputs.previous_version }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "**Is Stable:** \`${{ steps.resolve.outputs.is_stable_version }}\`" >> $GITHUB_STEP_SUMMARY
+
+
   trigger-and-wait-for-mlrun-image-building:
     name: Build and push images to Artifactory
     needs: prepare-inputs
@@ -169,3 +179,58 @@ jobs:
           UV_PUBLISH_USERNAME: ${{ secrets.ARTIFACTORY_USERNAME }}
           UV_PUBLISH_PASSWORD: ${{ secrets.ARTIFACTORY_PASSWORD }}
         run: uv run --no-project --with packaging~=25.0 make publish-package
+
+  create-tag:
+    name: Create tag
+    runs-on: ubuntu-latest
+    needs: [prepare-inputs, trigger-and-wait-for-ui-image-building, trigger-and-wait-for-mlrun-image-building, publish-to-artifactory]
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Create git tag for mlrun version
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag -a "v${{ needs.prepare-inputs.outputs.version }}" -m "Release v${{ needs.prepare-inputs.outputs.version }}"
+          git push origin "v${{ needs.prepare-inputs.outputs.version }}"
+          echo "✅ Created and pushed tag: v${{ needs.prepare-inputs.outputs.version }}"
+
+      - name: Generate GitHub App Token for ui repo
+        id: ui-app-token
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ secrets.GH_APP_ID }}
+          private-key: ${{ secrets.GH_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: ui
+
+      - name: Create git tag for UI repo
+        env:
+          GH_TOKEN: ${{ steps.ui-app-token.outputs.token }}
+        run: |
+          VERSION="v${{ needs.prepare-inputs.outputs.version }}"
+          UI_REF="${{ needs.prepare-inputs.outputs.ui_ref }}"
+          UI_REPO="${{ github.repository_owner }}/ui"
+          
+          # Get the SHA of the ui_ref (try as branch first, then as tag)
+          SHA=$(gh api "repos/${UI_REPO}/git/ref/heads/${UI_REF}" --jq '.object.sha' 2>/dev/null || \
+                gh api "repos/${UI_REPO}/git/ref/tags/${UI_REF}" --jq '.object.sha')
+          
+          echo "Creating tag ${VERSION} on UI repo at SHA ${SHA} (from ref: ${UI_REF})"
+          
+          # Create annotated tag object
+          TAG_SHA=$(gh api "repos/${UI_REPO}/git/tags" \
+            -X POST \
+            -f tag="${VERSION}" \
+            -f message="Release ${VERSION}" \
+            -f object="${SHA}" \
+            -f type="commit" \
+            --jq '.sha')
+          
+          # Create tag reference
+          gh api "repos/${UI_REPO}/git/refs" \
+            -X POST \
+            -f ref="refs/tags/${VERSION}" \
+            -f sha="${TAG_SHA}"
+          
+          echo "✅ Created and pushed tag: ${VERSION} on UI repo"        

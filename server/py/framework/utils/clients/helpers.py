@@ -24,8 +24,7 @@ def enrich_headers(headers: dict | None = None, path: str | None = None) -> dict
     inject_context_id_header(headers)
 
     if (
-        mlrun.mlconf.httpdb.projects.leader == "mlrun"
-        and path is not None
+        path is not None
         and "projects" in path
         and mlrun.common.schemas.HeaderNames.projects_role not in headers
     ):

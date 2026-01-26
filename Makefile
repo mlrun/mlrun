@@ -38,7 +38,7 @@ MLRUN_MYSQL_IMAGE ?= gcr.io/iguazio/mlrun-mysql:8.4
 MLRUN_POSTGRES_IMAGE = gcr.io/iguazio/postgres:17
 
 # TODO: remove this once iguazio package is released to PyPI and move to requirements.txt
-IGUAZIO_PACKAGE_VERSION ?= 0.0.1a22
+IGUAZIO_PACKAGE_VERSION ?= 0.0.1a27
 
 MLRUN_SKIP_COMPILE_SCHEMAS ?=
 INCLUDE_PYTHON_VERSION_SUFFIX ?=

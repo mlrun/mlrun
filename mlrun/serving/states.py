@@ -2894,7 +2894,6 @@ class FlowStep(BaseStep):
             raise GraphError(
                 "sync engine can only have one starting step (without .after)"
             )
-
         default_final_step = None
         if self.final_step:
             if self.final_step not in self.steps:
@@ -2903,8 +2902,9 @@ class FlowStep(BaseStep):
                 )
             default_final_step = self.final_step
 
-        elif len(self._start_steps) == 1:
-            # find the final step in case if a simple sequence of steps
+        elif len(self._start_steps) == 1 and not self.allow_cyclic:
+            # find the final step in case of a simple sequence of steps
+            # default_final_step is used only for feature sets therefore it won't be set when cycles are allowed
             next_obj = self._start_steps[0]
             while next_obj:
                 next = next_obj.next
@@ -3990,7 +3990,9 @@ def _init_async_objects(context, steps, root):
                 )
             if (
                 respond_supported
-                and not step.next
+                and (
+                    not step.next or root.allow_cyclic
+                )  # last step can be part of a cycle
                 and hasattr(step, "responder")
                 and step.responder
             ):

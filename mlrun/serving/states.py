@@ -1786,8 +1786,9 @@ class ModelRunner(storey.ParallelExecution):
         event._metadata["model_runner_name"] = self.name
         # batch of events:
         # TODO need to be fixed.
-        if isinstance(event.body, list) and any("event" in sub_event.__class__.__name__.lower()
-                                                for sub_event in event.body):
+        if isinstance(event.body, list) and any(
+            "event" in sub_event.__class__.__name__.lower() for sub_event in event.body
+        ):
             event._metadata["inputs"] = [str(sub_event) for sub_event in event.body]
         else:
             event._metadata["inputs"] = deepcopy(event.body)

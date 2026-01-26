@@ -104,6 +104,11 @@ def test_buildah_builder_remote_git_context(mocked_k8s_helper):
 
     init_names = [c.name for c in kpod.init_containers]
     assert "clone-context" in init_names
+    clone_container = next(c for c in kpod.init_containers if c.name == "clone-context")
+    assert clone_container.args, "Expected clone-context to have args"
+    clone_cmd = " ".join(clone_container.args)
+    assert "git clone" in clone_cmd
+    assert "https://github.com/mlrun/mlrun.git" in clone_cmd
     pod = kpod.pod
     volume_names = {v.name for v in pod.spec.volumes}
     assert "context" in volume_names

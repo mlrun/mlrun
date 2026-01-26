@@ -210,6 +210,12 @@ class BuildahImageBuilder(image_builder.BaseImageBuilder):
 
         # treat as git url (supports git://...#refs/heads/<branch>)
         repo_url, _, fragment = context_source.partition("#")
+
+        # See: https://github.blog/2021-09-01-improving-git-protocol-security-github/
+        if repo_url.startswith("git://"):
+            repo_url = "https://" + repo_url.removeprefix("git://")
+            if not repo_url.endswith(".git"):
+                repo_url = f"{repo_url}.git"
         branch = fragment or ""
         if branch.startswith("refs/heads/"):
             branch = branch.removeprefix("refs/heads/")

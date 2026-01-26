@@ -2554,6 +2554,19 @@ def set_data_by_path(
     data: typing.Union[dict, list[dict]],
     value,
 ) -> None:
+    """
+    Set a value at the specified path in a dictionary or list of dictionaries.
+    Modifies the input data in-place. Supports both single dict and batch (list of dicts) scenarios.
+
+    Args:
+        path: Where to set the value - str (single key), list[str] (nested path), or None (merge dict).
+        data: Target dict or list of dicts to modify.
+        value: Value to set. For list of dicts, use a list to distribute values element-wise.
+
+    Raises:
+        ValueError: When path is None and value is not a dictionary.
+        MLRunInvalidArgumentError: When path type is invalid or list lengths don't match.
+    """
     # Handle list of dicts: if data is a list and value is a list, distribute values
     if isinstance(data, list) and isinstance(value, list):
         if len(value) != len(data):

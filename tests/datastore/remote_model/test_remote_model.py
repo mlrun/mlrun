@@ -29,7 +29,7 @@ from tests.datastore.remote_model.remote_model_utils import (
 class BaseMockModelProviderTest:
     """Base class with common helper methods for MockModelProvider tests"""
 
-    def _verify_single_response(self, response):
+    def _verify_single_response(self, response, expect_counter=False):
         """Verify structure and content of single invocation response"""
         assert len(response) == 2  # answer + usage
         answer = response[UsageResponseKeys.ANSWER]
@@ -37,8 +37,10 @@ class BaseMockModelProviderTest:
 
         # Verify mock message (no counter for single invocation)
         assert "mock model provider" in answer.lower()
-        assert "(Item" not in answer  # No counter for single invocation
-
+        if expect_counter:
+            assert "(Item" in answer
+        else:
+            assert "(Item" not in answer
         # Verify mock usage stats (should be 0)
         assert stats["prompt_tokens"] == 0
         assert stats["completion_tokens"] == 0
@@ -53,20 +55,16 @@ class BaseMockModelProviderTest:
         # Verify each response has correct structure
         for i, full_result in enumerate(batch_response):
             result = full_result["output"]
-            assert len(result) == 2  # answer + usage
+            # Use single response verification
+            self._verify_single_response(result, expect_counter=True)
+            # Additionally verify batch-specific: item index in answer
 
-            # Get answer and usage
-            answer = result[UsageResponseKeys.ANSWER]
-            stats = result[UsageResponseKeys.USAGE]
-
-            # Verify mock message includes item index
-            assert f"(Item {i})" in answer
-            assert "mock model provider" in answer.lower()
-
-            # Verify mock usage stats (should be 0)
-            assert stats["prompt_tokens"] == 0
-            assert stats["completion_tokens"] == 0
-            assert stats["total_tokens"] == 0
+    def _verify_single_tracking_output(self, output):
+        """Verify structure and content of a single tracking output"""
+        assert "mock model provider" in output[0]  # answer
+        assert output[1]["prompt_tokens"] == 0
+        assert output[1]["completion_tokens"] == 0
+        assert output[1]["total_tokens"] == 0
 
     def _verify_single_tracking(self, event, input_data):
         """Verify tracking data for single invocation"""
@@ -75,11 +73,7 @@ class BaseMockModelProviderTest:
         assert event["request"]["inputs"] == [list(input_data.values())]
         assert event["resp"]["output_schema"] == UsageResponseKeys.fields()
         assert len(event["resp"]["outputs"]) == 1
-        output = event["resp"]["outputs"][0]
-        assert "mock model provider" in output[0]  # answer
-        assert output[1]["prompt_tokens"] == 0
-        assert output[1]["completion_tokens"] == 0
-        assert output[1]["total_tokens"] == 0
+        self._verify_single_tracking_output(event["resp"]["outputs"][0])
         assert event["labels"] == {}
         assert event["model"] == "my_endpoint"
         assert event["error"] is None
@@ -96,13 +90,10 @@ class BaseMockModelProviderTest:
             assert input_as_list == list(inputs[i].values())
         assert event["resp"]["output_schema"] == UsageResponseKeys.fields()
         for i, resp in enumerate(event["resp"]["outputs"]):
-            answer = resp[0]
-            usage = resp[1]
-            assert f"(Item {i})" in answer
-            assert "mock model provider" in answer.lower()
-            assert usage["prompt_tokens"] == 0
-            assert usage["completion_tokens"] == 0
-            assert usage["total_tokens"] == 0
+            # Verify item index in answer (batch-specific)
+            assert f"(Item {i})" in resp[0]
+            # Use single tracking output verification for common checks
+            self._verify_single_tracking_output(resp)
         assert event["labels"] == {}
         assert event["model"] == "my_endpoint"
         assert event["metrics"] is None

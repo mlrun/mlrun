@@ -48,28 +48,6 @@ This directory contains integration tests for MLRun API features that require a 
 | `valid_kubeconfig_path` | function | Path to kubeconfig file |
 | `raw_kubeconfig` | function | Parsed kubeconfig dict |
 
-### Registries
-
-| Fixture | Scope | Description |
-|---------|-------|-------------|
-| `registry_container` | session | Unauthenticated Docker registry container |
-| `k3s_registry_service` | session | Registry exposed as k8s service; returns `host:port` string |
-| `authenticated_registry_container` | session | Registry with htpasswd basic auth |
-| `k3s_authenticated_registry_service` | session | Auth registry + secret; returns `(host:port, secret_name, username, password)` |
-
-### Services
-
-| Fixture | Scope | Description |
-|---------|-------|-------------|
-| `http_context_server` | session | HTTP server serving a tarball build context; returns URL |
-
-### Testing Helpers
-
-| Fixture | Scope | Description |
-|---------|-------|-------------|
-| `invalid_ssl_ca_k8s_helper` | function | K8sHelper with bad CA cert (for SSL error tests) |
-| `bad_ca_kubeconfig_path` | function | Kubeconfig with invalid CA |
-
 ## Utility Functions
 
 Located in `utils.py`:
@@ -146,26 +124,6 @@ def test_my_feature(
     
     assert phase == "succeeded", f"Pod failed: {logs}"
     assert "hello" in logs
-```
-
-### Test with Authenticated Registry
-
-```python
-@pytest.mark.integration
-def test_with_auth_registry(
-    k3s_authenticated_registry_service: tuple[str, str, str, str],
-    valid_kubeconfig_path: str,
-    monkeypatch,
-):
-    registry_host, secret_name, username, password = k3s_authenticated_registry_service
-    
-    # ... setup k8s helper ...
-    
-    # Use imagePullSecrets when running pods with images from auth registry
-    pod_spec = k8s_client.V1PodSpec(
-        image_pull_secrets=[k8s_client.V1LocalObjectReference(name=secret_name)],
-        containers=[...],
-    )
 ```
 
 ## Onboarding a New Service

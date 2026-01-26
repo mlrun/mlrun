@@ -271,7 +271,7 @@ def create_manifest(mlrun_version, demo_versions):
 
 
 def get_demos(mlrun_version):
-    config_url = "https://raw.githubusercontent.com/mlrun/mlrun/refs/heads/development/automation/scripts/demos_config.json"
+    config_url = "https://raw.githubusercontent.com/mlrun/mlrun/refs/heads/1.10.x/automation/scripts/demos_config.json"
     try:
         response = requests.get(config_url, timeout=10)
         response.raise_for_status()  # raise HTTPError if not 200

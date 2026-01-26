@@ -12,7 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import json
+import time
 import unittest
+from concurrent.futures import ThreadPoolExecutor
 from typing import Optional
 
 import pytest
@@ -397,3 +399,61 @@ class TestMockModelProvider(BaseMockModelProviderTest):
         dummy_stream = server.context.stream.output_stream
         event = dummy_stream.event_list[0]
         self._verify_batch_error_tracking(event, inputs)
+
+    @pytest.mark.parametrize(
+        "execution_mechanism",
+        ["process_pool", "dedicated_process", "naive", "asyncio", "thread_pool"],
+    )
+    def test_llmodel_batch_batch_step(
+        self, execution_mechanism, rundb_mock
+    ):
+        """Test batch processing using storey.Batch step with LLModel and MockModelProvider"""
+
+        project = mlrun.new_project("test-mock-batch-graph", save=False)
+        model_url = "mock://my-mock-model"
+
+        model_artifact, llm_prompt_artifact, function = setup_remote_model_test(
+            project,
+            model_url,
+            execution_mechanism=execution_mechanism,
+            batch_step=True
+        )
+        # TODO : Enable tracking verification for batch step test
+        # function.set_tracking("dummy://", enable_tracking=True)
+        mocked_get_store_artifact = create_mocked_get_store_artifact(
+            {
+                model_artifact.uri: model_artifact,
+                llm_prompt_artifact.uri: llm_prompt_artifact,
+            }
+        )
+        with unittest.mock.patch(
+            "mlrun.artifacts.llm_prompt.mlrun.datastore.store_manager.get_store_artifact",
+            side_effect=lambda *args, **kwargs: mocked_get_store_artifact(
+                *args, **kwargs
+            ),
+        ):
+            server = function.to_mock_server()
+
+        try:
+            # Send events concurrently with staggered timing
+            def send_event(event, delay):
+                time.sleep(delay)
+                return server.test(body=event)
+
+            with ThreadPoolExecutor(max_workers=len(INPUT_DATA)) as executor:
+                futures = [
+                    executor.submit(send_event, event, i * 0.1)
+                    for i, event in enumerate(INPUT_DATA)
+                ]
+                responses = [future.result() for future in futures]
+        finally:
+            server.wait_for_completion()
+
+            # Verify we got all responses
+            assert len(responses) == len(INPUT_DATA)
+
+            # Verify each response has correct structure
+            for i, response in enumerate(responses):
+                assert "output" in response
+                output = response["output"]
+                self._verify_single_response(output, expect_counter=True)

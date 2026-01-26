@@ -61,11 +61,21 @@ class KanikoImageBuilder(image_builder.BaseImageBuilder):
         if dockertext:
             dockerfile = "/empty/Dockerfile"
 
+        # Determine if we need to materialize remote context via init container
+        # Kaniko supports https://, git://, gs://, s3://, tar:// natively,
+        # but NOT http:// - we need to fetch http:// contexts with an init container
+        context_source = None
+        effective_context = context
+        if context.startswith("http://"):
+            # Use Kaniko's dir:// prefix to point to /workspace where we'll download
+            context_source = context
+            effective_context = "dir:///workspace"
+
         args = [
             "--dockerfile",
             dockerfile,
             "--context",
-            context,
+            effective_context,
             "--destination",
             dest,
             "--image-fs-extract-retry",
@@ -117,6 +127,10 @@ class KanikoImageBuilder(image_builder.BaseImageBuilder):
             requirements_path,
         )
 
+        # Materialize remote HTTP context if needed
+        if context.startswith("http://"):
+            self._handle_http_context(kpod, context_source)
+
         # when using ECR we need init container to create the image repository
         if mlrun.utils.helpers.is_ecr_url(registry):
             dest_repo = self._extract_repo_from_dest(dest)
@@ -134,7 +148,7 @@ class KanikoImageBuilder(image_builder.BaseImageBuilder):
     ):
         # if no secret is given, assume ec2 instance has attached role which provides read/write access to ECR
         assume_instance_role = not mlrun.mlconf.httpdb.builder.docker_registry_secret
-        region = registry.split(".")[3]
+        region = self._get_ecr_region(registry)
 
         # fail silently in order to ignore "repository already exists" errors
         # if any other error occurs - kaniko will fail similarly
@@ -153,28 +167,11 @@ class KanikoImageBuilder(image_builder.BaseImageBuilder):
             kpod.env.append(
                 k8s_client.V1EnvVar(name="AWS_SDK_LOAD_CONFIG", value="true")
             )
-
         else:
-            aws_credentials_file_env_key = "AWS_SHARED_CREDENTIALS_FILE"
-            aws_credentials_file_env_value = "/tmp/aws/credentials"
-
-            # set the credentials file location in the init container
-            init_container_env[aws_credentials_file_env_key] = (
-                aws_credentials_file_env_value
-            )
-
+            init_container_env = self._mount_aws_credentials_secret(kpod)
             # set the kaniko container AWS credentials location to the mount's path
-            kpod.env.append(
-                k8s_client.V1EnvVar(
-                    name=aws_credentials_file_env_key,
-                    value=aws_credentials_file_env_value,
-                )
-            )
-            # mount the AWS credentials secret
-            kpod.mount_secret(
-                mlrun.mlconf.httpdb.builder.docker_registry_secret,
-                path="/tmp/aws",
-            )
+            for key, value in init_container_env.items():
+                kpod.env.append(k8s_client.V1EnvVar(name=key, value=value))
 
         kpod.append_init_container(
             mlrun.mlconf.httpdb.builder.kaniko_aws_cli_image,
@@ -193,3 +190,18 @@ class KanikoImageBuilder(image_builder.BaseImageBuilder):
     ) -> list:
         args.extend(self._generate_build_args(builder_env, project_secrets))
         return builder_utils.validate_and_merge_args_with_extra_args(args, extra_args)
+
+    def _handle_http_context(
+        self, kpod: framework.utils.singletons.k8s.BasePod, context_source: str
+    ):
+        """Fetch HTTP context for Kaniko.
+
+        Kaniko doesn't support http:// contexts natively (only https://),
+        so we use an init container to download and extract the tarball.
+        """
+        self._materialize_http_context(
+            kpod,
+            context_source,
+            mount_path="/workspace",
+            init_container_image=mlrun.mlconf.httpdb.builder.kaniko_init_container_image,
+        )

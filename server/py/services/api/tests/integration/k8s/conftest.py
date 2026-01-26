@@ -217,6 +217,101 @@ def _k8s_helper_from_config(
     )
 
 
+@pytest.fixture(scope="session")
+def http_context_server(
+    session_k8s_helper: framework.utils.singletons.k8s.K8sHelper,
+):
+    """Create an HTTP server in K8s that serves a simple build context tarball.
+
+    This fixture creates a ConfigMap with a simple Dockerfile and a pod running
+    a busybox httpd server that serves it as a tarball.
+    """
+    namespace = "default"
+    name = "http-context-server"
+    port = 8080
+    server_url = f"http://{name}:{port}"
+
+    # Create a ConfigMap with a startup script that creates and serves the tarball
+    # The script creates a minimal context directory with a Dockerfile
+    startup_script = """#!/bin/sh
+set -e
+mkdir -p /www/context
+echo 'FROM gcr.io/iguazio/alpine:3.18' > /www/context/Dockerfile
+echo 'RUN echo hello > /hello.txt' >> /www/context/Dockerfile
+cd /www/context && tar -czf /www/context.tar.gz .
+cd /www && httpd -f -p 8080
+"""
+
+    configmap = k8s_client.V1ConfigMap(
+        metadata=k8s_client.V1ObjectMeta(name=name, namespace=namespace),
+        data={"startup.sh": startup_script},
+    )
+
+    pod = k8s_client.V1Pod(
+        metadata=k8s_client.V1ObjectMeta(name=name, namespace=namespace),
+        spec=k8s_client.V1PodSpec(
+            restart_policy="Always",
+            containers=[
+                k8s_client.V1Container(
+                    name="httpd",
+                    image="gcr.io/iguazio/busybox:stable",
+                    command=["/bin/sh", "/scripts/startup.sh"],
+                    ports=[k8s_client.V1ContainerPort(container_port=port)],
+                    volume_mounts=[
+                        k8s_client.V1VolumeMount(name="scripts", mount_path="/scripts"),
+                    ],
+                )
+            ],
+            volumes=[
+                k8s_client.V1Volume(
+                    name="scripts",
+                    config_map=k8s_client.V1ConfigMapVolumeSource(
+                        name=name, default_mode=0o755
+                    ),
+                ),
+            ],
+        ),
+    )
+
+    service = k8s_client.V1Service(
+        metadata=k8s_client.V1ObjectMeta(name=name, namespace=namespace),
+        spec=k8s_client.V1ServiceSpec(
+            selector={"app": name},
+            ports=[k8s_client.V1ServicePort(port=port, target_port=port)],
+        ),
+    )
+
+    # Add label to pod for service selector
+    pod.metadata.labels = {"app": name}
+
+    create_or_replace_k8s_resource(
+        session_k8s_helper, "config_map", name, configmap, namespace
+    )
+    create_or_replace_k8s_resource(session_k8s_helper, "pod", name, pod, namespace)
+    create_or_replace_k8s_resource(
+        session_k8s_helper, "service", name, service, namespace
+    )
+
+    # Wait for pod to be running
+    wait_for_pod_phase(
+        k8s=session_k8s_helper,
+        name=name,
+        namespace=namespace,
+        desired_phases={"running"},
+        timeout_seconds=120,
+    )
+
+    # Wait for service DNS
+    _wait_for_service_dns(session_k8s_helper, name, namespace)
+
+    yield server_url
+
+    # Cleanup
+    ensure_k8s_resource_deleted(session_k8s_helper, "service", name, namespace)
+    ensure_k8s_resource_deleted(session_k8s_helper, "pod", name, namespace)
+    ensure_k8s_resource_deleted(session_k8s_helper, "config_map", name, namespace)
+
+
 def _wait_for_service_dns(
     k8s_helper: framework.utils.singletons.k8s.K8sHelper,
     service_name: str,

@@ -38,15 +38,57 @@ def test_buildah_builder_basic_pod_with_secret(mocked_k8s_helper):
     assert kpod.image
     assert kpod.command == ["/bin/sh", "-c"]
     assert isinstance(kpod.args, list)
-    # buildah command includes flags between "buildah" and "bud"/"push"
-    assert any(" bud " in arg for arg in kpod.args)
-    assert any(" push " in arg for arg in kpod.args)
+    assert len(kpod.args) == 1
+    build_and_push_cmd = kpod.args[0]
+    parts = [part.strip() for part in build_and_push_cmd.split(";") if part.strip()]
+    assert parts[0] == "set -e"
+    build_cmd = parts[1]
+    push_cmd = parts[2]
+
+    # Ensure buildah global args appear before subcommand
+    assert build_cmd.startswith("buildah --storage-driver=vfs --log-level=info build ")
+    assert push_cmd.startswith("buildah --storage-driver=vfs --log-level=info push ")
+
+    # Ensure tls verify is a subcommand arg (after build/push)
+    assert " build --tls-verify=" in build_cmd
+    assert " push --tls-verify=" in push_cmd
+    assert "--retry=" in push_cmd
 
     pod = kpod.pod
     mounts = pod.spec.containers[0].volume_mounts
     mount_paths = {m.mount_path for m in mounts}
     assert "/var/lib/containers" in mount_paths
     assert "/tmp/.docker" in mount_paths
+
+
+def test_buildah_builder_tls_verify_pull_and_push_modes(mocked_k8s_helper, monkeypatch):
+    monkeypatch.setattr(
+        mlrun.mlconf.httpdb.builder, "insecure_pull_registry_mode", "enabled"
+    )
+    monkeypatch.setattr(
+        mlrun.mlconf.httpdb.builder, "insecure_push_registry_mode", "disabled"
+    )
+
+    runtime_spec = _make_runtime_spec()
+    builder = buildah_image_builder.BuildahImageBuilder()
+    kpod = builder.make_build_pod(
+        project="test",
+        context="/context",
+        dest="example.com/repo/image:tag",
+        dockerfile="/context/Dockerfile",
+        runtime_spec=runtime_spec,
+        secret_name=None,
+    )
+
+    build_and_push_cmd = kpod.args[0]
+    parts = [part.strip() for part in build_and_push_cmd.split(";") if part.strip()]
+    build_cmd = parts[1]
+    push_cmd = parts[2]
+
+    # enabled => allow insecure => --tls-verify=false
+    assert " build --tls-verify=false " in f" {build_cmd} "
+    # disabled => disallow insecure => --tls-verify=true
+    assert " push --tls-verify=true " in f" {push_cmd} "
 
 
 def test_buildah_builder_remote_git_context(mocked_k8s_helper):

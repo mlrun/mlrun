@@ -70,7 +70,7 @@ class BuildahImageBuilder(image_builder.BaseImageBuilder):
         tls_verify_pull = self._resolve_tls_verify_mode(
             mlrun.mlconf.httpdb.builder.insecure_pull_registry_mode, secret_name
         )
-        self._resolve_tls_verify_mode(
+        tls_verify_push = self._resolve_tls_verify_mode(
             mlrun.mlconf.httpdb.builder.insecure_push_registry_mode, secret_name
         )
 
@@ -81,17 +81,17 @@ class BuildahImageBuilder(image_builder.BaseImageBuilder):
         )
 
         log_level = "debug" if verbose else "info"
-        common_args = [
+        global_args = [
             "--storage-driver=vfs",
-            f"--tls-verify={str(tls_verify_pull).lower()}",
+            f"--log-level={log_level}",
         ]
 
         build_cmd = " ".join(
             [
                 "buildah",
-                f"--log-level={log_level}",
+                *global_args,
                 "build",
-                *common_args,
+                f"--tls-verify={str(tls_verify_pull).lower()}",
                 f"--file={dockerfile}",
                 f"--tag={dest}",
                 *build_args_flags,
@@ -101,9 +101,10 @@ class BuildahImageBuilder(image_builder.BaseImageBuilder):
         push_cmd = " ".join(
             [
                 "buildah",
-                f"--log-level={log_level}",
+                *global_args,
                 "push",
-                *common_args,
+                f"--tls-verify={str(tls_verify_push).lower()}",
+                f"--retry={mlrun.mlconf.httpdb.builder.buildah_image_push_retry}",
                 dest,
                 f"docker://{dest}",
             ]
@@ -143,14 +144,13 @@ class BuildahImageBuilder(image_builder.BaseImageBuilder):
 
         if mlrun.utils.helpers.is_ecr_url(registry):
             repo = self._extract_repo_from_dest(dest)
-            kpod.env = kpod.env or []
-            kpod.env.append(
-                k8s_client.V1EnvVar(name="DOCKER_CONFIG", value="/tmp/.docker")
-            )
             self._configure_ecr_env_and_init_container(kpod, registry, repo)
         elif secret_name:
             items = [{"key": ".dockerconfigjson", "path": "config.json"}]
             kpod.mount_secret(secret_name, "/tmp/.docker", items=items)
+
+        # buildah requires DOCKER_CONFIG to be set for registry auth
+        if mlrun.utils.helpers.is_ecr_url(registry) or secret_name:
             kpod.env = kpod.env or []
             kpod.env.append(
                 k8s_client.V1EnvVar(name="DOCKER_CONFIG", value="/tmp/.docker")
@@ -193,23 +193,20 @@ class BuildahImageBuilder(image_builder.BaseImageBuilder):
     def _materialize_remote_context(
         self, kpod: framework.utils.singletons.k8s.BasePod, context_source: str
     ):
-        kpod.mount_empty(name="context", mount_path="/context")
-
         if context_source.startswith("http://") or context_source.startswith(
             "https://"
         ):
-            cmd = (
-                f"wget -qO- {context_source} | tar -xz -C /context || "
-                f"(wget -qO /context/source {context_source} && true)"
-            )
-
-            kpod.append_init_container(
-                mlrun.mlconf.httpdb.builder.buildah_init_container_image,
-                command=["/bin/sh"],
-                args=["-c", f"set -e; apk add --no-cache wget tar; {cmd}"],
-                name="fetch-context",
+            # Use shared base class method for HTTP context
+            self._materialize_http_context(
+                kpod,
+                context_source,
+                mount_path="/context",
+                init_container_image=mlrun.mlconf.httpdb.builder.buildah_init_container_image,
             )
             return
+
+        # Mount empty volume for git context
+        kpod.mount_empty(name="context", mount_path="/context")
 
         # treat as git url (supports git://...#refs/heads/<branch>)
         repo_url, _, fragment = context_source.partition("#")
@@ -236,7 +233,7 @@ class BuildahImageBuilder(image_builder.BaseImageBuilder):
         kpod.mount_empty(name="docker-config", mount_path="/tmp/.docker")
 
         assume_instance_role = not mlrun.mlconf.httpdb.builder.docker_registry_secret
-        region = registry.split(".")[3]
+        region = self._get_ecr_region(registry)
 
         command = (
             f"set -e; "
@@ -247,20 +244,11 @@ class BuildahImageBuilder(image_builder.BaseImageBuilder):
             f'cat > /tmp/.docker/config.json <<EOF\n{{"auths": {{"{registry}": {{"auth": "$AUTH"}}}}}}\nEOF'
         )
 
-        init_container_env = {}
-
         self._filter_aws_credentials_from_env(kpod)
 
+        init_container_env = {}
         if not assume_instance_role:
-            aws_credentials_file_env_key = "AWS_SHARED_CREDENTIALS_FILE"
-            aws_credentials_file_env_value = "/tmp/aws/credentials"
-            init_container_env[aws_credentials_file_env_key] = (
-                aws_credentials_file_env_value
-            )
-            kpod.mount_secret(
-                mlrun.mlconf.httpdb.builder.docker_registry_secret,
-                path="/tmp/aws",
-            )
+            init_container_env = self._mount_aws_credentials_secret(kpod)
 
         kpod.append_init_container(
             mlrun.mlconf.httpdb.builder.kaniko_aws_cli_image,

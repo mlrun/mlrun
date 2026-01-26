@@ -223,6 +223,31 @@ class BaseImageBuilder(abc.ABC):
             if env_var.name not in ["AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY"]
         ]
 
+    def _get_ecr_region(self, registry: str) -> str:
+        """Extract AWS region from ECR registry URL.
+
+        ECR URLs follow the pattern: <account>.dkr.ecr.<region>.amazonaws.com
+        """
+        return registry.split(".")[3]
+
+    def _mount_aws_credentials_secret(
+        self, kpod: framework.utils.singletons.k8s.BasePod
+    ) -> dict:
+        """Mount AWS credentials secret and return init container env config.
+
+        Used when not relying on instance role for ECR authentication.
+        Returns a dict with AWS_SHARED_CREDENTIALS_FILE for init container env.
+        """
+        aws_credentials_file_env_key = "AWS_SHARED_CREDENTIALS_FILE"
+        aws_credentials_file_env_value = "/tmp/aws/credentials"
+
+        kpod.mount_secret(
+            mlrun.mlconf.httpdb.builder.docker_registry_secret,
+            path="/tmp/aws",
+        )
+
+        return {aws_credentials_file_env_key: aws_credentials_file_env_value}
+
     def _get_builder_spec_attributes_from_runtime(
         self,
         project: str,
@@ -327,3 +352,32 @@ class BaseImageBuilder(abc.ABC):
             if gpu_resources:
                 resources["limits"] = gpu_resources
         return resources
+
+    def _materialize_http_context(
+        self,
+        kpod: framework.utils.singletons.k8s.BasePod,
+        context_source: str,
+        mount_path: str,
+        init_container_image: str,
+    ) -> None:
+        """Fetch HTTP context tarball and extract to the specified mount path.
+
+        :param kpod: The build pod to add the init container to.
+        :param context_source: The HTTP URL of the context tarball.
+        :param mount_path: The path to mount the context volume.
+        :param init_container_image: The image to use for the init container.
+        """
+        kpod.mount_empty(name="context", mount_path=mount_path)
+
+        # Download and extract tarball, or just download single file if not tarball
+        cmd = (
+            f"wget -qO- {context_source} | tar -xz -C {mount_path} || "
+            f"(wget -qO {mount_path}/source {context_source} && true)"
+        )
+
+        kpod.append_init_container(
+            init_container_image,
+            command=["/bin/sh"],
+            args=["-c", f"set -e; {cmd}"],
+            name="fetch-context",
+        )

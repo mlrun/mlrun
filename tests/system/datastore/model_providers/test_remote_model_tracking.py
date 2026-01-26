@@ -285,15 +285,7 @@ class TestMockModelProviderTracking(
             ]
             responses = [future.result() for future in futures]
 
-        # Verify we got all responses
-        assert len(responses) == len(
-            INPUT_DATA
-        ), f"Expected {len(INPUT_DATA)} responses, got {len(responses)}"
-        # Verify each response has correct structure
-        for i, response in enumerate(responses):
-            assert "output" in response
-            output = response["output"]
-            self._verify_single_response(output, expect_counter=True)
+        self._verify_batch_response(responses)
         # TODO: Verify tracking data - model monitoring verification
         # sleep(180)
         # endpoint_name = "my_endpoint"

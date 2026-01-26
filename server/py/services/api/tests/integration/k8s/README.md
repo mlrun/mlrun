@@ -43,10 +43,8 @@ This directory contains integration tests for MLRun API features that require a 
 |---------|-------|-------------|
 | `docker_network` | session | Shared Docker network for all containers |
 | `k3s` | session | The k3s cluster container |
-| `session_k8s_helper` | session | `K8sHelper` instance for session-scoped fixtures |
-| `valid_k8s_helper` | function | Fresh `K8sHelper` per test |
-| `valid_kubeconfig_path` | function | Path to kubeconfig file |
-| `raw_kubeconfig` | function | Parsed kubeconfig dict |
+| `k8s_helper` | session | `K8sHelper` instance for interacting with the cluster |
+| `kubeconfig_path` | session | Path to kubeconfig file |
 
 ## Utility Functions
 
@@ -80,24 +78,17 @@ from services.api.tests.integration.k8s.utils import wait_for_pod_phase, dump_po
 
 @pytest.mark.integration
 def test_my_feature(
-    k3s_registry_service: str,          # Use registry if building images
-    valid_kubeconfig_path: str,         # For creating K8sHelper
+    k3s_registry_service: str,  # Use registry if building images
+    k8s_helper: framework.utils.singletons.k8s.K8sHelper,
     monkeypatch,
 ):
-    # Create K8sHelper from kubeconfig
-    k8s = framework.utils.singletons.k8s.K8sHelper(
-        kube_config_path=valid_kubeconfig_path,
-        silent=False,
-        log=False,
-    )
-    
     # Monkeypatch the singleton getter so MLRun code uses our helper
     monkeypatch.setattr(
         framework.utils.singletons.k8s,
         "get_k8s_helper",
-        lambda *args, **kwargs: k8s,
+        lambda *args, **kwargs: k8s_helper,
     )
-    
+
     # Create and run a pod
     pod_manifest = k8s_client.V1Pod(
         metadata=k8s_client.V1ObjectMeta(
@@ -116,12 +107,12 @@ def test_my_feature(
             ],
         ),
     )
-    pod_name, namespace = k8s.create_pod(pod_manifest)
-    
+    pod_name, namespace = k8s_helper.create_pod(pod_manifest)
+
     # Wait for completion
-    phase = wait_for_pod_phase(k8s, pod_name, namespace, {"succeeded", "failed"})
-    logs = dump_pod_logs(k8s, pod_name, namespace)
-    
+    phase = wait_for_pod_phase(k8s_helper, pod_name, namespace, {"succeeded", "failed"})
+    logs = dump_pod_logs(k8s_helper, pod_name, namespace)
+
     assert phase == "succeeded", f"Pod failed: {logs}"
     assert "hello" in logs
 ```
@@ -157,14 +148,14 @@ def my_service_container(docker_network, tmp_path_factory):
 def k3s_my_service(
     my_service_container,
     docker_network,
-    session_k8s_helper: framework.utils.singletons.k8s.K8sHelper,
+    k8s_helper: framework.utils.singletons.k8s.K8sHelper,
 ):
     """Expose my-service inside the k3s cluster."""
     with _expose_testcontainer_as_k8s_service(
         my_service_container,
-        name="my-service",           # K8s service name
-        port=8080,                   # Service port
-        k8s_helper=session_k8s_helper,
+        name="my-service",  # K8s service name
+        port=8080,  # Service port
+        k8s_helper=k8s_helper,
     ) as service_url:
         yield service_url  # Returns "http://my-service:8080"
 ```
@@ -187,7 +178,9 @@ The `_expose_testcontainer_as_k8s_service` function:
 
 ```python
 # Simplified flow
-ip = container.get_wrapped_container().attrs["NetworkSettings"]["Networks"][...]["IPAddress"]
+ip = container.get_wrapped_container().attrs["NetworkSettings"]["Networks"][...][
+    "IPAddress"
+]
 
 service = V1Service(
     metadata=V1ObjectMeta(name=name),
@@ -196,10 +189,12 @@ service = V1Service(
 
 endpoints = V1Endpoints(
     metadata=V1ObjectMeta(name=name),
-    subsets=[V1EndpointSubset(
-        addresses=[V1EndpointAddress(ip=ip)],
-        ports=[CoreV1EndpointPort(port=port)],
-    )],
+    subsets=[
+        V1EndpointSubset(
+            addresses=[V1EndpointAddress(ip=ip)],
+            ports=[CoreV1EndpointPort(port=port)],
+        )
+    ],
 )
 ```
 
@@ -221,7 +216,11 @@ docker_config = {
 secret = V1Secret(
     metadata=V1ObjectMeta(name="my-secret"),
     type="kubernetes.io/dockerconfigjson",
-    data={".dockerconfigjson": base64.b64encode(json.dumps(docker_config).encode()).decode()},
+    data={
+        ".dockerconfigjson": base64.b64encode(
+            json.dumps(docker_config).encode()
+        ).decode()
+    },
 )
 ```
 

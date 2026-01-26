@@ -41,3 +41,11 @@ class ImageBuilderFactory:
             )
             kind = mlrun.common.schemas.ContainerBuilderKind(kind)
         return cls._builders[kind]()
+
+    @classmethod
+    def get_builder_kinds(cls) -> list[mlrun.common.schemas.ContainerBuilderKind]:
+        return list(cls._builders.keys())
+
+    @classmethod
+    def get_builder_kind_strings(cls) -> list[str]:
+        return [kind.value for kind in cls.get_builder_kinds()]

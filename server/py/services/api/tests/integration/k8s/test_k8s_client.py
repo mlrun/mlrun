@@ -27,6 +27,6 @@ def test_ssl_verification_fails(invalid_ssl_ca_k8s_helper):
 
 
 @pytest.mark.integration
-def test_ssl_verification_succeeds(valid_k8s_helper):
-    pods = valid_k8s_helper.list_pods()
+def test_ssl_verification_succeeds(session_k8s_helper):
+    pods = session_k8s_helper.list_pods()
     assert isinstance(pods, list)

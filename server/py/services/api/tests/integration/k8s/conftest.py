@@ -16,7 +16,6 @@ import base64
 import contextlib
 import json
 import logging
-import os
 import pathlib
 
 import kubernetes.client as k8s_client
@@ -39,12 +38,18 @@ from .utils import (
 
 @pytest.fixture(scope="session")
 def docker_network():
+    """
+    Create a shared Docker network for the test containers.
+    """
     with Network() as network:
         yield network
 
 
 @pytest.fixture(scope="session")
 def registry_container(docker_network):
+    """
+    Start a Docker registry container.
+    """
     registry = (
         DockerRegistryContainer()
         .with_network(docker_network)
@@ -53,111 +58,6 @@ def registry_container(docker_network):
     )
     with registry:
         yield registry
-
-
-@pytest.fixture(scope="session")
-def k3s_registries_config_path(tmp_path_factory: pytest.TempPathFactory) -> str:
-    """
-    Generate a `registries.yaml` for k3s/containerd to allow insecure local registries.
-    """
-    cfg = {
-        "mirrors": {
-            "distribution-registry:5000": {
-                "endpoint": ["http://distribution-registry:5000"]
-            },
-            "auth-registry:5000": {"endpoint": ["http://auth-registry:5000"]},
-        }
-    }
-    path = tmp_path_factory.mktemp("k3s") / "registries.yaml"
-    yaml.safe_dump(cfg, path.open("w"))
-    return str(path)
-
-
-@pytest.fixture(scope="session")
-def k3s(docker_network, registry_container, k3s_registries_config_path):
-    logging.getLogger("urllib3").setLevel(logging.WARNING)
-    logging.getLogger("testcontainers").setLevel(logging.DEBUG)
-
-    os.environ["TESTCONTAINERS_HOST_OVERRIDE"] = "host.docker.internal"
-
-    container = (
-        testcontainers.k3s.K3SContainer()
-        .with_network(docker_network)
-        .with_volume_mapping(
-            k3s_registries_config_path, "/etc/rancher/k3s/registries.yaml", "ro"
-        )
-        .with_name("k3s")
-    )
-    with container:
-        yield container
-
-
-@pytest.fixture
-def raw_kubeconfig(
-    k3s: "testcontainers.k3s.K3SContainer",
-) -> dict:
-    return yaml.safe_load(k3s.config_yaml())
-
-
-@pytest.fixture
-def valid_kubeconfig_path(
-    tmp_path: pathlib.Path,
-    raw_kubeconfig: dict,
-) -> str:
-    path = tmp_path / "kubeconfig.yaml"
-    yaml.safe_dump(raw_kubeconfig, path.open("w"))
-    return str(path)
-
-
-@pytest.fixture
-def bad_ca_kubeconfig_path(
-    tmp_path: pathlib.Path,
-    raw_kubeconfig: dict,
-) -> str:
-    bad = raw_kubeconfig.copy()
-    bad["clusters"][0]["cluster"]["certificate-authority-data"] = base64.b64encode(
-        b"not-a-ca"
-    )
-    path = tmp_path / "kubeconfig-badca.yaml"
-    yaml.safe_dump(bad, path.open("w"))
-    return str(path)
-
-
-@pytest.fixture
-def invalid_ssl_ca_k8s_helper(
-    bad_ca_kubeconfig_path: str,
-) -> framework.utils.singletons.k8s.K8sHelper:
-    return _k8s_helper_from_config(bad_ca_kubeconfig_path)
-
-
-@pytest.fixture
-def valid_k8s_helper(valid_kubeconfig_path) -> framework.utils.singletons.k8s.K8sHelper:
-    return _k8s_helper_from_config(valid_kubeconfig_path)
-
-
-@pytest.fixture(scope="session")
-def session_k8s_helper(
-    tmp_path_factory: pytest.TempPathFactory,
-    k3s: "testcontainers.k3s.K3SContainer",
-) -> framework.utils.singletons.k8s.K8sHelper:
-    raw_kubeconfig = yaml.safe_load(k3s.config_yaml())
-    path = tmp_path_factory.mktemp("kubeconfig") / "kubeconfig.yaml"
-    yaml.safe_dump(raw_kubeconfig, path.open("w"))
-    return _k8s_helper_from_config(str(path))
-
-
-@pytest.fixture(scope="session")
-def k3s_registry_service(
-    registry_container,
-    docker_network,
-    session_k8s_helper: framework.utils.singletons.k8s.K8sHelper,
-):
-    """Create a K8s Service routing to the registry container, wait for DNS."""
-    with _expose_testcontainer_as_k8s_service(
-        registry_container, "distribution-registry", 5000, session_k8s_helper
-    ) as registry_url:
-        # Strip http:// prefix - docker registry uses host:port format
-        yield registry_url.replace("http://", "")
 
 
 @pytest.fixture(scope="session")
@@ -190,10 +90,97 @@ def authenticated_registry_container(docker_network, tmp_path_factory):
 
 
 @pytest.fixture(scope="session")
+def k3s_registries_config_path(tmp_path_factory: pytest.TempPathFactory) -> str:
+    """
+    Generate a `registries.yaml` for k3s/containerd to allow insecure local registries.
+    """
+    cfg = {
+        "mirrors": {
+            "distribution-registry:5000": {
+                "endpoint": ["http://distribution-registry:5000"]
+            },
+            "auth-registry:5000": {"endpoint": ["http://auth-registry:5000"]},
+        }
+    }
+    path = tmp_path_factory.mktemp("k3s") / "registries.yaml"
+    yaml.safe_dump(cfg, path.open("w"))
+    return str(path)
+
+
+@pytest.fixture(scope="session")
+def k3s(docker_network, k3s_registries_config_path):
+    """
+    Start a k3s cluster container.
+    """
+    container = (
+        testcontainers.k3s.K3SContainer()
+        .with_network(docker_network)
+        .with_volume_mapping(
+            k3s_registries_config_path, "/etc/rancher/k3s/registries.yaml", "ro"
+        )
+        .with_name("k3s")
+    )
+    with container:
+        yield container
+
+
+@pytest.fixture(scope="session")
+def kubeconfig_path(
+    tmp_path_factory: pytest.TempPathFactory,
+    k3s: "testcontainers.k3s.K3SContainer",
+) -> str:
+    path = tmp_path_factory.mktemp("kubeconfig") / "kubeconfig.yaml"
+    yaml.safe_dump(yaml.safe_load(k3s.config_yaml()), path.open("w"))
+    return str(path)
+
+
+@pytest.fixture
+def bad_ca_kubeconfig_path(
+    tmp_path: pathlib.Path,
+    kubeconfig_path: str,
+) -> str:
+    bad = yaml.safe_load(kubeconfig_path).copy()
+    bad["clusters"][0]["cluster"]["certificate-authority-data"] = base64.b64encode(
+        b"not-a-ca"
+    )
+    path = tmp_path / "kubeconfig-badca.yaml"
+    yaml.safe_dump(bad, path.open("w"))
+    return str(path)
+
+
+@pytest.fixture
+def invalid_ssl_ca_k8s_helper(
+    bad_ca_kubeconfig_path: str,
+) -> framework.utils.singletons.k8s.K8sHelper:
+    return _k8s_helper_from_config(bad_ca_kubeconfig_path)
+
+
+@pytest.fixture(scope="session")
+def k8s_helper(
+    kubeconfig_path: str,
+) -> framework.utils.singletons.k8s.K8sHelper:
+    return _k8s_helper_from_config(kubeconfig_path)
+
+
+@pytest.fixture(scope="session")
+def k3s_registry_service(
+    registry_container,
+    docker_network,
+    k8s_helper: framework.utils.singletons.k8s.K8sHelper,
+):
+    """Create a K8s Service routing to the registry container, wait for DNS."""
+    with _expose_testcontainer_as_k8s_service(
+        registry_container, "distribution-registry", 5000, k8s_helper
+    ) as registry_url:
+        # Strip http:// prefix - docker registry uses host:port format
+        yield registry_url.replace("http://", "")
+
+
+@pytest.fixture(scope="session")
 def k3s_authenticated_registry_service(
     authenticated_registry_container,
     docker_network,
-    session_k8s_helper: framework.utils.singletons.k8s.K8sHelper,
+    k8s_helper: framework.utils.singletons.k8s.K8sHelper,
 ):
     """Create a K8s Service routing to the authenticated registry, plus a docker config secret."""
     container, username, password = authenticated_registry_container
@@ -201,14 +188,14 @@ def k3s_authenticated_registry_service(
     port = 5000
 
     with _expose_testcontainer_as_k8s_service(
-        container, registry_name, port, session_k8s_helper
+        container, registry_name, port, k8s_helper
     ) as registry_url:
         registry_host = registry_url.replace("http://", "")
 
         # Create docker config secret for registry auth
         secret_name = "auth-registry-secret"
         _create_docker_registry_secret(
-            session_k8s_helper,
+            k8s_helper,
             secret_name=secret_name,
             registry=registry_host,
             username=username,
@@ -219,11 +206,40 @@ def k3s_authenticated_registry_service(
         yield registry_host, secret_name, username, password
 
         try:
-            session_k8s_helper.v1api.delete_namespaced_secret(
+            k8s_helper.v1api.delete_namespaced_secret(
                 name=secret_name, namespace="default"
             )
         except k8s_client.ApiException:
             pass
+
+
+@pytest.fixture(scope="session")
+def http_context_server(
+    docker_network,
+    k8s_helper: framework.utils.singletons.k8s.K8sHelper,
+):
+    """Create an HTTP server in K8s that serves a simple build http context."""
+    name = "http-context-server"
+    port = 8080
+
+    # Create a tarball with a simple file and serve it via HTTP
+    cmd = (
+        "mkdir -p /data && "
+        "echo 'FROM gcr.io/iguazio/alpine:3.20' > /data/Dockerfile && "
+        "echo 'RUN echo hello > /hello.txt' >> /data/Dockerfile && "
+        "tar -czf /context.tar.gz -C /data . && "
+        "httpd -f -p 8080 -h /"
+    )
+    with (
+        DockerContainer("busybox")
+        .with_command(f'sh -c "{cmd}"')
+        .with_exposed_ports(8080)
+        .with_network(docker_network)
+    ) as container:
+        with _expose_testcontainer_as_k8s_service(
+            container, name, port, k8s_helper
+        ) as server_url:
+            yield server_url
 
 
 def _generate_htpasswd_via_docker(username: str, password: str) -> str:
@@ -234,8 +250,8 @@ def _generate_htpasswd_via_docker(username: str, password: str) -> str:
         # Wait for the container to finish and get logs
         container.get_wrapped_container().wait()
         logs = container.get_logs()
-        # logs is a tuple of (stdout, stderr)
-        return logs[0].decode("utf-8")
+        stdoud, _ = logs
+        return stdoud.decode("utf-8")
 
 
 def _create_docker_registry_secret(
@@ -270,35 +286,6 @@ def _create_docker_registry_secret(
     )
 
     create_or_replace_k8s_resource(k8s_helper, "secret", secret_name, secret, namespace)
-
-
-@pytest.fixture(scope="session")
-def http_context_server(
-    docker_network,
-    session_k8s_helper: framework.utils.singletons.k8s.K8sHelper,
-):
-    """Create an HTTP server in K8s that serves a simple build http context."""
-    name = "http-context-server"
-    port = 8080
-
-    # Create a tarball with a simple file and serve it via HTTP
-    cmd = (
-        "mkdir -p /data && "
-        "echo 'FROM gcr.io/iguazio/alpine:3.20' > /data/Dockerfile && "
-        "echo 'RUN echo hello > /hello.txt' >> /data/Dockerfile && "
-        "tar -czf /context.tar.gz -C /data . && "
-        "httpd -f -p 8080 -h /"
-    )
-    with (
-        DockerContainer("busybox")
-        .with_command(f'sh -c "{cmd}"')
-        .with_exposed_ports(8080)
-        .with_network(docker_network)
-    ) as container:
-        with _expose_testcontainer_as_k8s_service(
-            container, name, port, session_k8s_helper
-        ) as server_url:
-            yield server_url
 
 
 def _wait_for_service_dns(

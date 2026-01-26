@@ -26,21 +26,20 @@ import services.api.utils.builder
 from services.api.tests.integration.k8s.utils import dump_pod_logs, wait_for_pod_phase
 from services.api.utils.image_builder.factory import ImageBuilderFactory
 
+builder_kinds = ImageBuilderFactory.get_builder_kind_strings()
+
 
 @pytest.mark.integration
-@pytest.mark.parametrize("builder_kind", ["kaniko", "buildah"])
+@pytest.mark.parametrize("builder_kind", builder_kinds)
 def test_function_build_and_run_image(
     k3s_registry_service: str,
-    valid_kubeconfig_path: str,
+    k8s_helper: framework.utils.singletons.k8s.K8sHelper,
     monkeypatch,
     builder_kind: str,
 ):
-    k8s = framework.utils.singletons.k8s.K8sHelper(
-        kube_config_path=valid_kubeconfig_path,
-        silent=False,
-        log=False,
+    _setup_builder_monkeypatches(
+        monkeypatch, k8s_helper, k3s_registry_service, builder_kind
     )
-    _setup_builder_monkeypatches(monkeypatch, k8s, k3s_registry_service, builder_kind)
 
     project = "it"
     name = "build-run"
@@ -66,26 +65,23 @@ def test_function_build_and_run_image(
     assert built is False
     assert fn.status.build_pod, "Expected build pod name to be recorded"
 
-    _wait_for_build_pod(k8s, fn.status.build_pod)
-    _verify_image_with_marker(k8s, image, marker, builder_kind)
+    _wait_for_build_pod(k8s_helper, fn.status.build_pod)
+    _verify_image_with_marker(k8s_helper, image, marker, builder_kind)
 
 
 @pytest.mark.integration
-@pytest.mark.parametrize("builder_kind", ["kaniko", "buildah"])
+@pytest.mark.parametrize("builder_kind", builder_kinds)
 def test_build_with_http_remote_context(
     k3s_registry_service: str,
-    valid_kubeconfig_path: str,
+    k8s_helper: framework.utils.singletons.k8s.K8sHelper,
     http_context_server: str,
     monkeypatch,
     builder_kind: str,
 ):
     """Test building an image with HTTP context source."""
-    k8s = framework.utils.singletons.k8s.K8sHelper(
-        kube_config_path=valid_kubeconfig_path,
-        silent=False,
-        log=False,
+    _setup_builder_monkeypatches(
+        monkeypatch, k8s_helper, k3s_registry_service, builder_kind
     )
-    _setup_builder_monkeypatches(monkeypatch, k8s, k3s_registry_service, builder_kind)
 
     project = "it"
     tag = uuid.uuid4().hex[:12]
@@ -109,26 +105,23 @@ def test_build_with_http_remote_context(
 
     # Set namespace on BasePod before accessing .pod (it regenerates on each access)
     kpod.namespace = "default"
-    build_pod_name, build_namespace = k8s.create_pod(kpod.pod)
-    _wait_for_build_pod(k8s, build_pod_name, build_namespace)
-    _verify_image_with_marker(k8s, image, marker, builder_kind)
+    build_pod_name, build_namespace = k8s_helper.create_pod(kpod.pod)
+    _wait_for_build_pod(k8s_helper, build_pod_name, build_namespace)
+    _verify_image_with_marker(k8s_helper, image, marker, builder_kind)
 
 
 @pytest.mark.integration
-@pytest.mark.parametrize("builder_kind", ["kaniko", "buildah"])
+@pytest.mark.parametrize("builder_kind", builder_kinds)
 def test_build_with_git_context(
     k3s_registry_service: str,
-    valid_kubeconfig_path: str,
+    k8s_helper: framework.utils.singletons.k8s.K8sHelper,
     monkeypatch,
     builder_kind: str,
 ):
     """Test building an image with Git context source."""
-    k8s = framework.utils.singletons.k8s.K8sHelper(
-        kube_config_path=valid_kubeconfig_path,
-        silent=False,
-        log=False,
+    _setup_builder_monkeypatches(
+        monkeypatch, k8s_helper, k3s_registry_service, builder_kind
     )
-    _setup_builder_monkeypatches(monkeypatch, k8s, k3s_registry_service, builder_kind)
 
     project = "it"
     tag = uuid.uuid4().hex[:12]
@@ -154,26 +147,23 @@ def test_build_with_git_context(
 
     # Set namespace on BasePod before accessing .pod (it regenerates on each access)
     kpod.namespace = "default"
-    build_pod_name, build_namespace = k8s.create_pod(kpod.pod)
-    _wait_for_build_pod(k8s, build_pod_name, build_namespace)
-    _verify_image_with_marker(k8s, image, marker, builder_kind)
+    build_pod_name, build_namespace = k8s_helper.create_pod(kpod.pod)
+    _wait_for_build_pod(k8s_helper, build_pod_name, build_namespace)
+    _verify_image_with_marker(k8s_helper, image, marker, builder_kind)
 
 
 @pytest.mark.integration
-@pytest.mark.parametrize("builder_kind", ["kaniko", "buildah"])
+@pytest.mark.parametrize("builder_kind", builder_kinds)
 def test_build_with_inline_code_requirements_and_build_args(
     k3s_registry_service: str,
-    valid_kubeconfig_path: str,
+    k8s_helper: framework.utils.singletons.k8s.K8sHelper,
     monkeypatch,
     builder_kind: str,
 ):
     """Test building an image with inline code, requirements, and build args."""
-    k8s = framework.utils.singletons.k8s.K8sHelper(
-        kube_config_path=valid_kubeconfig_path,
-        silent=False,
-        log=False,
+    _setup_builder_monkeypatches(
+        monkeypatch, k8s_helper, k3s_registry_service, builder_kind
     )
-    _setup_builder_monkeypatches(monkeypatch, k8s, k3s_registry_service, builder_kind)
 
     project = "it"
     tag = uuid.uuid4().hex[:12]
@@ -225,11 +215,11 @@ COPY main.py /app/main.py
     )
 
     kpod.namespace = "default"
-    build_pod_name, build_namespace = k8s.create_pod(kpod.pod)
-    _wait_for_build_pod(k8s, build_pod_name, build_namespace)
+    build_pod_name, build_namespace = k8s_helper.create_pod(kpod.pod)
+    _wait_for_build_pod(k8s_helper, build_pod_name, build_namespace)
 
     # Verify all three features by running the image
-    _verify_advanced_build(k8s, image, marker, builder_kind)
+    _verify_advanced_build(k8s_helper, image, marker, builder_kind)
 
 
 def _verify_advanced_build(
@@ -289,10 +279,10 @@ python /app/main.py
 
 
 @pytest.mark.integration
-@pytest.mark.parametrize("builder_kind", ["kaniko", "buildah"])
+@pytest.mark.parametrize("builder_kind", builder_kinds)
 def test_build_with_registry_auth_secret(
     k3s_authenticated_registry_service: tuple[str, str, str, str],
-    valid_kubeconfig_path: str,
+    kubeconfig_path: str,
     monkeypatch,
     builder_kind: str,
 ):
@@ -300,7 +290,7 @@ def test_build_with_registry_auth_secret(
     registry_host, secret_name, _, _ = k3s_authenticated_registry_service
 
     k8s = framework.utils.singletons.k8s.K8sHelper(
-        kube_config_path=valid_kubeconfig_path,
+        kube_config_path=kubeconfig_path,
         silent=False,
         log=False,
     )
@@ -353,20 +343,17 @@ def test_build_with_registry_auth_secret(
 
 
 @pytest.mark.integration
-@pytest.mark.parametrize("builder_kind", ["buildah", "kaniko"])
+@pytest.mark.parametrize("builder_kind", builder_kinds)
 def test_build_with_project_secrets(
     k3s_registry_service: str,
-    valid_kubeconfig_path: str,
+    k8s_helper: framework.utils.singletons.k8s.K8sHelper,
     monkeypatch,
     builder_kind: str,
 ):
     """Test building with project secrets passed as build args."""
-    k8s = framework.utils.singletons.k8s.K8sHelper(
-        kube_config_path=valid_kubeconfig_path,
-        silent=False,
-        log=False,
+    _setup_builder_monkeypatches(
+        monkeypatch, k8s_helper, k3s_registry_service, builder_kind
     )
-    _setup_builder_monkeypatches(monkeypatch, k8s, k3s_registry_service, builder_kind)
 
     project = "it"
     tag = uuid.uuid4().hex[:12]
@@ -404,11 +391,11 @@ RUN echo "secret=$MY_PROJECT_SECRET" >> /mlrun_build_marker
     )
 
     kpod.namespace = "default"
-    build_pod_name, build_namespace = k8s.create_pod(kpod.pod)
-    _wait_for_build_pod(k8s, build_pod_name, build_namespace)
+    build_pod_name, build_namespace = k8s_helper.create_pod(kpod.pod)
+    _wait_for_build_pod(k8s_helper, build_pod_name, build_namespace)
 
     # Verify the secret was passed correctly
-    _verify_project_secrets_build(k8s, image, marker, secret_value, builder_kind)
+    _verify_project_secrets_build(k8s_helper, image, marker, secret_value, builder_kind)
 
 
 def _verify_image_with_auth(

@@ -519,4 +519,3 @@ INTERSECT_DICT_KEYS = {
 
 CRON_TRIGGER_KINDS = ("http", "cron")
 STREAM_TRIGGER_KINDS = ("v3io-stream", "kafka-cluster")
-

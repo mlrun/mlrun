@@ -1089,16 +1089,21 @@ class ApplicationRuntime(nuclio_function.RemoteRuntime):
         )
 
         # Upload the file as an artifact to an internal path with system-generated label
-        artifact = project.log_artifact(
-            item=artifact_key,
-            local_path=source,
-            artifact_path="_mlrun/sources",
-            upload=True,
-            labels={
-                mlrun.common.constants.MLRunInternalLabels.function_name: self.metadata.name,
-                mlrun.common.constants.MLRunInternalLabels.system_generated: "true",
-            },
-        )
+        try:
+            artifact = project.log_artifact(
+                item=artifact_key,
+                local_path=source,
+                artifact_path=mlrun.common.constants.MLRUN_INTERNAL_ARTIFACT_PATH,
+                upload=True,
+                labels={
+                    mlrun.common.constants.MLRunInternalLabels.function_name: self.metadata.name,
+                    mlrun.common.constants.MLRunInternalLabels.system_generated: "true",
+                },
+            )
+        except Exception as exc:
+            raise mlrun.errors.MLRunRuntimeError(
+                f"Failed to upload source file '{source}' as artifact"
+            ) from exc
 
         # Update the source to point to the artifact URI
         self.spec.build.source = artifact.uri
@@ -1110,7 +1115,7 @@ class ApplicationRuntime(nuclio_function.RemoteRuntime):
             return False
 
         # Skip if it's a remote URL (not a relative/local path)
-        if not is_relative_path(source) and not os.path.isabs(source):
+        if not (is_relative_path(source) or os.path.isabs(source)):
             return False
 
         # Check if it's a local file (not a directory)

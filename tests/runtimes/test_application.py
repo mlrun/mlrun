@@ -1028,7 +1028,7 @@ def test_upload_source_as_artifact(tmp_path):
     mock_project.log_artifact.assert_called_once_with(
         item="application-test-source",
         local_path=str(source_file),
-        artifact_path="_mlrun/sources",
+        artifact_path=mlrun.common.constants.MLRUN_INTERNAL_ARTIFACT_PATH,
         upload=True,
         labels={
             mlrun.common.constants.MLRunInternalLabels.function_name: func_name,

@@ -1458,6 +1458,9 @@ class Config:
             == mlrun.common.types.AuthenticationMode.IGUAZIO_V4
         )
 
+    def is_using_v3io(self) -> bool:
+        return not self.is_iguazio_v4_mode() and not self.is_ce_mode()
+
     def is_explicit_ack_enabled(self) -> bool:
         return self.httpdb.nuclio.explicit_ack == "enabled" and (
             not self.nuclio_version

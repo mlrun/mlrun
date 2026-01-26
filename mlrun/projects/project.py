@@ -5934,7 +5934,7 @@ def _init_function_from_dict(
         )
 
     elif url.endswith(".py"):
-        # For application runtime we set the source path directly, deploy() will upload it as artifact
+        # For application runtime we set the source path directly, deploy will upload it as an artifact
         if kind == mlrun.runtimes.RuntimeKinds.application:
             func = new_function(
                 name,

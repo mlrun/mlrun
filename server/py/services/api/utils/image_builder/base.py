@@ -193,8 +193,9 @@ class BaseImageBuilder(abc.ABC):
     ) -> list[str]:
         """Generate --build-arg flags from builder env and project secrets.
 
-        Builder env values are used directly (plain text).
-        Project secrets use $ reference to read from injected environment variables.
+        Both builder_env and project_secrets values are passed directly to the
+        builder as --build-arg NAME=VALUE. The values are also available as
+        environment variables in the builder container.
         """
         builder_env = builder_env or []
         project_secrets = project_secrets or []
@@ -204,7 +205,7 @@ class BaseImageBuilder(abc.ABC):
             args.extend(["--build-arg", f"{env.name}={env.value}"])
 
         for secret in project_secrets:
-            args.extend(["--build-arg", f"{secret.name}=${secret.name}"])
+            args.extend(["--build-arg", f"{secret.name}={secret.value}"])
 
         return args
 

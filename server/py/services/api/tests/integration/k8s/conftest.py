@@ -14,6 +14,7 @@
 
 import base64
 import contextlib
+import json
 import logging
 import os
 import pathlib
@@ -57,13 +58,14 @@ def registry_container(docker_network):
 @pytest.fixture(scope="session")
 def k3s_registries_config_path(tmp_path_factory: pytest.TempPathFactory) -> str:
     """
-    Generate a `registries.yaml` for k3s/containerd to allow an insecure local registry.
+    Generate a `registries.yaml` for k3s/containerd to allow insecure local registries.
     """
     cfg = {
         "mirrors": {
             "distribution-registry:5000": {
                 "endpoint": ["http://distribution-registry:5000"]
-            }
+            },
+            "auth-registry:5000": {"endpoint": ["http://auth-registry:5000"]},
         }
     }
     path = tmp_path_factory.mktemp("k3s") / "registries.yaml"
@@ -156,6 +158,118 @@ def k3s_registry_service(
     ) as registry_url:
         # Strip http:// prefix - docker registry uses host:port format
         yield registry_url.replace("http://", "")
+
+
+@pytest.fixture(scope="session")
+def authenticated_registry_container(docker_network, tmp_path_factory):
+    """Create a Docker registry with basic auth enabled using bcrypt htpasswd."""
+    username = "testuser"
+    password = "testpass"
+
+    # Generate bcrypt htpasswd using httpd container
+    htpasswd_content = _generate_htpasswd_via_docker(username, password)
+
+    # Create temp directory for auth files
+    auth_dir = tmp_path_factory.mktemp("registry-auth")
+    htpasswd_path = auth_dir / "htpasswd"
+    htpasswd_path.write_text(htpasswd_content)
+
+    registry = (
+        DockerContainer("registry:2")
+        .with_network(docker_network)
+        .with_network_aliases("auth-registry")
+        .with_name("auth-registry")
+        .with_exposed_ports(5000)
+        .with_volume_mapping(str(auth_dir), "/auth", "ro")
+        .with_env("REGISTRY_AUTH", "htpasswd")
+        .with_env("REGISTRY_AUTH_HTPASSWD_REALM", "Registry Realm")
+        .with_env("REGISTRY_AUTH_HTPASSWD_PATH", "/auth/htpasswd")
+    )
+    with registry:
+        yield registry, username, password
+
+
+@pytest.fixture(scope="session")
+def k3s_authenticated_registry_service(
+    authenticated_registry_container,
+    docker_network,
+    session_k8s_helper: framework.utils.singletons.k8s.K8sHelper,
+):
+    """Create a K8s Service routing to the authenticated registry, plus a docker config secret."""
+    container, username, password = authenticated_registry_container
+    registry_name = "auth-registry"
+    port = 5000
+
+    with _expose_testcontainer_as_k8s_service(
+        container, registry_name, port, session_k8s_helper
+    ) as registry_url:
+        registry_host = registry_url.replace("http://", "")
+
+        # Create docker config secret for registry auth
+        secret_name = "auth-registry-secret"
+        _create_docker_registry_secret(
+            session_k8s_helper,
+            secret_name=secret_name,
+            registry=registry_host,
+            username=username,
+            password=password,
+            namespace="default",
+        )
+
+        yield registry_host, secret_name, username, password
+
+        try:
+            session_k8s_helper.v1api.delete_namespaced_secret(
+                name=secret_name, namespace="default"
+            )
+        except k8s_client.ApiException:
+            pass
+
+
+def _generate_htpasswd_via_docker(username: str, password: str) -> str:
+    """Generate bcrypt htpasswd entry using httpd container via testcontainers."""
+    with DockerContainer("httpd:2").with_command(
+        f"htpasswd -Bbn {username} {password}"
+    ) as container:
+        # Wait for the container to finish and get logs
+        container.get_wrapped_container().wait()
+        logs = container.get_logs()
+        # logs is a tuple of (stdout, stderr)
+        return logs[0].decode("utf-8")
+
+
+def _create_docker_registry_secret(
+    k8s_helper: framework.utils.singletons.k8s.K8sHelper,
+    secret_name: str,
+    registry: str,
+    username: str,
+    password: str,
+    namespace: str = "default",
+):
+    """Create a Kubernetes docker-registry secret."""
+
+    # Build the docker config JSON
+    auth_string = base64.b64encode(f"{username}:{password}".encode()).decode()
+    docker_config = {
+        "auths": {
+            registry: {
+                "username": username,
+                "password": password,
+                "auth": auth_string,
+            }
+        }
+    }
+    docker_config_json = json.dumps(docker_config)
+
+    secret = k8s_client.V1Secret(
+        metadata=k8s_client.V1ObjectMeta(name=secret_name, namespace=namespace),
+        type="kubernetes.io/dockerconfigjson",
+        data={
+            ".dockerconfigjson": base64.b64encode(docker_config_json.encode()).decode()
+        },
+    )
+
+    create_or_replace_k8s_resource(k8s_helper, "secret", secret_name, secret, namespace)
 
 
 @pytest.fixture(scope="session")

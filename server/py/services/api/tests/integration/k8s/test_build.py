@@ -289,7 +289,71 @@ python /app/main.py
 
 
 @pytest.mark.integration
-@pytest.mark.parametrize("builder_kind", ["buildah"])
+@pytest.mark.parametrize("builder_kind", ["kaniko", "buildah"])
+def test_build_with_registry_auth_secret(
+    k3s_authenticated_registry_service: tuple[str, str, str, str],
+    valid_kubeconfig_path: str,
+    monkeypatch,
+    builder_kind: str,
+):
+    """Test building and pushing to an authenticated registry using a secret."""
+    registry_host, secret_name, _, _ = k3s_authenticated_registry_service
+
+    k8s = framework.utils.singletons.k8s.K8sHelper(
+        kube_config_path=valid_kubeconfig_path,
+        silent=False,
+        log=False,
+    )
+
+    # Setup monkeypatches for authenticated registry
+    monkeypatch.setattr(
+        framework.utils.singletons.k8s,
+        "get_k8s_helper",
+        lambda *args, **kwargs: k8s,
+    )
+    monkeypatch.setattr(mlrun.mlconf.httpdb.builder, "docker_registry", registry_host)
+    monkeypatch.setattr(
+        mlrun.mlconf.httpdb.builder, "docker_registry_secret", secret_name
+    )
+    monkeypatch.setattr(
+        mlrun.mlconf.httpdb.builder, "insecure_pull_registry_mode", "enabled"
+    )
+    monkeypatch.setattr(
+        mlrun.mlconf.httpdb.builder, "insecure_push_registry_mode", "enabled"
+    )
+    monkeypatch.setattr(
+        mlrun.mlconf.httpdb.builder, "container_builder_kind", builder_kind
+    )
+
+    project = "it"
+    tag = uuid.uuid4().hex[:12]
+    image = f"{registry_host}/mlrun-it/{builder_kind}-auth:{tag}"
+    marker = f"auth-registry-{builder_kind}-{tag}"
+
+    builder = ImageBuilderFactory.create_builder()
+    runtime_spec = mlrun.runtimes.pod.KubeResourceSpec()
+
+    kpod = builder.make_build_pod(
+        project=project,
+        context="/empty",
+        dest=image,
+        dockertext=f"FROM gcr.io/iguazio/alpine:3.20\nRUN echo {marker} > /mlrun_build_marker\n",
+        secret_name=secret_name,
+        name=f"build-auth-{builder_kind}-{tag[:8]}",
+        runtime_spec=runtime_spec,
+    )
+
+    kpod.namespace = "default"
+    build_pod_name, build_namespace = k8s.create_pod(kpod.pod)
+    _wait_for_build_pod(k8s, build_pod_name, build_namespace)
+
+    # Verify the image was pushed by running it
+    # Need to add imagePullSecrets to pull from authenticated registry
+    _verify_image_with_auth(k8s, image, marker, builder_kind, secret_name)
+
+
+@pytest.mark.integration
+@pytest.mark.parametrize("builder_kind", ["buildah", "kaniko"])
 def test_build_with_project_secrets(
     k3s_registry_service: str,
     valid_kubeconfig_path: str,
@@ -345,6 +409,46 @@ RUN echo "secret=$MY_PROJECT_SECRET" >> /mlrun_build_marker
 
     # Verify the secret was passed correctly
     _verify_project_secrets_build(k8s, image, marker, secret_value, builder_kind)
+
+
+def _verify_image_with_auth(
+    k8s: framework.utils.singletons.k8s.K8sHelper,
+    image: str,
+    marker: str,
+    builder_kind: str,
+    secret_name: str,
+    timeout_seconds: int = 300,
+):
+    """Run a pod with the built image from authenticated registry."""
+    run_pod_manifest = k8s_client.V1Pod(
+        metadata=k8s_client.V1ObjectMeta(
+            generate_name=f"mlrun-it-auth-{builder_kind}-",
+            namespace="default",
+        ),
+        spec=k8s_client.V1PodSpec(
+            restart_policy="Never",
+            image_pull_secrets=[k8s_client.V1LocalObjectReference(name=secret_name)],
+            containers=[
+                k8s_client.V1Container(
+                    name="run",
+                    image=image,
+                    command=["/bin/sh", "-c"],
+                    args=["cat /mlrun_build_marker"],
+                )
+            ],
+        ),
+    )
+    run_pod_name, run_namespace = k8s.create_pod(run_pod_manifest)
+    run_phase = wait_for_pod_phase(
+        k8s=k8s,
+        name=run_pod_name,
+        namespace=run_namespace,
+        desired_phases={"succeeded", "failed"},
+        timeout_seconds=timeout_seconds,
+    )
+    logs = dump_pod_logs(k8s, run_pod_name, run_namespace)
+    assert run_phase == "succeeded", f"Run pod failed. Logs:\n{logs}"
+    assert marker in logs, f"Marker not found in logs:\n{logs}"
 
 
 def _verify_project_secrets_build(

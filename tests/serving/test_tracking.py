@@ -1853,9 +1853,9 @@ def test_batch_step_with_mrs(rundb_mock):
     finally:
         server.wait_for_completion()
 
-    # Verify we got all responses
-    assert len(responses) == 7, f"Expected 7 responses, got {len(responses)}"
-    assert all(r is not None for r in responses), "Not all responses received"
+        # Verify we got all responses
+        assert len(responses) == number_of_events, f"Expected {number_of_events} responses, got {len(responses)}"
+        assert all(r is not None for r in responses), "Not all responses received"
 
     # Verify each response has correct input/output
     expected_responses = [

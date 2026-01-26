@@ -404,7 +404,7 @@ class TestMockModelProvider(BaseMockModelProviderTest):
         "execution_mechanism",
         ["process_pool", "dedicated_process", "naive", "asyncio", "thread_pool"],
     )
-    def test_llmodel_batch_batch_step(
+    def test_llmodel_batch_step(
         self, execution_mechanism, rundb_mock
     ):
         """Test batch processing using storey.Batch step with LLModel and MockModelProvider"""
@@ -457,3 +457,5 @@ class TestMockModelProvider(BaseMockModelProviderTest):
                 assert "output" in response
                 output = response["output"]
                 self._verify_single_response(output, expect_counter=True)
+
+            # TODO : Verify tracking events - should have 3 batches (2+2+1 = len(INPUT_DATA) total events)

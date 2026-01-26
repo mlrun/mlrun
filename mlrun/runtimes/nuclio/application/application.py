@@ -1068,7 +1068,7 @@ class ApplicationRuntime(nuclio_function.RemoteRuntime):
             return
 
         # Only upload if it's a local single file
-        if not self._is_local_single_file(source):
+        if not self._is_single_local_file(source):
             return
 
         project_name = self.metadata.project
@@ -1109,7 +1109,7 @@ class ApplicationRuntime(nuclio_function.RemoteRuntime):
         self.spec.build.source = artifact.uri
 
     @staticmethod
-    def _is_local_single_file(source: str) -> bool:
+    def _is_single_local_file(source: str) -> bool:
         # Skip if the source is already a store URI
         if mlrun.datastore.is_store_uri(source):
             return False

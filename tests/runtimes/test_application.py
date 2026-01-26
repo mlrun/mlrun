@@ -972,8 +972,8 @@ def test_enrich_sidecar_probe_ports_no_probes():
         ("/non/existent/path.py", False, False),
     ],
 )
-def test_is_local_single_file(tmp_path, source, setup_file, expected):
-    # Test _is_local_single_file identifies local files vs remote/invalid sources.
+def test_is_single_local_file(tmp_path, source, setup_file, expected):
+    # Test _is_single_local_file identifies local files vs remote/invalid sources.
     func_name = "application-test"
     fn: mlrun.runtimes.ApplicationRuntime = mlrun.new_function(
         func_name,
@@ -992,7 +992,7 @@ def test_is_local_single_file(tmp_path, source, setup_file, expected):
     else:
         test_source = source
 
-    assert fn._is_local_single_file(test_source) is expected
+    assert fn._is_single_local_file(test_source) is expected
 
 
 def test_upload_source_as_artifact(tmp_path):

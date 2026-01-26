@@ -257,16 +257,6 @@ class MonitoringDeployment:
                 image=controller_image, ignore_stream_already_exists_failure=overwrite
             )
 
-            # Propagate store-prefix override from the deploying pod into the controller if present.
-            monitoring_store_prefix_env = mlrun.get_secret_or_env(
-                key=mm_constants.DEFAULT_STORE_PREFIX_ENV, default=None
-            )
-            if monitoring_store_prefix_env is not None:
-                fn.set_env(
-                    name=mm_constants.DEFAULT_STORE_PREFIX_ENV,
-                    value=monitoring_store_prefix_env,
-                )
-
             minutes = base_period
             hours = days = 0
             batch_dict = {

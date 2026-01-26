@@ -4709,9 +4709,9 @@ termcolor==3.3.0 \
     --hash=sha256:348871ca648ec6a9a983a13ab626c0acce02f515b9e1983332b17af7979521c5 \
     --hash=sha256:cf642efadaf0a8ebbbf4bc7a31cec2f9b5f21a9f726f4ccbb08192c9c26f43a5
     # via fire
-testcontainers==4.14.0 \
-    --hash=sha256:3b2d4fa487af23024f00fcaa2d1cf4a5c6ad0c22e638a49799813cb49b3176c7 \
-    --hash=sha256:64e79b6b1e6d2b9b9e125539d35056caab4be739f7b7158c816d717f3596fa59
+testcontainers==4.10.0 \
+    --hash=sha256:03f85c3e505d8b4edeb192c72a961cebbcba0dd94344ae778b4a159cb6dcf8d3 \
+    --hash=sha256:31ed1a81238c7e131a2a29df6db8f23717d892b592fa5a1977fd0dcd0c23fc23
     # via -r dev-requirements.txt
 textual==7.4.0 ; sys_platform != 'win32' \
     --hash=sha256:1a9598e485492f9a8f033c7ec5e59528df3ab0742fda925681acf78b0fb210de \

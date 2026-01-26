@@ -57,7 +57,7 @@ Located in `utils.py`:
 wait_for_pod_phase(k8s, name, namespace, desired_phases, timeout_seconds=300)
 
 # Get pod logs (safe, returns error message on failure)
-dump_pod_logs(k8s, name, namespace) -> str
+dump_pod_logs(k8s, name, namespace)
 
 # Create or replace a K8s resource (handles 409 Conflict)
 create_or_replace_k8s_resource(k8s, resource_type, resource_name, resource, namespace)

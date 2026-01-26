@@ -1422,24 +1422,6 @@ class LLModel(Model):
             result_path=result_path,
         )
 
-    @staticmethod
-    def _get_answer_and_usage(response_with_stats) -> tuple[Any, Any]:
-        answer = (
-            response_with_stats.get("answer")
-            if isinstance(response_with_stats, dict)
-            else [
-                single_response.get("answer") for single_response in response_with_stats
-            ]
-        )
-        usage = (
-            response_with_stats.get("usage")
-            if isinstance(response_with_stats, dict)
-            else [
-                single_response.get("usage") for single_response in response_with_stats
-            ]
-        )
-        return answer, usage
-
     def predict(
         self,
         body: Any,
@@ -1465,12 +1447,10 @@ class LLModel(Model):
             set_data_by_path(
                 path=self._result_path, data=body, value=response_with_stats
             )
-            answer, usage = self._get_answer_and_usage(response_with_stats)
             logger.debug(
                 "LLModel prediction completed",
                 model_name=self.name,
-                answer=answer,
-                usage=usage,
+                response=response_with_stats,
             )
         else:
             logger.warning(
@@ -1506,12 +1486,10 @@ class LLModel(Model):
             set_data_by_path(
                 path=self._result_path, data=body, value=response_with_stats
             )
-            answer, usage = self._get_answer_and_usage(response_with_stats)
             logger.debug(
                 "LLModel async prediction completed",
                 model_name=self.name,
-                answer=answer,
-                usage=usage,
+                response=response_with_stats,
             )
         else:
             logger.warning(

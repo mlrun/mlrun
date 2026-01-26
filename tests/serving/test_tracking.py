@@ -14,8 +14,10 @@
 
 import json
 import pickle
+import time
 import typing
 from collections.abc import Iterator
+from concurrent.futures import ThreadPoolExecutor
 from contextlib import AbstractContextManager
 from contextlib import nullcontext as does_not_raise
 from pathlib import Path
@@ -1807,10 +1809,6 @@ def test_mrs_direct_batch_str(
 
 
 def test_batch_step_with_mrs(rundb_mock):
-    """Test combining Batch step with ModelRunnerStep - streams individual events in threads that get batched before model inference"""
-    import time
-    from concurrent.futures import ThreadPoolExecutor
-
     number_of_events = 7
 
     function = mlrun.new_function("test-batch-mrs", kind="serving")

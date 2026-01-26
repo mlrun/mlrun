@@ -159,6 +159,234 @@ def test_build_with_git_context(
     _verify_image_with_marker(k8s, image, marker, builder_kind)
 
 
+@pytest.mark.integration
+@pytest.mark.parametrize("builder_kind", ["kaniko", "buildah"])
+def test_build_with_inline_code_requirements_and_build_args(
+    k3s_registry_service: str,
+    valid_kubeconfig_path: str,
+    monkeypatch,
+    builder_kind: str,
+):
+    """Test building an image with inline code, requirements, and build args."""
+    k8s = framework.utils.singletons.k8s.K8sHelper(
+        kube_config_path=valid_kubeconfig_path,
+        silent=False,
+        log=False,
+    )
+    _setup_builder_monkeypatches(monkeypatch, k8s, k3s_registry_service, builder_kind)
+
+    project = "it"
+    tag = uuid.uuid4().hex[:12]
+    image = f"{k3s_registry_service}/mlrun-it/{builder_kind}-advanced:{tag}"
+    marker = f"advanced-{builder_kind}-{tag}"
+
+    # Inline Python code that will be injected into the image
+    inline_code = f"""
+import six
+print("INLINE_CODE_MARKER={marker}")
+print("SIX_VERSION=" + six.__version__)
+"""
+
+    # Requirements to install (six is lightweight with no dependencies)
+    requirements = ["six"]
+
+    # Build args - will be used in Dockerfile to create a marker file
+    builder_env = [
+        k8s_client.V1EnvVar(name="BUILD_ARG_MARKER", value=marker),
+    ]
+
+    # Dockerfile that uses all features:
+    # - Installs requirements from /empty/requirements.txt
+    # - Copies inline code from /empty/main.py
+    # - Uses build arg to create marker file
+    dockertext = """FROM gcr.io/iguazio/python:3.11-slim
+ARG BUILD_ARG_MARKER
+RUN echo "build_arg_marker=$BUILD_ARG_MARKER" > /build_arg_marker.txt
+COPY requirements.txt /tmp/requirements.txt
+RUN pip install --no-cache-dir -r /tmp/requirements.txt
+COPY main.py /app/main.py
+"""
+
+    builder = ImageBuilderFactory.create_builder()
+    runtime_spec = mlrun.runtimes.pod.KubeResourceSpec()
+
+    kpod = builder.make_build_pod(
+        project=project,
+        context="/empty",
+        dest=image,
+        dockertext=dockertext,
+        inline_code=inline_code,
+        inline_path="main.py",
+        requirements=requirements,
+        requirements_path="/empty/requirements.txt",
+        builder_env=builder_env,
+        name=f"build-adv-{builder_kind}-{tag[:8]}",
+        runtime_spec=runtime_spec,
+    )
+
+    kpod.namespace = "default"
+    build_pod_name, build_namespace = k8s.create_pod(kpod.pod)
+    _wait_for_build_pod(k8s, build_pod_name, build_namespace)
+
+    # Verify all three features by running the image
+    _verify_advanced_build(k8s, image, marker, builder_kind)
+
+
+def _verify_advanced_build(
+    k8s: framework.utils.singletons.k8s.K8sHelper,
+    image: str,
+    marker: str,
+    builder_kind: str,
+    timeout_seconds: int = 300,
+):
+    """Verify image has inline code, requirements installed, and build args applied."""
+    # Run the inline code and check the build arg marker file
+    verify_script = """
+set -e
+echo "=== Checking build arg marker ==="
+cat /build_arg_marker.txt
+echo "=== Running inline code ==="
+python /app/main.py
+"""
+    run_pod_manifest = k8s_client.V1Pod(
+        metadata=k8s_client.V1ObjectMeta(
+            generate_name=f"mlrun-it-adv-{builder_kind}-",
+            namespace="default",
+        ),
+        spec=k8s_client.V1PodSpec(
+            restart_policy="Never",
+            containers=[
+                k8s_client.V1Container(
+                    name="run",
+                    image=image,
+                    command=["/bin/sh", "-c"],
+                    args=[verify_script],
+                )
+            ],
+        ),
+    )
+    run_pod_name, run_namespace = k8s.create_pod(run_pod_manifest)
+    run_phase = wait_for_pod_phase(
+        k8s=k8s,
+        name=run_pod_name,
+        namespace=run_namespace,
+        desired_phases={"succeeded", "failed"},
+        timeout_seconds=timeout_seconds,
+    )
+    logs = dump_pod_logs(k8s, run_pod_name, run_namespace)
+    assert run_phase == "succeeded", f"Verification pod failed. Logs:\n{logs}"
+
+    # Verify build arg was applied
+    assert (
+        f"build_arg_marker={marker}" in logs
+    ), f"Build arg marker not found in logs:\n{logs}"
+
+    # Verify inline code executed and imported six
+    assert (
+        f"INLINE_CODE_MARKER={marker}" in logs
+    ), f"Inline code marker not found in logs:\n{logs}"
+    assert "SIX_VERSION=" in logs, f"Six package not imported in logs:\n{logs}"
+
+
+@pytest.mark.integration
+@pytest.mark.parametrize("builder_kind", ["buildah"])
+def test_build_with_project_secrets(
+    k3s_registry_service: str,
+    valid_kubeconfig_path: str,
+    monkeypatch,
+    builder_kind: str,
+):
+    """Test building with project secrets passed as build args."""
+    k8s = framework.utils.singletons.k8s.K8sHelper(
+        kube_config_path=valid_kubeconfig_path,
+        silent=False,
+        log=False,
+    )
+    _setup_builder_monkeypatches(monkeypatch, k8s, k3s_registry_service, builder_kind)
+
+    project = "it"
+    tag = uuid.uuid4().hex[:12]
+    image = f"{k3s_registry_service}/mlrun-it/{builder_kind}-secrets:{tag}"
+    marker = f"project-secrets-{builder_kind}-{tag}"
+
+    # Project secrets - these are passed as build args using $ reference
+    # The secret value is injected as an environment variable in the builder pod
+    secret_value = f"secret-value-{tag}"
+    project_secrets = [
+        k8s_client.V1EnvVar(
+            name="MY_PROJECT_SECRET",
+            value=secret_value,
+        ),
+    ]
+
+    # Dockerfile uses the secret as a build arg
+    dockertext = f"""FROM gcr.io/iguazio/alpine:3.20
+ARG MY_PROJECT_SECRET
+RUN echo "marker={marker}" > /mlrun_build_marker
+RUN echo "secret=$MY_PROJECT_SECRET" >> /mlrun_build_marker
+"""
+
+    builder = ImageBuilderFactory.create_builder()
+    runtime_spec = mlrun.runtimes.pod.KubeResourceSpec()
+
+    kpod = builder.make_build_pod(
+        project=project,
+        context="/empty",
+        dest=image,
+        dockertext=dockertext,
+        project_secrets=project_secrets,
+        name=f"build-sec-{builder_kind}-{tag[:8]}",
+        runtime_spec=runtime_spec,
+    )
+
+    kpod.namespace = "default"
+    build_pod_name, build_namespace = k8s.create_pod(kpod.pod)
+    _wait_for_build_pod(k8s, build_pod_name, build_namespace)
+
+    # Verify the secret was passed correctly
+    _verify_project_secrets_build(k8s, image, marker, secret_value, builder_kind)
+
+
+def _verify_project_secrets_build(
+    k8s: framework.utils.singletons.k8s.K8sHelper,
+    image: str,
+    marker: str,
+    secret_value: str,
+    builder_kind: str,
+    timeout_seconds: int = 300,
+):
+    """Verify image was built with project secrets as build args."""
+    run_pod_manifest = k8s_client.V1Pod(
+        metadata=k8s_client.V1ObjectMeta(
+            generate_name=f"mlrun-it-sec-{builder_kind}-",
+            namespace="default",
+        ),
+        spec=k8s_client.V1PodSpec(
+            restart_policy="Never",
+            containers=[
+                k8s_client.V1Container(
+                    name="run",
+                    image=image,
+                    command=["/bin/sh", "-c"],
+                    args=["cat /mlrun_build_marker"],
+                )
+            ],
+        ),
+    )
+    run_pod_name, run_namespace = k8s.create_pod(run_pod_manifest)
+    run_phase = wait_for_pod_phase(
+        k8s=k8s,
+        name=run_pod_name,
+        namespace=run_namespace,
+        desired_phases={"succeeded", "failed"},
+        timeout_seconds=timeout_seconds,
+    )
+    logs = dump_pod_logs(k8s, run_pod_name, run_namespace)
+    assert run_phase == "succeeded", f"Run pod failed. Logs:\n{logs}"
+    assert f"marker={marker}" in logs, f"Marker not found in logs:\n{logs}"
+    assert f"secret={secret_value}" in logs, f"Secret value not found in logs:\n{logs}"
+
+
 def _setup_builder_monkeypatches(
     monkeypatch,
     k8s: framework.utils.singletons.k8s.K8sHelper,

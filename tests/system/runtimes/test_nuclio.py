@@ -1304,3 +1304,269 @@ class TestNuclioAPIGateways(tests.system.base.TestMLRunSystem):
         fn.with_http(workers=1)
         fn.deploy()
         return fn
+
+
+@tests.system.base.TestMLRunSystem.skip_test_if_env_not_configured
+@pytest.mark.enterprise
+class TestNuclioRuntimeWithRabbitMQ(tests.system.base.TestMLRunSystem):
+    """System tests for RabbitMQ trigger support in Nuclio functions.
+
+    Requires:
+        - MLRUN_SYSTEM_TESTS_RABBITMQ_URL: RabbitMQ AMQP URL (e.g., amqp://user:pass@host:5672)
+    """
+
+    project_name = "rabbitmq-project"
+    exchange_uuid_part = uuid.uuid4()
+    exchange_name = f"test-exchange-{exchange_uuid_part}"
+    queue_name = f"test-queue-{exchange_uuid_part}"
+    rabbitmq_url = os.getenv("MLRUN_SYSTEM_TESTS_RABBITMQ_URL")
+
+    image: str = "mlrun/mlrun"
+
+    def _create_rabbitmq_connection(self):
+        """Create a fresh RabbitMQ connection."""
+        import pika
+
+        params = pika.URLParameters(self.rabbitmq_url)
+        # Increase heartbeat to handle longer operations
+        params.heartbeat = 600
+        connection = pika.BlockingConnection(params)
+        return connection, connection.channel()
+
+    @pytest.fixture()
+    def rabbitmq_fixture(self):
+        import tempfile
+
+        # Create temp directory for parquet output
+        tmp_dir = tempfile.mkdtemp(prefix="rabbitmq_test_")
+
+        # Setup: Create exchange and queue, then close connection
+        # This avoids heartbeat timeouts during long deployments
+        connection, channel = self._create_rabbitmq_connection()
+        channel.exchange_declare(
+            exchange=self.exchange_name, exchange_type="topic", durable=False
+        )
+        channel.queue_declare(queue=self.queue_name, durable=False)
+        channel.queue_bind(
+            exchange=self.exchange_name, queue=self.queue_name, routing_key="test.#"
+        )
+        connection.close()
+
+        try:
+            # Yield a helper to create fresh connections for publishing
+            yield self._create_rabbitmq_connection, tmp_dir
+        finally:
+            # Cleanup: delete queue, exchange, and temp directory
+            try:
+                connection, channel = self._create_rabbitmq_connection()
+                channel.queue_delete(queue=self.queue_name)
+                channel.exchange_delete(exchange=self.exchange_name)
+                connection.close()
+            except Exception:
+                pass
+            try:
+                import shutil
+
+                shutil.rmtree(tmp_dir, ignore_errors=True)
+            except Exception:
+                pass
+
+    @pytest.mark.skipif(
+        not rabbitmq_url, reason="MLRUN_SYSTEM_TESTS_RABBITMQ_URL not defined"
+    )
+    def test_rabbitmq_trigger_end_to_end(self, rabbitmq_fixture):
+        """Test end-to-end message processing with RabbitMQ trigger.
+
+        Verifies:
+        1. Function deploys successfully with RabbitMQ trigger
+        2. Messages published to RabbitMQ are received and processed
+        3. Processed messages are written to v3io Parquet output
+        """
+        create_connection, _ = rabbitmq_fixture
+
+        # Use v3io path accessible from Kubernetes
+        v3io_username = os.getenv("V3IO_USERNAME", "iguazio")
+        output_path = (
+            f"v3io:///users/{v3io_username}/rabbitmq_test_{self.exchange_uuid_part}"
+        )
+
+        code_path = str(self.assets_path / "rabbitmq_handler.py")
+
+        self._logger.debug("Creating serving function with RabbitMQ trigger")
+        function = mlrun.code_to_function(
+            name="rabbitmq-e2e-test",
+            kind="serving",
+            project=self.project_name,
+            filename=code_path,
+            image=self.image,
+        )
+
+        # Set up graph: ProcessMessage -> ParquetTarget (v3io)
+        graph = function.set_topology("flow", engine="async")
+        graph.to(name="process", class_name="ProcessMessage").to(
+            name="parquet",
+            class_name="storey.ParquetTarget",
+            path=output_path,
+            flush_after_seconds=5,
+        )
+
+        # Add RabbitMQ trigger
+        function.add_rabbitmq_trigger(
+            url=self.rabbitmq_url,
+            exchange_name=self.exchange_name,
+            queue_name=self.queue_name,
+            prefetch_count=1,
+        )
+
+        self._logger.debug("Deploying serving function")
+        function.deploy()
+
+        # Verify function is deployed and running
+        db_function = self.project.get_function(function.metadata.name)
+        assert db_function.status.state == "ready"
+
+        # Create fresh connection after deployment to publish messages
+        connection, channel = create_connection()
+        try:
+            # Publish test messages
+            test_messages = [
+                {"message_id": "msg1", "test": "hello_rabbitmq", "value": 42},
+                {"message_id": "msg2", "test": "second_message", "value": 100},
+            ]
+
+            for msg in test_messages:
+                channel.basic_publish(
+                    exchange=self.exchange_name,
+                    routing_key="test.message",
+                    body=json.dumps(msg),
+                )
+                self._logger.debug(f"Published message: {msg['message_id']}")
+        finally:
+            connection.close()
+
+        # Wait for processing and parquet flush
+        self._logger.debug("Waiting for message processing and parquet write...")
+        time.sleep(15)
+
+        try:
+            # Read parquet output from v3io and verify
+            df = pd.read_parquet(output_path)
+            self._logger.debug(f"Read {len(df)} records from parquet")
+
+            assert len(df) >= 2, f"Expected at least 2 records, got {len(df)}"
+            assert "_processed" in df.columns, "Missing _processed marker column"
+            assert df["_processed"].all(), "Not all messages have _processed=True"
+
+            # Verify message content
+            message_ids = set(df["message_id"].tolist())
+            assert "msg1" in message_ids, "msg1 not found in output"
+            assert "msg2" in message_ids, "msg2 not found in output"
+        finally:
+            # Cleanup v3io output
+            try:
+                import fsspec
+
+                fs = fsspec.filesystem("v3io")
+                fs.rm(output_path.replace("v3io://", ""), recursive=True)
+            except Exception as e:
+                self._logger.warning(f"Failed to cleanup v3io output: {e}")
+
+    @pytest.mark.skipif(
+        not rabbitmq_url, reason="MLRUN_SYSTEM_TESTS_RABBITMQ_URL not defined"
+    )
+    def test_rabbitmq_trigger_with_topics(self, rabbitmq_fixture):
+        """Test deploying a function with RabbitMQ trigger using topics."""
+        create_connection, _ = rabbitmq_fixture
+
+        code_path = str(self.assets_path / "rabbitmq_handler.py")
+
+        self._logger.debug("Creating serving function with RabbitMQ trigger (topics)")
+        function = mlrun.code_to_function(
+            name="rabbitmq-binding-test",
+            kind="serving",
+            project=self.project_name,
+            filename=code_path,
+            image=self.image,
+        )
+
+        # Set up simple graph
+        graph = function.set_topology("flow", engine="async")
+        graph.to(name="process", class_name="ProcessMessage").respond()
+
+        # Add RabbitMQ trigger with topics (creates a unique queue)
+        function.add_rabbitmq_trigger(
+            url=self.rabbitmq_url,
+            exchange_name=self.exchange_name,
+            topics=["events.#", "notifications.*"],
+            prefetch_count=1,
+        )
+
+        self._logger.debug("Deploying serving function")
+        function.deploy()
+
+        # Verify function is deployed and running
+        db_function = self.project.get_function(function.metadata.name)
+        assert db_function.status.state == "ready"
+
+        # Create fresh connection after deployment to publish messages
+        connection, channel = create_connection()
+        try:
+            # Publish test messages to different routing keys
+            for routing_key in ["events.user.created", "notifications.alert"]:
+                test_message = json.dumps({"routing_key": routing_key, "data": "test"})
+                channel.basic_publish(
+                    exchange=self.exchange_name,
+                    routing_key=routing_key,
+                    body=test_message,
+                )
+                self._logger.debug(f"Published message with routing key: {routing_key}")
+        finally:
+            connection.close()
+
+        # Allow time for message processing
+        time.sleep(5)
+
+    @pytest.mark.skipif(
+        not rabbitmq_url, reason="MLRUN_SYSTEM_TESTS_RABBITMQ_URL not defined"
+    )
+    def test_rabbitmq_trigger_config_in_nuclio_spec(self, rabbitmq_fixture):
+        """Test that RabbitMQ trigger configuration is correctly passed to Nuclio."""
+        code_path = str(self.assets_path / "rabbitmq_handler.py")
+
+        function = mlrun.code_to_function(
+            name="rabbitmq-config-test",
+            kind="serving",
+            project=self.project_name,
+            filename=code_path,
+            image=self.image,
+        )
+
+        # Set up simple graph (required for serving function)
+        graph = function.set_topology("flow", engine="async")
+        graph.to(name="process", class_name="ProcessMessage").respond()
+
+        # Add RabbitMQ trigger with various configurations
+        function.add_rabbitmq_trigger(
+            url=self.rabbitmq_url,
+            exchange_name=self.exchange_name,
+            queue_name=self.queue_name,
+            prefetch_count=10,
+            durable_exchange=True,
+            durable_queue=True,
+            on_error="nack",
+            requeue_on_error=True,
+            num_workers=2,
+        )
+
+        # Verify trigger configuration before deployment
+        trigger_config = function.spec.config.get("spec.triggers.rabbitmq")
+        assert trigger_config is not None
+        assert trigger_config["kind"] == "rabbit-mq"
+        assert trigger_config["attributes"]["exchangeName"] == self.exchange_name
+        assert trigger_config["attributes"]["queueName"] == self.queue_name
+        assert trigger_config["attributes"]["prefetchCount"] == 10
+        assert trigger_config["attributes"]["durableExchange"] is True
+        assert trigger_config["attributes"]["durableQueue"] is True
+        assert trigger_config["attributes"]["onError"] == "nack"
+        assert trigger_config["attributes"]["requeueOnError"] is True
+        assert trigger_config["numWorkers"] == 2

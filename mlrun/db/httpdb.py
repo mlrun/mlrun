@@ -5392,27 +5392,77 @@ class HTTPRunDB(RunDBInterface):
     @mlrun.utils.iguazio_v4_only
     def list_secret_tokens(
         self,
+        username: Optional[str] = None,
     ) -> mlrun.common.schemas.ListSecretTokensResponse:
         """
-        List all secret tokens for the current user.
+        List secret tokens. Only system-administrators can list tokens for other users.
+
+        :param username: Optional; the username for which to list secret tokens.
+                         Use ``"*"`` to list tokens for all users.
+        :return: A ``ListSecretTokensResponse`` object containing a list of
+                 ``SecretTokenInfo`` objects.
+
+        Example::
+
+            # As a regular user, list your own tokens
+            tokens_response = db.list_secret_tokens()
+            for token in tokens_response.secret_tokens:
+                print(
+                    f"User ID: {token.user_id}, Token name: {token.name}, "
+                    f"Expiration: {token.expiration}"
+                )
+
+            # As a system admin, list tokens for a specific user
+            user_tokens = db.list_secret_tokens(username="john_doe")
+
+            # As a system admin, list tokens for all users
+            all_tokens = db.list_secret_tokens(username="*")
         """
         endpoint_path = "user-secrets/tokens"
+        params = None
+        if username is not None:
+            params = {"username": username}
         response = self.api_call(
             mlrun.common.types.HTTPMethod.GET,
             endpoint_path,
             "list user secret tokens",
+            params=params,
         )
 
         return mlrun.common.schemas.ListSecretTokensResponse(**response.json())
 
     @mlrun.utils.iguazio_v4_only
-    def revoke_secret_token(self, token_name: str) -> None:
+    def delete_secret_token(
+        self, token_name: str, username: Optional[str] = None
+    ) -> mlrun.common.schemas.DeleteSecretTokenResponse:
+        """
+        Delete a secret token. Only system-administrators can delete tokens for other users.
+
+        :param token_name: The name of the token to delete.
+        :param username: Optional; the username of the token owner.
+        """
         endpoint_path = f"user-secrets/tokens/{token_name}"
-        self.api_call(
+        params = None
+        if username is not None:
+            params = {"username": username}
+        response = self.api_call(
             mlrun.common.types.HTTPMethod.DELETE,
             endpoint_path,
             "delete user secret token",
+            params=params,
         )
+        result = mlrun.common.schemas.DeleteSecretTokenResponse(**response.json())
+        if result.deleted:
+            logger.info(
+                "Token was successfully deleted",
+                token_name=token_name,
+                username=username,
+            )
+        else:
+            logger.info(
+                "Token could not be deleted", token_name=token_name, username=username
+            )
+        return result
 
     @mlrun.utils.iguazio_v4_only
     def get_secret_token(

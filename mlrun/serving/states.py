@@ -1425,7 +1425,7 @@ class LLModel(Model):
     def predict(
         self,
         body: Any,
-        messages: Optional[list[dict]] = None,
+        messages: Optional[Union[list[dict], list[list[dict]]]] = None,
         invocation_config: Optional[dict] = None,
         **kwargs,
     ) -> Any:
@@ -1464,7 +1464,7 @@ class LLModel(Model):
     async def predict_async(
         self,
         body: Any,
-        messages: Optional[list[dict]] = None,
+        messages: Optional[Union[list[dict], list[list[dict]]]] = None,
         invocation_config: Optional[dict] = None,
         **kwargs,
     ) -> Any:

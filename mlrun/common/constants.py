@@ -28,7 +28,7 @@ NUCLIO_LABEL_PREFIX = "nuclio.io/"
 RESERVED_TAG_NAME_LATEST = "latest"
 
 # Internal path for application runtime source artifacts (avoids user artifact conflicts)
-MLRUN_INTERNAL_ARTIFACT_PATH = "_mlrun/sources"
+MLRUN_INTERNAL_ARTIFACT_PATH = "+/_mlrun/sources"
 
 # Kubernetes DNS-1123 label name length limit
 K8S_DNS_1123_LABEL_MAX_LENGTH = 63

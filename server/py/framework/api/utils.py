@@ -836,23 +836,9 @@ def resolve_project_service_account_details(
         default_service_account or mlrun.mlconf.function.spec.service_account.default
     )
 
-    # Sanity check on project configuration
-    if (
-        default_service_account
-        and (
-            allowed_service_accounts
-            and default_service_account not in allowed_service_accounts
-        )
-        or (
-            forbidden_service_accounts
-            and default_service_account in forbidden_service_accounts
-        )
-    ):
-        raise mlrun.errors.MLRunInvalidArgumentError(
-            f"Default service account {default_service_account} is not in list of allowed "
-            + f"service accounts {allowed_service_accounts} or is in the list of forbidden service accounts "
-            + f"{forbidden_service_accounts}"
-        )
+    _validate_service_account_details(
+        default_service_account, allowed_service_accounts, forbidden_service_accounts
+    )
 
     return allowed_service_accounts, forbidden_service_accounts, default_service_account
 
@@ -1392,3 +1378,35 @@ async def _update_functions_with_deletion_info(functions, project, updates: dict
 
     tasks = [update_function(function) for function in functions]
     await asyncio.gather(*tasks)
+
+
+def _validate_service_account_details(
+    default_service_account: str,
+    allowed_service_accounts: typing.Optional[list[str]],
+    forbidden_service_accounts: typing.Optional[list[str]],
+):
+    """
+    Sanity check on project configuration.
+    Make sure the default service account is in the allowed list and not in the forbidden list if such lists exist.
+
+    :param default_service_account: The default service account name.
+    :param allowed_service_accounts: List of allowed service accounts.
+    :param forbidden_service_accounts: List of forbidden service accounts.
+
+    :raises MLRunInvalidArgumentError: In case of misconfiguration.
+    """
+    if default_service_account and (
+        (
+            allowed_service_accounts
+            and default_service_account not in allowed_service_accounts
+        )
+        or (
+            forbidden_service_accounts
+            and default_service_account in forbidden_service_accounts
+        )
+    ):
+        raise mlrun.errors.MLRunInvalidArgumentError(
+            f"Default service account {default_service_account} is not in list of allowed "
+            + f"service accounts {allowed_service_accounts} or is in the list of forbidden service accounts "
+            + f"{forbidden_service_accounts}"
+        )

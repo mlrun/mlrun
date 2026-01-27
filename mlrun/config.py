@@ -284,11 +284,7 @@ default_config = {
             },
             "service_account": {
                 "default": None,
-                "forbidden_service_accounts": [
-                    "mlrun-api",
-                    "iguazio",
-                    "nuclio",
-                ],
+                "forbidden_service_accounts": "",
             },
             "state_thresholds": {
                 "default": {
@@ -1464,6 +1460,14 @@ class Config:
             or semver.VersionInfo.parse(self.nuclio_version)
             >= semver.VersionInfo.parse("1.12.10")
         )
+
+    def forbidden_service_accounts(self):
+        if self.function.spec.service_account.forbidden_service_accounts:
+            return self.function.spec.service_account.forbidden_service_accounts.split(
+                ","
+            )
+
+        return []
 
 
 # Global configuration

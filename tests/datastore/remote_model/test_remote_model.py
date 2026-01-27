@@ -436,8 +436,10 @@ class TestMockModelProvider(BaseMockModelProviderTest):
                 return server.test(body=event)
 
             with ThreadPoolExecutor(max_workers=len(INPUT_DATA)) as executor:
+                # MockProvider requires a larger delay (0.3s) because batching output depends on the order of requests,
+                # which can introduce race conditions, unlike real providers where batching output depends on input.
                 futures = [
-                    executor.submit(send_event, event, i * 0.1)
+                    executor.submit(send_event, event, i * 0.3)
                     for i, event in enumerate(INPUT_DATA)
                 ]
                 responses = [future.result() for future in futures]

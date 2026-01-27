@@ -265,8 +265,7 @@ class TestMockModelProviderTracking(
             execution_mechanism=execution_mechanism,
             batch_step=True,
         )
-        function.spec.max_replicas = 1 # TODO remove
-        function.with_http(gateway_timeout=600, worker_timeout=500, workers=None, async_spec=AsyncSpec())
+        function.with_http(workers=None, async_spec=AsyncSpec())
         # TODO: Add model monitoring setup
         # self.set_mm_credentials()
         # function.set_tracking()
@@ -282,8 +281,10 @@ class TestMockModelProviderTracking(
             return function.invoke(f"v2/models/{mlrun_model_name}/infer", event)
 
         with ThreadPoolExecutor(max_workers=len(INPUT_DATA)) as executor:
+            # MockProvider requires a larger delay (0.3s) because batching output depends on the order of requests,
+            # which can introduce race conditions, unlike real providers where batching output depends on input.
             futures = [
-                executor.submit(send_event, input_event, i * 0.1)
+                executor.submit(send_event, input_event, i * 0.3)
                 for i, input_event in enumerate(INPUT_DATA)
             ]
             responses = [future.result() for future in futures]

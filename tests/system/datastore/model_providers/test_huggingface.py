@@ -22,6 +22,7 @@ import mlrun.serving.states
 from mlrun.datastore.datastore_profile import (
     HuggingFaceProfile,
 )
+from mlrun.runtimes.nuclio.function import AsyncSpec
 from tests.datastore.remote_model.remote_model_utils import (
     EXPECTED_RESULTS,
     INPUT_DATA,
@@ -160,13 +161,12 @@ class TestHuggingFaceModelRunner(TestMLRunSystem):
             "requests": {"cpu": "25m", "memory": "1Mi"},
         }
         function.spec.max_replicas = 1
-        function.with_http(gateway_timeout=600, worker_timeout=500, workers=None)
+        function.with_http(gateway_timeout=600, worker_timeout=500, workers=None, async_spec=AsyncSpec())
         function.spec.readiness_timeout = 600
 
         function.deploy()
         tokenizer = AutoTokenizer.from_pretrained(self.basic_llm_model)
 
-        # Send events concurrently with staggered timing
         def send_event(event, delay):
             sleep(delay)
             return function.invoke(

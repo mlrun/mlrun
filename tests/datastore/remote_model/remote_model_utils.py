@@ -244,11 +244,13 @@ def setup_remote_model_test(
     )
     graph = function.set_topology("flow", engine="async")
     if batch_step:
+        # When deploying with batch_step in system tests, configure async HTTP via
+        # function.with_http(async_spec=AsyncSpec()) outside this utility function
         graph = graph.to(
             "storey.Batch",
             "my_batching",
             max_events=2,
-            flush_after_seconds=3,
+            flush_after_seconds=4,
             full_event=True,
         )
     model_runner_step = ModelRunnerStep(name="my_model_runner")

@@ -21,6 +21,7 @@ import tiktoken
 from mlrun.datastore.datastore_profile import (
     OpenAIProfile,
 )
+from mlrun.runtimes.nuclio.function import AsyncSpec
 from tests.datastore.remote_model.remote_model_utils import (
     EXPECTED_RESULTS,
     INPUT_DATA,
@@ -132,6 +133,7 @@ class TestOpenAIModelRunner(TestMLRunSystem):
             default_config={"max_tokens": 100},
             batch_step=True,
         )
+        function.with_http(workers=None, async_spec=AsyncSpec())
         function.deploy()
 
         # Send events concurrently with staggered timing
@@ -139,7 +141,6 @@ class TestOpenAIModelRunner(TestMLRunSystem):
             time.sleep(delay)
             return function.invoke(
                 f"v2/models/{mlrun_model_name}/infer",
-                #json.dumps(event),
                 event,
             )
 

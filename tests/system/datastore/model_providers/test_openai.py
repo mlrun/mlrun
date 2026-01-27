@@ -22,8 +22,8 @@ from mlrun.datastore.datastore_profile import (
     OpenAIProfile,
 )
 from tests.datastore.remote_model.remote_model_utils import (
+    BATCH_INPUT_DATA,
     EXPECTED_RESULTS,
-    INPUT_DATA,
     assert_async_invocations,
     retry_on_content_mismatch,
     setup_remote_model_test,
@@ -97,7 +97,7 @@ class TestOpenAIModelRunner(TestMLRunSystem):
         def _test_single():
             response = function.invoke(
                 f"v2/models/{mlrun_model_name}/infer",
-                json.dumps(INPUT_DATA[0]),
+                json.dumps(BATCH_INPUT_DATA[0]),
             )["output"]
             validate_openai_single_response(
                 response, EXPECTED_RESULTS[0], self.basic_llm_model
@@ -108,7 +108,7 @@ class TestOpenAIModelRunner(TestMLRunSystem):
         def _test_batch():
             batch_response = function.invoke(
                 f"v2/models/{mlrun_model_name}/infer",
-                json.dumps(INPUT_DATA),
+                json.dumps(BATCH_INPUT_DATA),
             )
             validate_openai_batch_response(
                 batch_response, EXPECTED_RESULTS, self.basic_llm_model
@@ -134,7 +134,7 @@ class TestOpenAIModelRunner(TestMLRunSystem):
             start = time.perf_counter()
             results_with_times = function.invoke(
                 f"v2/models/{mlrun_model_name}/infer",
-                json.dumps({"input": INPUT_DATA}),
+                json.dumps({"input": BATCH_INPUT_DATA}),
             )
             total_duration = time.perf_counter() - start
 

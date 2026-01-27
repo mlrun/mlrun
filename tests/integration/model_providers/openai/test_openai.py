@@ -37,8 +37,8 @@ from mlrun.datastore.model_provider.model_provider import (
 )
 from mlrun.datastore.model_provider.openai_provider import OpenAIProvider
 from tests.datastore.remote_model.remote_model_utils import (
+    BATCH_INPUT_DATA,
     EXPECTED_RESULTS,
-    INPUT_DATA,
     assert_async_invocations,
     create_mocked_get_store_artifact,
     formatted_messages,
@@ -345,7 +345,7 @@ class TestOpenAIModel(TestBasicOpenAIProvider):
         ):
             server = function.to_mock_server()
         try:
-            response = server.test(body=INPUT_DATA[0])["output"]
+            response = server.test(body=BATCH_INPUT_DATA[0])["output"]
             validate_openai_single_response(
                 response, EXPECTED_RESULTS[0], self.basic_llm_model
             )
@@ -383,7 +383,7 @@ class TestOpenAIModel(TestBasicOpenAIProvider):
             server = function.to_mock_server()
         try:
             start = time.perf_counter()
-            results_with_times = server.test(body={"input": INPUT_DATA})
+            results_with_times = server.test(body={"input": BATCH_INPUT_DATA})
             total_duration = time.perf_counter() - start
 
             assert_async_invocations(
@@ -468,7 +468,7 @@ class TestOpenAIModel(TestBasicOpenAIProvider):
         ):
             server = function.to_mock_server()
         try:
-            batch_response = server.test(body=INPUT_DATA)
+            batch_response = server.test(body=BATCH_INPUT_DATA)
             validate_openai_batch_response(
                 batch_response, EXPECTED_RESULTS, self.basic_llm_model
             )

@@ -142,7 +142,7 @@ PROMPT_LEGEND = {
     "persona": {"field": None, "description": None},
     "tone": {"field": None, "description": None},
 }
-INPUT_DATA = [
+BATCH_INPUT_DATA = [
     {
         "question": "What is the capital of France? Answer with one word first, then provide a historical overview."
         " Answer in detail with at least 200 words.",
@@ -191,7 +191,7 @@ PROMPT_TEMPLATE = [
 
 formatted_messages = [
     {"role": prompt["role"], "content": prompt["content"].format(**input_data)}
-    for input_data in INPUT_DATA
+    for input_data in BATCH_INPUT_DATA
     for prompt in PROMPT_TEMPLATE
 ]
 

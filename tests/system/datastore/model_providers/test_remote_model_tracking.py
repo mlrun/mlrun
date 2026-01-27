@@ -17,7 +17,7 @@ from time import sleep
 
 import pandas as pd
 import pytest
-from datastore.remote_model.remote_model_utils import INPUT_DATA
+from datastore.remote_model.remote_model_utils import BATCH_INPUT_DATA
 
 import mlrun
 import mlrun.common.schemas.model_monitoring.constants as mm_constants
@@ -59,11 +59,11 @@ class TestMockModelProviderTracking(
         assert not batch_group.empty
 
         self._verify_single_parquet_row(
-            single_group.iloc[0], endpoint_name, INPUT_DATA[0]
+            single_group.iloc[0], endpoint_name, BATCH_INPUT_DATA[0]
         )
 
         # Verify batch invocation group
-        self._verify_batch_parquet_rows(batch_group, endpoint_name, INPUT_DATA)
+        self._verify_batch_parquet_rows(batch_group, endpoint_name, BATCH_INPUT_DATA)
 
     def _verify_single_parquet_row(self, row, endpoint_name, expected_input):
         """Verify a single parquet row matches expected input and output structure"""
@@ -101,7 +101,7 @@ class TestMockModelProviderTracking(
             len(latencies) == 1
         ), f"Expected same latency for all batch rows, got {len(latencies)} different values"
 
-        # Order rows by original INPUT_DATA position for straightforward index-based comparison
+        # Order rows by original BATCH_INPUT_DATA position for straightforward index-based comparison
         batch_group["original_index"] = batch_group["question"].map(
             {inp["question"]: i for i, inp in enumerate(expected_inputs)}
         )
@@ -144,7 +144,7 @@ class TestMockModelProviderTracking(
         mlrun_model_name = "mock_model"
         endpoint_name = "my_endpoint"
         model_url = "mock://my-mock-model"
-        batch_len = len(INPUT_DATA)
+        batch_len = len(BATCH_INPUT_DATA)
         model_artifact, llm_prompt_artifact, function = setup_remote_model_test(
             self.project,
             model_url,

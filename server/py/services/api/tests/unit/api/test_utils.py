@@ -2249,6 +2249,7 @@ def test_resolve_project_service_account_details(
     [
         # Empty values (should pass)
         ([], [], "", does_not_raise()),
+        ([], [], None, does_not_raise()),
         # Empty lists, default set (should pass)
         ([], [], "sa-default", does_not_raise()),
         # Default in allowed (should pass)

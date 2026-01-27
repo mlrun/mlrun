@@ -679,11 +679,7 @@ class ServerSideLauncher(launcher.BaseLauncher):
     def enrich_and_validate_auth_token_name(
         self, object: Union[mlrun.run.RunObject, mlrun.runtimes.RemoteRuntime]
     ):
-        if not (
-            mlrun.mlconf.is_iguazio_v4_mode()
-            and self._auth_info
-            and self._auth_info.user_id
-        ):
+        if not (mlrun.mlconf.is_iguazio_v4_mode()):
             return
 
         if object.spec.auth is None:

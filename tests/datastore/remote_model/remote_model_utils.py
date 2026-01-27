@@ -248,7 +248,7 @@ def setup_remote_model_test(
             "storey.Batch",
             "my_batching",
             max_events=2,
-            flush_after_seconds=1,
+            flush_after_seconds=3,
             full_event=True,
         )
     model_runner_step = ModelRunnerStep(name="my_model_runner")

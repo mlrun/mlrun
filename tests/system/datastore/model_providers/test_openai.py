@@ -14,7 +14,7 @@
 import json
 import os
 import time
-
+from concurrent.futures import ThreadPoolExecutor
 import pytest
 import tiktoken
 
@@ -115,6 +115,46 @@ class TestOpenAIModelRunner(TestMLRunSystem):
             )
 
         retry_on_content_mismatch(_test_batch, MAX_ATTEMPTS)
+
+    @pytest.mark.parametrize(
+        "execution_mechanism",
+        ["process_pool", "dedicated_process", "naive", "asyncio", "thread_pool"],
+    )
+    def test_openai_model_runner_batch_step(self, execution_mechanism):
+        mlrun_model_name = "batch_step_model"
+        model_artifact, llm_prompt_artifact, function = setup_remote_model_test(
+            self.project,
+            self.model_url,
+            mlrun_model_name=mlrun_model_name,
+            image=self.image,
+            requirements=["openai==1.77.0"],
+            execution_mechanism=execution_mechanism,
+            default_config={"max_tokens": 100},
+            batch_step=True,
+        )
+        function.deploy()
+
+        # Send events concurrently with staggered timing
+        def send_event(event, delay):
+            time.sleep(delay)
+            return function.invoke(
+                f"v2/models/{mlrun_model_name}/infer",
+                #json.dumps(event),
+                event,
+            )
+
+        def _test():
+            with ThreadPoolExecutor(max_workers=len(INPUT_DATA)) as executor:
+                futures = [
+                    executor.submit(send_event, event, i * 0.1)
+                    for i, event in enumerate(INPUT_DATA)
+                ]
+                batch_response = [future.result() for future in futures]
+            validate_openai_batch_response(
+                batch_response, EXPECTED_RESULTS, self.basic_llm_model
+            )
+
+        retry_on_content_mismatch(_test, MAX_ATTEMPTS)
 
     def test_model_runner_with_openai_async(self):
         mlrun_model_name = "async_invoke_model"

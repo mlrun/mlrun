@@ -14,7 +14,8 @@
 
 import json
 import os
-
+from time import sleep
+from concurrent.futures import ThreadPoolExecutor
 import pytest
 
 import mlrun.serving.states
@@ -126,6 +127,69 @@ class TestHuggingFaceModelRunner(TestMLRunSystem):
             )
 
         retry_on_content_mismatch(_test_batch)
+
+    @pytest.mark.parametrize(
+        "execution_mechanism",
+        ["naive", "process_pool", "dedicated_process", "thread_pool"],
+    )
+    def test_huggingface_model_runner_batch_step(self, execution_mechanism):
+        from transformers import AutoTokenizer
+
+        self.setup_datastore_profile()
+        mlrun_model_name = "batch_step_model"
+        model_artifact, llm_prompt_artifact, function = setup_remote_model_test(
+            self.project,
+            self.model_url,
+            mlrun_model_name=mlrun_model_name,
+            image=self.image,
+            requirements=[
+                "--extra-index-url",
+                "https://download.pytorch.org/whl/cpu",
+                "torch==2.8.0+cpu",
+                "transformers==4.56.2",
+                "pillow~=11.3",
+            ],
+            default_config={"max_new_tokens": 50},
+            execution_mechanism=execution_mechanism,
+            batch_step=True,
+        )
+
+        # Running models requires higher CPU for this pod.
+        function.spec.resources = {
+            "limits": {"cpu": "6", "memory": "20Gi"},
+            "requests": {"cpu": "25m", "memory": "1Mi"},
+        }
+        function.spec.max_replicas = 1
+        function.with_http(gateway_timeout=600, worker_timeout=500, workers=None)
+        function.spec.readiness_timeout = 600
+
+        function.deploy()
+        tokenizer = AutoTokenizer.from_pretrained(self.basic_llm_model)
+
+        # Send events concurrently with staggered timing
+        def send_event(event, delay):
+            sleep(delay)
+            return function.invoke(
+                f"v2/models/{mlrun_model_name}/infer",
+                json.dumps(event),
+            )
+
+        def _test():
+            with ThreadPoolExecutor(max_workers=len(INPUT_DATA)) as executor:
+                futures = [
+                    executor.submit(send_event, event, i * 0.1)
+                    for i, event in enumerate(INPUT_DATA)
+                ]
+                batch_response = [future.result() for future in futures]
+            validate_llm_batch_response_system(
+                batch_response,
+                EXPECTED_RESULTS,
+                tokenizer,
+                min_tokens=45,
+                max_tokens=51,
+            )
+
+        retry_on_content_mismatch(_test)
 
     @pytest.mark.parametrize(
         "execution_mechanism",

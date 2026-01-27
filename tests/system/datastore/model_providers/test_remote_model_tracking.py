@@ -21,6 +21,8 @@ from datastore.remote_model.remote_model_utils import INPUT_DATA
 
 import mlrun
 import mlrun.common.schemas.model_monitoring.constants as mm_constants
+from mlrun.datastore.model_provider.model_provider import UsageResponseKeys
+from mlrun.runtimes.nuclio.function import AsyncSpec
 from tests.datastore.remote_model.remote_model_utils import (
     setup_remote_model_test,
 )
@@ -263,7 +265,8 @@ class TestMockModelProviderTracking(
             execution_mechanism=execution_mechanism,
             batch_step=True,
         )
-
+        function.spec.max_replicas = 1 # TODO remove
+        function.with_http(gateway_timeout=600, worker_timeout=500, workers=None, async_spec=AsyncSpec())
         # TODO: Add model monitoring setup
         # self.set_mm_credentials()
         # function.set_tracking()
@@ -286,6 +289,12 @@ class TestMockModelProviderTracking(
             responses = [future.result() for future in futures]
 
         self._verify_batch_response(responses)
+        for i, response in enumerate(responses):
+            output = response["output"]
+            # in order to check batches of 2:
+            expected_counter = i % 2
+            assert f"(Item {expected_counter})" in output[UsageResponseKeys.ANSWER]
+
         # TODO: Verify tracking data - model monitoring verification
         # sleep(180)
         # endpoint_name = "my_endpoint"

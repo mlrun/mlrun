@@ -82,12 +82,7 @@ def resolve_auth_token_name(
     user_id: str,
 ) -> str:
     """
-    Resolve the token name for a user using the iguazio SDK.
-
-    Resolution priority (handled by SDK):
-    1. User-provided token name (strict mode - must be valid)
-    2. "default" token
-    3. First valid token (alphabetically sorted)
+    Resolve the token name for a user using the Iguazio SDK.
 
     :param provided_token_name: Specific token to validate, or None for auto-discovery.
     :param username: The username for which the token is being resolved.

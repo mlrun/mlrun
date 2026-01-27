@@ -78,14 +78,14 @@ def resolve_client_default_kfp_image(
 
 
 def resolve_auth_token_name(
-    provided_token_name: typing.Optional[str],
     user_id: str,
+    provided_token_name: typing.Optional[str],
 ) -> str:
     """
     Resolve the token name for a user using the Iguazio SDK.
 
-    :param provided_token_name: Specific token to validate, or None for auto-discovery.
     :param username: The username for which the token is being resolved.
+    :param provided_token_name: Specific token to validate, or None for auto-discovery.
     :return: The resolved token name.
     :raises MLRunNotFoundError: If token doesn't exist, is invalid, or no valid tokens found.
     """

@@ -337,45 +337,6 @@ class GraphServer(ModelObj):
         if hasattr(response, "body"):
             response = response.body
 
-        if inspect.isgenerator(response):
-            return self._process_streaming_response(context, response, get_body)
-        elif inspect.isasyncgen(response) or asyncio.iscoroutine(response):
-            return self._process_async_response(context, response, get_body)
-        else:
-            return self._process_single_response(context, response, get_body)
-
-    async def _process_async_response(self, context, response, get_body: bool):
-        if inspect.isgenerator(response):
-            for chunk in response:
-                yield self._process_single_response(context, chunk, get_body)
-        elif inspect.isasyncgen(response):
-            async for chunk in response:
-                yield self._process_single_response(context, chunk, get_body)
-        elif asyncio.iscoroutine(response):
-            async for res in self._process_async_response(
-                context, await response, get_body
-            ):
-                yield res
-        else:
-            yield self._process_single_response(context, response, get_body)
-
-    def _process_streaming_response(self, context, response, get_body):
-        for chunk in response:
-            yield self._process_single_response(context, chunk, get_body)
-
-    def _process_single_response(self, context, response, get_body):
-        if (
-            isinstance(context, MLClientCtx)
-            or isinstance(response, context.Response)
-            or get_body
-        ):
-            return response
-
-        if response and not isinstance(response, str | bytes):
-            body = json.dumps(response)
-            return context.Response(
-                body=body, content_type="application/json", status_code=200
-            )
         return response
 
     def wait_for_completion(self):
@@ -975,9 +936,26 @@ def _preprocess_event(context, event):
         event.path = "/"
 
 
-def v2_serving_handler(context, event, get_body=False):
+async def v2_serving_handler(context, event, get_body=False):
+    """Standard handler for non-streaming serving functions."""
     _preprocess_event(context, event)
-    return context._server.run(event, context, get_body)
+    response = context._server.run(event, context, get_body)
+    if asyncio.iscoroutine(response):
+        response = await response
+
+    if (
+        isinstance(context, MLClientCtx)
+        or isinstance(response, context.Response)
+        or get_body
+    ):
+        return response
+
+    if response and not isinstance(response, str | bytes):
+        body = json.dumps(response)
+        return context.Response(
+            body=body, content_type="application/json", status_code=200
+        )
+    return response
 
 
 async def v2_serving_streaming_handler(context, event, get_body=False):
@@ -991,8 +969,6 @@ async def v2_serving_streaming_handler(context, event, get_body=False):
     appropriately, streaming responses back to the HTTP client.
     """
     _preprocess_event(context, event)
-
-    # Run the event through the graph and get the response
     response = context._server.run(event, context, get_body)
 
     # Unwrap coroutines to get the actual result
@@ -1000,8 +976,6 @@ async def v2_serving_streaming_handler(context, event, get_body=False):
         response = await response
 
     # Yield chunks from the response
-    # With streaming enabled, Complete is configured with full_event=False, so chunks
-    # are already just the body (processed by _process_single_response)
     if inspect.isasyncgen(response):
         async for chunk in response:
             yield chunk

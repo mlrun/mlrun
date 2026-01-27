@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import collections
+import datetime
 import json
 import unittest.mock
 
@@ -888,9 +889,15 @@ def test_list_secret_tokens_returns_tokens():
     auth_info = mlrun.common.schemas.AuthInfo(
         username="dummy-user", user_id="user-id-123"
     )
+    exp1 = datetime.datetime(2025, 6, 26, 23, 6, 31, tzinfo=datetime.UTC)
+    exp2 = datetime.datetime(2025, 9, 11, 12, 0, 0, tzinfo=datetime.UTC)
     expected_tokens = [
-        mlrun.common.schemas.SecretTokenInfo(name="jupyter", expiration=1750979191),
-        mlrun.common.schemas.SecretTokenInfo(name="my-token", expiration=1754966400),
+        mlrun.common.schemas.SecretTokenInfo(
+            name="jupyter", expiration=exp1, user_id="user-id-123"
+        ),
+        mlrun.common.schemas.SecretTokenInfo(
+            name="my-token", expiration=exp2, user_id="user-id-123"
+        ),
     ]
 
     mock_secrets_provider = unittest.mock.Mock()
@@ -904,16 +911,18 @@ def test_list_secret_tokens_returns_tokens():
     assert isinstance(response, mlrun.common.schemas.ListSecretTokensResponse)
     assert len(response.secret_tokens) == 2
     assert response.secret_tokens[0].name == "jupyter"
-    assert response.secret_tokens[0].expiration == 1750979191
+    assert response.secret_tokens[0].expiration == exp1
+    assert response.secret_tokens[0].user_id == "user-id-123"
     assert response.secret_tokens[1].name == "my-token"
-    assert response.secret_tokens[1].expiration == 1754966400
+    assert response.secret_tokens[1].expiration == exp2
+    assert response.secret_tokens[1].user_id == "user-id-123"
 
     mock_secrets_provider.list_user_token_secrets.assert_called_once_with(
         user_id=auth_info.user_id
     )
 
 
-def test_revoke_secret_token_success(mock_iguazio_client):
+def test_delete_secret_token_success(mock_iguazio_client):
     request_headers = {
         mlrun.common.schemas.HeaderNames.authorization: f"{mlrun.common.schemas.AuthorizationHeaderPrefixes.bearer}123",
     }
@@ -929,8 +938,9 @@ def test_revoke_secret_token_success(mock_iguazio_client):
     mock_secrets_provider.get_user_token_secret_value.return_value = fake_token
     mock_secrets_provider.delete_user_token_secret = unittest.mock.Mock()
 
-    services.api.crud.Secrets().revoke_secret_token(
+    services.api.crud.Secrets().delete_secret_token(
         token_name=token_name,
+        username=auth_info.username,
         auth_info=auth_info,
     )
 
@@ -945,7 +955,7 @@ def test_revoke_secret_token_success(mock_iguazio_client):
     )
 
 
-def test_revoke_secret_token_secret_not_found(mock_iguazio_client):
+def test_delete_secret_token_not_found(mock_iguazio_client):
     auth_info = mlrun.common.schemas.AuthInfo(
         username="dummy-user", user_id="user-id-123"
     )
@@ -958,12 +968,12 @@ def test_revoke_secret_token_secret_not_found(mock_iguazio_client):
         mlrun.errors.MLRunNotFoundError("Token not found")
     )
 
-    services.api.crud.Secrets().revoke_secret_token(
-        token_name=token_name, auth_info=auth_info
+    services.api.crud.Secrets().delete_secret_token(
+        token_name=token_name, username=auth_info.username, auth_info=auth_info
     )
 
 
-def test_revoke_secret_token_iguazio_failure(mock_iguazio_client):
+def test_delete_secret_token_iguazio_failure(mock_iguazio_client):
     auth_info = mlrun.common.schemas.AuthInfo(
         username="dummy-user", user_id="user-id-123"
     )
@@ -977,12 +987,12 @@ def test_revoke_secret_token_iguazio_failure(mock_iguazio_client):
     mock_iguazio_client.revoke_offline_token.side_effect = RuntimeError("Iguazio error")
 
     with pytest.raises(RuntimeError, match="Iguazio error"):
-        services.api.crud.Secrets().revoke_secret_token(
-            token_name=token_name, auth_info=auth_info
+        services.api.crud.Secrets().delete_secret_token(
+            token_name=token_name, username=auth_info.username, auth_info=auth_info
         )
 
 
-def test_revoke_secret_token_delete_failure(mock_iguazio_client):
+def test_delete_secret_token_k8s_delete_failure(mock_iguazio_client):
     auth_info = mlrun.common.schemas.AuthInfo(
         username="dummy-user", user_id="user-id-123"
     )
@@ -998,10 +1008,10 @@ def test_revoke_secret_token_delete_failure(mock_iguazio_client):
 
     with pytest.raises(
         mlrun.errors.MLRunRuntimeError,
-        match="revoked, but failed to delete associated secret",
+        match="deleted from Iguazio, but failed to delete associated secret",
     ):
-        services.api.crud.Secrets().revoke_secret_token(
-            token_name=token_name, auth_info=auth_info
+        services.api.crud.Secrets().delete_secret_token(
+            token_name=token_name, username=auth_info.username, auth_info=auth_info
         )
 
 

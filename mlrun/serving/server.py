@@ -936,13 +936,7 @@ def _preprocess_event(context, event):
         event.path = "/"
 
 
-async def v2_serving_handler(context, event, get_body=False):
-    """Standard handler for non-streaming serving functions."""
-    _preprocess_event(context, event)
-    response = context._server.run(event, context, get_body)
-    if asyncio.iscoroutine(response):
-        response = await response
-
+def _process_single_response(context, response, get_body):
     if (
         isinstance(context, MLClientCtx)
         or isinstance(response, context.Response)
@@ -956,6 +950,20 @@ async def v2_serving_handler(context, event, get_body=False):
             body=body, content_type="application/json", status_code=200
         )
     return response
+
+
+async def _process_single_async_response(context, response, get_body):
+    return await _process_single_response(context, response, get_body)
+
+
+def v2_serving_handler(context, event, get_body=False):
+    """Standard handler for non-streaming serving functions."""
+    _preprocess_event(context, event)
+    response = context._server.run(event, context, get_body)
+    if asyncio.iscoroutine(response):
+        return _process_single_async_response(context, response, get_body)
+
+    return _process_single_response(context, response, get_body)
 
 
 async def v2_serving_streaming_handler(context, event, get_body=False):

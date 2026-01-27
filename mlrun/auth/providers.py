@@ -327,20 +327,9 @@ class IGTokenProvider(DynamicTokenProvider):
         runtime_backoff = mlconf.auth_with_oauth_token.runtime_token_refresh_backoff
         is_runtime = mlrun.utils.helpers.is_running_in_runtime()
 
-        logger.debug(
-            "Starting access token refresh",
-            is_runtime=is_runtime,
-            runtime_retry_enabled=is_runtime and runtime_timeout > 0,
-        )
-
         if is_runtime and runtime_timeout > 0:
             # In runtime: use timeout-based retry to handle Kubelet propagation delay
             # Each retry re-reads the refresh token from the file
-            logger.debug(
-                "Using runtime token refresh retry mode with timeout-based retries",
-                timeout_seconds=runtime_timeout,
-                backoff_seconds=runtime_backoff,
-            )
             mlrun.utils.helpers.retry_until_successful(
                 backoff=runtime_backoff,
                 timeout=runtime_timeout,
@@ -348,18 +337,11 @@ class IGTokenProvider(DynamicTokenProvider):
                 verbose=True,
                 _function=self._fetch_token,
             )
-            logger.debug("Successfully refreshed access token in runtime mode")
         else:
-            # Not in runtime: use standard quick retries
-            logger.debug(
-                "Using standard token refresh mode",
-                max_retries=self._max_retries,
-            )
             mlrun.utils.helpers.run_with_retry(
                 retry_count=self._max_retries,
                 func=self._fetch_token,
             )
-            logger.debug("Successfully refreshed access token")
 
     def _cleanup(self):
         self._token = None

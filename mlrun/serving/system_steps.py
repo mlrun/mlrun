@@ -72,8 +72,15 @@ class MonitoringPreProcessor(storey.MapClass):
             input_schema=input_schema,
         )
         if event.body and isinstance(event.body, list):
+            event_body = event.body
+            if all(
+                "event" in sub_event.__class__.__name__.lower()
+                for sub_event in event.body
+            ):
+                # list of events
+                event_body = [sub_event.body for sub_event in event.body]
             outputs, new_output_schema = self.get_listed_data(
-                event.body, result_path, output_schema
+                event_body, result_path, output_schema
             )
         else:
             outputs, new_output_schema = self.get_listed_data(

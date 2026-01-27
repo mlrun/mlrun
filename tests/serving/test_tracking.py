@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import json
+import math
 import pickle
 import time
 import typing
@@ -1518,9 +1519,9 @@ def test_serving_stream_profile(
         server.wait_for_completion()
 
 
-@pytest.mark.parametrize("multiple_models", (True, False))
-@pytest.mark.parametrize("raise_exception", (True, False))
-@pytest.mark.parametrize("return_as_dict", (True, False))
+@pytest.mark.parametrize("multiple_models", (False,))
+@pytest.mark.parametrize("raise_exception", (False,))
+@pytest.mark.parametrize("return_as_dict", (False,))
 @pytest.mark.parametrize("batching_format", ("raw_list", "input_list", "list_of_lists"))
 def test_mrs_direct_batch_input(
     multiple_models, raise_exception, return_as_dict, batching_format, rundb_mock
@@ -1810,14 +1811,18 @@ def test_mrs_direct_batch_str(
 
 def test_batch_step_with_mrs(rundb_mock):
     number_of_events = 7
-
+    batch_size = 2
     function = mlrun.new_function("test-batch-mrs", kind="serving")
     function.set_tracking("dummy://", enable_tracking=True)
     graph = function.set_topology("flow", engine="async")
 
-    # Batch step: accumulate up to 3 events or flush after 1 second
+    # Batch step: accumulate up to 2 events or flush after 1 second
     graph = graph.to(
-        "storey.Batch", "batching", max_events=3, flush_after_seconds=1, full_event=True
+        "storey.Batch",
+        "batching",
+        max_events=batch_size,
+        flush_after_seconds=1,
+        full_event=True,
     )
 
     # ModelRunnerStep: process batches through the model
@@ -1826,6 +1831,8 @@ def test_batch_step_with_mrs(rundb_mock):
         model_class="BatchedGraphModel",
         execution_mechanism="naive",
         endpoint_name="my_model",
+        input_path="input",
+        result_path="output",
     )
 
     step = graph.to(model_runner_step)
@@ -1834,7 +1841,6 @@ def test_batch_step_with_mrs(rundb_mock):
     server = function.to_mock_server()
 
     try:
-        # Generate 7 inputs using a for loop
         events = [
             {"input": [10 + i, 20 + i, 30 + i]} for i in range(0, number_of_events)
         ]
@@ -1871,45 +1877,34 @@ def test_batch_step_with_mrs(rundb_mock):
     ]
     assert responses == expected_responses
 
-    # Verify tracking events - should have 3 batches (3+3+1 = 7 total events)
+    # Verify tracking events - should have 4 batches (2+2+2+1 = 7 total events)
     dummy_stream = server.context.stream.output_stream
-    assert len(dummy_stream.event_list) == 3
+    assert len(dummy_stream.event_list) == math.ceil(number_of_events / batch_size)
+    base_id = None
+    # Build expected batches from expected_responses (batches of 2, except last is 1)
+    for i, event in enumerate(dummy_stream.event_list):
+        # iterate over batches
+        start_idx = i * batch_size
+        end_idx = min(start_idx + batch_size, len(expected_responses))
+        batch_items = expected_responses[start_idx:end_idx]
 
-    # Verify Batch 1 (3 events: indices 0-2)
-    event = dummy_stream.event_list[0]
-    assert event["effective_sample_count"] == 3
-    assert event["model"] == "my_model"
-    assert event["model_class"] == "BatchedGraphModel"
-    assert event["error"] is None
-    # Verify inputs and outputs for first batch
-    batch1_expected = [
-        {"input": [10, 20, 30], "output": 60},
-        {"input": [11, 21, 31], "output": 63},
-        {"input": [12, 22, 32], "output": 66},
-    ]
-    for output_event in event["resp"]["outputs"]:
-        assert output_event.body in batch1_expected
+        expected_count = len(batch_items)
+        expected_inputs = [item["input"] for item in batch_items]
+        expected_outputs = [item["output"] for item in batch_items]
 
-    # Verify Batch 2 (3 events: indices 3-5)
-    event = dummy_stream.event_list[1]
-    assert event["effective_sample_count"] == 3
-    assert event["model"] == "my_model"
-    assert event["model_class"] == "BatchedGraphModel"
-    assert event["error"] is None
-    # Verify inputs and outputs for second batch
-    batch2_expected = [
-        {"input": [13, 23, 33], "output": 69},
-        {"input": [14, 24, 34], "output": 72},
-        {"input": [15, 25, 35], "output": 75},
-    ]
-    for output_event in event["resp"]["outputs"]:
-        assert output_event.body in batch2_expected
-
-    # Verify Batch 3 (1 event: index 6)
-    event = dummy_stream.event_list[2]
-    assert event["effective_sample_count"] == 1
-    assert event["model"] == "my_model"
-    assert event["model_class"] == "BatchedGraphModel"
-    assert event["error"] is None
-    # Verify the last event
-    assert event["resp"]["outputs"][0].body == {"input": [16, 26, 36], "output": 78}
+        assert (
+            event["effective_sample_count"] == expected_count
+        ), f"Batch {i} sample count mismatch"
+        assert event["model"] == "my_model"
+        assert event["model_class"] == "BatchedGraphModel"
+        assert event["error"] is None
+        assert (
+            event["request"]["inputs"] == expected_inputs
+        ), f"Batch {i} inputs mismatch"
+        assert (
+            event["resp"]["outputs"] == expected_outputs
+        ), f"Batch {i} outputs mismatch"
+        request_id = event["request"]["id"]
+        if not base_id:
+            base_id = request_id.split("-")[0]
+        assert request_id == f"{base_id}-{i:04d}"

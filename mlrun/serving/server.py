@@ -333,6 +333,10 @@ class GraphServer(ModelObj):
                 body=message, content_type="text/plain", status_code=400
             )
 
+        # TODO: this is only relevant in certain flows (MockServer, sync...)
+        if hasattr(response, "body"):
+            response = response.body
+
         if inspect.isgenerator(response):
             return self._process_streaming_response(context, response, get_body)
         elif inspect.isasyncgen(response) or asyncio.iscoroutine(response):

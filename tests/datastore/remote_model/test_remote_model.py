@@ -452,5 +452,8 @@ class TestMockModelProvider(BaseMockModelProviderTest):
                 assert "output" in response
                 output = response["output"]
                 self._verify_single_response(output, expect_counter=True)
+                # in order to check batches of 2:
+                expected_counter = i % 2
+                assert f"(Item {expected_counter})" in output[UsageResponseKeys.ANSWER]
 
             # TODO : Verify tracking events - should have 3 batches (2+2+1 = len(INPUT_DATA) total events)

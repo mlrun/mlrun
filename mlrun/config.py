@@ -1461,11 +1461,15 @@ class Config:
             >= semver.VersionInfo.parse("1.12.10")
         )
 
-    def forbidden_service_accounts(self):
-        if self.function.spec.service_account.forbidden_service_accounts:
-            return self.function.spec.service_account.forbidden_service_accounts.split(
-                ","
-            )
+    def default_forbidden_service_accounts(self):
+        forbidden_service_accounts_str = (
+            self.function.spec.service_account.forbidden_service_accounts
+        )
+        if forbidden_service_accounts_str:
+            return [
+                service_account.strip()
+                for service_account in forbidden_service_accounts_str.split(",")
+            ]
 
         return []
 

@@ -151,6 +151,7 @@ class Client(BaseClient, project_follower.Member):
             _revoke_offline_token,
             mlrun.errors.MLRunUnauthorizedError,
             "Failed to revoke offline token from Iguazio",
+            auth_headers=request_headers,
         )
 
     def get_user_id_by_username(

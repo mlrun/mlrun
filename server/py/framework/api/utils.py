@@ -790,9 +790,7 @@ def resolve_project_service_account_details(
             for service_account in allowed_service_accounts.split(",")
         ]
 
-    forbidden_service_accounts = (
-        mlrun.mlconf.function.spec.service_account.forbidden_service_accounts[:]
-    )
+    forbidden_service_accounts = mlrun.mlconf.default_forbidden_service_accounts()
     forbidden_service_accounts_secret = (
         services.api.crud.secrets.Secrets().get_project_secret(
             project_name,

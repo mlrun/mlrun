@@ -14,8 +14,9 @@
 
 import json
 import os
-from time import sleep
 from concurrent.futures import ThreadPoolExecutor
+from time import sleep
+
 import pytest
 
 import mlrun.serving.states
@@ -161,7 +162,12 @@ class TestHuggingFaceModelRunner(TestMLRunSystem):
             "requests": {"cpu": "25m", "memory": "1Mi"},
         }
         function.spec.max_replicas = 1
-        function.with_http(gateway_timeout=600, worker_timeout=500, workers=None, async_spec=AsyncSpec())
+        function.with_http(
+            gateway_timeout=600,
+            worker_timeout=500,
+            workers=None,
+            async_spec=AsyncSpec(),
+        )
         function.spec.readiness_timeout = 600
 
         function.deploy()

@@ -1528,7 +1528,6 @@ class LLModel(Model):
             model_name=self.name,
             model_endpoint_name=origin_name,
             messages_len=len(messages) if messages else 0,
-            messages = messages # TODO remove after debugging
         )
         return self.predict(
             body,

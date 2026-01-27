@@ -28,6 +28,7 @@ NUCLIO_LABEL_PREFIX = "nuclio.io/"
 RESERVED_TAG_NAME_LATEST = "latest"
 
 # Internal path for application runtime source artifacts (avoids user artifact conflicts)
+# "+/" prefix makes it relative to the project's default artifact path (see extend_artifact_path)
 MLRUN_INTERNAL_ARTIFACT_PATH = "+/.mlrun/sources"
 
 # Kubernetes DNS-1123 label name length limit

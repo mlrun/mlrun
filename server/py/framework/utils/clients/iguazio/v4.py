@@ -36,7 +36,7 @@ import framework.utils.projects.remotes.follower as project_follower
 from framework.utils.clients.iguazio.base import BaseAsyncClient, BaseClient
 
 _GROUP_TYPE_KEY = "@type"
-_GROUP_TYPE_VALUE = "type.googleapis.com/group.Group"
+_GROUP_TYPE_VALUE = "type.googleapis.com/usergroup.Group"
 
 
 class Client(BaseClient, project_follower.Member):
@@ -152,6 +152,34 @@ class Client(BaseClient, project_follower.Member):
             _revoke_offline_token,
             mlrun.errors.MLRunUnauthorizedError,
             "Failed to revoke offline token from Iguazio",
+            auth_headers=request_headers,
+        )
+
+    def get_user_id_by_username(
+        self,
+        username: str,
+        auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
+    ) -> str:
+        """
+        Translate a username to user_id by querying the Iguazio management API.
+
+        This is used when an admin wants to perform operations on another user's tokens.
+        The admin provides a username, but K8s secrets are indexed by user_id.
+
+        :param username: The username to translate to user_id.
+        :param request_headers: Request headers for authentication with the Iguazio API.
+        :return: The user_id corresponding to the username.
+        :raises mlrun.errors.MLRunUnauthorizedError: If the request fails or the user is not found.
+        """
+
+        def _get_user_id():
+            return self._client.get_user(username).metadata
+
+        return self._try_callback_with_httpx_exceptions(
+            _get_user_id,
+            mlrun.errors.MLRunUnauthorizedError,
+            f"Failed to get user id of '{username}' from Iguazio",
+            auth_headers=auth_info.request_headers,
         )
 
     def resolve_token_from_igz_yml(

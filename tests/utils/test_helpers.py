@@ -1935,6 +1935,20 @@ def test_get_data_from_path_invalid_path_type():
             {"new_key": 123},
             {"existing": "data", "new_key": 123},
         ),
+        # List of dicts - simple path
+        (
+            "b",
+            [{"a": 1}, {"a": 2}, {"a": 3}],
+            [10, 20, 30],
+            [{"a": 1, "b": 10}, {"a": 2, "b": 20}, {"a": 3, "b": 30}],
+        ),
+        # List of dicts - nested path
+        (
+            "outer.b",
+            [{"outer": {"a": 1}}, {"outer": {"a": 2}}],
+            [10, 20],
+            [{"outer": {"a": 1, "b": 10}}, {"outer": {"a": 2, "b": 20}}],
+        ),
     ],
 )
 def test_set_data_by_path_success(path, initial_data, value, expected_data):
@@ -1944,26 +1958,46 @@ def test_set_data_by_path_success(path, initial_data, value, expected_data):
 
 
 @pytest.mark.parametrize(
-    "path, value, exc_type, exc_msg",
+    "path, initial_data, value, exc_type, exc_msg",
     [
         # For path=None, test that non-dict value raises ValueError
-        (None, "not a dict", ValueError, "value must be a dictionary"),
-        # For path=None with dict value, no exception expected, so not included here
+        (None, {}, "not a dict", ValueError, "value must be a dictionary"),
         # For invalid path types, test MLRunInvalidArgumentError is raised
-        (123, "some_value", mlrun.errors.MLRunInvalidArgumentError, "Expected path"),
-        (3.14, "some_value", mlrun.errors.MLRunInvalidArgumentError, "Expected path"),
         (
-            {"not": "a path"},
+            123,
+            {},
             "some_value",
             mlrun.errors.MLRunInvalidArgumentError,
             "Expected path",
         ),
+        (
+            3.14,
+            {},
+            "some_value",
+            mlrun.errors.MLRunInvalidArgumentError,
+            "Expected path",
+        ),
+        (
+            {"not": "a path"},
+            {},
+            "some_value",
+            mlrun.errors.MLRunInvalidArgumentError,
+            "Expected path",
+        ),
+        # List length mismatch
+        (
+            "b",
+            [{"a": 1}, {"a": 2}, {"a": 3}],
+            [10, 20],
+            mlrun.errors.MLRunInvalidArgumentError,
+            "must match data list length",
+        ),
     ],
 )
-def test_set_data_by_path_invalid_path(path, value, exc_type, exc_msg):
-    data = {}
+def test_set_data_by_path_invalid_path(path, initial_data, value, exc_type, exc_msg):
     with pytest.raises(exc_type, match=exc_msg):
-        set_data_by_path(path, data, value)
+        path_as_list = split_path(path) if isinstance(path, str) else path
+        set_data_by_path(path_as_list, initial_data, value)
 
 
 @pytest.mark.parametrize(

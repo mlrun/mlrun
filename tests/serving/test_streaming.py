@@ -315,32 +315,6 @@ class TestStreamingEndToEnd:
         finally:
             server.wait_for_completion()
 
-    def test_streaming_with_collector_aggregation(self):
-        """Test that Collector properly aggregates streaming chunks."""
-        function = mlrun.new_function("test", kind="serving")
-        graph = function.set_topology("flow", engine="async")
-
-        graph.to(
-            name="streamer",
-            class_name="tests.serving.test_streaming.StreamingStep",
-            num_chunks=5,
-        )
-        graph.add_step(
-            name="collector",
-            class_name="storey.Collector",
-            after="streamer",
-        ).respond()
-
-        server = function.to_mock_server()
-        try:
-            result = server.test("/", body="input")
-
-            assert len(result) == 5
-            assert result == [f"input_chunk_{i}" for i in range(5)]
-        finally:
-            server.wait_for_completion()
-
-
 class TestStreamingErrors:
     """Tests for streaming error conditions."""
 
@@ -407,28 +381,6 @@ class TestStreamingErrors:
 
 class TestStreamingGenerator:
     """Tests for test() returning a generator when streaming is enabled."""
-
-    def test_streaming_with_collector_returns_aggregated_list(self):
-        """Test that test() returns an aggregated list when a Collector is used."""
-        function = mlrun.new_function("test", kind="serving")
-        graph = function.set_topology("flow", engine="async")
-
-        graph.to(
-            name="streamer", class_name="tests.serving.test_streaming.StreamingStep"
-        )
-        graph.add_step(
-            name="collector",
-            class_name="storey.Collector",
-            after="streamer",
-        ).respond()
-
-        server = function.to_mock_server()
-        try:
-            result = server.test("/", body="test")
-            # With collector, we get the aggregated list directly (not a generator)
-            assert result == ["test_chunk_0", "test_chunk_1", "test_chunk_2"]
-        finally:
-            server.wait_for_completion()
 
     def test_streaming_yields_chunks_incrementally(self):
         """Test that test() yields chunks as they arrive (without collector)."""

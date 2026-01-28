@@ -377,7 +377,9 @@ class KubeResourceSpec(FunctionSpec):
             for volume_mount in volume_mounts:
                 self._set_volume_mount(volume_mount, volume_mounts_field_name)
 
-    def validate_service_account(self, allowed_service_accounts):
+    def validate_service_account(
+        self, allowed_service_accounts, forbidden_service_accounts
+    ):
         if (
             allowed_service_accounts
             and self.service_account not in allowed_service_accounts
@@ -385,6 +387,14 @@ class KubeResourceSpec(FunctionSpec):
             raise mlrun.errors.MLRunInvalidArgumentError(
                 f"Function service account {self.service_account} is not in allowed "
                 + f"service accounts {allowed_service_accounts}"
+            )
+        if (
+            forbidden_service_accounts
+            and self.service_account in forbidden_service_accounts
+        ):
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"Function service account {self.service_account} is in forbidden "
+                + f"service accounts {forbidden_service_accounts}"
             )
 
     def with_volumes(
@@ -1207,7 +1217,10 @@ class KubeResource(BaseRuntime):
         self.apply(modifier(**mount_params_dict))
 
     def validate_and_enrich_service_account(
-        self, allowed_service_accounts, default_service_account
+        self,
+        allowed_service_accounts,
+        forbidden_service_accounts,
+        default_service_account,
     ):
         if not self.spec.service_account:
             if default_service_account:
@@ -1216,7 +1229,9 @@ class KubeResource(BaseRuntime):
                     f"Setting default service account to function: {default_service_account}"
                 )
 
-        self.spec.validate_service_account(allowed_service_accounts)
+        self.spec.validate_service_account(
+            allowed_service_accounts, forbidden_service_accounts
+        )
 
     def _configure_mlrun_build_with_source(
         self, source, workdir=None, handler=None, pull_at_runtime=True, target_dir=None

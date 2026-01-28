@@ -313,6 +313,36 @@ class IGTokenProvider(DynamicTokenProvider):
     def authenticated_user_id(self) -> typing.Optional[str]:
         return mlrun.auth.utils.resolve_jwt_subject(self._token, raise_on_error=True)
 
+    def fetch_token(self):
+        """
+        Fetch a new access token from the token endpoint.
+
+        When running inside an MLRun runtime, uses a timeout-based retry mechanism to handle
+        the case where the offline token is being updated in a Kubernetes secret. This allows
+        time for Kubelet to propagate the new token to the mounted file.
+
+        When running outside a runtime (e.g., user SDK), uses quick retries without delays.
+        """
+        runtime_timeout = mlconf.auth_with_oauth_token.runtime_token_refresh_timeout
+        runtime_backoff = mlconf.auth_with_oauth_token.runtime_token_refresh_backoff
+        is_runtime = mlrun.utils.helpers.is_running_in_runtime()
+
+        if is_runtime and runtime_timeout > 0:
+            # In runtime: use timeout-based retry to handle Kubelet propagation delay
+            # Each retry re-reads the refresh token from the file
+            mlrun.utils.helpers.retry_until_successful(
+                backoff=runtime_backoff,
+                timeout=runtime_timeout,
+                logger=logger,
+                verbose=True,
+                _function=self._fetch_token,
+            )
+        else:
+            mlrun.utils.helpers.run_with_retry(
+                retry_count=self._max_retries,
+                func=self._fetch_token,
+            )
+
     def _cleanup(self):
         self._token = None
         self._token_total_lifetime = 0

@@ -321,21 +321,23 @@ class NopDB(RunDBInterface):
     ):
         pass
 
-    def store_project(
-        self, name: str, project: mlrun.common.schemas.Project
+    def create_project(
+        self, project: mlrun.common.schemas.Project | dict
     ) -> mlrun.common.schemas.Project:
-        pass
+        if isinstance(project, dict):
+            project = mlrun.projects.MlrunProject.from_dict(project)
+        return project
+
+    def store_project(
+        self, name: str, project: mlrun.common.schemas.Project | dict
+    ) -> mlrun.common.schemas.Project:
+        return self.create_project(project)
 
     def patch_project(
         self,
         name: str,
         project: dict,
         patch_mode: mlrun.common.schemas.PatchMode = mlrun.common.schemas.PatchMode.replace,
-    ) -> mlrun.common.schemas.Project:
-        pass
-
-    def create_project(
-        self, project: mlrun.common.schemas.Project
     ) -> mlrun.common.schemas.Project:
         pass
 
@@ -1014,10 +1016,14 @@ class NopDB(RunDBInterface):
     ) -> mlrun.common.schemas.StoreSecretTokensResponse:
         pass
 
-    def list_secret_tokens(self) -> mlrun.common.schemas.ListSecretTokensResponse:
+    def list_secret_tokens(
+        self, username: Optional[str] = None
+    ) -> mlrun.common.schemas.ListSecretTokensResponse:
         pass
 
-    def revoke_secret_token(self, token_name: str) -> None:
+    def delete_secret_token(
+        self, token_name: str, username: Optional[str] = None
+    ) -> mlrun.common.schemas.DeleteSecretTokenResponse:
         pass
 
     def get_secret_token(

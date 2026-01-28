@@ -37,7 +37,7 @@ on:
       source_artifactory_docker_repo:
         description: 'Source Artifactory Docker repository name'
         required: false
-        default: 'mlrun-staging'
+        default: 'mlrun-staging/mlrun'
         type: string
       target_docker_registries:
         description: 'Comma separated list of target docker registries to push promoted images to (e.g., ghcr.io/,quay.io/,registry.hub.docker.com/)'
@@ -129,62 +129,71 @@ jobs:
       fail-fast: false
       matrix: ${{ fromJson(needs.matrix-prep.outputs.matrix) }}
     steps:
-      - name: Docker login (ghcr.io)
-        uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # 3.6.0
-        with:
-          registry: ghcr.io
-          username: ${{ github.repository_owner }}
-          password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Docker login (quay.io)
-        continue-on-error: true
-        uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # 3.6.0
-        with:
-          registry: quay.io
-          username: ${{ secrets.QUAY_IO_DOCKER_REGISTRY_USERNAME }}
-          password: ${{ secrets.QUAY_IO_DOCKER_REGISTRY_PASSWORD }}
-
-      - name: Docker login (docker.com)
-        continue-on-error: true
-        uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # 3.6.0
-        with:
-          registry: registry.hub.docker.com
-          username: ${{ secrets.DOCKER_HUB_DOCKER_REGISTRY_USERNAME }}
-          password: ${{ secrets.DOCKER_HUB_DOCKER_REGISTRY_PASSWORD }}
-
-      - name: Docker login (Source Artifactory)
-        uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # 3.6.0
-        with:
-          registry: ${{ secrets.ARTIFACTORY_URL }}
-          username: ${{ secrets.ARTIFACTORY_USERNAME }}
-          password: ${{ secrets.ARTIFACTORY_PASSWORD }}
-
-      - name: Pull, retag and push Docker image
+      - name: Login to registries with skopeo
         run: |
+          mkdir -p $GITHUB_WORKSPACE/.skopeo
+          AUTHFILE="$GITHUB_WORKSPACE/.skopeo/auth.json"
+          
+          # Login to source registry (Artifactory)
+          skopeo login "${{ secrets.ARTIFACTORY_URL }}" \
+            -u "${{ secrets.ARTIFACTORY_USERNAME }}" \
+            -p "${{ secrets.ARTIFACTORY_PASSWORD }}" \
+            --authfile "$AUTHFILE"
+          
+          # Login to target registries
+          skopeo login ghcr.io \
+            -u "${{ github.repository_owner }}" \
+            -p "${{ secrets.GITHUB_TOKEN }}" \
+            --authfile "$AUTHFILE"
+          
+          skopeo login quay.io \
+            -u "${{ secrets.QUAY_IO_DOCKER_REGISTRY_USERNAME }}" \
+            -p "${{ secrets.QUAY_IO_DOCKER_REGISTRY_PASSWORD }}" \
+            --authfile "$AUTHFILE"
+          
+          skopeo login docker.io \
+            -u "${{ secrets.DOCKER_HUB_DOCKER_REGISTRY_USERNAME }}" \
+            -p "${{ secrets.DOCKER_HUB_DOCKER_REGISTRY_PASSWORD }}" \
+            --authfile "$AUTHFILE"
+          
+          # Also login to registry.hub.docker.com (alias used in target registries)
+          skopeo login registry.hub.docker.com \
+            -u "${{ secrets.DOCKER_HUB_DOCKER_REGISTRY_USERNAME }}" \
+            -p "${{ secrets.DOCKER_HUB_DOCKER_REGISTRY_PASSWORD }}" \
+            --authfile "$AUTHFILE"
+
+      - name: Copy Docker image with skopeo (preserves digest)
+        if: ${{ matrix.image-name != 'test' }}
+        run: |
+          AUTHFILE="$GITHUB_WORKSPACE/.skopeo/auth.json"
+          
           image_name="${{ matrix.image-name }}"
           if [ "${{ matrix.image-name }}" = "api" ]; then
             image_name="mlrun-api"
           fi
-          SOURCE_IMAGE="${{ secrets.ARTIFACTORY_URL }}/${{ github.event.inputs.source_artifactory_docker_repo }}/${image_name}:${{ needs.prepare-inputs.outputs.version }}"
           
-          echo "Pulling image: $SOURCE_IMAGE"
-          docker pull "$SOURCE_IMAGE"
+          # Compute Python version suffix (e.g., -py39) when include-suffix is true
+          python_version_suffix=""
+          if [[ "${{ matrix.include-suffix }}" == "true" ]]; then
+            python_version_suffix="-py$(echo '${{ matrix.python-version }}' | tr -d '.')"
+          fi
           
-          # Loop through target registries and push to each
+          SOURCE_IMAGE="docker://${{ secrets.ARTIFACTORY_URL }}/${{ github.event.inputs.source_artifactory_docker_repo }}/${image_name}:${{ needs.prepare-inputs.outputs.version }}${python_version_suffix}"
+          
+          echo "Source image: $SOURCE_IMAGE"
+          
+          # Loop through target registries and copy to each
           IFS=',' read -ra REGISTRIES <<< "${{ github.event.inputs.target_docker_registries }}"
           for registry in "${REGISTRIES[@]}"; do
             registry=$(echo "$registry" | xargs)  # trim whitespace
             
-            # Determine the target image based on registry
-            TARGET_IMAGE="${registry}${{ github.event.inputs.target_docker_repo }}/${image_name}:${{ needs.prepare-inputs.outputs.version }}"
+            TARGET_IMAGE="docker://${registry}${{ github.event.inputs.target_docker_repo }}/${image_name}:${{ needs.prepare-inputs.outputs.version }}${python_version_suffix}"
 
-            echo "Tagging image as: $TARGET_IMAGE"
-            docker tag "$SOURCE_IMAGE" "$TARGET_IMAGE"
+            echo "Copying image to: $TARGET_IMAGE"
+            skopeo copy --all --authfile "$AUTHFILE" "$SOURCE_IMAGE" "$TARGET_IMAGE"
             
-            echo "Pushing image: $TARGET_IMAGE"
-            docker push "$TARGET_IMAGE"
-            
-            echo "✅ Successfully promoted ${{ matrix.image-name }} to $registry"
+            echo "✅ Successfully promoted ${{ matrix.image-name }}${python_version_suffix} to $registry (digest preserved)"
           done
 
   promote-ui-image:
@@ -193,64 +202,36 @@ jobs:
     if: "!contains(github.event.inputs.skip_images, 'ui')"
     needs: [prepare-inputs]
     steps:
-      - name: Docker login (ghcr.io)
-        uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # 3.6.0
-        with:
-          registry: ghcr.io
-          username: ${{ github.repository_owner }}
-          password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Docker login (quay.io)
-        continue-on-error: true
-        uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # 3.6.0
+      - name: Generate GitHub App Token for ui repo
+        id: ui-app-token
+        uses: actions/create-github-app-token@v2
         with:
-          registry: quay.io
-          username: ${{ secrets.QUAY_IO_DOCKER_REGISTRY_USERNAME }}
-          password: ${{ secrets.QUAY_IO_DOCKER_REGISTRY_PASSWORD }}
-
-      - name: Docker login (docker.com)
-        continue-on-error: true
-        uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # 3.6.0
+          app-id: ${{ secrets.GH_APP_ID }}
+          private-key: ${{ secrets.GH_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: ui
+      - uses: convictional/trigger-workflow-and-wait@f69fa9eedd3c62a599220f4d5745230e237904be # 1.6.5
         with:
-          registry: registry.hub.docker.com
-          username: ${{ secrets.DOCKER_HUB_DOCKER_REGISTRY_USERNAME }}
-          password: ${{ secrets.DOCKER_HUB_DOCKER_REGISTRY_PASSWORD }}
+          owner: ${{ github.repository_owner }}
+          repo: ui
+          github_token: ${{ steps.ui-app-token.outputs.token }}
+          workflow_file_name: ui-promotion.yaml
+          ref: development
+          wait_interval: 60
+          client_payload: "{\"version\": \"${{ needs.prepare-inputs.outputs.version }}\"}"
 
-      - name: Docker login (Source Artifactory)
-        uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # 3.6.0
-        with:
-          registry: ${{ secrets.ARTIFACTORY_URL }}
-          username: ${{ secrets.ARTIFACTORY_USERNAME }}
-          password: ${{ secrets.ARTIFACTORY_PASSWORD }}
-
-      - name: Pull, retag and push UI Docker image
-        run: |
-          SOURCE_IMAGE="${{ secrets.ARTIFACTORY_URL }}/${{ github.event.inputs.source_artifactory_docker_repo }}/mlrun/mlrun-ui:${{ needs.prepare-inputs.outputs.version }}"
-          
-          echo "Pulling image: $SOURCE_IMAGE"
-          docker pull "$SOURCE_IMAGE"
-          
-          # Loop through target registries and push to each
-          IFS=',' read -ra REGISTRIES <<< "${{ github.event.inputs.target_docker_registries }}"
-          for registry in "${REGISTRIES[@]}"; do
-            registry=$(echo "$registry" | xargs)  # trim whitespace
-            
-            TARGET_IMAGE="${registry}${{ github.event.inputs.target_docker_repo }}/mlrun/mlrun-ui:${{ needs.prepare-inputs.outputs.version }}"
-            
-            echo "Tagging image as: $TARGET_IMAGE"
-            docker tag "$SOURCE_IMAGE" "$TARGET_IMAGE"
-            
-            echo "Pushing image: $TARGET_IMAGE"
-            docker push "$TARGET_IMAGE"
-            
-            echo "✅ Successfully promoted ui to $registry"
-          done
 
   promote-pypi-package:
     name: Promote PyPI package from source to target Artifactory
     runs-on: mlrun-release
     needs: [ prepare-inputs, promote-docker-images, promote-ui-image ]
     steps:
+      - name: Setup Python 3.11 venv
+        run: |
+          python3.11 -m venv $GITHUB_WORKSPACE/.venv-promotion
+          echo "$GITHUB_WORKSPACE/.venv-promotion/bin" >> $GITHUB_PATH
+
       - name: Download package from source PyPI repo
         if: github.event.inputs.skip_publish_pypi != 'true'
         run: |
@@ -266,13 +247,13 @@ jobs:
 
       - name: Set up uv
         if: github.event.inputs.skip_publish_pypi != 'true'
-        uses: astral-sh/setup-uv@ed21f2f24f8dd64503750218de024bcf64c7250a # 7.1.5
+        uses: astral-sh/setup-uv@61cb8a9741eeb8a550a1b8544337180c0fc8476b # 7.2.0
 
       - name: Upload package to target PyPI repo
         if: github.event.inputs.skip_publish_pypi != 'true'
         env:
-          UV_PUBLISH_USERNAME: ${{ secrets.ARTIFACTORY_USERNAME }}
-          UV_PUBLISH_PASSWORD: ${{ secrets.ARTIFACTORY_PASSWORD }}
+          UV_PUBLISH_USERNAME: ${{ secrets.PYPI_USERNAME }}
+          UV_PUBLISH_PASSWORD: ${{ secrets.PYPI_PASSWORD }}
         run: |
           uv publish dist/*
           echo "✅ Successfully promoted PyPI package"
@@ -282,11 +263,14 @@ jobs:
     runs-on: ubuntu-latest
     needs: [ prepare-inputs, promote-pypi-package ]
     steps:
-      - uses: ncipollo/release-action@b7eabc95ff50cbeeedec83973935c8f306dfcd0b # 1.20.0
+      - name: Create GitHub release (using existing tag from private-release)
+        uses: ncipollo/release-action@b7eabc95ff50cbeeedec83973935c8f306dfcd0b # 1.20.0
         if: github.event.inputs.skip_create_tag_release != 'true'
         with:
           tag: v${{ needs.prepare-inputs.outputs.version }}
-          commit: ${{ github.ref_name }}
+          # Use existing tag created by private-release workflow (don't create new tag)
+          # allowUpdates allows creating a release on an existing tag
+          allowUpdates: true
           token: ${{ secrets.GITHUB_TOKEN }}
       - name: Generate GitHub App Token for ui repo
         if: github.event.inputs.skip_create_tag_release != 'true'
@@ -297,12 +281,14 @@ jobs:
           private-key: ${{ secrets.GH_APP_PRIVATE_KEY }}
           owner: ${{ github.repository_owner }}
           repositories: ui
-      - uses: ncipollo/release-action@b7eabc95ff50cbeeedec83973935c8f306dfcd0b # 1.20.0
+      - name: Create UI repo release (tag should exist from ui-promotion workflow)
+        uses: ncipollo/release-action@b7eabc95ff50cbeeedec83973935c8f306dfcd0b # 1.20.0
         if: github.event.inputs.skip_create_tag_release != 'true'
         with:
           repo: ui
           tag: v${{ needs.prepare-inputs.outputs.version }}
-          commit: ${{ github.ref_name }}
+          # Use existing tag (don't create new one)
+          allowUpdates: true
           token: ${{ steps.ui-release-app-token.outputs.token }}
           # experienced 500 errors when trying to create release notes for ui repo with `prerelease flag`
           # prerelease: ${{ needs.prepare-inputs.outputs.prerelease }}

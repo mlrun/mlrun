@@ -22,6 +22,7 @@ import pytest
 import mlrun.auth.utils
 import mlrun.common.schemas
 import mlrun.common.types
+import mlrun.errors
 import mlrun.utils.logger
 from mlrun.auth.providers import IGTokenProvider
 from mlrun.config import config
@@ -221,3 +222,111 @@ def test_authenticated_user_id():
         {"sub": "test-user"}, key="test-secret", algorithm="HS256"
     )
     assert provider.authenticated_user_id == "test-user"
+
+
+@pytest.mark.parametrize(
+    "runtime_kind,timeout,backoff,expect_timeout_retry",
+    [
+        # Not in runtime: use standard retry
+        ("", 120, 10, False),
+        # In runtime with timeout enabled: use timeout-based retry
+        ("job", 120, 10, True),
+        # In runtime but timeout disabled (0): use standard retry
+        ("job", 0, 10, False),
+    ],
+)
+def test_fetch_token_retry_strategy(
+    monkeypatch, runtime_kind, timeout, backoff, expect_timeout_retry
+):
+    """Test that fetch_token uses the correct retry strategy based on runtime context."""
+    monkeypatch.setenv("MLRUN_RUNTIME_KIND", runtime_kind)
+    monkeypatch.setattr(
+        "mlrun.mlconf.auth_with_oauth_token.runtime_token_refresh_timeout", timeout
+    )
+    monkeypatch.setattr(
+        "mlrun.mlconf.auth_with_oauth_token.runtime_token_refresh_backoff", backoff
+    )
+
+    provider = IGTokenProvider.__new__(IGTokenProvider)
+    provider._max_retries = 2
+
+    with (
+        patch("mlrun.utils.helpers.run_with_retry") as mock_run_with_retry,
+        patch(
+            "mlrun.utils.helpers.retry_until_successful"
+        ) as mock_retry_until_successful,
+    ):
+        provider.fetch_token()
+
+        if expect_timeout_retry:
+            mock_retry_until_successful.assert_called_once()
+            mock_run_with_retry.assert_not_called()
+            # Verify timeout and backoff parameters from config
+            call_kwargs = mock_retry_until_successful.call_args
+            assert call_kwargs.kwargs["timeout"] == timeout
+            assert call_kwargs.kwargs["backoff"] == backoff
+        else:
+            mock_run_with_retry.assert_called_once()
+            mock_retry_until_successful.assert_not_called()
+
+
+def test_runtime_retry_succeeds_after_initial_failures(encoded_jwt_token, monkeypatch):
+    """
+    Simulates the Kubelet propagation delay scenario:
+    - First few attempts fail (old/invalid token in file)
+    - Later attempts succeed (new token propagated)
+    """
+    encoded_jwt, _, _ = encoded_jwt_token
+
+    monkeypatch.setenv("MLRUN_RUNTIME_KIND", "job")
+    monkeypatch.setattr("mlrun.mlconf.httpdb.http.verify", True)
+    # Use a timeout longer than backoff (10 seconds) to allow retries
+    monkeypatch.setattr(
+        "mlrun.mlconf.auth_with_oauth_token.runtime_token_refresh_timeout", 30
+    )
+
+    provider = IGTokenProvider.__new__(IGTokenProvider)
+    provider._token = None
+    provider._token_total_lifetime = 0
+    provider._token_expiry_time = None
+    provider._max_retries = 2
+    provider._token_endpoint = "http://example.com"
+    provider._timeout = 5
+
+    # Track number of calls
+    call_count = [0]
+
+    def mock_load_offline_token(raise_on_error):
+        call_count[0] += 1
+        if call_count[0] <= 2:
+            # First 2 calls return old/invalid token
+            return "old-invalid-token"
+        # Third call returns new valid token
+        return "new-valid-token"
+
+    monkeypatch.setattr("mlrun.auth.utils.load_offline_token", mock_load_offline_token)
+
+    # Mock session to fail for old token, succeed for new token
+    mock_session = MagicMock()
+
+    def mock_request(**kwargs):
+        request_body = kwargs.get("json", {})
+        if request_body.get("refreshToken") == "new-valid-token":
+            response = MagicMock()
+            response.ok = True
+            response.json.return_value = {"spec": {"accessToken": encoded_jwt}}
+            return response
+        else:
+            # Raise an exception to trigger retry (simulating token endpoint rejection)
+            raise mlrun.errors.MLRunRuntimeError("Invalid refresh token")
+
+    mock_session.request.side_effect = mock_request
+    provider._session = mock_session
+
+    # This should succeed after retries
+    provider.fetch_token()
+
+    # Verify the token was set from the successful response
+    assert provider._token == encoded_jwt
+    # Verify multiple attempts were made (at least 3: 2 failures + 1 success)
+    assert call_count[0] >= 3

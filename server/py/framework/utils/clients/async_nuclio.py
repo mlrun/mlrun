@@ -26,6 +26,8 @@ import mlrun.utils
 from mlrun.common.helpers import generate_api_gateway_name
 from mlrun.utils import logger
 
+import framework.utils.clients.helpers
+
 NUCLIO_API_SESSIONS_ENDPOINT = "/api/sessions/"
 NUCLIO_API_GATEWAYS_ENDPOINT_TEMPLATE = "/api/api_gateways/{api_gateway}"
 NUCLIO_API_GATEWAY_NAMESPACE_HEADER = "X-Nuclio-Api-Gateway-Namespace"
@@ -223,6 +225,10 @@ class Client:
     ):
         await self._ensure_async_session()
         self._prepare_auth_kwargs(kwargs)
+        kwargs["headers"] = framework.utils.clients.helpers.enrich_headers(
+            headers=kwargs.get("headers"),
+            path=path,
+        )
         response = await self._session.request(
             method=method,
             url=urllib.parse.urljoin(self._nuclio_dashboard_url, path),

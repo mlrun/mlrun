@@ -38,7 +38,7 @@ MLRUN_MYSQL_IMAGE ?= gcr.io/iguazio/mlrun-mysql:8.4
 MLRUN_POSTGRES_IMAGE = gcr.io/iguazio/postgres:17
 
 # TODO: remove this once iguazio package is released to PyPI and move to requirements.txt
-IGUAZIO_PACKAGE_VERSION ?= 0.0.1a22
+IGUAZIO_PACKAGE_VERSION ?= 0.0.1a27
 
 MLRUN_SKIP_COMPILE_SCHEMAS ?=
 INCLUDE_PYTHON_VERSION_SUFFIX ?=
@@ -195,7 +195,7 @@ install-dev-requirements: ## Install dev-requirements relevant for pytest and co
 		$(MLRUN_PIP_NO_CACHE_FLAG) \
 		-r dev-requirements.txt
 
-.PHONY: install-dev-requirements
+.PHONY: install-automation-requirements
 install-automation-requirements: ## Install automation-requirements relevant for CI and automation scripts
 	# relevant for pip package installer only
 	@if [ "$(MLRUN_PYTHON_PACKAGE_INSTALLER)" = "pip" ]; then \
@@ -810,7 +810,7 @@ test-system-open-source: update-version-file ## Run mlrun system tests with open
 
 .PHONY: test-package compile-schemas
 test-package: ## Run mlrun package tests
-	python ./automation/package_test/test.py run
+	MLRUN_PYTHON_PACKAGE_INSTALLER=$(MLRUN_PYTHON_PACKAGE_INSTALLER) python ./automation/package_test/test.py run
 
 .PHONY: test-go
 test-go-unit: ## Run mlrun go unit tests

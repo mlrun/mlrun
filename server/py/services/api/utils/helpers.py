@@ -76,13 +76,13 @@ def resolve_client_default_kfp_image(
 
 
 def resolve_auth_token_secret_name(
-    provided_token_name: typing.Optional[str], username: typing.Optional[str]
+    provided_token_name: typing.Optional[str], user_id: typing.Optional[str]
 ) -> typing.Optional[str]:
     """
     Resolve the name of the secret that holds the user's auth token. Performs enrichment and validation of the
     token name.
     :param provided_token_name: The name of the token provided by the user, if any.
-    :param username: The username for which the token is being resolved.
+    :param user_id: The user ID for which the token is being resolved.
 
     :return: The name of the secret that holds the user's auth token.
     """
@@ -95,6 +95,6 @@ def resolve_auth_token_secret_name(
             or mlrun.common.constants.MLRUN_RUNTIME_AUTH_DEFAULT_TOKEN_NAME
         )
         secret = framework.utils.singletons.k8s.get_k8s_helper()._get_user_token_secret(
-            username=username, token_name=token_name
+            user_id=user_id, token_name=token_name
         )
         return secret.metadata.name if secret else None

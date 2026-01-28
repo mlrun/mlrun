@@ -625,7 +625,7 @@ class Pipelines(
         # Workflows do not go through launcher/runtime handler
         # So enrichment, validation and secret retrieval need to be done here
         auth_secret_name = services.api.utils.helpers.resolve_auth_token_secret_name(
-            provided_token_name=provided_token_name, username=auth_info.username
+            provided_token_name=provided_token_name, user_id=auth_info.user_id
         )
 
         data = mlrun_pipelines.common.ops.process_kfp_workflow_secret_references(

@@ -19,9 +19,6 @@ See {ref}`build-function-image`.
 All images are published to 
 [DockerHub](https://hub.docker.com/u/mlrun) and [quay.io](https://quay.io/organization/mlrun).
 
-There are two versions of each image: py3.9 and py3.11. The recommended version is py3.11. You choose the image you use, based on your needs. When you submit a job to MLRun, it 
-attempts to deduce the correct Python version to use based on the Python version where the user-code was written and submitted.
-
 The images are:
 
 - `mlrun/mlrun`: An MLRun image includes preinstalled OpenMPI and other ML packages. Image for file acquisition, compression, Dask jobs, simple training jobs and other utilities.
@@ -43,10 +40,6 @@ For production, **create your own images** to ensure that the image is fixed. Se
 ```
 
 ### When to use an image with KFP
-
-With Python 3.11: You must use the remote engine, which automatically uses the `mlrun/mlrun-kfp` image that uses Python 3.9. (You can change the image with {py:meth}`~mlrun.projects.MlrunProject.set_workflow`). Since KFP cannot be installed on Python 3.11, this remote job loads and compiles the workflow as a separate job in your Kubernetes cluster.
-
-If you are using Python 3.9, you have the option of compiling your workflow on your Python 3.9 environment with `engine=kfp`.
 
 Unless you are using KFP-specific code inside the MLRun job, you do not need to use the `mlrun-kfp image`. Generally speaking, all MLRun code works without KFP except, of course, for creating and running pipelines.
 
@@ -111,8 +104,8 @@ This flow describes how to build the image externally, put it your private repo,
 ## MLRun images and external docker images
 
 There is no difference in the usage between the MLRun images and external docker images. However:
-- MLRun images resolve auto tags: If you specify ```image="mlrun/mlrun"``` the API fills in the tag by the client version, e.g. changes it to `mlrun/mlrun:1.7.0`. So, if the client gets upgraded you'll automatically get a new image tag. 
-- Where the data node registry exists, MLRun Appends the registry prefix, so the image loads from the data node registry. This pulls the image more quickly, and also supports air-gapped sites. When you specify an MLRun image, for example `mlrun/mlrun:1.7.0`, the actual image used is similar to `datanode-registry.iguazio-platform.app.vm/mlrun/mlrun:1.7.0`.
+- MLRun images resolve auto tags: If you specify ```image="mlrun/mlrun"``` the API fills in the tag by the client version, e.g. changes it to `mlrun/mlrun:1.11.0`. So, if the client gets upgraded you'll automatically get a new image tag. 
+- Where the data node registry exists, MLRun Appends the registry prefix, so the image loads from the data node registry. This pulls the image more quickly, and also supports air-gapped sites. When you specify an MLRun image, for example `mlrun/mlrun:1.11.0`, the actual image used is similar to `datanode-registry.iguazio-platform.app.vm/mlrun/mlrun:1.11.0`.
 
 These characteristics are great when you’re working in a POC or development environment. But MLRun typically upgrades packages as part of the image, and therefore the default MLRun images can break your product flow. 
 
@@ -121,5 +114,5 @@ These characteristics are great when you’re working in a POC or development en
 For production, **create your own images** to ensure that the image is fixed.
 ```
 
-- Pin the image tag, e.g. `image="mlrun/mlrun:1.7.0"`. This maintains the image tag at the version you specified, even when the client is upgraded. Otherwise, an upgrade of the client would also upgrade the image. (If you specify an external (not MLRun images) docker image, like Python, the result is the docker/k8s default behavior, which defaults to `latest` when the tag is not provided.)
-- Pin the versions of requirements, again to avoid breakages, e.g. `pandas==1.4.0`. (If you only specify the package name, e.g. pandas, then pip/conda (Python's package managers) just pick up the latest version.)
+- Pin the image tag, e.g. `image="mlrun/mlrun:1.11.0"`. This maintains the image tag at the version you specified, even when the client is upgraded. Otherwise, an upgrade of the client would also upgrade the image. (If you specify an external (not MLRun image) docker image, like Python, the result is the docker/k8s default behavior, which defaults to `latest` when the tag is not provided.)
+- Pin the versions of requirements, again, to avoid breakages, e.g. `pandas==1.4.0`. (If you only specify the package name, e.g. pandas, then pip/conda (Python's package managers) just pick up the latest version.)

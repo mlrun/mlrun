@@ -125,7 +125,7 @@ More options:
     ```
 
 ```{admonition} Note
-Datastore profiles do not support: v3io (datastore, or source/target), snowflake source, DBFS for spark runtimes, Dask runtime.
+Datastore profiles do not support: snowflake source, DBFS for spark runtimes, Dask runtime.
 ```
 
 See also:

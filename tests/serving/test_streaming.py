@@ -315,6 +315,7 @@ class TestStreamingEndToEnd:
         finally:
             server.wait_for_completion()
 
+
 class TestStreamingErrors:
     """Tests for streaming error conditions."""
 

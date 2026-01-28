@@ -21,12 +21,14 @@ import tiktoken
 from mlrun.datastore.datastore_profile import (
     OpenAIProfile,
 )
-from mlrun.datastore.model_provider.model_provider import UsageResponseKeys
 from tests.datastore.remote_model.remote_model_utils import (
+    BATCH_INPUT_DATA,
     EXPECTED_RESULTS,
-    INPUT_DATA,
     assert_async_invocations,
+    retry_on_content_mismatch,
     setup_remote_model_test,
+    validate_openai_batch_response,
+    validate_openai_single_response,
 )
 from tests.system.base import TestMLRunSystem
 
@@ -92,40 +94,27 @@ class TestOpenAIModelRunner(TestMLRunSystem):
         )
         function.deploy()
 
-        response = None
-        answer = None
+        def _test_single():
+            response = function.invoke(
+                f"v2/models/{mlrun_model_name}/infer",
+                json.dumps(BATCH_INPUT_DATA[0]),
+            )["output"]
+            validate_openai_single_response(
+                response, EXPECTED_RESULTS[0], self.basic_llm_model
+            )
 
-        # retry loop only for fragile assertions
-        for attempt in range(1, MAX_ATTEMPTS + 1):
-            try:
-                response = function.invoke(
-                    f"v2/models/{mlrun_model_name}/infer",
-                    json.dumps(INPUT_DATA[0]),
-                )["output"]
+        retry_on_content_mismatch(_test_single, MAX_ATTEMPTS)
 
-                assert len(response) == 2
-                answer = response[UsageResponseKeys.ANSWER]
-                assert EXPECTED_RESULTS[0] in answer.lower()
+        def _test_batch():
+            batch_response = function.invoke(
+                f"v2/models/{mlrun_model_name}/infer",
+                json.dumps(BATCH_INPUT_DATA),
+            )
+            validate_openai_batch_response(
+                batch_response, EXPECTED_RESULTS, self.basic_llm_model
+            )
 
-                # success, exit loop
-                break
-            except AssertionError as e:
-                if attempt < MAX_ATTEMPTS:
-                    print(f"[Attempt {attempt}] Assertion failed, retrying...")
-                    continue
-                else:
-                    print(f"[Attempt {attempt}] Giving up after {MAX_ATTEMPTS} tries.")
-                    raise e
-
-        # only run these once, after a valid answer was obtained
-        encoding = tiktoken.encoding_for_model(self.basic_llm_model)
-        assert 95 <= len(encoding.encode(answer)) <= 105
-        stats = response[UsageResponseKeys.USAGE]
-        assert 95 <= stats["completion_tokens"] <= 105
-        assert stats["prompt_tokens"] > 0
-        assert (
-            stats["total_tokens"] == stats["completion_tokens"] + stats["prompt_tokens"]
-        )
+        retry_on_content_mismatch(_test_batch, MAX_ATTEMPTS)
 
     def test_model_runner_with_openai_async(self):
         mlrun_model_name = "async_invoke_model"
@@ -145,7 +134,7 @@ class TestOpenAIModelRunner(TestMLRunSystem):
             start = time.perf_counter()
             results_with_times = function.invoke(
                 f"v2/models/{mlrun_model_name}/infer",
-                json.dumps({"input": INPUT_DATA}),
+                json.dumps({"input": BATCH_INPUT_DATA}),
             )
             total_duration = time.perf_counter() - start
 

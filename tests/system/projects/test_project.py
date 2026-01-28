@@ -512,7 +512,6 @@ class TestProject(TestMLRunSystem):
             "gen-iris",
             image="mlrun/mlrun",
             handler="iris_generator",
-            requirements=["requests"],
         )
         self._logger.debug("Set project function", project=project.to_yaml())
         run = project.run(
@@ -528,7 +527,7 @@ class TestProject(TestMLRunSystem):
         assert fn.status.state == "ready"
         assert fn.spec.image, "image path got cleared"
         for env in fn.spec.env:
-            if env["name"] in ["V3IO_ACCESS_KEY", "MLRUN_ATH_SESSION"]:
+            if env["name"] in ["V3IO_ACCESS_KEY", "MLRUN_AUTH_SESSION"]:
                 assert "valueFrom" in env, "content must be taken from secret"
                 # TODO: uncomment when we have system tests with full k8s access
                 # secret_name = env["valueFrom"]["secretKeyRef"]["name"]

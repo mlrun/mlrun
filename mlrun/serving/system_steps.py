@@ -135,8 +135,40 @@ class MonitoringPreProcessor(storey.MapClass):
                 )
         elif not isinstance(data_from_path, list):
             listed_data = [data_from_path]
-        else:
-            listed_data = data_from_path
+        else:  # list handling
+            # Check if all items are dicts
+            all_dicts = data_from_path and all(
+                isinstance(item, dict) for item in data_from_path
+            )
+
+            if all_dicts:
+                # Check if all dicts have the same keys
+                same_keys = (
+                    len(set(tuple(sorted(item.keys())) for item in data_from_path)) == 1
+                )
+
+                if same_keys:
+                    # batch handling
+                    # All items are dicts with the same keys - transpose by key
+                    # Merge all dicts by combining values for each key into lists
+                    merged_dict = {}
+                    for item in data_from_path:
+                        for key, value in item.items():
+                            if key not in merged_dict:
+                                merged_dict[key] = []
+                            merged_dict[key].append(value)
+                    listed_data, new_schema = self.transpose_by_key(merged_dict, schema)
+                    new_schema = new_schema or schema
+                else:
+                    # Dicts with different keys - warn and fall back to default
+                    logger.warn(
+                        "List contains dicts with different keys; cannot transpose by key. "
+                        "Falling back to default list handling."
+                    )
+                    listed_data = data_from_path
+            else:
+                # Fall back to default list handling
+                listed_data = data_from_path
         return listed_data, new_schema
 
     @staticmethod

@@ -1,4 +1,4 @@
-# Copyright 2025 Iguazio
+# Copyright 2026 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -11,14 +11,22 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import mlrun.errors
+
+from storey import MapClass
 
 
-def create_mocked_get_store_artifact(uri_to_artifact: dict):
-    def mocked_get_store_artifact(uri, **kwargs):
-        artifact = uri_to_artifact.get(uri)
-        if not artifact:
-            raise mlrun.errors.MLRunInvalidArgumentError("Artifact uri not found")
-        return artifact, None
+class ProcessMessage(MapClass):
+    """Simple step that processes RabbitMQ messages and adds a marker."""
 
-    return mocked_get_store_artifact
+    def do(self, event):
+        self.context.logger.info(f"Processing message: {event}")
+
+        if isinstance(event, bytes):
+            import json
+
+            event = json.loads(event.decode("utf-8"))
+
+        # Add processing marker
+        event["_processed"] = True
+
+        return event

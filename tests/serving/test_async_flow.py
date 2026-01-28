@@ -109,9 +109,10 @@ def test_async_basic():
     server = function.to_mock_server()
     server.context.visits = {}
     logger.info(f"\nAsync Flow:\n{flow.to_yaml()}")
-    resp = server.test(body=[])
-
-    server.wait_for_completion()
+    try:
+        resp = server.test(body=[])
+    finally:
+        server.wait_for_completion()
     assert resp == ["s1", "s2", "s5"], "flow result is incorrect"
     assert server.context.visits == {
         "s1": 1,
@@ -1083,6 +1084,7 @@ def test_shared_llm_with_model_runner(raise_exception, shared, model_uri, llm):
                 assert resp["outputs"]["usage"] == {
                     "prompt_tokens": 0,
                     "completion_tokens": 0,
+                    "total_tokens": 0,
                 }
             else:
                 assert resp["default_config"] == {"model_version": "4"}
@@ -1360,8 +1362,10 @@ def test_configure_model_runner_step_max_threads_processes(concurrency: str):
         assert (
             server.graph["my_model_runner"]._async_object.max_threads == 48
         ), "Max threads not configured properly"
-    server.test(body={"n": 1})
-    server.wait_for_completion()
+    try:
+        server.test(body={"n": 1})
+    finally:
+        server.wait_for_completion()
 
 
 @pytest.mark.parametrize(
@@ -1464,6 +1468,34 @@ def test_cyclic_to_first_step(method):
             name="route", class_name="Route", cycle_to="count", after="count"
         )
         graph.add_step(name="end", class_name="Echo", after="route").respond()
+
+    server = function.to_mock_server()
+    try:
+        resp = server.test(body={"counter": 1})
+        assert resp["counter"] == 5
+    finally:
+        server.wait_for_completion()
+
+
+# ML-11938
+@pytest.mark.parametrize("method", ["add_step", "to"])
+def test_cyclic_from_last_step(method):
+    function = mlrun.new_function("tests", kind="serving", project="x")
+    graph = function.set_topology("flow", engine="async", allow_cyclic=True)
+
+    if method == "to":
+        graph.to(class_name="Counter", name="count").to(
+            name="route", class_name="Route", cycle_to="count", end="Complete"
+        ).respond()
+    else:
+        graph.add_step(name="count", class_name="Counter")
+        graph.add_step(
+            name="route",
+            class_name="Route",
+            cycle_to="count",
+            after="count",
+            end="Complete",
+        ).respond()
 
     server = function.to_mock_server()
     try:

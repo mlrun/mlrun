@@ -375,42 +375,6 @@ class OpenAIProvider(ModelProvider):
             response=response,
         )
 
-    def _validate_and_detect_batch_invocation(
-        self, messages: Union[list[dict], list[list[dict]]]
-    ) -> bool:
-        """
-        Validate messages format and detect if this is a batch invocation.
-
-        :param messages: Either a list of message dicts (single) or list of message lists (batch)
-        :return: True if batch invocation, False if single invocation
-        :raises MLRunInvalidArgumentError: If messages format is invalid (mixed types or strings)
-        """
-        if not messages or not isinstance(messages, list):
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                "Messages must be a non-empty list of dictionaries or list of lists of dictionaries."
-            )
-
-        # Check if user mistakenly passed a list of strings
-        has_str = any(isinstance(item, str) for item in messages)
-        if has_str:
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                "Invalid messages format: list of strings is not supported. "
-                "Messages must be a list of dicts (single invocation) or list of lists of dicts (batch invocation)."
-            )
-
-        has_list = any(isinstance(item, list) for item in messages)
-        has_dict = any(isinstance(item, dict) for item in messages)
-
-        if has_list and has_dict:
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                "Invalid messages format: cannot mix list and dict items. "
-                "Use either all lists for batch invocation or all dicts for single invocation."
-            )
-
-        if has_list:
-            return True
-        return False
-
     def invoke(
         self,
         messages: Union[list[dict], list[list[dict]]],

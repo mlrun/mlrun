@@ -197,6 +197,17 @@ jobs:
         username: ${{ secrets.ARTIFACTORY_USERNAME }}
         password: ${{ secrets.ARTIFACTORY_PASSWORD }}
 
+    # We need to use a python venv to avoid conflicts with the system python packages (like docker etc.)
+    # Also those self hosted runners are not ephemeral, so we need to make sure we have a clean env   
+    - name: Set up Python virtual environment
+      if: inputs.is_private_release == true
+      run: |
+        # Remove any existing venv from previous runs, better new venv per job at this stage
+        rm -rf $GITHUB_WORKSPACE/.venv
+        # Create new venv and add it to PATH
+        python3 -m venv $GITHUB_WORKSPACE/.venv
+        echo "$GITHUB_WORKSPACE/.venv/bin" >> $GITHUB_PATH
+
     - name: Pull cache, build and push image
 
       # we don't really want per-commit test image we just want to build and push the cache image so CI will be able
@@ -250,3 +261,10 @@ jobs:
         MLRUN_PYTHON_VERSION=${{ matrix.python-version }} \
         INCLUDE_PYTHON_VERSION_SUFFIX=${{ matrix.include-suffix }} \
         make push-${{ matrix.image-name }}
+
+    # We need to clean up images that have been pushed to avoid filling up disk space on self hosted runners
+    - name: Clean docker images
+      if: inputs.is_private_release == true
+      run: |
+        # Remove any docker image with mlrun/ in the name
+        docker images --format '{{.Repository}}:{{.Tag}}' | grep 'mlrun/' | xargs -r docker rmi -f && docker image prune -f

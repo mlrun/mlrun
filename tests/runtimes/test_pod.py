@@ -16,6 +16,7 @@ import base64
 import inspect
 import json
 import warnings
+from contextlib import nullcontext as does_not_raise
 
 import kubernetes.client
 import kubernetes.client as k8s_client
@@ -563,3 +564,38 @@ def test_validate_not_forbidden_secret(monkeypatch, is_api_server, should_raise)
             mlrun.common.secrets.validate_not_forbidden_secret(_forbidden_name())
     else:
         mlrun.common.secrets.validate_not_forbidden_secret(_forbidden_name())
+
+
+@pytest.mark.parametrize(
+    "service_account, allowed_service_accounts, forbidden_service_accounts, expectation",
+    [
+        (
+            "allowed-sa",
+            ["allowed-sa", "another-sa"],
+            ["forbidden-sa"],
+            does_not_raise(),
+        ),
+        (
+            "forbidden-sa",
+            ["allowed-sa", "another-sa"],
+            ["forbidden-sa"],
+            pytest.raises(mlrun.errors.MLRunInvalidArgumentError),
+        ),
+        (
+            "not-allowed-sa",
+            ["allowed-sa", "another-sa"],
+            ["forbidden-sa"],
+            pytest.raises(mlrun.errors.MLRunInvalidArgumentError),
+        ),
+        ("any-sa", None, None, does_not_raise()),
+    ],
+)
+def test_validate_service(
+    service_account, allowed_service_accounts, forbidden_service_accounts, expectation
+):
+    spec = mlrun.runtimes.pod.KubeResourceSpec(service_account=service_account)
+
+    with expectation:
+        spec.validate_service_account(
+            allowed_service_accounts, forbidden_service_accounts
+        )

@@ -736,6 +736,28 @@ def test_set_and_load_default_config():
         del os.environ["MLRUN_KFP_TTL"]
 
 
+@pytest.mark.parametrize(
+    "service_account_str, expected_service_accounts",
+    [
+        ("", []),
+        ("service-account-1", ["service-account-1"]),
+        (
+            "service-account-1,service-account-2, service-account-3 ",
+            ["service-account-1", "service-account-2", "service-account-3"],
+        ),
+    ],
+)
+def test_default_forbidden_service_account_config(
+    service_account_str, expected_service_accounts
+):
+    mlrun.mlconf.function.spec.service_account.forbidden_service_accounts = (
+        service_account_str
+    )
+    assert (
+        mlrun.mlconf.default_forbidden_service_accounts() == expected_service_accounts
+    )
+
+
 def _exec_mlrun(cmd, cwd=None):
     cmd = [sys.executable, "-m", "mlrun"] + cmd.split()
     out = subprocess.run(cmd, capture_output=True, cwd=cwd)

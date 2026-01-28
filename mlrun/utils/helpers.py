@@ -2525,7 +2525,7 @@ def is_valid_port(port: int, raise_on_error: bool = False) -> bool:
     return False
 
 
-def set_data_by_path(
+def _set_data_in_dict(
     path: typing.Union[str, list[str], None], data: dict, value
 ) -> None:
     if path is None:
@@ -2547,6 +2547,41 @@ def set_data_by_path(
         raise mlrun.errors.MLRunInvalidArgumentError(
             "Expected path to be of type str or list of str"
         )
+
+
+def set_data_by_path(
+    path: typing.Union[str, list[str], None],
+    data: typing.Union[dict, list[dict]],
+    value,
+) -> None:
+    """
+    Set a value at the specified path in a dictionary or list of dictionaries.
+    Modifies the input data in-place. Supports both single dict and batch (list of dicts) scenarios.
+
+    Args:
+        path: Where to set the value - str (single key), list[str] (nested path), or None (merge dict).
+        data: Target dict or list of dicts to modify.
+        value: Value to set. For list of dicts, use a list to distribute values element-wise.
+
+    Raises:
+        ValueError: When path is None and value is not a dictionary.
+        MLRunInvalidArgumentError: When path type is invalid or list lengths don't match.
+    """
+    # Handle list of dicts: if data is a list and value is a list, distribute values
+    if isinstance(data, list) and isinstance(value, list):
+        if len(value) != len(data):
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"Value list length ({len(value)}) must match data list length ({len(data)})"
+            )
+        # Check if all items in data are dicts
+        if all(isinstance(item, dict) for item in data):
+            # Distribute each value to the corresponding dict in the list
+            for i, item in enumerate(data):
+                _set_data_in_dict(path, item, value[i])
+            return
+
+    # Standard dict handling
+    _set_data_in_dict(path, data, value)
 
 
 def _normalize_requirements(reqs: typing.Union[str, list[str], None]) -> list[str]:

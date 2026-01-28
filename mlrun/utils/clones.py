@@ -211,3 +211,55 @@ def extract_source(source: str, workdir=None, secrets=None, clone=True):
 
     logger.info(f"extracting source from {source} to {target_dir}")
     return target_dir
+
+
+def load_source_code(
+    source_uri: str,
+    target_dir: str,
+    project: str | None = None,
+) -> str:
+    """
+    Load a single-file artifact from the artifact store into a target directory.
+    This function is used by the Application Runtime init container to prepare
+    source code on a shared volume before the sidecar container starts.
+
+    :param source_uri: URI of the artifact (store://artifacts/project/key)
+    :param target_dir: Target directory where the file will be placed
+    :param project:    Optional project name (extracted from URI if not provided)
+
+    :returns: Path to the loaded file
+    """
+    if not source_uri:
+        raise mlrun.errors.MLRunInvalidArgumentError("source_uri is required")
+    if not target_dir:
+        raise mlrun.errors.MLRunInvalidArgumentError("target_dir is required")
+    # Validate that source_uri is a store artifact URI
+    if not mlrun.datastore.is_store_uri(source_uri):
+        raise mlrun.errors.MLRunInvalidArgumentError(
+            f"source_uri must be a store artifact URI (store://...), got: {source_uri}"
+        )
+
+    # Resolve the artifact from the store
+    artifact = mlrun.datastore.get_store_resource(source_uri, project=project)
+
+    # Get the target path where the artifact content is stored
+    artifact_target_path = artifact.get_target_path()
+    if not artifact_target_path:
+        raise ValueError(f"Artifact {source_uri} does not have a valid target path")
+
+    # Create target directory if it doesn't exist
+    os.makedirs(target_dir, exist_ok=True)
+
+    # Determine the filename from the artifact target path
+    filename = os.path.basename(artifact_target_path)
+    local_file_path = os.path.join(target_dir, filename)
+
+    # Download the artifact content to the target directory
+    try:
+        mlrun.get_dataitem(artifact_target_path).download(local_file_path)
+    except Exception as exc:
+        raise mlrun.errors.MLRunRuntimeError(
+            f"Failed to download artifact from {artifact_target_path} to {local_file_path}"
+        ) from exc
+
+    return local_file_path

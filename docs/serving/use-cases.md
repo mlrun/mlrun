@@ -201,10 +201,12 @@ Cycles are supported for graphs of `flow` topology and `async` engine (storey) w
 Set a graph as cyclic using `allow_cyclic=True` in `set_topology`, or after the graph is defined with `serving.spec.graph.allow_cyclic = True`.
 
 Cycles can return to the same step, or cycle through multiple steps. Create a multi-step cycle by listing the step names and using `cycle_to`. (See {py:meth}`~mlrun.serving.states.BaseStep.to()` and {py:meth}`~mlrun.serving.states.BaseStep.cycle_to`.) 
-Example of creating a cycle from step 1 through to step 3, and cycling back to step 1:
+Example of creating a cycle where after the `evaluator` the `choice` step determines whether to cycle to the `generator` or continue forward to `post_process` and respond:
+
 ```python
-graph.to("step1").to("step2").to("step3").cycle_to(["step1"])
+graph.to("generator").to("evaluator").to("choice").cycle_to(["generator"]).to("post_process").respond()
 ```
+As an alternative to the choice step, you can implement {py:class}`~mlrun.serving.states.ModelRunnerSelector.select_outlets` in the evaluator step. See the usage in [Prevent infinite loops](#prevent-infinite-loops).
 
 Iteration tracking is automatic, you do not need to add counters manually in the step code. The default number of iterations is 10_000.
 If you set `max_iterations` in `set_topology` and in `add_step`, the value in `add_step` takes precedence. 
@@ -255,9 +257,9 @@ mock.test("/", body={...})
 function.deploy()
 function.invoke("/", body={...})
 ```
-
-**To ensure that your graph does not become infinite, use one of the following two approaches:**
-- Extend an existing step by implementing `select_outlets` to explicitly control the flow and prevent cycles. 
+### Prevent infinite loops
+To ensure that your graph does not become infinite, use one of the following two approaches:
+- Extend an existing step by implementing {py:class}`~mlrun.serving.states.ModelRunnerSelector.select_outlets` to explicitly control the flow and prevent cycles. 
 Example:
 ```python
 class MyStep:
@@ -271,7 +273,7 @@ class MyStep:
             return ["continue"]
         return ["stop"]
 ```     
-- Implement a custom step that inherits from `storey.Choice`. Override the `select_outlets` method to control which outlets are selected at runtime. 
+- Implement a custom step that inherits from {py:class}`~storey.transformations.Choice`. Override the `select_outlets` method to control which outlets are selected at runtime. 
 Example:
 ```python
 import storey

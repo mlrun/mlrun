@@ -53,6 +53,8 @@ See also:
 
 ## Source and target profiles
 
+Source and target profiles include model monitoring profiles and queue profiles
+### Model monitoring datastore profiles
 Model monitoring datastore profiles define the streaming and TSDB platforms required to run model monitoring.
 MLRun supports Kafka and V3IO as streaming platforms, and TimescaleDB (PostgreSQL) and V3IO as TSDB platforms.
 
@@ -90,9 +92,9 @@ See also
 -  {py:class}`~mlrun.projects.MlrunProject.set_model_monitoring_credentials`.
 - [Configuring TDengine and Kafka for model monitoring](../install-mlrun-ce/mlrun-ce-development-notes.md#configuring-tdengine-and-kafka-for-model-monitoring)
 
-## Queue datastore profiles
+### Queue datastore profiles
 
-### RabbitMQ
+#### RabbitMQ
 ```
 profile = DatastoreProfileRabbitMQ(
     name="my-profile",
@@ -105,7 +107,12 @@ profile = DatastoreProfileRabbitMQ(
 # add this profile to a function with:
 function.add_rabbitmq_trigger(url="ds://my-profile")
 ```
-### Kafka
+
+See also
+- {py:class}`~mlrun.datastore.datastore_profile.DatastoreProfileRabbitMQ`
+- {py:class}`~mlrun.runtimes.RemoteRuntime.add_rabbitmq_trigger`
+
+#### Kafka
 
 ```
 profile = DatastoreProfileKafkaStream(
@@ -114,4 +121,7 @@ profile = DatastoreProfileKafkaStream(
 # add this profile to a function with:
 target = KafkaSource(path="ds://profile-name")
 ```
-See full details in {py:class}`~mlrun.datastore.datastore_profile.DatastoreProfileKafkaStream`.
+See also
+- {py:class}`~mlrun.datastore.datastore_profile.DatastoreProfileKafkaStream`
+- {py:class}`~mlrun.datastore.datastore_profile.DatastoreProfileKafkaSource`
+- {py:class}`~mlrun.datastore.datastore_profile.DatastoreProfileKafkaTarget`

@@ -952,7 +952,7 @@ def _process_single_response(context, response, get_body):
 
 
 async def _process_single_async_response(context, response, get_body):
-    return await _process_single_response(context, await response, get_body)
+    return _process_single_response(context, await response, get_body)
 
 
 def v2_serving_handler(context, event, get_body=False):

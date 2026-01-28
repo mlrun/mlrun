@@ -1,7 +1,6 @@
 (router)=
 # Router topology
-```
-{admonition} Note
+```{admonition} Note
 The router topology will be deprecated in v1.12.
 ```
 
@@ -36,3 +35,9 @@ server.wait_for_completion()
 
 print(result)
 ```
+
+## Built-in steps
+
+| Class name                                                  | Description                                                                                                                                                                                                                                                                   |        
+|-------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| {py:class}`~mlrun.serving.routers.ModelRouter`              | Basic model router, for calling different models per each model path.                                                                                                                                                                                                         | 

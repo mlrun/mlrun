@@ -19,6 +19,7 @@ from typing import Optional, Union
 
 import nuclio
 from nuclio import KafkaTrigger
+from nuclio.triggers import NuclioTrigger
 
 import mlrun
 import mlrun.common.schemas as schemas
@@ -409,7 +410,6 @@ class ServingRuntime(nuclio_function.RemoteRuntime):
         """
         # Validate that only HTTP triggers are configured when enabling streaming
         if enabled:
-            # Triggers are stored as "spec.triggers.<name>" keys in the config dict
             for key, trigger_spec in self.spec.config.items():
                 if key.startswith("spec.triggers."):
                     trigger_name = key.split(".")[-1]
@@ -423,7 +423,7 @@ class ServingRuntime(nuclio_function.RemoteRuntime):
 
         self.spec.streaming = enabled
 
-    def add_trigger(self, name, spec):
+    def add_trigger(self, name: str, spec: NuclioTrigger | dict):
         """Add a nuclio trigger object/dict.
 
         Overrides parent to validate streaming compatibility.

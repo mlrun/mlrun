@@ -534,8 +534,7 @@ def v2_serving_init(context, namespace=None):
     server.init_object(namespace or get_caller_globals())
 
     # Select the appropriate handler based on streaming mode
-    streaming_enabled = server.streaming
-    if streaming_enabled:
+    if server.streaming:
         # Validate that trigger is HTTP when streaming is enabled
         if (
             hasattr(context, "trigger")
@@ -953,7 +952,7 @@ def _process_single_response(context, response, get_body):
 
 
 async def _process_single_async_response(context, response, get_body):
-    return await _process_single_response(context, response, get_body)
+    return await _process_single_response(context, await response, get_body)
 
 
 def v2_serving_handler(context, event, get_body=False):

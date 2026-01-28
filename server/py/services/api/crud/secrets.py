@@ -24,6 +24,7 @@ import mlrun.common.constants
 import mlrun.common.schemas
 import mlrun.common.secrets
 import mlrun.errors
+import mlrun.k8s_utils
 import mlrun.utils.helpers
 import mlrun.utils.regex
 import mlrun.utils.singleton
@@ -498,60 +499,80 @@ class Secrets(
     def list_secret_tokens(
         self,
         auth_info: mlrun.common.schemas.AuthInfo,
+        username: typing.Optional[str] = None,
     ) -> mlrun.common.schemas.ListSecretTokensResponse:
         """
-        List all offline tokens stored for the authenticated user.
+        List offline token secrets stored in Kubernetes.
 
-        :param auth_info: Authentication information of the user.
+        By default, this lists tokens for the authenticated user.
+        Admins can list tokens for other users by providing a username.
+
+        :param auth_info: Authentication information of the requesting user.
+        :param username: Target username to list tokens for. If None or matches
+                         auth_info.username, lists the authenticated user's tokens.
+                         Use "*" to list all users' tokens (admin only).
         :return: ListSecretTokensResponse containing token names and expirations.
         """
+        # Resolve the target user_id
+        target_user_id = self._resolve_target_user_id(auth_info, username)
 
         secret_tokens = self.secrets_provider.list_user_token_secrets(
-            user_id=auth_info.user_id,
+            user_id=target_user_id,
         )
 
         return mlrun.common.schemas.ListSecretTokensResponse(
             secret_tokens=secret_tokens
         )
 
-    def revoke_secret_token(
+    def delete_secret_token(
         self,
         token_name: str,
+        username: str,
         auth_info: mlrun.common.schemas.AuthInfo,
-    ):
+    ) -> mlrun.common.schemas.DeleteSecretTokenResponse:
         """
-        Revoke a stored offline token for a user and delete its corresponding Kubernetes secret.
+        Delete a stored offline token for a user and its corresponding Kubernetes secret.
 
         This method performs two actions:
         1. Calls the Iguazio management service to revoke the offline token.
         2. Removes the Kubernetes secret associated with the token.
 
         :param token_name:
-            Logical name of the token to revoke (used in the Kubernetes secret name).
+            Logical name of the token to delete (used in the Kubernetes secret name).
+        :param username:
+            The username of the user who owns the token to be deleted.
+            For regular users, this must be their own username.
+            For system admins, this can be any user's username.
         :param auth_info:
-            Authentication information of the user who owns the token.
+            Authentication information of the requesting user.
+        :return: DeleteSecretTokenResponse with deleted=True if token was deleted,
+                 or deleted=False if token was not found.
         """
+
+        # Resolve the target user_id from the username
+        target_user_id = self._resolve_target_user_id(auth_info, username)
+
         logger.debug(
             "Revoking secret token for user",
-            user_id=auth_info.user_id,
-            username=auth_info.username,
-            token_name=token_name,
+            target_user_id=target_user_id,
+            target_username=username,
+            requesting_user=auth_info.username,
         )
 
         try:
             # Get the offline token string
             token = self.secrets_provider.get_user_token_secret_value(
-                user_id=auth_info.user_id,
+                user_id=target_user_id,
                 token_name=token_name,
             )
         except mlrun.errors.MLRunNotFoundError:
             logger.warning(
                 "Token not found, nothing to revoke",
-                user_id=auth_info.user_id,
-                username=auth_info.username,
+                target_user_id=target_user_id,
+                target_username=username,
                 token_name=token_name,
             )
-            return
+            return mlrun.common.schemas.DeleteSecretTokenResponse(deleted=False)
 
         # Revoke via Iguazio
         # TODO: move init iguazio_client (ML-11077)
@@ -561,27 +582,28 @@ class Secrets(
         # Delete the Kubernetes secret
         try:
             self.secrets_provider.delete_user_token_secret(
-                user_id=auth_info.user_id,
+                user_id=target_user_id,
                 token_name=token_name,
             )
         except Exception as exc:
             logger.error(
                 "Token revoked but failed to delete associated secret",
-                user_id=auth_info.user_id,
-                username=auth_info.username,
+                target_user_id=target_user_id,
+                target_username=username,
                 token_name=token_name,
                 exc=mlrun.errors.err_to_str(exc),
             )
             raise mlrun.errors.MLRunRuntimeError(
-                f"Token '{token_name}' revoked, but failed to delete associated secret"
+                f"Token '{token_name}' deleted from Iguazio, but failed to delete associated secret"
             ) from exc
 
         logger.debug(
             "Finished revoking secret token for user",
-            user_id=auth_info.user_id,
-            username=auth_info.username,
+            target_user_id=target_user_id,
+            target_username=username,
             token_name=token_name,
         )
+        return mlrun.common.schemas.DeleteSecretTokenResponse(deleted=True)
 
     def get_secret_token(
         self,
@@ -589,7 +611,7 @@ class Secrets(
         auth_info: mlrun.common.schemas.AuthInfo,
     ) -> mlrun.common.schemas.SecretToken:
         """
-        Get a specific offline token stored for the authenticated user by token name.
+        Get a specific offline token stored for a user by token name.
 
         :param token_name: Name of the token to retrieve.
         :param auth_info: Authentication information of the user.
@@ -607,6 +629,38 @@ class Secrets(
             name=token_name,
             token=token_value,
         )
+
+    def _resolve_target_user_id(
+        self,
+        auth_info: mlrun.common.schemas.AuthInfo,
+        username: typing.Optional[str],
+    ) -> str:
+        """
+        Resolve the target user_id for token operations.
+
+        If the username is None, empty, or matches the authenticated user's username,
+        returns the authenticated user's user_id directly.
+
+        If the username is "*", returns "*" to indicate all users (for list operations).
+
+        Otherwise, translates the username to user_id via the Iguazio API.
+
+        :param auth_info: Authentication information of the requesting user.
+        :param username: Target username to resolve. Can be None, "", "*", or a specific username.
+        :return: The resolved user_id, or "*" for all users.
+        :raises mlrun.errors.MLRunNotFoundError: If the username cannot be found.
+        """
+        # No username provided or matches self -> use authenticated user's user_id
+        if not username or username == auth_info.username:
+            return auth_info.user_id
+
+        # Wildcard for all users (list operation)
+        if username == "*":
+            return "*"
+
+        # Different user - need to translate username to user_id
+        iguazio_client = framework.utils.clients.iguazio.v4.Client()
+        return iguazio_client.get_user_id_by_username(username, auth_info)
 
     def _resolve_project_secret_key(
         self,

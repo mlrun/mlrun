@@ -528,7 +528,7 @@ class RunDBMock:
 
     def create_project(self, project):
         if isinstance(project, dict):
-            project = mlrun.common.schemas.Project(**project)
+            project = mlrun.projects.MlrunProject.from_dict(project)
         self._project = project
         self._project_name = project.metadata.name
         return self._project

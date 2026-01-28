@@ -45,6 +45,7 @@ import mlrun.datastore.wasbfs
 from mlrun.datastore.datastore_profile import (
     DatastoreProfileKafkaStream,
     DatastoreProfileKafkaTarget,
+    DatastoreProfileRabbitMQ,
     DatastoreProfileV3io,
 )
 from mlrun.datastore.model_provider.model_provider import ModelProvider

@@ -16,19 +16,20 @@ import json
 import os
 
 import pytest
-from transformers import AutoTokenizer
 
 import mlrun.serving.states
 from mlrun.datastore.datastore_profile import (
     HuggingFaceProfile,
 )
-from mlrun.datastore.model_provider.model_provider import UsageResponseKeys
 from tests.datastore.remote_model.remote_model_utils import (
+    BATCH_INPUT_DATA,
     EXPECTED_RESULTS,
-    INPUT_DATA,
     PROMPT_LEGEND,
     PROMPT_TEMPLATE,
+    retry_on_content_mismatch,
     setup_remote_model_test,
+    validate_llm_batch_response_system,
+    validate_llm_single_response,
 )
 from tests.system.base import TestMLRunSystem
 
@@ -95,26 +96,36 @@ class TestHuggingFaceModelRunner(TestMLRunSystem):
         function.spec.readiness_timeout = 600
 
         function.deploy()
-        response = function.invoke(
-            f"v2/models/{mlrun_model_name}/infer",
-            json.dumps(INPUT_DATA[0]),
-        )["output"]
 
-        assert len(response) == 2
-        answer = response[UsageResponseKeys.ANSWER]
-        assert EXPECTED_RESULTS[0] in answer.lower()
+        from transformers import AutoTokenizer
+
         tokenizer = AutoTokenizer.from_pretrained(self.basic_llm_model)
-        token_count = len(tokenizer.encode(answer))
-        # Token count may be lower due to early stopping or slightly higher (e.g., 101)
-        # due to internal EOS or tokenizer behavior, so we assert within this range.
-        assert 45 <= token_count <= 51
 
-        stats = response[UsageResponseKeys.USAGE]
-        assert stats["completion_tokens"] == token_count
-        assert stats["prompt_tokens"] > 0
-        assert (
-            stats["total_tokens"] == stats["completion_tokens"] + stats["prompt_tokens"]
-        )
+        def _test_single():
+            response = function.invoke(
+                f"v2/models/{mlrun_model_name}/infer",
+                json.dumps(BATCH_INPUT_DATA[0]),
+            )["output"]
+            validate_llm_single_response(
+                response, EXPECTED_RESULTS[0], tokenizer, min_tokens=45, max_tokens=51
+            )
+
+        retry_on_content_mismatch(_test_single)
+
+        def _test_batch():
+            batch_response = function.invoke(
+                f"v2/models/{mlrun_model_name}/infer",
+                json.dumps(BATCH_INPUT_DATA),
+            )
+            validate_llm_batch_response_system(
+                batch_response,
+                EXPECTED_RESULTS,
+                tokenizer,
+                min_tokens=45,
+                max_tokens=51,
+            )
+
+        retry_on_content_mismatch(_test_batch)
 
     @pytest.mark.parametrize(
         "execution_mechanism",
@@ -251,7 +262,7 @@ class TestHuggingFaceModelRunner(TestMLRunSystem):
         llm_graph.to(model_runner_step).respond()
         function.deploy()
 
-        results = function.invoke("/", json.dumps(INPUT_DATA[0]))
+        results = function.invoke("/", json.dumps(BATCH_INPUT_DATA[0]))
         # Verify we got the expected number of results
 
         assert sorted(list(results.keys())) == sorted([ep_name, second_ep_name])

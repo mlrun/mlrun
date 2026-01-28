@@ -1084,6 +1084,7 @@ def test_shared_llm_with_model_runner(raise_exception, shared, model_uri, llm):
                 assert resp["outputs"]["usage"] == {
                     "prompt_tokens": 0,
                     "completion_tokens": 0,
+                    "total_tokens": 0,
                 }
             else:
                 assert resp["default_config"] == {"model_version": "4"}

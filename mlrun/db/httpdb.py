@@ -632,7 +632,7 @@ class HTTPRunDB(RunDBInterface):
             )
             for prefix in ["default", "user_space", "monitoring_application"]:
                 store_prefix_value = model_monitoring_store_prefixes.get(prefix)
-                if server_prefix_value is not None:
+                if store_prefix_value is not None:
                     setattr(
                         config.model_endpoint_monitoring.store_prefixes,
                         prefix,

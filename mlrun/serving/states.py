@@ -1425,7 +1425,7 @@ class LLModel(Model):
     def predict(
         self,
         body: Any,
-        messages: Optional[list[dict]] = None,
+        messages: Optional[Union[list[dict], list[list[dict]]]] = None,
         invocation_config: Optional[dict] = None,
         **kwargs,
     ) -> Any:
@@ -1450,8 +1450,7 @@ class LLModel(Model):
             logger.debug(
                 "LLModel prediction completed",
                 model_name=self.name,
-                answer=response_with_stats.get("answer"),
-                usage=response_with_stats.get("usage"),
+                response=response_with_stats,
             )
         else:
             logger.warning(
@@ -1465,7 +1464,7 @@ class LLModel(Model):
     async def predict_async(
         self,
         body: Any,
-        messages: Optional[list[dict]] = None,
+        messages: Optional[Union[list[dict], list[list[dict]]]] = None,
         invocation_config: Optional[dict] = None,
         **kwargs,
     ) -> Any:
@@ -1490,8 +1489,7 @@ class LLModel(Model):
             logger.debug(
                 "LLModel async prediction completed",
                 model_name=self.name,
-                answer=response_with_stats.get("answer"),
-                usage=response_with_stats.get("usage"),
+                response=response_with_stats,
             )
         else:
             logger.warning(
@@ -1583,7 +1581,33 @@ class LLModel(Model):
             prompt_legend = llm_prompt_artifact.spec.prompt_legend
             prompt_template = deepcopy(llm_prompt_artifact.read_prompt())
             invocation_config = llm_prompt_artifact.spec.invocation_config
+
         input_data = copy(get_data_from_path(self._input_path, body))
+
+        # Handle batch input (list of dicts)
+        if isinstance(input_data, list):
+            enriched_messages_list = []
+            for event in input_data:
+                enriched_messages = self._enrich_single_event(
+                    event, prompt_template, prompt_legend
+                )
+                enriched_messages_list.append(enriched_messages)
+            return enriched_messages_list, invocation_config
+
+        # Handle single input (dict)
+        enriched_messages = self._enrich_single_event(
+            input_data, prompt_template, prompt_legend
+        )
+        return enriched_messages, invocation_config
+
+    def _enrich_single_event(
+        self,
+        input_data: dict,
+        prompt_template: list,
+        prompt_legend: dict,
+    ) -> list:
+        enriched_template = []
+
         if isinstance(input_data, dict) and prompt_template:
             kwargs = (
                 {
@@ -1596,7 +1620,8 @@ class LLModel(Model):
             )
             input_data.update(kwargs)
             default_place_holders = PlaceholderDefaultDict(lambda: None, input_data)
-            for message in prompt_template:
+            enriched_template = deepcopy(prompt_template)
+            for message in enriched_template:
                 try:
                     message["content"] = message["content"].format(**input_data)
                 except KeyError as e:
@@ -1611,14 +1636,15 @@ class LLModel(Model):
         elif isinstance(input_data, dict) and not prompt_template:
             # If there is no prompt template, we assume the input data is already in the correct format.
             logger.debug("Attempting to retrieve messages from the request body.")
-            prompt_template = input_data.get("messages", [])
+            enriched_template = input_data.get("messages", [])
         else:
             logger.warning(
                 "Expected input data to be a dict, prompt template stays unformatted",
                 model_name=self.name,
                 input_data_type=type(input_data).__name__,
             )
-        return prompt_template, invocation_config
+
+        return enriched_template
 
     def _get_invocation_artifact(
         self, origin_name: Optional[str] = None

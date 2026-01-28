@@ -24,13 +24,9 @@ def init_context(context):
 
 async def handler(context, event):
     result = context.mlrun_handler(context, event)
-    if inspect.isasyncgen(result):
-        async for chunk in result:
-            yield chunk
-    elif inspect.isgenerator(result):
-        for chunk in result:
-            yield chunk
-    elif asyncio.iscoroutine(result):
-        yield await result
+    if asyncio.iscoroutine(result):
+        return await result
+    elif inspect.isgenerator(result) or inspect.isasyncgen(result):
+        return context.Response(body=result)
     else:
-        yield result
+        return result

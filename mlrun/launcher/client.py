@@ -119,10 +119,7 @@ class ClientBaseLauncher(launcher.BaseLauncher, abc.ABC):
         auth_token_name = (
             mlrun.configuration_context.MLRunConfigurationContext.get_auth_token_name()
         )
-        if auth_token_name:
-            if not run.spec.auth:
-                run.spec.auth = {}
-            run.spec.auth["token_name"] = auth_token_name
+        mlrun.utils.helpers.set_auth_token_name(run.spec, auth_token_name)
 
     @staticmethod
     def _refresh_function_metadata(runtime: "mlrun.runtimes.BaseRuntime"):

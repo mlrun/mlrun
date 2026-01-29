@@ -678,11 +678,8 @@ class ServerSideLauncher(launcher.BaseLauncher):
     def enrich_and_validate_auth_token_name(
         self, object: Union[mlrun.run.RunObject, mlrun.runtimes.RemoteRuntime]
     ):
-        if object.spec.auth is None:
-            object.spec.auth = {}
-
         # Get the provided token name, if any
-        provided_token_name = object.spec.auth.get("token_name")
+        provided_token_name = (object.spec.auth or {}).get("token_name")
 
         # In ML-11600, we will implement a proper resolution logic that checks all secret tokens
         # of the user and finds a valid one if no token name is provided
@@ -692,7 +689,7 @@ class ServerSideLauncher(launcher.BaseLauncher):
             or mlrun.common.constants.MLRUN_RUNTIME_AUTH_DEFAULT_TOKEN_NAME
         )
 
-        object.spec.auth["token_name"] = token_name
+        mlrun.utils.helpers.set_auth_token_name(object.spec, token_name)
 
 
 # Once this file is imported it will set the container server side launcher

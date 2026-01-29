@@ -46,6 +46,7 @@ import mlrun.model_monitoring.controller
 import mlrun.model_monitoring.stream_processing
 import mlrun.model_monitoring.writer
 import mlrun.serving.states
+import mlrun.utils.helpers
 import mlrun.utils.v3io_clients
 from mlrun import feature_store as fstore
 from mlrun.common.model_monitoring.helpers import parse_model_endpoint_store_prefix
@@ -119,20 +120,6 @@ class MonitoringDeployment:
         )
         self.__stream_profile = None
         self.__tsdb_connector = None
-
-    def _apply_auth_token_to_function(
-        self, fn: mlrun.runtimes.nuclio.function.RemoteRuntime
-    ) -> None:
-        """
-        Apply the auth token name to a function if set.
-        This is used when deploying model monitoring functions with a specific auth token
-        (set by MLRunConfigurationContext on the client side).
-        Context manager settings override any existing function-level settings.
-        """
-        if self._auth_token_name:
-            if not fn.spec.auth:
-                fn.spec.auth = {}
-            fn.spec.auth["token_name"] = self._auth_token_name
 
     @property
     def _stream_profile(self) -> mlrun.datastore.datastore_profile.DatastoreProfile:
@@ -231,7 +218,7 @@ class MonitoringDeployment:
             fn = self._initial_model_monitoring_stream_processing_function(
                 stream_image=stream_image, parquet_target=parquet_target
             )
-            self._apply_auth_token_to_function(fn)
+            mlrun.utils.helpers.set_auth_token_name(fn.spec, self._auth_token_name)
             fn = services.api.api.endpoints.nuclio._deploy_function(
                 db_session=self.db_session,
                 auth_info=self.auth_info,
@@ -293,7 +280,7 @@ class MonitoringDeployment:
                     interval=f"{self._get_trigger_frequency(base_period)}m"
                 ),
             )
-            self._apply_auth_token_to_function(fn)
+            mlrun.utils.helpers.set_auth_token_name(fn.spec, self._auth_token_name)
             fn = services.api.api.endpoints.nuclio._deploy_function(
                 db_session=self.db_session,
                 auth_info=self.auth_info,
@@ -332,7 +319,7 @@ class MonitoringDeployment:
             fn = self._initial_model_monitoring_writer_function(
                 writer_image=writer_image
             )
-            self._apply_auth_token_to_function(fn)
+            mlrun.utils.helpers.set_auth_token_name(fn.spec, self._auth_token_name)
             fn = services.api.api.endpoints.nuclio._deploy_function(
                 db_session=self.db_session,
                 auth_info=self.auth_info,
@@ -854,7 +841,7 @@ class MonitoringDeployment:
                 mm_constants.ModelMonitoringAppLabel.VAL,
             )
 
-            self._apply_auth_token_to_function(func)
+            mlrun.utils.helpers.set_auth_token_name(func.spec, self._auth_token_name)
             fn = services.api.api.endpoints.nuclio._deploy_function(
                 db_session=self.db_session,
                 auth_info=self.auth_info,

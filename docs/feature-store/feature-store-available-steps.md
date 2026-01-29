@@ -4,7 +4,7 @@
 A step runs a function or class handler or a REST API call: MLRun comes with pre-built steps that include data manipulation, readers, writers and model serving.
 All steps are supported by the storey engine. 
 
-See full details on built-in steps in {ref}`available-steps`. 
+See full details on built-in steps in {ref}`building-graphs`. 
 
 
 | Class name                                                  | Description                                                                                                                                                                                                                                                                   |        

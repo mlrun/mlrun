@@ -13,7 +13,10 @@
 # limitations under the License.
 
 import contextvars
+import os
 from typing import Optional
+
+import mlrun.common.constants
 
 # Context storage for MLRunConfigurationContext
 mlrun_configuration_context: contextvars.ContextVar[
@@ -55,9 +58,20 @@ class MLRunConfigurationContext:
     @staticmethod
     def get_auth_token_name() -> Optional[str]:
         """
-        Get the auth token name from the current configuration context, if any.
+        Get auth token name from context manager or internal env var.
 
-        :return: The auth token name if set in the current context, None otherwise.
+        The internal env var is set by MLRun server on workflow-runner pods.
+        Users should use MLRunConfigurationContext to set auth_token_name.
+
+        :return: The auth token name if set in the current context or internal env var,
+            None otherwise.
         """
+        # First: check context var (for client-side compilation)
         ctx = mlrun_configuration_context.get()
-        return ctx.auth_token_name if ctx else None
+        if ctx and ctx.auth_token_name:
+            return ctx.auth_token_name
+
+        # Second: check internal env var (for workflow-runner pod only)
+        return os.getenv(
+            mlrun.common.constants.MLRUN_WORKFLOW_RUNNER_AUTH_TOKEN_NAME_ENV_VAR
+        )

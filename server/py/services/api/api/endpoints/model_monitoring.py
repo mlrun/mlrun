@@ -112,8 +112,8 @@ async def _common_parameters(
     client_version: Optional[str] = Header(
         None, alias=mlrun.common.schemas.HeaderNames.client_version
     ),
-    auth_token_name: Optional[str] = Header(
-        None, alias=mlrun.common.schemas.HeaderNames.auth_token_name
+    auth_token_name: Optional[str] = Query(
+        None, description="Auth token name (set by mlrun.MLRunConfigurationContext)"
     ),
 ) -> _CommonParams:
     """

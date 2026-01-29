@@ -2343,13 +2343,6 @@ class HTTPRunDB(RunDBInterface):
                 arguments
             )
 
-        # Add auth token from context manager if set
-        auth_token_name = (
-            mlrun.configuration_context.MLRunConfigurationContext.get_auth_token_name()
-        )
-        if auth_token_name:
-            headers[mlrun.common.schemas.HeaderNames.auth_token_name] = auth_token_name
-
         if not path.isfile(pipe_file):
             raise OSError(f"File {pipe_file} doesnt exist")
         with open(pipe_file, "rb") as fp:
@@ -4073,12 +4066,9 @@ class HTTPRunDB(RunDBInterface):
 
         """
         # Add auth token from context manager if set
-        headers = {}
         auth_token_name = (
             mlrun.configuration_context.MLRunConfigurationContext.get_auth_token_name()
         )
-        if auth_token_name:
-            headers[mlrun.common.schemas.HeaderNames.auth_token_name] = auth_token_name
 
         self.api_call(
             method=mlrun.common.types.HTTPMethod.PUT,
@@ -4088,8 +4078,8 @@ class HTTPRunDB(RunDBInterface):
                 "image": image,
                 "deploy_histogram_data_drift_app": deploy_histogram_data_drift_app,
                 "fetch_credentials_from_sys_config": fetch_credentials_from_sys_config,
+                "auth_token_name": auth_token_name,
             },
-            headers=headers or None,
             timeout=300,  # 5 minutes
         )
 
@@ -4777,6 +4767,11 @@ class HTTPRunDB(RunDBInterface):
 
         :returns:    :py:class:`~mlrun.common.schemas.WorkflowResponse`.
         """
+        # Get auth_token_name from context manager (users must use MLRunConfigurationContext)
+        auth_token_name = (
+            mlrun.configuration_context.MLRunConfigurationContext.get_auth_token_name()
+        )
+
         image = (
             workflow_spec.image
             if hasattr(workflow_spec, "image")
@@ -4805,6 +4800,7 @@ class HTTPRunDB(RunDBInterface):
             req["spec"] = workflow_spec
         req["spec"]["image"] = image
         req["spec"]["name"] = workflow_name
+        req["spec"]["auth_token_name"] = auth_token_name
         if notifications:
             req["notifications"] = [
                 notification.to_dict() for notification in notifications

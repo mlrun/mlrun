@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import json
 import os
 import os.path
 
@@ -21,6 +22,7 @@ from kubernetes import client as k8s_client
 import mlrun
 import mlrun.common.constants as mlrun_constants
 import mlrun.common.runtimes.constants
+import mlrun.configuration_context
 import mlrun.utils.helpers
 import mlrun_pipelines.common.constants
 import mlrun_pipelines.common.ops
@@ -206,6 +208,19 @@ def add_default_env(k8s_client, cop):
             k8s_client.V1EnvVar(
                 name=auth_env_var,
                 value=os.environ.get(auth_env_var) or os.environ.get("V3IO_ACCESS_KEY"),
+            )
+        )
+
+    # Add auth token name via MLRUN_EXEC_CONFIG which creates a runobj with spec.auth set
+    auth_token_name = (
+        mlrun.configuration_context.MLRunConfigurationContext.get_auth_token_name()
+    )
+    if auth_token_name:
+        exec_config = {"spec": {"auth": {"token_name": auth_token_name}}}
+        cop.container.add_env_variable(
+            k8s_client.V1EnvVar(
+                name="MLRUN_EXEC_CONFIG",
+                value=json.dumps(exec_config),
             )
         )
 

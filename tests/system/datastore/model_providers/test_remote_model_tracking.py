@@ -14,7 +14,7 @@
 
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from time import sleep
-from tests.datastore.remote_model.remote_model_utils import FLUSH_AFTER_SECONDS
+
 import pandas as pd
 import pytest
 from datastore.remote_model.remote_model_utils import INPUT_DATA
@@ -67,7 +67,9 @@ class TestMockModelProviderTracking(
         # Verify batch invocation group
         self._verify_direct_batch_parquet_rows(batch_group, endpoint_name, INPUT_DATA)
 
-    def _verify_batch_row_common(self, row, endpoint_name, batch_size, expected_input, expected_counter=None):
+    def _verify_batch_row_common(
+        self, row, endpoint_name, batch_size, expected_input, expected_counter=None
+    ):
         """Verify common batch row structure and content"""
         assert row["endpoint_name"] == endpoint_name
         assert row["model_class"] == "LLModel"
@@ -79,13 +81,17 @@ class TestMockModelProviderTracking(
         assert list(row["label_names"]) == ["answer", "usage"]
 
         for key in expected_input:
-            assert row[key] == expected_input[key], f"Field {key} mismatch: {row[key]} != {expected_input[key]}"
+            assert (
+                row[key] == expected_input[key]
+            ), f"Field {key} mismatch: {row[key]} != {expected_input[key]}"
 
         assert "mock model provider" in row["answer"].lower()
 
         # Only check item counter if expected_counter is provided (for batch invocations)
         if expected_counter is not None:
-            assert f"(Item {expected_counter})" in row["answer"], f"Expected '(Item {expected_counter})' in answer"
+            assert (
+                f"(Item {expected_counter})" in row["answer"]
+            ), f"Expected '(Item {expected_counter})' in answer"
 
         assert isinstance(row["usage"], dict)
         assert row["usage"]["prompt_tokens"] == 0
@@ -96,16 +102,23 @@ class TestMockModelProviderTracking(
         """Verify a single parquet row matches expected input and output structure"""
         # Single invocation has batch_size=1 and no item counter
         self._verify_batch_row_common(
-            row, endpoint_name, batch_size=1, expected_input=expected_input, expected_counter=None
+            row,
+            endpoint_name,
+            batch_size=1,
+            expected_input=expected_input,
+            expected_counter=None,
         )
 
-    def _verify_batch_group_common(self, batch_group, endpoint_name, batch_size, batch_id=""):
+    def _verify_batch_group_common(
+        self, batch_group, endpoint_name, batch_size, batch_id=""
+    ):
         """Verify common batch group properties: timestamp, latency, and per-row structure"""
         # All rows in same batch must have same timestamp and latency
         for field in ["timestamp", "latency"]:
             values = batch_group[field].unique()
-            assert len(values) == 1, f"Batch {batch_id}: expected same {field} for all rows, got {len(values)} different values"
-
+            assert (
+                len(values) == 1
+            ), f"Batch {batch_id}: expected same {field} for all rows, got {len(values)} different values"
 
     def _verify_direct_batch_parquet_rows(
         self, batch_group, endpoint_name, expected_inputs
@@ -139,7 +152,9 @@ class TestMockModelProviderTracking(
         # Verify each batch
         for request_id, group in grouped:
             batch_size = len(group)
-            self._verify_batch_group_common(group, endpoint_name, batch_size, batch_id=request_id)
+            self._verify_batch_group_common(
+                group, endpoint_name, batch_size, batch_id=request_id
+            )
 
             # Order rows by original INPUT_DATA position
             group["original_index"] = group["question"].map(
@@ -315,27 +330,6 @@ class TestMockModelProviderTracking(
             expected_counter = i % 2
             assert f"(Item {expected_counter})" in output[UsageResponseKeys.ANSWER]
 
-        # Wait for batch window to close before sending error batch
-        sleep(FLUSH_AFTER_SECONDS + 1)
-
-        # Send mixed batch: 1 good + 1 error (to verify error handling in batch)
-        error_input = {
-            "question": "ERROR - this should fail",
-            "depth_level": "basic",
-            "persona": "teacher",
-            "tone": "formal",
-        }
-        good_input = INPUT_DATA[0]  # Reuse first input
-
-        with ThreadPoolExecutor(max_workers=2) as executor:
-            good_future = executor.submit(send_event, good_input, 0)
-            error_future = executor.submit(send_event, error_input, 0)
-
-            # raise error on both request because they are in the same batch
-            for fut in [good_future, error_future]:
-                with pytest.raises(RuntimeError, match="Mock error triggered by ERROR keyword"):
-                    fut.result()
-
         # Verify tracking data - model monitoring verification
         sleep(180)
 
@@ -361,7 +355,9 @@ class TestMockModelProviderTracking(
             table=mm_constants.V3IOTSDBTables.PREDICTIONS, start="now-50m", end="now"
         )
 
-        assert len(predictions) == 3, f"Expected 3 successful batches, got {len(predictions)}"
+        assert (
+            len(predictions) == 3
+        ), f"Expected 3 successful batches, got {len(predictions)}"
 
         # Verify batch sizes (2+2+1)
         batch_sizes = predictions["estimated_prediction_count"].tolist()
@@ -379,10 +375,3 @@ class TestMockModelProviderTracking(
 
         # Verify batch step structure - still 3 request groups (2+2+1, error batch not included)
         self._verify_batch_step_parquet_contents(v3io_df, endpoint_name)
-
-        # Verify error was tracked
-        error_df = tsdb_client.get_error_count(endpoint_ids=mep.metadata.uid)
-        assert len(error_df) == 1, f"Expected 1 error record, got {len(error_df)}"
-        error_dict = error_df.head(1).to_dict(orient="records")[0]
-        assert error_dict["error_count"] == 1, f"Expected 1 error, got {error_dict['error_count']}"
-

@@ -68,6 +68,6 @@ class ClientSpec(pydantic.v1.BaseModel):
     model_endpoint_monitoring_store_prefixes: dict[str, str] | None
     authentication_mode: str | None
     # Iguazio V4 OAuth token provider configuration
-    oauth_internal_token_endpoint: typing.Optional[str]
-    oauth_external_token_endpoint: typing.Optional[str]
-    authorization_namespaces_resources: typing.Optional[str]
+    oauth_internal_token_endpoint: str | None
+    oauth_external_token_endpoint: str | None
+    authorization_namespaces_resources: str | None

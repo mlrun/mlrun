@@ -38,7 +38,7 @@ class TestMockModelProviderTracking(
     project_name = "mock-model-tracking-test"
     image = "mlrun/mlrun"
 
-    def _verify_parquet_contents(self, v3io_df, endpoint_name, batch_len):
+    def _verify_direct_parquet_contents(self, v3io_df, endpoint_name, batch_len):
         """Verify parquet contents by splitting by request_id and validating each group"""
         grouped = v3io_df.groupby("request_id")
 
@@ -67,42 +67,52 @@ class TestMockModelProviderTracking(
         # Verify batch invocation group
         self._verify_direct_batch_parquet_rows(batch_group, endpoint_name, INPUT_DATA)
 
-    def _verify_single_parquet_row(self, row, endpoint_name, expected_input):
-        """Verify a single parquet row matches expected input and output structure"""
+    def _verify_batch_row_common(self, row, endpoint_name, batch_size, expected_input, expected_counter=None):
+        """Verify common batch row structure and content"""
         assert row["endpoint_name"] == endpoint_name
         assert row["model_class"] == "LLModel"
-        assert row["effective_sample_count"] == row["estimated_prediction_count"] == 1
+        assert row["effective_sample_count"] == batch_size
+        assert row["estimated_prediction_count"] == batch_size
+
         expected_feature_names = list(expected_input.keys())
-
         assert list(row["feature_names"]) == expected_feature_names
-
         assert list(row["label_names"]) == ["answer", "usage"]
 
         for key in expected_input:
-            assert (
-                row[key] == expected_input[key]
-            ), f"Field {key} mismatch: {row[key]} != {expected_input[key]}"
+            assert row[key] == expected_input[key], f"Field {key} mismatch: {row[key]} != {expected_input[key]}"
 
         assert "mock model provider" in row["answer"].lower()
+
+        # Only check item counter if expected_counter is provided (for batch invocations)
+        if expected_counter is not None:
+            assert f"(Item {expected_counter})" in row["answer"], f"Expected '(Item {expected_counter})' in answer"
 
         assert isinstance(row["usage"], dict)
         assert row["usage"]["prompt_tokens"] == 0
         assert row["usage"]["completion_tokens"] == 0
         assert row["usage"]["total_tokens"] == 0
 
+    def _verify_single_parquet_row(self, row, endpoint_name, expected_input):
+        """Verify a single parquet row matches expected input and output structure"""
+        # Single invocation has batch_size=1 and no item counter
+        self._verify_batch_row_common(
+            row, endpoint_name, batch_size=1, expected_input=expected_input, expected_counter=None
+        )
+
+    def _verify_batch_group_common(self, batch_group, endpoint_name, batch_size, batch_id=""):
+        """Verify common batch group properties: timestamp, latency, and per-row structure"""
+        # All rows in same batch must have same timestamp and latency
+        for field in ["timestamp", "latency"]:
+            values = batch_group[field].unique()
+            assert len(values) == 1, f"Batch {batch_id}: expected same {field} for all rows, got {len(values)} different values"
+
+
     def _verify_direct_batch_parquet_rows(
         self, batch_group, endpoint_name, expected_inputs
     ):
         """Verify batch parquet rows match expected inputs and output structure"""
-        timestamps = batch_group["timestamp"].unique()
-        assert (
-            len(timestamps) == 1
-        ), f"Expected same timestamp for all batch rows, got {len(timestamps)} different values"
-
-        latencies = batch_group["latency"].unique()
-        assert (
-            len(latencies) == 1
-        ), f"Expected same latency for all batch rows, got {len(latencies)} different values"
+        batch_size = len(expected_inputs)
+        self._verify_batch_group_common(batch_group, endpoint_name, batch_size)
 
         # Order rows by original INPUT_DATA position for straightforward index-based comparison
         batch_group["original_index"] = batch_group["question"].map(
@@ -111,32 +121,9 @@ class TestMockModelProviderTracking(
         batch_sorted = batch_group.sort_values("original_index").reset_index(drop=True)
 
         for i, row in batch_sorted.iterrows():
-            expected_input = expected_inputs[i]
-
-            assert row["endpoint_name"] == endpoint_name
-            assert row["model_class"] == "LLModel"
-            assert (
-                row["effective_sample_count"]
-                == row["estimated_prediction_count"]
-                == len(expected_inputs)
+            self._verify_batch_row_common(
+                row, endpoint_name, batch_size, expected_inputs[i], expected_counter=i
             )
-
-            expected_feature_names = list(expected_input.keys())
-            assert list(row["feature_names"]) == expected_feature_names
-            assert list(row["label_names"]) == ["answer", "usage"]
-
-            for key in expected_input:
-                assert (
-                    row[key] == expected_input[key]
-                ), f"Row {i}, field {key} mismatch: {row[key]} != {expected_input[key]}"
-
-            assert "mock model provider" in row["answer"].lower()
-            assert f"(Item {i})" in row["answer"], f"Expected '(Item {i})' in answer"
-
-            assert isinstance(row["usage"], dict)
-            assert row["usage"]["prompt_tokens"] == 0
-            assert row["usage"]["completion_tokens"] == 0
-            assert row["usage"]["total_tokens"] == 0
 
     def _verify_batch_step_parquet_contents(self, v3io_df, endpoint_name):
         """Verify parquet contents for batch step test (3 batches: 2+2+1)"""
@@ -146,43 +133,29 @@ class TestMockModelProviderTracking(
         assert len(grouped) == 3, f"Expected 3 request groups, got {len(grouped)}"
 
         # Group sizes should be 2, 2, 1
-        group_sizes = sorted([len(group) for _, group in grouped])
-        assert group_sizes == [1, 2, 2], f"Expected [1, 2, 2], got {group_sizes}"
+        group_sizes = [len(group) for _, group in grouped]
+        assert group_sizes == [2, 2, 1]
 
         # Verify each batch
         for request_id, group in grouped:
             batch_size = len(group)
+            self._verify_batch_group_common(group, endpoint_name, batch_size, batch_id=request_id)
 
-            # All rows in same batch must have same timestamp and latency
-            timestamps = group["timestamp"].unique()
-            assert (
-                len(timestamps) == 1
-            ), f"Batch {request_id}: expected same timestamp for all rows"
-
-            latencies = group["latency"].unique()
-            assert (
-                len(latencies) == 1
-            ), f"Batch {request_id}: expected same latency for all rows"
+            # Order rows by original INPUT_DATA position
+            group["original_index"] = group["question"].map(
+                {inp["question"]: i for i, inp in enumerate(INPUT_DATA)}
+            )
+            batch_sorted = group.sort_values("original_index").reset_index(drop=True)
 
             # Verify each row in the batch
-            for idx, (row_idx, row) in enumerate(group.iterrows()):
-                assert row["endpoint_name"] == endpoint_name
-                assert row["model_class"] == "LLModel"
-                assert row["effective_sample_count"] == batch_size
-                assert row["estimated_prediction_count"] == batch_size
+            for idx, row in batch_sorted.iterrows():
+                expected_input = INPUT_DATA[idx]
 
-                # Verify item counter matches batch position (0 or 1 for batch of 2, 0 for batch of 1)
+                # Item counter matches batch position (0 or 1 for batch of 2, 0 for batch of 1)
                 expected_counter = idx % 2 if batch_size == 2 else 0
-                assert f"(Item {expected_counter})" in row["answer"]
-
-                # Verify answer contains mock provider message
-                assert "mock model provider" in row["answer"].lower()
-
-                # Verify usage data
-                assert isinstance(row["usage"], dict)
-                assert row["usage"]["prompt_tokens"] == 0
-                assert row["usage"]["completion_tokens"] == 0
-                assert row["usage"]["total_tokens"] == 0
+                self._verify_batch_row_common(
+                    row, endpoint_name, batch_size, expected_input, expected_counter
+                )
 
     @pytest.mark.parametrize(
         "execution_mechanism",
@@ -369,8 +342,8 @@ class TestMockModelProviderTracking(
         assert len(predictions) == 3, f"Expected 3 batches, got {len(predictions)}"
 
         # Verify batch sizes (2+2+1)
-        batch_sizes = sorted(predictions["estimated_prediction_count"].tolist())
-        assert batch_sizes == [1, 2, 2], f"Expected [1, 2, 2], got {batch_sizes}"
+        batch_sizes = predictions["estimated_prediction_count"].tolist()
+        assert batch_sizes == [2, 2, 1]
 
         # Verify effective_sample_count matches estimated_prediction_count
         for idx, row in predictions.iterrows():

@@ -65,7 +65,7 @@ class TestMockModelProviderTracking(
         )
 
         # Verify batch invocation group
-        self._verify_batch_parquet_rows(batch_group, endpoint_name, INPUT_DATA)
+        self._verify_direct_batch_parquet_rows(batch_group, endpoint_name, INPUT_DATA)
 
     def _verify_single_parquet_row(self, row, endpoint_name, expected_input):
         """Verify a single parquet row matches expected input and output structure"""
@@ -85,13 +85,14 @@ class TestMockModelProviderTracking(
 
         assert "mock model provider" in row["answer"].lower()
 
-        #  TODO : extract usage data to different columns
         assert isinstance(row["usage"], dict)
         assert row["usage"]["prompt_tokens"] == 0
         assert row["usage"]["completion_tokens"] == 0
         assert row["usage"]["total_tokens"] == 0
 
-    def _verify_batch_parquet_rows(self, batch_group, endpoint_name, expected_inputs):
+    def _verify_direct_batch_parquet_rows(
+        self, batch_group, endpoint_name, expected_inputs
+    ):
         """Verify batch parquet rows match expected inputs and output structure"""
         timestamps = batch_group["timestamp"].unique()
         assert (
@@ -136,6 +137,52 @@ class TestMockModelProviderTracking(
             assert row["usage"]["prompt_tokens"] == 0
             assert row["usage"]["completion_tokens"] == 0
             assert row["usage"]["total_tokens"] == 0
+
+    def _verify_batch_step_parquet_contents(self, v3io_df, endpoint_name):
+        """Verify parquet contents for batch step test (3 batches: 2+2+1)"""
+        grouped = v3io_df.groupby("request_id")
+
+        # Should have 3 request groups (3 batches)
+        assert len(grouped) == 3, f"Expected 3 request groups, got {len(grouped)}"
+
+        # Group sizes should be 2, 2, 1
+        group_sizes = sorted([len(group) for _, group in grouped])
+        assert group_sizes == [1, 2, 2], f"Expected [1, 2, 2], got {group_sizes}"
+
+        # Verify each batch
+        for request_id, group in grouped:
+            batch_size = len(group)
+
+            # All rows in same batch must have same timestamp and latency
+            timestamps = group["timestamp"].unique()
+            assert (
+                len(timestamps) == 1
+            ), f"Batch {request_id}: expected same timestamp for all rows"
+
+            latencies = group["latency"].unique()
+            assert (
+                len(latencies) == 1
+            ), f"Batch {request_id}: expected same latency for all rows"
+
+            # Verify each row in the batch
+            for idx, (row_idx, row) in enumerate(group.iterrows()):
+                assert row["endpoint_name"] == endpoint_name
+                assert row["model_class"] == "LLModel"
+                assert row["effective_sample_count"] == batch_size
+                assert row["estimated_prediction_count"] == batch_size
+
+                # Verify item counter matches batch position (0 or 1 for batch of 2, 0 for batch of 1)
+                expected_counter = idx % 2 if batch_size == 2 else 0
+                assert f"(Item {expected_counter})" in row["answer"]
+
+                # Verify answer contains mock provider message
+                assert "mock model provider" in row["answer"].lower()
+
+                # Verify usage data
+                assert isinstance(row["usage"], dict)
+                assert row["usage"]["prompt_tokens"] == 0
+                assert row["usage"]["completion_tokens"] == 0
+                assert row["usage"]["total_tokens"] == 0
 
     @pytest.mark.parametrize(
         "execution_mechanism",
@@ -266,13 +313,12 @@ class TestMockModelProviderTracking(
             batch_step=True,
         )
         function.with_http(workers=None, async_spec=AsyncSpec())
-        # TODO: Add model monitoring setup
-        # self.set_mm_credentials()
-        # function.set_tracking()
-        # self.project.enable_model_monitoring(
-        #     deploy_histogram_data_drift_app=False,
-        #     image=self.image,
-        # )
+        self.set_mm_credentials()
+        function.set_tracking()
+        self.project.enable_model_monitoring(
+            deploy_histogram_data_drift_app=False,
+            image=self.image,
+        )
 
         function.deploy()
 
@@ -296,10 +342,45 @@ class TestMockModelProviderTracking(
             expected_counter = i % 2
             assert f"(Item {expected_counter})" in output[UsageResponseKeys.ANSWER]
 
-        # TODO: Verify tracking data - model monitoring verification
-        # sleep(180)
-        # endpoint_name = "my_endpoint"
-        # function_name = function.metadata.name
-        # mep = mlrun.db.get_run_db().get_model_endpoint(...)
-        # v3io_df = pd.read_parquet(...)
-        # Verify 3 batches (2+2+1) in tracking data
+        # Verify tracking data - model monitoring verification
+        sleep(180)
+
+        endpoint_name = "my_endpoint"
+        function_name = function.metadata.name
+
+        mep = mlrun.db.get_run_db().get_model_endpoint(
+            name=endpoint_name,
+            project=self.project.name,
+            function_name=function_name,
+            function_tag="latest",
+            feature_analysis=True,
+            tsdb_metrics=True,
+        )
+        assert mep is not None
+
+        # Verify TSDB predictions - should have 3 batches (2+2+1)
+        tsdb_client = mlrun.model_monitoring.get_tsdb_connector(
+            project=self.project.name, profile=self.mm_tsdb_profile
+        )
+        predictions = tsdb_client._get_records(
+            table=mm_constants.V3IOTSDBTables.PREDICTIONS, start="now-50m", end="now"
+        )
+
+        assert len(predictions) == 3, f"Expected 3 batches, got {len(predictions)}"
+
+        # Verify batch sizes (2+2+1)
+        batch_sizes = sorted(predictions["estimated_prediction_count"].tolist())
+        assert batch_sizes == [1, 2, 2], f"Expected [1, 2, 2], got {batch_sizes}"
+
+        # Verify effective_sample_count matches estimated_prediction_count
+        for idx, row in predictions.iterrows():
+            assert row["effective_sample_count"] == row["estimated_prediction_count"]
+
+        # Verify parquet contents - all 5 events tracked
+        v3io_df = pd.read_parquet(
+            f"v3io:///projects/{self.project.name}/artifacts/model-endpoints/parquet/key={mep.metadata.uid}"
+        )
+        assert len(v3io_df) == len(INPUT_DATA)
+
+        # Verify batch step structure - should have 3 request groups (2+2+1)
+        self._verify_batch_step_parquet_contents(v3io_df, endpoint_name)

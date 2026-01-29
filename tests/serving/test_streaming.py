@@ -233,6 +233,34 @@ class ReStreamer:
             yield f"re_{item}"
 
 
+class ErrorStreamingStep:
+    """A streaming step that raises an error mid-stream."""
+
+    def __init__(self, context=None, name=None):
+        self.context = context
+        self.name = name
+
+    def do(self, x):
+        yield f"{x}_chunk_0"
+        raise ValueError("Generator error mid-stream")
+
+
+class FailingIntermediateStep:
+    """A non-streaming step that fails on specific input."""
+
+    def __init__(self, context=None, name=None, fail_on_chunk=1):
+        self.context = context
+        self.name = name
+        self.fail_on_chunk = fail_on_chunk
+        self._count = 0
+
+    def do(self, x):
+        if self._count == self.fail_on_chunk:
+            raise RuntimeError(f"Failed on chunk {self._count}")
+        self._count += 1
+        return f"{x}_processed"
+
+
 class TestStreamingEndToEnd:
     """End-to-end tests for streaming in serving graphs."""
 
@@ -376,6 +404,61 @@ class TestStreamingErrors:
             # First stream: ["test_chunk_0", "test_chunk_1"]
             # Re-streamed: ["re_test_chunk_0", "re_test_chunk_1"]
             assert result == ["re_test_chunk_0", "re_test_chunk_1"]
+        finally:
+            server.wait_for_completion()
+
+    def test_streaming_generator_raises_error(self):
+        """Test that error in generator mid-stream propagates without hanging."""
+        function = mlrun.new_function("test", kind="serving")
+        graph = function.set_topology("flow", engine="async")
+
+        # Streaming step that raises an error after yielding one chunk
+        graph.to(
+            name="error_streamer",
+            class_name="ErrorStreamingStep",
+        ).respond()
+
+        server = function.to_mock_server()
+        try:
+            result = server.test("/", body="test")
+
+            # Result should be a generator
+            assert inspect.isgenerator(result), "Expected generator result"
+
+            # Collect chunks until error
+            chunks = []
+            with pytest.raises(ValueError, match="Generator error mid-stream"):
+                for chunk in result:
+                    chunks.append(chunk)
+
+            # Verify first chunk was received before error
+            assert chunks == ["test_chunk_0"]
+        finally:
+            server.wait_for_completion()
+
+    def test_streaming_error_in_intermediate_step(self):
+        """Test that error in non-streaming step processing chunks propagates correctly."""
+        function = mlrun.new_function("test", kind="serving")
+        graph = function.set_topology("flow", engine="async")
+
+        # streaming step -> failing intermediate step -> collector
+        graph.to(name="streamer", class_name="StreamingStep")
+        graph.add_step(
+            name="failing_step",
+            class_name="FailingIntermediateStep",
+            after="streamer",
+        )
+        graph.add_step(
+            name="collector",
+            class_name="storey.Collector",
+            after="failing_step",
+        ).respond()
+
+        server = function.to_mock_server()
+        try:
+            # The error should propagate
+            with pytest.raises(RuntimeError, match="Failed on chunk 1"):
+                server.test("/", body="test")
         finally:
             server.wait_for_completion()
 

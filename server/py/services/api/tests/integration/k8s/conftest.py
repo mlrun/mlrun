@@ -139,7 +139,8 @@ def bad_ca_kubeconfig_path(
     tmp_path: pathlib.Path,
     kubeconfig_path: str,
 ) -> str:
-    bad = yaml.safe_load(kubeconfig_path).copy()
+    with open(kubeconfig_path) as f:
+        bad = yaml.safe_load(f).copy()
     bad["clusters"][0]["cluster"]["certificate-authority-data"] = base64.b64encode(
         b"not-a-ca"
     )

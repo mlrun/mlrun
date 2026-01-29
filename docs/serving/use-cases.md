@@ -204,7 +204,9 @@ Cycles can return to the same step, or cycle through multiple steps. Create a mu
 Example of creating a cycle where after the `evaluator` the `choice` step determines whether to cycle to the `generator` or continue forward to `post_process` and respond:
 
 ```python
-graph.to("generator").to("evaluator").to("choice").cycle_to(["generator"]).to("post_process").respond()
+graph.to("generator").to("evaluator").to("choice").cycle_to(["generator"]).to(
+    "post_process"
+).respond()
 ```
 As an alternative to the choice step, you can implement {py:class}`~mlrun.serving.states.ModelRunnerSelector.select_outlets` in the evaluator step. See the usage in [Prevent infinite loops](#prevent-infinite-loops).
 

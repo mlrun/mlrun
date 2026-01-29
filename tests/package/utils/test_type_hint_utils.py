@@ -37,9 +37,12 @@ class AnotherClass(SomeClass):
 @pytest.mark.parametrize(
     "type_hint, expected_result",
     [
-        (typing.Optional[int], True),  # noqa: UP007
+        (typing.Optional[int], True),  # noqa: UP007, UP045
+        (int | None, True),
         (typing.Union[str, int], True),  # noqa: UP007
+        (str | int, True),
         (typing.List, True),  # noqa: UP006
+        (list | None, True),
         (typing.Tuple[int, str], True),  # noqa: UP006
         (tuple[int, str], True),
         (typing.TypeVar("A", int, str), True),
@@ -196,9 +199,13 @@ def test_parse_type_hint(type_string: str, expected_type: str | type):
         (int, int, True, False, True),
         (int, str, True, True, False),
         (typing.Union[int, str], typing.Union[str, int], True, True, True),  # noqa: UP007
+        (int | str, str | int, True, True, True),
         (typing.Union[int, str, bool], typing.Union[str, int], True, False, False),  # noqa: UP007
+        (int | str | bool, str | int, True, False, False),
         (int, typing.Union[int, str], True, False, False),  # noqa: UP007
+        (int, int | str, True, False, False),
         (int, typing.Union[int, str], True, True, True),  # noqa: UP007
+        (int, int | str, True, True, True),
         (AnotherClass, SomeClass, True, False, True),
         (AnotherClass, SomeClass, False, False, False),
         (SomeClass, AnotherClass, True, False, False),
@@ -266,18 +273,26 @@ def test_is_matching(
         (typing.Literal, set()),
         # `typing.Union` usages:
         (typing.Union[int, float], {int, float}),  # noqa: UP007
+        (int | float, {int, float}),
         (
             typing.Union[int, float, str | list],  # noqa: UP007
             {int, float, str, list},
         ),
+        (int | float | str | list, {int, float, str, list}),
         (
             typing.Union[int, str, list[tuple[int, str, SomeClass]]],  # noqa: UP007
+            {int, str, list[tuple[int, str, SomeClass]]},
+        ),
+        (
+            int | str | list[tuple[int, str, SomeClass]],
             {int, str, list[tuple[int, str, SomeClass]]},
         ),
         (typing.Union, set()),
         # `typing.Optional` usages:
         (typing.Optional[int], {type(None), int}),  # noqa: UP007, UP045
+        (int | None, {type(None), int}),
         (typing.Optional[str | list], {type(None), str, list}),  # noqa: UP007, UP045
+        (str | list | None, {type(None), str, list}),
         (typing.Optional, set()),
         # `typing.Annotated` usages:
         (typing.Annotated[int, 3, 6], {int}),

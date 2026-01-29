@@ -471,6 +471,11 @@ class _DummyDataItem:
             int | bytes | int,
             "Could not unpack data item with the hinted type",
         ),
+        (
+            0.5,
+            int | bytes,
+            "Could not unpack data item with the hinted type",
+        ),
     ],
 )
 def test_plural_type_hint_unpacking(

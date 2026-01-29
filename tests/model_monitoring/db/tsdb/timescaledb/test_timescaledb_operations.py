@@ -15,7 +15,6 @@
 import threading
 import time
 from datetime import datetime
-from typing import Optional
 
 import pytest
 
@@ -35,8 +34,8 @@ class TestTimescaleDBOperationsManagerIntegration:
         result_status: int = 1,
         result_kind: int = 2,
         result_extra_data: str = '{"confidence": 0.9}',
-        end_time: Optional[datetime] = None,
-        start_time: Optional[datetime] = None,
+        end_time: datetime | None = None,
+        start_time: datetime | None = None,
     ) -> dict:
         """Factory method for creating result event data."""
         if end_time is None:
@@ -62,8 +61,8 @@ class TestTimescaleDBOperationsManagerIntegration:
         application_name: str = "performance_monitoring",
         metric_name: str = "accuracy",
         metric_value: float = 0.95,
-        end_time: Optional[datetime] = None,
-        start_time: Optional[datetime] = None,
+        end_time: datetime | None = None,
+        start_time: datetime | None = None,
     ) -> dict:
         """Factory method for creating metric event data."""
         if end_time is None:
@@ -82,7 +81,7 @@ class TestTimescaleDBOperationsManagerIntegration:
 
     @staticmethod
     def _verify_table_data(
-        connection, table, expected_count: int, where_clause: Optional[str] = None
+        connection, table, expected_count: int, where_clause: str | None = None
     ) -> list:
         """Helper method for verifying table data."""
         query = f"SELECT COUNT(*) FROM {table.full_name()}"
@@ -681,10 +680,9 @@ class TestTimescaleDBOperationsManagerIntegration:
         # Verify each statement has a complete WHERE clause with endpoint_id = %s
         for stmt in statements:
             sql = stmt.sql
-            assert sql.endswith("WHERE endpoint_id = %s"), (
-                f"DELETE statement should end with 'WHERE endpoint_id = %s', "
-                f"got: {sql}"
-            )
+            assert sql.endswith(
+                "WHERE endpoint_id = %s"
+            ), f"DELETE statement should end with 'WHERE endpoint_id = %s', got: {sql}"
 
         # Also test with multiple endpoints (uses ANY(%s) syntax)
         multi_statements = (
@@ -847,7 +845,7 @@ class TestTimescaleDBOperationsManagerIntegration:
         SELECT table_name FROM information_schema.tables
         WHERE table_schema = '{schema_name}'
         AND table_type = 'BASE TABLE'
-        AND table_name LIKE '%{project_id.replace('-', '_')}%'
+        AND table_name LIKE '%{project_id.replace("-", "_")}%'
         """
         result = connection.run(query=table_query)
         initial_table_count = len(result.data)
@@ -888,7 +886,7 @@ class TestTimescaleDBOperationsManagerIntegration:
         table_query = f"""
         SELECT table_name FROM information_schema.tables
         WHERE table_schema = '{schema_name}' AND table_type = 'BASE TABLE'
-        AND table_name LIKE '%{project_id.replace('-', '_')}%'
+        AND table_name LIKE '%{project_id.replace("-", "_")}%'
         """
         result = connection.run(query=table_query)
         assert (

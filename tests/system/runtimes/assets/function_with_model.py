@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from copy import copy
-from typing import Union
 
 from mlrun.serving import Model, ModelSelector
 
@@ -24,13 +23,11 @@ class DummyModel(Model):
 
 
 class MyModelSelector(ModelSelector):
-    def __init__(self, models: Union[list[str], list[Model]]):
+    def __init__(self, models: list[str] | list[Model]):
         super().__init__()
         self.models = copy(models)
 
-    def select(
-        self, event, available_models: list[Model]
-    ) -> Union[list[str], list[Model]]:
+    def select(self, event, available_models: list[Model]) -> list[str] | list[Model]:
         current_models = event.body.pop("models", [])
         if current_models and set(current_models).issubset(set(self.models)):
             return current_models

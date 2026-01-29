@@ -14,7 +14,6 @@
 
 import datetime
 import re
-import typing
 
 import sqlalchemy.orm
 
@@ -98,10 +97,10 @@ class Alerts(
     def list_alerts(
         self,
         session: sqlalchemy.orm.Session,
-        project: typing.Optional[typing.Union[str, list[str]]] = None,
+        project: str | list[str] | None = None,
         exclude_updated: bool = False,
-        limit: typing.Optional[int] = None,
-        offset: typing.Optional[int] = None,
+        limit: int | None = None,
+        offset: int | None = None,
     ) -> list[mlrun.common.schemas.AlertConfig]:
         return framework.utils.singletons.db.get_db().list_alerts(
             session=session,
@@ -582,7 +581,7 @@ class Alerts(
         session: sqlalchemy.orm.Session,
         project: str,
         name: str,
-        alert_id: typing.Optional[int] = None,
+        alert_id: int | None = None,
     ):
         # Prefer getting alert from cache if alert_id is provided
         if alert_id is not None:

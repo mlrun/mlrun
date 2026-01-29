@@ -34,9 +34,8 @@ class PaginationCache(metaclass=mlrun.utils.singleton.Singleton):
         current_page: int,
         page_size: int,
         kwargs: dict,
-        pagination_cache_record: typing.Optional[
-            framework.db.sqldb.models.PaginationCache
-        ] = None,
+        pagination_cache_record: framework.db.sqldb.models.PaginationCache
+        | None = None,
     ):
         db = framework.utils.singletons.db.get_db()
         return db.store_paginated_query_cache_record(
@@ -54,7 +53,7 @@ class PaginationCache(metaclass=mlrun.utils.singleton.Singleton):
         session: sqlalchemy.orm.Session,
         key: str,
         for_update: bool = False,
-    ) -> typing.Optional[framework.db.sqldb.models.PaginationCache]:
+    ) -> framework.db.sqldb.models.PaginationCache | None:
         """
         Retrieve a pagination cache record by its key.
         :param session: The database session to use for the operation.
@@ -68,13 +67,12 @@ class PaginationCache(metaclass=mlrun.utils.singleton.Singleton):
     @staticmethod
     def list_pagination_cache_records(
         session: sqlalchemy.orm.Session,
-        key: typing.Optional[str] = None,
-        user: typing.Optional[str] = None,
-        function: typing.Optional[str] = None,
-        last_accessed_before: typing.Optional[datetime.datetime] = None,
-        order_by: typing.Optional[
-            mlrun.common.schemas.OrderType
-        ] = mlrun.common.schemas.OrderType.desc,
+        key: str | None = None,
+        user: str | None = None,
+        function: str | None = None,
+        last_accessed_before: datetime.datetime | None = None,
+        order_by: mlrun.common.schemas.OrderType
+        | None = mlrun.common.schemas.OrderType.desc,
     ):
         db = framework.utils.singletons.db.get_db()
         return db.list_paginated_query_cache_record(

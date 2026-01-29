@@ -15,7 +15,7 @@ import os
 import pathlib
 from collections.abc import Callable
 from os import environ
-from typing import Optional, Union
+from typing import Union
 
 import mlrun.common.constants as mlrun_constants
 import mlrun.common.schemas.schedule
@@ -137,7 +137,7 @@ class ClientLocalLauncher(launcher.ClientBaseLauncher):
     def _execute(
         self,
         runtime: "mlrun.runtimes.BaseRuntime",
-        run: Optional[Union["mlrun.run.RunTemplate", "mlrun.run.RunObject"]] = None,
+        run: Union["mlrun.run.RunTemplate", "mlrun.run.RunObject"] | None = None,
     ):
         if (
             "V3IO_USERNAME" in os.environ
@@ -213,12 +213,12 @@ class ClientLocalLauncher(launcher.ClientBaseLauncher):
         self,
         runtime: "mlrun.runtimes.BaseRuntime",
         run: "mlrun.run.RunObject",
-        local_code_path: Optional[str] = None,
-        project: Optional[str] = "",
-        name: Optional[str] = "",
-        workdir: Optional[str] = "",
-        handler: Optional[str] = None,
-        reset_on_run: Optional[bool] = None,
+        local_code_path: str | None = None,
+        project: str | None = "",
+        name: str | None = "",
+        workdir: str | None = "",
+        handler: str | None = None,
+        reset_on_run: bool | None = None,
     ):
         project = project or runtime.metadata.project
         function_name = name or runtime.metadata.name

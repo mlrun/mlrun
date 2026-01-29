@@ -15,7 +15,6 @@
 import importlib
 import os
 from abc import ABC
-from typing import Union
 
 import tensorflow as tf
 from tensorflow import keras
@@ -287,9 +286,9 @@ class TFKerasMLRunInterface(MLRunInterface, ABC):
         self,
         callbacks: list[Callback],
         verbose: int,
-        steps_per_epoch: Union[int, None],
-        validation_steps: Union[int, None],
-    ) -> tuple[list[Callback], int, Union[int, None], Union[int, None]]:
+        steps_per_epoch: int | None,
+        validation_steps: int | None,
+    ) -> tuple[list[Callback], int, int | None, int | None]:
         """
         Method to call before calling 'fit' to setup the run and inputs for using horovod.
 
@@ -357,8 +356,8 @@ class TFKerasMLRunInterface(MLRunInterface, ABC):
     def _pre_evaluate(
         self,
         callbacks: list[Callback],
-        steps: Union[int, None],
-    ) -> tuple[list[Callback], Union[int, None]]:
+        steps: int | None,
+    ) -> tuple[list[Callback], int | None]:
         """
         Method to call before calling 'evaluate' to setup the run and inputs for using horovod.
 

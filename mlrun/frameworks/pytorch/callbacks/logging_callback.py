@@ -13,7 +13,6 @@
 # limitations under the License.
 
 from collections.abc import Callable
-from typing import Optional, Union
 
 import numpy as np
 from torch import Tensor
@@ -60,23 +59,14 @@ class LoggingCallback(Callback):
     def __init__(
         self,
         context: mlrun.MLClientCtx = None,
-        dynamic_hyperparameters: Optional[
-            dict[
-                str,
-                tuple[
-                    str,
-                    Union[
-                        list[Union[str, int]], Callable[[], PyTorchTypes.TrackableType]
-                    ],
-                ],
-            ]
-        ] = None,
-        static_hyperparameters: Optional[
-            dict[
-                str,
-                Union[PyTorchTypes.TrackableType, tuple[str, list[Union[str, int]]]],
-            ]
-        ] = None,
+        dynamic_hyperparameters: dict[
+            str, tuple[str, list[str | int] | Callable[[], PyTorchTypes.TrackableType]]
+        ]
+        | None = None,
+        static_hyperparameters: dict[
+            str, PyTorchTypes.TrackableType | tuple[str, list[str | int]]
+        ]
+        | None = None,
         auto_log: bool = False,
     ):
         """
@@ -463,9 +453,7 @@ class LoggingCallback(Callback):
     def _get_hyperparameter(
         self,
         source: str,
-        key_chain: Union[
-            list[Union[str, int]], Callable[[], PyTorchTypes.TrackableType]
-        ],
+        key_chain: list[str | int] | Callable[[], PyTorchTypes.TrackableType],
     ) -> PyTorchTypes.TrackableType:
         """
         Access the hyperparameter from the source using the given key chain.

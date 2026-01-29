@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Union
 
 from sklearn.datasets import (
     make_classification,
@@ -34,15 +33,15 @@ def get_dataset(
     n_targets: int = N_TARGETS,
     n_classes: int = N_CLASSES,
     n_samples: int = N_SAMPLES,
-) -> Union[
-    tuple[MLTypes.DatasetType, MLTypes.DatasetType],
-    tuple[
+) -> (
+    tuple[MLTypes.DatasetType, MLTypes.DatasetType]
+    | tuple[
         MLTypes.DatasetType,
         MLTypes.DatasetType,
         MLTypes.DatasetType,
         MLTypes.DatasetType,
-    ],
-]:
+    ]
+):
     if algorithm_functionality.is_regression():
         if algorithm_functionality.is_single_output():
             n_targets = 1

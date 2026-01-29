@@ -38,7 +38,7 @@ class Claims:
     PREFERRED_USERNAME = "preferred_username"
 
 
-def load_offline_token(raise_on_error=True) -> typing.Optional[str]:
+def load_offline_token(raise_on_error=True) -> str | None:
     """
     Load the offline token from the environment variable or YAML file.
 
@@ -55,7 +55,7 @@ def load_offline_token(raise_on_error=True) -> typing.Optional[str]:
     return get_offline_token_from_file(raise_on_error=raise_on_error)
 
 
-def get_offline_token_from_file(raise_on_error: bool = True) -> typing.Optional[str]:
+def get_offline_token_from_file(raise_on_error: bool = True) -> str | None:
     """
     Retrieve the offline token from a configured file.
 
@@ -114,7 +114,7 @@ def load_secret_tokens_from_file(
 
 def read_secret_tokens_file(
     raise_on_error: bool = True,
-) -> typing.Optional[dict[str, typing.Any]]:
+) -> dict[str, typing.Any] | None:
     """
     Read and parse the secret tokens file.
 
@@ -161,7 +161,7 @@ def read_secret_tokens_file(
 
 def parse_offline_token_data(
     tokens: list[dict[str, typing.Any]], raise_on_error: bool = True
-) -> typing.Optional[str]:
+) -> str | None:
     """
     Extract the correct offline token entry from the parsed tokens list.
 
@@ -214,7 +214,7 @@ def parse_offline_token_data(
     return token_value
 
 
-def get_offline_token_from_env() -> typing.Optional[str]:
+def get_offline_token_from_env() -> str | None:
     """
     Retrieve the offline token from the environment variable.
 
@@ -325,9 +325,7 @@ def extract_and_validate_tokens_info(
     return token_values
 
 
-def resolve_jwt_subject(
-    token: str, raise_on_error: bool = True
-) -> typing.Optional[str]:
+def resolve_jwt_subject(token: str, raise_on_error: bool = True) -> str | None:
     """
     Extract the 'sub' (subject/user ID) claim from a JWT token.
 

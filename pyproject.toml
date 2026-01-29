@@ -19,9 +19,6 @@ extend-select = [
     "B006", # mutable default arguments
     "RUF013",  # forbid implicit `Optional` type hints
 ]
-# Ignoring UP007 for now. See ticket ML-11573 for investigating runtime-safety of converting certain type
-# annotations to PEP 604 (`X | Y`) syntax.
-ignore = ["UP007"]
 explicit-preview-rules = true
 
 [tool.ruff.lint.isort]

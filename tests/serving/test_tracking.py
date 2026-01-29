@@ -23,7 +23,7 @@ from contextlib import AbstractContextManager
 from contextlib import nullcontext as does_not_raise
 from pathlib import Path
 from time import sleep
-from typing import Union, cast
+from typing import cast
 
 import numpy as np
 import pandas as pd
@@ -409,7 +409,7 @@ def project() -> mlrun.MlrunProject:
 @pytest.fixture
 def serving_output_stream(
     monkeypatch: pytest.MonkeyPatch, request: pytest.FixtureRequest
-) -> Iterator[Union[type[OutputStream], type[KafkaOutputStream]]]:
+) -> Iterator[type[OutputStream] | type[KafkaOutputStream]]:
     """Register the serving stream"""
     stream_profile_name = "special-stream"
     monkeypatch.setenv(
@@ -441,7 +441,7 @@ def serving_output_stream(
 @pytest.mark.parametrize("serving_output_stream", ["v3io", "kafka"], indirect=True)
 def test_tracking_datastore_profile(
     project: mlrun.MlrunProject,
-    serving_output_stream: Union[type[OutputStream], type[KafkaOutputStream]],
+    serving_output_stream: type[OutputStream] | type[KafkaOutputStream],
 ) -> None:
     fn = cast(
         ServingRuntime,
@@ -483,9 +483,7 @@ def test_tracking_datastore_profile(
 
 
 class MyModelSelector(ModelSelector):
-    def select(
-        self, event, available_models: list[Model]
-    ) -> Union[list[str], list[Model]]:
+    def select(self, event, available_models: list[Model]) -> list[str] | list[Model]:
         return ["my_dict_model"]
 
 

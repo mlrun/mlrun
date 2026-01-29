@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import typing
 
 import tabulate
 
@@ -31,13 +30,13 @@ class ConsoleNotification(NotificationBase):
     def push(
         self,
         message: str,
-        severity: typing.Optional[
-            typing.Union[mlrun.common.schemas.NotificationSeverity, str]
-        ] = mlrun.common.schemas.NotificationSeverity.INFO,
-        runs: typing.Optional[typing.Union[mlrun.lists.RunList, list]] = None,
-        custom_html: typing.Optional[typing.Optional[str]] = None,
-        alert: typing.Optional[mlrun.common.schemas.AlertConfig] = None,
-        event_data: typing.Optional[mlrun.common.schemas.Event] = None,
+        severity: mlrun.common.schemas.NotificationSeverity
+        | str
+        | None = mlrun.common.schemas.NotificationSeverity.INFO,
+        runs: mlrun.lists.RunList | list | None = None,
+        custom_html: str | None = None,
+        alert: mlrun.common.schemas.AlertConfig | None = None,
+        event_data: mlrun.common.schemas.Event | None = None,
     ):
         severity = self._resolve_severity(severity)
         print(f"[{severity}] {message}")
@@ -69,7 +68,7 @@ class ConsoleNotification(NotificationBase):
         print(tabulate.tabulate(table, headers=["status", "name", "uid", "results"]))
 
     def _resolve_severity(
-        self, severity: typing.Union[mlrun.common.schemas.NotificationSeverity, str]
+        self, severity: mlrun.common.schemas.NotificationSeverity | str
     ):
         if isinstance(severity, mlrun.common.schemas.NotificationSeverity):
             return severity

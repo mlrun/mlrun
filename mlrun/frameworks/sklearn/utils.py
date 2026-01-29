@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Union
 
 import sklearn.base
 
@@ -25,15 +24,15 @@ class SKLearnTypes(MLTypes):
     """
 
     # A union of all SciKitLearn model base classes:
-    ModelType = Union[
-        sklearn.base.BaseEstimator,
-        sklearn.base.BiclusterMixin,
-        sklearn.base.ClassifierMixin,
-        sklearn.base.ClusterMixin,
-        sklearn.base.DensityMixin,
-        sklearn.base.RegressorMixin,
-        sklearn.base.TransformerMixin,
-    ]
+    ModelType = (
+        sklearn.base.BaseEstimator
+        | sklearn.base.BiclusterMixin
+        | sklearn.base.ClassifierMixin
+        | sklearn.base.ClusterMixin
+        | sklearn.base.DensityMixin
+        | sklearn.base.RegressorMixin
+        | sklearn.base.TransformerMixin
+    )
 
 
 class SKLearnUtils(MLUtils):

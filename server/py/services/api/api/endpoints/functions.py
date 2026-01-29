@@ -14,7 +14,6 @@
 
 import traceback
 from http import HTTPStatus
-from typing import Optional
 
 import kubernetes.client
 from fastapi import (
@@ -147,14 +146,14 @@ async def get_function(
 
 @router.get("/projects/{project}/functions")
 async def list_functions(
-    project: Optional[str] = None,
-    name: Optional[str] = None,
-    tag: Optional[str] = None,
+    project: str | None = None,
+    name: str | None = None,
+    tag: str | None = None,
     labels: list[str] = Query([], alias="label"),
-    hash_key: Optional[str] = None,
-    since: Optional[str] = None,
-    until: Optional[str] = None,
-    kind: Optional[str] = None,
+    hash_key: str | None = None,
+    since: str | None = None,
+    until: str | None = None,
+    kind: str | None = None,
     states: list[str] = Query([], alias="state"),
     page: int = Query(None, gt=0),
     page_size: int = Query(None, alias="page-size", gt=0),
@@ -216,10 +215,10 @@ async def build_function(
     request: Request,
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
-    client_version: Optional[str] = Header(
+    client_version: str | None = Header(
         None, alias=mlrun.common.schemas.HeaderNames.client_version
     ),
-    client_python_version: Optional[str] = Header(
+    client_python_version: str | None = Header(
         None, alias=mlrun.common.schemas.HeaderNames.python_version
     ),
 ):
@@ -308,10 +307,10 @@ async def start_function(
     background_tasks: BackgroundTasks,
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
-    client_version: Optional[str] = Header(
+    client_version: str | None = Header(
         None, alias=mlrun.common.schemas.HeaderNames.client_version
     ),
-    client_python_version: Optional[str] = Header(
+    client_python_version: str | None = Header(
         None, alias=mlrun.common.schemas.HeaderNames.python_version
     ),
 ):
@@ -390,7 +389,7 @@ async def build_status(
     verbose: bool = False,
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
-    client_version: Optional[str] = Header(
+    client_version: str | None = Header(
         None, alias=mlrun.common.schemas.HeaderNames.client_version
     ),
 ):
@@ -454,7 +453,7 @@ def _handle_job_deploy_status(
     offset: int,
     events_offset: int,
     logs: bool,
-    client_version: Optional[str],
+    client_version: str | None,
 ):
     # job deploy status
     response_headers = {}
@@ -663,8 +662,8 @@ def _parse_start_function_body(db_session, data):
 async def _start_function_wrapper(
     function,
     auth_info: mlrun.common.schemas.AuthInfo,
-    client_version: Optional[str] = None,
-    client_python_version: Optional[str] = None,
+    client_version: str | None = None,
+    client_python_version: str | None = None,
 ):
     await run_in_threadpool(
         _start_function,
@@ -678,8 +677,8 @@ async def _start_function_wrapper(
 def _start_function(
     function,
     auth_info: mlrun.common.schemas.AuthInfo,
-    client_version: Optional[str] = None,
-    client_python_version: Optional[str] = None,
+    client_version: str | None = None,
+    client_python_version: str | None = None,
 ):
     db_session = framework.db.session.create_session()
     try:

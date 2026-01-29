@@ -13,7 +13,6 @@
 # limitations under the License.
 
 from enum import Enum
-from typing import Optional, Union
 
 import mlrun.errors
 from mlrun.artifacts import Artifact, DatasetArtifact
@@ -48,9 +47,9 @@ class DatasetPlan(MLPlan):
 
     def __init__(
         self,
-        purpose: Union[Purposes, str] = Purposes.OTHER,
-        name: Optional[str] = None,
-        preview: Optional[int] = None,
+        purpose: Purposes | str = Purposes.OTHER,
+        name: str | None = None,
+        preview: int | None = None,
         stats: bool = False,
         fmt: str = "parquet",
     ):

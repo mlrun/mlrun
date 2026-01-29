@@ -17,7 +17,7 @@ import copy
 import os
 import uuid
 from collections.abc import Callable
-from typing import Any, Optional, Union
+from typing import Any, Union
 
 import mlrun.common.constants
 import mlrun.common.runtimes.constants
@@ -84,7 +84,7 @@ class BaseLauncher(abc.ABC):
     def enrich_runtime(
         self,
         runtime: "mlrun.runtimes.base.BaseRuntime",
-        project_name: Optional[str] = "",
+        project_name: str | None = "",
         full: bool = True,
         client_version: str = "",
     ):
@@ -147,7 +147,7 @@ class BaseLauncher(abc.ABC):
         )
 
         if runtime.spec.mode and runtime.spec.mode not in run_modes:
-            raise ValueError(f'run mode can only be {",".join(run_modes)}')
+            raise ValueError(f"run mode can only be {','.join(run_modes)}")
 
         self._validate_run_params(run.spec.parameters)
         self._validate_output_path(runtime, run)
@@ -259,9 +259,9 @@ class BaseLauncher(abc.ABC):
         scrape_metrics=None,
         output_path=None,
         workdir=None,
-        notifications: Optional[list[mlrun.model.Notification]] = None,
-        state_thresholds: Optional[dict[str, int]] = None,
-        retry: Optional[Union[mlrun.model.Retry, dict]] = None,
+        notifications: list[mlrun.model.Notification] | None = None,
+        state_thresholds: dict[str, int] | None = None,
+        retry: mlrun.model.Retry | dict | None = None,
     ):
         run.spec.handler = (
             handler or run.spec.handler or runtime.spec.default_handler or ""
@@ -400,8 +400,8 @@ class BaseLauncher(abc.ABC):
         runtime: "mlrun.runtimes.BaseRuntime",
         result: dict,
         run: "mlrun.run.RunObject",
-        schedule: Optional[mlrun.common.schemas.ScheduleCronTrigger] = None,
-        err: Optional[Exception] = None,
+        schedule: mlrun.common.schemas.ScheduleCronTrigger | None = None,
+        err: Exception | None = None,
     ):
         # if the purpose was to schedule (and not to run) nothing to wrap
         if schedule:

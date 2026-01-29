@@ -13,7 +13,6 @@
 # limitations under the License.
 import uuid
 from datetime import datetime
-from typing import Optional
 
 import pytest
 
@@ -43,7 +42,7 @@ class TestModelEndpoint(TestDatabaseBase):
         self,
         function_name: str = "function-1",
         project: str = "project-1",
-        tag: Optional[str] = None,
+        tag: str | None = None,
     ) -> None:
         function = self._generate_function(
             function_name=function_name, project=project, tag=tag or "latest"
@@ -58,7 +57,7 @@ class TestModelEndpoint(TestDatabaseBase):
         )
 
     def _store_artifact(
-        self, key: str, uid: Optional[str] = None, status: Optional[dict] = None
+        self, key: str, uid: str | None = None, status: dict | None = None
     ) -> str:
         artifact = {
             "metadata": {"tree": "artifact_tree", "tag": "latest"},
@@ -286,7 +285,7 @@ class TestModelEndpoint(TestDatabaseBase):
         for i in range(2):
             model_endpoint.metadata.labels = {
                 "label1": f"value_{i}",
-                "label2": f"value_{i+1}",
+                "label2": f"value_{i + 1}",
                 "label": "value",
             }
             uid = self._db.store_model_endpoint(

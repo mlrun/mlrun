@@ -25,9 +25,7 @@ import semver
 import mlrun.datastore
 
 
-def parse_kafka_url(
-    url: str, brokers: typing.Optional[typing.Union[list, str]] = None
-) -> tuple[str, list]:
+def parse_kafka_url(url: str, brokers: list | str | None = None) -> tuple[str, list]:
     """Generating Kafka topic and adjusting a list of bootstrap servers.
 
     :param url:               URL path to parse using urllib.parse.urlparse.
@@ -70,11 +68,11 @@ def upload_tarball(source_dir, target, secrets=None):
 
 
 def filter_df_start_end_time(
-    df: typing.Union[pd.DataFrame, typing.Iterator[pd.DataFrame]],
-    time_column: typing.Optional[str] = None,
+    df: pd.DataFrame | typing.Iterator[pd.DataFrame],
+    time_column: str | None = None,
     start_time: pd.Timestamp = None,
     end_time: pd.Timestamp = None,
-) -> typing.Union[pd.DataFrame, typing.Iterator[pd.DataFrame]]:
+) -> pd.DataFrame | typing.Iterator[pd.DataFrame]:
     if not time_column:
         return df
     if isinstance(df, pd.DataFrame):
@@ -114,9 +112,9 @@ def _execute_time_filter(
 
 
 def select_columns_from_df(
-    df: typing.Union[pd.DataFrame, typing.Iterator[pd.DataFrame]],
+    df: pd.DataFrame | typing.Iterator[pd.DataFrame],
     columns: list[str],
-) -> typing.Union[pd.DataFrame, typing.Iterator[pd.DataFrame]]:
+) -> pd.DataFrame | typing.Iterator[pd.DataFrame]:
     if not columns:
         return df
     if isinstance(df, pd.DataFrame):
@@ -126,7 +124,7 @@ def select_columns_from_df(
 
 
 def select_columns_generator(
-    dfs: typing.Union[pd.DataFrame, typing.Iterator[pd.DataFrame]],
+    dfs: pd.DataFrame | typing.Iterator[pd.DataFrame],
     columns: list[str],
 ) -> typing.Iterator[pd.DataFrame]:
     for df in dfs:
@@ -167,7 +165,7 @@ def _generate_sql_query_with_time_filter(
     return query, parse_dates
 
 
-def get_kafka_brokers_from_dict(options: dict, pop=False) -> typing.Optional[str]:
+def get_kafka_brokers_from_dict(options: dict, pop=False) -> str | None:
     get_or_pop = options.pop if pop else options.get
     kafka_brokers = get_or_pop("kafka_brokers", None)
     return kafka_brokers
@@ -215,7 +213,7 @@ def validate_additional_filters(additional_filters):
 
 
 class KafkaParameters:
-    def __init__(self, kwargs: typing.Optional[dict] = None):
+    def __init__(self, kwargs: dict | None = None):
         import kafka
 
         if kwargs is None:
@@ -284,8 +282,8 @@ class KafkaParameters:
         return self._get_config("admin")
 
     def sasl(
-        self, *, usr: typing.Optional[str] = None, pwd: typing.Optional[str] = None
-    ) -> dict[str, typing.Union[str, bool]]:
+        self, *, usr: str | None = None, pwd: str | None = None
+    ) -> dict[str, str | bool]:
         res = self._kwargs.get("sasl", {})
         usr = usr or self._kwargs.get("sasl_plain_username")
         pwd = pwd or self._kwargs.get("sasl_plain_password")
@@ -297,7 +295,7 @@ class KafkaParameters:
             res["handshake"] = self._kwargs.get("sasl_handshake", True)
         return res
 
-    def tls(self, *, tls_enable: typing.Optional[bool] = None) -> dict[str, bool]:
+    def tls(self, *, tls_enable: bool | None = None) -> dict[str, bool]:
         res = self._kwargs.get("tls", {})
         tls_enable = (
             tls_enable if tls_enable is not None else self._kwargs.get("tls_enable")

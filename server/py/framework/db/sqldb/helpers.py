@@ -13,7 +13,6 @@
 # limitations under the License.
 
 import re
-import typing
 from datetime import datetime
 
 from dateutil import parser
@@ -61,7 +60,7 @@ def run_state(run):
     )
 
 
-def update_labels(obj, labels: dict[str, typing.Union[str, int]]):
+def update_labels(obj, labels: dict[str, str | int]):
     if not isinstance(labels, dict):
         raise mlrun.errors.MLRunInvalidArgumentError("Labels must be a dictionary.")
 
@@ -107,8 +106,8 @@ def generate_query_predicate_for_name(column, query_string):
 def generate_time_range_query(
     query,
     field,
-    since: typing.Optional[datetime] = None,
-    until: typing.Optional[datetime] = None,
+    since: datetime | None = None,
+    until: datetime | None = None,
 ):
     """
     Generate a query to filter results within a specified time range.
@@ -175,7 +174,7 @@ def ensure_max_length(string: str):
     return string
 
 
-def _validate_label(name: str, value: typing.Optional[typing.Union[str, int]]):
+def _validate_label(name: str, value: str | int | None):
     # a backwards compatibility check for `None` key
     if value is None:
         return

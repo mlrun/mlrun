@@ -173,7 +173,7 @@ class TestAlibabaOssDataStore:
 
     def _perform_alibaba_oss_tests(self, use_datastore_profile, secrets=None):
         param = self.oss["ds"] if use_datastore_profile else self.oss["oss"]
-        logger.info(f'Object URL: {param["object_url"]}')
+        logger.info(f"Object URL: {param['object_url']}")
 
         data_item = mlrun.run.get_dataitem(param["object_url"], secrets=secrets)
         data_item.put(test_string)

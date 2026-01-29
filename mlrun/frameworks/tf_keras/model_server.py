@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Any, Optional, Union
+from typing import Any
 
 import numpy as np
 from tensorflow import keras
@@ -32,20 +32,16 @@ class TFKerasModelServer(V2ModelServer):
     def __init__(
         self,
         context: mlrun.MLClientCtx = None,
-        name: Optional[str] = None,
+        name: str | None = None,
         model: keras.Model = None,
-        model_path: Optional[str] = None,
-        model_name: Optional[str] = None,
-        modules_map: Optional[
-            Union[dict[str, Union[None, str, list[str]]], str]
-        ] = None,
-        custom_objects_map: Optional[
-            Union[dict[str, Union[str, list[str]]], str]
-        ] = None,
-        custom_objects_directory: Optional[str] = None,
+        model_path: str | None = None,
+        model_name: str | None = None,
+        modules_map: dict[str, None | str | list[str]] | str | None = None,
+        custom_objects_map: dict[str, str | list[str]] | str | None = None,
+        custom_objects_directory: str | None = None,
         model_format: str = TFKerasModelHandler.ModelFormats.SAVED_MODEL,
         to_list: bool = False,
-        protocol: Optional[str] = None,
+        protocol: str | None = None,
         **class_args,
     ):
         """
@@ -150,7 +146,7 @@ class TFKerasModelServer(V2ModelServer):
             self._model_handler.load()
         self.model = self._model_handler.model
 
-    def predict(self, request: dict[str, Any]) -> Union[np.ndarray, list]:
+    def predict(self, request: dict[str, Any]) -> np.ndarray | list:
         """
         Infer the inputs through the model using 'keras.Model.predict' and return its output. The inferred data will be
         read from the "inputs" key of the request.

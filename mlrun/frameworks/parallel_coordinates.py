@@ -14,7 +14,6 @@
 
 import os
 from datetime import datetime
-from typing import Optional, Union
 
 import numpy as np
 import pandas as pd
@@ -48,7 +47,7 @@ def _gen_dropdown_buttons(output_cols) -> list:
 
 
 def _gen_dimensions(
-    df: pd.DataFrame, col: str, prefix: Optional[str] = None, is_index=False
+    df: pd.DataFrame, col: str, prefix: str | None = None, is_index=False
 ) -> dict:
     """
     Computes the plotting dimensions of each parameter/output col according to its type.
@@ -107,8 +106,8 @@ def gen_pcp_plot(
     source_df: pd.DataFrame,
     index_col: str,
     hide_identical: bool = True,
-    exclude: Optional[list] = None,
-    colorscale: Optional[str] = None,
+    exclude: list | None = None,
+    colorscale: str | None = None,
 ):
     """
     Creates a list composed of the data to be plotted as a Parallel Coordinate, this includes
@@ -238,13 +237,13 @@ def _runs_list_to_df(runs_list, extend_iterations=False):
 
 @filter_warnings("ignore", FutureWarning)
 def compare_run_objects(
-    runs_list: Union[mlrun.model.RunObject, list[mlrun.model.RunObject]],
+    runs_list: mlrun.model.RunObject | list[mlrun.model.RunObject],
     hide_identical: bool = True,
-    exclude: Optional[list] = None,
-    show: Optional[bool] = None,
+    exclude: list | None = None,
+    show: bool | None = None,
     extend_iterations=True,
     filename=None,
-    colorscale: Optional[str] = None,
+    colorscale: str | None = None,
 ):
     """return/show parallel coordinates plot + table to compare between a list of runs or run iterations
 
@@ -292,9 +291,9 @@ def compare_db_runs(
     run_name=None,
     labels=None,
     iter=False,
-    start_time_from: Optional[datetime] = None,
+    start_time_from: datetime | None = None,
     hide_identical: bool = True,
-    exclude: Optional[list] = None,
+    exclude: list | None = None,
     show=None,
     colorscale: str = "Blues",
     filename=None,

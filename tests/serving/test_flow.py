@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import pathlib
-from typing import Any, Union
+from typing import Any
 
 import pytest
 
@@ -472,7 +472,7 @@ def test_set_flow():
     ],
 )
 def test_set_flow_names(
-    steps: list[Union[TaskStep, QueueStep, dict[str, Any]]],
+    steps: list[TaskStep | QueueStep | dict[str, Any]],
 ):
     fn = mlrun.new_function("tests", kind="serving")
     graph = fn.set_topology("flow", engine="sync")

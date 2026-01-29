@@ -37,8 +37,8 @@ class AnotherClass(SomeClass):
 @pytest.mark.parametrize(
     "type_hint, expected_result",
     [
-        (typing.Optional[int], True),
-        (typing.Union[str, int], True),
+        (typing.Optional[int], True),  # noqa: UP007
+        (typing.Union[str, int], True),  # noqa: UP007
         (typing.List, True),  # noqa: UP006
         (typing.Tuple[int, str], True),  # noqa: UP006
         (tuple[int, str], True),
@@ -195,10 +195,10 @@ def test_parse_type_hint(type_string: str, expected_type: str | type):
     [
         (int, int, True, False, True),
         (int, str, True, True, False),
-        (typing.Union[int, str], typing.Union[str, int], True, True, True),
-        (typing.Union[int, str, bool], typing.Union[str, int], True, False, False),
-        (int, typing.Union[int, str], True, False, False),
-        (int, typing.Union[int, str], True, True, True),
+        (typing.Union[int, str], typing.Union[str, int], True, True, True),  # noqa: UP007
+        (typing.Union[int, str, bool], typing.Union[str, int], True, False, False),  # noqa: UP007
+        (int, typing.Union[int, str], True, False, False),  # noqa: UP007
+        (int, typing.Union[int, str], True, True, True),  # noqa: UP007
         (AnotherClass, SomeClass, True, False, True),
         (AnotherClass, SomeClass, False, False, False),
         (SomeClass, AnotherClass, True, False, False),
@@ -265,19 +265,19 @@ def test_is_matching(
         (typing.Literal["r", "w", 9], {str, int}),
         (typing.Literal, set()),
         # `typing.Union` usages:
-        (typing.Union[int, float], {int, float}),
+        (typing.Union[int, float], {int, float}),  # noqa: UP007
         (
-            typing.Union[int, float, typing.Union[str, list]],
+            typing.Union[int, float, str | list],  # noqa: UP007
             {int, float, str, list},
         ),
         (
-            typing.Union[int, str, list[tuple[int, str, SomeClass]]],
+            typing.Union[int, str, list[tuple[int, str, SomeClass]]],  # noqa: UP007
             {int, str, list[tuple[int, str, SomeClass]]},
         ),
         (typing.Union, set()),
         # `typing.Optional` usages:
-        (typing.Optional[int], {type(None), int}),
-        (typing.Optional[typing.Union[str, list]], {type(None), str, list}),
+        (typing.Optional[int], {type(None), int}),  # noqa: UP007, UP045
+        (typing.Optional[str | list], {type(None), str, list}),  # noqa: UP007, UP045
         (typing.Optional, set()),
         # `typing.Annotated` usages:
         (typing.Annotated[int, 3, 6], {int}),
@@ -290,8 +290,8 @@ def test_is_matching(
         (typing.Final, set()),
         # `typing.ClassVar` usages:
         (
-            typing.ClassVar[typing.Union[int, str, list[tuple[int, str, SomeClass]]]],
-            {typing.Union[int, str, list[tuple[int, str, SomeClass]]]},
+            typing.ClassVar[int | str | list[tuple[int, str, SomeClass]]],
+            {typing.Union[int, str, list[tuple[int, str, SomeClass]]]},  # noqa: UP007
         ),
         (typing.ClassVar, set()),
         # Other `typing`:

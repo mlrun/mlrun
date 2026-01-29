@@ -14,7 +14,7 @@
 
 import datetime
 from abc import ABC, abstractmethod
-from typing import Literal, Optional, Union
+from typing import Literal, Union
 
 import mlrun.alerts
 import mlrun.common
@@ -97,25 +97,24 @@ class RunDBInterface(ABC):
     @abstractmethod
     def list_runs(
         self,
-        name: Optional[str] = None,
-        uid: Optional[Union[str, list[str]]] = None,
-        project: Optional[str] = None,
-        labels: Optional[Union[str, dict[str, Optional[str]], list[str]]] = None,
-        states: Optional[list[mlrun.common.runtimes.constants.RunStates]] = None,
+        name: str | None = None,
+        uid: str | list[str] | None = None,
+        project: str | None = None,
+        labels: str | dict[str, str | None] | list[str] | None = None,
+        states: list[mlrun.common.runtimes.constants.RunStates] | None = None,
         sort: bool = True,
         iter: bool = False,
-        start_time_from: Optional[datetime.datetime] = None,
-        start_time_to: Optional[datetime.datetime] = None,
-        last_update_time_from: Optional[datetime.datetime] = None,
-        last_update_time_to: Optional[datetime.datetime] = None,
-        end_time_from: Optional[datetime.datetime] = None,
-        end_time_to: Optional[datetime.datetime] = None,
-        partition_by: Union[mlrun.common.schemas.RunPartitionByField, str] = None,
+        start_time_from: datetime.datetime | None = None,
+        start_time_to: datetime.datetime | None = None,
+        last_update_time_from: datetime.datetime | None = None,
+        last_update_time_to: datetime.datetime | None = None,
+        end_time_from: datetime.datetime | None = None,
+        end_time_to: datetime.datetime | None = None,
+        partition_by: mlrun.common.schemas.RunPartitionByField | str = None,
         rows_per_partition: int = 1,
-        partition_sort_by: Union[mlrun.common.schemas.SortField, str] = None,
-        partition_order: Union[
-            mlrun.common.schemas.OrderType, str
-        ] = mlrun.common.schemas.OrderType.desc,
+        partition_sort_by: mlrun.common.schemas.SortField | str = None,
+        partition_order: mlrun.common.schemas.OrderType
+        | str = mlrun.common.schemas.OrderType.desc,
         max_partitions: int = 0,
         with_notifications: bool = False,
     ):
@@ -125,9 +124,9 @@ class RunDBInterface(ABC):
     def paginated_list_runs(
         self,
         *args,
-        page: Optional[int] = None,
-        page_size: Optional[int] = None,
-        page_token: Optional[str] = None,
+        page: int | None = None,
+        page_size: int | None = None,
+        page_token: str | None = None,
         **kwargs,
     ):
         pass
@@ -141,8 +140,8 @@ class RunDBInterface(ABC):
         self,
         name: str = "",
         project: str = "",
-        labels: Optional[Union[str, dict[str, Optional[str]], list[str]]] = None,
-        state: Optional[mlrun.common.runtimes.constants.RunStates] = None,
+        labels: str | dict[str, str | None] | list[str] | None = None,
+        state: mlrun.common.runtimes.constants.RunStates | None = None,
         days_ago: int = 0,
     ):
         pass
@@ -175,29 +174,26 @@ class RunDBInterface(ABC):
     @abstractmethod
     def list_artifacts(
         self,
-        name: Optional[str] = "",
-        project: Optional[str] = "",
-        tag: Optional[str] = "",
-        labels: Optional[Union[str, dict[str, Optional[str]], list[str]]] = None,
+        name: str | None = "",
+        project: str | None = "",
+        tag: str | None = "",
+        labels: str | dict[str, str | None] | list[str] | None = None,
         since=None,
         until=None,
-        iter: Optional[int] = None,
+        iter: int | None = None,
         best_iteration: bool = False,
-        kind: Optional[str] = None,
-        category: Union[str, mlrun.common.schemas.ArtifactCategories] = None,
-        tree: Optional[str] = None,
-        parent: Optional[str] = None,
+        kind: str | None = None,
+        category: str | mlrun.common.schemas.ArtifactCategories = None,
+        tree: str | None = None,
+        parent: str | None = None,
         format_: mlrun.common.formatters.ArtifactFormat = mlrun.common.formatters.ArtifactFormat.full,
-        partition_by: Optional[
-            Union[mlrun.common.schemas.ArtifactPartitionByField, str]
-        ] = None,
+        partition_by: mlrun.common.schemas.ArtifactPartitionByField | str | None = None,
         rows_per_partition: int = 1,
-        partition_sort_by: Optional[
-            Union[mlrun.common.schemas.SortField, str]
-        ] = mlrun.common.schemas.SortField.updated,
-        partition_order: Union[
-            mlrun.common.schemas.OrderType, str
-        ] = mlrun.common.schemas.OrderType.desc,
+        partition_sort_by: mlrun.common.schemas.SortField
+        | str
+        | None = mlrun.common.schemas.SortField.updated,
+        partition_order: mlrun.common.schemas.OrderType
+        | str = mlrun.common.schemas.OrderType.desc,
     ):
         pass
 
@@ -205,9 +201,9 @@ class RunDBInterface(ABC):
     def paginated_list_artifacts(
         self,
         *args,
-        page: Optional[int] = None,
-        page_size: Optional[int] = None,
-        page_token: Optional[str] = None,
+        page: int | None = None,
+        page_size: int | None = None,
+        page_token: str | None = None,
         **kwargs,
     ):
         pass
@@ -223,7 +219,7 @@ class RunDBInterface(ABC):
         deletion_strategy: mlrun.common.schemas.artifact.ArtifactsDeletionStrategies = (
             mlrun.common.schemas.artifact.ArtifactsDeletionStrategies.metadata_only
         ),
-        secrets: Optional[dict] = None,
+        secrets: dict | None = None,
         iter=None,
     ):
         pass
@@ -231,10 +227,10 @@ class RunDBInterface(ABC):
     @abstractmethod
     def del_artifacts(
         self,
-        name: Optional[str] = "",
-        project: Optional[str] = "",
-        tag: Optional[str] = "",
-        labels: Optional[Union[str, dict[str, Optional[str]], list[str]]] = None,
+        name: str | None = "",
+        project: str | None = "",
+        tag: str | None = "",
+        labels: str | dict[str, str | None] | list[str] | None = None,
     ):
         pass
 
@@ -253,15 +249,15 @@ class RunDBInterface(ABC):
     @abstractmethod
     def list_functions(
         self,
-        name: Optional[str] = None,
-        project: Optional[str] = None,
-        tag: Optional[str] = None,
-        kind: Optional[str] = None,
-        labels: Optional[Union[str, dict[str, Optional[str]], list[str]]] = None,
-        states: Optional[list[mlrun.common.schemas.FunctionState]] = None,
+        name: str | None = None,
+        project: str | None = None,
+        tag: str | None = None,
+        kind: str | None = None,
+        labels: str | dict[str, str | None] | list[str] | None = None,
+        states: list[mlrun.common.schemas.FunctionState] | None = None,
         format_: mlrun.common.formatters.FunctionFormat = mlrun.common.formatters.FunctionFormat.full,
-        since: Optional[datetime.datetime] = None,
-        until: Optional[datetime.datetime] = None,
+        since: datetime.datetime | None = None,
+        until: datetime.datetime | None = None,
     ):
         pass
 
@@ -269,9 +265,9 @@ class RunDBInterface(ABC):
     def paginated_list_functions(
         self,
         *args,
-        page: Optional[int] = None,
-        page_size: Optional[int] = None,
-        page_token: Optional[str] = None,
+        page: int | None = None,
+        page_size: int | None = None,
+        page_token: str | None = None,
         **kwargs,
     ):
         pass
@@ -361,7 +357,7 @@ class RunDBInterface(ABC):
     def get_metrics_by_multiple_endpoints(
         self,
         project: str,
-        endpoint_ids: Union[str, list[str]],
+        endpoint_ids: str | list[str],
         type: Literal["results", "metrics", "all"] = "all",
         events_format: mm_constants.GetEventsFormat = mm_constants.GetEventsFormat.SEPARATION,
     ) -> dict[str, list[mm_endpoints.ModelEndpointMonitoringMetric]]:
@@ -402,9 +398,9 @@ class RunDBInterface(ABC):
     @abstractmethod
     def list_projects(
         self,
-        owner: Optional[str] = None,
+        owner: str | None = None,
         format_: mlrun.common.formatters.ProjectFormat = mlrun.common.formatters.ProjectFormat.name_only,
-        labels: Optional[Union[str, dict[str, Optional[str]], list[str]]] = None,
+        labels: str | dict[str, str | None] | list[str] | None = None,
         state: mlrun.common.schemas.ProjectState = None,
     ) -> mlrun.common.schemas.ProjectsOutput:
         pass
@@ -419,14 +415,14 @@ class RunDBInterface(ABC):
     def list_artifact_tags(
         self,
         project=None,
-        category: Union[str, mlrun.common.schemas.ArtifactCategories] = None,
+        category: str | mlrun.common.schemas.ArtifactCategories = None,
     ):
         pass
 
     @abstractmethod
     def create_feature_set(
         self,
-        feature_set: Union[dict, mlrun.common.schemas.FeatureSet],
+        feature_set: dict | mlrun.common.schemas.FeatureSet,
         project="",
         versioned=True,
     ) -> dict:
@@ -437,8 +433,8 @@ class RunDBInterface(ABC):
         self,
         name: str,
         project: str = "",
-        tag: Optional[str] = None,
-        uid: Optional[str] = None,
+        tag: str | None = None,
+        uid: str | None = None,
     ) -> dict:
         pass
 
@@ -446,10 +442,10 @@ class RunDBInterface(ABC):
     def list_features_v2(
         self,
         project: str,
-        name: Optional[str] = None,
-        tag: Optional[str] = None,
-        entities: Optional[list[str]] = None,
-        labels: Optional[Union[str, dict[str, Optional[str]], list[str]]] = None,
+        name: str | None = None,
+        tag: str | None = None,
+        entities: list[str] | None = None,
+        labels: str | dict[str, str | None] | list[str] | None = None,
     ) -> mlrun.common.schemas.FeaturesOutputV2:
         pass
 
@@ -457,9 +453,9 @@ class RunDBInterface(ABC):
     def list_entities_v2(
         self,
         project: str,
-        name: Optional[str] = None,
-        tag: Optional[str] = None,
-        labels: Optional[Union[str, dict[str, Optional[str]], list[str]]] = None,
+        name: str | None = None,
+        tag: str | None = None,
+        labels: str | dict[str, str | None] | list[str] | None = None,
     ) -> mlrun.common.schemas.EntitiesOutputV2:
         pass
 
@@ -467,30 +463,26 @@ class RunDBInterface(ABC):
     def list_feature_sets(
         self,
         project: str = "",
-        name: Optional[str] = None,
-        tag: Optional[str] = None,
-        state: Optional[str] = None,
-        entities: Optional[list[str]] = None,
-        features: Optional[list[str]] = None,
-        labels: Optional[Union[str, dict[str, Optional[str]], list[str]]] = None,
-        partition_by: Union[
-            mlrun.common.schemas.FeatureStorePartitionByField, str
-        ] = None,
+        name: str | None = None,
+        tag: str | None = None,
+        state: str | None = None,
+        entities: list[str] | None = None,
+        features: list[str] | None = None,
+        labels: str | dict[str, str | None] | list[str] | None = None,
+        partition_by: mlrun.common.schemas.FeatureStorePartitionByField | str = None,
         rows_per_partition: int = 1,
-        partition_sort_by: Union[mlrun.common.schemas.SortField, str] = None,
-        partition_order: Union[
-            mlrun.common.schemas.OrderType, str
-        ] = mlrun.common.schemas.OrderType.desc,
-        format_: Union[
-            str, mlrun.common.formatters.FeatureSetFormat
-        ] = mlrun.common.formatters.FeatureSetFormat.full,
+        partition_sort_by: mlrun.common.schemas.SortField | str = None,
+        partition_order: mlrun.common.schemas.OrderType
+        | str = mlrun.common.schemas.OrderType.desc,
+        format_: str
+        | mlrun.common.formatters.FeatureSetFormat = mlrun.common.formatters.FeatureSetFormat.full,
     ) -> list[dict]:
         pass
 
     @abstractmethod
     def store_feature_set(
         self,
-        feature_set: Union[dict, mlrun.common.schemas.FeatureSet],
+        feature_set: dict | mlrun.common.schemas.FeatureSet,
         name=None,
         project="",
         tag=None,
@@ -507,9 +499,8 @@ class RunDBInterface(ABC):
         project="",
         tag=None,
         uid=None,
-        patch_mode: Union[
-            str, mlrun.common.schemas.PatchMode
-        ] = mlrun.common.schemas.PatchMode.replace,
+        patch_mode: str
+        | mlrun.common.schemas.PatchMode = mlrun.common.schemas.PatchMode.replace,
     ):
         pass
 
@@ -520,7 +511,7 @@ class RunDBInterface(ABC):
     @abstractmethod
     def create_feature_vector(
         self,
-        feature_vector: Union[dict, mlrun.common.schemas.FeatureVector],
+        feature_vector: dict | mlrun.common.schemas.FeatureVector,
         project="",
         versioned=True,
     ) -> dict:
@@ -531,8 +522,8 @@ class RunDBInterface(ABC):
         self,
         name: str,
         project: str = "",
-        tag: Optional[str] = None,
-        uid: Optional[str] = None,
+        tag: str | None = None,
+        uid: str | None = None,
     ) -> dict:
         pass
 
@@ -540,25 +531,22 @@ class RunDBInterface(ABC):
     def list_feature_vectors(
         self,
         project: str = "",
-        name: Optional[str] = None,
-        tag: Optional[str] = None,
-        state: Optional[str] = None,
-        labels: Optional[Union[str, dict[str, Optional[str]], list[str]]] = None,
-        partition_by: Union[
-            mlrun.common.schemas.FeatureStorePartitionByField, str
-        ] = None,
+        name: str | None = None,
+        tag: str | None = None,
+        state: str | None = None,
+        labels: str | dict[str, str | None] | list[str] | None = None,
+        partition_by: mlrun.common.schemas.FeatureStorePartitionByField | str = None,
         rows_per_partition: int = 1,
-        partition_sort_by: Union[mlrun.common.schemas.SortField, str] = None,
-        partition_order: Union[
-            mlrun.common.schemas.OrderType, str
-        ] = mlrun.common.schemas.OrderType.desc,
+        partition_sort_by: mlrun.common.schemas.SortField | str = None,
+        partition_order: mlrun.common.schemas.OrderType
+        | str = mlrun.common.schemas.OrderType.desc,
     ) -> list[dict]:
         pass
 
     @abstractmethod
     def store_feature_vector(
         self,
-        feature_vector: Union[dict, mlrun.common.schemas.FeatureVector],
+        feature_vector: dict | mlrun.common.schemas.FeatureVector,
         name=None,
         project="",
         tag=None,
@@ -575,9 +563,8 @@ class RunDBInterface(ABC):
         project="",
         tag=None,
         uid=None,
-        patch_mode: Union[
-            str, mlrun.common.schemas.PatchMode
-        ] = mlrun.common.schemas.PatchMode.replace,
+        patch_mode: str
+        | mlrun.common.schemas.PatchMode = mlrun.common.schemas.PatchMode.replace,
     ):
         pass
 
@@ -589,12 +576,11 @@ class RunDBInterface(ABC):
     def get_pipeline(
         self,
         run_id: str,
-        namespace: Optional[str] = None,
+        namespace: str | None = None,
         timeout: int = 30,
-        format_: Union[
-            str, mlrun.common.formatters.PipelineFormat
-        ] = mlrun.common.formatters.PipelineFormat.summary,
-        project: Optional[str] = None,
+        format_: str
+        | mlrun.common.formatters.PipelineFormat = mlrun.common.formatters.PipelineFormat.summary,
+        project: str | None = None,
     ):
         pass
 
@@ -602,14 +588,13 @@ class RunDBInterface(ABC):
     def list_pipelines(
         self,
         project: str,
-        namespace: Optional[str] = None,
+        namespace: str | None = None,
         sort_by: str = "",
         page_token: str = "",
         filter_: str = "",
-        format_: Union[
-            str, mlrun.common.formatters.PipelineFormat
-        ] = mlrun.common.formatters.PipelineFormat.metadata_only,
-        page_size: Optional[int] = None,
+        format_: str
+        | mlrun.common.formatters.PipelineFormat = mlrun.common.formatters.PipelineFormat.metadata_only,
+        page_size: int | None = None,
     ) -> mlrun.common.schemas.PipelinesOutput:
         pass
 
@@ -617,10 +602,9 @@ class RunDBInterface(ABC):
     def create_project_secrets(
         self,
         project: str,
-        provider: Union[
-            str, mlrun.common.schemas.SecretProviderName
-        ] = mlrun.common.schemas.SecretProviderName.kubernetes,
-        secrets: Optional[dict] = None,
+        provider: str
+        | mlrun.common.schemas.SecretProviderName = mlrun.common.schemas.SecretProviderName.kubernetes,
+        secrets: dict | None = None,
     ):
         pass
 
@@ -634,7 +618,7 @@ class RunDBInterface(ABC):
         self,
         run_id: str,
         project: str,
-        namespace: Optional[str] = None,
+        namespace: str | None = None,
         timeout: int = 30,
         submit_mode: str = "",
     ):
@@ -645,10 +629,9 @@ class RunDBInterface(ABC):
         self,
         project: str,
         token: str,
-        provider: Union[
-            str, mlrun.common.schemas.SecretProviderName
-        ] = mlrun.common.schemas.SecretProviderName.kubernetes,
-        secrets: Optional[list[str]] = None,
+        provider: str
+        | mlrun.common.schemas.SecretProviderName = mlrun.common.schemas.SecretProviderName.kubernetes,
+        secrets: list[str] | None = None,
     ) -> mlrun.common.schemas.SecretsData:
         pass
 
@@ -656,10 +639,9 @@ class RunDBInterface(ABC):
     def list_project_secret_keys(
         self,
         project: str,
-        provider: Union[
-            str, mlrun.common.schemas.SecretProviderName
-        ] = mlrun.common.schemas.SecretProviderName.kubernetes,
-        token: Optional[str] = None,
+        provider: str
+        | mlrun.common.schemas.SecretProviderName = mlrun.common.schemas.SecretProviderName.kubernetes,
+        token: str | None = None,
     ) -> mlrun.common.schemas.SecretKeysData:
         pass
 
@@ -667,10 +649,9 @@ class RunDBInterface(ABC):
     def delete_project_secrets(
         self,
         project: str,
-        provider: Union[
-            str, mlrun.common.schemas.SecretProviderName
-        ] = mlrun.common.schemas.SecretProviderName.kubernetes,
-        secrets: Optional[list[str]] = None,
+        provider: str
+        | mlrun.common.schemas.SecretProviderName = mlrun.common.schemas.SecretProviderName.kubernetes,
+        secrets: list[str] | None = None,
     ):
         pass
 
@@ -678,9 +659,8 @@ class RunDBInterface(ABC):
     def create_model_endpoint(
         self,
         model_endpoint: mlrun.common.schemas.ModelEndpoint,
-        creation_strategy: Optional[
-            mm_constants.ModelEndpointCreationStrategy
-        ] = mm_constants.ModelEndpointCreationStrategy.INPLACE,
+        creation_strategy: mm_constants.ModelEndpointCreationStrategy
+        | None = mm_constants.ModelEndpointCreationStrategy.INPLACE,
     ) -> mlrun.common.schemas.ModelEndpoint:
         pass
 
@@ -689,9 +669,9 @@ class RunDBInterface(ABC):
         self,
         name: str,
         project: str,
-        function_name: Optional[str] = None,
-        function_tag: Optional[str] = None,
-        endpoint_id: Optional[str] = None,
+        function_name: str | None = None,
+        function_tag: str | None = None,
+        endpoint_id: str | None = None,
     ):
         pass
 
@@ -699,21 +679,21 @@ class RunDBInterface(ABC):
     def list_model_endpoints(
         self,
         project: str,
-        names: Optional[Union[str, list[str]]] = None,
-        function_name: Optional[str] = None,
-        function_tag: Optional[str] = None,
-        model_name: Optional[str] = None,
-        model_tag: Optional[str] = None,
-        labels: Optional[Union[str, dict[str, Optional[str]], list[str]]] = None,
-        start: Optional[datetime.datetime] = None,
-        end: Optional[datetime.datetime] = None,
+        names: str | list[str] | None = None,
+        function_name: str | None = None,
+        function_tag: str | None = None,
+        model_name: str | None = None,
+        model_tag: str | None = None,
+        labels: str | dict[str, str | None] | list[str] | None = None,
+        start: datetime.datetime | None = None,
+        end: datetime.datetime | None = None,
         tsdb_metrics: bool = False,
-        metric_list: Optional[list[str]] = None,
+        metric_list: list[str] | None = None,
         top_level: bool = False,
-        modes: Optional[
-            Union[mm_constants.EndpointMode, list[mm_constants.EndpointMode]]
-        ] = None,
-        uids: Optional[list[str]] = None,
+        modes: mm_constants.EndpointMode
+        | list[mm_constants.EndpointMode]
+        | None = None,
+        uids: list[str] | None = None,
         latest_only: bool = False,
     ) -> mlrun.common.schemas.ModelEndpointList:
         pass
@@ -723,11 +703,11 @@ class RunDBInterface(ABC):
         self,
         name: str,
         project: str,
-        function_name: Optional[str] = None,
-        function_tag: Optional[str] = None,
-        endpoint_id: Optional[str] = None,
+        function_name: str | None = None,
+        function_tag: str | None = None,
+        endpoint_id: str | None = None,
         tsdb_metrics: bool = True,
-        metric_list: Optional[list[str]] = None,
+        metric_list: list[str] | None = None,
         feature_analysis: bool = False,
     ) -> mlrun.common.schemas.ModelEndpoint:
         pass
@@ -738,32 +718,30 @@ class RunDBInterface(ABC):
         name: str,
         project: str,
         attributes: dict,
-        function_name: Optional[str] = None,
-        function_tag: Optional[str] = None,
-        endpoint_id: Optional[str] = None,
+        function_name: str | None = None,
+        function_tag: str | None = None,
+        endpoint_id: str | None = None,
     ) -> mlrun.common.schemas.ModelEndpoint:
         pass
 
     @abstractmethod
-    def create_hub_source(
-        self, source: Union[dict, mlrun.common.schemas.IndexedHubSource]
-    ):
+    def create_hub_source(self, source: dict | mlrun.common.schemas.IndexedHubSource):
         pass
 
     @abstractmethod
     def store_hub_source(
         self,
         source_name: str,
-        source: Union[dict, mlrun.common.schemas.IndexedHubSource],
+        source: dict | mlrun.common.schemas.IndexedHubSource,
     ):
         pass
 
     @abstractmethod
     def list_hub_sources(
         self,
-        item_name: Optional[str] = None,
-        tag: Optional[str] = None,
-        version: Optional[str] = None,
+        item_name: str | None = None,
+        tag: str | None = None,
+        version: str | None = None,
         item_type: mlrun.common.schemas.hub.HubSourceType = mlrun.common.schemas.hub.HubSourceType.functions,
     ):
         pass
@@ -780,8 +758,8 @@ class RunDBInterface(ABC):
     def get_hub_catalog(
         self,
         source_name: str,
-        version: Optional[str] = None,
-        tag: Optional[str] = None,
+        version: str | None = None,
+        tag: str | None = None,
         force_refresh: bool = False,
         object_type: mlrun.common.schemas.hub.HubSourceType = mlrun.common.schemas.hub.HubSourceType.functions,
     ):
@@ -792,7 +770,7 @@ class RunDBInterface(ABC):
         self,
         source_name: str,
         item_name: str,
-        version: Optional[str] = None,
+        version: str | None = None,
         tag: str = "latest",
         force_refresh: bool = False,
         item_type: mlrun.common.schemas.hub.HubSourceType = mlrun.common.schemas.hub.HubSourceType.functions,
@@ -805,7 +783,7 @@ class RunDBInterface(ABC):
         source_name: str,
         item_name: str,
         asset_name: str,
-        version: Optional[str] = None,
+        version: str | None = None,
         tag: str = "latest",
         item_type: mlrun.common.schemas.hub.HubSourceType = mlrun.common.schemas.hub.HubSourceType.functions,
     ):
@@ -825,7 +803,7 @@ class RunDBInterface(ABC):
             mlrun.common.schemas.APIGateway,
             "mlrun.runtimes.nuclio.api_gateway.APIGateway",
         ],
-        project: Optional[str] = None,
+        project: str | None = None,
     ):
         pass
 
@@ -846,9 +824,9 @@ class RunDBInterface(ABC):
         self,
         func: "mlrun.runtimes.BaseRuntime",
         with_mlrun: bool,
-        mlrun_version_specifier: Optional[str] = None,
+        mlrun_version_specifier: str | None = None,
         skip_deployed: bool = False,
-        builder_env: Optional[dict] = None,
+        builder_env: dict | None = None,
         force_build: bool = False,
     ):
         pass
@@ -857,13 +835,13 @@ class RunDBInterface(ABC):
     def deploy_nuclio_function(
         self,
         func: "mlrun.runtimes.RemoteRuntime",
-        builder_env: Optional[dict] = None,
+        builder_env: dict | None = None,
     ):
         pass
 
     @abstractmethod
     def generate_event(
-        self, name: str, event_data: Union[dict, mlrun.common.schemas.Event], project=""
+        self, name: str, event_data: dict | mlrun.common.schemas.Event, project=""
     ):
         pass
 
@@ -871,7 +849,7 @@ class RunDBInterface(ABC):
     def store_alert_config(
         self,
         alert_name: str,
-        alert_data: Union[dict, mlrun.alerts.alert.AlertConfig],
+        alert_data: dict | mlrun.alerts.alert.AlertConfig,
         project="",
         force_reset: bool = False,
     ):
@@ -883,7 +861,7 @@ class RunDBInterface(ABC):
 
     @abstractmethod
     def list_alerts_configs(
-        self, project="", limit: Optional[int] = None, offset: Optional[int] = None
+        self, project="", limit: int | None = None, offset: int | None = None
     ):
         pass
 
@@ -906,18 +884,14 @@ class RunDBInterface(ABC):
     @abstractmethod
     def list_alert_activations(
         self,
-        project: Optional[str] = None,
-        name: Optional[str] = None,
-        since: Optional[datetime.datetime] = None,
-        until: Optional[datetime.datetime] = None,
-        entity: Optional[str] = None,
-        severity: Optional[
-            list[Union[mlrun.common.schemas.alert.AlertSeverity, str]]
-        ] = None,
-        entity_kind: Optional[
-            Union[mlrun.common.schemas.alert.EventEntityKind, str]
-        ] = None,
-        event_kind: Optional[Union[mlrun.common.schemas.alert.EventKind, str]] = None,
+        project: str | None = None,
+        name: str | None = None,
+        since: datetime.datetime | None = None,
+        until: datetime.datetime | None = None,
+        entity: str | None = None,
+        severity: list[mlrun.common.schemas.alert.AlertSeverity | str] | None = None,
+        entity_kind: mlrun.common.schemas.alert.EventEntityKind | str | None = None,
+        event_kind: mlrun.common.schemas.alert.EventKind | str | None = None,
     ):
         pass
 
@@ -925,9 +899,9 @@ class RunDBInterface(ABC):
     def paginated_list_alert_activations(
         self,
         *args,
-        page: Optional[int] = None,
-        page_size: Optional[int] = None,
-        page_token: Optional[str] = None,
+        page: int | None = None,
+        page_size: int | None = None,
+        page_token: str | None = None,
         **kwargs,
     ):
         pass
@@ -983,7 +957,7 @@ class RunDBInterface(ABC):
         self,
         notification_objects: list[mlrun.model.Notification],
         run_uid: str,
-        project: Optional[str] = None,
+        project: str | None = None,
         mask_params: bool = True,
     ):
         pass
@@ -1010,7 +984,7 @@ class RunDBInterface(ABC):
     @abstractmethod
     def get_datastore_profile(
         self, name: str, project: str
-    ) -> Optional[mlrun.common.schemas.DatastoreProfile]:
+    ) -> mlrun.common.schemas.DatastoreProfile | None:
         pass
 
     @abstractmethod
@@ -1038,7 +1012,7 @@ class RunDBInterface(ABC):
     @abstractmethod
     def start_function(
         self,
-        func_url: Optional[str] = None,
+        func_url: str | None = None,
         function: "mlrun.runtimes.BaseRuntime" = None,
     ):
         pass
@@ -1060,12 +1034,12 @@ class RunDBInterface(ABC):
             "mlrun.common.schemas.WorkflowSpec",
             dict,
         ],
-        arguments: Optional[dict] = None,
-        artifact_path: Optional[str] = None,
-        source: Optional[str] = None,
-        run_name: Optional[str] = None,
-        namespace: Optional[str] = None,
-        notifications: Optional[list["mlrun.model.Notification"]] = None,
+        arguments: dict | None = None,
+        artifact_path: str | None = None,
+        source: str | None = None,
+        run_name: str | None = None,
+        namespace: str | None = None,
+        notifications: list["mlrun.model.Notification"] | None = None,
     ) -> "mlrun.common.schemas.WorkflowResponse":
         pass
 
@@ -1097,7 +1071,7 @@ class RunDBInterface(ABC):
         delete_stream_function: bool = False,
         delete_histogram_data_drift_app: bool = True,
         delete_user_applications: bool = False,
-        user_application_list: Optional[list[str]] = None,
+        user_application_list: list[str] | None = None,
     ) -> bool:
         pass
 
@@ -1111,7 +1085,7 @@ class RunDBInterface(ABC):
     def set_model_monitoring_credentials(
         self,
         project: str,
-        credentials: dict[str, Optional[str]],
+        credentials: dict[str, str | None],
         replace_creds: bool,
     ) -> None:
         pass
@@ -1121,7 +1095,7 @@ class RunDBInterface(ABC):
         self,
         project: str,
         application_name: str,
-        endpoint_ids: Optional[list[str]] = None,
+        endpoint_ids: list[str] | None = None,
     ) -> None:
         pass
 
@@ -1129,10 +1103,10 @@ class RunDBInterface(ABC):
     def get_monitoring_function_summaries(
         self,
         project: str,
-        start: Optional[datetime.datetime] = None,
-        end: Optional[datetime.datetime] = None,
-        names: Optional[Union[list[str], str]] = None,
-        labels: Optional[Union[str, dict[str, Optional[str]], list[str]]] = None,
+        start: datetime.datetime | None = None,
+        end: datetime.datetime | None = None,
+        names: list[str] | str | None = None,
+        labels: str | dict[str, str | None] | list[str] | None = None,
         include_stats: bool = False,
         include_infra: bool = True,
     ) -> list[mlrun.common.schemas.model_monitoring.FunctionSummary]:
@@ -1143,8 +1117,8 @@ class RunDBInterface(ABC):
         self,
         project: str,
         function_name: str,
-        start: Optional[datetime.datetime] = None,
-        end: Optional[datetime.datetime] = None,
+        start: datetime.datetime | None = None,
+        end: datetime.datetime | None = None,
         include_latest_metrics: bool = False,
     ) -> mlrun.common.schemas.model_monitoring.FunctionSummary:
         pass
@@ -1157,8 +1131,8 @@ class RunDBInterface(ABC):
     def get_drift_over_time(
         self,
         project: str,
-        start: Optional[datetime.datetime] = None,
-        end: Optional[datetime.datetime] = None,
+        start: datetime.datetime | None = None,
+        end: datetime.datetime | None = None,
     ) -> mlrun.common.schemas.model_monitoring.ModelEndpointDriftValues:
         pass
 
@@ -1183,13 +1157,13 @@ class RunDBInterface(ABC):
     @abstractmethod
     def list_secret_tokens(
         self,
-        username: Optional[str] = None,
+        username: str | None = None,
     ) -> mlrun.common.schemas.ListSecretTokensResponse:
         pass
 
     @abstractmethod
     def delete_secret_token(
-        self, token_name: str, username: Optional[str] = None
+        self, token_name: str, username: str | None = None
     ) -> mlrun.common.schemas.DeleteSecretTokenResponse:
         pass
 
@@ -1197,6 +1171,6 @@ class RunDBInterface(ABC):
     def get_secret_token(
         self,
         token_name: str,
-        username: Optional[str] = None,
+        username: str | None = None,
     ) -> mlrun.common.schemas.SecretToken:
         pass

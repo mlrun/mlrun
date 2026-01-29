@@ -102,7 +102,7 @@ def mask_notification_params_on_task_object(
 def unmask_notification_params_secret_on_task(
     db: framework.db.base.DBInterface,
     db_session: Session,
-    run: typing.Union[dict, mlrun.model.RunObject],
+    run: dict | mlrun.model.RunObject,
 ):
     if isinstance(run, dict):
         run = mlrun.model.RunObject.from_dict(run)
@@ -172,7 +172,7 @@ def unmask_notification_params_secret(
 
 def validate_and_mask_notification_list(
     notifications: list[
-        typing.Union[mlrun.model.Notification, mlrun.common.schemas.Notification, dict]
+        mlrun.model.Notification | mlrun.common.schemas.Notification | dict
     ],
     parent: str,
     project: str,

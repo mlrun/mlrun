@@ -14,7 +14,6 @@
 
 from collections.abc import Callable
 from datetime import datetime
-from typing import Optional, Union
 
 import torch
 from torch import Tensor
@@ -64,13 +63,11 @@ class _PyTorchTensorboardLogger(TensorboardLogger):
 
     def __init__(
         self,
-        statistics_functions: list[
-            Callable[[Union[Parameter]], Union[float, Parameter]]
-        ],
+        statistics_functions: list[Callable[[Parameter], float | Parameter]],
         context: mlrun.MLClientCtx = None,
-        tensorboard_directory: Optional[str] = None,
-        run_name: Optional[str] = None,
-        update_frequency: Union[int, str] = "epoch",
+        tensorboard_directory: str | None = None,
+        run_name: str | None = None,
+        update_frequency: int | str = "epoch",
     ):
         """
         Initialize a tensorboard logger callback with the given configuration. At least one of 'context' and
@@ -248,30 +245,20 @@ class TensorboardLoggingCallback(LoggingCallback):
     def __init__(
         self,
         context: mlrun.MLClientCtx = None,
-        tensorboard_directory: Optional[str] = None,
-        run_name: Optional[str] = None,
-        weights: Union[bool, list[str]] = False,
-        statistics_functions: Optional[
-            list[Callable[[Union[Parameter, Tensor]], Union[float, Tensor]]]
-        ] = None,
-        dynamic_hyperparameters: Optional[
-            dict[
-                str,
-                tuple[
-                    str,
-                    Union[
-                        list[Union[str, int]], Callable[[], PyTorchTypes.TrackableType]
-                    ],
-                ],
-            ]
-        ] = None,
-        static_hyperparameters: Optional[
-            dict[
-                str,
-                Union[PyTorchTypes.TrackableType, tuple[str, list[Union[str, int]]]],
-            ]
-        ] = None,
-        update_frequency: Union[int, str] = "epoch",
+        tensorboard_directory: str | None = None,
+        run_name: str | None = None,
+        weights: bool | list[str] = False,
+        statistics_functions: list[Callable[[Parameter | Tensor], float | Tensor]]
+        | None = None,
+        dynamic_hyperparameters: dict[
+            str, tuple[str, list[str | int] | Callable[[], PyTorchTypes.TrackableType]]
+        ]
+        | None = None,
+        static_hyperparameters: dict[
+            str, PyTorchTypes.TrackableType | tuple[str, list[str | int]]
+        ]
+        | None = None,
+        update_frequency: int | str = "epoch",
         auto_log: bool = False,
     ):
         """
@@ -373,7 +360,7 @@ class TensorboardLoggingCallback(LoggingCallback):
 
     @staticmethod
     def get_default_weight_statistics_list() -> (
-        list[Callable[[Union[Parameter, Tensor]], Union[float, Tensor]]]
+        list[Callable[[Parameter | Tensor], float | Tensor]]
     ):
         """
         Get the default list of statistics functions being applied on the tracked weights each epoch.
@@ -389,7 +376,7 @@ class TensorboardLoggingCallback(LoggingCallback):
         validation_set: DataLoader = None,
         loss_function: Module = None,
         optimizer: Optimizer = None,
-        metric_functions: Optional[list[PyTorchTypes.MetricFunctionType]] = None,
+        metric_functions: list[PyTorchTypes.MetricFunctionType] | None = None,
         scheduler=None,
     ):
         """

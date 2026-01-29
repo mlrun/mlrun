@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from collections.abc import Awaitable, Callable
-from typing import Any, Optional, Union
+from typing import Any
 
 import mlrun.errors
 from mlrun.common.types import StrEnum
@@ -72,8 +72,8 @@ class ModelProvider(BaseRemoteClient):
         kind,
         name,
         endpoint="",
-        secrets: Optional[dict] = None,
-        default_invoke_kwargs: Optional[dict] = None,
+        secrets: dict | None = None,
+        default_invoke_kwargs: dict | None = None,
     ):
         super().__init__(
             parent=parent, name=name, kind=kind, endpoint=endpoint, secrets=secrets
@@ -84,7 +84,7 @@ class ModelProvider(BaseRemoteClient):
 
     @staticmethod
     def _validate_and_detect_batch_invocation(
-        messages: Union[list[dict], list[list[dict]]],
+        messages: list[dict] | list[list[dict]],
     ) -> bool:
         """
         Validate messages format and detect if this is a batch invocation.
@@ -131,7 +131,7 @@ class ModelProvider(BaseRemoteClient):
         response: Any,
         invoke_response_format: InvokeResponseFormat = InvokeResponseFormat.FULL,
         **kwargs,
-    ) -> Union[str, dict, Any]:
+    ) -> str | dict | Any:
         """
         Handles the model response according to the specified response format.
 
@@ -180,7 +180,7 @@ class ModelProvider(BaseRemoteClient):
         return self._client
 
     @property
-    def model(self) -> Optional[str]:
+    def model(self) -> str | None:
         """
         Returns the model identifier used by the underlying SDK.
 
@@ -201,9 +201,7 @@ class ModelProvider(BaseRemoteClient):
             )
         return self._async_client
 
-    def custom_invoke(
-        self, operation: Optional[Callable] = None, **invoke_kwargs
-    ) -> Any:
+    def custom_invoke(self, operation: Callable | None = None, **invoke_kwargs) -> Any:
         """
         Invokes a model operation from a provider (e.g., OpenAI, Hugging Face, etc.) with the given keyword arguments.
 
@@ -217,7 +215,7 @@ class ModelProvider(BaseRemoteClient):
         raise NotImplementedError("custom_invoke method is not implemented")
 
     async def async_custom_invoke(
-        self, operation: Optional[Callable[..., Awaitable[Any]]] = None, **invoke_kwargs
+        self, operation: Callable[..., Awaitable[Any]] | None = None, **invoke_kwargs
     ) -> Any:
         """
         Asynchronously invokes a model operation from a provider (e.g., OpenAI, Hugging Face, etc.)
@@ -233,10 +231,10 @@ class ModelProvider(BaseRemoteClient):
 
     def invoke(
         self,
-        messages: Union[list[dict], list[list[dict]]],
+        messages: list[dict] | list[list[dict]],
         invoke_response_format: InvokeResponseFormat = InvokeResponseFormat.FULL,
         **invoke_kwargs,
-    ) -> Union[str, dict[str, Any], Any]:
+    ) -> str | dict[str, Any] | Any:
         """
         Invokes a generative AI model with the provided messages and additional parameters.
         This method is designed to be a flexible interface for interacting with various
@@ -298,10 +296,10 @@ class ModelProvider(BaseRemoteClient):
 
     async def async_invoke(
         self,
-        messages: Union[list[dict], list[list[dict]]],
+        messages: list[dict] | list[list[dict]],
         invoke_response_format=InvokeResponseFormat.FULL,
         **invoke_kwargs,
-    ) -> Union[str, dict[str, Any], Any]:
+    ) -> str | dict[str, Any] | Any:
         """
         Asynchronously invokes a generative AI model with the provided messages and additional parameters.
         This method is designed to be a flexible interface for interacting with various

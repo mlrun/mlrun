@@ -26,9 +26,9 @@ from .config import config as mlconfig
 
 _running_inside_kubernetes_cluster = None
 
-K8sObj = typing.Union[kubernetes.client.V1Affinity, kubernetes.client.V1Toleration]
+K8sObj = kubernetes.client.V1Affinity | kubernetes.client.V1Toleration
 SanitizedK8sObj = dict[str, typing.Any]
-K8sObjList = typing.Union[list[K8sObj], list[SanitizedK8sObj]]
+K8sObjList = list[K8sObj] | list[SanitizedK8sObj]
 
 
 def is_running_inside_kubernetes_cluster():
@@ -237,8 +237,8 @@ def validate_node_selectors(
 
 
 def sanitize_k8s_objects(
-    k8s_objects: typing.Union[None, K8sObjList, SanitizedK8sObj, K8sObj],
-) -> typing.Union[list[SanitizedK8sObj], SanitizedK8sObj]:
+    k8s_objects: None | K8sObjList | SanitizedK8sObj | K8sObj,
+) -> list[SanitizedK8sObj] | SanitizedK8sObj:
     """Convert K8s objects to dicts. Handles single objects or lists."""
     api_client = kubernetes.client.ApiClient()
     if not k8s_objects:
@@ -259,11 +259,11 @@ def sanitize_k8s_objects(
 
 
 def sanitize_scheduling_configuration(
-    tolerations: typing.Optional[list[kubernetes.client.V1Toleration]] = None,
-    affinity: typing.Optional[kubernetes.client.V1Affinity] = None,
+    tolerations: list[kubernetes.client.V1Toleration] | None = None,
+    affinity: kubernetes.client.V1Affinity | None = None,
 ) -> tuple[
-    typing.Optional[list[dict]],
-    typing.Optional[dict],
+    list[dict] | None,
+    dict | None,
 ]:
     """
     Sanitizes pod scheduling configuration for serialization.
@@ -285,14 +285,14 @@ def sanitize_scheduling_configuration(
 
 
 def enrich_preemption_mode(
-    preemption_mode: typing.Optional[str],
+    preemption_mode: str | None,
     node_selector: dict[str, str],
     tolerations: list[kubernetes.client.V1Toleration],
-    affinity: typing.Optional[kubernetes.client.V1Affinity],
+    affinity: kubernetes.client.V1Affinity | None,
 ) -> tuple[
     dict[str, str],
     list[kubernetes.client.V1Toleration],
-    typing.Optional[kubernetes.client.V1Affinity],
+    kubernetes.client.V1Affinity | None,
 ]:
     """
     Enriches a pod spec's scheduling configuration (node selector, tolerations, affinity)
@@ -402,12 +402,12 @@ def _get_mode_handler(mode: str):
 def _handle_prevent_mode(
     node_selector: dict[str, str],
     tolerations: list[kubernetes.client.V1Toleration],
-    affinity: typing.Optional[kubernetes.client.V1Affinity],
+    affinity: kubernetes.client.V1Affinity | None,
     preemptible_tolerations: list[kubernetes.client.V1Toleration],
 ) -> tuple[
     dict[str, str],
     list[kubernetes.client.V1Toleration],
-    typing.Optional[kubernetes.client.V1Affinity],
+    kubernetes.client.V1Affinity | None,
 ]:
     # Ensure no preemptible node tolerations
     tolerations = [t for t in tolerations if t not in preemptible_tolerations]
@@ -441,12 +441,12 @@ def _handle_prevent_mode(
 def _handle_constrain_mode(
     node_selector: dict[str, str],
     tolerations: list[kubernetes.client.V1Toleration],
-    affinity: typing.Optional[kubernetes.client.V1Affinity],
+    affinity: kubernetes.client.V1Affinity | None,
     preemptible_tolerations: list[kubernetes.client.V1Toleration],
 ) -> tuple[
     dict[str, str],
     list[kubernetes.client.V1Toleration],
-    typing.Optional[kubernetes.client.V1Affinity],
+    kubernetes.client.V1Affinity | None,
 ]:
     tolerations = _merge_tolerations(tolerations, preemptible_tolerations)
 
@@ -463,12 +463,12 @@ def _handle_constrain_mode(
 def _handle_allow_mode(
     node_selector: dict[str, str],
     tolerations: list[kubernetes.client.V1Toleration],
-    affinity: typing.Optional[kubernetes.client.V1Affinity],
+    affinity: kubernetes.client.V1Affinity | None,
     preemptible_tolerations: list[kubernetes.client.V1Toleration],
 ) -> tuple[
     dict[str, str],
     list[kubernetes.client.V1Toleration],
-    typing.Optional[kubernetes.client.V1Affinity],
+    kubernetes.client.V1Affinity | None,
 ]:
     tolerations = _merge_tolerations(tolerations, preemptible_tolerations)
     return node_selector, tolerations, affinity
@@ -506,7 +506,7 @@ def _prune_node_selector(
 
 def _prune_affinity_node_selector_requirement(
     node_selector_requirements: list[kubernetes.client.V1NodeSelectorRequirement],
-    affinity: typing.Optional[kubernetes.client.V1Affinity],
+    affinity: kubernetes.client.V1Affinity | None,
 ):
     """
     Prunes given node selector requirements from affinity.
@@ -593,7 +593,7 @@ def _prune_node_selector_requirements_from_node_selector_terms(
 
 def _override_required_during_scheduling_ignored_during_execution(
     node_selector: kubernetes.client.V1NodeSelector,
-    affinity: typing.Optional[kubernetes.client.V1Affinity],
+    affinity: kubernetes.client.V1Affinity | None,
 ):
     affinity = _initialize_affinity(affinity)
     affinity = _initialize_node_affinity(affinity)
@@ -604,13 +604,13 @@ def _override_required_during_scheduling_ignored_during_execution(
 
 
 def _initialize_affinity(
-    affinity: typing.Optional[kubernetes.client.V1Affinity],
+    affinity: kubernetes.client.V1Affinity | None,
 ) -> kubernetes.client.V1Affinity:
     return affinity or kubernetes.client.V1Affinity()
 
 
 def _initialize_node_affinity(
-    affinity: typing.Optional[kubernetes.client.V1Affinity],
+    affinity: kubernetes.client.V1Affinity | None,
 ) -> kubernetes.client.V1Affinity:
     affinity = affinity or kubernetes.client.V1Affinity()
     affinity.node_affinity = (
@@ -620,8 +620,8 @@ def _initialize_node_affinity(
 
 
 def _prune_empty_affinity(
-    affinity: typing.Optional[kubernetes.client.V1Affinity],
-) -> typing.Optional[kubernetes.client.V1Affinity]:
+    affinity: kubernetes.client.V1Affinity | None,
+) -> kubernetes.client.V1Affinity | None:
     """
     Return None if the given affinity object has no meaningful constraints.
 

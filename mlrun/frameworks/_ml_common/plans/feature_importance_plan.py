@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Union
 
 import numpy as np
 import plotly.graph_objects as go
@@ -99,7 +98,7 @@ class FeatureImportancePlan(MLPlotPlan):
         return self._artifacts
 
     @staticmethod
-    def _get_importance_score(model: MLTypes.ModelType) -> Union[np.ndarray, None]:
+    def _get_importance_score(model: MLTypes.ModelType) -> np.ndarray | None:
         """
         Get the features importance score of the model. If the model do not hold the scores, None will be returned.
 

@@ -14,7 +14,6 @@
 
 import time
 import warnings
-from typing import Optional
 from urllib.parse import urlparse
 
 import boto3
@@ -54,9 +53,7 @@ class S3Store(DataStore):
 
         return None
 
-    def __init__(
-        self, parent, schema, name, endpoint="", secrets: Optional[dict] = None
-    ):
+    def __init__(self, parent, schema, name, endpoint="", secrets: dict | None = None):
         super().__init__(parent, name, schema, endpoint, secrets)
         # will be used in case user asks to assume a role and work through fsspec
         self._temp_credentials = None

@@ -13,7 +13,6 @@
 # limitations under the License.
 
 from http import HTTPStatus
-from typing import Optional
 
 from fastapi import APIRouter, Depends, Query, Response
 from fastapi.concurrency import run_in_threadpool
@@ -97,9 +96,9 @@ async def store_artifact(
     project: str,
     artifact: mlrun.common.schemas.Artifact,
     key: str,
-    tree: Optional[str] = None,
-    tag: Optional[str] = None,
-    iter: Optional[int] = None,
+    tree: str | None = None,
+    tag: str | None = None,
+    iter: int | None = None,
     object_uid: str = Query(None, alias="object-uid"),
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
@@ -164,27 +163,27 @@ async def store_artifact(
 @router.get("/projects/{project}/artifacts")
 async def list_artifacts(
     project: str,
-    name: Optional[str] = None,
-    tag: Optional[str] = None,
-    kind: Optional[str] = None,
+    name: str | None = None,
+    tag: str | None = None,
+    kind: str | None = None,
     category: mlrun.common.schemas.ArtifactCategories = None,
     labels: list[str] = Query([], alias="label"),
     iter: int = Query(None, ge=0),
-    tree: Optional[str] = None,
-    producer_uri: Optional[str] = None,
+    tree: str | None = None,
+    producer_uri: str | None = None,
     best_iteration: bool = Query(False, alias="best-iteration"),
-    parent: Optional[str] = Query(None),
+    parent: str | None = Query(None),
     format_: str = Query(mlrun.common.formatters.ArtifactFormat.full, alias="format"),
-    since: Optional[str] = None,
-    until: Optional[str] = None,
-    partition_by: Optional[mlrun.common.schemas.ArtifactPartitionByField] = Query(
+    since: str | None = None,
+    until: str | None = None,
+    partition_by: mlrun.common.schemas.ArtifactPartitionByField | None = Query(
         None, alias="partition-by"
     ),
-    rows_per_partition: Optional[int] = Query(1, alias="rows-per-partition", gt=0),
-    partition_sort_by: Optional[mlrun.common.schemas.SortField] = Query(
+    rows_per_partition: int | None = Query(1, alias="rows-per-partition", gt=0),
+    partition_sort_by: mlrun.common.schemas.SortField | None = Query(
         mlrun.common.schemas.SortField.updated, alias="partition-sort-by"
     ),
-    partition_order: Optional[mlrun.common.schemas.OrderType] = Query(
+    partition_order: mlrun.common.schemas.OrderType | None = Query(
         mlrun.common.schemas.OrderType.desc, alias="partition-order"
     ),
     page: int = Query(None, gt=0),
@@ -246,9 +245,9 @@ async def list_artifacts(
 async def get_artifact(
     project: str,
     key: str,
-    tree: Optional[str] = None,
-    tag: Optional[str] = None,
-    iter: Optional[int] = None,
+    tree: str | None = None,
+    tag: str | None = None,
+    iter: int | None = None,
     object_uid: str = Query(None, alias="object-uid"),
     format_: str = Query(mlrun.common.formatters.ArtifactFormat.full, alias="format"),
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
@@ -295,12 +294,12 @@ async def get_artifact(
 async def delete_artifact(
     project: str,
     key: str,
-    tree: Optional[str] = None,
-    tag: Optional[str] = None,
+    tree: str | None = None,
+    tag: str | None = None,
     object_uid: str = Query(None, alias="object-uid"),
     iteration: int = Query(None, alias="iter"),
     deletion_strategy: ArtifactsDeletionStrategies = ArtifactsDeletionStrategies.metadata_only,
-    secrets: Optional[dict] = None,
+    secrets: dict | None = None,
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
 ):
@@ -342,10 +341,10 @@ async def delete_artifact(
 
 @router.delete("/projects/{project}/artifacts")
 async def delete_artifacts(
-    project: Optional[str] = None,
+    project: str | None = None,
     name: str = "",
     tag: str = "",
-    tree: Optional[str] = None,
+    tree: str | None = None,
     labels: list[str] = Query([], alias="label"),
     limit: int = Query(None),
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),

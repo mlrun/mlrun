@@ -14,11 +14,10 @@
 import enum
 import http
 import re
-import typing
 import warnings
 from collections.abc import Callable
 from os import environ
-from typing import Optional, Union
+from typing import Union
 
 import requests.exceptions
 from nuclio.build import mlrun_footer
@@ -602,11 +601,11 @@ class BaseRuntime(ModelObj):
 
     def _update_run_state(
         self,
-        resp: Optional[dict] = None,
+        resp: dict | None = None,
         task: RunObject = None,
-        err: Optional[Union[Exception, str]] = None,
+        err: Exception | str | None = None,
         run_format: mlrun.common.formatters.RunFormat = mlrun.common.formatters.RunFormat.full,
-    ) -> typing.Optional[dict]:
+    ) -> dict | None:
         """update the task state in the DB"""
         was_none = False
         if resp is None and task:
@@ -709,8 +708,8 @@ class BaseRuntime(ModelObj):
     def full_image_path(
         self,
         image=None,
-        client_version: Optional[str] = None,
-        client_python_version: Optional[str] = None,
+        client_version: str | None = None,
+        client_python_version: str | None = None,
     ):
         image = image or self.spec.image or ""
 
@@ -731,11 +730,11 @@ class BaseRuntime(ModelObj):
 
     def as_step(
         self,
-        runspec: Union[RunObject, RunTemplate] = None,
+        runspec: RunObject | RunTemplate = None,
         handler=None,
         name: str = "",
         project: str = "",
-        params: Optional[dict] = None,
+        params: dict | None = None,
         hyperparams=None,
         selector="",
         hyper_param_options: HyperParamOptions = None,
@@ -744,11 +743,11 @@ class BaseRuntime(ModelObj):
         workdir: str = "",
         artifact_path: str = "",
         image: str = "",
-        labels: Optional[dict] = None,
+        labels: dict | None = None,
         use_db=True,
         verbose=None,
         scrape_metrics=False,
-        returns: Optional[list[Union[str, dict[str, str]]]] = None,
+        returns: list[str | dict[str, str]] | None = None,
         auto_build: bool = False,
     ):
         """Run a local or remote task.
@@ -865,10 +864,10 @@ class BaseRuntime(ModelObj):
 
     def with_requirements(
         self,
-        requirements: Optional[list[str]] = None,
+        requirements: list[str] | None = None,
         overwrite: bool = False,
         prepare_image_for_deploy: bool = True,
-        requirements_file: Optional[str] = "",
+        requirements_file: str | None = "",
     ):
         """add package requirements from file or list to build spec.
 

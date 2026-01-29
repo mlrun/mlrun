@@ -41,9 +41,9 @@ class EventStreamProcessor:
         parquet_batching_max_events: int,
         parquet_batching_timeout_secs: int,
         parquet_target: str,
-        aggregate_windows: typing.Optional[list[str]] = None,
+        aggregate_windows: list[str] | None = None,
         aggregate_period: str = "5m",
-        model_monitoring_access_key: typing.Optional[str] = None,
+        model_monitoring_access_key: str | None = None,
     ):
         # General configurations, mainly used for the storey steps in the future serving graph
         self.project = project
@@ -71,10 +71,10 @@ class EventStreamProcessor:
         self,
         tsdb_batching_max_events: int = 10,
         tsdb_batching_timeout_secs: int = 60 * 5,  # Default 5 minutes
-        v3io_access_key: typing.Optional[str] = None,
-        v3io_framesd: typing.Optional[str] = None,
-        v3io_api: typing.Optional[str] = None,
-        model_monitoring_access_key: typing.Optional[str] = None,
+        v3io_access_key: str | None = None,
+        v3io_framesd: str | None = None,
+        v3io_api: str | None = None,
+        model_monitoring_access_key: str | None = None,
     ):
         # Get the V3IO configurations
         self.v3io_framesd = v3io_framesd or mlrun.mlconf.v3io_framesd
@@ -212,8 +212,7 @@ class EventStreamProcessor:
                 "storey.Filter",
                 "ForwardNOP",
                 after="filter_none",
-                _fn="(isinstance(event, dict) and event.get('kind', "
-                ") == 'nop_event')",
+                _fn="(isinstance(event, dict) and event.get('kind', ) == 'nop_event')",
             )
 
             # flatten the events

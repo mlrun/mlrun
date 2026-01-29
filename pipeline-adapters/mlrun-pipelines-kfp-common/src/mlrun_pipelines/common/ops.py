@@ -25,7 +25,6 @@ import os
 import zipfile
 from ast import literal_eval
 from copy import deepcopy
-from typing import Union
 
 import yaml
 from kubernetes.client import V1EnvVar, V1EnvVarSource, V1SecretKeySelector
@@ -66,24 +65,24 @@ def mlrun_op(
     image: str = "",
     runobj=None,
     command: str = "",
-    secrets: typing.Optional[list] = None,
-    params: typing.Optional[dict] = None,
+    secrets: list | None = None,
+    params: dict | None = None,
     job_image=None,
-    hyperparams: typing.Optional[dict] = None,
+    hyperparams: dict | None = None,
     param_file: str = "",
-    labels: typing.Optional[dict] = None,
+    labels: dict | None = None,
     selector: str = "",
-    inputs: typing.Optional[dict] = None,
-    outputs: typing.Optional[list] = None,
+    inputs: dict | None = None,
+    outputs: list | None = None,
     in_path: str = "",
     out_path: str = "",
     mode: str = "",
     handler: str = "",
-    more_args: typing.Optional[list] = None,
+    more_args: list | None = None,
     hyper_param_options=None,
     verbose=None,
     scrape_metrics=False,
-    returns: typing.Optional[list[Union[str, dict[str, str]]]] = None,
+    returns: list[str | dict[str, str]] | None = None,
     auto_build: bool = False,
 ):
     """mlrun KubeFlow pipelines operator, use to form pipeline steps
@@ -350,7 +349,7 @@ def build_op(
     func_url=None,
     image=None,
     base_image=None,
-    commands: typing.Optional[list] = None,
+    commands: list | None = None,
     secret_name="",
     with_mlrun=True,
     skip_deployed=False,
@@ -391,8 +390,8 @@ def deploy_op(
     func_url=None,
     source="",
     project="",
-    models: typing.Optional[list] = None,
-    env: typing.Optional[dict] = None,
+    models: list | None = None,
+    env: dict | None = None,
     tag="",
     verbose=False,
 ):
@@ -735,7 +734,7 @@ def process_kfp_workflow_secret_references(
     content_type: str,
     env_var_names: list[str],
     secrets_store: "SecretsStore",
-    auth_secret_name: typing.Optional[str] = None,
+    auth_secret_name: str | None = None,
 ) -> bytes:
     if content_type.endswith(
         "zip"
@@ -764,7 +763,7 @@ def _enrich_kfp_workflow_credentials_in_subprocess(
     byte_buffer: bytes,
     env_var_names: list[str],
     secrets_store: "SecretsStore",
-    auth_secret_name: typing.Optional[str] = None,
+    auth_secret_name: str | None = None,
 ) -> bytes:
     queue = multiprocessing.Queue()
     process = multiprocessing.Process(
@@ -782,7 +781,7 @@ def _enrich_wrapper(
     byte_buffer: bytes,
     env_var_names: list[str],
     secrets_store: "SecretsStore",
-    auth_secret_name: typing.Optional[str] = None,
+    auth_secret_name: str | None = None,
 ):
     result = _enrich_kfp_workflow_zip_credentials(
         byte_buffer=byte_buffer,
@@ -797,7 +796,7 @@ def _enrich_kfp_workflow_zip_credentials(
     byte_buffer: bytes,
     env_var_names: list[str],
     secrets_store: "SecretsStore",
-    auth_secret_name: typing.Optional[str] = None,
+    auth_secret_name: str | None = None,
 ) -> bytes:
     in_memory_zip = io.BytesIO(byte_buffer)
     with zipfile.ZipFile(in_memory_zip, "r") as zip_read:
@@ -829,7 +828,7 @@ def _enrich_kfp_workflow_yaml_credentials(
     yaml_bytes: bytes,
     env_var_names: list[str],
     secrets_store: "SecretsStore",
-    auth_secret_name: typing.Optional[str] = None,
+    auth_secret_name: str | None = None,
 ) -> bytes:
     """
     Modifies the given workflow YAML to add secret environment variables to container specifications.
@@ -879,7 +878,7 @@ def _enrich_kfp_workflow_yaml_credentials(
 
 
 def add_auth_mount_to_argo_pods(
-    workflow_dict: dict, auth_secret_name: typing.Optional[str] = None
+    workflow_dict: dict, auth_secret_name: str | None = None
 ) -> dict:
     if auth_secret_name:
         volume = {

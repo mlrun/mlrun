@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import typing
 
 import pytest
 from fastapi.testclient import TestClient
@@ -326,9 +325,7 @@ class TestApplicationRuntime(TestRuntimeBase):
             runtime, **kwargs
         )
 
-    def _generate_runtime(
-        self, kind=None
-    ) -> typing.Union[mlrun.runtimes.ApplicationRuntime]:
+    def _generate_runtime(self, kind=None) -> mlrun.runtimes.ApplicationRuntime:
         runtime = mlrun.new_function(
             name=self.name,
             project=self.project,

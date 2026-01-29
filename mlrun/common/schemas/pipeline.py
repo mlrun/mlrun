@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import typing
 
 import pydantic.v1
 
@@ -25,6 +24,6 @@ class PipelinesPagination(str):
 
 class PipelinesOutput(pydantic.v1.BaseModel):
     # use the format query param to control what is returned
-    runs: list[typing.Union[dict, str]]
+    runs: list[dict | str]
     total_size: int
-    next_page_token: typing.Optional[str]
+    next_page_token: str | None

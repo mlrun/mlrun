@@ -14,11 +14,9 @@
 
 import itertools
 import json
-import typing
 import uuid
 from collections.abc import Callable
 from datetime import datetime
-from typing import Optional
 
 import fastapi
 import sqlalchemy.orm
@@ -72,7 +70,7 @@ class ModelEndpoints:
         creation_strategy: mlrun.common.schemas.ModelEndpointCreationStrategy,
         delete_background_task: fastapi.BackgroundTasks,
         upsert: bool = True,
-    ) -> typing.Union[tuple[mlrun.common.schemas.ModelEndpoint, str, list[str], dict],]:
+    ) -> tuple[mlrun.common.schemas.ModelEndpoint, str, list[str], dict]:
         """
         Creates model endpoint record in DB. The DB store target is defined either by a provided connection string
         or by the default store target that is defined in MLRun configuration.
@@ -292,7 +290,7 @@ class ModelEndpoints:
         db_session: sqlalchemy.orm.Session,
         model_endpoint: mlrun.common.schemas.ModelEndpoint,
         delete_background_task: fastapi.BackgroundTasks,
-        model_obj: Optional[mlrun.artifacts.ModelArtifact] = None,
+        model_obj: mlrun.artifacts.ModelArtifact | None = None,
         upsert: bool = True,
     ) -> tuple[mlrun.common.schemas.ModelEndpoint, str, list[str], dict]:
         try:
@@ -388,7 +386,7 @@ class ModelEndpoints:
         db_session: sqlalchemy.orm.Session,
         model_endpoint: mlrun.common.schemas.ModelEndpoint,
         delete_background_task: fastapi.BackgroundTasks,
-        model_obj: Optional[mlrun.artifacts.ModelArtifact] = None,
+        model_obj: mlrun.artifacts.ModelArtifact | None = None,
         upsert: bool = True,
     ) -> tuple[mlrun.common.schemas.ModelEndpoint, str, list[str], dict]:
         old_uids = [
@@ -435,7 +433,7 @@ class ModelEndpoints:
         db_session: sqlalchemy.orm.Session,
         model_endpoint: mlrun.common.schemas.ModelEndpoint,
         delete_background_task: fastapi.BackgroundTasks,
-        model_obj: Optional[mlrun.artifacts.ModelArtifact] = None,
+        model_obj: mlrun.artifacts.ModelArtifact | None = None,
         delete_old: bool = False,
         upsert: bool = True,
     ) -> tuple[mlrun.common.schemas.ModelEndpoint, str, list[str], dict]:
@@ -519,7 +517,7 @@ class ModelEndpoints:
         self,
         db_session: sqlalchemy.orm.Session,
         model_endpoint: mlrun.common.schemas.ModelEndpoint,
-        model_obj: Optional[mlrun.artifacts.ModelArtifact] = None,
+        model_obj: mlrun.artifacts.ModelArtifact | None = None,
     ) -> tuple[mlrun.common.schemas.ModelEndpoint, list[mlrun.feature_store.Feature]]:
         features = []
         if model_obj:
@@ -600,9 +598,9 @@ class ModelEndpoints:
         project: str,
         attributes: dict,
         db_session: sqlalchemy.orm.Session,
-        function_name: Optional[str] = None,
-        function_tag: Optional[str] = None,
-        endpoint_id: Optional[str] = None,
+        function_name: str | None = None,
+        function_tag: str | None = None,
+        endpoint_id: str | None = None,
     ) -> str:
         """
         Update a model endpoint record with a given attributes.
@@ -768,9 +766,9 @@ class ModelEndpoints:
         project: str,
         db_session: sqlalchemy.orm.Session,
         delete_background_task: fastapi.BackgroundTasks,
-        function_name: Optional[str] = None,
-        function_tag: Optional[str] = None,
-        endpoint_id: Optional[str] = None,
+        function_name: str | None = None,
+        function_tag: str | None = None,
+        endpoint_id: str | None = None,
     ) -> None:
         """
         Delete the record of a given model endpoint based on endpoint id.
@@ -911,11 +909,11 @@ class ModelEndpoints:
         name: str,
         project: str,
         db_session: sqlalchemy.orm.Session,
-        function_name: Optional[str] = None,
-        function_tag: Optional[str] = None,
-        endpoint_id: Optional[str] = None,
+        function_name: str | None = None,
+        function_tag: str | None = None,
+        endpoint_id: str | None = None,
         tsdb_metrics: bool = True,
-        metric_list: Optional[list[str]] = None,
+        metric_list: list[str] | None = None,
         feature_analysis: bool = False,
     ) -> mlrun.common.schemas.ModelEndpoint:
         """Get a single model endpoint object.
@@ -1028,20 +1026,20 @@ class ModelEndpoints:
         self,
         project: str,
         db_session: sqlalchemy.orm.Session,
-        names: typing.Optional[list[str]] = None,
-        model_name: typing.Optional[str] = None,
-        model_tag: typing.Optional[str] = None,
-        function_name: typing.Optional[str] = None,
-        function_tag: typing.Optional[str] = None,
-        labels: typing.Optional[list[str]] = None,
-        start: typing.Optional[datetime] = None,
-        end: typing.Optional[datetime] = None,
-        top_level: typing.Optional[bool] = None,
-        modes: typing.Optional[list[mlrun.common.schemas.EndpointMode]] = None,
-        tsdb_metrics: typing.Optional[bool] = None,
-        metric_list: Optional[list[str]] = None,
-        uids: typing.Optional[list[str]] = None,
-        latest_only: typing.Optional[bool] = None,
+        names: list[str] | None = None,
+        model_name: str | None = None,
+        model_tag: str | None = None,
+        function_name: str | None = None,
+        function_tag: str | None = None,
+        labels: list[str] | None = None,
+        start: datetime | None = None,
+        end: datetime | None = None,
+        top_level: bool | None = None,
+        modes: list[mlrun.common.schemas.EndpointMode] | None = None,
+        tsdb_metrics: bool | None = None,
+        metric_list: list[str] | None = None,
+        uids: list[str] | None = None,
+        latest_only: bool | None = None,
     ) -> mlrun.common.schemas.ModelEndpointList:
         """
         List model endpoints based on the provided filters.
@@ -1124,8 +1122,8 @@ class ModelEndpoints:
         db_session: sqlalchemy.orm.Session,
         stream_profile: mlrun.datastore.datastore_profile.DatastoreProfile,
         tsdb_profile: mlrun.datastore.datastore_profile.DatastoreProfile,
-        model_monitoring_applications: typing.Optional[list[str]] = None,
-        model_monitoring_access_key: typing.Optional[str] = None,
+        model_monitoring_applications: list[str] | None = None,
+        model_monitoring_access_key: str | None = None,
     ) -> None:
         """
         Delete all model endpoints monitoring resources, including the store data, time series data, and stream
@@ -1206,13 +1204,13 @@ class ModelEndpoints:
     @staticmethod
     def get_model_endpoints_metrics(
         project: str,
-        endpoint_id: typing.Union[str, list[str]],
+        endpoint_id: str | list[str],
         type: str,
         metrics_format: str = mm_constants.GetEventsFormat.SINGLE,
-    ) -> typing.Union[
-        list[mm_endpoints.ModelEndpointMonitoringMetric],
-        dict[str, list[mm_endpoints.ModelEndpointMonitoringMetric]],
-    ]:
+    ) -> (
+        list[mm_endpoints.ModelEndpointMonitoringMetric]
+        | dict[str, list[mm_endpoints.ModelEndpointMonitoringMetric]]
+    ):
         """
         Get the metrics for a given model endpoint.
 
@@ -1274,7 +1272,7 @@ class ModelEndpoints:
     @staticmethod
     def _delete_model_monitoring_stream_resources(
         project_name: str,
-        model_monitoring_applications: typing.Optional[list[str]],
+        model_monitoring_applications: list[str] | None,
         stream_profile: mlrun.datastore.datastore_profile.DatastoreProfile,
     ) -> None:
         """
@@ -1347,7 +1345,7 @@ class ModelEndpoints:
     @staticmethod
     def _get_real_time_metrics(
         model_endpoint_object: mlrun.common.schemas.ModelEndpoint,
-        metrics: typing.Optional[list[str]] = None,
+        metrics: list[str] | None = None,
         start: str = "now-1h",
         end: str = "now",
     ) -> dict[str, list[tuple[str, float]]]:
@@ -1427,7 +1425,7 @@ class ModelEndpoints:
         self,
         model_endpoint_objects: list[mlrun.common.schemas.ModelEndpoint],
         project: str,
-        metric_list: Optional[list[str]] = None,
+        metric_list: list[str] | None = None,
     ) -> list[mlrun.common.schemas.ModelEndpoint]:
         """
         Add basic metrics to the model endpoint object.
@@ -1503,7 +1501,7 @@ class ModelEndpoints:
         project,
         uid,
         kind,
-    ) -> tuple[dict, typing.Optional[datetime]]:
+    ) -> tuple[dict, datetime | None]:
         parquet_target = (
             parquet_target if parquet_target.endswith("/") else parquet_target + "/"
         )
@@ -1548,9 +1546,9 @@ class ModelMonitoringResourcesDeleter:
         self,
         *,
         project: str,
-        db_session: typing.Optional[sqlalchemy.orm.Session],
-        auth_info: typing.Optional[mlrun.common.schemas.AuthInfo],
-        model_monitoring_access_key: typing.Optional[str],
+        db_session: sqlalchemy.orm.Session | None,
+        auth_info: mlrun.common.schemas.AuthInfo | None,
+        model_monitoring_access_key: str | None,
     ) -> None:
         self._project = project
         self._db_session = db_session
@@ -1602,7 +1600,7 @@ class ModelMonitoringResourcesDeleter:
 
     def _get_profile(
         self, get_profile_function: Callable
-    ) -> Optional[mlrun.datastore.datastore_profile.DatastoreProfile]:
+    ) -> mlrun.datastore.datastore_profile.DatastoreProfile | None:
         if not self._has_mm:
             return
         try:
@@ -1620,14 +1618,14 @@ class ModelMonitoringResourcesDeleter:
 
     def _get_stream_profile(
         self,
-    ) -> Optional[mlrun.datastore.datastore_profile.DatastoreProfile]:
+    ) -> mlrun.datastore.datastore_profile.DatastoreProfile | None:
         return self._get_profile(
             get_profile_function=mlrun.model_monitoring.helpers._get_stream_profile
         )
 
     def _get_tsdb_profile(
         self,
-    ) -> Optional[mlrun.datastore.datastore_profile.DatastoreProfile]:
+    ) -> mlrun.datastore.datastore_profile.DatastoreProfile | None:
         return self._get_profile(
             get_profile_function=mlrun.model_monitoring.helpers._get_tsdb_profile
         )

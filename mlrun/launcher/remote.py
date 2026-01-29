@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import os
-from typing import Optional, Union
+from typing import Union
 
 import pandas as pd
 import requests
@@ -126,8 +126,8 @@ class ClientRemoteLauncher(launcher.ClientBaseLauncher):
         self,
         runtime: "mlrun.runtimes.KubejobRuntime",
         run: "mlrun.run.RunObject",
-        schedule: Optional[mlrun.common.schemas.ScheduleCronTrigger] = None,
-        watch: Optional[bool] = None,
+        schedule: mlrun.common.schemas.ScheduleCronTrigger | None = None,
+        watch: bool | None = None,
     ):
         if runtime._secrets:
             run.spec.secret_sources = runtime._secrets.to_serial()

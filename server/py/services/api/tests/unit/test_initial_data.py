@@ -13,7 +13,6 @@
 # limitations under the License.
 
 import string
-import typing
 import unittest.mock
 
 import pytest
@@ -772,9 +771,9 @@ def _insert_function(
     db_session,
     fn_name,
     project: str,
-    function_kind: typing.Optional[str] = "remote",
-    function_state: typing.Optional[str] = "ready",
-    labels: typing.Optional[dict] = None,
+    function_kind: str | None = "remote",
+    function_state: str | None = "ready",
+    labels: dict | None = None,
 ):
     function_body = {
         "metadata": {"name": fn_name},

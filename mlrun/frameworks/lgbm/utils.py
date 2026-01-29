@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Optional, Union
 
 import lightgbm as lgb
 import numpy as np
@@ -29,16 +28,16 @@ class LGBMTypes(MLTypes):
     """
 
     # A union of all LightGBM model base classes:
-    ModelType = Union[lgb.LGBMModel, lgb.Booster]
+    ModelType = lgb.LGBMModel | lgb.Booster
 
     # A type for all the supported dataset types:
-    DatasetType = Union[MLTypes.DatasetType, lgb.Dataset]
+    DatasetType = MLTypes.DatasetType | lgb.Dataset
 
     # An evaluation result as packaged by the training in LightGBM:
-    EvaluationResultType = Union[
-        tuple[str, str, float, bool],  # As packaged in `lightgbm.train`
-        tuple[str, str, float, bool, float],  # As packaged in `lightgbm.cv`
-    ]
+    EvaluationResultType = (
+        tuple[str, str, float, bool]  # As packaged in `lightgbm.train`
+        | tuple[str, str, float, bool, float]  # As packaged in `lightgbm.cv`
+    )
 
     # Detailed type for the named tuple `CallbackEnv` passed during LightGBM's training for the callbacks:
     CallbackEnvType = tuple[
@@ -109,7 +108,7 @@ class LGBMUtils(MLUtils):
     def get_algorithm_functionality(
         model: MLTypes.ModelType = None,
         y: MLTypes.DatasetType = None,
-        objective: Optional[str] = None,
+        objective: str | None = None,
     ) -> AlgorithmFunctionality:
         """
         Get the algorithm functionality of the LightGBM model. If SciKit-Learn API is used, pass the LGBBMModel and a y

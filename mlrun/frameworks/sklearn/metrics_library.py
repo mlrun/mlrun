@@ -13,7 +13,6 @@
 # limitations under the License.
 
 from abc import ABC
-from typing import Optional, Union
 
 import sklearn
 from sklearn.preprocessing import LabelBinarizer
@@ -39,13 +38,10 @@ class MetricsLibrary(ABC):
     @classmethod
     def get_metrics(
         cls,
-        metrics: Optional[
-            Union[
-                list[Metric],
-                list[SKLearnTypes.MetricEntryType],
-                dict[str, SKLearnTypes.MetricEntryType],
-            ]
-        ] = None,
+        metrics: list[Metric]
+        | list[SKLearnTypes.MetricEntryType]
+        | dict[str, SKLearnTypes.MetricEntryType]
+        | None = None,
         context: mlrun.MLClientCtx = None,
         include_default: bool = True,
         **default_kwargs,
@@ -88,11 +84,9 @@ class MetricsLibrary(ABC):
     @classmethod
     def _parse(
         cls,
-        metrics: Union[
-            list[Metric],
-            list[SKLearnTypes.MetricEntryType],
-            dict[str, SKLearnTypes.MetricEntryType],
-        ],
+        metrics: list[Metric]
+        | list[SKLearnTypes.MetricEntryType]
+        | dict[str, SKLearnTypes.MetricEntryType],
     ) -> list[Metric]:
         """
         Parse the given metrics by the possible rules of the framework implementing.
@@ -118,7 +112,7 @@ class MetricsLibrary(ABC):
 
     @classmethod
     def _from_list(
-        cls, metrics_list: list[Union[Metric, SKLearnTypes.MetricEntryType]]
+        cls, metrics_list: list[Metric | SKLearnTypes.MetricEntryType]
     ) -> list[Metric]:
         """
         Collect the given metrics configurations from a list. The metrics names will be chosen by the following rules:
@@ -264,7 +258,7 @@ class MetricsLibrary(ABC):
     def _to_metric_class(
         cls,
         metric_entry: SKLearnTypes.MetricEntryType,
-        metric_name: Optional[str] = None,
+        metric_name: str | None = None,
     ) -> Metric:
         """
         Create a Metric instance from a user given metric entry.

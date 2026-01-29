@@ -54,7 +54,7 @@ class ServerSideLauncher(launcher.BaseLauncher):
     def __init__(
         self,
         local: bool = False,
-        auth_info: Optional[mlrun.common.schemas.AuthInfo] = None,
+        auth_info: mlrun.common.schemas.AuthInfo | None = None,
         **kwargs,
     ):
         super().__init__(**kwargs)
@@ -202,7 +202,7 @@ class ServerSideLauncher(launcher.BaseLauncher):
     def enrich_runtime(
         self,
         runtime: "mlrun.runtimes.base.BaseRuntime",
-        project_name: Optional[str] = "",
+        project_name: str | None = "",
         full: bool = True,
         client_version: str = "",
     ):
@@ -272,7 +272,7 @@ class ServerSideLauncher(launcher.BaseLauncher):
     def _enrich_run(
         self,
         runtime: "mlrun.runtimes.base.BaseRuntime",
-        run: Union[RunSpec, RunTemplate],
+        run: RunSpec | RunTemplate,
         handler=None,
         project_name=None,
         name=None,
@@ -285,9 +285,9 @@ class ServerSideLauncher(launcher.BaseLauncher):
         scrape_metrics=None,
         output_path=None,
         workdir=None,
-        notifications: Optional[list[mlrun.model.Notification]] = None,
-        state_thresholds: Optional[dict[str, int]] = None,
-        retry: Optional[Union[mlrun.model.Retry, dict]] = None,
+        notifications: list[mlrun.model.Notification] | None = None,
+        state_thresholds: dict[str, int] | None = None,
+        retry: mlrun.model.Retry | dict | None = None,
     ):
         run = super()._enrich_run(
             runtime=runtime,
@@ -422,7 +422,7 @@ class ServerSideLauncher(launcher.BaseLauncher):
         for key, value in fields.items():
             setattr(run.spec, key, value)
 
-    def _pre_run_image_pull_secret_enrichment(self, run: Union[RunSpec, RunTemplate]):
+    def _pre_run_image_pull_secret_enrichment(self, run: RunSpec | RunTemplate):
         """
         Enrich the run object with the project's image pull secret.
         This ensures the image pull secret is correctly set on the run,
@@ -622,7 +622,7 @@ class ServerSideLauncher(launcher.BaseLauncher):
 
     @staticmethod
     def _validate_state_thresholds(
-        state_thresholds: Optional[dict[str, str]] = None,
+        state_thresholds: dict[str, str] | None = None,
     ):
         """
         Validate the state thresholds
@@ -696,7 +696,7 @@ class ServerSideLauncher(launcher.BaseLauncher):
                 )
 
     def enrich_and_validate_auth_token_name(
-        self, object: Union[mlrun.run.RunObject, mlrun.runtimes.RemoteRuntime]
+        self, object: mlrun.run.RunObject | mlrun.runtimes.RemoteRuntime
     ):
         if not (mlrun.mlconf.is_iguazio_v4_mode()):
             return

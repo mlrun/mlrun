@@ -16,7 +16,7 @@ import math
 import re
 import uuid
 from collections import OrderedDict
-from typing import Any, Optional, Union
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -152,7 +152,7 @@ class FeaturesetValidator(StepToDict, MLRunStep):
 class MapValues(StepToDict, MLRunStep):
     def __init__(
         self,
-        mapping: dict[str, dict[Union[str, int, bool], Any]],
+        mapping: dict[str, dict[str | int | bool, Any]],
         with_original_features: bool = False,
         suffix: str = "mapped",
         **kwargs,
@@ -381,7 +381,7 @@ class Imputer(StepToDict, MLRunStep):
         self,
         method: str = "avg",
         default_value=None,
-        mapping: Optional[dict[str, Any]] = None,
+        mapping: dict[str, Any] | None = None,
         **kwargs,
     ):
         """Replace None values with default values
@@ -427,7 +427,7 @@ class Imputer(StepToDict, MLRunStep):
 
 
 class OneHotEncoder(StepToDict, MLRunStep):
-    def __init__(self, mapping: dict[str, list[Union[int, str]]], **kwargs):
+    def __init__(self, mapping: dict[str, list[int | str]], **kwargs):
         """Create new binary fields, one per category (one hot encoded)
 
         example::
@@ -518,8 +518,8 @@ class OneHotEncoder(StepToDict, MLRunStep):
 class DateExtractor(StepToDict, MLRunStep):
     def __init__(
         self,
-        parts: Union[dict[str, str], list[str]],
-        timestamp_col: Optional[str] = None,
+        parts: dict[str, str] | list[str],
+        timestamp_col: str | None = None,
         **kwargs,
     ):
         """Date Extractor extracts a date-time component into new columns
@@ -637,9 +637,9 @@ class DateExtractor(StepToDict, MLRunStep):
 class SetEventMetadata(MapClass):
     def __init__(
         self,
-        id_path: Optional[str] = None,
-        key_path: Optional[str] = None,
-        random_id: Optional[bool] = None,
+        id_path: str | None = None,
+        key_path: str | None = None,
+        random_id: bool | None = None,
         **kwargs,
     ) -> None:
         """Set the event metadata (id, key) from the event body

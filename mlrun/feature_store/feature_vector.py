@@ -13,11 +13,9 @@
 # limitations under the License.
 import collections
 import logging
-import typing
 from copy import copy
 from datetime import datetime
 from enum import Enum
-from typing import Union
 
 import pandas as pd
 
@@ -94,7 +92,7 @@ class FeatureVectorSpec(ModelObj):
         self.entity_fields = entity_fields or []
         self.graph = graph
         self.join_graph = join_graph
-        self.relations: dict[str, dict[str, Union[Entity, str]]] = relations or {}
+        self.relations: dict[str, dict[str, Entity | str]] = relations or {}
         self.timestamp_field = timestamp_field
         self.label_feature = label_feature
         self.with_indexes = with_indexes
@@ -144,7 +142,7 @@ class FeatureVectorSpec(ModelObj):
         return self._relations
 
     @relations.setter
-    def relations(self, relations: dict[str, dict[str, Union[Entity, str]]]):
+    def relations(self, relations: dict[str, dict[str, Entity | str]]):
         temp_relations = {}
         for fs_name, relation in relations.items():
             for col, ent in relation.items():
@@ -250,7 +248,7 @@ class FeatureVector(ModelObj):
         description=None,
         with_indexes=None,
         join_graph: JoinGraph = None,
-        relations: typing.Optional[dict[str, dict[str, Union[Entity, str]]]] = None,
+        relations: dict[str, dict[str, Entity | str]] | None = None,
     ):
         """Feature vector, specify selected features, their metadata and material views
 
@@ -485,7 +483,7 @@ class FeatureVector(ModelObj):
         self.status.index_keys = index_keys
         return feature_set_objects, feature_set_fields
 
-    def get_feature_set_relations(self, feature_set: Union[str, FeatureSet]):
+    def get_feature_set_relations(self, feature_set: str | FeatureSet):
         if isinstance(feature_set, str):
             feature_set = get_feature_set_by_uri(
                 feature_set,
@@ -500,21 +498,21 @@ class FeatureVector(ModelObj):
     def get_offline_features(
         self,
         entity_rows=None,
-        entity_timestamp_column: typing.Optional[str] = None,
+        entity_timestamp_column: str | None = None,
         target: DataTargetBase = None,
         run_config: RunConfig = None,
-        drop_columns: typing.Optional[list[str]] = None,
-        start_time: typing.Optional[Union[str, datetime]] = None,
-        end_time: typing.Optional[Union[str, datetime]] = None,
+        drop_columns: list[str] | None = None,
+        start_time: str | datetime | None = None,
+        end_time: str | datetime | None = None,
         with_indexes: bool = False,
         update_stats: bool = True,
-        engine: typing.Optional[str] = None,
-        engine_args: typing.Optional[dict] = None,
-        query: typing.Optional[str] = None,
-        order_by: typing.Optional[Union[str, list[str]]] = None,
-        spark_service: typing.Optional[str] = None,
-        timestamp_for_filtering: typing.Optional[Union[str, dict[str, str]]] = None,
-        additional_filters: typing.Optional[list] = None,
+        engine: str | None = None,
+        engine_args: dict | None = None,
+        query: str | None = None,
+        order_by: str | list[str] | None = None,
+        spark_service: str | None = None,
+        timestamp_for_filtering: str | dict[str, str] | None = None,
+        additional_filters: list | None = None,
     ):
         """retrieve offline feature vector results
 
@@ -649,9 +647,9 @@ class FeatureVector(ModelObj):
         self,
         run_config: RunConfig = None,
         fixed_window_type: FixedWindowType = FixedWindowType.LastClosedWindow,
-        impute_policy: typing.Optional[dict] = None,
+        impute_policy: dict | None = None,
         update_stats: bool = False,
-        entity_keys: typing.Optional[list[str]] = None,
+        entity_keys: list[str] | None = None,
     ) -> OnlineVectorService:
         """initialize and return online feature vector service api,
         returns :py:class:`~mlrun.feature_store.OnlineVectorService`

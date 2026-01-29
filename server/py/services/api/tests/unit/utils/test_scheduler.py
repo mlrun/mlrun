@@ -1827,10 +1827,10 @@ def _assert_schedule(
     project: str,
     name: str,
     kind: mlrun.common.schemas.ScheduleKinds,
-    cron_trigger: typing.Union[str, mlrun.common.schemas.ScheduleCronTrigger],
-    next_run_time: typing.Optional[datetime] = None,
-    labels: typing.Optional[dict] = None,
-    concurrency_limit: typing.Optional[int] = None,
+    cron_trigger: str | mlrun.common.schemas.ScheduleCronTrigger,
+    next_run_time: datetime | None = None,
+    labels: dict | None = None,
+    concurrency_limit: int | None = None,
 ):
     assert schedule.name == name
     assert schedule.project == project

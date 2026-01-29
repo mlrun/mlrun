@@ -34,18 +34,17 @@ import tests.common_fixtures
 
 @pytest.mark.integration
 @pytest.mark.parametrize(
-    "interval_name,id_val",
+    "interval_name",
     [
-        ("DAY", 1),
-        ("MONTH", 2),
-        ("YEARWEEK", 3),
+        ("DAY",),
+        ("MONTH",),
+        ("YEARWEEK",),
     ],
 )
 @tests.common_fixtures.freeze_datetime(datetime(2025, 1, 6))
 def test_insert_populates_partition_key(
     db_engine: sqlalchemy.engine.Engine,
     interval_name: str,
-    id_val: int,
 ) -> None:
     os.environ["PARTITION_INTERVAL"] = interval_name
     server.py.framework.db.sqldb.models.Base.metadata.create_all(db_engine)

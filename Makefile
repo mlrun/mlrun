@@ -60,6 +60,7 @@ MLRUN_SKIP_CLONE ?= false
 MLRUN_RELEASE_NOTES_OUTPUT_FILE ?=
 MLRUN_SYSTEM_TESTS_CLEAN_RESOURCES ?= true
 MLRUN_SYSTEM_TEST_MARKERS ?=
+MLRUN_INTEGRATION_TESTS_PATHS ?= $(shell find . -type d ! -path './venv*' | grep 'tests/integration$$')
 MLRUN_SYSTEM_TESTS_GITHUB_RUN_URL ?=
 MLRUN_GPU_CUDA_VERSION ?= 12.8.1-cudnn-devel-ubuntu22.04
 RUN_COVERAGE ?= false
@@ -634,7 +635,7 @@ test-publish: package-wheel ## Test python package publishing
 .PHONY: clean
 clean: ## Clean python package build artifacts
 	rm -rf build dist mlrun.egg-info
-	find . -type f -name '*.pyc' ! -path './venv/*' -delete
+	find . -type f -name '*.pyc' ! -path './venv*' -delete
 
 .PHONY: test-dockerized
 test-dockerized: build-test ## Run mlrun tests in docker container
@@ -652,7 +653,8 @@ test-dockerized: build-test ## Run mlrun tests in docker container
 		-v /tmp:/tmp \
 		-v $$COVERAGE_MOUNT_PATH:/mlrun/tests/coverage_reports \
 		-v /var/run/docker.sock:/var/run/docker.sock \
-		$(MLRUN_TEST_IMAGE_NAME_TAGGED) make test  UNIT_TESTS_IGNORE_PATH="$(UNIT_TESTS_IGNORE_PATH)" \
+		$(MLRUN_TEST_IMAGE_NAME_TAGGED) make test \
+		UNIT_TESTS_IGNORE_PATH="$(UNIT_TESTS_IGNORE_PATH)" \
 		UNIT_TESTS_PATH="$(UNIT_TESTS_PATH)" \
 		RUN_COVERAGE=$(RUN_COVERAGE) \
 		COVERAGE_FILE="$(COVERAGE_FILE)"
@@ -662,13 +664,11 @@ test-dockerized: build-test ## Run mlrun tests in docker container
 test: clean ## Run mlrun tests
 	# TODO: Remove ignored tests for Python 3.11 compatibility with KFP 2
 	set -e ; \
-	COMMON_IGNORE_TEST_FLAGS=$$(echo "\
-	--ignore=tests/integration \
-	--ignore=server/py/services/api/tests/integration \
+	COMMON_IGNORE_TEST_FLAGS="\
+	$(foreach path,$(MLRUN_INTEGRATION_TESTS_PATHS),--ignore=$(path)) \
 	--ignore=tests/system \
 	--ignore=tests/rundb/test_httpdb.py \
-	--ignore=server/py/services/api/migrations \
-	") && \
+	--ignore=server/py/services/api/migrations" && \
 	PER_PYTHON_VERSION_IGNORE_TEST_FLAGS=$(if $(filter $(MLRUN_PYTHON_VERSION),3.11),$$(echo "\
 		--ignore=tests/serving/test_remote.py \
 		--ignore=tests/projects/test_remote_pipeline.py \
@@ -715,6 +715,7 @@ test-integration-dockerized: build-test api ## Run mlrun integration tests in do
 		-e MLRUN_DOCKER_REGISTRY=$(MLRUN_DOCKER_REGISTRY) \
 		-e MLRUN_MYSQL_IMAGE=$(MLRUN_MYSQL_IMAGE) \
 		-e MLRUN_POSTGRES_IMAGE=$(MLRUN_POSTGRES_IMAGE) \
+		-e TESTCONTAINERS_HOST_OVERRIDE=host.docker.internal \
 		--add-host=host.docker.internal:host-gateway \
 		$(MLRUN_TEST_IMAGE_NAME_TAGGED) make test-integration
 
@@ -732,8 +733,7 @@ test-integration: clean ## Run mlrun integration tests
 		--disable-warnings \
 		--durations=100 \
 		-rf \
-		tests/integration \
-		server/py/services/api/tests/integration \
+		$(MLRUN_INTEGRATION_TESTS_PATHS) \
 		tests/rundb/test_httpdb.py && \
 	$(PRINT_COVERAGE_REPORT);
 

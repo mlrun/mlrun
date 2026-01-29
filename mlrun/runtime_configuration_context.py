@@ -29,10 +29,11 @@ class RuntimeConfigurationContext:
     Context manager for runtime configuration options.
     Settings here override any function-level configuration.
 
-    Example::
+    Usage Example:
 
         with mlrun.RuntimeConfigurationContext(auth_token_name="my-token"):
             func.run()
+            project.run(name="my-pipeline")
             project.enable_model_monitoring()
 
     :param auth_token_name: Name of the authentication token to use for operations.

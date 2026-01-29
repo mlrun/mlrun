@@ -195,6 +195,7 @@ formatted_messages = [
     for prompt in PROMPT_TEMPLATE
 ]
 
+FLUSH_AFTER_SECONDS = 4
 
 def create_mocked_get_store_artifact(uri_to_artifact: dict):
     def mocked_get_store_artifact(uri, **kwargs):
@@ -250,7 +251,7 @@ def setup_remote_model_test(
             "storey.Batch",
             "my_batching",
             max_events=2,
-            flush_after_seconds=4,
+            flush_after_seconds=FLUSH_AFTER_SECONDS,
             full_event=True,
         )
     model_runner_step = ModelRunnerStep(name="my_model_runner")

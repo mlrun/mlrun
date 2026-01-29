@@ -89,5 +89,5 @@ TimescaleDB and Kafka are part of the default CE installations for model monitor
       tsdb_profile_name=tsdb_profile.name,
       stream_profile_name=stream_profile.name,
   )
-```
+
 See more details, including additional configuration options, in {py:class}`~mlrun.projects.MlrunProject.set_model_monitoring_credentials`.

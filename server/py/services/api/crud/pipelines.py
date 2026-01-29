@@ -23,6 +23,7 @@ from collections.abc import Iterable
 
 import kfp_server_api
 import sqlalchemy.orm
+import yaml
 
 import mlrun
 import mlrun.auth.utils
@@ -604,11 +605,20 @@ class Pipelines(
         data: bytes,
         arguments: typing.Optional[dict] = None,
         auth_info: typing.Optional[mlrun.common.schemas.AuthInfo] = None,
-        token_name: typing.Optional[str] = None,
     ):
         if arguments is None:
             arguments = {}
+
+        # Extract auth token name from YAML manifest before normalizing content_type
+        token_name = None
         if "/yaml" in content_type:
+            try:
+                workflow_manifest = yaml.safe_load(data)
+                token_name = self.resolve_auth_token_name_from_workflow_manifest(
+                    mlrun_pipelines.models.PipelineManifest(workflow_manifest)
+                )
+            except Exception:
+                pass
             content_type = ".yaml"
         elif " /zip" in content_type:
             content_type = ".zip"

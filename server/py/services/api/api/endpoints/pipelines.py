@@ -484,9 +484,6 @@ async def _create_pipeline(
     if arguments_data:
         arguments = ast.literal_eval(arguments_data)
 
-    # Get auth token name from MLRUN_EXEC_CONFIG env var in the pipeline manifest
-    auth_token_name = _try_resolve_auth_token_name_from_body(content_type, data)
-
     run = await fastapi.concurrency.run_in_threadpool(
         services.api.crud.Pipelines().create_pipeline,
         experiment_name,
@@ -495,7 +492,6 @@ async def _create_pipeline(
         data,
         arguments,
         auth_info,
-        auth_token_name,
     )
 
     return {
@@ -517,27 +513,6 @@ def _try_resolve_project_from_body(
     return services.api.crud.Pipelines().resolve_project_from_workflow_manifest(
         mlrun_pipelines.models.PipelineManifest(workflow_manifest)
     )
-
-
-def _try_resolve_auth_token_name_from_body(
-    content_type: str, data: bytes
-) -> typing.Optional[str]:
-    """
-    Extract auth_token_name from MLRUN_EXEC_CONFIG env var in the pipeline manifest.
-
-    :param content_type: The content type of the request body
-    :param data: The pipeline manifest data
-    :return: The auth_token_name if found, None otherwise
-    """
-    if "/yaml" not in content_type:
-        return None
-    try:
-        workflow_manifest = yaml.safe_load(data)
-        return services.api.crud.Pipelines().resolve_auth_token_name_from_workflow_manifest(
-            mlrun_pipelines.models.PipelineManifest(workflow_manifest)
-        )
-    except Exception:
-        return None
 
 
 def _push_notifications(

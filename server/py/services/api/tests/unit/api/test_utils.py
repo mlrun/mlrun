@@ -15,7 +15,9 @@
 import base64
 import json
 import pathlib
+import typing
 import unittest.mock
+from contextlib import nullcontext as does_not_raise
 from http import HTTPStatus
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -2098,3 +2100,184 @@ def test_resolve_auth_secret_name(
         user_id="test-user",
         token_name=expected_token_name,
     )
+
+
+@pytest.mark.parametrize(
+    "allowed_secret, expected_allowed",
+    [
+        (None, None),
+        ("sa-allowed-1,sa-allowed-2", ["sa-allowed-1", "sa-allowed-2"]),
+    ],
+)
+@pytest.mark.parametrize(
+    "forbidden_secret, forbidden_conf, auth_info, expected_forbidden",
+    [
+        # No forbidden service accounts
+        (None, "", mlrun.common.schemas.AuthInfo(), []),
+        # Forbidden from conf only
+        (
+            [],
+            "sa-forbidden-1,sa-forbidden-2",
+            mlrun.common.schemas.AuthInfo(),
+            ["sa-forbidden-1", "sa-forbidden-2"],
+        ),
+        # Forbidden from secret only
+        (
+            "sa-forbidden-1,sa-forbidden-2",
+            "",
+            mlrun.common.schemas.AuthInfo(),
+            ["sa-forbidden-1", "sa-forbidden-2"],
+        ),
+        # Secret extends conf
+        (
+            "sa-forbidden-3,sa-forbidden-4",
+            "sa-forbidden-1,sa-forbidden-2",
+            mlrun.common.schemas.AuthInfo(),
+            ["sa-forbidden-1", "sa-forbidden-2", "sa-forbidden-3", "sa-forbidden-4"],
+        ),
+        # filter out auth info service accounts
+        (
+            "sa-forbidden-1,sa-forbidden-2",
+            "",
+            mlrun.common.schemas.AuthInfo(
+                username="sa-forbidden-1",
+                kind=mlrun.common.schemas.AuthInfoKind.service_account,
+            ),
+            ["sa-forbidden-2"],
+        ),
+    ],
+)
+@pytest.mark.parametrize(
+    "default_secret, default_conf, expected_default",
+    [
+        # Default from conf
+        (
+            None,
+            "sa-default-conf",
+            "sa-default-conf",
+        ),
+        # Default from secret
+        (
+            "sa-default-secret",
+            "",
+            "sa-default-secret",
+        ),
+        # Secret overrides conf
+        (
+            "sa-default-secret",
+            "sa-default-conf",
+            "sa-default-secret",
+        ),
+        # No default
+        (
+            None,
+            "",
+            "",
+        ),
+    ],
+)
+def test_resolve_project_service_account_details(
+    allowed_secret: list[str],
+    expected_allowed: list[str],
+    forbidden_secret: list[str],
+    forbidden_conf: str,
+    auth_info: mlrun.common.schemas.AuthInfo,
+    expected_forbidden: list[str],
+    default_secret: str,
+    default_conf: str,
+    expected_default: str,
+):
+    mlrun.mlconf.function.spec.service_account.forbidden_service_accounts = (
+        forbidden_conf
+    )
+    mlrun.mlconf.function.spec.service_account.default = default_conf
+
+    def _mock_generate_client_project_secret_key(_, name):
+        return name
+
+    def _mock_get_project_secret(
+        project: str,
+        provider: mlrun.common.schemas.SecretProviderName,
+        secret_key: str,
+        token: typing.Optional[str] = None,
+        allow_secrets_from_k8s: bool = False,
+        allow_internal_secrets: bool = False,
+        key_map_secret_key: typing.Optional[str] = None,
+    ):
+        return {
+            "allowed": allowed_secret,
+            "forbidden": forbidden_secret,
+            "default": default_secret,
+        }[secret_key]
+
+    mock_secrets_crud = unittest.mock.Mock()
+    mock_secrets_crud.generate_client_project_secret_key = (
+        _mock_generate_client_project_secret_key
+    )
+    mock_secrets_crud.get_project_secret = _mock_get_project_secret
+
+    # logic from _validate_service_account_details, to determine if we expect an exception,
+    # this is tested in a separate test below: test_test_resolve_project_service_account_details_validity
+    expectation = does_not_raise()
+    if expected_default and (
+        (expected_allowed and expected_default not in expected_allowed)
+        or (expected_forbidden and expected_default in expected_forbidden)
+    ):
+        expectation = pytest.raises(mlrun.errors.MLRunInvalidArgumentError)
+
+    with patch(
+        "services.api.crud.secrets.Secrets",
+        return_value=mock_secrets_crud,
+    ):
+        with expectation:
+            (
+                resolved_allowed,
+                resolved_forbidden,
+                resolved_default,
+            ) = framework.api.utils.resolve_project_service_account_details(
+                project_name="test-project",
+                auth_info=auth_info,
+            )
+
+            assert resolved_allowed == expected_allowed
+            assert resolved_forbidden == expected_forbidden
+            assert resolved_default == expected_default
+
+
+@pytest.mark.parametrize(
+    "allowed, forbidden, default, expectation",
+    [
+        # Empty values (should pass)
+        ([], [], "", does_not_raise()),
+        ([], [], None, does_not_raise()),
+        # Empty lists, default set (should pass)
+        ([], [], "sa-default", does_not_raise()),
+        # Default in allowed (should pass)
+        (["sa-1", "sa-default"], [], "sa-default", does_not_raise()),
+        # Default not in forbidden (should pass)
+        ([], ["sa-2", "sa-3"], "sa-default", does_not_raise()),
+        # Default not in allowed (should raise)
+        (
+            ["sa-1", "sa-2"],
+            [],
+            "sa-default",
+            pytest.raises(mlrun.errors.MLRunInvalidArgumentError),
+        ),
+        # Default in forbidden (should raise)
+        (
+            [],
+            ["sa-default", "sa-2"],
+            "sa-default",
+            pytest.raises(mlrun.errors.MLRunInvalidArgumentError),
+        ),
+    ],
+)
+def test_test_resolve_project_service_account_details_validity(
+    allowed, forbidden, default, expectation
+):
+    with expectation:
+        framework.api.utils._validate_service_account_details(
+            allowed_service_accounts=allowed,
+            forbidden_service_accounts=forbidden,
+            default_service_account=default,
+        )

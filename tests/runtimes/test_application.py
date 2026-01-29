@@ -14,10 +14,12 @@
 
 import base64
 import pathlib
+import unittest.mock
 
 import pytest
 
 import mlrun
+import mlrun.common.constants
 import mlrun.common.schemas
 import mlrun.runtimes
 import mlrun.utils
@@ -393,17 +395,6 @@ def test_deploy_reverse_proxy_image(rundb_mock, igz_version_mock):
     mlrun.get_or_create_project("test-deploy-reverse-proxy", allow_cross_project=True)
     mlrun.runtimes.ApplicationRuntime.deploy_reverse_proxy_image()
     assert mlrun.runtimes.ApplicationRuntime.reverse_proxy_image
-
-
-def test_application_from_local_file_validation():
-    project = mlrun.get_or_create_project("test-application", allow_cross_project=True)
-    func_path = assets_path / "sample_function.py"
-    with pytest.raises(
-        mlrun.errors.MLRunInvalidArgumentError,
-        match="Embedding a code file is not supported for application runtime. "
-        "Code files should be specified via project/function source.",
-    ):
-        project.set_function(func=str(func_path), name="my-app", kind="application")
 
 
 def _assert_function_code(fn, file_path=None):
@@ -967,3 +958,153 @@ def test_enrich_sidecar_probe_ports_no_probes():
     assert ProbeType.READINESS.key not in sidecar
     assert ProbeType.LIVENESS.key not in sidecar
     assert ProbeType.STARTUP.key not in sidecar
+
+
+@pytest.mark.parametrize(
+    "source,setup_file,expected",
+    [
+        ("local_file.py", True, True),
+        ("directory_path", False, False),
+        ("", False, False),
+        ("store://artifacts/project/file", False, False),
+        ("https://example.com/file.py", False, False),
+        ("git://github.com/repo.git", False, False),
+        ("/non/existent/path.py", False, False),
+    ],
+)
+def test_is_single_local_file(tmp_path, source, setup_file, expected):
+    # Test _is_single_local_file identifies local files vs remote/invalid sources.
+    func_name = "application-test"
+    fn: mlrun.runtimes.ApplicationRuntime = mlrun.new_function(
+        func_name,
+        kind="application",
+        image="mlrun/mlrun",
+    )
+
+    if setup_file:
+        # Create a temporary file for local file case
+        file_path = tmp_path / source
+        file_path.write_text("def handler(): pass")
+        test_source = str(file_path)
+    elif source == "directory_path":
+        # Use tmp_path as directory
+        test_source = str(tmp_path)
+    else:
+        test_source = source
+
+    assert fn._is_single_local_file(test_source) is expected
+
+
+def test_upload_source_as_artifact(tmp_path):
+    # Test that local single file is uploaded as artifact
+    func_name = "application-test"
+    # Create a temporary source file
+    source_file = tmp_path / "handler.py"
+    source_file.write_text("def handler(): pass")
+
+    fn: mlrun.runtimes.ApplicationRuntime = mlrun.new_function(
+        func_name,
+        kind="application",
+        image="mlrun/mlrun",
+        project="test-project",
+    )
+    fn.spec.build.source = str(source_file)
+
+    mock_artifact = unittest.mock.MagicMock()
+    mock_artifact.uri = "store://artifacts/test-project/application-test-source"
+
+    mock_project = unittest.mock.MagicMock()
+    mock_project.log_artifact.return_value = mock_artifact
+
+    with unittest.mock.patch(
+        "mlrun.get_or_create_project", return_value=mock_project
+    ) as mock_get_project:
+        fn._upload_source_as_artifact()
+
+    # Verify project was retrieved
+    mock_get_project.assert_called_once_with("test-project")
+
+    # Verify artifact was logged with correct parameters
+    mock_project.log_artifact.assert_called_once_with(
+        item="application-test-source",
+        local_path=str(source_file),
+        artifact_path=mlrun.common.constants.MLRUN_INTERNAL_ARTIFACT_PATH,
+        upload=True,
+        labels={
+            mlrun.common.constants.MLRunInternalLabels.function_name: func_name,
+            mlrun.common.constants.MLRunInternalLabels.system_generated: "true",
+        },
+    )
+
+    # Verify source was updated to the artifact URI
+    assert (
+        fn.spec.build.source == "store://artifacts/test-project/application-test-source"
+    )
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        "store://artifacts/test-project/existing-artifact",
+        "https://github.com/org/repo.git",
+        "s3://bucket/path/file.py",
+        "",
+    ],
+)
+def test_upload_source_as_artifact_skip_non_local(source):
+    # Test that non-local sources (store URIs, remote URLs) and empty path are not uploaded
+    func_name = "application-test"
+    fn: mlrun.runtimes.ApplicationRuntime = mlrun.new_function(
+        func_name,
+        kind="application",
+        image="mlrun/mlrun",
+        project="test-project",
+    )
+    fn.spec.build.source = source
+
+    with unittest.mock.patch("mlrun.get_or_create_project") as mock_get_project:
+        fn._upload_source_as_artifact()
+
+    # Verify project was not called (upload skipped)
+    mock_get_project.assert_not_called()
+
+    # Verify source remains unchanged
+    assert fn.spec.build.source == source
+
+
+def test_upload_source_as_artifact_no_project_error():
+    # Test that missing project raises an error
+    func_name = "application-test"
+    # Create a temporary source file
+    with unittest.mock.patch("os.path.isfile", return_value=True):
+        fn: mlrun.runtimes.ApplicationRuntime = mlrun.new_function(
+            func_name,
+            kind="application",
+            image="mlrun/mlrun",
+        )
+        fn.metadata.project = None
+        fn.spec.build.source = "/path/to/handler.py"
+
+        with pytest.raises(
+            mlrun.errors.MLRunMissingProjectError,
+            match="Project is required to upload source as artifact",
+        ):
+            fn._upload_source_as_artifact()
+
+
+def test_set_function_single_file_application(tmp_path):
+    # Test that set_function with single .py file works for application runtime
+    source_file = tmp_path / "handler.py"
+    source_file.write_text("def handler(): pass")
+
+    project = mlrun.get_or_create_project("test-proj", allow_cross_project=True)
+    fn = project.set_function(
+        str(source_file),
+        name="my-app",
+        kind="application",
+        image="mlrun/mlrun",
+    )
+
+    assert fn.kind == "application"
+    assert fn.metadata.project == "test-proj"
+    assert fn.spec.build.source == str(source_file)

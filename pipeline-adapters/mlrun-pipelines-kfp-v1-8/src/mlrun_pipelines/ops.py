@@ -22,7 +22,7 @@ from kubernetes import client as k8s_client
 import mlrun
 import mlrun.common.constants as mlrun_constants
 import mlrun.common.runtimes.constants
-import mlrun.configuration_context
+import mlrun.runtime_configuration_context
 import mlrun.utils.helpers
 import mlrun_pipelines.common.constants
 import mlrun_pipelines.common.ops
@@ -212,9 +212,7 @@ def add_default_env(k8s_client, cop):
         )
 
     # Add auth token name via MLRUN_EXEC_CONFIG which creates a runobj with spec.auth set
-    auth_token_name = (
-        mlrun.configuration_context.MLRunConfigurationContext.get_auth_token_name()
-    )
+    auth_token_name = mlrun.runtime_configuration_context.RuntimeConfigurationContext.get_auth_token_name()
     if auth_token_name:
         exec_config = {"spec": {"auth": {"token_name": auth_token_name}}}
         cop.container.add_env_variable(

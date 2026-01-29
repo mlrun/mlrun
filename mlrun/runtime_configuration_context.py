@@ -18,20 +18,20 @@ from typing import Optional
 
 import mlrun.common.constants
 
-# Context storage for MLRunConfigurationContext
-mlrun_configuration_context: contextvars.ContextVar[
-    Optional["MLRunConfigurationContext"]
-] = contextvars.ContextVar("mlrun_configuration_context", default=None)
+# Context storage for RuntimeConfigurationContext
+runtime_configuration_context: contextvars.ContextVar[
+    Optional["RuntimeConfigurationContext"]
+] = contextvars.ContextVar("runtime_configuration_context", default=None)
 
 
-class MLRunConfigurationContext:
+class RuntimeConfigurationContext:
     """
-    Context manager for MLRun configuration options.
+    Context manager for runtime configuration options.
     Settings here override any function-level configuration.
 
     Example::
 
-        with mlrun.MLRunConfigurationContext(auth_token_name="my-token"):
+        with mlrun.RuntimeConfigurationContext(auth_token_name="my-token"):
             func.run()
             project.enable_model_monitoring()
 
@@ -45,15 +45,15 @@ class MLRunConfigurationContext:
         self._token: Optional[contextvars.Token] = None
 
     def __enter__(self):
-        self._token = mlrun_configuration_context.set(self)
+        self._token = runtime_configuration_context.set(self)
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        mlrun_configuration_context.reset(self._token)
+        runtime_configuration_context.reset(self._token)
         return False
 
     def __repr__(self) -> str:
-        return f"MLRunConfigurationContext(auth_token_name={self.auth_token_name!r})"
+        return f"RuntimeConfigurationContext(auth_token_name={self.auth_token_name!r})"
 
     @staticmethod
     def get_auth_token_name() -> Optional[str]:
@@ -61,13 +61,13 @@ class MLRunConfigurationContext:
         Get auth token name from context manager or internal env var.
 
         The internal env var is set by MLRun server on workflow-runner pods.
-        Users should use MLRunConfigurationContext to set auth_token_name.
+        Users should use RuntimeConfigurationContext to set auth_token_name.
 
         :return: The auth token name if set in the current context or internal env var,
             None otherwise.
         """
         # First: check context var (for client-side compilation)
-        ctx = mlrun_configuration_context.get()
+        ctx = runtime_configuration_context.get()
         if ctx and ctx.auth_token_name:
             return ctx.auth_token_name
 

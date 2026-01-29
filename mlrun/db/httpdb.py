@@ -40,10 +40,10 @@ import mlrun.common.schemas
 import mlrun.common.schemas.model_monitoring.constants as mm_constants
 import mlrun.common.schemas.model_monitoring.model_endpoints as mm_endpoints
 import mlrun.common.types
-import mlrun.configuration_context
 import mlrun.k8s_utils
 import mlrun.platforms
 import mlrun.projects
+import mlrun.runtime_configuration_context
 import mlrun.runtimes.nuclio.api_gateway
 import mlrun.runtimes.nuclio.function
 import mlrun.utils
@@ -4065,10 +4065,7 @@ class HTTPRunDB(RunDBInterface):
         :param fetch_credentials_from_sys_config: If true, fetch the credentials from the system configuration.
 
         """
-        # Add auth token from context manager if set
-        auth_token_name = (
-            mlrun.configuration_context.MLRunConfigurationContext.get_auth_token_name()
-        )
+        auth_token_name = mlrun.runtime_configuration_context.RuntimeConfigurationContext.get_auth_token_name()
 
         self.api_call(
             method=mlrun.common.types.HTTPMethod.PUT,
@@ -4767,10 +4764,7 @@ class HTTPRunDB(RunDBInterface):
 
         :returns:    :py:class:`~mlrun.common.schemas.WorkflowResponse`.
         """
-        # Get auth_token_name from context manager (users must use MLRunConfigurationContext)
-        auth_token_name = (
-            mlrun.configuration_context.MLRunConfigurationContext.get_auth_token_name()
-        )
+        auth_token_name = mlrun.runtime_configuration_context.RuntimeConfigurationContext.get_auth_token_name()
 
         image = (
             workflow_spec.image

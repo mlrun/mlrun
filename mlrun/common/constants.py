@@ -42,8 +42,7 @@ MLRUN_JOB_AUTH_SECRET_PATH = "/var/mlrun-secrets/auth"
 MLRUN_JOB_AUTH_SECRET_FILE = ".igz.yml"
 MLRUN_RUNTIME_AUTH_DEFAULT_TOKEN_NAME = "default"
 
-# Internal env var for workflow-runner only - NOT for user use
-# Users should use MLRunConfigurationContext to set auth_token_name
+# Internal env var used for workflow-runner only
 MLRUN_WORKFLOW_RUNNER_AUTH_TOKEN_NAME_ENV_VAR = "MLRUN_WORKFLOW_RUNNER_AUTH_TOKEN_NAME"
 
 

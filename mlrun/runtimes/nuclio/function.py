@@ -33,10 +33,10 @@ from nuclio.triggers import V3IOStreamTrigger
 
 import mlrun.auth.nuclio
 import mlrun.common.constants
-import mlrun.configuration_context
 import mlrun.db
 import mlrun.errors
 import mlrun.k8s_utils
+import mlrun.runtime_configuration_context
 import mlrun.utils
 import mlrun.utils.helpers
 from mlrun.common.schemas import AuthInfo, BatchingSpec
@@ -795,11 +795,8 @@ class RemoteRuntime(KubeResource):
         self.try_auto_mount_based_on_config()
         self._fill_credentials()
 
-        # Because nuclio does not go through the ClientRemoteLauncher, we need to set the token from the context
-        # to support usage of context manager.
-        auth_token_name = (
-            mlrun.configuration_context.MLRunConfigurationContext.get_auth_token_name()
-        )
+        # Set via context manager because nuclio does not go through the ClientRemoteLauncher
+        auth_token_name = mlrun.runtime_configuration_context.RuntimeConfigurationContext.get_auth_token_name()
         mlrun.utils.helpers.set_auth_token_name(self.spec, auth_token_name)
 
         db = self._get_db()

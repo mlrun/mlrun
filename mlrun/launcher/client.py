@@ -18,11 +18,11 @@ import IPython.display
 
 import mlrun
 import mlrun.common.constants as mlrun_constants
-import mlrun.configuration_context
 import mlrun.errors
 import mlrun.launcher.base as launcher
 import mlrun.lists
 import mlrun.model
+import mlrun.runtime_configuration_context
 import mlrun.runtimes
 import mlrun.utils
 import mlrun.utils.version
@@ -86,8 +86,7 @@ class ClientBaseLauncher(launcher.BaseLauncher, abc.ABC):
                 run.metadata.labels[mlrun_constants.MLRunInternalLabels.owner],
             )
 
-        # Copy auth from function to run (function.spec.auth is not serialized,
-        # so we need to copy it to run.spec.auth which IS serialized)
+        # Copy auth from function to run since run.spec is serialized
         ClientBaseLauncher._enrich_run_auth_from_function(runtime, run)
 
         db = runtime._get_db()
@@ -104,7 +103,7 @@ class ClientBaseLauncher(launcher.BaseLauncher, abc.ABC):
     ):
         """
         Copy auth from function.spec.auth to run.spec.auth.
-        Also applies auth token from context (set by MLRunConfigurationContext).
+        Also applies auth token from context (set by RuntimeConfigurationContext).
         Context manager settings override function-level settings.
         """
         func_auth = getattr(runtime.spec, "auth", None)
@@ -116,9 +115,7 @@ class ClientBaseLauncher(launcher.BaseLauncher, abc.ABC):
                 run.spec.auth = {**func_auth, **run.spec.auth}
 
         # Context manager overrides everything
-        auth_token_name = (
-            mlrun.configuration_context.MLRunConfigurationContext.get_auth_token_name()
-        )
+        auth_token_name = mlrun.runtime_configuration_context.RuntimeConfigurationContext.get_auth_token_name()
         mlrun.utils.helpers.set_auth_token_name(run.spec, auth_token_name)
 
     @staticmethod

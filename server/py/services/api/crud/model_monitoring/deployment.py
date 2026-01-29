@@ -106,7 +106,7 @@ class MonitoringDeployment:
                                             monitoring parquet target. Note that this value will be used to handle the
                                             offset by the scheduled batch job.
         :param auth_token_name:             The auth token name to use for deployed functions
-                                            (set by mlrun.MLRunConfigurationContext).
+                                            (set by mlrun.RuntimeConfigurationContext).
         """
         self.project = project
         self.auth_info = auth_info

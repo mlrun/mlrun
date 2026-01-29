@@ -113,7 +113,7 @@ async def _common_parameters(
         None, alias=mlrun.common.schemas.HeaderNames.client_version
     ),
     auth_token_name: Optional[str] = Query(
-        None, description="Auth token name (set by mlrun.MLRunConfigurationContext)"
+        None, description="Auth token name (set by mlrun.RuntimeConfigurationContext)"
     ),
 ) -> _CommonParams:
     """
@@ -123,7 +123,7 @@ async def _common_parameters(
     :param auth_info:       The auth info of the request.
     :param db_session:      A session that manages the current dialog with the database.
     :param client_version:  The client version.
-    :param auth_token_name: The auth token name (set by mlrun.MLRunConfigurationContext).
+    :param auth_token_name: The auth token name (set by mlrun.RuntimeConfigurationContext).
     :returns:          A `_CommonParameters` object that contains the input data.
     """
     await _verify_authorization(

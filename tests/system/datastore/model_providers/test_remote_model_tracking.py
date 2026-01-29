@@ -149,7 +149,7 @@ class TestMockModelProviderTracking(
 
             # Verify each row in the batch
             for idx, row in batch_sorted.iterrows():
-                expected_input = INPUT_DATA[idx]
+                expected_input = INPUT_DATA[int(group["original_index"][idx])]
 
                 # Item counter matches batch position (0 or 1 for batch of 2, 0 for batch of 1)
                 expected_counter = idx % 2 if batch_size == 2 else 0

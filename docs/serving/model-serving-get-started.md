@@ -13,8 +13,8 @@ available-steps
 model-serving-steps
 remote-steps
 writing-custom-steps
-queue-step
 router
 ```
 See also
-- {ref}`load-from-hub`
+- [Queues and streams](../serving/remote-execution.ipynb#queues-and-streams).
+- {ref}`importing steps rom the MLRun hub<load-from-hub>`

@@ -388,7 +388,7 @@ class TestStreamingErrors:
         )
         graph.add_step(
             name="restreamer",
-            class_name="tests.serving.test_streaming.ReStreamer",
+            class_name="ReStreamer",
             after="collector1",
         )
         graph.add_step(
@@ -472,9 +472,7 @@ class TestStreamingGenerator:
         graph = function.set_topology("flow", engine="async")
 
         # Streaming step without collector - should yield individual chunks
-        graph.to(
-            name="streamer", class_name="tests.serving.test_streaming.StreamingStep"
-        ).respond()
+        graph.to(name="streamer", class_name="StreamingStep").respond()
 
         server = function.to_mock_server()
         try:

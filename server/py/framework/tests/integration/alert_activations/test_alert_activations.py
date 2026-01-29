@@ -36,9 +36,9 @@ import tests.common_fixtures
 @pytest.mark.parametrize(
     "interval_name",
     [
-        ("DAY",),
-        ("MONTH",),
-        ("YEARWEEK",),
+        "DAY",
+        "MONTH",
+        "YEARWEEK",
     ],
 )
 @tests.common_fixtures.freeze_datetime(datetime(2025, 1, 6))

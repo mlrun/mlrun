@@ -138,8 +138,8 @@ def test_requirement_specifiers_convention():
         "pyopenssl": {">=23"},
         # used in tests
         "aioresponses": {"~=0.7"},
-        "testcontainers[k3s]": {"~=4.10.0"},
-        "testcontainers[registry]": {"~=4.10.0"},
+        "testcontainers[k3s]": {"~=4.14.0"},
+        "testcontainers[registry]": {"~=4.14.0"},
         "scikit-learn": {"~=1.5.2"},
         # ensure minimal version to gain vulnerability fixes
         "setuptools": {">=75.2"},

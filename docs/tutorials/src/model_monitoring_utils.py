@@ -22,7 +22,7 @@ def enable_model_monitoring(
         name=stream_profile_name, v3io_access_key=mlrun.mlconf.get_v3io_access_key()
     )
 
-    if mlrun.mlconf.is_ce_mode():
+    if not mlrun.mlconf.is_using_v3io():
         mlrun_namespace = os.environ.get("MLRUN_NAMESPACE", "mlrun")
         tsdb_profile = DatastoreProfilePostgreSQL(
             name=tsdb_profile_name,

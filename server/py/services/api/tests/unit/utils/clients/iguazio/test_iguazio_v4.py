@@ -143,7 +143,7 @@ async def test_verify_request_session_success(
             "metadata": {},
             "relationships": [
                 {
-                    "@type": "type.googleapis.com/group.Group",
+                    "@type": "type.googleapis.com/usergroup.Group",
                     "metadata": {
                         "id": "dummy-group-id-g1",
                     },
@@ -155,7 +155,7 @@ async def test_verify_request_session_success(
             "metadata": {"username": "dummy-user"},
             "relationships": [
                 {
-                    "@type": "type.googleapis.com/group.Group",
+                    "@type": "type.googleapis.com/usergroup.Group",
                     "metadata": {"id": "dummy-group-id-g1"},
                 },
             ],
@@ -165,7 +165,7 @@ async def test_verify_request_session_success(
             "metadata": "not-a-dict",
             "relationships": [
                 {
-                    "@type": "type.googleapis.com/group.Group",
+                    "@type": "type.googleapis.com/usergroup.Group",
                     "metadata": {
                         "id": "dummy-group-id-g1",
                     },
@@ -307,7 +307,7 @@ async def test_verify_request_session_single_group_untyped(
         "metadata": {"username": "dummy-user", "id": "dummy-id"},
         "relationships": [
             {
-                "@type": "type.googleapis.com/group.Group",
+                "@type": "type.googleapis.com/usergroup.Group",
                 "metadata": {"id": "valid-group-id"},
             },
             {
@@ -343,7 +343,7 @@ def sample_user_info(username="dummy-user", user_id="dummy-user-id", group_ids=N
         "metadata": {"resourceType": "user", "username": username, "id": user_id},
         "relationships": [
             {
-                "@type": "type.googleapis.com/group.Group",
+                "@type": "type.googleapis.com/usergroup.Group",
                 "metadata": {"id": gid},
             }
             for gid in group_ids
@@ -727,11 +727,11 @@ def _generate_igv4_httpx_exception(
                 },
                 "relationships": [
                     {
-                        "@type": "type.googleapis.com/group.Group",
+                        "@type": "type.googleapis.com/usergroup.Group",
                         "metadata": {"id": "group1"},
                     },
                     {
-                        "@type": "type.googleapis.com/group.Group",
+                        "@type": "type.googleapis.com/usergroup.Group",
                         "metadata": {"id": "group2"},
                     },
                 ],

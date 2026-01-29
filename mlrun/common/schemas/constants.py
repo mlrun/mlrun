@@ -116,7 +116,6 @@ class HeaderNames:
     deletion_strategy = f"{headers_prefix}deletion-strategy"
     secret_store_token = f"{headers_prefix}secret-store-token"
     pipeline_arguments = f"{headers_prefix}pipeline-arguments"
-    auth_token_name = f"{headers_prefix}auth-token-name"
     client_version = f"{headers_prefix}client-version"
     python_version = f"{headers_prefix}client-python-version"
     backend_version = f"{headers_prefix}be-version"

@@ -123,10 +123,8 @@ async def test_retry_on_exception(
     chief_client: framework.utils.clients.chief.Client,
     aioresponses_mock: aioresponses_mock,
 ):
-    # ensure the session to make sure the retry options are set
-    await chief_client._messaging_client._resolve_session()
     retry_attempts = (
-        chief_client._messaging_client._local.session.retry_options.attempts
+        chief_client._messaging_client._async_sessions.get().retry_options.attempts
     )
 
     task_name = "test-for-chief"

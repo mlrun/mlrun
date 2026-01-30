@@ -54,7 +54,7 @@ class Client:
         return self
 
     async def __aexit__(self, exc_type, exc, tb):
-        await self._close_session()
+        self._close_session()
 
     async def list_api_gateways(
         self, project_name=None
@@ -212,9 +212,9 @@ class Client:
             logger=logger,
         )
 
-    async def _close_session(self):
+    def _close_session(self):
         """Close the thread-local session for the current thread."""
-        await self._sessions.close()
+        self._sessions.close()
 
     async def _send_request_to_api(
         self, method, path="/", error_message: str = "", **kwargs

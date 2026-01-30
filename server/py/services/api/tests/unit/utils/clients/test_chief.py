@@ -53,8 +53,8 @@ async def chief_client(
     try:
         yield client
     finally:
-        if client._messaging_client._local.session:
-            await client._messaging_client._local.session.close()
+        client._messaging_client._async_sessions.close()
+        client._messaging_client._sync_sessions.close()
 
 
 @pytest.mark.asyncio
@@ -321,9 +321,7 @@ async def test_do_not_escape_cookie(
     app.router.add_post("/api/v1/operations/migrations", handler)
     async with TestClient(TestServer(app)) as client:
         chief_client._api_url = ""
-        chief_client._messaging_client._resolve_session()
-        await chief_client._messaging_client._resolve_session()
-        chief_client._messaging_client._local.session._client = client
+        chief_client._messaging_client._async_sessions._factory = lambda: client
 
         # set that to make sure session escaping is on
         # coupled with chief_client._resolve_request_kwargs_from_request logic.

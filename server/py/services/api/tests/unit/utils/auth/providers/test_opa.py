@@ -64,8 +64,7 @@ async def opa_provider() -> (
     yield provider
 
     # explicitly closing the provider's session to avoid "unclosed session" warning between tests
-    if provider._session:
-        await provider._session.close()
+    provider._sessions.close()
 
 
 @pytest.mark.asyncio

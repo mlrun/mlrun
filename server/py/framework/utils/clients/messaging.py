@@ -16,7 +16,6 @@ import copy
 import http
 import http.cookies
 import re
-import threading
 import typing
 import urllib
 import urllib.parse
@@ -28,6 +27,7 @@ import requests
 import mlrun.common.schemas
 import mlrun.errors
 import mlrun.utils.singleton
+import mlrun.utils.thread
 from mlrun.utils import logger
 
 import framework.utils.clients.discovery
@@ -38,8 +38,16 @@ PREFIX_GROUPING = re.compile(r"^([a-z/-]+)/((?:v\d+)?).*")
 class Client(metaclass=mlrun.utils.singleton.AbstractSingleton):
     def __init__(self) -> None:
         super().__init__()
-        # Stores per-thread sessions in `session` attribute
-        self._local = threading.local()
+        # Stores per-thread sessions with close callbacks
+        self._async_sessions = mlrun.utils.thread.ThreadLocalClient(
+            factory=self._get_new_async_session,
+            close_callback=lambda session: session.close(),
+        )
+        self._sync_sessions = mlrun.utils.thread.ThreadLocalClient(
+            factory=self._get_new_sync_session,
+            close_callback=lambda session: session.close(),
+        )
+
         self._discovery = framework.utils.clients.discovery.Client()
 
     ##### Sync HTTP requests #####
@@ -186,7 +194,7 @@ class Client(metaclass=mlrun.utils.singleton.AbstractSingleton):
         raise_on_failure: bool = False,
         **kwargs,
     ) -> aiohttp.ClientResponse:
-        session = await self._resolve_session()
+        session = self._async_sessions.get()
         if kwargs.get("timeout") is None:
             kwargs["timeout"] = (
                 mlrun.mlconf.httpdb.clusterization.worker.request_timeout or 20
@@ -235,7 +243,7 @@ class Client(metaclass=mlrun.utils.singleton.AbstractSingleton):
         **kwargs,
     ) -> requests.Response:
         self._prepare_request_kwargs(headers=headers, kwargs=kwargs)
-        session = self._resolve_sync_retry_session()
+        session = self._sync_sessions.get()
         kwargs_to_log = self._resolve_kwargs_to_log(kwargs)
         logger.debug(
             "Sending sync request to service",
@@ -294,18 +302,12 @@ class Client(metaclass=mlrun.utils.singleton.AbstractSingleton):
         path, version, service_instance = self._prepare_request_data(method, path)
         return service_instance is not None
 
-    async def _resolve_session(self):
-        if not hasattr(self._local, "session"):
-            self._local.session = self._get_new_session()
-        return self._local.session
-
-    def _resolve_sync_retry_session(self):
-        if not hasattr(self._local, "sync_retry_session"):
-            self._local.sync_retry_session = mlrun.utils.HTTPSessionWithRetry()
-        return self._local.sync_retry_session
+    @staticmethod
+    def _get_new_sync_session():
+        return mlrun.utils.HTTPSessionWithRetry()
 
     @staticmethod
-    def _get_new_session():
+    def _get_new_async_session():
         session = mlrun.utils.AsyncClientWithRetry(
             # This client handles forwarding requests from api to other services.
             # if we receive 5XX error, the code will be returned to the client.

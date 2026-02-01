@@ -57,4 +57,4 @@ jobs:
         # See:
         # https://github.com/peter-evans/create-pull-request?tab=readme-ov-file#token
         # Fine-grained Personal Access Token (PAT) with contents: write and pull-requests: write scopes.
-        token: ${{ secrets.MLRUN_PR_PAT }}
+        token: ${{ github.token }}

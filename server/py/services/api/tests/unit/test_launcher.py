@@ -557,3 +557,113 @@ def test_enrich_and_validate_auth_token_name_iguazio_v4_token_not_found(
 
     with pytest.raises(mlrun.errors.MLRunNotFoundError, match="No valid tokens found"):
         launcher.enrich_and_validate_auth_token_name(run)
+
+
+def test_store_function_enriches_owner_from_auth_info():
+    """Test that server-side owner enrichment overrides client-provided owner."""
+    auth_info = mlrun.common.schemas.AuthInfo(username="authenticated_user")
+    launcher = services.api.launcher.ServerSideLauncher(auth_info=auth_info)
+
+    # Simulate client-provided owner (e.g., 'jovyan' from Jupyter)
+    run = mlrun.run.RunObject(
+        metadata=mlrun.model.RunMetadata(
+            labels={mlrun.common.constants.MLRunInternalLabels.owner: "jovyan"}
+        ),
+        spec=mlrun.model.RunSpec(output_path="/data/{{run.user}}/artifacts"),
+    )
+
+    runtime = unittest.mock.MagicMock()
+    runtime.kind = "job"
+    runtime._get_db.return_value = None
+
+    launcher._store_function(runtime, run)
+
+    # Owner should be overridden with authenticated username
+    assert (
+        run.metadata.labels[mlrun.common.constants.MLRunInternalLabels.owner]
+        == "authenticated_user"
+    )
+    # Template should be replaced with authenticated user
+    assert run.spec.output_path == "/data/authenticated_user/artifacts"
+
+
+def test_store_function_preserves_owner_when_no_auth():
+    """Test that client-provided owner is preserved when auth_info has no username (CE mode)."""
+    # No username in auth_info (CE/unauthenticated mode)
+    auth_info = mlrun.common.schemas.AuthInfo(username=None)
+    launcher = services.api.launcher.ServerSideLauncher(auth_info=auth_info)
+
+    run = mlrun.run.RunObject(
+        metadata=mlrun.model.RunMetadata(
+            labels={mlrun.common.constants.MLRunInternalLabels.owner: "local_user"}
+        ),
+        spec=mlrun.model.RunSpec(output_path="/data/{{run.user}}/artifacts"),
+    )
+
+    runtime = unittest.mock.MagicMock()
+    runtime.kind = "job"
+    runtime._get_db.return_value = None
+
+    launcher._store_function(runtime, run)
+
+    # Owner should remain as client-provided value
+    assert (
+        run.metadata.labels[mlrun.common.constants.MLRunInternalLabels.owner]
+        == "local_user"
+    )
+    # Template should be replaced with client-provided owner
+    assert run.spec.output_path == "/data/local_user/artifacts"
+
+
+def test_store_function_preserves_owner_when_no_auth_info():
+    """Test that client-provided owner is preserved when auth_info is None."""
+    launcher = services.api.launcher.ServerSideLauncher(auth_info=None)
+
+    run = mlrun.run.RunObject(
+        metadata=mlrun.model.RunMetadata(
+            labels={mlrun.common.constants.MLRunInternalLabels.owner: "local_user"}
+        ),
+        spec=mlrun.model.RunSpec(output_path="/data/{{run.user}}/artifacts"),
+    )
+
+    runtime = unittest.mock.MagicMock()
+    runtime.kind = "job"
+    runtime._get_db.return_value = None
+
+    launcher._store_function(runtime, run)
+
+    # Owner should remain as client-provided value
+    assert (
+        run.metadata.labels[mlrun.common.constants.MLRunInternalLabels.owner]
+        == "local_user"
+    )
+    # Template should be replaced with client-provided owner
+    assert run.spec.output_path == "/data/local_user/artifacts"
+
+
+def test_store_function_handles_no_output_path():
+    """Test that _store_function handles runs without output_path."""
+    auth_info = mlrun.common.schemas.AuthInfo(username="authenticated_user")
+    launcher = services.api.launcher.ServerSideLauncher(auth_info=auth_info)
+
+    run = mlrun.run.RunObject(
+        metadata=mlrun.model.RunMetadata(
+            labels={mlrun.common.constants.MLRunInternalLabels.owner: "jovyan"}
+        ),
+        spec=mlrun.model.RunSpec(output_path=None),
+    )
+
+    runtime = unittest.mock.MagicMock()
+    runtime.kind = "job"
+    runtime._get_db.return_value = None
+
+    # Should not raise
+    launcher._store_function(runtime, run)
+
+    # Owner should still be enriched
+    assert (
+        run.metadata.labels[mlrun.common.constants.MLRunInternalLabels.owner]
+        == "authenticated_user"
+    )
+    # output_path should remain None
+    assert run.spec.output_path is None

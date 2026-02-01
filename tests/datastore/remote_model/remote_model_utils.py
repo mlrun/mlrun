@@ -208,16 +208,6 @@ def create_mocked_get_store_artifact(uri_to_artifact: dict):
     return mocked_get_store_artifact
 
 
-def create_mocked_get_store_artifact(uri_to_artifact: dict):
-    def mocked_get_store_artifact(uri, **kwargs):
-        artifact = uri_to_artifact.get(uri)
-        if not artifact:
-            raise mlrun.errors.MLRunInvalidArgumentError("Artifact uri not found")
-        return artifact, None
-
-    return mocked_get_store_artifact
-
-
 def setup_remote_model_test(
     project,
     model_url,

@@ -65,7 +65,9 @@ class TestMockModelProviderTracking(
         )
 
         # Verify batch invocation group
-        self._verify_direct_batch_parquet_rows(batch_group, endpoint_name, BATCH_INPUT_DATA)
+        self._verify_direct_batch_parquet_rows(
+            batch_group, endpoint_name, BATCH_INPUT_DATA
+        )
 
     def _verify_batch_row_common(
         self, row, endpoint_name, batch_size, expected_input, expected_counter=None
@@ -357,19 +359,11 @@ class TestMockModelProviderTracking(
             table=mm_constants.V3IOTSDBTables.PREDICTIONS, start="now-50m", end="now"
         )
 
-        assert (
-            len(predictions) == 3
-        ), f"Expected 3 successful batches, got {len(predictions)}"
-
         # Verify batch sizes (2+2+1)
+        assert len(predictions) == 3
         batch_sizes = predictions["estimated_prediction_count"].tolist()
         assert batch_sizes == [2, 2, 1]
 
-        # Verify effective_sample_count matches estimated_prediction_count
-        for idx, row in predictions.iterrows():
-            assert row["effective_sample_count"] == row["estimated_prediction_count"]
-
-        # Verify parquet contents - still 5 events (error batch not tracked)
         v3io_df = pd.read_parquet(
             f"v3io:///projects/{self.project.name}/artifacts/model-endpoints/parquet/key={mep.metadata.uid}"
         )

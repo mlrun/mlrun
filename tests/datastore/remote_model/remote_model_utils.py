@@ -197,6 +197,7 @@ formatted_messages = [
 
 FLUSH_AFTER_SECONDS = 4
 
+
 def create_mocked_get_store_artifact(uri_to_artifact: dict):
     def mocked_get_store_artifact(uri, **kwargs):
         artifact = uri_to_artifact.get(uri)

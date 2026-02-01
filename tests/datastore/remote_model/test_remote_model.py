@@ -413,8 +413,8 @@ class TestMockModelProvider(BaseMockModelProviderTest):
         model_artifact, llm_prompt_artifact, function = setup_remote_model_test(
             project, model_url, execution_mechanism=execution_mechanism, batch_step=True
         )
-        # TODO : Enable tracking verification for batch step test
-        # function.set_tracking("dummy://", enable_tracking=True)
+        function.set_tracking("dummy://", enable_tracking=True)
+
         mocked_get_store_artifact = create_mocked_get_store_artifact(
             {
                 model_artifact.uri: model_artifact,
@@ -446,16 +446,30 @@ class TestMockModelProvider(BaseMockModelProviderTest):
         finally:
             server.wait_for_completion()
 
-            # Verify we got all responses
-            assert len(responses) == len(INPUT_DATA)
+        # Verify we got all responses
+        assert len(responses) == len(INPUT_DATA)
 
-            # Verify each response has correct structure
-            for i, response in enumerate(responses):
-                assert "output" in response
-                output = response["output"]
-                self._verify_single_response(output, expect_counter=True)
-                # in order to check batches of 2:
-                expected_counter = i % 2
-                assert f"(Item {expected_counter})" in output[UsageResponseKeys.ANSWER]
+        # Verify each response has correct structure
+        for i, response in enumerate(responses):
+            assert "output" in response
+            output = response["output"]
+            self._verify_single_response(output, expect_counter=True)
+            # in order to check batches of 2:
+            expected_counter = i % 2
+            assert f"(Item {expected_counter})" in output[UsageResponseKeys.ANSWER]
 
-            # TODO : Verify tracking events - should have 3 batches (2+2+1 = len(INPUT_DATA) total events)
+        # Verify tracking events - should have 3 batches (2+2+1 = len(INPUT_DATA) total events)
+        dummy_stream = server.context.stream.output_stream
+        assert len(dummy_stream.event_list) == 3
+
+        # Verify each batch separately using _verify_batch_tracking
+        expected_batch_sizes = [2, 2, 1]  # 2+2+1 = 5 events
+        start_idx = 0
+
+        for batch_idx, event in enumerate(dummy_stream.event_list):
+            expected_size = expected_batch_sizes[batch_idx]
+            end_idx = start_idx + expected_size
+            batch_inputs = INPUT_DATA[start_idx:end_idx]
+            # Use _verify_batch_tracking for each batch
+            self._verify_batch_tracking(event, inputs=batch_inputs)
+            start_idx = end_idx

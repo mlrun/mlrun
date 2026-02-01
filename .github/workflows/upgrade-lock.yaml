@@ -38,6 +38,7 @@ jobs:
     - uses: actions/checkout@v6
       with:
         token: ${{ steps.app-token.outputs.token }}
+        persist-credentials: false
 
     - uses: astral-sh/setup-uv@803947b9bd8e9f986429fa0c5a41c367cd732b41 # 7.2.1
 
@@ -63,3 +64,4 @@ jobs:
         commit-message: Upgrade uv lock files
         branch: "automated/uv-lock-upgrade-${{ github.ref_name }}"
         delete-branch: true
+        token: ${{ steps.app-token.outputs.token }}

@@ -284,11 +284,7 @@ default_config = {
             },
             "service_account": {
                 "default": None,
-                "forbidden_service_accounts": [
-                    "mlrun-api",
-                    "iguazio",
-                    "nuclio",
-                ],
+                "forbidden_service_accounts": "",
             },
             "state_thresholds": {
                 "default": {
@@ -911,6 +907,12 @@ default_config = {
         # Default is empty because if set, searches for the specific token name in the file, if empty, it will look
         # for a token named "default", if "default" does not exist, it will use the first token in the file
         "token_name": "",
+        # Timeout in seconds for token refresh retries when running inside an MLRun runtime.
+        # This allows time for Kubelet to propagate updated tokens from secrets to mounted files.
+        # Set to 0 to disable runtime-specific retry behavior.
+        "runtime_token_refresh_timeout": 120,
+        # Backoff interval in seconds between token refresh retry attempts when running in a runtime.
+        "runtime_token_refresh_backoff": 10,
     },
     # a runtime computed value. Do not set it manually.
     "auth_token_endpoint": "",
@@ -1458,12 +1460,27 @@ class Config:
             == mlrun.common.types.AuthenticationMode.IGUAZIO_V4
         )
 
+    def is_using_v3io(self) -> bool:
+        return not self.is_iguazio_v4_mode() and not self.is_ce_mode()
+
     def is_explicit_ack_enabled(self) -> bool:
         return self.httpdb.nuclio.explicit_ack == "enabled" and (
             not self.nuclio_version
             or semver.VersionInfo.parse(self.nuclio_version)
             >= semver.VersionInfo.parse("1.12.10")
         )
+
+    def default_forbidden_service_accounts(self):
+        forbidden_service_accounts_str = (
+            self.function.spec.service_account.forbidden_service_accounts
+        )
+        if forbidden_service_accounts_str:
+            return [
+                service_account.strip()
+                for service_account in forbidden_service_accounts_str.split(",")
+            ]
+
+        return []
 
 
 # Global configuration

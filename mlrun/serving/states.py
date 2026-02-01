@@ -4029,7 +4029,7 @@ def _init_async_objects(context, steps, root):
                 and step.responder
             ):
                 # if responder step (return result), add Complete()
-                step.async_object.to(storey.Complete(full_event=True))
+                step.async_object.to(storey.Complete())
                 wait_for_result = True
 
     source_args = context.get_param("source_args", {})

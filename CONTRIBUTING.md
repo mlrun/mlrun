@@ -33,7 +33,7 @@ git clone git@github.com:<your username>/mlrun.git
 cd mlrun
 ```
 
-Set up a virtualenv (we recommend using [venv](https://docs.python.org/3.9/library/venv.html))
+Set up a virtualenv (we recommend using [venv](https://docs.python.org/3.11/library/venv.html))
 ```shell script
 python -m venv venv
 source venv/bin/activate
@@ -295,22 +295,15 @@ Currently, this can only be done by one of the maintainers, the process is:
 3. Go to the [system test action](https://github.com/mlrun/mlrun/actions?query=workflow%3A%22System+Tests%22) and trigger 
 it for the branch, change "Take tested code from action REF" to `true`   
 
-## Migrating to Python 3.9
+## Migrating to Python 3.11
+Starting with MLRun v1.11.0, MLRun supports Python 3.11 only.
+Python versions earlier than 3.11 are no longer supported.
+If your environment is currently running on Python 3.9, you must upgrade to a Python 3.11 interpreter. 
 
-MLRun moved to Python 3.9 from 1.3.0.  
-If you are working on MLRun 1.2.x or earlier, you will need to switch between python 3.9 and python 3.7 interpreters.
-To work with multiple python interpreters, we recommend using _pyenv_ (see [Creating a development environment](#creating-a-development-environment)).
-Once you have pyenv installed, create multiple `venv` for each Python version, so when you switch between them, you will
-have the correct dependencies installed. You can manage and switch venvs through PyCharm project settings.
-
-e.g.:
-
-```bash
-pyenv shell 3.9
-pyenv virtualenv mlrun
-
-pyenv shell 3.7
-pyenv virtualenv mlrun37
+Example:
+```
+pyenv shell 3.11
+pyenv virtualenv mlrun311
 ```
 
 ### Python Code Conventions:

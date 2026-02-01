@@ -38,8 +38,8 @@ from mlrun.datastore.model_provider.model_provider import (
 )
 from mlrun.datastore.model_provider.openai_provider import OpenAIProvider
 from tests.datastore.remote_model.remote_model_utils import (
+    BATCH_INPUT_DATA,
     EXPECTED_RESULTS,
-    INPUT_DATA,
     assert_async_invocations,
     create_mocked_get_store_artifact,
     formatted_messages,
@@ -346,7 +346,7 @@ class TestOpenAIModel(TestBasicOpenAIProvider):
         ):
             server = function.to_mock_server()
         try:
-            response = server.test(body=INPUT_DATA[0])["output"]
+            response = server.test(body=BATCH_INPUT_DATA[0])["output"]
             validate_openai_single_response(
                 response, EXPECTED_RESULTS[0], self.basic_llm_model
             )
@@ -384,7 +384,7 @@ class TestOpenAIModel(TestBasicOpenAIProvider):
             server = function.to_mock_server()
         try:
             start = time.perf_counter()
-            results_with_times = server.test(body={"input": INPUT_DATA})
+            results_with_times = server.test(body={"input": BATCH_INPUT_DATA})
             total_duration = time.perf_counter() - start
 
             assert_async_invocations(
@@ -469,7 +469,7 @@ class TestOpenAIModel(TestBasicOpenAIProvider):
         ):
             server = function.to_mock_server()
         try:
-            batch_response = server.test(body=INPUT_DATA)
+            batch_response = server.test(body=BATCH_INPUT_DATA)
             validate_openai_batch_response(
                 batch_response, EXPECTED_RESULTS, self.basic_llm_model
             )
@@ -512,10 +512,10 @@ class TestOpenAIModel(TestBasicOpenAIProvider):
                 time.sleep(delay)
                 return server.test(body=event)
 
-            with ThreadPoolExecutor(max_workers=len(INPUT_DATA)) as executor:
+            with ThreadPoolExecutor(max_workers=len(BATCH_INPUT_DATA)) as executor:
                 futures = [
                     executor.submit(send_event, event, i * 0.1)
-                    for i, event in enumerate(INPUT_DATA)
+                    for i, event in enumerate(BATCH_INPUT_DATA)
                 ]
                 batch_response = [future.result() for future in futures]
         finally:
@@ -524,4 +524,4 @@ class TestOpenAIModel(TestBasicOpenAIProvider):
             batch_response, EXPECTED_RESULTS, self.basic_llm_model
         )
 
-        # TODO: Verify tracking events - should have 3 batches (2+2+1 = len(INPUT_DATA) total events)
+        # TODO: Verify tracking events - should have 3 batches (2+2+1 = len(BATCH_INPUT_DATA) total events)

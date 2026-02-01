@@ -35,8 +35,8 @@ from mlrun.datastore.model_provider.model_provider import (
     UsageResponseKeys,
 )
 from tests.datastore.remote_model.remote_model_utils import (
+    BATCH_INPUT_DATA,
     EXPECTED_RESULTS,
-    INPUT_DATA,
     PROMPT_LEGEND,
     PROMPT_TEMPLATE,
     LLMContentMismatchError,
@@ -458,7 +458,7 @@ class TestHuggingFaceAIModel(TestBasicHuggingFaceProvider):
             tokenizer = AutoTokenizer.from_pretrained(self.basic_llm_model)
 
             def _test():
-                response = server.test(body=INPUT_DATA[0])["output"]
+                response = server.test(body=BATCH_INPUT_DATA[0])["output"]
                 validate_llm_single_response(response, EXPECTED_RESULTS[0], tokenizer)
 
             retry_on_content_mismatch(_test, self.max_retries + 1)
@@ -501,7 +501,7 @@ class TestHuggingFaceAIModel(TestBasicHuggingFaceProvider):
             tokenizer = AutoTokenizer.from_pretrained(self.basic_llm_model)
 
             def _test():
-                batch_response = server.test(body=INPUT_DATA)
+                batch_response = server.test(body=BATCH_INPUT_DATA)
                 validate_llm_batch_response_system(
                     batch_response, EXPECTED_RESULTS, tokenizer
                 )
@@ -553,10 +553,10 @@ class TestHuggingFaceAIModel(TestBasicHuggingFaceProvider):
 
             # Verify each response has correct structure
             def _test():
-                with ThreadPoolExecutor(max_workers=len(INPUT_DATA)) as executor:
+                with ThreadPoolExecutor(max_workers=len(BATCH_INPUT_DATA)) as executor:
                     futures = [
                         executor.submit(send_event, event, i * 0.1)
-                        for i, event in enumerate(INPUT_DATA)
+                        for i, event in enumerate(BATCH_INPUT_DATA)
                     ]
                     batch_response = [future.result() for future in futures]
                 validate_llm_batch_response_system(
@@ -702,7 +702,7 @@ class TestHuggingFaceAIModel(TestBasicHuggingFaceProvider):
         ):
             server = function.to_mock_server()
         try:
-            results = server.test(body=INPUT_DATA[0])
+            results = server.test(body=BATCH_INPUT_DATA[0])
             # Verify we got the expected number of results
 
             assert sorted(list(results.keys())) == sorted([ep_name, second_ep_name])

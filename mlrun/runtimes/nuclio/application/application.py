@@ -12,13 +12,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import copy
+import os
 import pathlib
 import typing
 
 import nuclio
 import nuclio.auth
 
+import mlrun.common.constants
 import mlrun.common.schemas as schemas
+import mlrun.datastore
 import mlrun.errors
 import mlrun.run
 import mlrun.runtimes.nuclio.api_gateway as nuclio_api_gateway
@@ -28,7 +31,7 @@ from mlrun.common.runtimes.constants import (
     ProbeTimeConfig,
     ProbeType,
 )
-from mlrun.utils import is_valid_port, logger, update_in
+from mlrun.utils import is_relative_path, is_valid_port, logger, update_in
 
 
 class ApplicationSpec(nuclio_function.NuclioSpec):
@@ -490,6 +493,8 @@ class ApplicationRuntime(nuclio_function.RemoteRuntime):
 
         :return: The default API gateway URL if created or True if the function is ready (deployed)
         """
+        # Upload local single-file source as artifact (if applicable)
+        self._upload_source_as_artifact()
 
         if (self.requires_build() and not self.spec.image) or force_build:
             self._fill_credentials()
@@ -1050,3 +1055,68 @@ class ApplicationRuntime(nuclio_function.RemoteRuntime):
             raise ValueError(
                 "Empty probe configuration: at least one parameter must be set"
             )
+
+    def _upload_source_as_artifact(self) -> None:
+        """
+        Upload local single-file source as an MLRun artifact.
+
+        If spec.build.source is a local file path, upload it to the artifact store
+        and update spec.build.source with the artifact URI.
+        """
+        source = self.spec.build.source
+        if not source:
+            return
+
+        # Only upload if it's a local single file
+        if not self._is_single_local_file(source):
+            return
+
+        project_name = self.metadata.project
+        if not project_name:
+            raise mlrun.errors.MLRunMissingProjectError(
+                "Project is required to upload source as artifact"
+            )
+        project = mlrun.get_or_create_project(project_name)
+
+        # Use function name as part of the artifact key for identification
+        artifact_key = f"{self.metadata.name}-source"
+
+        logger.info(
+            "Uploading local source file as artifact",
+            source=source,
+            artifact_key=artifact_key,
+            project=project_name,
+        )
+
+        # Upload the file as an artifact to an internal path with system-generated label
+        try:
+            artifact = project.log_artifact(
+                item=artifact_key,
+                local_path=source,
+                artifact_path=mlrun.common.constants.MLRUN_INTERNAL_ARTIFACT_PATH,
+                upload=True,
+                labels={
+                    mlrun.common.constants.MLRunInternalLabels.function_name: self.metadata.name,
+                    mlrun.common.constants.MLRunInternalLabels.system_generated: "true",
+                },
+            )
+        except Exception as exc:
+            raise mlrun.errors.MLRunRuntimeError(
+                f"Failed to upload source file '{source}' as artifact"
+            ) from exc
+
+        # Update the source to point to the artifact URI
+        self.spec.build.source = artifact.uri
+
+    @staticmethod
+    def _is_single_local_file(source: str) -> bool:
+        # Skip if the source is already a store URI
+        if mlrun.datastore.is_store_uri(source):
+            return False
+
+        # Skip if it's a remote URL (not a relative/local path)
+        if not (is_relative_path(source) or os.path.isabs(source)):
+            return False
+
+        # Check if it's a local file (not a directory)
+        return os.path.isfile(source)

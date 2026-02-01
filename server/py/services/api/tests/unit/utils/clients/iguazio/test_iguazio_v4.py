@@ -456,6 +456,94 @@ def test_revoke_offline_token_success(
 
 
 @pytest.mark.parametrize("iguazio_client", [("v4", "sync")], indirect=True)
+def test_resolve_token_from_igz_yml_success(iguazio_client, monkeypatch):
+    """Test successful token resolution from igz.yml content."""
+    igz_yml_content = "secretTokens:\n- name: my-token\n  token: jwt-value\n"
+
+    # Mock iguazio.Client for the token file client
+    mock_token_client = unittest.mock.Mock()
+    mock_token_client.get_refresh_token.return_value = ("my-token", "jwt-value")
+
+    with unittest.mock.patch("iguazio.Client", return_value=mock_token_client):
+        result = iguazio_client.resolve_token_from_igz_yml(
+            igz_yml_content, "test-user", "my-token"
+        )
+
+    assert result == "my-token"
+    mock_token_client.get_refresh_token.assert_called_once()
+
+
+@pytest.mark.parametrize("iguazio_client", [("v4", "sync")], indirect=True)
+def test_resolve_token_from_igz_yml_auto_discovery(iguazio_client, monkeypatch):
+    """Test auto-discovery mode returns first valid token."""
+    igz_yml_content = "secretTokens:\n- name: default\n  token: jwt-default\n- name: other\n  token: jwt-other\n"
+
+    mock_token_client = unittest.mock.Mock()
+    mock_token_client.get_refresh_token.return_value = ("default", "jwt-default")
+
+    with unittest.mock.patch(
+        "iguazio.Client", return_value=mock_token_client
+    ) as mock_class:
+        result = iguazio_client.resolve_token_from_igz_yml(
+            igz_yml_content, "test-user", None
+        )
+
+    assert result == "default"
+    # Verify token_name=None for auto-discovery
+    call_kwargs = mock_class.call_args.kwargs
+    assert call_kwargs["token_name"] is None
+
+
+@pytest.mark.parametrize("iguazio_client", [("v4", "sync")], indirect=True)
+def test_resolve_token_from_igz_yml_token_not_found(iguazio_client):
+    """Test MLRunNotFoundError when specific token is not found."""
+    igz_yml_content = "secretTokens:\n- name: other-token\n  token: jwt-value\n"
+
+    with unittest.mock.patch(
+        "iguazio.Client", side_effect=ValueError("Token 'my-token' not found")
+    ):
+        with pytest.raises(
+            mlrun.errors.MLRunNotFoundError, match="not found or invalid"
+        ):
+            iguazio_client.resolve_token_from_igz_yml(
+                igz_yml_content, "test-user", "my-token"
+            )
+
+
+@pytest.mark.parametrize("iguazio_client", [("v4", "sync")], indirect=True)
+def test_resolve_token_from_igz_yml_no_valid_tokens(iguazio_client):
+    """Test MLRunNotFoundError when no valid tokens are found in auto-discovery."""
+    igz_yml_content = "secretTokens:\n- name: expired\n  token: expired-jwt\n"
+
+    with unittest.mock.patch(
+        "iguazio.Client", side_effect=RuntimeError("No valid tokens found")
+    ):
+        with pytest.raises(
+            mlrun.errors.MLRunNotFoundError, match="No valid tokens found"
+        ):
+            iguazio_client.resolve_token_from_igz_yml(
+                igz_yml_content, "test-user", None
+            )
+
+
+@pytest.mark.parametrize("iguazio_client", [("v4", "sync")], indirect=True)
+def test_resolve_token_from_igz_yml_sdk_returns_none(iguazio_client):
+    """Test MLRunNotFoundError when SDK returns None."""
+    igz_yml_content = "secretTokens:\n- name: some-token\n  token: jwt-value\n"
+
+    mock_token_client = unittest.mock.Mock()
+    mock_token_client.get_refresh_token.return_value = (None, None)
+
+    with unittest.mock.patch("iguazio.Client", return_value=mock_token_client):
+        with pytest.raises(
+            mlrun.errors.MLRunNotFoundError, match="No valid tokens found"
+        ):
+            iguazio_client.resolve_token_from_igz_yml(
+                igz_yml_content, "test-user", None
+            )
+
+
+@pytest.mark.parametrize("iguazio_client", [("v4", "sync")], indirect=True)
 def test_create_project(
     mock_session, iguazio_client, igv4_auth_info, mock_service_account_auth_headers
 ):

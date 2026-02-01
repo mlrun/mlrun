@@ -17,7 +17,7 @@ from time import sleep
 
 import pandas as pd
 import pytest
-from datastore.remote_model.remote_model_utils import INPUT_DATA
+from datastore.remote_model.remote_model_utils import BATCH_INPUT_DATA
 
 import mlrun
 import mlrun.common.schemas.model_monitoring.constants as mm_constants
@@ -77,7 +77,9 @@ class TestMockModelProviderTracking(
         assert row["estimated_prediction_count"] == batch_size
 
         expected_feature_names = list(expected_input.keys())
+
         assert list(row["feature_names"]) == expected_feature_names
+
         assert list(row["label_names"]) == ["answer", "usage"]
 
         for key in expected_input:
@@ -181,7 +183,7 @@ class TestMockModelProviderTracking(
         mlrun_model_name = "mock_model"
         endpoint_name = "my_endpoint"
         model_url = "mock://my-mock-model"
-        batch_len = len(INPUT_DATA)
+        batch_len = len(BATCH_INPUT_DATA)
         model_artifact, llm_prompt_artifact, function = setup_remote_model_test(
             self.project,
             model_url,

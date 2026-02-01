@@ -25,8 +25,8 @@ from mlrun.datastore.datastore_profile import (
 )
 from mlrun.runtimes.nuclio.function import AsyncSpec
 from tests.datastore.remote_model.remote_model_utils import (
+    BATCH_INPUT_DATA,
     EXPECTED_RESULTS,
-    INPUT_DATA,
     PROMPT_LEGEND,
     PROMPT_TEMPLATE,
     retry_on_content_mismatch,
@@ -107,7 +107,7 @@ class TestHuggingFaceModelRunner(TestMLRunSystem):
         def _test_single():
             response = function.invoke(
                 f"v2/models/{mlrun_model_name}/infer",
-                json.dumps(INPUT_DATA[0]),
+                json.dumps(BATCH_INPUT_DATA[0]),
             )["output"]
             validate_llm_single_response(
                 response, EXPECTED_RESULTS[0], tokenizer, min_tokens=45, max_tokens=51
@@ -118,7 +118,7 @@ class TestHuggingFaceModelRunner(TestMLRunSystem):
         def _test_batch():
             batch_response = function.invoke(
                 f"v2/models/{mlrun_model_name}/infer",
-                json.dumps(INPUT_DATA),
+                json.dumps(BATCH_INPUT_DATA),
             )
             validate_llm_batch_response_system(
                 batch_response,
@@ -181,10 +181,10 @@ class TestHuggingFaceModelRunner(TestMLRunSystem):
             )
 
         def _test():
-            with ThreadPoolExecutor(max_workers=len(INPUT_DATA)) as executor:
+            with ThreadPoolExecutor(max_workers=len(BATCH_INPUT_DATA)) as executor:
                 futures = [
                     executor.submit(send_event, event, i * 0.1)
-                    for i, event in enumerate(INPUT_DATA)
+                    for i, event in enumerate(BATCH_INPUT_DATA)
                 ]
                 batch_response = [future.result() for future in futures]
             validate_llm_batch_response_system(
@@ -332,7 +332,7 @@ class TestHuggingFaceModelRunner(TestMLRunSystem):
         llm_graph.to(model_runner_step).respond()
         function.deploy()
 
-        results = function.invoke("/", json.dumps(INPUT_DATA[0]))
+        results = function.invoke("/", json.dumps(BATCH_INPUT_DATA[0]))
         # Verify we got the expected number of results
 
         assert sorted(list(results.keys())) == sorted([ep_name, second_ep_name])

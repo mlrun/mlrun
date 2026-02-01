@@ -22,7 +22,7 @@ import pytest
 import mlrun
 from mlrun.datastore.model_provider.model_provider import UsageResponseKeys
 from tests.datastore.remote_model.remote_model_utils import (
-    INPUT_DATA,
+    BATCH_INPUT_DATA,
     create_mocked_get_store_artifact,
     setup_remote_model_test,
 )
@@ -52,7 +52,7 @@ class BaseMockModelProviderTest:
         """Verify structure and content of batch invocation responses"""
         # Assert we got list of responses
         assert isinstance(batch_response, list)
-        assert len(batch_response) == len(INPUT_DATA)
+        assert len(batch_response) == len(BATCH_INPUT_DATA)
 
         # Verify each response has correct structure
         for i, full_result in enumerate(batch_response):
@@ -84,7 +84,7 @@ class BaseMockModelProviderTest:
     def _verify_batch_tracking(self, event, inputs=None):
         """Verify tracking data for batch invocation"""
         if inputs is None:
-            inputs = INPUT_DATA
+            inputs = BATCH_INPUT_DATA
 
         assert event["effective_sample_count"] == len(inputs)
         assert event["request"]["input_schema"] == list(inputs[0].keys())
@@ -132,11 +132,11 @@ class BaseMockModelProviderTest:
             # System test - use function.invoke()
             response = invoke_func(
                 f"v2/models/{mlrun_model_name}/infer",
-                json.dumps(INPUT_DATA[0]),
+                json.dumps(BATCH_INPUT_DATA[0]),
             )["output"]
         else:
             # Unit test - use server.test()
-            response = invoke_func(body=INPUT_DATA[0])
+            response = invoke_func(body=BATCH_INPUT_DATA[0])
             assert isinstance(response, dict)
             response = response["output"]
 
@@ -150,11 +150,11 @@ class BaseMockModelProviderTest:
             # System test - use function.invoke()
             batch_response = invoke_func(
                 f"v2/models/{mlrun_model_name}/infer",
-                json.dumps(INPUT_DATA),
+                json.dumps(BATCH_INPUT_DATA),
             )
         else:
             # Unit test - use server.test()
-            batch_response = invoke_func(body=INPUT_DATA)
+            batch_response = invoke_func(body=BATCH_INPUT_DATA)
 
         self._verify_batch_response(batch_response)
 
@@ -188,8 +188,8 @@ class BaseMockModelProviderTest:
         self, invoke_func, mlrun_model_name: Optional[str] = None
     ):
         """Helper to test batch invocation with error and verify error is raised"""
-        # Append error input to INPUT_DATA - the ERROR keyword will trigger mock error
-        inputs_with_error = INPUT_DATA + [
+        # Append error input to BATCH_INPUT_DATA - the ERROR keyword will trigger mock error
+        inputs_with_error = BATCH_INPUT_DATA + [
             {
                 "question": "ERROR - this should fail",
                 "depth_level": "basic",
@@ -224,7 +224,7 @@ class TestMockModelProvider(BaseMockModelProviderTest):
         model_url = "mock://my-mock-model"
 
         # Single input
-        input_data = INPUT_DATA[0]
+        input_data = BATCH_INPUT_DATA[0]
 
         model_artifact, llm_prompt_artifact, function = setup_remote_model_test(
             project,
@@ -359,8 +359,8 @@ class TestMockModelProvider(BaseMockModelProviderTest):
         project = mlrun.new_project("test-mock-model-batch-errors", save=False)
         model_url = "mock://my-mock-model"
 
-        # Append error input to INPUT_DATA - the ERROR keyword will trigger mock error
-        inputs = INPUT_DATA + [
+        # Append error input to BATCH_INPUT_DATA - the ERROR keyword will trigger mock error
+        inputs = BATCH_INPUT_DATA + [
             {
                 "question": "ERROR - this should fail",
                 "depth_level": "basic",

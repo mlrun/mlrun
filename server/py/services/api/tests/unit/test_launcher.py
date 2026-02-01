@@ -24,6 +24,7 @@ from fastapi.testclient import TestClient
 import mlrun.common.constants
 import mlrun.common.runtimes.constants
 import mlrun.common.schemas
+import mlrun.errors
 import mlrun.launcher.base
 import mlrun.launcher.factory
 from mlrun.common.types import AuthenticationMode
@@ -31,6 +32,7 @@ from mlrun.config import Config
 
 import services.api.launcher
 import services.api.tests.unit.api.utils
+import services.api.utils.helpers
 
 assets_path = pathlib.Path(__file__).parent / "assets"
 func_path = assets_path / "sample_function.py"
@@ -472,23 +474,52 @@ def test_launcher_skips_aborted_or_deleted_run(monkeypatch):
     assert not runtime_handler_mock.called
 
 
+def test_enrich_and_validate_auth_token_name_noop_without_v4_mode():
+    """Test that auth is not modified when not in iguazio v4 mode."""
+    launcher = services.api.launcher.ServerSideLauncher(
+        auth_info=mlrun.common.schemas.AuthInfo()
+    )
+    initial_auth = {"token_name": "custom-token"}
+    run = mlrun.run.RunObject(
+        spec=mlrun.model.RunSpec(auth=initial_auth),
+    )
+
+    launcher.enrich_and_validate_auth_token_name(run)
+
+    # auth should not be modified when not in v4 mode
+    assert run.spec.auth == initial_auth
+
+
+@pytest.fixture
+def iguazio_v4_mode():
+    """Fixture that sets up iguazio v4 authentication mode."""
+    mlrun.mlconf.httpdb.authentication.mode = AuthenticationMode.IGUAZIO_V4
+
+
 @pytest.mark.parametrize(
-    "initial_auth, expected_token",
+    "initial_auth,expected_token_name",
     [
-        # auth missing → default token
-        (None, mlrun.common.constants.MLRUN_RUNTIME_AUTH_DEFAULT_TOKEN_NAME),
-        # auth exists but no token_name → default token
-        ({}, mlrun.common.constants.MLRUN_RUNTIME_AUTH_DEFAULT_TOKEN_NAME),
-        # explicit token_name → preserved
+        # No token provided → resolved token
+        (None, "resolved-token"),
+        # Explicit token → preserved as-is
         ({"token_name": "custom-token"}, "custom-token"),
     ],
 )
-def test_enrich_and_validate_auth_token_name(
-    initial_auth,
-    expected_token,
+def test_enrich_and_validate_auth_token_name_iguazio_v4_resolution(
+    monkeypatch, iguazio_v4_mode, initial_auth, expected_token_name
 ):
+    """Test token resolution in iguazio v4 mode."""
+    mock_resolve = unittest.mock.Mock(
+        side_effect=lambda token, user_id: token if token else "resolved-token"
+    )
+    monkeypatch.setattr(
+        services.api.utils.helpers,
+        "resolve_auth_token_name",
+        mock_resolve,
+    )
+
     launcher = services.api.launcher.ServerSideLauncher(
-        auth_info=mlrun.common.schemas.AuthInfo()
+        auth_info=mlrun.common.schemas.AuthInfo(user_id="1234")
     )
     run = mlrun.run.RunObject(
         spec=mlrun.model.RunSpec(auth=initial_auth),
@@ -496,4 +527,30 @@ def test_enrich_and_validate_auth_token_name(
 
     launcher.enrich_and_validate_auth_token_name(run)
 
-    assert run.spec.auth["token_name"] == expected_token
+    assert run.spec.auth["token_name"] == expected_token_name
+    mock_resolve.assert_called_once_with(
+        initial_auth.get("token_name") if initial_auth else None, "1234"
+    )
+
+
+def test_enrich_and_validate_auth_token_name_iguazio_v4_token_not_found(
+    monkeypatch, iguazio_v4_mode
+):
+    """Test that MLRunNotFoundError is raised when token resolution fails."""
+    monkeypatch.setattr(
+        services.api.utils.helpers,
+        "resolve_auth_token_name",
+        unittest.mock.Mock(
+            side_effect=mlrun.errors.MLRunNotFoundError("No valid tokens found")
+        ),
+    )
+
+    launcher = services.api.launcher.ServerSideLauncher(
+        auth_info=mlrun.common.schemas.AuthInfo(user_id="1234")
+    )
+    run = mlrun.run.RunObject(
+        spec=mlrun.model.RunSpec(auth=None),
+    )
+
+    with pytest.raises(mlrun.errors.MLRunNotFoundError, match="No valid tokens found"):
+        launcher.enrich_and_validate_auth_token_name(run)

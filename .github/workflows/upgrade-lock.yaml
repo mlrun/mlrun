@@ -29,10 +29,15 @@ jobs:
     runs-on: ubuntu-latest
     if: github.repository_owner == 'mlrun'
     steps:
+    - uses: actions/create-github-app-token@v2
+      id: app-token
+      with:
+        app-id: ${{ vars.GH_APP_ID }}
+        private-key: ${{ secrets.GH_APP_PRIVATE_KEY }}
+        
     - uses: actions/checkout@v6
       with:
-        token: ${{ secrets.MLRUN_PR_PAT }}
-        persist-credentials: false
+        token: ${{ steps.app-token.outputs.token }}
 
     - uses: astral-sh/setup-uv@803947b9bd8e9f986429fa0c5a41c367cd732b41 # 7.2.1
 
@@ -47,6 +52,7 @@ jobs:
         else
           echo "title=[Requirements-automated] Upgrade lock files" >> "$GITHUB_OUTPUT"
         fi
+        
     - uses: peter-evans/create-pull-request@c0f553fe549906ede9cf27b5156039d195d2ece0 # 8.1.0
       with:
         title: ${{ steps.format-title.outputs.title }}
@@ -57,7 +63,3 @@ jobs:
         commit-message: Upgrade uv lock files
         branch: "automated/uv-lock-upgrade-${{ github.ref_name }}"
         delete-branch: true
-        # See:
-        # https://github.com/peter-evans/create-pull-request?tab=readme-ov-file#token
-        # Fine-grained Personal Access Token (PAT) with contents: write and pull-requests: write scopes.
-        token: ${{ github.token }}

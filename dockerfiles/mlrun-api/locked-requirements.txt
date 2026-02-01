@@ -1143,7 +1143,9 @@ httpcore==1.0.9 \
 httpx==0.28.1 \
     --hash=sha256:75e98c5f16b0f35b567856f597f06ff2270a374470a5c2392242528e3e3e42fc \
     --hash=sha256:d909fcccc110f8c7faf814ca82a9a4d816bc5a6dbfea25d6591d6985b8ba59ad
-    # via igz-mgmt
+    # via
+    #   iguazio
+    #   igz-mgmt
 humanfriendly==10.0 \
     --hash=sha256:1697e1a8a8f550fd43c2865cd84542fc175a61dcb779b6fee18cf6b6ccba1477 \
     --hash=sha256:6b0b831ce8f15f7300721aa49829fc4e83921a9a301cc7f606be6686a2288ddc
@@ -1157,6 +1159,10 @@ idna==3.11 \
     #   requests
     #   snowflake-connector-python
     #   yarl
+iguazio==0.0.1 \
+    --hash=sha256:29dd83904cb4489f3a68ce4cf20b5daae77cc24725ce29d2261084632983ba11 \
+    --hash=sha256:c7a3c1b589a029d462f603afd7c249bdabbea5ecadae75ad87893c8729339042
+    # via -r dockerfiles/mlrun-api/requirements.txt
 igz-mgmt==0.4.2 \
     --hash=sha256:582ccc38135a2e79f12db0e53f4028c105371601949a2ed7c57c32fdd015d1fa \
     --hash=sha256:abbf665a82b48606c953b44e22b6c825ddbef973cd448be846f592126ba14f7c
@@ -1172,6 +1178,7 @@ inflection==0.5.1 \
     --hash=sha256:f38b2b640938a4f35ade69ac3d053042959b62a0f1076a5bbaa1b9526605a8a2
     # via
     #   -r requirements.txt
+    #   iguazio
     #   igz-mgmt
     #   mlrun-pipelines-kfp-v1-8
 ipykernel==7.1.0 \
@@ -2522,6 +2529,7 @@ pyyaml==6.0.3 \
     #   -r requirements.txt
     #   dask
     #   distributed
+    #   iguazio
     #   kubernetes
     #   kubernetes-asyncio
     #   nuclio-jupyter
@@ -2659,9 +2667,9 @@ requests-oauthlib==2.0.0 \
     #   google-auth-oauthlib
     #   kubernetes
     #   msrest
-rich==14.3.1 ; sys_platform != 'win32' \
-    --hash=sha256:b8c5f568a3a749f9290ec6bddedf835cec33696bfc1e48bcfecb276c7386e4b8 \
-    --hash=sha256:da750b1aebbff0b372557426fb3f35ba56de8ef954b3190315eb64076d6fb54e
+rich==14.3.2 ; sys_platform != 'win32' \
+    --hash=sha256:08e67c3e90884651da3239ea668222d19bea7b589149d8014a21c633420dbb69 \
+    --hash=sha256:e712f11c1a562a11843306f5ed999475f09ac31ffb64281f73ab29ffdda8b3b8
     # via
     #   memray
     #   textual
@@ -2936,8 +2944,8 @@ starlette==0.49.3 \
     --hash=sha256:1c14546f299b5901a1ea0e34410575bc33bbd741377a10484a54445588d00284 \
     --hash=sha256:b579b99715fdc2980cf88c8ec96d3bf1ce16f5a8051a7c2b84ef9b1cdecaea2f
     # via fastapi
-storey==1.11.10 \
-    --hash=sha256:9c9a62dd8a6960bc907f3eb8733a91a8b9d407b423acea13f78389691c06903d
+storey==1.11.11 \
+    --hash=sha256:0e368be1eb91953a462c90612a27bf6e4c4a1dc2d96563318ad26bd768fb7c77
     # via -r requirements.txt
 tabulate==0.8.10 \
     --hash=sha256:0ba055423dbaa164b9e456abe7920c5e8ed33fcc16f6d1b2f2d152c8e1e8b4fc \

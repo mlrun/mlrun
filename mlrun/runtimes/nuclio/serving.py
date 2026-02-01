@@ -15,6 +15,7 @@ import json
 import os
 from base64 import b64decode
 from copy import deepcopy
+from http import HTTPMethod
 from typing import Optional, Union
 
 import nuclio
@@ -28,6 +29,7 @@ import mlrun.datastore.datastore_profile as ds_profile
 import mlrun.runtimes.kubejob as kubejob_runtime
 import mlrun.runtimes.nuclio.function as nuclio_function
 import mlrun.runtimes.pod as pod_runtime
+import mlrun.serving.utils as serving_utils
 from mlrun.datastore import get_kafka_brokers_from_dict, parse_kafka_url
 from mlrun.model import ObjectList
 from mlrun.runtimes.function_reference import FunctionReference
@@ -49,6 +51,83 @@ from mlrun.serving.states import (
 from mlrun.utils import get_caller_globals, logger, merge_requirements, set_paths
 
 serving_subkind = "serving_v2"
+
+
+class APIHandlerConfig(mlrun.model.ModelObj):
+    """Configuration for API handler in serving graph"""
+
+    _dict_fields = ["enabled", "endpoints"]
+
+    def __init__(self, enabled: bool = True, endpoints: dict[str, dict] | None = None):
+        self.enabled = enabled
+        self._endpoints = endpoints or {}
+
+    @property
+    def endpoints(self) -> dict[str, dict]:
+        """Get the endpoints configuration as a dictionary."""
+        return self._endpoints
+
+    @endpoints.setter
+    def endpoints(self, endpoints: dict[str, dict]) -> None:
+        """Set the endpoints configuration from a dictionary."""
+        self._endpoints = {}
+        for endpoint_key, config in endpoints.items():
+            method, path = self._parse_endpoint_key(endpoint_key)
+            self.add_endpoint_handler(
+                path=path,
+                http_method=method,
+                action=schemas.serving.APIHandlerAction(config.get("action")),
+                description=config.get("description"),
+            )
+
+    def _parse_endpoint_key(self, endpoint_key: str) -> tuple[HTTPMethod, str]:
+        """Parse endpoint key 'METHOD:path' back to method and path components."""
+        try:
+            return serving_utils._split_serving_endpoint_key(endpoint_key)
+        except (ValueError, AttributeError) as e:
+            raise ValueError(
+                f"Invalid endpoint key format '{endpoint_key}'. Expected 'METHOD:path'"
+            ) from e
+
+    def get_endpoint_config(self, method: HTTPMethod, path: str) -> dict | None:
+        """Get endpoint configuration for a specific method and path."""
+        endpoint_key = serving_utils._combine_serving_endpoint_key(method, path)
+        return self._endpoints.get(endpoint_key)
+
+    def add_endpoint_handler(
+        self,
+        path: str,
+        http_method: HTTPMethod = HTTPMethod.POST,
+        action: schemas.serving.APIHandlerAction = schemas.serving.APIHandlerAction.ALLOW,
+        description: str | None = None,
+    ) -> None:
+        """Add an endpoint handler configuration.
+
+        Args:
+            path: URL path for the endpoint (e.g., '/v1/models')
+            http_method: HTTP method for the endpoint
+            action: Action to take for this endpoint
+            description: Optional description of the endpoint
+        """
+        endpoint_key = serving_utils._combine_serving_endpoint_key(http_method, path)
+        self._endpoints[endpoint_key] = {
+            "action": str(action),
+            "description": description,
+        }
+
+    def remove_endpoint_handler(
+        self,
+        path: str,
+        http_method: HTTPMethod = HTTPMethod.POST,
+    ) -> None:
+        """Remove an endpoint handler configuration.
+
+        Args:
+            path: URL path for the endpoint to remove
+            http_method: HTTP method for the endpoint to remove
+        """
+        endpoint_key = serving_utils._combine_serving_endpoint_key(http_method, path)
+        self._endpoints.pop(endpoint_key, None)
 
 
 def new_v2_model_server(
@@ -99,6 +178,7 @@ class ServingSpec(nuclio_function.NuclioSpec):
         "secret_sources",
         "track_models",
         "streaming",
+        "api_handler_config",
     ]
 
     def __init__(
@@ -157,6 +237,7 @@ class ServingSpec(nuclio_function.NuclioSpec):
         serving_spec=None,
         auth=None,
         streaming: Optional[bool] = None,
+        api_handler_config: APIHandlerConfig | None = None,
     ):
         super().__init__(
             command=command,
@@ -216,6 +297,11 @@ class ServingSpec(nuclio_function.NuclioSpec):
         self.default_content_type = default_content_type
         self.model_endpoint_creation_task_name = model_endpoint_creation_task_name
         self.streaming = streaming
+        self.api_handler_config = (
+            api_handler_config.to_dict()
+            if isinstance(api_handler_config, APIHandlerConfig)
+            else api_handler_config
+        )
 
     @property
     def graph(self) -> Union[RouterStep, RootFlowStep]:
@@ -815,6 +901,10 @@ class ServingRuntime(nuclio_function.RemoteRuntime):
             "filename": getattr(self.spec, "filename", None),
         }
 
+        # Include API handler config if present
+        if self.spec.api_handler_config:
+            serving_spec["api_handler_config"] = self.spec.api_handler_config
+
         if self.spec.secret_sources:
             self._secrets = SecretsStore.from_list(self.spec.secret_sources)
             serving_spec["secret_sources"] = self._secrets.to_serial()
@@ -872,6 +962,7 @@ class ServingRuntime(nuclio_function.RemoteRuntime):
             function_name=self.metadata.name,
             function_tag=self.metadata.tag,
             project=self.metadata.project,
+            api_handler_config=self.spec.api_handler_config,
             **kwargs,
         )
         server.init_states(
@@ -1063,3 +1154,34 @@ class ServingRuntime(nuclio_function.RemoteRuntime):
                     reqs_secondary=step_requirements,
                 )
                 self.with_requirements(requirements=reqs_union, overwrite=True)
+
+    def set_api_handler_config(self, config: Union[APIHandlerConfig, dict]) -> None:
+        """Set the API handler configuration for the serving function.
+
+        Args:
+            config: APIHandlerConfig object or dictionary containing the configuration
+                   for handling different API endpoints and their actions.
+
+        Example::
+
+            # Using schemas.serving.APIHandlerConfig object
+            api_config = schemas.serving.APIHandlerConfig()
+            api_config.add_endpoint_handler(
+                "/v1/models", HTTPMethod.GET, APIHandlerAction.ALLOW
+            )
+            serving_fn.set_api_handler_config(api_config)
+
+            # Using dictionary
+            serving_fn.set_api_handler_config(
+                {"endpoints": {("GET", "/v1/models"): {"action": "allow"}}}
+            )
+        """
+        if isinstance(config, APIHandlerConfig):
+            config = config.to_dict()
+        elif not isinstance(config, dict):
+            raise ValueError(
+                f"config must be `APIHandlerConfig` or a `dict`, got {type(config)}"
+            )
+
+        # Store the configuration in the spec for serialization
+        self.spec.api_handler_config = config

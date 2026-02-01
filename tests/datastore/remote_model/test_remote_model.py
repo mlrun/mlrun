@@ -436,19 +436,19 @@ class TestMockModelProvider(BaseMockModelProviderTest):
                 time.sleep(delay)
                 return server.test(body=event)
 
-            with ThreadPoolExecutor(max_workers=len(INPUT_DATA)) as executor:
+            with ThreadPoolExecutor(max_workers=len(BATCH_INPUT_DATA)) as executor:
                 # MockProvider requires a larger delay (0.3s) because batching output depends on the order of requests,
                 # which can introduce race conditions, unlike real providers where batching output depends on input.
                 futures = [
                     executor.submit(send_event, event, i * 0.3)
-                    for i, event in enumerate(INPUT_DATA)
+                    for i, event in enumerate(BATCH_INPUT_DATA)
                 ]
                 responses = [future.result() for future in futures]
         finally:
             server.wait_for_completion()
 
         # Verify we got all responses
-        assert len(responses) == len(INPUT_DATA)
+        assert len(responses) == len(BATCH_INPUT_DATA)
 
         # Verify each response has correct structure
         for i, response in enumerate(responses):
@@ -459,7 +459,7 @@ class TestMockModelProvider(BaseMockModelProviderTest):
             expected_counter = i % 2
             assert f"(Item {expected_counter})" in output[UsageResponseKeys.ANSWER]
 
-        # Verify tracking events - should have 3 batches (2+2+1 = len(INPUT_DATA) total events)
+        # Verify tracking events - should have 3 batches (2+2+1 = len(BATCH_INPUT_DATA) total events)
         dummy_stream = server.context.stream.output_stream
         assert len(dummy_stream.event_list) == 3
 
@@ -470,7 +470,7 @@ class TestMockModelProvider(BaseMockModelProviderTest):
         for batch_idx, event in enumerate(dummy_stream.event_list):
             expected_size = expected_batch_sizes[batch_idx]
             end_idx = start_idx + expected_size
-            batch_inputs = INPUT_DATA[start_idx:end_idx]
+            batch_inputs = BATCH_INPUT_DATA[start_idx:end_idx]
             # Use _verify_batch_tracking for each batch
             self._verify_batch_tracking(event, inputs=batch_inputs)
             start_idx = end_idx

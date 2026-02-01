@@ -61,11 +61,11 @@ class TestMockModelProviderTracking(
         assert not batch_group.empty
 
         self._verify_single_parquet_row(
-            single_group.iloc[0], endpoint_name, INPUT_DATA[0]
+            single_group.iloc[0], endpoint_name, BATCH_INPUT_DATA[0]
         )
 
         # Verify batch invocation group
-        self._verify_direct_batch_parquet_rows(batch_group, endpoint_name, INPUT_DATA)
+        self._verify_direct_batch_parquet_rows(batch_group, endpoint_name, BATCH_INPUT_DATA)
 
     def _verify_batch_row_common(
         self, row, endpoint_name, batch_size, expected_input, expected_counter=None
@@ -129,7 +129,7 @@ class TestMockModelProviderTracking(
         batch_size = len(expected_inputs)
         self._verify_batch_group_common(batch_group, endpoint_name, batch_size)
 
-        # Order rows by original INPUT_DATA position for straightforward index-based comparison
+        # Order rows by original BATCH_INPUT_DATA position for straightforward index-based comparison
         batch_group["original_index"] = batch_group["question"].map(
             {inp["question"]: i for i, inp in enumerate(expected_inputs)}
         )
@@ -158,15 +158,15 @@ class TestMockModelProviderTracking(
                 group, endpoint_name, batch_size, batch_id=request_id
             )
 
-            # Order rows by original INPUT_DATA position
+            # Order rows by original BATCH_INPUT_DATA position
             group["original_index"] = group["question"].map(
-                {inp["question"]: i for i, inp in enumerate(INPUT_DATA)}
+                {inp["question"]: i for i, inp in enumerate(BATCH_INPUT_DATA)}
             )
             batch_sorted = group.sort_values("original_index").reset_index(drop=True)
 
             # Verify each row in the batch
             for idx, row in batch_sorted.iterrows():
-                expected_input = INPUT_DATA[int(group["original_index"][idx])]
+                expected_input = BATCH_INPUT_DATA[int(group["original_index"][idx])]
 
                 # Item counter matches batch position (0 or 1 for batch of 2, 0 for batch of 1)
                 expected_counter = idx % 2 if batch_size == 2 else 0
@@ -316,12 +316,12 @@ class TestMockModelProviderTracking(
             sleep(delay)
             return function.invoke(f"v2/models/{mlrun_model_name}/infer", event)
 
-        with ThreadPoolExecutor(max_workers=len(INPUT_DATA)) as executor:
+        with ThreadPoolExecutor(max_workers=len(BATCH_INPUT_DATA)) as executor:
             # MockProvider requires a larger delay (0.3s) because batching output depends on the order of requests,
             # which can introduce race conditions, unlike real providers where batching output depends on input.
             futures = [
                 executor.submit(send_event, input_event, i * 0.3)
-                for i, input_event in enumerate(INPUT_DATA)
+                for i, input_event in enumerate(BATCH_INPUT_DATA)
             ]
             responses = [future.result() for future in futures]
 
@@ -373,7 +373,7 @@ class TestMockModelProviderTracking(
         v3io_df = pd.read_parquet(
             f"v3io:///projects/{self.project.name}/artifacts/model-endpoints/parquet/key={mep.metadata.uid}"
         )
-        assert len(v3io_df) == len(INPUT_DATA)
+        assert len(v3io_df) == len(BATCH_INPUT_DATA)
 
         # Verify batch step structure - still 3 request groups (2+2+1, error batch not included)
         self._verify_batch_step_parquet_contents(v3io_df, endpoint_name)

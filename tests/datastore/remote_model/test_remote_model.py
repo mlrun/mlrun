@@ -99,6 +99,7 @@ class BaseMockModelProviderTest:
         assert event["labels"] == {}
         assert event["model"] == "my_endpoint"
         assert event["metrics"] is None
+        assert event["error"] is None
 
     def _verify_error_tracking(self, event, input_data):
         """Verify tracking data for error invocation"""

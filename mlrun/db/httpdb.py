@@ -4030,12 +4030,15 @@ class HTTPRunDB(RunDBInterface):
         :param image: The image of the model monitoring controller function.
                                          By default, the image is mlrun/mlrun.
         """
+        auth_token_name = mlrun.runtime_configuration_context.RuntimeConfigurationContext.get_auth_token_name()
+
         self.api_call(
             method=mlrun.common.types.HTTPMethod.PATCH,
             path=f"projects/{project}/model-monitoring/controller",
             params={
                 "base_period": base_period,
                 "image": image,
+                "auth_token_name": auth_token_name,
             },
         )
 

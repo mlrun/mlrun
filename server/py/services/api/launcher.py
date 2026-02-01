@@ -567,6 +567,15 @@ class ServerSideLauncher(launcher.BaseLauncher):
         self, runtime: mlrun.runtimes.base.BaseRuntime, run: mlrun.run.RunObject
     ):
         run.metadata.labels[mlrun_constants.MLRunInternalLabels.kind] = runtime.kind
+
+
+        # Replace {{run.user}} template in output_path with the final owner value.
+        # This must happen after owner enrichment to ensure correct substitution.
+        run.spec.output_path = mlrun.runtimes.utils.resolve_run_user_template(
+            run.spec.output_path,
+            run.metadata.labels.get(mlrun_constants.MLRunInternalLabels.owner),
+        )
+
         db = runtime._get_db()
         if db and runtime.kind != "handler":
             struct = runtime.to_dict()

@@ -280,3 +280,61 @@ def test_results_to_iter_status_resolution(rundb_mock):
     results = results[1:]
     mlrun.runtimes.utils.results_to_iter(results, run, execution)
     assert execution.state == mlrun.common.runtimes.constants.RunStates.completed
+
+
+@pytest.mark.parametrize(
+    "output_path, owner, expected_output_path",
+    [
+        # Basic substitution
+        (
+            "/data/{{run.user}}/artifacts",
+            "alice",
+            "/data/alice/artifacts",
+        ),
+        # Multiple occurrences
+        (
+            "/{{run.user}}/data/{{run.user}}/artifacts",
+            "bob",
+            "/bob/data/bob/artifacts",
+        ),
+        # No template in path
+        (
+            "/data/artifacts",
+            "alice",
+            "/data/artifacts",
+        ),
+        # Empty output_path returns as-is
+        (
+            "",
+            "alice",
+            "",
+        ),
+        # None output_path returns None
+        (
+            None,
+            "alice",
+            None,
+        ),
+        # Empty owner returns original path
+        (
+            "/data/{{run.user}}/artifacts",
+            "",
+            "/data/{{run.user}}/artifacts",
+        ),
+        # None owner returns original path
+        (
+            "/data/{{run.user}}/artifacts",
+            None,
+            "/data/{{run.user}}/artifacts",
+        ),
+        # Both None returns None
+        (
+            None,
+            None,
+            None,
+        ),
+    ],
+)
+def test_resolve_run_user_template(output_path, owner, expected_output_path):
+    result = mlrun.runtimes.utils.resolve_run_user_template(output_path, owner)
+    assert result == expected_output_path

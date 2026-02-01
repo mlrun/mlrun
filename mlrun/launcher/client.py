@@ -78,11 +78,10 @@ class ClientBaseLauncher(launcher.BaseLauncher, abc.ABC):
         mlrun.runtimes.utils.enrich_run_labels(
             run.metadata.labels, [mlrun_constants.MLRunInternalLabels.owner]
         )
-        if run.spec.output_path:
-            run.spec.output_path = run.spec.output_path.replace(
-                "{{run.user}}",
-                run.metadata.labels[mlrun_constants.MLRunInternalLabels.owner],
-            )
+        run.spec.output_path = mlrun.runtimes.utils.resolve_run_user_template(
+            run.spec.output_path,
+            run.metadata.labels.get(mlrun_constants.MLRunInternalLabels.owner),
+        )
         db = runtime._get_db()
         if db and runtime.kind != "handler":
             struct = runtime.to_dict()

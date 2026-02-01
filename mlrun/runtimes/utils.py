@@ -503,6 +503,19 @@ def enrich_run_labels(
     return labels
 
 
+def resolve_run_user_template(output_path: str, owner: str) -> str:
+    """
+    Replace {{run.user}} template in output path with actual owner value.
+
+    :param output_path: The output path that may contain {{run.user}} template.
+    :param owner: The owner/username to substitute.
+    :return: The resolved output path, or original if no substitution needed.
+    """
+    if not output_path or not owner:
+        return output_path
+    return output_path.replace("{{run.user}}", owner)
+
+
 def resolve_node_selectors(
     project_node_selector: dict, instance_node_selector: dict
 ) -> dict:

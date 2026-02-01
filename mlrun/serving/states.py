@@ -1241,6 +1241,16 @@ class Model(storey.ParallelExecutionRunnable, ModelObj):
         )
         cls._dict_fields.remove("self")
 
+    def is_streaming(self) -> bool:
+        """
+        Returns True if this model produces streaming output (generator).
+
+        Checks if predict() or predict_async() are generator functions.
+        """
+        return inspect.isgeneratorfunction(self.predict) or inspect.isasyncgenfunction(
+            self.predict_async
+        )
+
     def load(self) -> None:
         """Override to load model if needed."""
         self._load_artifacts()

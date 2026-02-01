@@ -54,7 +54,7 @@ class _CommonParams:
     model_monitoring_access_key: Optional[str] = None
 
     def __post_init__(self) -> None:
-        if not mlrun.mlconf.is_ce_mode():
+        if mlrun.mlconf.is_using_v3io():
             # Get V3IO Access Key
             self.model_monitoring_access_key = process_model_monitoring_secret(
                 self.db_session,

@@ -632,7 +632,7 @@ class HTTPRunDB(RunDBInterface):
             )
             for prefix in ["default", "user_space", "monitoring_application"]:
                 store_prefix_value = model_monitoring_store_prefixes.get(prefix)
-                if server_prefix_value is not None:
+                if store_prefix_value is not None:
                     setattr(
                         config.model_endpoint_monitoring.store_prefixes,
                         prefix,
@@ -641,6 +641,11 @@ class HTTPRunDB(RunDBInterface):
             config.httpdb.authentication.mode = (
                 server_cfg.get("authentication_mode")
                 or config.httpdb.authentication.mode
+            )
+
+            config.httpdb.authorization.namespaces.resources = (
+                server_cfg.get("authorization_namespaces_resources")
+                or config.httpdb.authorization.namespaces.resources
             )
 
             # Iguazio V4 OAuth token config auto-initialization

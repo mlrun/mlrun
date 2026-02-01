@@ -34,15 +34,17 @@ from mlrun.datastore.datastore_profile import (
 )
 from mlrun.datastore.model_provider.model_provider import (
     InvokeResponseFormat,
-    UsageResponseKeys,
 )
 from mlrun.datastore.model_provider.openai_provider import OpenAIProvider
 from tests.datastore.remote_model.remote_model_utils import (
+    BATCH_INPUT_DATA,
     EXPECTED_RESULTS,
-    INPUT_DATA,
     assert_async_invocations,
+    create_mocked_get_store_artifact,
     formatted_messages,
     setup_remote_model_test,
+    validate_openai_batch_response,
+    validate_openai_single_response,
 )
 
 here = os.path.dirname(__file__)
@@ -51,16 +53,6 @@ config_file_path = os.path.join(here, "test-openai.yml")
 if os.path.exists(config_file_path):
     with open(config_file_path) as yaml_file:
         config = yaml.safe_load(yaml_file).get("env", {})
-
-
-def create_mocked_get_store_artifact(uri_to_artifact: dict):
-    def mocked_get_store_artifact(uri, **kwargs):
-        artifact = uri_to_artifact.get(uri)
-        if not artifact:
-            raise mlrun.errors.MLRunInvalidArgumentError("Artifact uri not found")
-        return artifact, None
-
-    return mocked_get_store_artifact
 
 
 def openai_configured():
@@ -171,14 +163,9 @@ class TestOpenAIProvider(TestBasicOpenAIProvider):
                 invoke_response_format=InvokeResponseFormat.USAGE,
             )
 
-        assert isinstance(response, dict)
-        completion_tokens = response[UsageResponseKeys.USAGE]["completion_tokens"]
-        prompt_tokens = response[UsageResponseKeys.USAGE]["prompt_tokens"]
-        total_tokens = response[UsageResponseKeys.USAGE]["total_tokens"]
-        assert EXPECTED_RESULTS[0] in response[UsageResponseKeys.ANSWER].lower()
-        assert 45 <= completion_tokens <= 55
-        assert prompt_tokens > 0
-        assert total_tokens == prompt_tokens + completion_tokens
+        validate_openai_single_response(
+            response, EXPECTED_RESULTS[0], model_name, min_tokens=45, max_tokens=55
+        )
 
     @pytest.mark.parametrize("cred_mode", ["profile", "env", "secrets"])
     @pytest.mark.parametrize("run_async", [True, False])
@@ -246,12 +233,9 @@ class TestOpenAIProvider(TestBasicOpenAIProvider):
                 assert 95 <= result.usage.completion_tokens <= 105
 
             elif invoke_response_format == InvokeResponseFormat.USAGE:
-                assert isinstance(result, dict)
-                assert UsageResponseKeys.ANSWER in result
-                assert UsageResponseKeys.USAGE in result
-                assert EXPECTED_RESULTS[i] in result[UsageResponseKeys.ANSWER].lower()
-                assert 95 <= result[UsageResponseKeys.USAGE]["completion_tokens"] <= 105
-                assert result[UsageResponseKeys.USAGE]["prompt_tokens"] > 0
+                validate_openai_single_response(
+                    result, EXPECTED_RESULTS[i], self.basic_llm_model
+                )
 
     async def test_configurable_model(self):
         configurable_model = mlrun.mlconf.model_providers.openai_default_model
@@ -361,19 +345,9 @@ class TestOpenAIModel(TestBasicOpenAIProvider):
         ):
             server = function.to_mock_server()
         try:
-            response = server.test(body=INPUT_DATA[0])["output"]
-            assert len(response) == 2
-            answer = response[UsageResponseKeys.ANSWER]
-            assert EXPECTED_RESULTS[0] in answer.lower()
-            encoding = tiktoken.encoding_for_model(self.basic_llm_model)
-            assert 95 <= len(encoding.encode(answer)) <= 105
-
-            stats = response[UsageResponseKeys.USAGE]
-            assert 95 <= stats["completion_tokens"] <= 105
-            assert stats["prompt_tokens"] > 0
-            assert (
-                stats["total_tokens"]
-                == stats["completion_tokens"] + stats["prompt_tokens"]
+            response = server.test(body=BATCH_INPUT_DATA[0])["output"]
+            validate_openai_single_response(
+                response, EXPECTED_RESULTS[0], self.basic_llm_model
             )
         finally:
             server.wait_for_completion()
@@ -409,7 +383,7 @@ class TestOpenAIModel(TestBasicOpenAIProvider):
             server = function.to_mock_server()
         try:
             start = time.perf_counter()
-            results_with_times = server.test(body={"input": INPUT_DATA})
+            results_with_times = server.test(body={"input": BATCH_INPUT_DATA})
             total_duration = time.perf_counter() - start
 
             assert_async_invocations(
@@ -461,5 +435,42 @@ class TestOpenAIModel(TestBasicOpenAIProvider):
             assert len(results_with_times["data"][0]["embedding"]) == 256
             assert results_with_times["usage"]["total_tokens"] == token_count
 
+        finally:
+            server.wait_for_completion()
+
+    @pytest.mark.parametrize(
+        "execution_mechanism",
+        ["process_pool", "dedicated_process", "naive", "asyncio", "thread_pool"],
+    )
+    def test_model_runner_batch_with_openai(self, execution_mechanism):
+        """Test batch processing of multiple events with OpenAI model"""
+        project = mlrun.new_project("test-openai-model-batch", save=False)
+        model_url = self.url_prefix + self.basic_llm_model
+        model_artifact, llm_prompt_artifact, function = setup_remote_model_test(
+            project,
+            model_url,
+            execution_mechanism=execution_mechanism,
+            default_config={"max_tokens": 100},
+        )
+        mocked_get_store_artifact = create_mocked_get_store_artifact(
+            {
+                model_artifact.uri: model_artifact,
+                llm_prompt_artifact.uri: llm_prompt_artifact,
+            }
+        )
+        with (
+            unittest.mock.patch(
+                "mlrun.artifacts.llm_prompt.mlrun.datastore.store_manager.get_store_artifact",
+                side_effect=lambda *args, **kwargs: mocked_get_store_artifact(
+                    *args, **kwargs
+                ),
+            ),
+        ):
+            server = function.to_mock_server()
+        try:
+            batch_response = server.test(body=BATCH_INPUT_DATA)
+            validate_openai_batch_response(
+                batch_response, EXPECTED_RESULTS, self.basic_llm_model
+            )
         finally:
             server.wait_for_completion()

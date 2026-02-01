@@ -17,10 +17,10 @@ making sure you're ready to get started with building and managing AI workflow w
 Before you begin, ensure that the following prerequisites are met:
 
 Applications:
-- Python 3.11 (recommended) or Python 3.9
+- Python 3.11
 - Recommended pip 25.0.x+
 
-The MLRun server is based on a Python 3.11 environment. It's recommended to move the client to a Python 3.11 environment as well, although the MLRun client supports both Python 3.9 and Python 3.11.
+The MLRun server and client are both based on a Python 3.11 environment.
 
 ## MLRun client supported OS
 The MLRun client supports:
@@ -50,12 +50,6 @@ Run ```pip install mlrun```
 - See more about images in {ref}`images-usage`
 - To install a specific version, use the command: `pip install mlrun==<version>`. Replace the `<version>` placeholder with the MLRun version number. 
 ```
-
-:::{admonition} Note for ARM64 (Apple Silicon) Users and Python 3.9
-:name: apple-silicon
-When using ARM64 (Apple Silicon) and **Python 3.9**, you need to use **conda** to install protobuf by running the following command:
-<br>```conda install "protobuf>=3.20.3, <4" -y```
-:::
 
 2. **Advanced** <br> 
    - If you expect to connect to, or work with, cloud providers (Azure/Google Cloud/S3), you can install additional packages. This is not 

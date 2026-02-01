@@ -605,6 +605,53 @@ class TestNuclioRuntime(TestMLRunSystemModelMonitoring):
         ):
             function.invoke(path="/", body={"counter": -5})
 
+    def test_streaming_serving_function(self):
+        """Test that streaming serving functions return chunked HTTP responses."""
+        code_path = str(self.assets_path / "streaming_function.py")
+        function = mlrun.code_to_function(
+            name="streaming-function",
+            kind="serving",
+            project=self.project_name,
+            filename=code_path,
+            image=self.image,
+        )
+
+        graph = function.set_topology("flow", engine="async")
+        graph.to(name="streamer", class_name="StreamingStep").respond()
+
+        function.set_streaming(enabled=True)
+        function.deploy()
+
+        # Make a streaming request to verify chunked response
+        url = function.get_url()
+        resp = requests.post(url, data="test", stream=True)
+        self._logger.info(f"Got response: {resp}")
+        assert resp.ok, f"Request failed: {resp.status_code} {resp.text}"
+
+        # Verify the response uses chunked transfer encoding (streaming)
+        transfer_encoding = resp.headers.get("Transfer-Encoding", "header not present")
+        assert (
+            transfer_encoding == "chunked"
+        ), f"Expected chunked transfer encoding for streaming, got: {transfer_encoding!r}"
+
+        # Collect the streaming response chunks
+        chunks = []
+        start = time.monotonic()
+        for chunk in resp.iter_content(decode_unicode=True, chunk_size=1024):
+            end = time.monotonic()
+            duration = end - start
+            self._logger.info(f"Received chunk after {duration :.2f} seconds: {chunk}")
+            # TODO: Enable once NUC-720 is fixed
+            # assert (
+            #         0.5 < duration < 1.5
+            # ), "Time between chunks should be about 1 second"
+            chunks.append(chunk)
+            start = time.monotonic()
+
+        # TODO: Remove and enable the commented-out line instead once NUC-720 is fixed
+        assert len(chunks) > 0, "Expected at least one streaming chunk"
+        # assert chunks == ["test_chunk_0", "test_chunk_1", "test_chunk_2"]
+
     @pytest.mark.parametrize("with_object", [True, False])
     def test_mrs_with_tools_routing_sys(self, with_object):
         code_path = str(self.assets_path / "function_llm_with_tools.py")

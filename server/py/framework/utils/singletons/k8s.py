@@ -1468,6 +1468,74 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
             )
         return self._extract_token_from_secret(k8s_secret)
 
+    def list_user_token_secret_values(
+        self,
+        user_id: str,
+        namespace: typing.Optional[str] = None,
+    ) -> list[mlrun.common.schemas.SecretToken]:
+        """
+        List all token values for a user in a single K8s API call.
+
+        :param user_id: The user ID.
+        :param namespace: Kubernetes namespace where the secrets are stored.
+        :return: List of SecretToken objects with name and token value.
+        """
+        namespace = self.resolve_namespace(namespace)
+        labels = {mlrun_constants.MLRunInternalLabels.auth_userid: user_id}
+        k8s_secrets = self.list_secrets(namespace=namespace, labels=labels)
+
+        secret_tokens: list[mlrun.common.schemas.SecretToken] = []
+        for k8s_secret in k8s_secrets:
+            try:
+                token_value = self._extract_token_from_secret(k8s_secret)
+                token_name = k8s_secret.metadata.labels.get(
+                    mlrun_constants.MLRunInternalLabels.auth_token_name
+                )
+                secret_tokens.append(
+                    mlrun.common.schemas.SecretToken(name=token_name, token=token_value)
+                )
+            except mlrun.errors.MLRunNotFoundError:
+                token_name = k8s_secret.metadata.labels.get(
+                    mlrun_constants.MLRunInternalLabels.auth_token_name, "unknown"
+                )
+                logger.warning(
+                    "Failed to extract token value, skipping",
+                    user_id=user_id,
+                    token_name=token_name,
+                )
+
+        return secret_tokens
+
+    def get_user_secret_tokens_as_igz_yml_data(
+        self,
+        user_id: str,
+        token_name: typing.Optional[str] = None,
+    ) -> list[dict[str, str]]:
+        """
+        Fetch user token(s) from k8s secrets in igz.yml format.
+
+        :param user_id: The user ID.
+        :param token_name: If provided, fetch only this token (strict mode).
+                           If None, fetch all user tokens (auto-discovery mode).
+        :return: List of token dicts with 'name' and 'token' keys, suitable for igz.yml.
+        :raises mlrun.errors.MLRunNotFoundError: If no tokens can be retrieved.
+        """
+        if token_name:
+            # Fetch single token by name
+            token_value = self.get_user_token_secret_value(
+                user_id=user_id, token_name=token_name
+            )
+            return [{"name": token_name, "token": token_value}]
+
+        # Fetch all tokens
+        all_tokens = self.list_user_token_secret_values(user_id)
+        if not all_tokens:
+            raise mlrun.errors.MLRunNotFoundError(
+                f"No valid tokens found for user '{user_id}'"
+            )
+
+        return [{"name": t.name, "token": t.token} for t in all_tokens]
+
     def _extract_token_from_secret(
         self,
         k8s_secret: client.V1Secret,

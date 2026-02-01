@@ -1,4 +1,4 @@
-# Copyright 2025 Iguazio
+# Copyright 2026 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -11,14 +11,24 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import mlrun.errors
+
+import asyncio
 
 
-def create_mocked_get_store_artifact(uri_to_artifact: dict):
-    def mocked_get_store_artifact(uri, **kwargs):
-        artifact = uri_to_artifact.get(uri)
-        if not artifact:
-            raise mlrun.errors.MLRunInvalidArgumentError("Artifact uri not found")
-        return artifact, None
+class StreamingStep:
+    """A step that yields streaming chunks."""
 
-    return mocked_get_store_artifact
+    def __init__(self, context=None, name=None, num_chunks=3):
+        self.context = context
+        self.name = name
+        self.num_chunks = num_chunks
+
+    async def do(self, x):
+        """Yield multiple chunks for a single input."""
+
+        if isinstance(x, bytes):
+            x = x.decode("utf-8")
+
+        for i in range(self.num_chunks):
+            await asyncio.sleep(1)
+            yield f"{x}_chunk_{i}"

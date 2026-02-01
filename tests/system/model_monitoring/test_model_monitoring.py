@@ -1060,7 +1060,6 @@ class TestBasicModelMonitoring(TestMLRunSystemModelMonitoring):
         self.project.enable_model_monitoring(
             deploy_histogram_data_drift_app=False,
             image=self.image,
-            wait_for_deployment=True,
         )
         function.deploy()
         response = function.invoke(

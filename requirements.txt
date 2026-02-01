@@ -6,7 +6,7 @@ aiohttp-retry~=2.9
 click~=8.1
 nest-asyncio~=1.0
 ipython~=8.10
-nuclio-jupyter~=0.13.0
+nuclio-jupyter~=0.13.2
 numpy>=1.26.4, <1.27.0
 # pandas 2.2 requires sqlalchemy 2
 pandas>=1.2, <2.2
@@ -28,7 +28,7 @@ dependency-injector~=4.41
 # should be identical to gcs and s3fs.
 fsspec>=2025.5.1, <=2025.7.0
 v3iofs~=0.1.17
-storey~=1.11.7
+storey~=1.11.10
 inflection~=0.5.0
 python-dotenv~=1.0
 setuptools>=75.2

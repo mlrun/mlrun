@@ -1591,16 +1591,22 @@ def test_mrs_direct_batch_input(
     finally:
         server.wait_for_completion()
     if not raise_exception:
-        expected_inputs = (
-            [[1, 0], [2, 1], [4, 3]]
-            if batching_format == "list_of_lists"
-            else [{"x1": 1, "x2": 0}, {"x1": 2, "x2": 1}, {"x1": 4, "x2": 3}]
+        # Both raw_list and list_of_lists are now transposed to [[1, 0], [2, 1], [4, 3]]
+        # raw_list (list of dicts with same keys) gets transposed by key
+        # list_of_lists is already in that format
+        expected_inputs = [[1, 0], [2, 1], [4, 3]]
+        # list_of_lists has no schema (no dict keys), raw_list has schema from dict keys
+        expected_input_schema = (
+            None if batching_format == "list_of_lists" else ["x1", "x2"]
         )
+
         dummy_stream = server.context.stream.output_stream
         event = dummy_stream.event_list[0]
         assert event["effective_sample_count"] == 3
         assert event["labels"] == {}
+        assert event["request"]["input_schema"] == expected_input_schema
         assert event["request"]["inputs"] == expected_inputs
+        assert event["resp"]["output_schema"] is None
         assert event["resp"]["outputs"] == [3.0, 8.0, 18.0]
         assert event["error"] is None
         assert event["model"] == endpoint_name
@@ -1609,7 +1615,9 @@ def test_mrs_direct_batch_input(
             event = dummy_stream.event_list[1]
             assert event["effective_sample_count"] == 3
             assert event["labels"] == {}
+            assert event["request"]["input_schema"] == expected_input_schema
             assert event["request"]["inputs"] == expected_inputs
+            assert event["resp"]["output_schema"] is None
             assert event["resp"]["outputs"] == [7.0, 12.0, 22.0]
             assert event["error"] is None
             assert event["model"] == endpoint_name2

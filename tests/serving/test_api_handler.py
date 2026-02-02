@@ -385,7 +385,7 @@ class TestAPIHandlerStep:
         step.context = context
         step._init_class_object_and_handler({}, False)
 
-        result = step.run({"data": "test"})
+        result = step.do({"data": "test"})
         assert result == {"data": "test"}
 
     def test_run_forbidden_endpoint(self) -> None:
@@ -405,7 +405,7 @@ class TestAPIHandlerStep:
         step._init_class_object_and_handler({}, False)
 
         with pytest.raises(mlrun.errors.MLRunBadRequestError, match="Access forbidden"):
-            step.run({"data": "test"})
+            step.do({"data": "test"})
 
     def test_run_no_matching_endpoint(self) -> None:
         """Test running with no matching endpoint"""
@@ -424,7 +424,7 @@ class TestAPIHandlerStep:
         step._init_class_object_and_handler({}, False)
 
         with pytest.raises(mlrun.errors.MLRunNotFoundError, match="Endpoint not found"):
-            step.run({"data": "test"})
+            step.do({"data": "test"})
 
     def test_run_no_method_in_context(self) -> None:
         """Test running without method in context"""
@@ -442,7 +442,7 @@ class TestAPIHandlerStep:
         with pytest.raises(
             mlrun.errors.MLRunBadRequestError, match="HTTP method not found"
         ):
-            step.run({"data": "test"})
+            step.do({"data": "test"})
 
     def test_run_no_path_in_context(self) -> None:
         """Test running without path in context"""
@@ -460,7 +460,7 @@ class TestAPIHandlerStep:
         with pytest.raises(
             mlrun.errors.MLRunBadRequestError, match="Request path not found"
         ):
-            step.run({"data": "test"})
+            step.do({"data": "test"})
 
     def test_run_string_method_conversion(self) -> None:
         """Test running with string method that gets converted to HTTPMethod"""
@@ -477,7 +477,7 @@ class TestAPIHandlerStep:
         step.context = context
         step._init_class_object_and_handler({}, False)
 
-        result = step.run({"data": "test"})
+        result = step.do({"data": "test"})
         assert result == {"data": "test"}
 
     def test_run_invalid_method_string(self) -> None:
@@ -496,7 +496,7 @@ class TestAPIHandlerStep:
         with pytest.raises(
             mlrun.errors.MLRunBadRequestError, match="Unsupported HTTP method"
         ):
-            step.run({"data": "test"})
+            step.do({"data": "test"})
 
 
 class TestAddAPIHandlerStepToGraph:

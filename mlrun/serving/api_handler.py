@@ -87,19 +87,6 @@ class _APIHandlerStep(mlrun.serving.states.BaseStep):
         self._handler = self.do  # Point to our do method
 
     def do(self, event):
-        """Handler method expected by the serving framework"""
-        return self.run(event)
-
-    def _match_endpoint(self, method: HTTPMethod, path: str) -> str | None:
-        """Find matching endpoint key for the given method and path"""
-        # Only exact matches supported
-        endpoint_key = serving_utils._combine_serving_endpoint_key(method, path)
-        if endpoint_key in self.config._endpoints:
-            return endpoint_key
-
-        return None
-
-    def run(self, event, **kwargs):
         """Handle incoming request and validate against configured endpoints"""
         try:
             # In MLRun serving framework, the actual event metadata is available in the context
@@ -202,3 +189,12 @@ class _APIHandlerStep(mlrun.serving.states.BaseStep):
                 path=getattr(event, "path", "unknown"),
             )
             raise
+
+    def _match_endpoint(self, method: HTTPMethod, path: str) -> str | None:
+        """Find matching endpoint key for the given method and path"""
+        # Only exact matches supported
+        endpoint_key = serving_utils._combine_serving_endpoint_key(method, path)
+        if endpoint_key in self.config._endpoints:
+            return endpoint_key
+
+        return None

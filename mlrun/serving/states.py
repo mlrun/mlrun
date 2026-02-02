@@ -1246,6 +1246,9 @@ class Model(storey.ParallelExecutionRunnable, ModelObj):
         Returns True if this model produces streaming output (generator).
 
         Checks if predict() or predict_async() are generator functions.
+
+        Override to force streaming. This is necessary if predict or predict_async return a generator while not being
+        generator functions themselves.
         """
         return inspect.isgeneratorfunction(self.predict) or inspect.isasyncgenfunction(
             self.predict_async
@@ -1310,11 +1313,21 @@ class Model(storey.ParallelExecutionRunnable, ModelObj):
         self.load()
 
     def predict(self, body: Any, **kwargs) -> Any:
-        """Override to implement prediction logic. If the logic requires asyncio, override predict_async() instead."""
+        """
+        Override to implement prediction logic. If the logic requires asyncio, override predict_async() instead.
+
+        This method may be a generator to implement streaming. It may also return a generator, in which case,
+        is_streaming() should be overridden to return True.
+        """
         raise NotImplementedError("predict() method not implemented")
 
     async def predict_async(self, body: Any, **kwargs) -> Any:
-        """Override to implement prediction logic if the logic requires asyncio."""
+        """
+        Override to implement prediction logic if the logic requires asyncio.
+
+        This method may be an async generator to implement streaming. It may also return an async generator, in which
+        case, is_streaming() should be overridden to return True.
+        """
         raise NotImplementedError("predict_async() method not implemented")
 
     def run(self, body: Any, path: str, origin_name: Optional[str] = None) -> Any:

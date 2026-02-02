@@ -270,6 +270,57 @@ class TestAPIHandlerConfig:
         assert endpoint_config["description"] == "Second config"
 
 
+class TestSetAPIHandlerConfig:
+    """Tests for ServingRuntime.set_api_handler_config method"""
+
+    def test_set_api_handler_config_with_valid_dict(self) -> None:
+        """Test setting API handler config with a valid dictionary"""
+        fn = cast(ServingRuntime, mlrun.new_function("test-fn", kind="serving"))
+
+        config_dict = {
+            "enabled": True,
+            "endpoints": {
+                "POST:/predict": {"action": "allow", "description": "Prediction"}
+            },
+        }
+
+        fn.set_api_handler_config(config_dict)
+        assert fn.spec.api_handler_config is not None
+        assert fn.spec.api_handler_config["enabled"] is True
+        assert "POST:/predict" in fn.spec.api_handler_config["endpoints"]
+
+    def test_set_api_handler_config_with_invalid_dict(self) -> None:
+        """Test setting API handler config with an invalid dictionary"""
+        fn = cast(ServingRuntime, mlrun.new_function("test-fn", kind="serving"))
+
+        # Invalid dict - missing required fields or invalid format
+        invalid_config = {
+            "invalid_key": "invalid_value",
+            "endpoints": "not_a_dict",  # Should be a dict
+        }
+
+        with pytest.raises(ValueError, match="Invalid API handler config dict format"):
+            fn.set_api_handler_config(invalid_config)
+
+    def test_set_api_handler_config_with_invalid_type(self) -> None:
+        """Test setting API handler config with invalid type"""
+        fn = cast(ServingRuntime, mlrun.new_function("test-fn", kind="serving"))
+
+        with pytest.raises(ValueError, match="config must be"):
+            fn.set_api_handler_config("invalid_string")
+
+    def test_set_api_handler_config_with_api_handler_config_object(self) -> None:
+        """Test setting API handler config with APIHandlerConfig object"""
+        fn = cast(ServingRuntime, mlrun.new_function("test-fn", kind="serving"))
+
+        config = APIHandlerConfig()
+        config.add_endpoint_handler("/test", HTTPMethod.GET, APIHandlerAction.ALLOW)
+
+        fn.set_api_handler_config(config)
+        assert fn.spec.api_handler_config is not None
+        assert fn.spec.api_handler_config["enabled"] is True
+
+
 class TestEndpointKeyHelpers:
     """Direct tests for endpoint key helper functions"""
 

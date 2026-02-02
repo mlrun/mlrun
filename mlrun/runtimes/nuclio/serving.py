@@ -1187,7 +1187,17 @@ class ServingRuntime(nuclio_function.RemoteRuntime):
         """
         if isinstance(config, APIHandlerConfig):
             config = config.to_dict()
-        elif not isinstance(config, dict):
+        elif isinstance(config, dict):
+            # Validate the dict by converting it to APIHandlerConfig and back
+            # This ensures it has the correct format
+            try:
+                validated_config = APIHandlerConfig.from_dict(config)
+                config = validated_config.to_dict()
+            except Exception as exc:
+                raise ValueError(
+                    f"Invalid API handler config dict format: {exc}"
+                ) from exc
+        else:
             raise ValueError(
                 f"config must be `APIHandlerConfig` or a `dict`, got {type(config)}"
             )

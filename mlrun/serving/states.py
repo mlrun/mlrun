@@ -1241,6 +1241,26 @@ class Model(storey.ParallelExecutionRunnable, ModelObj):
         )
         cls._dict_fields.remove("self")
 
+    def is_streaming(self) -> bool:
+        """
+        Returns True if this model produces streaming output (generator).
+
+        Checks if predict() or predict_async() are generator functions.
+
+        Override to return True if predict() or predict_async() return a generator
+        without being generator functions themselves. For example::
+
+            def predict(self, body, **kwargs):
+                return self._external_streaming_api(body)  # Returns a generator
+
+
+            def is_streaming(self) -> bool:
+                return True  # Override required since predict() is not a generator function
+        """
+        return inspect.isgeneratorfunction(self.predict) or inspect.isasyncgenfunction(
+            self.predict_async
+        )
+
     def load(self) -> None:
         """Override to load model if needed."""
         self._load_artifacts()
@@ -1300,11 +1320,23 @@ class Model(storey.ParallelExecutionRunnable, ModelObj):
         self.load()
 
     def predict(self, body: Any, **kwargs) -> Any:
-        """Override to implement prediction logic. If the logic requires asyncio, override predict_async() instead."""
+        """
+        Override to implement prediction logic. If the logic requires asyncio, override predict_async() instead.
+
+        This method may be a generator function to implement streaming. It may also return a generator
+        (without being a generator function itself), in which case :meth:`is_streaming` should be
+        overridden to return True.
+        """
         raise NotImplementedError("predict() method not implemented")
 
     async def predict_async(self, body: Any, **kwargs) -> Any:
-        """Override to implement prediction logic if the logic requires asyncio."""
+        """
+        Override to implement prediction logic if the logic requires asyncio.
+
+        This method may be an async generator function to implement streaming. It may also return an
+        async generator (without being an async generator function itself), in which case
+        :meth:`is_streaming` should be overridden to return True.
+        """
         raise NotImplementedError("predict_async() method not implemented")
 
     def run(self, body: Any, path: str, origin_name: Optional[str] = None) -> Any:
@@ -1784,7 +1816,11 @@ class ModelRunner(storey.ParallelExecution):
             event._metadata = {}
 
         event._metadata["model_runner_name"] = self.name
-        event._metadata["inputs"] = deepcopy(event.body)
+        # batch of events:
+        if storey.flow.is_batched_event(event):
+            event._metadata["inputs"] = [sub_event.body for sub_event in event.body]
+        else:
+            event._metadata["inputs"] = deepcopy(event.body)
 
         return event
 
@@ -1805,14 +1841,20 @@ class ModelRunner(storey.ParallelExecution):
             ) + sys_outlets
         return None
 
-    def _is_error(self, event: dict) -> bool:
-        if len(self.runnables) == 1:
-            if isinstance(event, dict):
-                return event.get("error") is not None
-        else:
-            for model in event:
-                body_by_model = event.get(model)
-                if isinstance(body_by_model, dict) and "error" in body_by_model:
+    def _is_error(self, event: Union[dict, list]) -> bool:
+        if isinstance(event, dict):
+            if len(self.runnables) == 1:
+                if isinstance(event, dict):
+                    return event.get("error") is not None
+            else:
+                for model in event:
+                    body_by_model = event.get(model)
+                    if isinstance(body_by_model, dict) and "error" in body_by_model:
+                        return True
+        elif storey.flow.is_batched_event(event):
+            #  batch case:
+            for sub_event in event:
+                if self._is_error(sub_event.body):
                     return True
         return False
 
@@ -2493,6 +2535,9 @@ class ModelRunnerErrorRaiser(storey.MapClass):
                     should_raise = event.body.get("error") is not None
                     errors[self._models_names[0]] = event.body.get("error")
             else:
+                if storey.flow.is_batched_event(event):
+                    # TODO fix error raiser for batch, ML-12068
+                    return event
                 for model in event.body:
                     body_by_model = event.body.get(model)
                     errors[model] = None

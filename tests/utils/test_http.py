@@ -85,12 +85,12 @@ def test_http_session_does_not_persist_cookies():
             self.end_headers()
             self.wfile.write(json.dumps({"cookies_received": cookie_header}).encode())
 
-    port = 31010
-    socketserver.TCPServer.allow_reuse_address = True
-    server = socketserver.TCPServer(("127.0.0.1", port), MockServer)
-    thread = threading.Thread(target=server.serve_forever, daemon=True)
-    thread.start()
-    time.sleep(0.5)
+    # Use ephemeral port (OS-chosen)
+    server = socketserver.TCPServer(("127.0.0.1", 0), MockServer)
+    port = server.server_address[1]
+    server_thread = threading.Thread(target=server.serve_forever, daemon=True)
+    server_thread.start()
+    time.sleep(0.1)  # Minimal sleep for server readiness
 
     try:
         session = HTTPSessionWithRetry()
@@ -123,3 +123,5 @@ def test_http_session_does_not_persist_cookies():
         session.close()
     finally:
         server.shutdown()
+        server.server_close()
+        server_thread.join(timeout=1)

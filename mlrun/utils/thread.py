@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import inspect
 import threading
 from typing import Callable, Optional, TypeVar
 
@@ -30,7 +31,7 @@ class ThreadLocalClient:
 
         Args:
             factory: Function to create a new instance for each thread
-            close_callback: Optional async function to close an instance
+            close_callback: Optional function (sync or async) to close an instance
         """
         self._factory = factory
         self._close_callback = close_callback
@@ -41,8 +42,11 @@ class ThreadLocalClient:
             self._local.instance = self._factory()
         return self._local.instance
 
-    def close(self):
-        """Close the current thread's instance if it exists."""
+    async def async_close(self):
+        """Close the current thread's instance, works for both sync and async callbacks."""
         if hasattr(self._local, "instance") and self._close_callback:
-            self._close_callback(self._local.instance)
+            result = self._close_callback(self._local.instance)
+            # If it's a coroutine, await it
+            if inspect.iscoroutine(result):
+                await result
             delattr(self._local, "instance")

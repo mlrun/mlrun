@@ -41,7 +41,7 @@ class Client:
     def __init__(self, auth_info: mlrun.common.schemas.AuthInfo):
         self._sessions = mlrun.utils.thread.ThreadLocalClient(
             factory=self._get_new_async_session,
-            close_callback=lambda session: session.close(),
+            close_callback=lambda async_session: async_session.close(),
         )
         login = auth_info.username
         self._auth = aiohttp.BasicAuth(login, auth_info.session) if login else None
@@ -54,7 +54,7 @@ class Client:
         return self
 
     async def __aexit__(self, exc_type, exc, tb):
-        self._close_session()
+        await self._close_session()
 
     async def list_api_gateways(
         self, project_name=None
@@ -212,15 +212,15 @@ class Client:
             logger=logger,
         )
 
-    def _close_session(self):
+    async def _close_session(self):
         """Close the thread-local session for the current thread."""
-        self._sessions.close()
+        await self._sessions.async_close()
 
     async def _send_request_to_api(
         self, method, path="/", error_message: str = "", **kwargs
     ):
-        session = self._sessions.get()
-        response = await session.request(
+        async_session = self._sessions.get()
+        response = await async_session.request(
             method=method,
             url=urllib.parse.urljoin(self._nuclio_dashboard_url, path),
             auth=self._auth,

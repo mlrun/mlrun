@@ -39,7 +39,7 @@ class Provider(
         super().__init__()
         self._sessions = mlrun.utils.thread.ThreadLocalClient(
             factory=self._get_new_async_session,
-            close_callback=lambda session: session.close(),
+            close_callback=lambda async_session: async_session.close(),
         )
         self._api_url = mlrun.mlconf.httpdb.authorization.opa.address
         self._permission_query_path = (
@@ -208,10 +208,12 @@ class Provider(
         url = f"{self._api_url}{path}"
         if kwargs.get("timeout") is None:
             kwargs["timeout"] = self._request_timeout
-        session = self._sessions.get()
+        async_session = self._sessions.get()
         response = None
         try:
-            response = await session.request(method, url, verify_ssl=False, **kwargs)
+            response = await async_session.request(
+                method, url, verify_ssl=False, **kwargs
+            )
             if not response.ok:
                 await self._on_request_api_failure(method, path, response, **kwargs)
             yield response

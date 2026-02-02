@@ -49,5 +49,3 @@ distributed==2024.8
 # TimescaleDB dependencies - optional for model monitoring
 psycopg[binary,pool]~=3.2
 snowflake-connector-python~=3.7
-# Iguazio SDK - optional for Iguazio platform integration
-iguazio~=0.0.1

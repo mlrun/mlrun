@@ -75,7 +75,6 @@ def extra_requirements() -> dict[str, list[str]]:
         "alibaba-oss": ["ossfs==2025.5.0", "oss2==2.18.4"],
         "timescaledb": ["psycopg[binary,pool]~=3.2"],
         "snowflake": ["snowflake-connector-python~=3.7"],
-        "ig4": ["iguazio~=0.0.1"],
     }
 
     api_deps = list(
@@ -86,6 +85,7 @@ def extra_requirements() -> dict[str, list[str]]:
             "dev-postgres": ["pytest-mock-resources[postgres]~=2.12"],
             "kfp18": ["mlrun_pipelines_kfp_v1_8[kfp]~=0.6.0"],
             "mlflow": ["mlflow~=3.0"],
+            "ig4": ["iguazio~=0.0.1"],
             # TODO uncomment when KFP 1.8 support is removed
             # "kfp2": ["mlrun_pipelines_kfp_v2[kfp]>=0.5.0 ; python_version >= '3.11'"],
             "api": api_deps,

@@ -863,13 +863,6 @@ def _build_source_loader_init_container(
         client_version=client_version,
         client_python_version=client_python_version,
     )
-    logger.info(
-        "yacouby: ",
-        image=mlrun.mlconf.default_base_image,
-        container_image=init_container_image,
-        client_version=client_version,
-        client_python_version=client_python_version,
-    )
 
     return {
         "name": mlrun.common.constants.SOURCE_LOADER_INIT_CONTAINER_NAME,

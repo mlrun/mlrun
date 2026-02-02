@@ -910,7 +910,7 @@ class ApplicationRuntime(nuclio_function.RemoteRuntime):
             self.spec.build.source
         ):
             source_for_init_container = self.spec.build.source
-            self.spec.build.source = ""
+            self.spec.build.source = None
             logger.info(
                 "Source is a store:// artifact URI - excluding from build, "
                 "init container will load it at runtime",

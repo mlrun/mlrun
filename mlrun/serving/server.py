@@ -498,10 +498,19 @@ def _add_api_handler_step_to_graph(
                 break
 
         if not existing_api_handler:
-            # Find current starting steps
+            # Find current starting steps (using same logic as check_and_process_graph)
             current_start_steps = []
             for step_name, step in graph.steps.items():
-                if not step.after:  # Steps with no 'after' are starting steps
+                # A step is a starting step if:
+                # 1. It has no 'after' and no 'cycle_from' (simple starting step)
+                # 2. It has both 'after' and 'cycle_from', and they match (cyclic starting step)
+                if not step.after and not getattr(step, "cycle_from", None):
+                    current_start_steps.append(step_name)
+                elif (
+                    step.after
+                    and getattr(step, "cycle_from", None)
+                    and set(step.after) == set(step.cycle_from)
+                ):
                     current_start_steps.append(step_name)
 
             # Add _APIHandlerStep as the first step

@@ -633,3 +633,39 @@ class TestAddAPIHandlerStepToGraph:
         # Both starting steps should now come after api-handler
         assert "api-handler" in result_graph.steps["step1"].after
         assert "api-handler" in result_graph.steps["step2"].after
+
+    def test_add_api_handler_step_with_cyclic_graph(self) -> None:
+        """Test adding API handler to a graph with cyclic steps"""
+        graph = RootFlowStep()
+
+        # Create a cyclic graph: step1 -> step2 -> step3 -> step1
+        # First create steps without the cyclic dependency
+        graph.add_step(name="step1", handler="(event)")
+        graph.add_step(name="step2", handler="(event)", after=["step1"])
+        graph.add_step(name="step3", handler="(event)", after=["step2"])
+
+        # Now add the cycle: step1 comes after step3
+        graph.steps["step1"].after = ["step3"]
+        # Mark step1 as cyclic (it has 'after' but is also a starting point)
+        graph.steps["step1"].cycle_from = ["step3"]
+
+        config = APIHandlerConfig()
+        config.add_endpoint_handler("/test", HTTPMethod.GET, APIHandlerAction.ALLOW)
+
+        serving_spec = {"api_handler_config": config.to_dict()}
+        context = MagicMock()
+
+        result_graph = _add_api_handler_step_to_graph(graph, serving_spec, context)
+
+        # API handler should be added
+        assert "api-handler" in result_graph.steps
+
+        # step1 (the cyclic starting step) should now come after api-handler
+        assert "api-handler" in result_graph.steps["step1"].after
+        # step1 should still maintain its cycle_from
+        assert result_graph.steps["step1"].cycle_from == ["step3"]
+
+        # step2 and step3 should not have api-handler in their after lists
+        # (they are not starting steps)
+        assert "api-handler" not in result_graph.steps["step2"].after
+        assert "api-handler" not in result_graph.steps["step3"].after

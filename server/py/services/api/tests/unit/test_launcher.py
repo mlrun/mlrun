@@ -510,7 +510,9 @@ def test_enrich_and_validate_auth_token_name_iguazio_v4_resolution(
 ):
     """Test token resolution in iguazio v4 mode."""
     mock_resolve = unittest.mock.Mock(
-        side_effect=lambda token, user_id: token if token else "resolved-token"
+        side_effect=lambda user_id, provided_token_name: (
+            provided_token_name if provided_token_name else "resolved-token"
+        )
     )
     monkeypatch.setattr(
         services.api.utils.helpers,
@@ -529,7 +531,8 @@ def test_enrich_and_validate_auth_token_name_iguazio_v4_resolution(
 
     assert run.spec.auth["token_name"] == expected_token_name
     mock_resolve.assert_called_once_with(
-        initial_auth.get("token_name") if initial_auth else None, "1234"
+        user_id="1234",
+        provided_token_name=initial_auth.get("token_name") if initial_auth else None,
     )
 
 

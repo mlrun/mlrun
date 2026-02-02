@@ -690,7 +690,7 @@ class ServerSideLauncher(launcher.BaseLauncher):
 
         # Use the token resolution logic that validates existence and expiration
         token_name = services.api.utils.helpers.resolve_auth_token_name(
-            provided_token_name, self._auth_info.user_id
+            user_id=self._auth_info.user_id, provided_token_name=provided_token_name
         )
         object.spec.auth["token_name"] = token_name
 

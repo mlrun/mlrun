@@ -14,6 +14,7 @@
 
 """Unit tests for the API Handler implementation"""
 
+import logging
 from http import HTTPMethod
 from typing import cast
 from unittest.mock import MagicMock
@@ -239,6 +240,34 @@ class TestAPIHandlerConfig:
         config = APIHandlerConfig.from_dict(data)
         assert config.enabled is True
         assert config.get_endpoint_config(HTTPMethod.POST, "/predict") is not None
+
+    def test_add_endpoint_handler_override_warning(
+        self, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """Test that warning is logged when overriding existing endpoint"""
+        config = APIHandlerConfig()
+
+        # Add an endpoint
+        config.add_endpoint_handler(
+            "/api/test", HTTPMethod.POST, APIHandlerAction.ALLOW, "First config"
+        )
+
+        # Override the same endpoint - should trigger warning
+        with caplog.at_level(logging.WARNING):
+            config.add_endpoint_handler(
+                "/api/test", HTTPMethod.POST, APIHandlerAction.FORBID, "Second config"
+            )
+
+        # Verify warning was logged
+        assert any(
+            "Overriding existing endpoint" in record.message
+            for record in caplog.records
+        )
+
+        # Verify the endpoint was updated
+        endpoint_config = config.get_endpoint_config(HTTPMethod.POST, "/api/test")
+        assert endpoint_config["action"] == "forbid"
+        assert endpoint_config["description"] == "Second config"
 
 
 class TestEndpointKeyHelpers:

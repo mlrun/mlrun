@@ -109,6 +109,17 @@ class APIHandlerConfig(mlrun.model.ModelObj):
         :param description: Optional description of the endpoint
         """
         endpoint_key = serving_utils._combine_serving_endpoint_key(http_method, path)
+
+        # Warn if overriding an existing endpoint
+        if endpoint_key in self._endpoints:
+            logger.warning(
+                "Overriding existing endpoint handler configuration",
+                method=http_method.value,
+                path=path,
+                old_action=self._endpoints[endpoint_key].get("action"),
+                new_action=str(action),
+            )
+
         self._endpoints[endpoint_key] = {
             "action": str(action),
             "description": description,

@@ -485,3 +485,81 @@ class TestStreamingGenerator:
             assert chunks == ["test_chunk_0", "test_chunk_1", "test_chunk_2"]
         finally:
             server.wait_for_completion()
+
+
+class TestModelIsStreaming:
+    """Tests for Model.is_streaming() method."""
+
+    def test_is_streaming_detects_generator_function(self):
+        """Test that is_streaming() returns True for generator predict()."""
+        from mlrun.serving import Model
+
+        class GeneratorModel(Model):
+            def predict(self, body, **kwargs):
+                yield "chunk1"
+                yield "chunk2"
+
+        model = GeneratorModel(name="test")
+        assert model.is_streaming() is True
+
+    def test_is_streaming_detects_async_generator_function(self):
+        """Test that is_streaming() returns True for async generator predict_async()."""
+        from mlrun.serving import Model
+
+        class AsyncGeneratorModel(Model):
+            def predict(self, body, **kwargs):
+                return body  # Not a generator
+
+            async def predict_async(self, body, **kwargs):
+                yield "chunk1"
+                yield "chunk2"
+
+        model = AsyncGeneratorModel(name="test")
+        assert model.is_streaming() is True
+
+    def test_is_streaming_returns_false_for_regular_predict(self):
+        """Test that is_streaming() returns False for non-generator predict()."""
+        from mlrun.serving import Model
+
+        class RegularModel(Model):
+            def predict(self, body, **kwargs):
+                return {"result": body}
+
+        model = RegularModel(name="test")
+        assert model.is_streaming() is False
+
+    def test_is_streaming_override_for_returned_generator(self):
+        """Test that is_streaming() can be overridden when predict() returns a generator.
+
+        This tests the documented use case where predict() returns a generator
+        from an external source without being a generator function itself.
+        """
+        from mlrun.serving import Model
+
+        def external_streaming_api(body):
+            """Simulates an external API that returns a generator."""
+            for i in range(3):
+                yield f"{body}_chunk_{i}"
+
+        class WrappedStreamingModel(Model):
+            def predict(self, body, **kwargs):
+                # Returns a generator, but this method is NOT a generator function
+                return external_streaming_api(body)
+
+            def is_streaming(self) -> bool:
+                # Override required since predict() is not a generator function
+                return True
+
+        model = WrappedStreamingModel(name="test")
+
+        # Verify that without override, is_streaming would return False
+        # (since predict is not a generator function)
+        assert not inspect.isgeneratorfunction(model.predict)
+
+        # But with the override, it returns True
+        assert model.is_streaming() is True
+
+        # And predict() actually returns a generator
+        result = model.predict("test")
+        assert inspect.isgenerator(result)
+        assert list(result) == ["test_chunk_0", "test_chunk_1", "test_chunk_2"]

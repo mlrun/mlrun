@@ -1247,8 +1247,15 @@ class Model(storey.ParallelExecutionRunnable, ModelObj):
 
         Checks if predict() or predict_async() are generator functions.
 
-        Override to force streaming. This is necessary if predict or predict_async return a generator while not being
-        generator functions themselves.
+        Override to return True if predict() or predict_async() return a generator
+        without being generator functions themselves. For example::
+
+            def predict(self, body, **kwargs):
+                return self._external_streaming_api(body)  # Returns a generator
+
+
+            def is_streaming(self) -> bool:
+                return True  # Override required since predict() is not a generator function
         """
         return inspect.isgeneratorfunction(self.predict) or inspect.isasyncgenfunction(
             self.predict_async
@@ -1316,8 +1323,9 @@ class Model(storey.ParallelExecutionRunnable, ModelObj):
         """
         Override to implement prediction logic. If the logic requires asyncio, override predict_async() instead.
 
-        This method may be a generator to implement streaming. It may also return a generator, in which case,
-        is_streaming() should be overridden to return True.
+        This method may be a generator function to implement streaming. It may also return a generator
+        (without being a generator function itself), in which case :meth:`is_streaming` should be
+        overridden to return True.
         """
         raise NotImplementedError("predict() method not implemented")
 
@@ -1325,8 +1333,9 @@ class Model(storey.ParallelExecutionRunnable, ModelObj):
         """
         Override to implement prediction logic if the logic requires asyncio.
 
-        This method may be an async generator to implement streaming. It may also return an async generator, in which
-        case, is_streaming() should be overridden to return True.
+        This method may be an async generator function to implement streaming. It may also return an
+        async generator (without being an async generator function itself), in which case
+        :meth:`is_streaming` should be overridden to return True.
         """
         raise NotImplementedError("predict_async() method not implemented")
 

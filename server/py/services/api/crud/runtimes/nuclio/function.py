@@ -811,8 +811,7 @@ def _configure_source_loader_init_container(
         or mlrun.common.constants.DEFAULT_SOURCE_CODE_TARGET_DIR
     )
 
-    # Create shared volume for source code - emptyDir is used as it's ephemeral
-    # and automatically cleaned up when the pod terminates
+    # Create shared volume for source code
     volume_name = mlrun.common.constants.SOURCE_CODE_VOLUME_NAME
     volume = {"name": volume_name, "emptyDir": {}}
     volume_mount = {"name": volume_name, "mountPath": target_dir}
@@ -903,16 +902,9 @@ def _ensure_source_loader_init_container(
     duplicating init containers.
 
     :param function: The function object to configure
-    :param init_container: Init container specification dict with 'name', 'image',
-                           'command', 'args', 'env', and 'volumeMounts' keys
-    :raises MLRunInvalidArgumentError: If init container name is empty
+    :param init_container: Init container specification
     """
-    init_container_name = init_container.get("name")
-    if not init_container_name:
-        raise mlrun.errors.MLRunInvalidArgumentError(
-            "Init container name must not be empty"
-        )
-
+    init_container_name = init_container["name"]
     init_containers = function.spec.config.setdefault("spec.initContainers", [])
 
     for index, container in enumerate(init_containers):

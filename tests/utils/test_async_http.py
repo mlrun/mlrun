@@ -231,7 +231,7 @@ async def test_async_client_does_not_persist_cookies():
         def log_message(self, *args):
             pass
 
-        def do_GET(self):
+        def do_GET(self):  # noqa: N802
             cookie_header = self.headers.get("Cookie", "")
 
             self.send_response(200)

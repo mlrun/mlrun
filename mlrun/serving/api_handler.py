@@ -54,38 +54,6 @@ class _APIHandlerStep(mlrun.serving.states.TaskStep):
             self.config = mlrun.runtimes.nuclio.serving.APIHandlerConfig()
         self.context = context
 
-    def _init_class_object_and_handler(self, namespace, reset, **extra_kwargs):
-        """Initialize the class object and handler for the serving framework"""
-        mlrun.utils.logger.debug(
-            "_APIHandlerStep initializing",
-            name=self.name,
-            has_config=bool(self.config._endpoints),
-            context_available=bool(self.context),
-        )
-
-        # If no config was provided, try to get it from the function context
-        if not self.config._endpoints and hasattr(self, "context") and self.context:
-            mlrun.utils.logger.debug("Trying to get config from server context")
-            # Try to get API handler config from the serving server
-            if (
-                hasattr(self.context, "server")
-                and hasattr(self.context.server, "api_handler_config")
-                and self.context.server.api_handler_config
-            ):
-                mlrun.utils.logger.debug("Found API handler config in server context")
-                self.config = self.context.server.api_handler_config
-            else:
-                mlrun.utils.logger.debug(
-                    "No API handler config found in server context"
-                )
-
-        mlrun.utils.logger.debug(
-            "_APIHandlerStep initialization complete",
-            endpoints_count=len(self.config._endpoints),
-        )
-        self._object = self
-        self._handler = self.do  # Point to our do method
-
     def do(self, event):
         """Handle incoming request and validate against configured endpoints"""
         try:

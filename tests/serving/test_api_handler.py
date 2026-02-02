@@ -350,7 +350,6 @@ class TestAPIHandlerStep:
         config.add_endpoint_handler("/api/test", HTTPMethod.GET, APIHandlerAction.ALLOW)
 
         step = _APIHandlerStep(config=config)
-        step._init_class_object_and_handler({}, False)
 
         match = step._match_endpoint(HTTPMethod.GET, "/api/test")
         assert match == "GET:/api/test"
@@ -361,7 +360,6 @@ class TestAPIHandlerStep:
         config.add_endpoint_handler("/api/test", HTTPMethod.GET, APIHandlerAction.ALLOW)
 
         step = _APIHandlerStep(config=config)
-        step._init_class_object_and_handler({}, False)
 
         match = step._match_endpoint(HTTPMethod.POST, "/api/test")
         assert match is None
@@ -383,7 +381,6 @@ class TestAPIHandlerStep:
 
         step = _APIHandlerStep(config=config)
         step.context = context
-        step._init_class_object_and_handler({}, False)
 
         result = step.do({"data": "test"})
         assert result == {"data": "test"}
@@ -402,7 +399,6 @@ class TestAPIHandlerStep:
 
         step = _APIHandlerStep(config=config)
         step.context = context
-        step._init_class_object_and_handler({}, False)
 
         with pytest.raises(mlrun.errors.MLRunBadRequestError, match="Access forbidden"):
             step.do({"data": "test"})
@@ -421,7 +417,6 @@ class TestAPIHandlerStep:
 
         step = _APIHandlerStep(config=config)
         step.context = context
-        step._init_class_object_and_handler({}, False)
 
         with pytest.raises(mlrun.errors.MLRunNotFoundError, match="Endpoint not found"):
             step.do({"data": "test"})
@@ -437,7 +432,6 @@ class TestAPIHandlerStep:
 
         step = _APIHandlerStep(config=config)
         step.context = context
-        step._init_class_object_and_handler({}, False)
 
         with pytest.raises(
             mlrun.errors.MLRunBadRequestError, match="HTTP method not found"
@@ -455,7 +449,6 @@ class TestAPIHandlerStep:
 
         step = _APIHandlerStep(config=config)
         step.context = context
-        step._init_class_object_and_handler({}, False)
 
         with pytest.raises(
             mlrun.errors.MLRunBadRequestError, match="Request path not found"
@@ -475,7 +468,6 @@ class TestAPIHandlerStep:
 
         step = _APIHandlerStep(config=config)
         step.context = context
-        step._init_class_object_and_handler({}, False)
 
         result = step.do({"data": "test"})
         assert result == {"data": "test"}
@@ -491,7 +483,6 @@ class TestAPIHandlerStep:
 
         step = _APIHandlerStep(config=config)
         step.context = context
-        step._init_class_object_and_handler({}, False)
 
         with pytest.raises(
             mlrun.errors.MLRunBadRequestError, match="Unsupported HTTP method"

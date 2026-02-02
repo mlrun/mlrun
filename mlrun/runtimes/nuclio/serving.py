@@ -103,11 +103,10 @@ class APIHandlerConfig(mlrun.model.ModelObj):
     ) -> None:
         """Add an endpoint handler configuration.
 
-        Args:
-            path: URL path for the endpoint (e.g., '/v1/models')
-            http_method: HTTP method for the endpoint
-            action: Action to take for this endpoint
-            description: Optional description of the endpoint
+        :param path: URL path for the endpoint (e.g., '/v1/models')
+        :param http_method: HTTP method for the endpoint
+        :param action: Action to take for this endpoint (:py:class:`~mlrun.common.schemas.serving.APIHandlerAction`)
+        :param description: Optional description of the endpoint
         """
         endpoint_key = serving_utils._combine_serving_endpoint_key(http_method, path)
         self._endpoints[endpoint_key] = {
@@ -122,9 +121,8 @@ class APIHandlerConfig(mlrun.model.ModelObj):
     ) -> None:
         """Remove an endpoint handler configuration.
 
-        Args:
-            path: URL path for the endpoint to remove
-            http_method: HTTP method for the endpoint to remove
+        :param path: URL path for the endpoint to remove
+        :param http_method: HTTP method for the endpoint to remove
         """
         endpoint_key = serving_utils._combine_serving_endpoint_key(http_method, path)
         self._endpoints.pop(endpoint_key, None)
@@ -1025,12 +1023,9 @@ class ServingRuntime(nuclio_function.RemoteRuntime):
     ) -> "kubejob_runtime.KubejobRuntime":
         """Convert this ServingRuntime to a KubejobRuntime, so that the graph can be run as a standalone job.
 
-        Args:
-            func_name: Optional custom name for the job function. If not provided, automatically
-                      appends '-batch' suffix to the serving function name to prevent database collision.
-
-        Returns:
-            KubejobRuntime configured to execute the serving graph as a batch job.
+        :param func_name: Optional custom name for the job function. If not provided, automatically
+                         appends '-batch' suffix to the serving function name to prevent database collision.
+        :return: KubejobRuntime configured to execute the serving graph as a batch job.
 
         Note:
             The job will have a different name than the serving function to prevent database collision.
@@ -1158,14 +1153,17 @@ class ServingRuntime(nuclio_function.RemoteRuntime):
     def set_api_handler_config(self, config: Union[APIHandlerConfig, dict]) -> None:
         """Set the API handler configuration for the serving function.
 
-        Args:
-            config: APIHandlerConfig object or dictionary containing the configuration
-                   for handling different API endpoints and their actions.
+        :param config: :py:class:`~mlrun.runtimes.nuclio.serving.APIHandlerConfig` object or dictionary containing
+                      the configuration for handling different API endpoints and their actions.
 
         Example::
 
-            # Using schemas.serving.APIHandlerConfig object
-            api_config = schemas.serving.APIHandlerConfig()
+            # Using APIHandlerConfig object
+            from mlrun.runtimes.nuclio.serving import APIHandlerConfig
+            from mlrun.common.schemas.serving import APIHandlerAction
+            from http import HTTPMethod
+
+            api_config = APIHandlerConfig()
             api_config.add_endpoint_handler(
                 "/v1/models", HTTPMethod.GET, APIHandlerAction.ALLOW
             )

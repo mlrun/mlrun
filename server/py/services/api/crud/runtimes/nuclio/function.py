@@ -276,7 +276,7 @@ def _compile_function_config(
             raise mlrun.errors.MLRunInvalidArgumentError(
                 f"No sidecar found for Application runtime '{function.metadata.name}'. "
             )
-        elif _should_fetch_source_code(function):
+        if _should_fetch_source_code(function):
             _configure_source_loader_init_container(
                 function,
                 # Application runtime has exactly one sidecar (the user's application container)
@@ -904,7 +904,9 @@ def _ensure_source_loader_init_container(
     :param function: The function object to configure
     :param init_container: Init container specification
     """
-    init_container_name = init_container["name"]
+    init_container_name = init_container.get("name")
+    if not init_container_name:
+        raise mlrun.errors.MLRunInvalidArgumentError("Init container name is required")
     init_containers = function.spec.config.setdefault("spec.initContainers", [])
 
     for index, container in enumerate(init_containers):
@@ -936,8 +938,16 @@ def _patch_sidecar_for_source(
 
     sidecar["workingDir"] = target_dir
 
-    # Set PYTHONPATH to target directory so the sidecar can import modules from the source
-    # code loaded by the init container
+    # Set PYTHONPATH to include target directory so the sidecar can import modules from
+    # the source code loaded by the init container. If PYTHONPATH already exists, prepend
+    # target_dir to preserve user's custom paths while ensuring our source dir takes priority.
     sidecar_env = sidecar.setdefault("env", [])
-    if not any(e.get("name") == "PYTHONPATH" for e in sidecar_env):
+    pythonpath_env = next(
+        (e for e in sidecar_env if e.get("name") == "PYTHONPATH"), None
+    )
+    if pythonpath_env:
+        existing_path = pythonpath_env.get("value", "")
+        if target_dir not in existing_path.split(":"):
+            pythonpath_env["value"] = f"{target_dir}:{existing_path}"
+    else:
         sidecar_env.append({"name": "PYTHONPATH", "value": target_dir})

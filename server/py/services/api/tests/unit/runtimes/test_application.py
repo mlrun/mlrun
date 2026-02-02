@@ -250,6 +250,25 @@ class TestApplicationRuntime(TestRuntimeBase):
             == mlrun.common.constants.DEFAULT_SOURCE_CODE_TARGET_DIR
         )
 
+        # Verify PYTHONPATH prepends to existing value instead of skipping
+        # Reset function and pre-set a custom PYTHONPATH
+        function2 = self._generate_runtime(self.runtime_kind)
+        function2.spec.build.source = "store://artifacts/test-project/my-source"
+        sidecars2 = function2.spec.config.get("spec.sidecars", [])
+        sidecars2[0].setdefault("env", []).append(
+            {"name": "PYTHONPATH", "value": "/user/custom/path"}
+        )
+
+        services.api.crud.runtimes.nuclio.function._compile_function_config(
+            function2, builder_env={}
+        )
+
+        sidecar_env2 = sidecars2[0].get("env", [])
+        pythonpath2 = next(e for e in sidecar_env2 if e.get("name") == "PYTHONPATH")
+        assert pythonpath2["value"] == (
+            f"{mlrun.common.constants.DEFAULT_SOURCE_CODE_TARGET_DIR}:/user/custom/path"
+        )
+
     @pytest.mark.parametrize(
         "source,load_source_on_run",
         [

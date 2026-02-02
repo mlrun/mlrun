@@ -878,7 +878,7 @@ def _build_source_loader_init_container(
         "args": [source, "--project", project, "--target", target_dir],
         "env": [
             {"name": "MLRUN_PROJECT", "value": project},
-            {"name": "MLRUN_DBPATH", "value": mlrun.mlconf.dbpath},
+            {"name": "MLRUN_DBPATH", "value": mlrun.mlconf.httpdb.api_url},
         ],
         "volumeMounts": [volume_mount],
     }

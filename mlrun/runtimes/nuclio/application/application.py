@@ -903,8 +903,22 @@ class ApplicationRuntime(nuclio_function.RemoteRuntime):
                 "Loading on build will be forced regardless of whether 'pull_at_runtime=True' was configured."
             )
 
+        # For store:// artifact sources, exclude from build context since the init container will load
+        # the source at runtime
+        source_for_init_container = None
+        if self.spec.build.source and mlrun.datastore.is_store_uri(
+            self.spec.build.source
+        ):
+            source_for_init_container = self.spec.build.source
+            self.spec.build.source = ""
+            logger.info(
+                "Source is a store:// artifact URI - excluding from build, "
+                "init container will load it at runtime",
+                source=source_for_init_container,
+            )
+
         with_mlrun = self._resolve_build_with_mlrun(with_mlrun)
-        return self._build_image(
+        result = self._build_image(
             builder_env=builder_env,
             force_build=force_build,
             mlrun_version_specifier=mlrun_version_specifier,
@@ -914,6 +928,12 @@ class ApplicationRuntime(nuclio_function.RemoteRuntime):
             is_kfp=is_kfp,
             with_mlrun=with_mlrun,
         )
+
+        # Restore source for init container configuration by the server
+        if source_for_init_container:
+            self.spec.build.source = source_for_init_container
+
+        return result
 
     def _ensure_reverse_proxy_configurations(self):
         # If an HTTP trigger already exists in the spec,

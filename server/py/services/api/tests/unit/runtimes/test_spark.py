@@ -1244,3 +1244,51 @@ class TestSpark3Runtime(services.api.tests.unit.runtimes.base.TestRuntimeBase):
             str(exc.value) == "Sparkjob does not support loading source code on run, "
             "use func.with_source_archive(pull_at_runtime=False)"
         )
+
+    def test_auth_token_passed_to_secrets_mounting(
+        self, db: sqlalchemy.orm.Session, k8s_secrets_mock
+    ):
+        """
+        Regression test: Verify that token_name and auth_info are passed to
+        add_secrets_to_spec_before_running for auth secret mounting.
+
+        Both Spark driver and executor pods run MLRun code and need the auth token
+        secret mounted. This test ensures the parameters are passed correctly,
+        similar to how MPI job and kubejob handlers do it.
+        """
+        runtime: mlrun.runtimes.Spark3Runtime = self._generate_runtime()
+        runtime.metadata.name = "test-spark-auth"
+        runtime.metadata.project = self.project
+
+        # Create a task with auth token
+        task = mlrun.model.new_task(
+            name="test-spark-auth",
+            project=self.project,
+            artifact_path=self.artifact_path,
+        )
+        task.spec.auth = {"token_name": "my-test-token"}
+
+        auth_info = mlrun.common.schemas.AuthInfo(user_id="1234")
+
+        with unittest.mock.patch(
+            "services.api.runtime_handlers.sparkjob.spark3job.Spark3RuntimeHandler.add_secrets_to_spec_before_running"
+        ) as mock_add_secrets:
+            runtime.run(
+                runspec=task,
+                auth_info=auth_info,
+                watch=False,
+            )
+
+            mock_add_secrets.assert_called_once()
+            call_kwargs = mock_add_secrets.call_args.kwargs
+
+            # Verify token_name from run.spec.auth is correctly extracted and passed
+            assert call_kwargs.get("token_name") == "my-test-token", (
+                "token_name must be passed to add_secrets_to_spec_before_running "
+                "for auth secret mounting on driver and executor pods"
+            )
+            assert call_kwargs.get("auth_info") == auth_info, (
+                "auth_info must be passed to add_secrets_to_spec_before_running "
+                "for auth secret mounting on driver and executor pods"
+            )
+            assert call_kwargs.get("project_name") == self.project

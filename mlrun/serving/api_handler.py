@@ -25,7 +25,7 @@ import mlrun.serving.utils as serving_utils
 import mlrun.utils
 
 
-class _APIHandlerStep(mlrun.serving.states.BaseStep):
+class _APIHandlerStep(mlrun.serving.states.TaskStep):
     """Private API handler step for routing and validating serving requests"""
 
     kind = "api_handler"

@@ -1785,9 +1785,7 @@ class ModelRunner(storey.ParallelExecution):
 
         event._metadata["model_runner_name"] = self.name
         # batch of events:
-        if isinstance(event.body, list) and any(
-            "event" in sub_event.__class__.__name__.lower() for sub_event in event.body
-        ):
+        if storey.flow.is_batched_event(event):
             event._metadata["inputs"] = [sub_event.body for sub_event in event.body]
         else:
             event._metadata["inputs"] = deepcopy(event.body)

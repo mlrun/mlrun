@@ -677,6 +677,11 @@ default_config = {
             "parquet_batching_max_events": 10,
             "parquet_batching_timeout_secs": 30,
         },
+        "lag_detection": {
+            "min_lag_threshold_minutes": 5,
+            "default_lag_threshold_minutes": 60,
+            "default_lag_event_cooldown_minutes": 30,
+        },
         # Store prefixes are used to handle model monitoring storing policies based on project and kind, such as events,
         # stream, and endpoints.
         "store_prefixes": {

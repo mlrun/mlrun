@@ -1623,3 +1623,129 @@ def test_invalid_cyclic_graph_definitions():
         match=r"Cyclic graphs are not supported with sync engine, please use async engine",
     ):
         graph.allow_cyclic = True
+
+
+# Streaming Model Tests
+
+
+class StreamingModel(Model):
+    """A model that returns streaming results (generator)."""
+
+    def __init__(self, num_chunks: int = 3, **kwargs):
+        super().__init__(**kwargs)
+        self.num_chunks = num_chunks
+
+    def predict(self, body: typing.Any, **kwargs) -> typing.Any:
+        for i in range(self.num_chunks):
+            yield f"{body}_chunk_{i}"
+
+
+class StreamingModelRunnerSelector(ModelRunnerSelector):
+    """A selector that always picks the streaming_model."""
+
+    def select_models(self, event, available_models):
+        return ["streaming_model"]
+
+
+def test_model_runner_streaming_naive():
+    """Test that streaming models work with naive execution mechanism."""
+    function = mlrun.new_function("tests", kind="serving")
+    graph = function.set_topology("flow", engine="async")
+    model_runner_step = ModelRunnerStep(name="my_model_runner")
+    model_runner_step.add_model(
+        model_class="StreamingModel",
+        execution_mechanism="naive",
+        endpoint_name="streaming_model",
+        num_chunks=3,
+    )
+    graph.to(model_runner_step).to(
+        name="collector", class_name="storey.Collector"
+    ).respond()
+
+    server = function.to_mock_server()
+    try:
+        resp = server.test(body="test")
+        assert resp == ["test_chunk_0", "test_chunk_1", "test_chunk_2"]
+    finally:
+        server.wait_for_completion()
+
+
+@pytest.mark.parametrize(
+    "execution_mechanism",
+    ["process_pool", "dedicated_process"],
+)
+def test_model_runner_streaming_process_based(execution_mechanism):
+    """Test that streaming models work with process-based execution mechanisms."""
+    function = mlrun.new_function("tests", kind="serving")
+    graph = function.set_topology("flow", engine="async")
+    model_runner_step = ModelRunnerStep(name="my_model_runner")
+    model_runner_step.add_model(
+        model_class="StreamingModel",
+        execution_mechanism=execution_mechanism,
+        endpoint_name="streaming_model",
+        num_chunks=3,
+    )
+    graph.to(model_runner_step).to(
+        name="collector", class_name="storey.Collector"
+    ).respond()
+
+    server = function.to_mock_server()
+    try:
+        resp = server.test(body="test")
+        assert resp == ["test_chunk_0", "test_chunk_1", "test_chunk_2"]
+    finally:
+        server.wait_for_completion()
+
+
+def test_model_runner_streaming_with_selector():
+    """Test that streaming works when a model selector is used."""
+    function = mlrun.new_function("tests", kind="serving")
+    graph = function.set_topology("flow", engine="async")
+    model_runner_step = ModelRunnerStep(
+        name="my_model_runner", model_runner_selector="StreamingModelRunnerSelector"
+    )
+    model_runner_step.add_model(
+        model_class="StreamingModel",
+        execution_mechanism="naive",
+        endpoint_name="streaming_model",
+        num_chunks=3,
+    )
+    graph.to(model_runner_step).to(
+        name="collector", class_name="storey.Collector"
+    ).respond()
+
+    server = function.to_mock_server()
+    try:
+        resp = server.test(body="test")
+        assert resp == ["test_chunk_0", "test_chunk_1", "test_chunk_2"]
+    finally:
+        server.wait_for_completion()
+
+
+def test_model_runner_streaming_with_collector():
+    """Test that streaming results can be collected into a list."""
+    function = mlrun.new_function("tests", kind="serving")
+    graph = function.set_topology("flow", engine="async")
+    model_runner_step = ModelRunnerStep(name="my_model_runner")
+    model_runner_step.add_model(
+        model_class="StreamingModel",
+        execution_mechanism="naive",
+        endpoint_name="streaming_model",
+        num_chunks=5,
+    )
+    graph.to(model_runner_step).to(
+        name="collector", class_name="storey.Collector"
+    ).respond()
+
+    server = function.to_mock_server()
+    try:
+        resp = server.test(body="data")
+        assert resp == [
+            "data_chunk_0",
+            "data_chunk_1",
+            "data_chunk_2",
+            "data_chunk_3",
+            "data_chunk_4",
+        ]
+    finally:
+        server.wait_for_completion()

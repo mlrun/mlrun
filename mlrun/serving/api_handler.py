@@ -23,6 +23,7 @@ import mlrun.serving.server
 import mlrun.serving.states
 import mlrun.serving.utils as serving_utils
 import mlrun.utils
+from mlrun.common.schemas.serving import _APIEndpointKeys
 
 
 class _APIHandlerStep(mlrun.serving.states.TaskStep):
@@ -121,7 +122,7 @@ class _APIHandlerStep(mlrun.serving.states.TaskStep):
 
             # Get endpoint definition
             endpoint_def = self.config._endpoints[matching_endpoint_key]
-            action = endpoint_def["action"]
+            action = endpoint_def[_APIEndpointKeys.ACTION]
 
             # Parse the endpoint key for logging
             matched_method, matched_path = self.config._parse_endpoint_key(

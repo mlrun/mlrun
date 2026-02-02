@@ -23,7 +23,7 @@ import pytest
 
 import mlrun
 import mlrun.errors
-from mlrun.common.schemas.serving import APIHandlerAction
+from mlrun.common.schemas.serving import APIHandlerAction, _APIEndpointKeys
 from mlrun.runtimes.nuclio.serving import APIHandlerConfig, ServingRuntime
 from mlrun.serving import GraphContext
 from mlrun.serving.api_handler import _APIHandlerStep
@@ -148,7 +148,12 @@ class TestAPIHandlerConfig:
 
     def test_init_with_parameters(self) -> None:
         """Test APIHandlerConfig initialization with parameters"""
-        endpoints = {"GET:/health": {"action": "allow", "description": "Health"}}
+        endpoints = {
+            "GET:/health": {
+                _APIEndpointKeys.ACTION: "allow",
+                _APIEndpointKeys.DESCRIPTION: "Health",
+            }
+        }
         config = APIHandlerConfig(enabled=False, endpoints=endpoints)
         assert config.enabled is False
         assert "GET:/health" in config.endpoints
@@ -162,8 +167,8 @@ class TestAPIHandlerConfig:
 
         endpoint_config = config.get_endpoint_config(HTTPMethod.POST, "/api/predict")
         assert endpoint_config is not None
-        assert endpoint_config["action"] == "allow"
-        assert endpoint_config["description"] == "Prediction"
+        assert endpoint_config[_APIEndpointKeys.ACTION] == "allow"
+        assert endpoint_config[_APIEndpointKeys.DESCRIPTION] == "Prediction"
 
     def test_add_multiple_endpoints(self) -> None:
         """Test adding multiple endpoint handlers"""
@@ -197,8 +202,14 @@ class TestAPIHandlerConfig:
         """Test setting endpoints via property"""
         config = APIHandlerConfig()
         endpoints = {
-            "POST:/predict": {"action": "allow", "description": "Predict"},
-            "GET:/health": {"action": "allow", "description": "Health"},
+            "POST:/predict": {
+                _APIEndpointKeys.ACTION: "allow",
+                _APIEndpointKeys.DESCRIPTION: "Predict",
+            },
+            "GET:/health": {
+                _APIEndpointKeys.ACTION: "allow",
+                _APIEndpointKeys.DESCRIPTION: "Health",
+            },
         }
         config.endpoints = endpoints
 
@@ -234,7 +245,10 @@ class TestAPIHandlerConfig:
         data = {
             "enabled": True,
             "endpoints": {
-                "POST:/predict": {"action": "allow", "description": "Prediction"}
+                "POST:/predict": {
+                    _APIEndpointKeys.ACTION: "allow",
+                    _APIEndpointKeys.DESCRIPTION: "Prediction",
+                }
             },
         }
         config = APIHandlerConfig.from_dict(data)
@@ -266,8 +280,8 @@ class TestAPIHandlerConfig:
 
         # Verify the endpoint was updated
         endpoint_config = config.get_endpoint_config(HTTPMethod.POST, "/api/test")
-        assert endpoint_config["action"] == "forbid"
-        assert endpoint_config["description"] == "Second config"
+        assert endpoint_config[_APIEndpointKeys.ACTION] == "forbid"
+        assert endpoint_config[_APIEndpointKeys.DESCRIPTION] == "Second config"
 
 
 class TestSetAPIHandlerConfig:
@@ -280,7 +294,10 @@ class TestSetAPIHandlerConfig:
         config_dict = {
             "enabled": True,
             "endpoints": {
-                "POST:/predict": {"action": "allow", "description": "Prediction"}
+                "POST:/predict": {
+                    _APIEndpointKeys.ACTION: "allow",
+                    _APIEndpointKeys.DESCRIPTION: "Prediction",
+                }
             },
         }
 
@@ -382,7 +399,10 @@ class TestAPIHandlerStep:
         config_dict = {
             "enabled": True,
             "endpoints": {
-                "POST:/predict": {"action": "allow", "description": "Predict"}
+                "POST:/predict": {
+                    _APIEndpointKeys.ACTION: "allow",
+                    _APIEndpointKeys.DESCRIPTION: "Predict",
+                }
             },
         }
         step = _APIHandlerStep(config=config_dict)

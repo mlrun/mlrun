@@ -30,6 +30,7 @@ import mlrun.runtimes.kubejob as kubejob_runtime
 import mlrun.runtimes.nuclio.function as nuclio_function
 import mlrun.runtimes.pod as pod_runtime
 import mlrun.serving.utils as serving_utils
+from mlrun.common.schemas.serving import _APIEndpointKeys
 from mlrun.datastore import get_kafka_brokers_from_dict, parse_kafka_url
 from mlrun.model import ObjectList
 from mlrun.runtimes.function_reference import FunctionReference
@@ -76,8 +77,10 @@ class APIHandlerConfig(mlrun.model.ModelObj):
             self.add_endpoint_handler(
                 path=path,
                 http_method=method,
-                action=schemas.serving.APIHandlerAction(config.get("action")),
-                description=config.get("description"),
+                action=schemas.serving.APIHandlerAction(
+                    config.get(_APIEndpointKeys.ACTION)
+                ),
+                description=config.get(_APIEndpointKeys.DESCRIPTION),
             )
 
     def _parse_endpoint_key(self, endpoint_key: str) -> tuple[HTTPMethod, str]:
@@ -116,13 +119,13 @@ class APIHandlerConfig(mlrun.model.ModelObj):
                 "Overriding existing endpoint handler configuration",
                 method=http_method.value,
                 path=path,
-                old_action=self._endpoints[endpoint_key].get("action"),
+                old_action=self._endpoints[endpoint_key].get(_APIEndpointKeys.ACTION),
                 new_action=str(action),
             )
 
         self._endpoints[endpoint_key] = {
-            "action": str(action),
-            "description": description,
+            _APIEndpointKeys.ACTION: str(action),
+            _APIEndpointKeys.DESCRIPTION: description,
         }
 
     def remove_endpoint_handler(

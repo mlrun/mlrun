@@ -297,6 +297,22 @@ class ApplicationRuntime(nuclio_function.RemoteRuntime):
     def set_internal_application_port(self, port: int):
         self.spec.internal_application_port = port
 
+    def set_source_target(self, target_dir: str):
+        """
+        Configure the target directory where application source code will be extracted at runtime by the init container.
+
+        :param target_dir: Absolute path inside the runtime container where the source code will be placed
+        """
+        if not target_dir:
+            raise mlrun.errors.MLRunInvalidArgumentError("target_dir is required")
+
+        if not target_dir.startswith("/"):
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"target_dir must be an absolute path, got: {target_dir}"
+            )
+
+        self.spec.build.source_code_target_dir = target_dir
+
     def set_probe(
         self,
         type: str,

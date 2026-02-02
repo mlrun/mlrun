@@ -270,6 +270,23 @@ def _compile_function_config(
                 )
             )
 
+    # Configure init container for Application runtime when source needs runtime loading
+    if function.kind == mlrun.runtimes.RuntimeKinds.application:
+        if not sidecars:
+            logger.warning(
+                "No sidecar found for Application runtime, skipping init container configuration",
+                project=function.metadata.project,
+                function=function.metadata.name,
+            )
+        elif _init_container_needed(function):
+            _configure_init_container(
+                function,
+                # Application runtime has exactly one sidecar (the user's application container)
+                sidecar=sidecars[0],
+                client_version=client_version,
+                client_python_version=client_python_version,
+            )
+
     nuclio_spec = nuclio.ConfigSpec(
         env=env_dict,
         external_source_env=external_source_env_dict,
@@ -735,3 +752,181 @@ def _add_secrets_config_to_function_spec(
             f"Unexpected function kind {function.kind}. Expected one of: "
             f"{mlrun.runtimes.RuntimeKinds.nuclio_runtimes()}"
         )
+
+
+def _init_container_needed(
+    function: mlrun.runtimes.nuclio.function.RemoteRuntime,
+) -> bool:
+    """
+    Determine if an init container is needed for source loading.
+
+    Init container is needed when:
+    - Source is a store artifact URI (store://)
+    - Source is Git or archive with pull_at_runtime=True
+
+    :param function: The function object
+    :return: True if init container is needed, False otherwise
+    """
+    source = function.spec.build.source
+    if not source:
+        return False
+
+    # Store artifact URIs always need init container
+    if mlrun.datastore.is_store_uri(source):
+        return True
+
+    is_git_source = source.startswith("git://")
+    is_archive_source = source.endswith(".tar.gz") or source.endswith(".zip")
+    pull_at_runtime = function.spec.build.load_source_on_run
+
+    return (is_git_source or is_archive_source) and pull_at_runtime
+
+
+def _configure_init_container(
+    function: mlrun.runtimes.nuclio.function.RemoteRuntime,
+    sidecar: dict,
+    client_version: typing.Optional[str] = None,
+    client_python_version: typing.Optional[str] = None,
+):
+    """
+    Configure an init container for Application runtime to load source at runtime.
+    The init container extracts the source code to a shared volume before the sidecar starts.
+
+    :param function: The function object to configure
+    :param sidecar: The sidecar container dict
+    :param client_version: Client version for image resolution
+    :param client_python_version: Client Python version for image resolution
+    """
+    source = function.spec.build.source
+    target_dir = (
+        function.spec.build.source_code_target_dir
+        or mlrun.common.constants.DEFAULT_SOURCE_CODE_TARGET_DIR
+    )
+
+    volume_name = mlrun.common.constants.SOURCE_CODE_VOLUME_NAME
+    volume = {"name": volume_name, "emptyDir": {}}
+    volume_mount = {"name": volume_name, "mountPath": target_dir}
+
+    function.spec.with_volumes(volume)
+    function.spec.with_volume_mounts(volume_mount)
+
+    init_container = _build_source_loader_init_container(
+        function=function,
+        source=source,
+        target_dir=target_dir,
+        volume_mount=volume_mount,
+        client_version=client_version,
+        client_python_version=client_python_version,
+    )
+
+    _ensure_init_container(function, init_container)
+
+    _patch_sidecar_for_source(
+        sidecar=sidecar,
+        volume_name=volume_name,
+        volume_mount=volume_mount,
+        target_dir=target_dir,
+    )
+
+    logger.info(
+        "Configured init container for source loading",
+        project=function.metadata.project,
+        function=function.metadata.name,
+        source=source,
+        target_dir=target_dir,
+    )
+
+
+def _build_source_loader_init_container(
+    function: mlrun.runtimes.nuclio.function.RemoteRuntime,
+    source: str,
+    target_dir: str,
+    volume_mount: dict,
+    client_version: typing.Optional[str] = None,
+    client_python_version: typing.Optional[str] = None,
+) -> dict:
+    """
+    Build the init container spec for loading source code.
+
+    :param function: The function object
+    :param source: Source URI to load
+    :param target_dir: Target directory for source code
+    :param volume_mount: Volume mount configuration
+    :param client_version: Client version for image resolution
+    :param client_python_version: Client Python version for image resolution
+    :return: Init container specification dict
+    """
+    project = function.metadata.project
+
+    init_container_image = services.api.utils.builder.resolve_and_enrich_image_target(
+        mlrun.mlconf.default_base_image,
+        client_version=client_version,
+        client_python_version=client_python_version,
+    )
+    logger.info(
+        "yacouby: ",
+        image=mlrun.mlconf.default_base_image,
+        container_image=init_container_image,
+        client_version=client_version,
+        client_python_version=client_python_version,
+    )
+
+    return {
+        "name": mlrun.common.constants.SOURCE_LOADER_INIT_CONTAINER_NAME,
+        "image": init_container_image,
+        "command": ["mlrun", "load-source"],
+        "args": [source, "--project", project, "--target", target_dir],
+        "env": [
+            {"name": "MLRUN_PROJECT", "value": project},
+            {"name": "MLRUN_DBPATH", "value": mlrun.mlconf.dbpath},
+        ],
+        "volumeMounts": [volume_mount],
+    }
+
+
+def _ensure_init_container(
+    function: mlrun.runtimes.nuclio.function.RemoteRuntime,
+    init_container: dict,
+):
+    """
+    Add init container to spec idempotently (replace if exists).
+
+    :param function: The function object to configure
+    :param init_container: Init container specification
+    """
+    init_container_name = init_container["name"]
+    init_containers = function.spec.config.setdefault("spec.initContainers", [])
+
+    for index, container in enumerate(init_containers):
+        if container.get("name") == init_container_name:
+            init_containers[index] = init_container
+            break
+    else:
+        init_containers.append(init_container)
+
+
+def _patch_sidecar_for_source(
+    sidecar: dict,
+    volume_name: str,
+    volume_mount: dict,
+    target_dir: str,
+):
+    """
+    Patch sidecar container with volume mount, workingDir, and PYTHONPATH.
+
+    :param sidecar: The sidecar container dict
+    :param volume_name: Name of the source volume
+    :param volume_mount: Volume mount configuration
+    :param target_dir: Target directory for source code
+    """
+    # Add volume mount idempotently
+    sidecar_mounts = sidecar.setdefault("volumeMounts", [])
+    if not any(vm.get("name") == volume_name for vm in sidecar_mounts):
+        sidecar_mounts.append(volume_mount)
+
+    sidecar["workingDir"] = target_dir
+
+    # Add PYTHONPATH env var idempotently
+    sidecar_env = sidecar.setdefault("env", [])
+    if not any(e.get("name") == "PYTHONPATH" for e in sidecar_env):
+        sidecar_env.append({"name": "PYTHONPATH", "value": target_dir})

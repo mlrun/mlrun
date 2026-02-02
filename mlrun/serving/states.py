@@ -4002,6 +4002,10 @@ def _init_async_objects(context, steps, root):
                     )
 
             elif not step.async_object or not hasattr(step.async_object, "_outlets"):
+                if not callable(step._handler):
+                    raise mlrun.errors.MLRunValueError(
+                        f"Step '{step.name}' does not have a handler that can be called"
+                    )
                 # if regular class, wrap with storey Map
                 step._async_object = storey.Map(
                     step._handler,

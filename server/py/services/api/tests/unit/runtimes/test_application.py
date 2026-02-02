@@ -121,12 +121,12 @@ class TestApplicationRuntime(TestRuntimeBase):
             ("", False, False),
         ],
     )
-    def test_init_container_needed(self, source, load_source_on_run, expected):
+    def test_should_fetch_source_code(self, source, load_source_on_run, expected):
         function = self._generate_runtime(self.runtime_kind)
         function.spec.build.source = source
         function.spec.build.load_source_on_run = load_source_on_run
 
-        result = services.api.crud.runtimes.nuclio.function._init_container_needed(
+        result = services.api.crud.runtimes.nuclio.function._should_fetch_source_code(
             function
         )
         assert result == expected

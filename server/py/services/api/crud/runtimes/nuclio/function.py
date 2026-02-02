@@ -273,13 +273,11 @@ def _compile_function_config(
     # Configure init container for Application runtime when source needs runtime loading
     if function.kind == mlrun.runtimes.RuntimeKinds.application:
         if not sidecars:
-            logger.warning(
-                "No sidecar found for Application runtime, skipping init container configuration",
-                project=function.metadata.project,
-                function=function.metadata.name,
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"No sidecar found for Application runtime '{function.metadata.name}'. "
             )
-        elif _init_container_needed(function):
-            _configure_init_container(
+        elif _should_fetch_source_code(function):
+            _configure_source_loader_init_container(
                 function,
                 # Application runtime has exactly one sidecar (the user's application container)
                 sidecar=sidecars[0],
@@ -754,7 +752,7 @@ def _add_secrets_config_to_function_spec(
         )
 
 
-def _init_container_needed(
+def _should_fetch_source_code(
     function: mlrun.runtimes.nuclio.function.RemoteRuntime,
 ) -> bool:
     """
@@ -782,20 +780,30 @@ def _init_container_needed(
     return (is_git_source or is_archive_source) and pull_at_runtime
 
 
-def _configure_init_container(
+def _configure_source_loader_init_container(
     function: mlrun.runtimes.nuclio.function.RemoteRuntime,
     sidecar: dict,
     client_version: typing.Optional[str] = None,
     client_python_version: typing.Optional[str] = None,
 ):
     """
-    Configure an init container for Application runtime to load source at runtime.
-    The init container extracts the source code to a shared volume before the sidecar starts.
+    Configure an init container for Application runtime to load source code at runtime.
+
+    This function sets up a Kubernetes init container that runs before the main sidecar
+    container starts. The init container is responsible for fetching source code from
+    remote locations (store:// URIs, git repos, archives) and extracting it to a shared
+    volume that the sidecar can access.
+
+    The setup involves:
+    1. Creating an emptyDir volume shared between init container and sidecar
+    2. Building an init container spec that runs `mlrun load-source` command
+    3. Adding the init container to the function's Nuclio spec
+    4. Patching the sidecar to mount the shared volume and set PYTHONPATH
 
     :param function: The function object to configure
-    :param sidecar: The sidecar container dict
-    :param client_version: Client version for image resolution
-    :param client_python_version: Client Python version for image resolution
+    :param sidecar: The sidecar container dict (the user's application container)
+    :param client_version: Client version for resolving the init container image
+    :param client_python_version: Client Python version for resolving the init container image
     """
     source = function.spec.build.source
     target_dir = (
@@ -803,13 +811,17 @@ def _configure_init_container(
         or mlrun.common.constants.DEFAULT_SOURCE_CODE_TARGET_DIR
     )
 
+    # Create shared volume for source code - emptyDir is used as it's ephemeral
+    # and automatically cleaned up when the pod terminates
     volume_name = mlrun.common.constants.SOURCE_CODE_VOLUME_NAME
     volume = {"name": volume_name, "emptyDir": {}}
     volume_mount = {"name": volume_name, "mountPath": target_dir}
 
+    # Add volume to function spec so both init container and sidecar can access it
     function.spec.with_volumes(volume)
     function.spec.with_volume_mounts(volume_mount)
 
+    # Build the init container spec with mlrun load-source command
     init_container = _build_source_loader_init_container(
         function=function,
         source=source,
@@ -819,7 +831,8 @@ def _configure_init_container(
         client_python_version=client_python_version,
     )
 
-    _ensure_init_container(function, init_container)
+    # Add init container to function spec (idempotently - replaces if exists)
+    _ensure_source_loader_init_container(function, init_container)
 
     _patch_sidecar_for_source(
         sidecar=sidecar,
@@ -828,8 +841,8 @@ def _configure_init_container(
         target_dir=target_dir,
     )
 
-    logger.info(
-        "Configured init container for source loading",
+    logger.debug(
+        "Configured source loader init container",
         project=function.metadata.project,
         function=function.metadata.name,
         source=source,
@@ -877,17 +890,29 @@ def _build_source_loader_init_container(
     }
 
 
-def _ensure_init_container(
+def _ensure_source_loader_init_container(
     function: mlrun.runtimes.nuclio.function.RemoteRuntime,
     init_container: dict,
 ):
     """
-    Add init container to spec idempotently (replace if exists).
+    Add the source loader init container to the function spec idempotently.
+
+    This function ensures the source loader init container is present in the Nuclio
+    function spec. If an init container with the same name already exists, it will
+    be replaced with the new configuration. This enables safe re-deployment without
+    duplicating init containers.
 
     :param function: The function object to configure
-    :param init_container: Init container specification
+    :param init_container: Init container specification dict with 'name', 'image',
+                           'command', 'args', 'env', and 'volumeMounts' keys
+    :raises MLRunInvalidArgumentError: If init container name is empty
     """
-    init_container_name = init_container["name"]
+    init_container_name = init_container.get("name")
+    if not init_container_name:
+        raise mlrun.errors.MLRunInvalidArgumentError(
+            "Init container name must not be empty"
+        )
+
     init_containers = function.spec.config.setdefault("spec.initContainers", [])
 
     for index, container in enumerate(init_containers):
@@ -919,7 +944,8 @@ def _patch_sidecar_for_source(
 
     sidecar["workingDir"] = target_dir
 
-    # Add PYTHONPATH env var idempotently
+    # Set PYTHONPATH to target directory so the sidecar can import modules from the source
+    # code loaded by the init container
     sidecar_env = sidecar.setdefault("env", [])
     if not any(e.get("name") == "PYTHONPATH" for e in sidecar_env):
         sidecar_env.append({"name": "PYTHONPATH", "value": target_dir})

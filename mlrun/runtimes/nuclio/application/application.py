@@ -903,35 +903,39 @@ class ApplicationRuntime(nuclio_function.RemoteRuntime):
                 "Loading on build will be forced regardless of whether 'pull_at_runtime=True' was configured."
             )
 
-        # For store:// artifact sources, exclude from build context since the init container will load
-        # the source at runtime
+        # We temporarily clear self.spec.build.source here because the parent _build_image() method
+        # would otherwise try to include it in the Docker build context. For store:// URIs, the source
+        # cannot be fetched during build (it requires runtime credentials/context), so we must:
+        # 1. Clear it before build to prevent build context inclusion
+        # 2. Restore it after build so the server can configure the init container for runtime loading
         source_for_init_container = None
         if self.spec.build.source and mlrun.datastore.is_store_uri(
             self.spec.build.source
         ):
             source_for_init_container = self.spec.build.source
             self.spec.build.source = None
-            logger.info(
+            logger.debug(
                 "Source is a store:// artifact URI - excluding from build, "
                 "init container will load it at runtime",
                 source=source_for_init_container,
             )
 
         with_mlrun = self._resolve_build_with_mlrun(with_mlrun)
-        result = self._build_image(
-            builder_env=builder_env,
-            force_build=force_build,
-            mlrun_version_specifier=mlrun_version_specifier,
-            show_on_failure=show_on_failure,
-            skip_deployed=skip_deployed,
-            watch=watch,
-            is_kfp=is_kfp,
-            with_mlrun=with_mlrun,
-        )
-
-        # Restore source for init container configuration by the server
-        if source_for_init_container:
-            self.spec.build.source = source_for_init_container
+        try:
+            result = self._build_image(
+                builder_env=builder_env,
+                force_build=force_build,
+                mlrun_version_specifier=mlrun_version_specifier,
+                show_on_failure=show_on_failure,
+                skip_deployed=skip_deployed,
+                watch=watch,
+                is_kfp=is_kfp,
+                with_mlrun=with_mlrun,
+            )
+        finally:
+            # Restore source for init container configuration by the server
+            if source_for_init_container:
+                self.spec.build.source = source_for_init_container
 
         return result
 

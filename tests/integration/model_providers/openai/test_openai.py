@@ -523,5 +523,3 @@ class TestOpenAIModel(TestBasicOpenAIProvider):
         validate_openai_batch_response(
             batch_response, EXPECTED_RESULTS, self.basic_llm_model
         )
-
-        # TODO: Verify tracking events - should have 3 batches (2+2+1 = len(BATCH_INPUT_DATA) total events)

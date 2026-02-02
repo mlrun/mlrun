@@ -212,7 +212,7 @@ class BatchedGraphModel2(Model):
                 input_data = item["input"]
                 # Simple sum as output (you can change this logic)
                 if isinstance(input_data, list):
-                    output_value = sum(input_data)
+                    output_value = sum(input_data) + 1
                 else:
                     output_value = input_data
                 item["output_2"] = output_value
@@ -1904,31 +1904,31 @@ def test_batch_step_with_mrs(rundb_mock, multiple_models):
         expected_responses = [
             {
                 "my_model": {"input": [10, 20, 30], "output": 60},
-                "my_model_2": {"input": [10, 20, 30], "output_2": 60},
+                "my_model_2": {"input": [10, 20, 30], "output_2": 61},
             },
             {
                 "my_model": {"input": [11, 21, 31], "output": 63},
-                "my_model_2": {"input": [11, 21, 31], "output_2": 63},
+                "my_model_2": {"input": [11, 21, 31], "output_2": 64},
             },
             {
                 "my_model": {"input": [12, 22, 32], "output": 66},
-                "my_model_2": {"input": [12, 22, 32], "output_2": 66},
+                "my_model_2": {"input": [12, 22, 32], "output_2": 67},
             },
             {
                 "my_model": {"input": [13, 23, 33], "output": 69},
-                "my_model_2": {"input": [13, 23, 33], "output_2": 69},
+                "my_model_2": {"input": [13, 23, 33], "output_2": 70},
             },
             {
                 "my_model": {"input": [14, 24, 34], "output": 72},
-                "my_model_2": {"input": [14, 24, 34], "output_2": 72},
+                "my_model_2": {"input": [14, 24, 34], "output_2": 73},
             },
             {
                 "my_model": {"input": [15, 25, 35], "output": 75},
-                "my_model_2": {"input": [15, 25, 35], "output_2": 75},
+                "my_model_2": {"input": [15, 25, 35], "output_2": 76},
             },
             {
                 "my_model": {"input": [16, 26, 36], "output": 78},
-                "my_model_2": {"input": [16, 26, 36], "output_2": 78},
+                "my_model_2": {"input": [16, 26, 36], "output_2": 79},
             },
         ]
     else:

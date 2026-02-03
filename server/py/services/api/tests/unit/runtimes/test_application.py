@@ -203,8 +203,7 @@ class TestApplicationRuntime(TestRuntimeBase):
 
     def test_configure_init_container_idempotent(self, db: Session, client: TestClient):
         """
-        Verify that repeated compilation does not duplicate init containers,volume mounts,
-        or environment variables.
+        Verify that repeated compilation does not duplicate init containers, volume mounts, or environment variables.
         """
         function = self._generate_runtime(self.runtime_kind)
         function.spec.build.source = "store://artifacts/test-project/my-source"

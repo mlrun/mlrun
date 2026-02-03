@@ -275,6 +275,8 @@ def _compile_function_config(
         if not sidecars:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 f"No sidecar found for Application runtime '{function.metadata.name}'. "
+                "Application runtime requires a sidecar container to run the user's application. "
+                "Ensure the application image is set via 'spec.image' or 'with_sidecar()'."
             )
         if _should_fetch_source_code(function):
             _configure_source_loader_init_container(

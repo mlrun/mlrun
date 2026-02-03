@@ -195,6 +195,8 @@ formatted_messages = [
     for prompt in PROMPT_TEMPLATE
 ]
 
+FLUSH_AFTER_SECONDS = 4
+
 
 def create_mocked_get_store_artifact(uri_to_artifact: dict):
     def mocked_get_store_artifact(uri, **kwargs):
@@ -216,6 +218,7 @@ def setup_remote_model_test(
     model_class: str = "LLModel",
     default_config: Optional[dict] = None,
     include_llm_artifact=True,
+    batch_step=False,
 ):
     model_artifact = project.log_model(
         mlrun_model_name,
@@ -242,6 +245,16 @@ def setup_remote_model_test(
         requirements=requirements,
     )
     graph = function.set_topology("flow", engine="async")
+    if batch_step:
+        # When deploying with batch_step in system tests, configure async HTTP via
+        # function.with_http(async_spec=AsyncSpec()) outside this utility function
+        graph = graph.to(
+            "storey.Batch",
+            "my_batching",
+            max_events=2,
+            flush_after_seconds=FLUSH_AFTER_SECONDS,
+            full_event=True,
+        )
     model_runner_step = ModelRunnerStep(name="my_model_runner")
     model_runner_step.add_model(
         model_class=model_class,
@@ -250,7 +263,11 @@ def setup_remote_model_test(
         model_artifact=llm_prompt_artifact or model_artifact,
         result_path="output",
     )
-    graph.to(model_runner_step).respond()
+    step = graph.to(model_runner_step)
+    if batch_step:
+        step = step.to("storey.FlatMap", _fn="(event.body)", full_event=True)
+    step.respond()
+
     return model_artifact, llm_prompt_artifact, function
 
 

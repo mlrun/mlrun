@@ -18,6 +18,7 @@ import asyncio
 import base64
 import copy
 import importlib
+import inspect
 import json
 import os
 import socket
@@ -152,6 +153,7 @@ class GraphServer(ModelObj):
         self.function_tag = function_tag
         self.project = project
         self.model_endpoint_creation_task_name = model_endpoint_creation_task_name
+        self.streaming = False
 
     def set_current_function(self, function):
         """set which child function this server is currently running on"""
@@ -293,7 +295,7 @@ class GraphServer(ModelObj):
             raise RuntimeError(f"failed ({resp.status_code}): {resp.body}")
         return resp
 
-    def run(self, event, context=None, get_body=False, extra_args=None):
+    def run(self, event, context=None, get_body: bool = False, extra_args=None):
         server_context = self.context
         context = context or server_context
         event.content_type = event.content_type or self.default_content_type or ""
@@ -331,29 +333,11 @@ class GraphServer(ModelObj):
                 body=message, content_type="text/plain", status_code=400
             )
 
-        if asyncio.iscoroutine(response):
-            return self._process_async_response(context, response, get_body)
-        else:
-            return self._process_response(context, response, get_body)
+        # TODO: this is only relevant in certain flows (MockServer, sync...)
+        if hasattr(response, "body"):
+            response = response.body
 
-    async def _process_async_response(self, context, response, get_body):
-        return self._process_response(context, await response, get_body)
-
-    def _process_response(self, context, response, get_body):
-        body = response.body
-        if (
-            isinstance(context, MLClientCtx)
-            or isinstance(body, context.Response)
-            or get_body
-        ):
-            return body
-
-        if body and not isinstance(body, str | bytes):
-            body = json.dumps(body)
-            return context.Response(
-                body=body, content_type="application/json", status_code=200
-            )
-        return body
+        return response
 
     def wait_for_completion(self):
         """wait for async operation to complete"""
@@ -533,6 +517,8 @@ def v2_serving_init(context, namespace=None):
         current_function=os.getenv("SERVING_CURRENT_FUNCTION", ""),
     )
     server.set_current_function(os.getenv("SERVING_CURRENT_FUNCTION", ""))
+    # Set streaming mode before init_states so it's available during graph initialization
+    server.streaming = spec.get("streaming", False)
     context.logger.info_with(
         "Initializing states", namespace=namespace or get_caller_globals()
     )
@@ -546,8 +532,23 @@ def v2_serving_init(context, namespace=None):
     )
     context.logger.info("Initializing graph steps")
     server.init_object(namespace or get_caller_globals())
-    # set the handler hook to point to our handler
-    setattr(context, "mlrun_handler", v2_serving_handler)
+
+    # Select the appropriate handler based on streaming mode
+    if server.streaming:
+        # Validate that trigger is HTTP when streaming is enabled
+        if (
+            hasattr(context, "trigger")
+            and getattr(context.trigger, "kind", "http") != "http"
+        ):
+            raise ValueError(
+                f"Streaming is only supported with HTTP triggers, but trigger kind is "
+                f"'{context.trigger.kind}'. Disable streaming or use an HTTP trigger."
+            )
+        context.logger.info("Streaming mode enabled, using streaming handler")
+        setattr(context, "mlrun_handler", v2_serving_streaming_handler)
+    else:
+        setattr(context, "mlrun_handler", v2_serving_handler)
+
     setattr(context, "_server", server)
     context.logger.info_with("Serving was initialized", verbose=server.verbose)
     if server.verbose:
@@ -908,8 +909,11 @@ def _set_callbacks(server, context):
         context.platform.set_drain_callback(drain_callback)
 
 
-def v2_serving_handler(context, event, get_body=False):
-    """hook for nuclio handler()"""
+def _preprocess_event(context, event):
+    """Preprocess event before running through the graph.
+
+    Handles Nuclio workarounds for empty body and stream path setup.
+    """
     if context._server.http_trigger:
         # Workaround for a Nuclio bug where it sometimes passes b'' instead of None due to dirty memory
         if event.body == b"":
@@ -930,7 +934,63 @@ def v2_serving_handler(context, event, get_body=False):
     ):
         event.path = "/"
 
-    return context._server.run(event, context, get_body)
+
+def _process_single_response(context, response, get_body):
+    if (
+        isinstance(context, MLClientCtx)
+        or isinstance(response, context.Response)
+        or get_body
+    ):
+        return response
+
+    if response and not isinstance(response, str | bytes):
+        body = json.dumps(response)
+        return context.Response(
+            body=body, content_type="application/json", status_code=200
+        )
+    return response
+
+
+async def _process_single_async_response(context, response, get_body):
+    return _process_single_response(context, await response, get_body)
+
+
+def v2_serving_handler(context, event, get_body=False):
+    """Standard handler for non-streaming serving functions."""
+    _preprocess_event(context, event)
+    response = context._server.run(event, context, get_body)
+    if asyncio.iscoroutine(response):
+        return _process_single_async_response(context, response, get_body)
+
+    return _process_single_response(context, response, get_body)
+
+
+async def v2_serving_streaming_handler(context, event, get_body=False):
+    """Async streaming handler for nuclio that yields results as they arrive.
+
+    This handler is used when streaming mode is enabled on the serving function.
+    It yields results from streaming steps in the graph as they are produced,
+    allowing for real-time streaming responses (e.g., for LLM token streaming).
+
+    The handler is an async generator function that nuclio recognizes and handles
+    appropriately, streaming responses back to the HTTP client.
+    """
+    _preprocess_event(context, event)
+    response = context._server.run(event, context, get_body)
+
+    # Unwrap coroutines to get the actual result
+    if asyncio.iscoroutine(response):
+        response = await response
+
+    # Yield chunks from the response
+    if inspect.isasyncgen(response):
+        async for chunk in response:
+            yield chunk
+    elif inspect.isgenerator(response):
+        for chunk in response:
+            yield chunk
+    else:
+        yield response
 
 
 def create_graph_server(

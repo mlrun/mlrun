@@ -12,13 +12,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import copy
+import os
 import pathlib
 import typing
 
 import nuclio
 import nuclio.auth
 
+import mlrun.common.constants
 import mlrun.common.schemas as schemas
+import mlrun.datastore
 import mlrun.errors
 import mlrun.run
 import mlrun.runtimes.nuclio.api_gateway as nuclio_api_gateway
@@ -28,7 +31,7 @@ from mlrun.common.runtimes.constants import (
     ProbeTimeConfig,
     ProbeType,
 )
-from mlrun.utils import is_valid_port, logger, update_in
+from mlrun.utils import is_relative_path, is_valid_port, logger, update_in
 
 
 class ApplicationSpec(nuclio_function.NuclioSpec):
@@ -294,6 +297,22 @@ class ApplicationRuntime(nuclio_function.RemoteRuntime):
     def set_internal_application_port(self, port: int):
         self.spec.internal_application_port = port
 
+    def set_source_target(self, target_dir: str):
+        """
+        Configure the target directory where application source code will be extracted at runtime by the init container.
+
+        :param target_dir: Absolute path inside the runtime container where the source code will be placed
+        """
+        if not target_dir:
+            raise mlrun.errors.MLRunInvalidArgumentError("target_dir is required")
+
+        if not target_dir.startswith("/"):
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"target_dir must be an absolute path, got: {target_dir}"
+            )
+
+        self.spec.build.source_code_target_dir = target_dir
+
     def set_probe(
         self,
         type: str,
@@ -490,6 +509,8 @@ class ApplicationRuntime(nuclio_function.RemoteRuntime):
 
         :return: The default API gateway URL if created or True if the function is ready (deployed)
         """
+        # Upload local single-file source as artifact (if applicable)
+        self._upload_source_as_artifact()
 
         if (self.requires_build() and not self.spec.image) or force_build:
             self._fill_credentials()
@@ -882,17 +903,41 @@ class ApplicationRuntime(nuclio_function.RemoteRuntime):
                 "Loading on build will be forced regardless of whether 'pull_at_runtime=True' was configured."
             )
 
+        # We temporarily clear self.spec.build.source here because the parent _build_image() method
+        # would otherwise try to include it in the Docker build context. For store:// URIs, the source
+        # cannot be fetched during build (it requires runtime credentials/context), so we must:
+        # 1. Clear it before build to prevent build context inclusion
+        # 2. Restore it after build so the server can configure the init container for runtime loading
+        source_for_init_container = None
+        if self.spec.build.source and mlrun.datastore.is_store_uri(
+            self.spec.build.source
+        ):
+            source_for_init_container = self.spec.build.source
+            self.spec.build.source = None
+            logger.debug(
+                "Source is a store:// artifact URI - excluding from build, "
+                "init container will load it at runtime",
+                source=source_for_init_container,
+            )
+
         with_mlrun = self._resolve_build_with_mlrun(with_mlrun)
-        return self._build_image(
-            builder_env=builder_env,
-            force_build=force_build,
-            mlrun_version_specifier=mlrun_version_specifier,
-            show_on_failure=show_on_failure,
-            skip_deployed=skip_deployed,
-            watch=watch,
-            is_kfp=is_kfp,
-            with_mlrun=with_mlrun,
-        )
+        try:
+            result = self._build_image(
+                builder_env=builder_env,
+                force_build=force_build,
+                mlrun_version_specifier=mlrun_version_specifier,
+                show_on_failure=show_on_failure,
+                skip_deployed=skip_deployed,
+                watch=watch,
+                is_kfp=is_kfp,
+                with_mlrun=with_mlrun,
+            )
+        finally:
+            # Restore source for init container configuration by the server
+            if source_for_init_container:
+                self.spec.build.source = source_for_init_container
+
+        return result
 
     def _ensure_reverse_proxy_configurations(self):
         # If an HTTP trigger already exists in the spec,
@@ -1050,3 +1095,68 @@ class ApplicationRuntime(nuclio_function.RemoteRuntime):
             raise ValueError(
                 "Empty probe configuration: at least one parameter must be set"
             )
+
+    def _upload_source_as_artifact(self) -> None:
+        """
+        Upload local single-file source as an MLRun artifact.
+
+        If spec.build.source is a local file path, upload it to the artifact store
+        and update spec.build.source with the artifact URI.
+        """
+        source = self.spec.build.source
+        if not source:
+            return
+
+        # Only upload if it's a local single file
+        if not self._is_single_local_file(source):
+            return
+
+        project_name = self.metadata.project
+        if not project_name:
+            raise mlrun.errors.MLRunMissingProjectError(
+                "Project is required to upload source as artifact"
+            )
+        project = mlrun.get_or_create_project(project_name)
+
+        # Use function name as part of the artifact key for identification
+        artifact_key = f"{self.metadata.name}-source"
+
+        logger.info(
+            "Uploading local source file as artifact",
+            source=source,
+            artifact_key=artifact_key,
+            project=project_name,
+        )
+
+        # Upload the file as an artifact to an internal path with system-generated label
+        try:
+            artifact = project.log_artifact(
+                item=artifact_key,
+                local_path=source,
+                artifact_path=mlrun.common.constants.MLRUN_INTERNAL_ARTIFACT_PATH,
+                upload=True,
+                labels={
+                    mlrun.common.constants.MLRunInternalLabels.function_name: self.metadata.name,
+                    mlrun.common.constants.MLRunInternalLabels.system_generated: "true",
+                },
+            )
+        except Exception as exc:
+            raise mlrun.errors.MLRunRuntimeError(
+                f"Failed to upload source file '{source}' as artifact"
+            ) from exc
+
+        # Update the source to point to the artifact URI
+        self.spec.build.source = artifact.uri
+
+    @staticmethod
+    def _is_single_local_file(source: str) -> bool:
+        # Skip if the source is already a store URI
+        if mlrun.datastore.is_store_uri(source):
+            return False
+
+        # Skip if it's a remote URL (not a relative/local path)
+        if not (is_relative_path(source) or os.path.isabs(source)):
+            return False
+
+        # Check if it's a local file (not a directory)
+        return os.path.isfile(source)

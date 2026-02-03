@@ -133,6 +133,29 @@ def test_init_class():
     assert resp == [5, "s2"], f"got unexpected result {resp}"
 
 
+def test_step_without_do():
+    fn = mlrun.new_function("tests", kind="serving")
+    graph = fn.set_topology("flow", engine="sync")
+    graph.to(name="bad", class_name="NotAStep")
+
+    server = fn.to_mock_server()
+    with pytest.raises(RuntimeError, match="step bad does not have a handler"):
+        server.test(body=5)
+
+
+# ML-11989
+def test_step_without_do_async_engine():
+    fn = mlrun.new_function("tests", kind="serving")
+    graph = fn.set_topology("flow", engine="async")
+    graph.to(name="bad", class_name="NotAStep")
+
+    with pytest.raises(
+        mlrun.errors.MLRunValueError,
+        match="Step 'bad' does not have a handler that can be called",
+    ):
+        fn.to_mock_server()
+
+
 def test_on_error():
     fn = mlrun.new_function("tests", kind="serving")
     graph = fn.set_topology("flow", engine="sync")

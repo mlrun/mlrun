@@ -12,7 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import os
+import time
 import unittest.mock
+from concurrent.futures import ThreadPoolExecutor
 from typing import Optional, cast
 
 import pytest
@@ -500,6 +502,63 @@ class TestHuggingFaceAIModel(TestBasicHuggingFaceProvider):
 
             def _test():
                 batch_response = server.test(body=BATCH_INPUT_DATA)
+                validate_llm_batch_response_system(
+                    batch_response, EXPECTED_RESULTS, tokenizer
+                )
+
+            retry_on_content_mismatch(_test, self.max_retries + 1)
+
+        finally:
+            server.wait_for_completion()
+
+    @pytest.mark.parametrize(
+        "execution_mechanism",
+        ["naive", "process_pool", "dedicated_process", "thread_pool"],
+    )
+    def test_model_runner_batch_step_with_hf(self, execution_mechanism):
+        from transformers import AutoTokenizer
+
+        project = mlrun.new_project("test-hf-batch-step", save=False)
+        model_url = self.url_prefix + self.basic_llm_model
+
+        model_artifact, llm_prompt_artifact, function = setup_remote_model_test(
+            project,
+            model_url,
+            execution_mechanism=execution_mechanism,
+            default_config={"max_new_tokens": 100},
+            batch_step=True,
+        )
+
+        mocked_get_store_artifact = create_mocked_get_store_artifact(
+            {
+                model_artifact.uri: model_artifact,
+                llm_prompt_artifact.uri: llm_prompt_artifact,
+            }
+        )
+        with unittest.mock.patch(
+            "mlrun.artifacts.llm_prompt.mlrun.datastore.store_manager.get_store_artifact",
+            side_effect=lambda *args, **kwargs: mocked_get_store_artifact(
+                *args, **kwargs
+            ),
+        ):
+            server = function.to_mock_server()
+
+        try:
+            tokenizer = AutoTokenizer.from_pretrained(self.basic_llm_model)
+
+            # Send events concurrently with staggered timing
+            def send_event(event, delay):
+                time.sleep(delay)
+                return server.test(body=event)
+
+            # Verify each response has correct structure
+            def _test():
+                with ThreadPoolExecutor(max_workers=len(BATCH_INPUT_DATA)) as executor:
+                    futures = [
+                        executor.submit(send_event, event, i * 0.1)
+                        for i, event in enumerate(BATCH_INPUT_DATA)
+                    ]
+                    batch_response = [future.result() for future in futures]
                 validate_llm_batch_response_system(
                     batch_response, EXPECTED_RESULTS, tokenizer
                 )

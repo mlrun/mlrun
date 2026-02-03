@@ -294,7 +294,7 @@ class WriterLagEventsGenerator(storey.MapClass):
 
         worker_id = NUCLIO_WORKER_ID if NUCLIO_WORKER_ID is not None else 0
         now_mono = time.monotonic()
-        last_emit = self._last_emit_ts.get(worker_id, 0.0)
+        last_emit = self._last_emit_ts.get(worker_id, -float("inf"))
         if (now_mono - last_emit) < self.lag_event_cooldown_seconds:
             return None
 

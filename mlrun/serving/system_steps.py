@@ -72,8 +72,14 @@ class MonitoringPreProcessor(storey.MapClass):
             input_schema=input_schema,
         )
         if event.body and isinstance(event.body, list):
+            event_body = event.body
+            if storey.flow.is_batched_event(event):
+                event_body = [
+                    sub_event.body.get(model, sub_event.body)
+                    for sub_event in event.body
+                ]
             outputs, new_output_schema = self.get_listed_data(
-                event.body, result_path, output_schema
+                event_body, result_path, output_schema
             )
         else:
             outputs, new_output_schema = self.get_listed_data(
@@ -268,7 +274,13 @@ class MonitoringPreProcessor(storey.MapClass):
             metadata=event._metadata,
         )
         if len(monitoring_data) > 1:
-            for model in event.body.keys():
+            if storey.flow.is_batched_event(event):
+                models_by_event = set.intersection(
+                    *(set(sub_event.body.keys()) for sub_event in event.body)
+                )
+            else:
+                models_by_event = event.body.keys()
+            for model in models_by_event:
                 if model in monitoring_data:
                     request, resp = self.reconstruct_request_resp_fields(
                         event, model, monitoring_data[model]
@@ -280,7 +292,9 @@ class MonitoringPreProcessor(storey.MapClass):
                             mm_schemas.StreamProcessingEvent.WHEN
                         )
                     #  if the body is not a dict, use empty labels, error and metrics
-                    if isinstance(event.body[model], dict):
+                    if isinstance(event.body, dict) and isinstance(
+                        event.body[model], dict
+                    ):
                         body_by_model = event.body[model]
                         labels = body_by_model.get("labels") or {}
                         error = body_by_model.get(

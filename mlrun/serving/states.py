@@ -1816,7 +1816,11 @@ class ModelRunner(storey.ParallelExecution):
             event._metadata = {}
 
         event._metadata["model_runner_name"] = self.name
-        event._metadata["inputs"] = deepcopy(event.body)
+        # batch of events:
+        if storey.flow.is_batched_event(event):
+            event._metadata["inputs"] = [sub_event.body for sub_event in event.body]
+        else:
+            event._metadata["inputs"] = deepcopy(event.body)
 
         return event
 
@@ -1837,14 +1841,20 @@ class ModelRunner(storey.ParallelExecution):
             ) + sys_outlets
         return None
 
-    def _is_error(self, event: dict) -> bool:
-        if len(self.runnables) == 1:
-            if isinstance(event, dict):
-                return event.get("error") is not None
-        else:
-            for model in event:
-                body_by_model = event.get(model)
-                if isinstance(body_by_model, dict) and "error" in body_by_model:
+    def _is_error(self, event: Union[dict, list]) -> bool:
+        if isinstance(event, dict):
+            if len(self.runnables) == 1:
+                if isinstance(event, dict):
+                    return event.get("error") is not None
+            else:
+                for model in event:
+                    body_by_model = event.get(model)
+                    if isinstance(body_by_model, dict) and "error" in body_by_model:
+                        return True
+        elif storey.flow.is_batched_event(event):
+            #  batch case:
+            for sub_event in event:
+                if self._is_error(sub_event.body):
                     return True
         return False
 
@@ -2525,6 +2535,9 @@ class ModelRunnerErrorRaiser(storey.MapClass):
                     should_raise = event.body.get("error") is not None
                     errors[self._models_names[0]] = event.body.get("error")
             else:
+                if storey.flow.is_batched_event(event):
+                    # TODO fix error raiser for batch, ML-12068
+                    return event
                 for model in event.body:
                     body_by_model = event.body.get(model)
                     errors[model] = None

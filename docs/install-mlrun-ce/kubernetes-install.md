@@ -247,7 +247,7 @@ helm upgrade --install --reuse-values mlrun-ce —namespace mlrun mlrun-ce/mlrun
 helm upgrade --install --reuse-values mlrun-ce —namespace mlrun mlrun-ce/mlrun-ce --version <chart-version>
 ```
 
-If it fails, reinstall the chart:
+If it fails, [reinstall the chart](#uninstalling-the-chart):
 
 1. Remove the current mlrun-ce:
 ```bash

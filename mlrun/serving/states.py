@@ -226,7 +226,7 @@ class BaseStep(ModelObj):
         When setting the error_handler on the graph object, the graph completes after the error handler execution.
 
         example::
-        
+
             # in the below example, an 'error_catcher' step is set as the error_handler of the 'raise' step:
             # in case of error/raise in 'raise' step, the handle_error will be run. after that,
             # the 'echo' step will be run.

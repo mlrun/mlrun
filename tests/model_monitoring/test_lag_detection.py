@@ -66,11 +66,13 @@ class TestWriterLagEventsGenerator:
         end_infer_time: datetime,
         endpoint_name: str = "my-endpoint",
         endpoint_id: str = "ep-123",
+        application_name: str = "my-app",
     ) -> dict:
         return {
             WriterEvent.END_INFER_TIME: end_infer_time,
             WriterEvent.ENDPOINT_NAME: endpoint_name,
             WriterEvent.ENDPOINT_ID: endpoint_id,
+            WriterEvent.APPLICATION_NAME: application_name,
         }
 
     def test_generates_event_when_lag_exceeds_threshold(self):
@@ -98,14 +100,13 @@ class TestWriterLagEventsGenerator:
                 "worker_id": 3,
                 "endpoint_name": "my-endpoint",
                 "endpoint_id": "ep-123",
+                "app_name": "my-app",
             },
         }
 
     def test_returns_none_when_disabled(self):
         step = WriterLagEventsGenerator(
             project=TEST_PROJECT,
-            lag_threshold_seconds=0,
-            lag_event_cooldown_seconds=0,
         )
         old_time = datetime.now(tz=UTC) - timedelta(minutes=10)
         event = self._make_event(end_infer_time=old_time)
@@ -233,13 +234,13 @@ class TestKindChoiceRouting:
             "lag_events_generator",
         ]
 
-    def test_stats_routes_to_lag(self):
+    def test_stats_does_not_route_to_lag(self):
         choice = KindChoice()
         event = {"kind": WriterEventKind.STATS}
 
         outlets = choice.select_outlets(event)
 
-        assert outlets == ["stats_writer", "lag_events_generator"]
+        assert outlets == ["stats_writer"]
 
 
 # -- Writer graph topology tests --
@@ -302,3 +303,60 @@ class TestLagDetectionConfig:
         assert int(lag_cfg.min_lag_threshold_minutes) == 5
         assert int(lag_cfg.default_lag_threshold_minutes) == 60
         assert int(lag_cfg.default_lag_event_cooldown_minutes) == 30
+
+
+# -- Handler parameter tests --
+
+
+class TestWriterHandlerParameter:
+    """Verify that passing handler='handler' to code_to_function is a no-op.
+
+    Nuclio discovers handler() and init_context() by name from the source
+    module. The handler parameter only takes effect when using 'module:func'
+    format (with a colon).
+    """
+
+    _WRITER_PATH = mlrun.model_monitoring.writer.__file__
+
+    def test_serving_function_handler_same_with_and_without_param(self):
+        fn_with = mlrun.code_to_function(
+            "writer-with",
+            filename=self._WRITER_PATH,
+            kind="serving",
+            handler="handler",
+        )
+        fn_without = mlrun.code_to_function(
+            "writer-without",
+            filename=self._WRITER_PATH,
+            kind="serving",
+        )
+        assert fn_with.spec.function_handler == fn_without.spec.function_handler
+
+    def test_nuclio_function_handler_same_with_and_without_param(self):
+        fn_with = mlrun.code_to_function(
+            "ctrl-with",
+            filename=self._WRITER_PATH,
+            kind="nuclio",
+            handler="handler",
+        )
+        fn_without = mlrun.code_to_function(
+            "ctrl-without",
+            filename=self._WRITER_PATH,
+            kind="nuclio",
+        )
+        assert fn_with.spec.function_handler == fn_without.spec.function_handler
+
+    def test_colon_format_overrides_function_handler(self):
+        fn_default = mlrun.code_to_function(
+            "default",
+            filename=self._WRITER_PATH,
+            kind="nuclio",
+        )
+        fn_custom = mlrun.code_to_function(
+            "custom",
+            filename=self._WRITER_PATH,
+            kind="nuclio",
+            handler="mymodule:my_func",
+        )
+        assert fn_custom.spec.function_handler == "mymodule:my_func"
+        assert fn_default.spec.function_handler != fn_custom.spec.function_handler

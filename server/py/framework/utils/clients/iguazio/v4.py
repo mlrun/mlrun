@@ -289,6 +289,7 @@ class Client(BaseClient, project_follower.Member):
                         "Project policies already exist, skipping", project=name
                     )
                 else:
+                    # Unexpected error, re-raise
                     raise
 
         self._try_callback_with_httpx_exceptions(

@@ -2585,6 +2585,8 @@ class MlrunProject(ModelObj):
         deploy_histogram_data_drift_app: bool = True,
         wait_for_deployment: bool = False,
         fetch_credentials_from_sys_config: bool = False,  # deprecated
+        lag_threshold: int | None = None,
+        lag_event_cooldown: int | None = None,
     ) -> None:
         """
         Deploy model monitoring application controller, writer and stream functions.
@@ -2621,6 +2623,11 @@ class MlrunProject(ModelObj):
                                                   background, including the histogram data drift app if selected.
         :param fetch_credentials_from_sys_config: Deprecated. If true, fetch the credentials from the project
                                                   configuration.
+        :param lag_threshold:                     Duration in minutes that will be considered as lag in the writer.
+                                                  Must be at least ``min_lag_threshold_minutes`` from config.
+                                                  Default computed server-side from config and ``base_period``.
+        :param lag_event_cooldown:                Duration in minutes between consecutive lag events per worker.
+                                                  Default computed server-side from config and ``base_period``.
         """
         if fetch_credentials_from_sys_config:
             warnings.warn(
@@ -2633,6 +2640,13 @@ class MlrunProject(ModelObj):
                 "enable_model_monitoring: 'base_period' < 10 minutes is not supported in production environments",
                 project=self.name,
             )
+        min_threshold = int(
+            mlrun.mlconf.model_endpoint_monitoring.lag_detection.min_lag_threshold_minutes
+        )
+        if lag_threshold is not None and lag_threshold < min_threshold:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"lag_threshold must be at least {min_threshold} minutes"
+            )
         db = mlrun.db.get_run_db(secrets=self._secrets)
         db.enable_model_monitoring(
             project=self.name,
@@ -2640,6 +2654,8 @@ class MlrunProject(ModelObj):
             base_period=base_period,
             deploy_histogram_data_drift_app=deploy_histogram_data_drift_app,
             fetch_credentials_from_sys_config=fetch_credentials_from_sys_config,
+            lag_threshold=lag_threshold,
+            lag_event_cooldown=lag_event_cooldown,
         )
 
         if wait_for_deployment:
@@ -2668,6 +2684,12 @@ class MlrunProject(ModelObj):
         :param wait_for_deployment: If true, return only after the deployment is done on the backend.
                                     Otherwise, deploy the controller on the background.
         """
+        warnings.warn(
+            "The base_period has been updated. The lag_threshold and lag_event_cooldown "
+            "may no longer be aligned. Consider disabling and re-enabling model monitoring.",
+            UserWarning,
+            stacklevel=2,
+        )
         db = mlrun.db.get_run_db(secrets=self._secrets)
         db.update_model_monitoring_controller(
             project=self.name,

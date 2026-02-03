@@ -19,6 +19,7 @@ from datetime import UTC, datetime, timedelta
 import pytest
 
 import mlrun
+import mlrun.db.httpdb
 import mlrun.model_monitoring
 from mlrun.common.schemas.alert import (
     EventEntityKind,
@@ -313,3 +314,84 @@ class TestLagDetectionConfig:
         assert int(lag_cfg.min_lag_threshold_minutes) == 5
         assert int(lag_cfg.default_lag_threshold_minutes) == 60
         assert int(lag_cfg.default_lag_event_cooldown_minutes) == 30
+
+
+# -- Parameter chain tests (ML-12079) --
+
+
+class TestEnableModelMonitoringLagValidation:
+    @staticmethod
+    @pytest.fixture()
+    def mock_db():
+        mock = unittest.mock.Mock()
+        with unittest.mock.patch("mlrun.db.get_run_db", return_value=mock):
+            yield mock
+
+    @staticmethod
+    @pytest.fixture()
+    def project() -> mlrun.projects.MlrunProject:
+        return unittest.mock.Mock()
+
+    def test_lag_threshold_below_min_raises_error(self, project, mock_db):
+        with pytest.raises(
+            mlrun.errors.MLRunInvalidArgumentError,
+            match="lag_threshold must be at least 5 minutes",
+        ):
+            mlrun.projects.MlrunProject.enable_model_monitoring(
+                project,
+                deploy_histogram_data_drift_app=False,
+                lag_threshold=3,
+            )
+
+    def test_lag_params_forwarded_to_db(self, project, mock_db):
+        lag_threshold = 15
+        lag_event_cooldown = 7
+
+        mlrun.projects.MlrunProject.enable_model_monitoring(
+            project,
+            deploy_histogram_data_drift_app=False,
+            lag_threshold=lag_threshold,
+            lag_event_cooldown=lag_event_cooldown,
+        )
+
+        call_kwargs = mock_db.enable_model_monitoring.call_args.kwargs
+        assert call_kwargs["lag_threshold"] == lag_threshold
+        assert call_kwargs["lag_event_cooldown"] == lag_event_cooldown
+
+    def test_lag_params_default_none_forwarded_to_db(self, project, mock_db):
+        mlrun.projects.MlrunProject.enable_model_monitoring(
+            project,
+            deploy_histogram_data_drift_app=False,
+        )
+
+        call_kwargs = mock_db.enable_model_monitoring.call_args.kwargs
+        assert call_kwargs["lag_threshold"] is None
+        assert call_kwargs["lag_event_cooldown"] is None
+
+
+class TestHTTPDBLagParams:
+    def test_lag_params_added_to_query_when_set(self):
+        lag_threshold = 15
+        lag_event_cooldown = 7
+        db = mlrun.db.httpdb.HTTPRunDB("http://fake")
+        db.api_call = unittest.mock.Mock()
+
+        db.enable_model_monitoring(
+            project="test",
+            lag_threshold=lag_threshold,
+            lag_event_cooldown=lag_event_cooldown,
+        )
+
+        call_kwargs = db.api_call.call_args.kwargs
+        assert call_kwargs["params"]["lag_threshold"] == lag_threshold
+        assert call_kwargs["params"]["lag_event_cooldown"] == lag_event_cooldown
+
+    def test_lag_params_omitted_from_query_when_none(self):
+        db = mlrun.db.httpdb.HTTPRunDB("http://fake")
+        db.api_call = unittest.mock.Mock()
+
+        db.enable_model_monitoring(project="test")
+
+        params = db.api_call.call_args.kwargs["params"]
+        assert "lag_threshold" not in params
+        assert "lag_event_cooldown" not in params

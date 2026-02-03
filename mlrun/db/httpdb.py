@@ -4051,6 +4051,8 @@ class HTTPRunDB(RunDBInterface):
         image: str = "mlrun/mlrun",
         deploy_histogram_data_drift_app: bool = True,
         fetch_credentials_from_sys_config: bool = False,
+        lag_threshold: int | None = None,
+        lag_event_cooldown: int | None = None,
     ) -> None:
         """
         Deploy model monitoring application controller, writer and stream functions.
@@ -4068,20 +4070,27 @@ class HTTPRunDB(RunDBInterface):
                                                   By default, the image is mlrun/mlrun.
         :param deploy_histogram_data_drift_app:   If true, deploy the default histogram-based data drift application.
         :param fetch_credentials_from_sys_config: If true, fetch the credentials from the system configuration.
+        :param lag_threshold:                     Lag threshold in minutes for writer lag detection.
+        :param lag_event_cooldown:                Cooldown in minutes between consecutive lag events per worker.
 
         """
         auth_token_name = mlrun.runtime_configuration_context.RuntimeConfigurationContext.get_auth_token_name()
 
+        params = {
+            "base_period": base_period,
+            "image": image,
+            "deploy_histogram_data_drift_app": deploy_histogram_data_drift_app,
+            "fetch_credentials_from_sys_config": fetch_credentials_from_sys_config,
+            "auth_token_name": auth_token_name,
+        }
+        if lag_threshold is not None:
+            params["lag_threshold"] = lag_threshold
+        if lag_event_cooldown is not None:
+            params["lag_event_cooldown"] = lag_event_cooldown
         self.api_call(
             method=mlrun.common.types.HTTPMethod.PUT,
             path=f"projects/{project}/model-monitoring/",
-            params={
-                "base_period": base_period,
-                "image": image,
-                "deploy_histogram_data_drift_app": deploy_histogram_data_drift_app,
-                "fetch_credentials_from_sys_config": fetch_credentials_from_sys_config,
-                "auth_token_name": auth_token_name,
-            },
+            params=params,
             timeout=300,  # 5 minutes
         )
 

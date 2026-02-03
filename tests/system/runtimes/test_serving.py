@@ -23,8 +23,8 @@ from mlrun.runtimes.nuclio.serving import APIHandlerConfig
 class TestServingAPIHandler(tests.system.base.TestMLRunSystem):
     """System tests for serving function API handler functionality."""
 
-    project_name = "serving-api-handler-5"
-    image: str = "dev-snapshot.artifactory.iguazeng.com/jond/mlrun:ml-11670-8"
+    project_name = "serving-api-handler"
+    image: str | None = None
 
     def _create_serving_function(
         self,

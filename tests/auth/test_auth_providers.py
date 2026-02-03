@@ -224,6 +224,33 @@ def test_authenticated_user_id():
     assert provider.authenticated_user_id == "test-user"
 
 
+def test_authenticated_username():
+    """Test that authenticated_username extracts preferred_username from JWT."""
+    provider = IGTokenProvider.__new__(IGTokenProvider)
+    provider._token = jwt.encode(
+        {"sub": "test-user", "preferred_username": "admin"},
+        key="test-secret",
+        algorithm="HS256",
+    )
+    assert provider.authenticated_username == "admin"
+
+
+def test_authenticated_username_missing_claim():
+    """Test that authenticated_username returns None when claim is missing."""
+    provider = IGTokenProvider.__new__(IGTokenProvider)
+    provider._token = jwt.encode(
+        {"sub": "test-user"}, key="test-secret", algorithm="HS256"
+    )
+    assert provider.authenticated_username is None
+
+
+def test_authenticated_username_no_token():
+    """Test that authenticated_username returns None when no token is set."""
+    provider = IGTokenProvider.__new__(IGTokenProvider)
+    provider._token = None
+    assert provider.authenticated_username is None
+
+
 @pytest.mark.parametrize(
     "runtime_kind,timeout,backoff,expect_timeout_retry",
     [

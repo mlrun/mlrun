@@ -20,6 +20,8 @@ import pytest
 
 import mlrun
 import mlrun.errors
+from mlrun.runtimes.nuclio.serving import ServingSpec
+from mlrun.serving import Model
 from mlrun.serving.server import (
     v2_serving_handler,
     v2_serving_streaming_handler,
@@ -36,8 +38,6 @@ class TestServingSpecStreaming:
 
     def test_streaming_in_dict_fields(self):
         """Test that streaming is included in _dict_fields for serialization."""
-        from mlrun.runtimes.nuclio.serving import ServingSpec
-
         assert "streaming" in ServingSpec._dict_fields
 
     def test_streaming_serialization(self):
@@ -492,7 +492,6 @@ class TestModelIsStreaming:
 
     def test_is_streaming_detects_generator_function(self):
         """Test that is_streaming() returns True for generator predict()."""
-        from mlrun.serving import Model
 
         class GeneratorModel(Model):
             def predict(self, body, **kwargs):
@@ -504,7 +503,6 @@ class TestModelIsStreaming:
 
     def test_is_streaming_detects_async_generator_function(self):
         """Test that is_streaming() returns True for async generator predict_async()."""
-        from mlrun.serving import Model
 
         class AsyncGeneratorModel(Model):
             def predict(self, body, **kwargs):
@@ -519,7 +517,6 @@ class TestModelIsStreaming:
 
     def test_is_streaming_returns_false_for_regular_predict(self):
         """Test that is_streaming() returns False for non-generator predict()."""
-        from mlrun.serving import Model
 
         class RegularModel(Model):
             def predict(self, body, **kwargs):
@@ -534,7 +531,6 @@ class TestModelIsStreaming:
         This tests the documented use case where predict() returns a generator
         from an external source without being a generator function itself.
         """
-        from mlrun.serving import Model
 
         def external_streaming_api(body):
             """Simulates an external API that returns a generator."""

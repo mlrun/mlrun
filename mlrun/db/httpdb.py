@@ -643,6 +643,11 @@ class HTTPRunDB(RunDBInterface):
                 or config.httpdb.authentication.mode
             )
 
+            config.httpdb.authorization.namespaces.resources = (
+                server_cfg.get("authorization_namespaces_resources")
+                or config.httpdb.authorization.namespaces.resources
+            )
+
             # Iguazio V4 OAuth token config auto-initialization
             if (
                 config.httpdb.authentication.mode

@@ -19,6 +19,7 @@ from typing import Optional, Union
 
 import nuclio
 from nuclio import KafkaTrigger
+from nuclio.triggers import NuclioTrigger
 
 import mlrun
 import mlrun.common.schemas as schemas
@@ -97,6 +98,7 @@ class ServingSpec(nuclio_function.NuclioSpec):
         "default_class",
         "secret_sources",
         "track_models",
+        "streaming",
     ]
 
     def __init__(
@@ -154,6 +156,7 @@ class ServingSpec(nuclio_function.NuclioSpec):
         model_endpoint_creation_task_name=None,
         serving_spec=None,
         auth=None,
+        streaming: Optional[bool] = None,
     ):
         super().__init__(
             command=command,
@@ -212,6 +215,7 @@ class ServingSpec(nuclio_function.NuclioSpec):
         self.secret_sources = secret_sources or []
         self.default_content_type = default_content_type
         self.model_endpoint_creation_task_name = model_endpoint_creation_task_name
+        self.streaming = streaming
 
     @property
     def graph(self) -> Union[RouterStep, RootFlowStep]:
@@ -383,6 +387,62 @@ class ServingRuntime(nuclio_function.RemoteRuntime):
             self.spec.parameters["log_stream"] = stream_path
         if stream_args:
             self.spec.parameters["stream_args"] = stream_args
+
+    def set_streaming(self, enabled: bool = True) -> None:
+        """Enable or disable streaming mode for the serving function.
+
+        When streaming is enabled, the function handler yields results as they
+        arrive from streaming steps in the graph, allowing for real-time
+        streaming responses (e.g., for LLM token streaming).
+
+        Streaming is only supported with HTTP triggers. When streaming is enabled,
+        non-HTTP triggers cannot be added to the function.
+
+        :param enabled: Enable or disable streaming mode. Default is True.
+
+        Example::
+
+            # Create a serving function with streaming enabled
+            serving_fn = mlrun.code_to_function(kind="serving")
+            serving_fn.set_topology("flow", engine="async")
+            serving_fn.set_streaming(enabled=True)
+
+        """
+        # Validate that only HTTP triggers are configured when enabling streaming
+        if enabled:
+            for key, trigger_spec in self.spec.config.items():
+                if key.startswith("spec.triggers."):
+                    trigger_name = key.split(".")[-1]
+                    trigger_kind = trigger_spec.get("kind", "http")
+                    if trigger_kind != "http":
+                        raise mlrun.errors.MLRunInvalidArgumentError(
+                            f"Streaming is only supported with HTTP triggers. "
+                            f"Found non-HTTP trigger '{trigger_name}' of kind '{trigger_kind}'. "
+                            f"Remove non-HTTP triggers before enabling streaming."
+                        )
+
+        self.spec.streaming = enabled
+
+    def add_trigger(self, name: str, spec: NuclioTrigger | dict):
+        """Add a nuclio trigger object/dict.
+
+        Overrides parent to validate streaming compatibility.
+
+        :param name: trigger name
+        :param spec: trigger object or dict
+        """
+        # Validate streaming compatibility
+        if self.spec.streaming:
+            trigger_spec = spec.to_dict() if hasattr(spec, "to_dict") else spec
+            trigger_kind = trigger_spec.get("kind", "http")
+            if trigger_kind != "http":
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    f"Cannot add non-HTTP trigger '{name}' (kind='{trigger_kind}') "
+                    f"when streaming is enabled. Streaming only supports HTTP triggers. "
+                    f"Either disable streaming with set_streaming(False) or use HTTP triggers only."
+                )
+
+        return super().add_trigger(name, spec)
 
     def add_model(
         self,
@@ -750,6 +810,7 @@ class ServingRuntime(nuclio_function.RemoteRuntime):
             "track_models": self.spec.track_models,
             "default_content_type": self.spec.default_content_type,
             "model_endpoint_creation_task_name": self.spec.model_endpoint_creation_task_name,
+            "streaming": self.spec.streaming,
             # TODO: find another way to pass this (needed for local run)
             "filename": getattr(self.spec, "filename", None),
         }
@@ -887,6 +948,13 @@ class ServingRuntime(nuclio_function.RemoteRuntime):
         if self.spec.function_refs:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 f"Cannot convert function '{self.metadata.name}' to a job because it has child functions"
+            )
+
+        if self.spec.streaming:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"Cannot convert function '{self.metadata.name}' to a job because streaming "
+                f"is enabled. Streaming functions return real-time HTTP responses and cannot "
+                f"run as batch jobs. Please disable streaming with set_streaming(False) first."
             )
 
         self._add_steps_requirements()

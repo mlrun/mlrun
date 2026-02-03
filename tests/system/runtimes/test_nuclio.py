@@ -605,6 +605,86 @@ class TestNuclioRuntime(TestMLRunSystemModelMonitoring):
         ):
             function.invoke(path="/", body={"counter": -5})
 
+    def test_streaming_serving_function(self):
+        """Test that streaming serving functions return chunked HTTP responses.
+
+        Tests both StreamingStep (async generator do() method) and ModelRunnerStep
+        with StreamingModel (generator predict() method) via a choice.
+        """
+        code_path = str(self.assets_path / "streaming_function.py")
+        function = mlrun.code_to_function(
+            name="streaming-function",
+            kind="serving",
+            project=self.project_name,
+            filename=code_path,
+            image=self.image,
+        )
+
+        # Build a graph with two branches via StreamingChoice:
+        # - "step" route -> StreamingStep (tests async generator do())
+        # - "model_runner" route -> ModelRunnerStep with StreamingModel (tests generator predict())
+        # Both branches merge into a single responder
+        graph = function.set_topology("flow", engine="async")
+        model_runner_step = ModelRunnerStep(name="model_runner")
+        model_runner_step.add_model(
+            model_class="StreamingModel",
+            execution_mechanism="naive",
+            endpoint_name="streaming_model",
+            num_chunks=3,
+        )
+        choice = graph.to(name="choice", class_name="StreamingChoice")
+        choice.to(name="step", class_name="StreamingStep", num_chunks=3)
+        choice.to(model_runner_step)
+        graph.add_step(
+            name="responder",
+            class_name="Echo",
+            after=["step", "model_runner"],
+        ).respond()
+
+        function.set_streaming(enabled=True)
+        function.deploy()
+
+        url = function.get_url()
+
+        # Test 1: StreamingStep path (async generator do() method)
+        self._logger.info("Testing StreamingStep path...")
+        resp = requests.post(f"{url}/step", data="test", stream=True)
+        self._logger.info(f"StreamingStep response: {resp}")
+        assert resp.ok, f"StreamingStep request failed: {resp.status_code} {resp.text}"
+        assert resp.headers.get("Transfer-Encoding") == "chunked"
+
+        chunks = []
+        start = time.monotonic()
+        for chunk in resp.iter_content(decode_unicode=True, chunk_size=1024):
+            end = time.monotonic()
+            duration = end - start
+            self._logger.info(f"Received chunk after {duration:.2f} seconds: {chunk}")
+            # TODO: Enable once NUC-720 is fixed
+            # assert (
+            #     0.5 < duration < 1.5
+            # ), "Time between chunks should be about 1 second"
+            chunks.append(chunk)
+            start = time.monotonic()
+
+        # TODO: Remove and enable the commented-out line instead once NUC-720 is fixed
+        assert len(chunks) > 0, "Expected streaming chunks from StreamingStep"
+        # assert chunks == ["test_chunk_0", "test_chunk_1", "test_chunk_2"]
+
+        # Test 2: ModelRunnerStep path (generator predict() method)
+        self._logger.info("Testing ModelRunnerStep path...")
+        resp = requests.post(f"{url}/model_runner", data="test", stream=True)
+        self._logger.info(f"ModelRunnerStep response: {resp}")
+        assert (
+            resp.ok
+        ), f"ModelRunnerStep request failed: {resp.status_code} {resp.text}"
+        assert resp.headers.get("Transfer-Encoding") == "chunked"
+
+        chunks = list(resp.iter_content(decode_unicode=True, chunk_size=1024))
+        self._logger.info(f"ModelRunnerStep chunks: {chunks}")
+        # TODO: Remove and enable the commented-out line instead once NUC-720 is fixed
+        assert len(chunks) > 0, "Expected streaming chunks from ModelRunnerStep"
+        # assert chunks == ["test_chunk_0", "test_chunk_1", "test_chunk_2"]
+
     @pytest.mark.parametrize("with_object", [True, False])
     def test_mrs_with_tools_routing_sys(self, with_object):
         code_path = str(self.assets_path / "function_llm_with_tools.py")

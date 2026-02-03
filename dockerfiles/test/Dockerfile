@@ -21,7 +21,6 @@ FROM --platform=${DOCKER_DEFAULT_PLATFORM} mlrun_common_image:${MLRUN_PYTHON_VER
 
 ARG MLRUN_PYTHON_VERSION
 ARG MLRUN_PIP_VERSION
-ARG IGUAZIO_PACKAGE_VERSION
 
 ENV NO_COLOR=1
 LABEL maintainer="yaronh@iguazio.com"
@@ -83,20 +82,6 @@ COPY dockerfiles dockerfiles
 COPY examples examples
 
 ENV PYTHONPATH="/mlrun/tests:/mlrun/automation:/mlrun/server/py/schemas/proto"
-
-# TODO: remove this once iguazio package is released to PyPI and move to requirements.txt
-# Install iguazio package from Test PyPI only for Python 3.11
-RUN --mount=from=uv-image,source=/uv,target=/bin/uv \
-    if [ "${MLRUN_PYTHON_VERSION}" = "3.11" ]; then \
-      echo "Installing iguazio package version ${IGUAZIO_PACKAGE_VERSION} for Python ${MLRUN_PYTHON_VERSION}..."; \
-      uv pip install \
-        --index-url https://test.pypi.org/simple/ \
-        --extra-index-url https://pypi.org/simple \
-        "iguazio~=${IGUAZIO_PACKAGE_VERSION}" \
-        --python-version ${MLRUN_PYTHON_VERSION}; \
-    else \
-      echo "Skipping iguazio install for Python ${MLRUN_PYTHON_VERSION}"; \
-    fi
 
 # plant uv for next phases usage
 COPY --from=uv-image /uv /bin/uv

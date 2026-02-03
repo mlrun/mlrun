@@ -571,13 +571,15 @@ class ImageBuilder(ModelObj):
     def source(self, source):
         if source and not (
             source.startswith("git://")
+            # Allow store artifact URIs for single-file sources
+            or mlrun.datastore.is_store_uri(source)
             # lenient check for file extension because we support many file types locally and remotely
             or pathlib.Path(source).suffix
             or source in [".", "./"]
         ):
             raise mlrun.errors.MLRunInvalidArgumentError(
                 f"source ({source}) must be a compressed (tar.gz / zip) file, a git repo, "
-                f"a file path or in the project's context (.)"
+                f"a file path, a store URI, or in the project's context (.)"
             )
 
         self._source = source

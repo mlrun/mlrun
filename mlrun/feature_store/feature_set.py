@@ -19,6 +19,7 @@ from storey import EmitEveryEvent, EmitPolicy
 
 import mlrun
 import mlrun.common.schemas
+import mlrun.feature_store.api
 
 from ..config import config as mlconf
 from ..data_types import InferOptions

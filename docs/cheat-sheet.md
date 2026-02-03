@@ -156,10 +156,10 @@ jobs:
 
     steps:
     - uses: actions/checkout@v3
-    - name: Set up Python 3.9
+    - name: Set up Python 3.11
       uses: actions/setup-python@v4
       with:
-        python-version: '3.9'
+        python-version: '3.11'
         architecture: 'x64'
     
     - name: Install mlrun

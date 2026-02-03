@@ -1,4 +1,4 @@
-# Copyright 2023 Iguazio
+# Copyright 2026 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -11,22 +11,18 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import asyncio
-import inspect
+from flask import Flask
 
-# serving runtime hooks, used in empty serving functions
-from mlrun.runtimes import nuclio_init_hook
+app = Flask(__name__)
 
-
-def init_context(context):
-    nuclio_init_hook(context, globals(), "serving_v2")
+VERSION = "version-1"
 
 
-async def handler(context, event):
-    result = context.mlrun_handler(context, event)
-    if asyncio.iscoroutine(result):
-        return await result
-    elif inspect.isgenerator(result) or inspect.isasyncgen(result):
-        return context.Response(body=result)
-    else:
-        return result
+@app.route("/")
+def index():
+    return VERSION
+
+
+@app.route("/health")
+def health():
+    return "healthy"

@@ -264,6 +264,3 @@ helm install -n mlrun --values ~/tmp/mlrun-ce-values.yaml mlrun-ce mlrun-ce/mlru
 * If your values have fixed mlrun service versions (e.g.: mlrun:1.8.0) then you might want to remove it from the values file to allow newer chart defaults to kick in.
 * MLRun CE is compatible with one minor version back. For example, MLRun CE 0.9.x is compatible with MLRun 0.10.x as long as both versions require the same prequisites.
 ```
-
-
-

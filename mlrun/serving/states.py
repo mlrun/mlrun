@@ -1829,7 +1829,7 @@ class ModelRunner(storey.ParallelExecution):
         return self.model_runner_selector.select_models(event, models)
 
     def select_outlets(self, event) -> Optional[Collection[str]]:
-        sys_outlets = [f"{self.name}_error_raise"]
+        sys_outlets = [f"{self.name}_flat_event_choice"]
         if "background_task_status_step" in self._name_to_outlet:
             sys_outlets.append("background_task_status_step")
         if self._raise_exception and self._is_error(event):
@@ -1851,9 +1851,12 @@ class ModelRunner(storey.ParallelExecution):
                     body_by_model = event.get(model)
                     if isinstance(body_by_model, dict) and "error" in body_by_model:
                         return True
-        elif storey.flow.is_batched_event(event):
-            #  batch case:
+        elif isinstance(event, list):
             for sub_event in event:
+                if not hasattr(sub_event, "body"):
+                    # a regular output, not a sub-event in a batch:
+                    return False
+                #  batch case, event is list of sub events:
                 if self._is_error(sub_event.body):
                     return True
         return False
@@ -2549,6 +2552,19 @@ class ModelRunnerErrorRaiser(storey.MapClass):
                 raise ModelRunnerError(models_errors=errors)
         return event
 
+
+class FlatEventChoice(storey.Choice):
+    def __init__(self, unpacker_step_name:str, raise_error_step_name:str, **kwargs):
+        self.unpacker_step_name = unpacker_step_name
+        self.raise_error_step_name = raise_error_step_name
+        super().__init__(**kwargs)
+
+    def select_outlets(self, event):
+        if storey.flow.is_batched_event(event):
+            outlets = [self.unpacker_step_name]
+        else:
+            outlets=[self.raise_error_step_name]
+        return outlets
 
 class QueueStep(BaseStep, StepToDict):
     """queue step, implement an async queue or represent a stream"""

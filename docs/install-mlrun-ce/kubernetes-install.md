@@ -240,10 +240,10 @@ helm repo update
 Then try to upgrade the chart:
 
 ```bash
-# Example for installing the latest version
+# Example of installing the latest version
 helm upgrade --install --reuse-values mlrun-ce —namespace mlrun mlrun-ce/mlrun-ce
 
-# Example for installing a specific version
+# Example of installing a specific version
 helm upgrade --install --reuse-values mlrun-ce —namespace mlrun mlrun-ce/mlrun-ce --version <chart-version>
 ```
 

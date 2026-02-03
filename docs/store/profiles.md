@@ -90,7 +90,7 @@ stream_profile = DatastoreProfileV3io(
 ```
 See also
 - {py:class}`~mlrun.projects.MlrunProject.set_model_monitoring_credentials`.
-- [Configuring TDengine and Kafka for model monitoring](../install-mlrun-ce/mlrun-ce-development-notes.md#configuring-tdengine-and-kafka-for-model-monitoring)
+- [Configuring TimescaleDB and Kafka for model monitoring](../install-mlrun-ce/mlrun-ce-development-notes.md#configuring-timescaledb-and-kafka-for-model-monitoring)
 
 ### Queue datastore profiles
 

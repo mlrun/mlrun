@@ -186,8 +186,6 @@ class Spark3RuntimeHandler(KubeRuntimeHandler, abc.ABC):
             ),
         )
 
-        update_in(job, "spec.volumes", runtime.spec.volumes)
-
         self.add_secrets_to_spec_before_running(
             runtime,
             project_name=run.metadata.project,
@@ -195,6 +193,7 @@ class Spark3RuntimeHandler(KubeRuntimeHandler, abc.ABC):
             auth_info=auth_info,
         )
 
+        update_in(job, "spec.volumes", runtime.spec.volumes)
         command, args, extra_env = self._get_cmd_args(runtime, run, auth_info=auth_info)
         code = None
         if "MLRUN_EXEC_CODE" in [e.get("name") for e in extra_env]:

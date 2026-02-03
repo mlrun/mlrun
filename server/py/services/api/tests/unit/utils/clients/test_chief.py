@@ -53,8 +53,8 @@ async def chief_client(
     try:
         yield client
     finally:
-        client._messaging_client._async_sessions.close()
-        client._messaging_client._sync_sessions.close()
+        await client._messaging_client._async_sessions.async_close()
+        await client._messaging_client._sync_sessions.async_close()
 
 
 @pytest.mark.asyncio

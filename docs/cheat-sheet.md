@@ -437,8 +437,20 @@ serve.add_v3io_stream_trigger(
 )
 
 # RabbitMQ stream trigger
-serve.add_rabbitmq_trigger(url="ds://my-rabbitmq")
+function.add_rabbitmq_trigger(
+    url="amqp://rabbitmq-host:5672",
+    exchange_name="my-exchange",
+    queue_name="my-queue",
+    username="user",
+    password="pass",
+)
+# or with topics (routing keys):
 
+function.add_rabbitmq_trigger(
+    url="amqp://rabbitmq-host:5672",
+    exchange_name="my-exchange",
+    topics=["key1", "key2"],
+)
 
 # Kafka stream trigger
 serve.add_trigger(

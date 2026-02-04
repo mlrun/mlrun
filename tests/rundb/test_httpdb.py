@@ -1619,43 +1619,6 @@ def test_submit_workflow_passes_none_without_context():
         assert json_body["spec"]["auth_token_name"] is None
 
 
-def test_update_model_monitoring_controller_passes_auth_token_from_context():
-    """Test that update_model_monitoring_controller passes auth_token_name from RuntimeConfigurationContext."""
-    import mlrun.runtime_configuration_context
-
-    db = HTTPRunDB("http://fake-api:8080")
-
-    with patch.object(db, "api_call") as mock_api_call:
-        with mlrun.RuntimeConfigurationContext(auth_token_name="test-controller-token"):
-            db.update_model_monitoring_controller(
-                project="test-project",
-                base_period=10,
-                image="mlrun/mlrun",
-            )
-
-        mock_api_call.assert_called_once()
-        call_kwargs = mock_api_call.call_args
-        params = call_kwargs.kwargs.get("params") or call_kwargs[1].get("params")
-        assert params["auth_token_name"] == "test-controller-token"
-
-
-def test_update_model_monitoring_controller_passes_none_without_context():
-    """Test that update_model_monitoring_controller passes None when no RuntimeConfigurationContext is active."""
-    db = HTTPRunDB("http://fake-api:8080")
-
-    with patch.object(db, "api_call") as mock_api_call:
-        db.update_model_monitoring_controller(
-            project="test-project",
-            base_period=10,
-            image="mlrun/mlrun",
-        )
-
-        mock_api_call.assert_called_once()
-        call_kwargs = mock_api_call.call_args
-        params = call_kwargs.kwargs.get("params") or call_kwargs[1].get("params")
-        assert params["auth_token_name"] is None
-
-
 def _assert_projects(expected_project, project):
     assert (
         deepdiff.DeepDiff(

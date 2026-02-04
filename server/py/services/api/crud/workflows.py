@@ -285,10 +285,10 @@ class BaseRunner(metaclass=mlrun.utils.singleton.Singleton):
                 client_python_version
             )
 
-        # Set internal auth token name env var for workflow-runner to use during pipeline compilation
+        # Set auth token name via config env var for workflow-runner to use during pipeline compilation.
         if auth_token_name:
             runner.set_env(
-                mlrun_constants.MLRUN_WORKFLOW_RUNNER_AUTH_TOKEN_NAME_ENV_VAR,
+                "MLRUN_AUTH_WITH_OAUTH_TOKEN__TOKEN_NAME",
                 auth_token_name,
             )
 

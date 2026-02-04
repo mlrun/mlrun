@@ -304,6 +304,7 @@ class MonitoringPreProcessor(storey.MapClass):
                             mm_schemas.StreamProcessingEvent.METRICS
                         )
                     else:
+                        # TODO handle error in batch step
                         labels = {}
                         error = None
                         metrics = None
@@ -348,8 +349,15 @@ class MonitoringPreProcessor(storey.MapClass):
                 error = event.body.get(mm_schemas.StreamProcessingEvent.ERROR)
                 metrics = event.body.get(mm_schemas.StreamProcessingEvent.METRICS)
             else:
+                #  batch step case
                 labels = {}
-                error = None
+                if storey.flow.is_batched_event(event):
+                    errors = [se.body.get(mm_schemas.StreamProcessingEvent.ERROR) for se in event.body if isinstance(se.body, dict)]
+                    if len(set(errors)) > 1:
+                        raise RuntimeError("Inconsistent errors in batched event")
+                    error = errors[0] if errors else None
+                else:
+                    error = None
                 metrics = None
             monitoring_event_list.append(
                 {

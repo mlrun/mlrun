@@ -552,9 +552,8 @@ class TestMockModelProvider(BaseMockModelProviderTest):
                     for i, event in enumerate(BATCH_INPUT_DATA)
                 ]
                 responses = [future.result() for future in futures]
-
             # Now send 2 events with one error in a new batch
-            #time.sleep(FLUSH_AFTER_SECONDS + 2)
+            time.sleep(FLUSH_AFTER_SECONDS + 2)
             error_input = {
                 "question": "ERROR - this should fail",
                 "depth_level": "basic",
@@ -589,21 +588,30 @@ class TestMockModelProvider(BaseMockModelProviderTest):
             expected_counter = i % 2
             assert f"(Item {expected_counter})" in output[UsageResponseKeys.ANSWER]
 
-        # Verify tracking events - should have 3 batches (2+2+1 = len(BATCH_INPUT_DATA) total events)
+        # Verify tracking events - should have 4 batches (3 successful + 1 error batch)
         dummy_stream = server.context.stream.output_stream
-        assert len(dummy_stream.event_list) == 3
+        assert len(dummy_stream.event_list) == 4
 
-        # Verify each batch separately using _verify_batch_tracking
+        # Verify first 3 successful batches separately using _verify_batch_tracking
         expected_batch_sizes = [2, 2, 1]  # 2+2+1 = 5 events
         start_idx = 0
 
-        for batch_idx, event in enumerate(dummy_stream.event_list):
+        for batch_idx in range(3):
+            event = dummy_stream.event_list[batch_idx]
             expected_size = expected_batch_sizes[batch_idx]
             end_idx = start_idx + expected_size
             batch_inputs = BATCH_INPUT_DATA[start_idx:end_idx]
             # Use _verify_batch_tracking for each batch
             self._verify_batch_tracking(event, inputs=batch_inputs)
             start_idx = end_idx
+
+        # Verify the error batch (last event)
+        error_event = dummy_stream.event_list[3]
+        assert error_event["error"] is not None
+        assert "Mock error triggered by ERROR keyword" in error_event["error"]
+        assert error_event["model"] == "my_endpoint"
+        # Error batch should have 2 inputs (good + error)
+        assert error_event["effective_sample_count"] == 2
 
     @pytest.mark.parametrize(
         "execution_mechanism",

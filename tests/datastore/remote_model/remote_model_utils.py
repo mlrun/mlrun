@@ -219,6 +219,7 @@ def setup_remote_model_test(
     default_config: Optional[dict] = None,
     include_llm_artifact=True,
     batch_step=False,
+    flush_after_seconds=FLUSH_AFTER_SECONDS,
 ):
     model_artifact = project.log_model(
         mlrun_model_name,
@@ -252,7 +253,7 @@ def setup_remote_model_test(
             "storey.Batch",
             "my_batching",
             max_events=2,
-            flush_after_seconds=FLUSH_AFTER_SECONDS,
+            flush_after_seconds=flush_after_seconds,
             full_event=True,
         )
     model_runner_step = ModelRunnerStep(name="my_model_runner")

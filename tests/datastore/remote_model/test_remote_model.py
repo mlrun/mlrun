@@ -24,12 +24,14 @@ from mlrun.datastore.model_provider.model_provider import UsageResponseKeys
 from mlrun.serving.states import ModelRunnerStep
 from tests.datastore.remote_model.remote_model_utils import (
     BATCH_INPUT_DATA,
-    FLUSH_AFTER_SECONDS,
     PROMPT_LEGEND,
     PROMPT_TEMPLATE,
     create_mocked_get_store_artifact,
     setup_remote_model_test,
 )
+
+UNIT_TEST_FLUSH_AFTER_SECONDS = 0.7  # Use faster flush for unit tests
+UNIT_REQUEST_DELAY_SECONDS = 0.2  # Delay between
 
 
 class BaseMockModelProviderTest:
@@ -526,7 +528,11 @@ class TestMockModelProvider(BaseMockModelProviderTest):
         model_url = "mock://my-mock-model"
 
         model_artifact, llm_prompt_artifact, function = setup_remote_model_test(
-            project, model_url, execution_mechanism=execution_mechanism, batch_step=True
+            project,
+            model_url,
+            execution_mechanism=execution_mechanism,
+            batch_step=True,
+            flush_after_seconds=0.7,
         )
         function.set_tracking("dummy://", enable_tracking=True)
 
@@ -551,15 +557,15 @@ class TestMockModelProvider(BaseMockModelProviderTest):
                 return server.test(body=event)
 
             with ThreadPoolExecutor(max_workers=len(BATCH_INPUT_DATA)) as executor:
-                # MockProvider requires a larger delay (0.3s) because batching output depends on the order of requests,
+                # MockProvider requires a larger delay because batching output depends on the order of requests,
                 # which can introduce race conditions, unlike real providers where batching output depends on input.
                 futures = [
-                    executor.submit(send_event, event, i * 0.3)
+                    executor.submit(send_event, event, i * UNIT_REQUEST_DELAY_SECONDS)
                     for i, event in enumerate(BATCH_INPUT_DATA)
                 ]
                 responses = [future.result() for future in futures]
             # Now send 2 events with one error in a new batch
-            time.sleep(FLUSH_AFTER_SECONDS + 2)
+            time.sleep(UNIT_TEST_FLUSH_AFTER_SECONDS + UNIT_REQUEST_DELAY_SECONDS)
             error_input = {
                 "question": "ERROR - this should fail",
                 "depth_level": "basic",
@@ -573,7 +579,9 @@ class TestMockModelProvider(BaseMockModelProviderTest):
             with ThreadPoolExecutor(max_workers=2) as executor:
                 futures = [
                     executor.submit(send_event, good_input, 0),
-                    executor.submit(send_event, error_input, 0.3),
+                    executor.submit(
+                        send_event, error_input, UNIT_REQUEST_DELAY_SECONDS
+                    ),
                 ]
                 # Both should fail when the batch encounters the error
                 for future in futures:
@@ -654,7 +662,7 @@ class TestMockModelProvider(BaseMockModelProviderTest):
             "storey.Batch",
             "my_batching",
             max_events=2,
-            flush_after_seconds=FLUSH_AFTER_SECONDS,
+            flush_after_seconds=UNIT_TEST_FLUSH_AFTER_SECONDS,
             full_event=True,
         )
 
@@ -704,16 +712,16 @@ class TestMockModelProvider(BaseMockModelProviderTest):
                 return server.test(body=event)
 
             with ThreadPoolExecutor(max_workers=len(BATCH_INPUT_DATA)) as executor:
-                # MockProvider requires a larger delay (0.3s) because batching output depends on the order of requests,
+                # MockProvider requires a larger delay because batching output depends on the order of requests,
                 # which can introduce race conditions, unlike real providers where batching output depends on input.
                 futures = [
-                    executor.submit(send_event, event, i * 0.3)
+                    executor.submit(send_event, event, i * UNIT_REQUEST_DELAY_SECONDS)
                     for i, event in enumerate(BATCH_INPUT_DATA)
                 ]
                 responses = [future.result() for future in futures]
 
-            # Wait to ensure the batch is flushed (FLUSH_AFTER_SECONDS + 2 seconds buffer)
-            time.sleep(FLUSH_AFTER_SECONDS + 2)
+            # Wait to ensure the batch is flushed
+            time.sleep(UNIT_TEST_FLUSH_AFTER_SECONDS + 1)
 
             # Now send 2 events with one error in a new batch
             error_input = {
@@ -729,7 +737,9 @@ class TestMockModelProvider(BaseMockModelProviderTest):
             with ThreadPoolExecutor(max_workers=2) as executor:
                 futures = [
                     executor.submit(send_event, good_input, 0),
-                    executor.submit(send_event, error_input, 0.3),
+                    executor.submit(
+                        send_event, error_input, UNIT_REQUEST_DELAY_SECONDS
+                    ),
                 ]
                 # Both should fail when the batch encounters the error
                 for future in futures:

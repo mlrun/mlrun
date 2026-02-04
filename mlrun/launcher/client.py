@@ -86,8 +86,9 @@ class ClientBaseLauncher(launcher.BaseLauncher, abc.ABC):
                 run.metadata.labels[mlrun_constants.MLRunInternalLabels.owner],
             )
 
-        # Copy auth from function to run since run.spec is serialized
-        ClientBaseLauncher._enrich_run_auth_from_function(runtime, run)
+        # Set the auth token name from RuntimeConfiguration context manager (if used)
+        auth_token_name = mlrun.runtime_configuration_context.RuntimeConfigurationContext.get_auth_token_name()
+        mlrun.utils.helpers.set_auth_token_name(run.spec, auth_token_name)
 
         db = runtime._get_db()
         if db and runtime.kind != "handler":
@@ -96,27 +97,6 @@ class ClientBaseLauncher(launcher.BaseLauncher, abc.ABC):
                 struct, runtime.metadata.name, runtime.metadata.project, versioned=True
             )
             run.spec.function = runtime._function_uri(hash_key=hash_key)
-
-    @staticmethod
-    def _enrich_run_auth_from_function(
-        runtime: "mlrun.runtimes.BaseRuntime", run: "mlrun.run.RunObject"
-    ):
-        """
-        Copy auth from function.spec.auth to run.spec.auth.
-        Also applies auth token from context (set by RuntimeConfigurationContext).
-        Context manager settings override function-level settings.
-        """
-        func_auth = getattr(runtime.spec, "auth", None)
-        if func_auth:
-            if not run.spec.auth:
-                run.spec.auth = func_auth.copy()
-            else:
-                # Merge function auth into run auth, run auth takes precedence
-                run.spec.auth = {**func_auth, **run.spec.auth}
-
-        # Context manager overrides everything
-        auth_token_name = mlrun.runtime_configuration_context.RuntimeConfigurationContext.get_auth_token_name()
-        mlrun.utils.helpers.set_auth_token_name(run.spec, auth_token_name)
 
     @staticmethod
     def _refresh_function_metadata(runtime: "mlrun.runtimes.BaseRuntime"):

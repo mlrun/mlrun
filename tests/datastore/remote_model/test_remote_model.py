@@ -225,7 +225,9 @@ class BaseMockModelProviderTest:
                 invoke_func(body=inputs_with_error)
 
 
-class TestMockModelProvider(BaseMockModelProviderTest):
+class TestMockModelProviderSingleInvoke(BaseMockModelProviderTest):
+    """Tests for single invocation with MockModelProvider"""
+
     @pytest.mark.parametrize(
         "execution_mechanism",
         ["process_pool", "dedicated_process", "naive", "asyncio", "thread_pool"],
@@ -321,6 +323,10 @@ class TestMockModelProvider(BaseMockModelProviderTest):
         event = dummy_stream.event_list[0]
         self._verify_single_error_tracking(event, error_input)
 
+
+class TestMockModelProviderDirectBatch(BaseMockModelProviderTest):
+    """Tests for direct batch invocation (without batch step) with MockModelProvider"""
+
     @pytest.mark.parametrize(
         "execution_mechanism",
         ["process_pool", "dedicated_process", "naive", "asyncio", "thread_pool"],
@@ -362,79 +368,9 @@ class TestMockModelProvider(BaseMockModelProviderTest):
         event = dummy_stream.event_list[0]
         self._verify_batch_tracking(event)
 
-    @pytest.mark.parametrize(
-        "execution_mechanism",
-        ["process_pool", "dedicated_process", "naive", "asyncio", "thread_pool"],
-    )
-    def test_llmodel_batch_step_with_errors(self, execution_mechanism, rundb_mock):
-        """Test batch step error handling using storey.Batch step with LLModel and MockModelProvider"""
 
-        project = mlrun.new_project("test-mock-batch-graph-errors", save=False)
-        model_url = "mock://my-mock-model"
-
-        model_artifact, llm_prompt_artifact, function = setup_remote_model_test(
-            project,
-            model_url,
-            execution_mechanism=execution_mechanism,
-            batch_step=True,
-            flush_after_seconds=UNIT_TEST_FLUSH_AFTER_SECONDS,
-        )
-        function.set_tracking("dummy://", enable_tracking=True)
-
-        mocked_get_store_artifact = create_mocked_get_store_artifact(
-            {
-                model_artifact.uri: model_artifact,
-                llm_prompt_artifact.uri: llm_prompt_artifact,
-            }
-        )
-        with unittest.mock.patch(
-            "mlrun.artifacts.llm_prompt.mlrun.datastore.store_manager.get_store_artifact",
-            side_effect=lambda *args, **kwargs: mocked_get_store_artifact(
-                *args, **kwargs
-            ),
-        ):
-            server = function.to_mock_server()
-
-        try:
-            # Send events concurrently with staggered timing
-            def send_event(event, delay):
-                time.sleep(delay)
-                return server.test(body=event)
-
-            # Send 2 events with one error - both should fail
-            error_input = {
-                "question": "ERROR - this should fail",
-                "depth_level": "basic",
-                "persona": "teacher",
-                "tone": "formal",
-            }
-            good_input = BATCH_INPUT_DATA[0]
-
-            # Send both events in parallel - one good, one bad
-            # Both should fail because the batch will fail when processing the error
-            with ThreadPoolExecutor(max_workers=2) as executor:
-                futures = [
-                    executor.submit(send_event, good_input, 0),
-                    executor.submit(
-                        send_event, error_input, UNIT_REQUEST_DELAY_SECONDS
-                    ),
-                ]
-                # Both should fail when the batch encounters the error
-                for future in futures:
-                    with pytest.raises(
-                        RuntimeError, match="Mock error triggered by ERROR keyword"
-                    ):
-                        future.result()
-        finally:
-            server.wait_for_completion()
-
-        # Verify error was tracked
-        dummy_stream = server.context.stream.output_stream
-        assert len(dummy_stream.event_list) == 1
-
-        error_event = dummy_stream.event_list[0]
-        error_inputs = [good_input, error_input]
-        self._verify_batch_error_tracking(error_event, error_inputs)
+class TestMockModelProviderDirectBatch(BaseMockModelProviderTest):
+    """Tests for direct batch invocation (without batch step) with MockModelProvider"""
 
     @pytest.mark.parametrize(
         "execution_mechanism",
@@ -591,6 +527,10 @@ class TestMockModelProvider(BaseMockModelProviderTest):
         event = dummy_stream.event_list[0]
         self._verify_batch_error_tracking(event, inputs)
 
+
+class TestMockModelProviderBatchStep(BaseMockModelProviderTest):
+    """Tests for batch step (with storey.Batch) with MockModelProvider"""
+
     @pytest.mark.parametrize(
         "execution_mechanism",
         ["process_pool", "dedicated_process", "naive", "asyncio", "thread_pool"],
@@ -669,6 +609,78 @@ class TestMockModelProvider(BaseMockModelProviderTest):
             # Use _verify_batch_tracking for each batch
             self._verify_batch_tracking(event, inputs=batch_inputs)
             start_idx = end_idx
+
+    @pytest.mark.parametrize(
+        "execution_mechanism",
+        ["process_pool", "dedicated_process", "naive", "asyncio", "thread_pool"],
+    )
+    def test_llmodel_batch_step_with_errors(self, execution_mechanism, rundb_mock):
+        """Test batch step error handling using storey.Batch step with LLModel and MockModelProvider"""
+
+        project = mlrun.new_project("test-mock-batch-graph-errors", save=False)
+        model_url = "mock://my-mock-model"
+
+        model_artifact, llm_prompt_artifact, function = setup_remote_model_test(
+            project,
+            model_url,
+            execution_mechanism=execution_mechanism,
+            batch_step=True,
+            flush_after_seconds=UNIT_TEST_FLUSH_AFTER_SECONDS,
+        )
+        function.set_tracking("dummy://", enable_tracking=True)
+
+        mocked_get_store_artifact = create_mocked_get_store_artifact(
+            {
+                model_artifact.uri: model_artifact,
+                llm_prompt_artifact.uri: llm_prompt_artifact,
+            }
+        )
+        with unittest.mock.patch(
+            "mlrun.artifacts.llm_prompt.mlrun.datastore.store_manager.get_store_artifact",
+            side_effect=lambda *args, **kwargs: mocked_get_store_artifact(
+                *args, **kwargs
+            ),
+        ):
+            server = function.to_mock_server()
+
+        try:
+            # Send events concurrently with staggered timing
+            def send_event(event, delay):
+                time.sleep(delay)
+                return server.test(body=event)
+
+            # Send 2 events with one error - both should fail
+            error_input = {
+                "question": "ERROR - this should fail",
+                "depth_level": "basic",
+                "persona": "teacher",
+                "tone": "formal",
+            }
+            good_input = BATCH_INPUT_DATA[0]
+
+            # Send both events in parallel - one good, one bad
+            # Both should fail because the batch will fail when processing the error
+            with ThreadPoolExecutor(max_workers=2) as executor:
+                futures = [
+                    executor.submit(send_event, good_input, 0),
+                    executor.submit(send_event, error_input, UNIT_REQUEST_DELAY_SECONDS),
+                ]
+                # Both should fail when the batch encounters the error
+                for future in futures:
+                    with pytest.raises(
+                        RuntimeError, match="Mock error triggered by ERROR keyword"
+                    ):
+                        future.result()
+        finally:
+            server.wait_for_completion()
+
+        # Verify error was tracked
+        dummy_stream = server.context.stream.output_stream
+        assert len(dummy_stream.event_list) == 1
+
+        error_event = dummy_stream.event_list[0]
+        error_inputs = [good_input, error_input]
+        self._verify_batch_error_tracking(error_event, error_inputs)
 
     @pytest.mark.parametrize(
         "execution_mechanism",

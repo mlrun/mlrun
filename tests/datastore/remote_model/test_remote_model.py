@@ -217,6 +217,95 @@ class BaseMockModelProviderTest:
                 # Unit test - use server.test()
                 invoke_func(body=inputs_with_error)
 
+    def _setup_multiple_models_server(
+        self,
+        project,
+        model_url,
+        execution_mechanism,
+        function_name="test-llm-function",
+        batch_step=False,
+    ):
+        """Helper to set up a server with multiple models for testing
+
+        :param batch_step: If True, adds storey.Batch and FlatMap steps for batch step testing
+        """
+        # Create model artifact
+        model_artifact = project.log_model(
+            "model_key",
+            model_url=model_url,
+        )
+
+        llm_prompt_artifact = project.log_llm_prompt(
+            "llm_artifact",
+            prompt_template=PROMPT_TEMPLATE,
+            description="test llm prompt",
+            prompt_legend=PROMPT_LEGEND,
+            model_artifact=model_artifact,
+        )
+
+        # Create serving function
+        function = project.set_function(
+            name=function_name,
+            kind="serving",
+        )
+        function.set_tracking("dummy://", enable_tracking=True)
+
+        graph = function.set_topology("flow", engine="async")
+
+        if batch_step:
+            # Add batch step for batch step tests
+            graph = graph.to(
+                "storey.Batch",
+                "my_batching",
+                max_events=2,
+                flush_after_seconds=UNIT_TEST_FLUSH_AFTER_SECONDS,
+                full_event=True,
+            )
+
+        model_runner_step = ModelRunnerStep(name="my_model_runner")
+
+        # Add first model
+        model_runner_step.add_model(
+            endpoint_name="my_endpoint",
+            model_artifact=llm_prompt_artifact,
+            execution_mechanism=execution_mechanism,
+            model_class="mlrun.serving.states.LLModel",
+            result_path="output",
+        )
+
+        # Add second model
+        model_runner_step.add_model(
+            endpoint_name="my_endpoint_2",
+            model_artifact=llm_prompt_artifact,
+            execution_mechanism=execution_mechanism,
+            model_class="mlrun.serving.states.LLModel",
+            result_path="output",
+        )
+
+        step = graph.to(model_runner_step)
+
+        if batch_step:
+            # FlatMap unpacks batch results back to individual events
+            step = step.to("storey.FlatMap", _fn="(event.body)", full_event=True)
+
+        step.respond()
+
+        mocked_get_store_artifact = create_mocked_get_store_artifact(
+            {
+                model_artifact.uri: model_artifact,
+                llm_prompt_artifact.uri: llm_prompt_artifact,
+            }
+        )
+        with unittest.mock.patch(
+            "mlrun.artifacts.llm_prompt.mlrun.datastore.store_manager.get_store_artifact",
+            side_effect=lambda *args, **kwargs: mocked_get_store_artifact(
+                *args, **kwargs
+            ),
+        ):
+            server = function.to_mock_server()
+
+        return server
+
 
 class TestMockModelProviderSingleInvoke(BaseMockModelProviderTest):
     """Tests for single invocation with MockModelProvider"""
@@ -312,69 +401,6 @@ class TestMockModelProviderSingleInvoke(BaseMockModelProviderTest):
 class TestMockModelProviderDirectBatch(BaseMockModelProviderTest):
     """Tests for direct batch invocation (without batch step) with MockModelProvider"""
 
-    @staticmethod
-    def _setup_multiple_models_server(project, execution_mechanism):
-        """Helper to set up a server with multiple models for direct batch testing"""
-        # Create model artifact
-        model_artifact = project.log_model(
-            "model_key",
-            model_url="mock://my-mock-model",
-        )
-
-        llm_prompt_artifact = project.log_llm_prompt(
-            "llm_artifact",
-            prompt_template=PROMPT_TEMPLATE,
-            description="test llm prompt",
-            prompt_legend=PROMPT_LEGEND,
-            model_artifact=model_artifact,
-        )
-
-        # Create serving function
-        function = project.set_function(
-            name="test-mock-multiple-models",
-            kind="serving",
-        )
-        function.set_tracking("dummy://", enable_tracking=True)
-
-        graph = function.set_topology("flow", engine="async")
-        model_runner_step = ModelRunnerStep(name="my_model_runner")
-
-        # Add first model
-        model_runner_step.add_model(
-            endpoint_name="my_endpoint",
-            model_artifact=llm_prompt_artifact,
-            execution_mechanism=execution_mechanism,
-            model_class="mlrun.serving.states.LLModel",
-            result_path="output",
-        )
-
-        # Add second model
-        model_runner_step.add_model(
-            endpoint_name="my_endpoint_2",
-            model_artifact=llm_prompt_artifact,
-            execution_mechanism=execution_mechanism,
-            model_class="mlrun.serving.states.LLModel",
-            result_path="output",
-        )
-
-        graph.to(model_runner_step).respond()
-
-        mocked_get_store_artifact = create_mocked_get_store_artifact(
-            {
-                model_artifact.uri: model_artifact,
-                llm_prompt_artifact.uri: llm_prompt_artifact,
-            }
-        )
-        with unittest.mock.patch(
-            "mlrun.artifacts.llm_prompt.mlrun.datastore.store_manager.get_store_artifact",
-            side_effect=lambda *args, **kwargs: mocked_get_store_artifact(
-                *args, **kwargs
-            ),
-        ):
-            server = function.to_mock_server()
-
-        return server
-
     @pytest.mark.parametrize(
         "execution_mechanism",
         ["process_pool", "dedicated_process", "naive", "asyncio", "thread_pool"],
@@ -423,8 +449,11 @@ class TestMockModelProviderDirectBatch(BaseMockModelProviderTest):
     def test_llmodel_batch_multiple_models(self, execution_mechanism, rundb_mock):
         """Test batch processing with multiple models using MockModelProvider"""
         project = mlrun.new_project("test-mock-batch-multi", save=False)
+        model_url = "mock://my-mock-model"
 
-        server = self._setup_multiple_models_server(project, execution_mechanism)
+        server = self._setup_multiple_models_server(
+            project, model_url, execution_mechanism, function_name="test-llm-function"
+        )
 
         try:
             # Test batch invocation
@@ -521,7 +550,12 @@ class TestMockModelProviderDirectBatch(BaseMockModelProviderTest):
         # Append error input to BATCH_INPUT_DATA - the ERROR keyword will trigger mock error
         inputs = BATCH_INPUT_DATA + [self.ERROR_INPUT]
 
-        server = self._setup_multiple_models_server(project, model_url)
+        server = self._setup_multiple_models_server(
+            project,
+            model_url,
+            execution_mechanism,
+            function_name="test-llm-function-multi-errors",
+        )
 
         try:
             # Test batch invocation with error - should raise RuntimeError
@@ -674,7 +708,9 @@ class TestMockModelProviderBatchStep(BaseMockModelProviderTest):
             with ThreadPoolExecutor(max_workers=2) as executor:
                 futures = [
                     executor.submit(send_event, good_input, 0),
-                    executor.submit(send_event, self.ERROR_INPUT, UNIT_REQUEST_DELAY_SECONDS),
+                    executor.submit(
+                        send_event, self.ERROR_INPUT, UNIT_REQUEST_DELAY_SECONDS
+                    ),
                 ]
                 # Both should fail when the batch encounters the error
                 for future in futures:
@@ -703,74 +739,13 @@ class TestMockModelProviderBatchStep(BaseMockModelProviderTest):
         project = mlrun.new_project("test-mock-batch-graph-multiple", save=False)
         model_url = "mock://my-mock-model"
 
-        model_artifact = project.log_model(
-            "my_model",
-            model_url=model_url,
+        server = self._setup_multiple_models_server(
+            project,
+            model_url,
+            execution_mechanism,
+            function_name="test-llm-function-batch-multi",
+            batch_step=True,
         )
-
-        llm_prompt_artifact = project.log_llm_prompt(
-            "llm_artifact",
-            prompt_template=PROMPT_TEMPLATE,
-            description="test llm prompt",
-            prompt_legend=PROMPT_LEGEND,
-            model_artifact=model_artifact,
-        )
-
-        # Create serving function
-        function = project.set_function(
-            name="test-llm-function-batch-multi",
-            kind="serving",
-        )
-        function.set_tracking("dummy://", enable_tracking=True)
-        graph = function.set_topology("flow", engine="async")
-
-        # Add batch step
-        graph = graph.to(
-            "storey.Batch",
-            "my_batching",
-            max_events=2,
-            flush_after_seconds=UNIT_TEST_FLUSH_AFTER_SECONDS,
-            full_event=True,
-        )
-
-        model_runner_step = ModelRunnerStep(name="my_model_runner")
-
-        # Add first model
-        model_runner_step.add_model(
-            endpoint_name="my_endpoint",
-            model_artifact=llm_prompt_artifact,
-            execution_mechanism=execution_mechanism,
-            model_class="mlrun.serving.states.LLModel",
-            result_path="output",
-        )
-
-        # Add second model
-        model_runner_step.add_model(
-            endpoint_name="my_endpoint_2",
-            model_artifact=llm_prompt_artifact,
-            execution_mechanism=execution_mechanism,
-            model_class="mlrun.serving.states.LLModel",
-            result_path="output",
-        )
-
-        step = graph.to(model_runner_step)
-        # FlatMap unpacks batch results back to individual events
-        step = step.to("storey.FlatMap", _fn="(event.body)", full_event=True)
-        step.respond()
-
-        mocked_get_store_artifact = create_mocked_get_store_artifact(
-            {
-                model_artifact.uri: model_artifact,
-                llm_prompt_artifact.uri: llm_prompt_artifact,
-            }
-        )
-        with unittest.mock.patch(
-            "mlrun.artifacts.llm_prompt.mlrun.datastore.store_manager.get_store_artifact",
-            side_effect=lambda *args, **kwargs: mocked_get_store_artifact(
-                *args, **kwargs
-            ),
-        ):
-            server = function.to_mock_server()
 
         try:
             # Send events concurrently with staggered timing
@@ -852,74 +827,13 @@ class TestMockModelProviderBatchStep(BaseMockModelProviderTest):
         project = mlrun.new_project("test-mock-batch-graph-multiple-errors", save=False)
         model_url = "mock://my-mock-model"
 
-        model_artifact = project.log_model(
-            "my_model",
-            model_url=model_url,
+        server = self._setup_multiple_models_server(
+            project,
+            model_url,
+            execution_mechanism,
+            function_name="test-llm-function-batch-multi-errors",
+            batch_step=True,
         )
-
-        llm_prompt_artifact = project.log_llm_prompt(
-            "llm_artifact",
-            prompt_template=PROMPT_TEMPLATE,
-            description="test llm prompt",
-            prompt_legend=PROMPT_LEGEND,
-            model_artifact=model_artifact,
-        )
-
-        # Create serving function
-        function = project.set_function(
-            name="test-llm-function-batch-multi-errors",
-            kind="serving",
-        )
-        function.set_tracking("dummy://", enable_tracking=True)
-        graph = function.set_topology("flow", engine="async")
-
-        # Add batch step
-        graph = graph.to(
-            "storey.Batch",
-            "my_batching",
-            max_events=2,
-            flush_after_seconds=UNIT_TEST_FLUSH_AFTER_SECONDS,
-            full_event=True,
-        )
-
-        model_runner_step = ModelRunnerStep(name="my_model_runner")
-
-        # Add first model
-        model_runner_step.add_model(
-            endpoint_name="my_endpoint",
-            model_artifact=llm_prompt_artifact,
-            execution_mechanism=execution_mechanism,
-            model_class="mlrun.serving.states.LLModel",
-            result_path="output",
-        )
-
-        # Add second model
-        model_runner_step.add_model(
-            endpoint_name="my_endpoint_2",
-            model_artifact=llm_prompt_artifact,
-            execution_mechanism=execution_mechanism,
-            model_class="mlrun.serving.states.LLModel",
-            result_path="output",
-        )
-
-        step = graph.to(model_runner_step)
-        # FlatMap unpacks batch results back to individual events
-        step = step.to("storey.FlatMap", _fn="(event.body)", full_event=True)
-        step.respond()
-
-        mocked_get_store_artifact = create_mocked_get_store_artifact(
-            {
-                model_artifact.uri: model_artifact,
-                llm_prompt_artifact.uri: llm_prompt_artifact,
-            }
-        )
-        with unittest.mock.patch(
-            "mlrun.artifacts.llm_prompt.mlrun.datastore.store_manager.get_store_artifact",
-            side_effect=lambda *args, **kwargs: mocked_get_store_artifact(
-                *args, **kwargs
-            ),
-        ):
-            server = function.to_mock_server()
 
         try:
             # Send events concurrently with staggered timing

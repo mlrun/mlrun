@@ -58,7 +58,6 @@ class MPIResourceSpec(KubeResourceSpec):
         graph=None,
         parameters=None,
         track_models=None,
-        auth=None,
     ):
         super().__init__(
             command=command,
@@ -92,7 +91,6 @@ class MPIResourceSpec(KubeResourceSpec):
             graph=graph,
             parameters=parameters,
             track_models=track_models,
-            auth=auth,
         )
         self.mpi_args = mpi_args or [
             "-x",

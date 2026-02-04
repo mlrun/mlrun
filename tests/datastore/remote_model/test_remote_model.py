@@ -571,10 +571,9 @@ class TestMockModelProvider(BaseMockModelProviderTest):
                     executor.submit(send_event, error_input, 0.3),
                 ]
                 # Both should fail when the batch encounters the error
-                error_count = 0
                 for future in futures:
                     with pytest.raises(RuntimeError, match="Mock error triggered by ERROR keyword"):
-                        result = future.result()
+                        future.result()
         finally:
             server.wait_for_completion()
 

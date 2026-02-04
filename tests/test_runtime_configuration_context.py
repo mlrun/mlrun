@@ -15,7 +15,6 @@
 import pytest
 
 import mlrun
-import mlrun.common.constants
 import mlrun.runtime_configuration_context
 
 
@@ -158,37 +157,30 @@ class TestAuthTokenName:
                 is None
             )
 
-    def test_env_var_fallback_when_no_context(self, monkeypatch):
-        """Test that env var is used when no context manager is active."""
-        monkeypatch.setenv(
-            mlrun.common.constants.MLRUN_WORKFLOW_RUNNER_AUTH_TOKEN_NAME_ENV_VAR,
-            "env-token",
+    def test_config_not_used_when_no_context(self, monkeypatch):
+        """Test that config value is not used - only context manager matters."""
+        monkeypatch.setattr(
+            mlrun.mlconf.auth_with_oauth_token,
+            "token_name",
+            "config-token",
         )
 
+        # Even with config set, returns None because no context manager is active
         result = mlrun.runtime_configuration_context.RuntimeConfigurationContext.get_auth_token_name()
-        assert result == "env-token"
+        assert result is None
 
-    def test_context_takes_precedence_over_env_var(self, monkeypatch):
-        """Test that context var takes precedence over env var."""
-        monkeypatch.setenv(
-            mlrun.common.constants.MLRUN_WORKFLOW_RUNNER_AUTH_TOKEN_NAME_ENV_VAR,
-            "env-token",
+    def test_context_only_source_of_token(self, monkeypatch):
+        """Test that only context manager provides the token, not config."""
+        monkeypatch.setattr(
+            mlrun.mlconf.auth_with_oauth_token,
+            "token_name",
+            "config-token",
         )
 
         with mlrun.RuntimeConfigurationContext(auth_token_name="context-token"):
             result = mlrun.runtime_configuration_context.RuntimeConfigurationContext.get_auth_token_name()
             assert result == "context-token"
 
-        # After context exits, falls back to env var
-        result = mlrun.runtime_configuration_context.RuntimeConfigurationContext.get_auth_token_name()
-        assert result == "env-token"
-
-    def test_returns_none_when_neither_context_nor_env_var_set(self, monkeypatch):
-        """Test that None is returned when neither context nor env var is set."""
-        monkeypatch.delenv(
-            mlrun.common.constants.MLRUN_WORKFLOW_RUNNER_AUTH_TOKEN_NAME_ENV_VAR,
-            raising=False,
-        )
-
+        # After context exits, returns None (not config value)
         result = mlrun.runtime_configuration_context.RuntimeConfigurationContext.get_auth_token_name()
         assert result is None

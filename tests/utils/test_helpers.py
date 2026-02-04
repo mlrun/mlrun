@@ -2131,10 +2131,12 @@ def test_set_auth_token_name_works_with_run_spec():
     assert spec.auth["token_name"] == "my-token"
 
 
-def test_set_auth_token_name_works_with_kube_resource_spec():
-    """Test that set_auth_token_name works with actual KubeResourceSpec."""
-    import mlrun.runtimes.pod
+def test_set_auth_token_name_works_with_nuclio_spec():
+    """Test that set_auth_token_name works with actual NuclioSpec.
 
-    spec = mlrun.runtimes.pod.KubeResourceSpec()
+    Note: auth on function spec is only supported for Nuclio runtimes, not job runtimes.
+    """
+
+    spec = mlrun.runtimes.nuclio.function.NuclioSpec()
     set_auth_token_name(spec, "my-token")
     assert spec.auth["token_name"] == "my-token"

@@ -37,6 +37,14 @@ UNIT_REQUEST_DELAY_SECONDS = 0.2  # Delay between
 class BaseMockModelProviderTest:
     """Base class with common helper methods for MockModelProvider tests"""
 
+    # Error input to trigger MockModelProvider error
+    ERROR_INPUT = {
+        "question": "ERROR - this should fail",
+        "depth_level": "basic",
+        "persona": "teacher",
+        "tone": "formal",
+    }
+
     def _verify_single_response(self, response, expect_counter=False):
         """Verify structure and content of single invocation response"""
         assert len(response) == 2  # answer + usage
@@ -174,14 +182,6 @@ class BaseMockModelProviderTest:
         self, invoke_func, mlrun_model_name: Optional[str] = None
     ):
         """Helper to test single invocation with error and verify error is raised"""
-        # Single input with ERROR keyword to trigger mock error
-        error_input = {
-            "question": "ERROR - this should fail",
-            "depth_level": "basic",
-            "persona": "teacher",
-            "tone": "formal",
-        }
-
         # Should raise RuntimeError with "Mock error triggered" message
         with pytest.raises(
             RuntimeError, match=".*Mock error triggered by ERROR keyword.*"
@@ -190,25 +190,18 @@ class BaseMockModelProviderTest:
                 # System test - use function.invoke()
                 invoke_func(
                     f"v2/models/{mlrun_model_name}/infer",
-                    json.dumps(error_input),
+                    json.dumps(self.ERROR_INPUT),
                 )
             else:
                 # Unit test - use server.test()
-                invoke_func(body=error_input)
+                invoke_func(body=self.ERROR_INPUT)
 
     def _check_batch_invocation_with_error(
         self, invoke_func, mlrun_model_name: Optional[str] = None
     ):
         """Helper to test batch invocation with error and verify error is raised"""
         # Append error input to BATCH_INPUT_DATA - the ERROR keyword will trigger mock error
-        inputs_with_error = BATCH_INPUT_DATA + [
-            {
-                "question": "ERROR - this should fail",
-                "depth_level": "basic",
-                "persona": "teacher",
-                "tone": "formal",
-            }
-        ]
+        inputs_with_error = BATCH_INPUT_DATA + [self.ERROR_INPUT]
 
         # Should raise RuntimeError with "Mock error triggered" message
         with pytest.raises(
@@ -283,14 +276,6 @@ class TestMockModelProviderSingleInvoke(BaseMockModelProviderTest):
         project = mlrun.new_project("test-mock-model-single-error", save=False)
         model_url = "mock://my-mock-model"
 
-        # Single input with ERROR keyword
-        error_input = {
-            "question": "ERROR - this should fail",
-            "depth_level": "basic",
-            "persona": "teacher",
-            "tone": "formal",
-        }
-
         model_artifact, llm_prompt_artifact, function = setup_remote_model_test(
             project,
             model_url,
@@ -321,11 +306,74 @@ class TestMockModelProviderSingleInvoke(BaseMockModelProviderTest):
         # Verify error was tracked
         dummy_stream = server.context.stream.output_stream
         event = dummy_stream.event_list[0]
-        self._verify_single_error_tracking(event, error_input)
+        self._verify_single_error_tracking(event, self.ERROR_INPUT)
 
 
 class TestMockModelProviderDirectBatch(BaseMockModelProviderTest):
     """Tests for direct batch invocation (without batch step) with MockModelProvider"""
+
+    @staticmethod
+    def _setup_multiple_models_server(project, execution_mechanism):
+        """Helper to set up a server with multiple models for direct batch testing"""
+        # Create model artifact
+        model_artifact = project.log_model(
+            "model_key",
+            model_url="mock://my-mock-model",
+        )
+
+        llm_prompt_artifact = project.log_llm_prompt(
+            "llm_artifact",
+            prompt_template=PROMPT_TEMPLATE,
+            description="test llm prompt",
+            prompt_legend=PROMPT_LEGEND,
+            model_artifact=model_artifact,
+        )
+
+        # Create serving function
+        function = project.set_function(
+            name="test-mock-multiple-models",
+            kind="serving",
+        )
+        function.set_tracking("dummy://", enable_tracking=True)
+
+        graph = function.set_topology("flow", engine="async")
+        model_runner_step = ModelRunnerStep(name="my_model_runner")
+
+        # Add first model
+        model_runner_step.add_model(
+            endpoint_name="my_endpoint",
+            model_artifact=llm_prompt_artifact,
+            execution_mechanism=execution_mechanism,
+            model_class="mlrun.serving.states.LLModel",
+            result_path="output",
+        )
+
+        # Add second model
+        model_runner_step.add_model(
+            endpoint_name="my_endpoint_2",
+            model_artifact=llm_prompt_artifact,
+            execution_mechanism=execution_mechanism,
+            model_class="mlrun.serving.states.LLModel",
+            result_path="output",
+        )
+
+        graph.to(model_runner_step).respond()
+
+        mocked_get_store_artifact = create_mocked_get_store_artifact(
+            {
+                model_artifact.uri: model_artifact,
+                llm_prompt_artifact.uri: llm_prompt_artifact,
+            }
+        )
+        with unittest.mock.patch(
+            "mlrun.artifacts.llm_prompt.mlrun.datastore.store_manager.get_store_artifact",
+            side_effect=lambda *args, **kwargs: mocked_get_store_artifact(
+                *args, **kwargs
+            ),
+        ):
+            server = function.to_mock_server()
+
+        return server
 
     @pytest.mark.parametrize(
         "execution_mechanism",
@@ -368,10 +416,6 @@ class TestMockModelProviderDirectBatch(BaseMockModelProviderTest):
         event = dummy_stream.event_list[0]
         self._verify_batch_tracking(event)
 
-
-class TestMockModelProviderDirectBatch(BaseMockModelProviderTest):
-    """Tests for direct batch invocation (without batch step) with MockModelProvider"""
-
     @pytest.mark.parametrize(
         "execution_mechanism",
         ["process_pool", "dedicated_process", "naive", "asyncio", "thread_pool"],
@@ -379,65 +423,8 @@ class TestMockModelProviderDirectBatch(BaseMockModelProviderTest):
     def test_llmodel_batch_multiple_models(self, execution_mechanism, rundb_mock):
         """Test batch processing with multiple models using MockModelProvider"""
         project = mlrun.new_project("test-mock-batch-multi", save=False)
-        model_url = "mock://my-mock-model"
 
-        # Create model artifact
-        model_artifact = project.log_model(
-            "model_key",
-            model_url=model_url,
-        )
-
-        llm_prompt_artifact = project.log_llm_prompt(
-            "llm_artifact",
-            prompt_template=PROMPT_TEMPLATE,
-            description="test llm prompt",
-            prompt_legend=PROMPT_LEGEND,
-            model_artifact=model_artifact,
-        )
-
-        # Create serving function
-        function = project.set_function(
-            name="test-llm-function",
-            kind="serving",
-        )
-        function.set_tracking("dummy://", enable_tracking=True)
-
-        graph = function.set_topology("flow", engine="async")
-        model_runner_step = ModelRunnerStep(name="my_model_runner")
-
-        # Add first model
-        model_runner_step.add_model(
-            endpoint_name="my_endpoint",
-            model_artifact=llm_prompt_artifact,
-            execution_mechanism=execution_mechanism,
-            model_class="mlrun.serving.states.LLModel",
-            result_path="output",
-        )
-
-        # Add second model
-        model_runner_step.add_model(
-            endpoint_name="my_endpoint_2",
-            model_artifact=llm_prompt_artifact,
-            execution_mechanism=execution_mechanism,
-            model_class="mlrun.serving.states.LLModel",
-            result_path="output",
-        )
-
-        graph.to(model_runner_step).respond()
-
-        mocked_get_store_artifact = create_mocked_get_store_artifact(
-            {
-                model_artifact.uri: model_artifact,
-                llm_prompt_artifact.uri: llm_prompt_artifact,
-            }
-        )
-        with unittest.mock.patch(
-            "mlrun.artifacts.llm_prompt.mlrun.datastore.store_manager.get_store_artifact",
-            side_effect=lambda *args, **kwargs: mocked_get_store_artifact(
-                *args, **kwargs
-            ),
-        ):
-            server = function.to_mock_server()
+        server = self._setup_multiple_models_server(project, execution_mechanism)
 
         try:
             # Test batch invocation
@@ -486,14 +473,7 @@ class TestMockModelProviderDirectBatch(BaseMockModelProviderTest):
         model_url = "mock://my-mock-model"
 
         # Append error input to BATCH_INPUT_DATA - the ERROR keyword will trigger mock error
-        inputs = BATCH_INPUT_DATA + [
-            {
-                "question": "ERROR - this should fail",
-                "depth_level": "basic",
-                "persona": "teacher",
-                "tone": "formal",
-            }
-        ]
+        inputs = BATCH_INPUT_DATA + [self.ERROR_INPUT]
 
         model_artifact, llm_prompt_artifact, function = setup_remote_model_test(
             project,
@@ -526,6 +506,43 @@ class TestMockModelProviderDirectBatch(BaseMockModelProviderTest):
         dummy_stream = server.context.stream.output_stream
         event = dummy_stream.event_list[0]
         self._verify_batch_error_tracking(event, inputs)
+
+    @pytest.mark.parametrize(
+        "execution_mechanism",
+        ["process_pool", "dedicated_process", "naive", "asyncio", "thread_pool"],
+    )
+    def test_llmodel_batch_multiple_models_with_errors(
+        self, execution_mechanism, rundb_mock
+    ):
+        """Test that batch processing with multiple models fails fast when MockModelProvider raises error"""
+        project = mlrun.new_project("test-mock-batch-multi-errors", save=False)
+        model_url = "mock://my-mock-model"
+
+        # Append error input to BATCH_INPUT_DATA - the ERROR keyword will trigger mock error
+        inputs = BATCH_INPUT_DATA + [self.ERROR_INPUT]
+
+        server = self._setup_multiple_models_server(project, model_url)
+
+        try:
+            # Test batch invocation with error - should raise RuntimeError
+            with pytest.raises(
+                RuntimeError, match=".*Mock error triggered by ERROR keyword.*"
+            ):
+                server.test(body=inputs)
+        finally:
+            server.wait_for_completion()
+
+        # Verify error was tracked - should have 2 events (one per model)
+        dummy_stream = server.context.stream.output_stream
+        assert len(dummy_stream.event_list) == 2
+
+        # Verify both model events have error tracking
+        model_events = {event["model"]: event for event in dummy_stream.event_list}
+        assert "my_endpoint" in model_events
+        assert "my_endpoint_2" in model_events
+
+        for model_name, event in model_events.items():
+            self._verify_batch_error_tracking(event, inputs, model_name)
 
 
 class TestMockModelProviderBatchStep(BaseMockModelProviderTest):
@@ -650,12 +667,6 @@ class TestMockModelProviderBatchStep(BaseMockModelProviderTest):
                 return server.test(body=event)
 
             # Send 2 events with one error - both should fail
-            error_input = {
-                "question": "ERROR - this should fail",
-                "depth_level": "basic",
-                "persona": "teacher",
-                "tone": "formal",
-            }
             good_input = BATCH_INPUT_DATA[0]
 
             # Send both events in parallel - one good, one bad
@@ -663,7 +674,7 @@ class TestMockModelProviderBatchStep(BaseMockModelProviderTest):
             with ThreadPoolExecutor(max_workers=2) as executor:
                 futures = [
                     executor.submit(send_event, good_input, 0),
-                    executor.submit(send_event, error_input, UNIT_REQUEST_DELAY_SECONDS),
+                    executor.submit(send_event, self.ERROR_INPUT, UNIT_REQUEST_DELAY_SECONDS),
                 ]
                 # Both should fail when the batch encounters the error
                 for future in futures:
@@ -679,7 +690,7 @@ class TestMockModelProviderBatchStep(BaseMockModelProviderTest):
         assert len(dummy_stream.event_list) == 1
 
         error_event = dummy_stream.event_list[0]
-        error_inputs = [good_input, error_input]
+        error_inputs = [good_input, self.ERROR_INPUT]
         self._verify_batch_error_tracking(error_event, error_inputs)
 
     @pytest.mark.parametrize(
@@ -917,12 +928,6 @@ class TestMockModelProviderBatchStep(BaseMockModelProviderTest):
                 return server.test(body=event)
 
             # Send 2 events with one error in a batch
-            error_input = {
-                "question": "ERROR - this should fail",
-                "depth_level": "basic",
-                "persona": "teacher",
-                "tone": "formal",
-            }
             good_input = BATCH_INPUT_DATA[0]
 
             # Send both events in parallel - one good, one bad
@@ -931,7 +936,7 @@ class TestMockModelProviderBatchStep(BaseMockModelProviderTest):
                 futures = [
                     executor.submit(send_event, good_input, 0),
                     executor.submit(
-                        send_event, error_input, UNIT_REQUEST_DELAY_SECONDS
+                        send_event, self.ERROR_INPUT, UNIT_REQUEST_DELAY_SECONDS
                     ),
                 ]
                 # Both should fail when the batch encounters the error
@@ -954,7 +959,7 @@ class TestMockModelProviderBatchStep(BaseMockModelProviderTest):
         assert "my_endpoint_2" in model_events
 
         # Verify the error batch for both models
-        error_inputs = [good_input, error_input]
+        error_inputs = [good_input, self.ERROR_INPUT]
         for model_name in ["my_endpoint", "my_endpoint_2"]:
             error_event = model_events[model_name]
             self._verify_batch_error_tracking(error_event, error_inputs, model_name)

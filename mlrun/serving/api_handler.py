@@ -1,0 +1,169 @@
+# Copyright 2026 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+"""API Handler implementation for serving graphs"""
+
+from http import HTTPMethod
+
+import mlrun.common.schemas as schemas
+import mlrun.errors
+import mlrun.runtimes.nuclio.serving
+import mlrun.serving.server
+import mlrun.serving.states
+import mlrun.serving.utils as serving_utils
+import mlrun.utils
+from mlrun.common.schemas.serving import _APIEndpointKeys
+
+
+class _APIHandlerStep(mlrun.serving.states.TaskStep):
+    """Private API handler step for routing and validating serving requests"""
+
+    kind = "api_handler"
+    default_shape = "diamond"
+
+    def __init__(
+        self,
+        config: mlrun.runtimes.nuclio.serving.APIHandlerConfig | dict | None = None,
+        name: str | None = None,
+        context: mlrun.serving.server.GraphContext | None = None,
+        **kwargs,
+    ):
+        # Filter kwargs to only pass what BaseStep expects
+        base_kwargs = {
+            k: v for k, v in kwargs.items() if k in ["after", "shape", "max_iterations"]
+        }
+        super().__init__(name=name or "api-handler", **base_kwargs)
+
+        if isinstance(config, dict):
+            self.config = mlrun.runtimes.nuclio.serving.APIHandlerConfig.from_dict(
+                config
+            )
+        elif isinstance(config, mlrun.runtimes.nuclio.serving.APIHandlerConfig):
+            self.config = config
+        else:
+            self.config = mlrun.runtimes.nuclio.serving.APIHandlerConfig()
+        self.context = context
+
+    def do(self, event):
+        """Handle incoming request and validate against configured endpoints"""
+        try:
+            # In MLRun serving framework, the actual event metadata is available in the context
+            # while the event parameter here is typically the body content
+            method = None
+            path = None
+
+            # Try to get event details from context if available
+            if hasattr(self, "context") and self.context:
+                # Check for current event stored in context
+                if hasattr(self.context, "current_event"):
+                    original_event = self.context.current_event
+                    method = getattr(original_event, "method", None)
+                    path = getattr(original_event, "path", None)
+                # Fallback to other context sources if needed
+                elif hasattr(self.context, "trigger") and hasattr(
+                    self.context.trigger, "headers"
+                ):
+                    headers = self.context.trigger.headers or {}
+                    method_str = headers.get("method")
+                    if method_str:
+                        method = HTTPMethod(method_str.upper())
+                    path = headers.get("path")
+
+            # Validate that we have both method and path
+            if method is None:
+                raise mlrun.errors.MLRunBadRequestError(
+                    "HTTP method not found in request context"
+                )
+            if path is None:
+                raise mlrun.errors.MLRunBadRequestError(
+                    "Request path not found in request context"
+                )
+
+            # Convert string method to HTTPMethod if needed
+            if isinstance(method, str):
+                try:
+                    method = HTTPMethod(method.upper())
+                except ValueError:
+                    raise mlrun.errors.MLRunBadRequestError(
+                        f"Unsupported HTTP method: {method}"
+                    )
+
+            mlrun.utils.logger.debug(
+                "API handler processing request",
+                method=method.value,
+                path=path,
+                endpoints_count=len(self.config._endpoints),
+            )
+
+            # Find matching endpoint
+            matching_endpoint_key = self._match_endpoint(method, path)
+
+            if not matching_endpoint_key:
+                # No matching endpoint found
+                mlrun.utils.logger.warning(
+                    "No matching endpoint found",
+                    method=method.value,
+                    path=path,
+                )
+                raise mlrun.errors.MLRunNotFoundError(
+                    f"Endpoint not found: {method.value} {path}"
+                )
+
+            # Get endpoint definition
+            endpoint_def = self.config._endpoints[matching_endpoint_key]
+            action = endpoint_def[_APIEndpointKeys.ACTION]
+
+            # Parse the endpoint key for logging
+            matched_method, matched_path = self.config._parse_endpoint_key(
+                matching_endpoint_key
+            )
+
+            mlrun.utils.logger.debug(
+                "Found matching endpoint",
+                method=method.value,
+                path=path,
+                matched_path=matched_path,
+                action=action,
+            )
+
+            # Handle the action
+            if action == schemas.APIHandlerAction.ALLOW:
+                # Pass the event to the next step in the graph
+                return event
+            elif action == schemas.APIHandlerAction.FORBID:
+                # Reject the request
+                raise mlrun.errors.MLRunBadRequestError(
+                    f"Access forbidden to {method.value} {path}"
+                )
+            else:
+                raise mlrun.errors.MLRunBadRequestError(f"Unknown action: {action}")
+
+        except Exception as exc:
+            # Log the error and re-raise
+            mlrun.utils.logger.error(
+                "API handler error",
+                error=str(exc),
+                method=getattr(event, "method", "unknown"),
+                path=getattr(event, "path", "unknown"),
+            )
+            raise
+
+    def _match_endpoint(self, method: HTTPMethod, path: str) -> str | None:
+        """Find matching endpoint key for the given method and path"""
+        # Only exact matches supported
+        endpoint_key = serving_utils._combine_serving_endpoint_key(method, path)
+        if endpoint_key in self.config._endpoints:
+            return endpoint_key
+
+        return None

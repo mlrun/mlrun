@@ -3078,9 +3078,7 @@ class FlowStep(BaseStep):
     @staticmethod
     async def _await_and_return_id(awaitable, event):
         await awaitable
-        event = copy(event)
-        event.body = {"id": event.id}
-        return event
+        return {"id": event.id}
 
     def run(self, event, *args, **kwargs):
         if self._controller:

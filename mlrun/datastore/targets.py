@@ -98,7 +98,10 @@ def write_spark_dataframe_with_options(spark_options, df, mode, write_format=Non
 
 def default_target_names():
     targets = mlrun.mlconf.feature_store.default_targets
-    return [target.strip() for target in targets.split(",")]
+    names = [target.strip() for target in targets.split(",")]
+    if not mlrun.mlconf.is_using_v3io():
+        names = [t for t in names if t != "nosql"]
+    return names
 
 
 def get_default_targets(offline_only=False):

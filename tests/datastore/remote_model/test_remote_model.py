@@ -532,7 +532,7 @@ class TestMockModelProvider(BaseMockModelProviderTest):
             model_url,
             execution_mechanism=execution_mechanism,
             batch_step=True,
-            flush_after_seconds=0.7,
+            flush_after_seconds=UNIT_TEST_FLUSH_AFTER_SECONDS,
         )
         function.set_tracking("dummy://", enable_tracking=True)
 

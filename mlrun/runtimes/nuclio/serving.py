@@ -15,10 +15,12 @@ import json
 import os
 from base64 import b64decode
 from copy import deepcopy
+from http import HTTPMethod
 from typing import Optional, Union
 
 import nuclio
 from nuclio import KafkaTrigger
+from nuclio.triggers import NuclioTrigger
 
 import mlrun
 import mlrun.common.schemas as schemas
@@ -27,6 +29,8 @@ import mlrun.datastore.datastore_profile as ds_profile
 import mlrun.runtimes.kubejob as kubejob_runtime
 import mlrun.runtimes.nuclio.function as nuclio_function
 import mlrun.runtimes.pod as pod_runtime
+import mlrun.serving.utils as serving_utils
+from mlrun.common.schemas.serving import _APIEndpointKeys
 from mlrun.datastore import get_kafka_brokers_from_dict, parse_kafka_url
 from mlrun.model import ObjectList
 from mlrun.runtimes.function_reference import FunctionReference
@@ -48,6 +52,94 @@ from mlrun.serving.states import (
 from mlrun.utils import get_caller_globals, logger, merge_requirements, set_paths
 
 serving_subkind = "serving_v2"
+
+
+class APIHandlerConfig(mlrun.model.ModelObj):
+    """Configuration for API handler in serving graph"""
+
+    _dict_fields = ["enabled", "endpoints"]
+
+    def __init__(self, enabled: bool = True, endpoints: dict[str, dict] | None = None):
+        self.enabled = enabled
+        self._endpoints = endpoints or {}
+
+    @property
+    def endpoints(self) -> dict[str, dict]:
+        """Get the endpoints configuration as a dictionary."""
+        return self._endpoints
+
+    @endpoints.setter
+    def endpoints(self, endpoints: dict[str, dict]) -> None:
+        """Set the endpoints configuration from a dictionary."""
+        self._endpoints = {}
+        for endpoint_key, config in endpoints.items():
+            method, path = self._parse_endpoint_key(endpoint_key)
+            self.add_endpoint_handler(
+                path=path,
+                http_method=method,
+                action=schemas.serving.APIHandlerAction(
+                    config.get(_APIEndpointKeys.ACTION)
+                ),
+                description=config.get(_APIEndpointKeys.DESCRIPTION),
+            )
+
+    def _parse_endpoint_key(self, endpoint_key: str) -> tuple[HTTPMethod, str]:
+        """Parse endpoint key 'METHOD:path' back to method and path components."""
+        try:
+            return serving_utils._split_serving_endpoint_key(endpoint_key)
+        except (ValueError, AttributeError) as e:
+            raise ValueError(
+                f"Invalid endpoint key format '{endpoint_key}'. Expected 'METHOD:path'"
+            ) from e
+
+    def get_endpoint_config(self, method: HTTPMethod, path: str) -> dict | None:
+        """Get endpoint configuration for a specific method and path."""
+        endpoint_key = serving_utils._combine_serving_endpoint_key(method, path)
+        return self._endpoints.get(endpoint_key)
+
+    def add_endpoint_handler(
+        self,
+        path: str,
+        http_method: HTTPMethod = HTTPMethod.POST,
+        action: schemas.serving.APIHandlerAction = schemas.serving.APIHandlerAction.ALLOW,
+        description: str | None = None,
+    ) -> None:
+        """Add an endpoint handler configuration.
+
+        :param path: URL path for the endpoint (e.g., '/v1/models')
+        :param http_method: HTTP method for the endpoint
+        :param action: Action to take for this endpoint (:py:class:`~mlrun.common.schemas.serving.APIHandlerAction`)
+        :param description: Optional description of the endpoint
+        """
+        endpoint_key = serving_utils._combine_serving_endpoint_key(http_method, path)
+
+        # Warn if overriding an existing endpoint
+        if endpoint_key in self._endpoints:
+            logger.warning(
+                "Overriding existing endpoint handler configuration",
+                method=http_method.value,
+                path=path,
+                old_action=self._endpoints[endpoint_key].get(_APIEndpointKeys.ACTION),
+                new_action=str(action),
+            )
+
+        self._endpoints[endpoint_key] = {
+            _APIEndpointKeys.ACTION: str(action),
+            _APIEndpointKeys.DESCRIPTION: description,
+        }
+
+    def remove_endpoint_handler(
+        self,
+        path: str,
+        http_method: HTTPMethod = HTTPMethod.POST,
+    ) -> None:
+        """Remove an endpoint handler configuration.
+
+        :param path: URL path for the endpoint to remove
+        :param http_method: HTTP method for the endpoint to remove
+        """
+        endpoint_key = serving_utils._combine_serving_endpoint_key(http_method, path)
+        self._endpoints.pop(endpoint_key, None)
 
 
 def new_v2_model_server(
@@ -97,6 +189,8 @@ class ServingSpec(nuclio_function.NuclioSpec):
         "default_class",
         "secret_sources",
         "track_models",
+        "streaming",
+        "api_handler_config",
     ]
 
     def __init__(
@@ -154,6 +248,8 @@ class ServingSpec(nuclio_function.NuclioSpec):
         model_endpoint_creation_task_name=None,
         serving_spec=None,
         auth=None,
+        streaming: Optional[bool] = None,
+        api_handler_config: APIHandlerConfig | None = None,
     ):
         super().__init__(
             command=command,
@@ -212,6 +308,12 @@ class ServingSpec(nuclio_function.NuclioSpec):
         self.secret_sources = secret_sources or []
         self.default_content_type = default_content_type
         self.model_endpoint_creation_task_name = model_endpoint_creation_task_name
+        self.streaming = streaming
+        self.api_handler_config = (
+            api_handler_config.to_dict()
+            if isinstance(api_handler_config, APIHandlerConfig)
+            else api_handler_config
+        )
 
     @property
     def graph(self) -> Union[RouterStep, RootFlowStep]:
@@ -383,6 +485,62 @@ class ServingRuntime(nuclio_function.RemoteRuntime):
             self.spec.parameters["log_stream"] = stream_path
         if stream_args:
             self.spec.parameters["stream_args"] = stream_args
+
+    def set_streaming(self, enabled: bool = True) -> None:
+        """Enable or disable streaming mode for the serving function.
+
+        When streaming is enabled, the function handler yields results as they
+        arrive from streaming steps in the graph, allowing for real-time
+        streaming responses (e.g., for LLM token streaming).
+
+        Streaming is only supported with HTTP triggers. When streaming is enabled,
+        non-HTTP triggers cannot be added to the function.
+
+        :param enabled: Enable or disable streaming mode. Default is True.
+
+        Example::
+
+            # Create a serving function with streaming enabled
+            serving_fn = mlrun.code_to_function(kind="serving")
+            serving_fn.set_topology("flow", engine="async")
+            serving_fn.set_streaming(enabled=True)
+
+        """
+        # Validate that only HTTP triggers are configured when enabling streaming
+        if enabled:
+            for key, trigger_spec in self.spec.config.items():
+                if key.startswith("spec.triggers."):
+                    trigger_name = key.split(".")[-1]
+                    trigger_kind = trigger_spec.get("kind", "http")
+                    if trigger_kind != "http":
+                        raise mlrun.errors.MLRunInvalidArgumentError(
+                            f"Streaming is only supported with HTTP triggers. "
+                            f"Found non-HTTP trigger '{trigger_name}' of kind '{trigger_kind}'. "
+                            f"Remove non-HTTP triggers before enabling streaming."
+                        )
+
+        self.spec.streaming = enabled
+
+    def add_trigger(self, name: str, spec: NuclioTrigger | dict):
+        """Add a nuclio trigger object/dict.
+
+        Overrides parent to validate streaming compatibility.
+
+        :param name: trigger name
+        :param spec: trigger object or dict
+        """
+        # Validate streaming compatibility
+        if self.spec.streaming:
+            trigger_spec = spec.to_dict() if hasattr(spec, "to_dict") else spec
+            trigger_kind = trigger_spec.get("kind", "http")
+            if trigger_kind != "http":
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    f"Cannot add non-HTTP trigger '{name}' (kind='{trigger_kind}') "
+                    f"when streaming is enabled. Streaming only supports HTTP triggers. "
+                    f"Either disable streaming with set_streaming(False) or use HTTP triggers only."
+                )
+
+        return super().add_trigger(name, spec)
 
     def add_model(
         self,
@@ -750,9 +908,14 @@ class ServingRuntime(nuclio_function.RemoteRuntime):
             "track_models": self.spec.track_models,
             "default_content_type": self.spec.default_content_type,
             "model_endpoint_creation_task_name": self.spec.model_endpoint_creation_task_name,
+            "streaming": self.spec.streaming,
             # TODO: find another way to pass this (needed for local run)
             "filename": getattr(self.spec, "filename", None),
         }
+
+        # Include API handler config if present
+        if self.spec.api_handler_config:
+            serving_spec["api_handler_config"] = self.spec.api_handler_config
 
         if self.spec.secret_sources:
             self._secrets = SecretsStore.from_list(self.spec.secret_sources)
@@ -811,6 +974,7 @@ class ServingRuntime(nuclio_function.RemoteRuntime):
             function_name=self.metadata.name,
             function_tag=self.metadata.tag,
             project=self.metadata.project,
+            api_handler_config=self.spec.api_handler_config,
             **kwargs,
         )
         server.init_states(
@@ -873,12 +1037,9 @@ class ServingRuntime(nuclio_function.RemoteRuntime):
     ) -> "kubejob_runtime.KubejobRuntime":
         """Convert this ServingRuntime to a KubejobRuntime, so that the graph can be run as a standalone job.
 
-        Args:
-            func_name: Optional custom name for the job function. If not provided, automatically
-                      appends '-batch' suffix to the serving function name to prevent database collision.
-
-        Returns:
-            KubejobRuntime configured to execute the serving graph as a batch job.
+        :param func_name: Optional custom name for the job function. If not provided, automatically
+                         appends '-batch' suffix to the serving function name to prevent database collision.
+        :return: KubejobRuntime configured to execute the serving graph as a batch job.
 
         Note:
             The job will have a different name than the serving function to prevent database collision.
@@ -887,6 +1048,13 @@ class ServingRuntime(nuclio_function.RemoteRuntime):
         if self.spec.function_refs:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 f"Cannot convert function '{self.metadata.name}' to a job because it has child functions"
+            )
+
+        if self.spec.streaming:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"Cannot convert function '{self.metadata.name}' to a job because streaming "
+                f"is enabled. Streaming functions return real-time HTTP responses and cannot "
+                f"run as batch jobs. Please disable streaming with set_streaming(False) first."
             )
 
         self._add_steps_requirements()
@@ -995,3 +1163,47 @@ class ServingRuntime(nuclio_function.RemoteRuntime):
                     reqs_secondary=step_requirements,
                 )
                 self.with_requirements(requirements=reqs_union, overwrite=True)
+
+    def set_api_handler_config(self, config: Union[APIHandlerConfig, dict]) -> None:
+        """Set the API handler configuration for the serving function.
+
+        :param config: :py:class:`~mlrun.runtimes.nuclio.serving.APIHandlerConfig` object or dictionary containing
+                      the configuration for handling different API endpoints and their actions.
+
+        Example::
+
+            # Using APIHandlerConfig object
+            from mlrun.runtimes.nuclio.serving import APIHandlerConfig
+            from mlrun.common.schemas.serving import APIHandlerAction
+            from http import HTTPMethod
+
+            api_config = APIHandlerConfig()
+            api_config.add_endpoint_handler(
+                "/v1/models", HTTPMethod.GET, APIHandlerAction.ALLOW
+            )
+            serving_fn.set_api_handler_config(api_config)
+
+            # Using dictionary
+            serving_fn.set_api_handler_config(
+                {"endpoints": {("GET", "/v1/models"): {"action": "allow"}}}
+            )
+        """
+        if isinstance(config, APIHandlerConfig):
+            config = config.to_dict()
+        elif isinstance(config, dict):
+            # Validate the dict by converting it to APIHandlerConfig and back
+            # This ensures it has the correct format
+            try:
+                validated_config = APIHandlerConfig.from_dict(config)
+                config = validated_config.to_dict()
+            except Exception as exc:
+                raise ValueError(
+                    f"Invalid API handler config dict format: {exc}"
+                ) from exc
+        else:
+            raise ValueError(
+                f"config must be `APIHandlerConfig` or a `dict`, got {type(config)}"
+            )
+
+        # Store the configuration in the spec for serialization
+        self.spec.api_handler_config = config

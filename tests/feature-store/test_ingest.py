@@ -94,6 +94,23 @@ def test_set_targets_with_string():
     assert not nosql_target.partitioned
 
 
+def test_get_default_targets_excludes_nosql_when_v3io_unavailable(monkeypatch):
+    """ML-12070: nosql (V3IO-backed) should be excluded from defaults when V3IO is unavailable."""
+    from mlrun.datastore.targets import get_default_targets
+
+    monkeypatch.setattr(mlrun.mlconf.httpdb.authentication, "mode", "iguazio-v4")
+    targets = get_default_targets()
+    assert [t.name for t in targets] == ["parquet"]
+
+
+def test_get_default_targets_includes_nosql_when_v3io_available():
+    """ML-12070: nosql should be included in defaults when V3IO is available."""
+    from mlrun.datastore.targets import get_default_targets
+
+    targets = get_default_targets()
+    assert [t.name for t in targets] == ["parquet", "nosql"]
+
+
 def test_return_df(rundb_mock):
     fset = fstore.FeatureSet(
         "myset",

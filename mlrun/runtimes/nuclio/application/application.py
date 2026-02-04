@@ -297,6 +297,22 @@ class ApplicationRuntime(nuclio_function.RemoteRuntime):
     def set_internal_application_port(self, port: int):
         self.spec.internal_application_port = port
 
+    def set_source_target(self, target_dir: str):
+        """
+        Configure the target directory where application source code will be extracted at runtime by the init container.
+
+        :param target_dir: Absolute path inside the runtime container where the source code will be placed
+        """
+        if not target_dir:
+            raise mlrun.errors.MLRunInvalidArgumentError("target_dir is required")
+
+        if not target_dir.startswith("/"):
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"target_dir must be an absolute path, got: {target_dir}"
+            )
+
+        self.spec.build.source_code_target_dir = target_dir
+
     def set_probe(
         self,
         type: str,
@@ -887,17 +903,41 @@ class ApplicationRuntime(nuclio_function.RemoteRuntime):
                 "Loading on build will be forced regardless of whether 'pull_at_runtime=True' was configured."
             )
 
+        # We temporarily clear self.spec.build.source here because the parent _build_image() method
+        # would otherwise try to include it in the Docker build context. For store:// URIs, the source
+        # cannot be fetched during build (it requires runtime credentials/context), so we must:
+        # 1. Clear it before build to prevent build context inclusion
+        # 2. Restore it after build so the server can configure the init container for runtime loading
+        source_for_init_container = None
+        if self.spec.build.source and mlrun.datastore.is_store_uri(
+            self.spec.build.source
+        ):
+            source_for_init_container = self.spec.build.source
+            self.spec.build.source = None
+            logger.debug(
+                "Source is a store:// artifact URI - excluding from build, "
+                "init container will load it at runtime",
+                source=source_for_init_container,
+            )
+
         with_mlrun = self._resolve_build_with_mlrun(with_mlrun)
-        return self._build_image(
-            builder_env=builder_env,
-            force_build=force_build,
-            mlrun_version_specifier=mlrun_version_specifier,
-            show_on_failure=show_on_failure,
-            skip_deployed=skip_deployed,
-            watch=watch,
-            is_kfp=is_kfp,
-            with_mlrun=with_mlrun,
-        )
+        try:
+            result = self._build_image(
+                builder_env=builder_env,
+                force_build=force_build,
+                mlrun_version_specifier=mlrun_version_specifier,
+                show_on_failure=show_on_failure,
+                skip_deployed=skip_deployed,
+                watch=watch,
+                is_kfp=is_kfp,
+                with_mlrun=with_mlrun,
+            )
+        finally:
+            # Restore source for init container configuration by the server
+            if source_for_init_container:
+                self.spec.build.source = source_for_init_container
+
+        return result
 
     def _ensure_reverse_proxy_configurations(self):
         # If an HTTP trigger already exists in the spec,

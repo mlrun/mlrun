@@ -613,12 +613,12 @@ class Pipelines(
         token_name = None
         if "/yaml" in content_type:
             try:
-                workflow_manifest = yaml.safe_load(data)
-                token_name = self.resolve_auth_token_name_from_workflow_manifest(
-                    mlrun_pipelines.models.PipelineManifest(workflow_manifest)
+                token_name = self.resolve_auth_token_name_from_workflow_manifest(data)
+            except yaml.YAMLError as exc:
+                mlrun.utils.logger.warning(
+                    "Failed to parse workflow manifest YAML",
+                    error=mlrun.errors.err_to_str(exc),
                 )
-            except Exception:
-                pass
             content_type = ".yaml"
         elif " /zip" in content_type:
             content_type = ".zip"

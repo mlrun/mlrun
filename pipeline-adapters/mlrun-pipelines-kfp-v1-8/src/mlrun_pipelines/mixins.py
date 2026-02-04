@@ -12,9 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
-import json
-
+import yaml
 from orjson import orjson
 
 import mlrun
@@ -72,30 +70,21 @@ class PipelineProviderMixin:
 
         raise mlrun.errors.MLRunMissingProjectError()
 
-    def resolve_auth_token_name_from_workflow_manifest(
-        self, workflow_manifest
-    ) -> str | None:
+    def resolve_auth_token_name_from_workflow_manifest(self, yaml_data) -> str | None:
         """
-        Extract auth_token_name from pipeline manifest MLRUN_EXEC_CONFIG env var.
+        Extract auth_token_name from pipeline manifest env var.
 
         :param workflow_manifest: The pipeline manifest dict
         :return: The auth_token_name if found, None otherwise
         """
+        workflow_manifest = yaml.safe_load(yaml_data)
         templates = workflow_manifest.get("spec", {}).get("templates", [])
         for template in templates:
             container = template.get("container", {})
             env_vars = container.get("env", [])
             for env_var in env_vars:
-                if env_var.get("name") == "MLRUN_EXEC_CONFIG":
-                    try:
-                        exec_config = json.loads(env_var.get("value", "{}"))
-                        return (
-                            exec_config.get("spec", {})
-                            .get("auth", {})
-                            .get("token_name")
-                        )
-                    except (json.JSONDecodeError, TypeError):
-                        return None
+                if env_var.get("name") == "MLRUN_AUTH_WITH_OAUTH_TOKEN__TOKEN_NAME":
+                    return env_var.get("value")
         return None
 
     @staticmethod

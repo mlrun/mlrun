@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import json
 import os
 import os.path
 
@@ -211,14 +210,13 @@ def add_default_env(k8s_client, cop):
             )
         )
 
-    # Add auth token name via MLRUN_EXEC_CONFIG which creates a runobj with spec.auth set
+    # This propagates the token from RuntimeConfigurationContext to argo pods.
     auth_token_name = mlrun.runtime_configuration_context.RuntimeConfigurationContext.get_auth_token_name()
     if auth_token_name:
-        exec_config = {"spec": {"auth": {"token_name": auth_token_name}}}
         cop.container.add_env_variable(
             k8s_client.V1EnvVar(
-                name="MLRUN_EXEC_CONFIG",
-                value=json.dumps(exec_config),
+                name="MLRUN_AUTH_WITH_OAUTH_TOKEN__TOKEN_NAME",
+                value=auth_token_name,
             )
         )
 

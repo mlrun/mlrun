@@ -109,7 +109,9 @@ class BaseMockModelProviderTest:
         """Verify tracking data for error invocation"""
         assert event["request"]["input_schema"] == list(input_data.keys())
         assert event["resp"]["output_schema"] is None
-        assert event["resp"]["outputs"] == [None]
+        # TODO check
+        # for batch step we will got multiple outputs with None, for direct batch, we will got single None result
+        assert event["resp"]["outputs"] == [None] or event["resp"]["outputs"] == [None] * event["effective_sample_count"]
         assert "Mock error triggered by ERROR keyword" in event["error"]
         assert event["model"] == "my_endpoint"
         assert event["labels"] == {}
@@ -126,7 +128,8 @@ class BaseMockModelProviderTest:
         assert event["effective_sample_count"] == len(inputs)
         for i, input_as_list in enumerate(event["request"]["inputs"]):
             assert input_as_list == list(inputs[i].values())
-        self._verify_error_tracking(event, inputs[0])
+        for invocation_input in inputs:
+            self._verify_error_tracking(event, invocation_input)
 
     def _check_single_invocation(
         self, invoke_func, mlrun_model_name: Optional[str] = None
@@ -607,11 +610,8 @@ class TestMockModelProvider(BaseMockModelProviderTest):
 
         # Verify the error batch (last event)
         error_event = dummy_stream.event_list[3]
-        assert error_event["error"] is not None
-        assert "Mock error triggered by ERROR keyword" in error_event["error"]
-        assert error_event["model"] == "my_endpoint"
-        # Error batch should have 2 inputs (good + error)
-        assert error_event["effective_sample_count"] == 2
+        error_inputs = [good_input, error_input]
+        self._verify_batch_error_tracking(error_event, error_inputs)
 
     @pytest.mark.parametrize(
         "execution_mechanism",

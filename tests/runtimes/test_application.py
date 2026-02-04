@@ -1108,3 +1108,31 @@ def test_set_function_single_file_application(tmp_path):
     assert fn.kind == "application"
     assert fn.metadata.project == "test-proj"
     assert fn.spec.build.source == str(source_file)
+
+
+@pytest.mark.parametrize(
+    "target_dir,should_succeed,error_match",
+    [
+        ("/my/custom/path", True, None),
+        ("/another/path", True, None),
+        ("", False, "target_dir is required"),
+        ("relative/path", False, "must be an absolute path"),
+    ],
+)
+def test_set_source_target(target_dir, should_succeed, error_match):
+    """
+    Test set_source_target with various valid and invalid inputs.
+
+    Valid absolute paths should set spec.build.source_code_target_dir.
+    Empty or relative paths should raise MLRunInvalidArgumentError.
+    """
+    fn: mlrun.runtimes.ApplicationRuntime = mlrun.new_function(
+        "application-test", kind="application", image="mlrun/mlrun"
+    )
+
+    if should_succeed:
+        fn.set_source_target(target_dir)
+        assert fn.spec.build.source_code_target_dir == target_dir
+    else:
+        with pytest.raises(mlrun.errors.MLRunInvalidArgumentError, match=error_match):
+            fn.set_source_target(target_dir)

@@ -611,23 +611,14 @@ def test_store_project(
         mock_session, TEST_PROJECT_NAME, project, auth_info=igv4_auth_info
     )
 
-    # create_project is always called first (which calls create_default_project_policies)
+    # Policies creation is always attempted
     iguazio_client._client.create_default_project_policies.assert_called_once_with(
         project=TEST_PROJECT_NAME
     )
 
-    if not project_exists:
-        # New project: create succeeded, no need to update owner
-        iguazio_client._client.update_project_owner.assert_not_called()
-    else:
-        # Existing project: 409 Conflict triggered patch_project
-        if not owner:
-            iguazio_client._client.update_project_owner.assert_not_called()
-        else:
-            iguazio_client._client.update_project_owner.assert_called_once_with(
-                project=TEST_PROJECT_NAME,
-                options=iguazio.schemas.UpdateProjectOwnerOptionsV1(owner=owner),
-            )
+    # store_project should not update the owner.
+    # Owner updates should only happen via explicit patch_project calls.
+    iguazio_client._client.update_project_owner.assert_not_called()
 
 
 @pytest.mark.parametrize("iguazio_client", [("v4", "sync")], indirect=True)

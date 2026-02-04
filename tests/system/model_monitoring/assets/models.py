@@ -215,6 +215,28 @@ class MyModel(mlrun.serving.Model):
         return self.predict(body)
 
 
+class StreamingModel(mlrun.serving.Model):
+    """Model that yields streaming chunks for monitoring test.
+
+    This model simulates a streaming LLM-like response by yielding
+    multiple chunks from predict(). Used to test model monitoring
+    with streaming ModelRunnerStep.
+    """
+
+    def __init__(self, *args, num_chunks: int = 3, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.num_chunks = num_chunks
+
+    def predict(self, body, **kwargs):
+        """Yield streaming chunks with metrics for aggregation testing."""
+        prompt = body.get("prompt", "default") if isinstance(body, dict) else str(body)
+        for i in range(self.num_chunks):
+            yield {
+                "output": f"{prompt}_chunk_{i}",
+                "metrics": {"token_count": 1},
+            }
+
+
 class MyDictModel(mlrun.serving.Model):
     def __init__(self, *args, artifact_uri: str, **kwargs):
         super().__init__(*args, artifact_uri=artifact_uri, **kwargs)

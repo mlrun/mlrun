@@ -559,10 +559,15 @@ class SubDictOutputModel(Model):
 
 
 def _test_monitoring_system_steps_structure(
-    graph: RootFlowStep, model_runners_names: list[str]
+    graph: RootFlowStep, model_runners_names: list[str], streaming_enabled: bool = False
 ):
+    # When streaming is enabled, Collector steps are inserted between MRS and MM pipeline
+    if streaming_enabled:
+        source_names = [f"{name}_collector" for name in model_runners_names]
+    else:
+        source_names = model_runners_names
     system_steps = {
-        "background_task_status_step": model_runners_names,
+        "background_task_status_step": source_names,
         "filter_none": ["background_task_status_step"],
         "monitoring_pre_processor_step": ["filter_none"],
         "flatten_events": ["monitoring_pre_processor_step"],
@@ -2006,3 +2011,213 @@ def test_batch_step_with_mrs(rundb_mock, multiple_models):
             if not base_id:
                 base_id = request_id.split("-")[0]
             assert request_id == f"{base_id}-{i:04d}"
+
+
+class SimpleTestModel(Model):
+    """Simple model for testing that doesn't require external files."""
+
+    def predict(self, body, **kwargs):
+        return {"result": "ok"}
+
+
+class TestMonitoringPreProcessorStreamingAggregation:
+    """Tests for MonitoringPreProcessor streaming chunk aggregation."""
+
+    def test_is_collected_streaming_data_with_string_chunks(self):
+        """Test that string lists are NOT detected as streaming data.
+
+        String lists are ambiguous - they could be batch inputs or LLM tokens.
+        For safety, we only detect dict lists with streaming indicators.
+        """
+        preprocessor = MonitoringPreProcessor()
+
+        # String chunks are NOT detected (could be batch inputs)
+        assert (
+            preprocessor._is_collected_streaming_data(["Hello", " ", "world"]) is False
+        )
+
+        # Empty list
+        assert preprocessor._is_collected_streaming_data([]) is False
+
+        # Not a list
+        assert preprocessor._is_collected_streaming_data("hello") is False
+        assert preprocessor._is_collected_streaming_data({"key": "value"}) is False
+
+    def test_is_collected_streaming_data_with_dict_chunks(self):
+        """Test detection of collected dict chunks."""
+        preprocessor = MonitoringPreProcessor()
+
+        # Dict chunks
+        chunks = [{"output": "chunk1"}, {"output": "chunk2"}]
+        assert preprocessor._is_collected_streaming_data(chunks) is True
+
+    def test_aggregate_string_chunks(self):
+        """Test aggregation method for string chunks.
+
+        Note: String lists are not auto-detected as streaming data,
+        but this tests the aggregation logic if called directly.
+        """
+        preprocessor = MonitoringPreProcessor()
+
+        chunks = ["Hello", " ", "world", "!"]
+        result = preprocessor._aggregate_collected_chunks(chunks)
+        assert result == "Hello world!"
+
+    def test_aggregate_dict_chunks_with_string_outputs(self):
+        """Test aggregation of dict chunks with string outputs."""
+        preprocessor = MonitoringPreProcessor()
+
+        chunks = [
+            {"output": "Hello ", "metrics": {"tokens": 2}},
+            {"output": "world", "metrics": {"tokens": 1}},
+            {"output": "!", "metrics": {"tokens": 1}},
+        ]
+        result = preprocessor._aggregate_collected_chunks(chunks)
+
+        assert result["output"] == "Hello world!"
+        assert result["metrics"]["tokens"] == 4
+
+    def test_aggregate_dict_chunks_with_list_outputs(self):
+        """Test aggregation of dict chunks with list outputs."""
+        preprocessor = MonitoringPreProcessor()
+
+        chunks = [
+            {"outputs": [1, 2]},
+            {"outputs": [3, 4]},
+        ]
+        result = preprocessor._aggregate_collected_chunks(chunks)
+
+        assert result["outputs"] == [1, 2, 3, 4]
+
+    def test_aggregate_metrics_sums_numeric_values(self):
+        """Test that numeric metrics are summed."""
+        preprocessor = MonitoringPreProcessor()
+
+        metrics_list = [
+            {"tokens": 10, "latency": 0.5},
+            {"tokens": 20, "latency": 0.3},
+            {"tokens": 5, "latency": 0.2},
+        ]
+        result = preprocessor._aggregate_metrics(metrics_list)
+
+        assert result["tokens"] == 35
+        assert result["latency"] == 1.0
+
+    def test_aggregate_metrics_with_none_values(self):
+        """Test metrics aggregation handles None values."""
+        preprocessor = MonitoringPreProcessor()
+
+        metrics_list = [None, {"tokens": 10}, None, {"tokens": 5}]
+        result = preprocessor._aggregate_metrics(metrics_list)
+
+        assert result["tokens"] == 15
+
+    def test_aggregate_metrics_all_none(self):
+        """Test metrics aggregation when all values are None."""
+        preprocessor = MonitoringPreProcessor()
+
+        result = preprocessor._aggregate_metrics([None, None])
+        assert result is None
+
+    def test_aggregate_outputs_concatenates_strings(self):
+        """Test output aggregation concatenates strings."""
+        preprocessor = MonitoringPreProcessor()
+
+        outputs = ["Hello", " ", "world"]
+        result = preprocessor._aggregate_outputs(outputs)
+        assert result == "Hello world"
+
+    def test_aggregate_outputs_flattens_lists(self):
+        """Test output aggregation flattens lists."""
+        preprocessor = MonitoringPreProcessor()
+
+        outputs = [[1, 2], [3, 4], [5]]
+        result = preprocessor._aggregate_outputs(outputs)
+        assert result == [1, 2, 3, 4, 5]
+
+    def test_aggregate_error_keeps_first_non_none(self):
+        """Test that error aggregation keeps the first non-None error."""
+        preprocessor = MonitoringPreProcessor()
+
+        chunks = [
+            {"output": "chunk1"},
+            {"output": "chunk2", "error": "Something went wrong"},
+            {"output": "chunk3"},
+        ]
+        result = preprocessor._merge_dict_chunks(chunks)
+
+        assert result["error"] == "Something went wrong"
+
+    def test_aggregate_empty_chunks(self):
+        """Test aggregation of empty chunk list."""
+        preprocessor = MonitoringPreProcessor()
+
+        result = preprocessor._aggregate_collected_chunks([])
+        assert result == {}
+
+    def test_aggregate_mixed_types_returns_list(self):
+        """Test that mixed types are returned as a list."""
+        preprocessor = MonitoringPreProcessor()
+
+        chunks = ["string", {"dict": "value"}, 123]
+        result = preprocessor._aggregate_collected_chunks(chunks)
+        assert result == chunks
+
+
+def test_collector_step_added_to_monitoring_graph(rundb_mock):
+    """Test that Collector steps are added between MRS and monitoring steps when streaming is enabled."""
+    function = mlrun.new_function("test-collector", kind="serving")
+    graph = function.set_topology("flow", engine="async")
+
+    model_runner_step = ModelRunnerStep(name="my_model_runner")
+    model_runner_step.add_model(
+        model_class="SimpleTestModel",
+        execution_mechanism="naive",
+        endpoint_name="my_model",
+    )
+    graph.to(model_runner_step).respond()
+
+    # Enable streaming - this triggers Collector insertion
+    function.set_streaming(enabled=True)
+    function.set_tracking()
+    server = function.to_mock_server()
+
+    try:
+        # Verify the Collector step was added
+        assert (
+            "my_model_runner_collector" in server.graph.steps
+        ), "Collector step should be added after the model runner step"
+
+        # Verify the Collector step is after the model runner
+        collector_step = server.graph.steps["my_model_runner_collector"]
+        collector_after = collector_step.after
+        if isinstance(collector_after, list):
+            assert (
+                "my_model_runner" in collector_after
+            ), "Collector step should come after the model runner step"
+        else:
+            assert (
+                collector_after == "my_model_runner"
+            ), "Collector step should come after the model runner step"
+
+        # Verify that a monitoring step receives from the collector (directly or indirectly)
+        # The first monitoring step may be background_task_status_step or filter_none
+        first_mm_step_name = (
+            "background_task_status_step"
+            if "background_task_status_step" in server.graph.steps
+            else "filter_none"
+        )
+        if first_mm_step_name in server.graph.steps:
+            first_mm_step = server.graph.steps[first_mm_step_name]
+            after = first_mm_step.after
+            if isinstance(after, list):
+                assert (
+                    "my_model_runner_collector" in after
+                ), f"First MM step {first_mm_step_name} should receive from collector, got {after}"
+            else:
+                assert (
+                    after == "my_model_runner_collector"
+                ), f"First MM step {first_mm_step_name} should receive from collector, got {after}"
+    finally:
+        # Explicitly wait for and close the server to avoid hanging
+        server.wait_for_completion()

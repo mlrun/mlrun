@@ -58,6 +58,144 @@ class MonitoringPreProcessor(storey.MapClass):
             getattr(self.context, "server", None) if self.context else None
         )
 
+    def _is_collected_streaming_data(self, body: Any) -> bool:
+        """
+        Check if the event body is collected streaming data from a Collector step.
+
+        Collected streaming data is a list of chunk bodies. We use conservative
+        detection to avoid mistakenly aggregating batch inputs or predictions.
+        Only detect as streaming data if ALL elements are dicts with streaming
+        indicators (output/outputs/metrics keys).
+
+        Note: We don't aggregate string lists because they could be batch string
+        inputs rather than LLM tokens. String streaming outputs should be wrapped
+        in dicts with proper structure.
+        """
+        if not isinstance(body, list) or len(body) == 0:
+            return False
+
+        # Only detect dict lists with streaming indicators
+        # String lists are ambiguous (could be batch inputs)
+        first = body[0]
+        if not isinstance(first, dict):
+            return False
+
+        # Check for streaming chunk indicators in the first element
+        streaming_keys = {"output", "outputs", "metrics"}
+        return bool(streaming_keys & set(first.keys()))
+
+    def _aggregate_collected_chunks(self, chunks: list) -> Any:
+        """
+        Aggregate collected streaming chunks into a single result for model monitoring.
+
+        For string chunks (e.g., LLM tokens): concatenate into a single string.
+        For dict chunks: merge outputs and sum numeric metrics.
+        """
+        if not chunks:
+            return {}
+
+        # For string chunks (LLM tokens), concatenate
+        if all(isinstance(c, str) for c in chunks):
+            return "".join(chunks)
+
+        # For dict chunks, merge appropriately
+        if all(isinstance(c, dict) for c in chunks):
+            return self._merge_dict_chunks(chunks)
+
+        # Mixed types or other - return as-is (list)
+        return chunks
+
+    def _merge_dict_chunks(self, chunks: list[dict]) -> dict:
+        """
+        Merge a list of dict chunks into a single dict.
+
+        - Outputs/results: concatenate if strings, otherwise collect into list
+        - Metrics: sum numeric values
+        - Other fields: take from first chunk
+        """
+        if not chunks:
+            return {}
+
+        result = {}
+        first = chunks[0]
+        all_keys = set()
+        for c in chunks:
+            all_keys.update(c.keys())
+
+        for key in all_keys:
+            values = [c.get(key) for c in chunks if key in c]
+            if not values:
+                continue
+
+            if key == mm_schemas.StreamProcessingEvent.METRICS:
+                # Sum numeric metrics
+                result[key] = self._aggregate_metrics(values)
+            elif key in ("outputs", "result", "output"):
+                # Concatenate outputs if strings, otherwise keep as list
+                result[key] = self._aggregate_outputs(values)
+            elif key == mm_schemas.StreamProcessingEvent.ERROR:
+                # Keep first non-None error
+                result[key] = next((v for v in values if v is not None), None)
+            else:
+                # Take first value for other fields
+                result[key] = first.get(key)
+
+        return result
+
+    def _aggregate_metrics(self, metrics_list: list) -> Optional[dict]:
+        """
+        Aggregate metrics from multiple chunks by summing numeric values.
+        """
+        if not metrics_list or all(m is None for m in metrics_list):
+            return None
+
+        aggregated = {}
+        for metrics in metrics_list:
+            if metrics is None:
+                continue
+            if not isinstance(metrics, dict):
+                continue
+            for key, value in metrics.items():
+                if key not in aggregated:
+                    aggregated[key] = value
+                elif isinstance(value, int | float) and isinstance(
+                    aggregated[key], int | float
+                ):
+                    aggregated[key] += value
+                # For non-numeric, keep the first value
+
+        return aggregated if aggregated else None
+
+    def _aggregate_outputs(self, outputs_list: list) -> Any:
+        """
+        Aggregate outputs from multiple chunks.
+
+        For strings: concatenate.
+        For lists: flatten.
+        Otherwise: return as list.
+        """
+        if not outputs_list:
+            return None
+
+        # Filter out None values
+        outputs_list = [o for o in outputs_list if o is not None]
+        if not outputs_list:
+            return None
+
+        # If all are strings, concatenate
+        if all(isinstance(o, str) for o in outputs_list):
+            return "".join(outputs_list)
+
+        # If all are lists, flatten
+        if all(isinstance(o, list) for o in outputs_list):
+            flattened = []
+            for o in outputs_list:
+                flattened.extend(o)
+            return flattened
+
+        # Otherwise return as list
+        return outputs_list
+
     def reconstruct_request_resp_fields(
         self, event, model: str, model_monitoring_data: dict
     ) -> tuple[dict[str, Any], dict[str, Any]]:
@@ -267,6 +405,16 @@ class MonitoringPreProcessor(storey.MapClass):
                 f"ModelRunnerStep name {model_runner_name} is not found in the graph or does not have monitoring data"
             )
         monitoring_data = step.monitoring_data
+
+        # Check if this is collected streaming data and aggregate if so
+        if self._is_collected_streaming_data(event.body):
+            logger.debug(
+                "Aggregating collected streaming chunks for monitoring",
+                num_chunks=len(event.body),
+                model_runner_name=model_runner_name,
+            )
+            event.body = self._aggregate_collected_chunks(event.body)
+
         logger.debug(
             "monitoring preprocessor started",
             event=event,

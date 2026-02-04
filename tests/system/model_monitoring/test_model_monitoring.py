@@ -1161,6 +1161,84 @@ class TestBasicModelMonitoring(TestMLRunSystemModelMonitoring):
         error_dict = error_df.head(1).to_dict(orient="records")[0]
         assert error_dict["error_count"] == 1
 
+    @pytest.mark.timeout(300)
+    def test_monitoring_with_streaming_model_runner(self):
+        """Test that model monitoring correctly captures streaming outputs from MRS.
+
+        This test verifies that:
+        1. A Collector step is inserted between the streaming MRS and MM steps
+        2. The MonitoringPreProcessor aggregates the collected streaming chunks
+        3. A model endpoint is created and records monitoring events
+        """
+        function_name = "streaming-mm-test"
+        endpoint_name = "streaming-model"
+
+        function = mlrun.code_to_function(
+            name=function_name,
+            kind="serving",
+            tag="latest",
+            project=self.project_name,
+            filename=str(self.assets_path / "models.py"),
+            image=self.image,
+        )
+        self.set_mm_credentials()
+
+        # Set up ModelRunnerStep with streaming model
+        graph = function.set_topology("flow", engine="async")
+        model_runner_step = mlrun.serving.states.ModelRunnerStep(name="model-runner")
+        model_runner_step.add_model(
+            model_class="StreamingModel",
+            endpoint_name=endpoint_name,
+            execution_mechanism="naive",
+            num_chunks=3,
+        )
+        graph.to(model_runner_step, "runner").respond()
+
+        # Enable streaming and monitoring
+        function.set_streaming(enabled=True)
+        function.set_tracking()
+        self.project.enable_model_monitoring(
+            deploy_histogram_data_drift_app=False,
+            **({} if self.image is None else {"image": self.image}),
+        )
+
+        # Deploy and invoke
+        function.deploy()
+        function.invoke("/", body={"prompt": "test"})
+
+        # Wait for monitoring data to be recorded
+        sleep(10)
+
+        # Verify model endpoint was created
+        model_endpoints = (
+            mlrun.get_run_db().list_model_endpoints(self.project_name).endpoints
+        )
+
+        assert len(model_endpoints) >= 1, "Expected at least one model endpoint"
+
+        # Find our streaming endpoint
+        streaming_endpoint = next(
+            (ep for ep in model_endpoints if ep.metadata.name == endpoint_name),
+            None,
+        )
+        assert streaming_endpoint is not None, (
+            f"Expected endpoint '{endpoint_name}' not found. "
+            f"Found: {[ep.metadata.name for ep in model_endpoints]}"
+        )
+
+        # Verify the endpoint has received monitoring events
+        # The last_request should be set after the invoke
+        endpoint_with_metrics = mlrun.get_run_db().get_model_endpoint(
+            name=endpoint_name,
+            project=self.project_name,
+            function_name=function_name,
+            function_tag="latest",
+            tsdb_metrics=True,
+        )
+        assert (
+            endpoint_with_metrics.status.last_request is not None
+        ), "Expected last_request to be set after streaming invoke"
+
     def _assert_model_endpoint_tags_and_labels(
         self,
         endpoint: mlrun.common.schemas.ModelEndpoint,

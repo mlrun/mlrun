@@ -178,6 +178,39 @@ class MonitoringPreProcessor(storey.MapClass):
         return listed_data, new_schema
 
     @staticmethod
+    def _extract_error_from_batched_event(
+        event, model: Optional[str] = None
+    ) -> Optional[str]:
+        """
+        Extract error from a batched event.
+
+        :param event: The batched event to extract error from
+        :param model: Optional model name to extract error for (when event body is dict with model keys)
+        :return: The error string if found, None otherwise
+        :raises RuntimeError: If inconsistent errors are found in batched event
+        """
+        errors = []
+        for se in event.body:
+            if not isinstance(se.body, dict):
+                break
+
+            # If model is specified, get error from se.body[model], otherwise from se.body directly
+            if model is not None:
+                if model not in se.body:
+                    continue
+                event_data = se.body[model]
+            else:
+                event_data = se.body
+
+            error = event_data.get(mm_schemas.StreamProcessingEvent.ERROR)
+            errors.append(error)
+
+        if len(set(errors)) > 1:
+            raise RuntimeError("Inconsistent errors in batched event")
+
+        return errors[0] if errors else None
+
+    @staticmethod
     def transpose_by_key(
         data: dict, schema: Optional[Union[str, list[str]]] = None
     ) -> tuple[Union[list[Any], list[list[Any]]], list[str]]:
@@ -304,26 +337,13 @@ class MonitoringPreProcessor(storey.MapClass):
                             mm_schemas.StreamProcessingEvent.METRICS
                         )
                     else:
-                        error = None
-                        if storey.flow.is_batched_event(event):
-                            sub_events_by_model = []
-                            for se in event.body:
-                                if not isinstance(se.body, dict):
-                                    break
-                                sub_events_by_model.append(se.body[model])
-                            errors = [
-                                sub_event_by_model.get(
-                                    mm_schemas.StreamProcessingEvent.ERROR
-                                )
-                                for sub_event_by_model in sub_events_by_model
-                            ]
-                            if len(set(errors)) > 1:
-                                raise RuntimeError(
-                                    "Inconsistent errors in batched event"
-                                )
-                            error = errors[0] if errors else None
                         labels = {}
                         metrics = None
+                        error = (
+                            self._extract_error_from_batched_event(event, model=model)
+                            if storey.flow.is_batched_event(event)
+                            else None
+                        )
 
                     monitoring_event_list.append(
                         {
@@ -368,16 +388,11 @@ class MonitoringPreProcessor(storey.MapClass):
                 #  batch step case
                 labels = {}
                 metrics = None
-                error = None
-                if storey.flow.is_batched_event(event):
-                    errors = [
-                        se.body.get(mm_schemas.StreamProcessingEvent.ERROR)
-                        for se in event.body
-                        if isinstance(se.body, dict)
-                    ]
-                    if len(set(errors)) > 1:
-                        raise RuntimeError("Inconsistent errors in batched event")
-                    error = errors[0] if errors else None
+                error = (
+                    self._extract_error_from_batched_event(event)
+                    if storey.flow.is_batched_event(event)
+                    else None
+                )
             monitoring_event_list.append(
                 {
                     mm_schemas.StreamProcessingEvent.MODEL: model,

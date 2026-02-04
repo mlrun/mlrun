@@ -191,7 +191,6 @@ class KubeResourceSpec(FunctionSpec):
         track_models=None,
         parameters=None,
         graph=None,
-        auth=None,
     ):
         super().__init__(
             command=command,
@@ -242,7 +241,6 @@ class KubeResourceSpec(FunctionSpec):
         self.parameters = parameters
         self._graph = None
         self.graph = graph
-        self.auth = auth or {}
         # Termination grace period is internal for runtimes that have a pod termination hook hence it is not in the
         # _dict_fields and doesn't have a setter.
         self._termination_grace_period_seconds = None

@@ -206,9 +206,9 @@ class NuclioSpec(KubeResourceSpec):
             graph=graph,
             parameters=parameters,
             track_models=track_models,
-            auth=auth,
         )
 
+        self.auth = auth or {}
         self.base_spec = base_spec or {}
         self.function_kind = function_kind
         self.source = source or ""

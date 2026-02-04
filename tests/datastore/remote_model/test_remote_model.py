@@ -552,6 +552,29 @@ class TestMockModelProvider(BaseMockModelProviderTest):
                     for i, event in enumerate(BATCH_INPUT_DATA)
                 ]
                 responses = [future.result() for future in futures]
+
+            # Now send 2 events with one error in a new batch
+            #time.sleep(FLUSH_AFTER_SECONDS + 2)
+            error_input = {
+                "question": "ERROR - this should fail",
+                "depth_level": "basic",
+                "persona": "teacher",
+                "tone": "formal",
+            }
+            good_input = BATCH_INPUT_DATA[0]
+
+            # Send both events in parallel - one good, one bad
+            # Both should fail because the batch will fail when processing the error
+            with ThreadPoolExecutor(max_workers=2) as executor:
+                futures = [
+                    executor.submit(send_event, good_input, 0),
+                    executor.submit(send_event, error_input, 0.3),
+                ]
+                # Both should fail when the batch encounters the error
+                error_count = 0
+                for future in futures:
+                    with pytest.raises(RuntimeError, match="Mock error triggered by ERROR keyword"):
+                        result = future.result()
         finally:
             server.wait_for_completion()
 

@@ -466,13 +466,38 @@ class ApplicationRuntime(nuclio_function.RemoteRuntime):
                 )
 
     def prepare_image_for_deploy(self):
-        if self.spec.build.source and self.spec.build.load_source_on_run:
-            logger.warning(
-                "Application runtime requires loading the source into the application image. "
-                f"Even though {self.spec.build.load_source_on_run=}, loading on build will be forced."
-            )
-            self.spec.build.load_source_on_run = False
+        source = self.spec.build.source
+        if source and self.spec.build.load_source_on_run:
+            # store:// URIs are handled by init container at runtime, no need to force build
+            if not mlrun.datastore.is_store_uri(source):
+                # For git/archives, loading at runtime is not yet supported - force build
+                # TODO: Remove this when git/archive extraction is supported in init container
+                logger.warning(
+                    "Application runtime requires loading the source into the application image. "
+                    f"Even though {self.spec.build.load_source_on_run=}, loading on build will be forced."
+                )
+                self.spec.build.load_source_on_run = False
         super().prepare_image_for_deploy()
+
+    def requires_build(self) -> bool:
+        """
+        Check if the application image needs to be built.
+
+        For ApplicationRuntime, store:// URIs don't require a build because the init
+        container loads them at runtime. This allows redeploying with source code changes
+        without rebuilding the image.
+        """
+        build = self.spec.build
+        source = build.source
+
+        # store:// URIs are loaded by init container at runtime, not baked into image
+        if source and mlrun.datastore.is_store_uri(source):
+            source_requires_build = False
+        else:
+            # For other sources (git, archives), check load_source_on_run flag
+            source_requires_build = bool(source and not build.load_source_on_run)
+
+        return bool(build.commands or build.requirements or source_requires_build)
 
     def deploy(
         self,
@@ -497,7 +522,11 @@ class ApplicationRuntime(nuclio_function.RemoteRuntime):
         :param verbose:                     Set True for verbose logging
         :param builder_env:                 Env vars dict for source archive config/credentials
                                             e.g. builder_env={"GIT_TOKEN": token}
-        :param force_build:                 Set True for force building the application image
+        :param force_build:                 Set True to force rebuilding the application image.
+                                            Use this when changing requirements, commands, or base image
+                                            after the initial deployment.
+                                            Code-only changes don't require force_build as the init container
+                                            loads the new source at runtime.
         :param with_mlrun:                  Add the current mlrun package to the container build
         :param skip_deployed:               Skip the build if we already have an image for the function
         :param is_kfp:                      Deploy as part of a kfp pipeline
@@ -512,7 +541,9 @@ class ApplicationRuntime(nuclio_function.RemoteRuntime):
         # Upload local single-file source as artifact (if applicable)
         self._upload_source_as_artifact()
 
-        if (self.requires_build() and not self.spec.image) or force_build:
+        # Check status.application_image because spec.image gets cleared after build to use
+        # the reverse proxy image instead
+        if (self.requires_build() and not self.status.application_image) or force_build:
             self._fill_credentials()
             self._build_application_image(
                 builder_env=builder_env,

@@ -259,7 +259,10 @@ class TestApplicationRuntime(tests.system.base.TestMLRunSystem):
 
             # Redeploy - auto-uploads new source, init container loads it without image rebuild
             self._logger.debug("Redeploying with version-2 source")
-            function.deploy(with_mlrun=False)
+            output = self._deploy_application_with_stdout_capture(function)
+
+            # Verify sidecar image build was skipped (only source changed)
+            assert "Started building image" not in output
 
             # Invoke and verify version-2
             response = function.invoke("/", verify=False)

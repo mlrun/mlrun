@@ -31,6 +31,7 @@ See a full description of KFP, Python, and the workflow engines in {ref}`local-r
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
 |ML-9209|MLRun supports the Kubernetes readinessProbe and livenessProbe for application runtimes. See [Configure sidecar Kubernetes proble](../runtimes/application.html#configure-sidecar-kubernetes-probes), {py:meth}`~mlrun.runtimes.ApplicationRuntime.set_probe`, and {py:meth}`~mlrun.runtimes.ApplicationRuntime.delete_probe`.|
+|ML-9695|Application runtimes now support deploying from a single Python file without packaging into directories/archives; and pull-at-runtime for Git repositories or source archives. See [Application runtimes examples](../runtimes/application.ipynb#usage-examples).
 
 ### Serving Graph
 | ID    |Description                                                                 |

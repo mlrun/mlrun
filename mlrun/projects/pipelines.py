@@ -1256,22 +1256,27 @@ def load_and_run_workflow(
     context.logger.info(
         "Running workflow from remote", workflow_log_message=workflow_log_message
     )
-    run = project.run(
-        name=workflow_name,
-        workflow_path=workflow_path,
-        arguments=workflow_arguments,
-        artifact_path=artifact_path,
-        workflow_handler=workflow_handler,
-        namespace=namespace,
-        sync=sync,
-        watch=False,  # Required for fetching the workflow_id
-        dirty=dirty,
-        cleanup_ttl=cleanup_ttl,
-        engine=engine,
-        local=local,
-        notifications=start_notifications,
-        context=context,
-    )
+    # Read auth token name from config (set via MLRUN_AUTH_WITH_OAUTH_TOKEN__TOKEN_NAME env var
+    # by the server on workflow-runner pods) and propagate it via context manager.
+    # This ensures the token is used during pipeline compilation for all steps.
+    auth_token_name = mlrun.mlconf.auth_with_oauth_token.token_name or None
+    with mlrun.RuntimeConfigurationContext(auth_token_name=auth_token_name):
+        run = project.run(
+            name=workflow_name,
+            workflow_path=workflow_path,
+            arguments=workflow_arguments,
+            artifact_path=artifact_path,
+            workflow_handler=workflow_handler,
+            namespace=namespace,
+            sync=sync,
+            watch=False,  # Required for fetching the workflow_id
+            dirty=dirty,
+            cleanup_ttl=cleanup_ttl,
+            engine=engine,
+            local=local,
+            notifications=start_notifications,
+            context=context,
+        )
     # Patch the current run object (the workflow-runner) with the workflow-id label
     context.logger.info(
         "Associating workflow-runner with workflow ID", run_id=run.run_id

@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import asyncio
 import os
 import pathlib
 import shutil
@@ -26,6 +27,7 @@ from typing import Optional, Union
 
 import pandas as pd
 import pytest
+import storey
 
 import mlrun
 import mlrun.common.schemas as schemas
@@ -40,6 +42,7 @@ from mlrun.serving import (  # noqa: F401
     ModelSelector,
     RouterStep,
 )
+from mlrun.serving.server import GraphServer
 from mlrun.serving.states import GraphError
 from mlrun.utils import logger
 from tests.conftest import results
@@ -1747,5 +1750,42 @@ def test_model_runner_streaming_with_collector():
             "data_chunk_3",
             "data_chunk_4",
         ]
+    finally:
+        server.wait_for_completion()
+
+
+@pytest.mark.asyncio
+async def test_async_graph_no_responder_json_serializable():
+    """Test that async graph without responder returns JSON-serializable response.
+
+    Regression test for ML-12080: async graphs ending without a responder were
+    returning Event objects instead of dicts, causing JSON serialization failures.
+
+    This test initializes the server with is_mock=False to mimic actual serving.
+    """
+
+    function = mlrun.new_function("test-no-responder", kind="serving")
+    graph = function.set_topology("flow", engine="async")
+    # Simple step, no responder - simulates fire-and-forget (e.g., pushing to queue)
+    graph.to(name="step1", class_name="Echo")
+
+    # Create server and initialize with is_mock=False to exercise deployed code path
+    server = GraphServer.from_dict(function.spec.to_dict())
+    server.init_states(context=None, namespace=globals(), is_mock=False)
+    server.init_object(globals())
+
+    event = storey.Event(body={"test": "data"})
+
+    try:
+        # Run the graph - for async without responder, this returns a coroutine
+        response = server.run(event)
+
+        if asyncio.iscoroutine(response):
+            # Await the coroutine - before fix, this returned an Event object
+            response = await response
+
+        # Verify it's the body, not an Event object
+        assert isinstance(response, dict), f"Expected dict, got {type(response)}"
+        assert "id" in response, f"Expected 'id' key in response: {response}"
     finally:
         server.wait_for_completion()

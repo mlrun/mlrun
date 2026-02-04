@@ -105,15 +105,18 @@ class BaseMockModelProviderTest:
         assert event["metrics"] is None
         assert event["error"] is None
 
-    def _verify_error_tracking(self, event, input_data):
+    def _verify_error_tracking(self, event, input_data, model="my_endpoint"):
         """Verify tracking data for error invocation"""
         assert event["request"]["input_schema"] == list(input_data.keys())
         assert event["resp"]["output_schema"] is None
         # TODO check
         # for batch step we will got multiple outputs with None, for direct batch, we will got single None result
-        assert event["resp"]["outputs"] == [None] or event["resp"]["outputs"] == [None] * event["effective_sample_count"]
+        assert (
+            event["resp"]["outputs"] == [None]
+            or event["resp"]["outputs"] == [None] * event["effective_sample_count"]
+        )
         assert "Mock error triggered by ERROR keyword" in event["error"]
-        assert event["model"] == "my_endpoint"
+        assert event["model"] == model
         assert event["labels"] == {}
         assert event["metrics"] is None
 
@@ -123,13 +126,13 @@ class BaseMockModelProviderTest:
         assert event["request"]["inputs"] == [list(input_data.values())]
         self._verify_error_tracking(event, input_data)
 
-    def _verify_batch_error_tracking(self, event, inputs):
+    def _verify_batch_error_tracking(self, event, inputs, model="my_endpoint"):
         """Verify tracking data for batch invocation with error"""
         assert event["effective_sample_count"] == len(inputs)
         for i, input_as_list in enumerate(event["request"]["inputs"]):
             assert input_as_list == list(inputs[i].values())
         for invocation_input in inputs:
-            self._verify_error_tracking(event, invocation_input)
+            self._verify_error_tracking(event, invocation_input, model)
 
     def _check_single_invocation(
         self, invoke_func, mlrun_model_name: Optional[str] = None
@@ -574,7 +577,9 @@ class TestMockModelProvider(BaseMockModelProviderTest):
                 ]
                 # Both should fail when the batch encounters the error
                 for future in futures:
-                    with pytest.raises(RuntimeError, match="Mock error triggered by ERROR keyword"):
+                    with pytest.raises(
+                        RuntimeError, match="Mock error triggered by ERROR keyword"
+                    ):
                         future.result()
         finally:
             server.wait_for_completion()
@@ -706,6 +711,33 @@ class TestMockModelProvider(BaseMockModelProviderTest):
                     for i, event in enumerate(BATCH_INPUT_DATA)
                 ]
                 responses = [future.result() for future in futures]
+
+            # Wait to ensure the batch is flushed (FLUSH_AFTER_SECONDS + 2 seconds buffer)
+            time.sleep(FLUSH_AFTER_SECONDS + 2)
+
+            # Now send 2 events with one error in a new batch
+            error_input = {
+                "question": "ERROR - this should fail",
+                "depth_level": "basic",
+                "persona": "teacher",
+                "tone": "formal",
+            }
+            good_input = BATCH_INPUT_DATA[0]
+
+            # Send both events in parallel - one good, one bad
+            # Both should fail because the batch will fail when processing the error
+            with ThreadPoolExecutor(max_workers=2) as executor:
+                futures = [
+                    executor.submit(send_event, good_input, 0),
+                    executor.submit(send_event, error_input, 0.3),
+                ]
+                # Both should fail when the batch encounters the error
+                for future in futures:
+                    with pytest.raises(
+                        RuntimeError, match="Mock error triggered by ERROR keyword"
+                    ):
+                        future.result()
+
         finally:
             server.wait_for_completion()
 
@@ -730,9 +762,9 @@ class TestMockModelProvider(BaseMockModelProviderTest):
             self._verify_single_response(output_2, expect_counter=True)
             assert f"(Item {expected_counter})" in output_2[UsageResponseKeys.ANSWER]
 
-        # Verify tracking events - should have 6 events (2 models × 3 batches)
+        # Verify tracking events - should have 8 events (2 models × 4 batches: 3 successful + 1 error)
         dummy_stream = server.context.stream.output_stream
-        assert len(dummy_stream.event_list) == 6
+        assert len(dummy_stream.event_list) == 8
 
         # Separate events by model
         model_events = {"my_endpoint": [], "my_endpoint_2": []}
@@ -740,15 +772,16 @@ class TestMockModelProvider(BaseMockModelProviderTest):
             model_name = event["model"]
             model_events[model_name].append(event)
 
-        # Verify each model has 3 batches
-        assert len(model_events["my_endpoint"]) == 3
-        assert len(model_events["my_endpoint_2"]) == 3
+        # Verify each model has 4 batches (3 successful + 1 error)
+        assert len(model_events["my_endpoint"]) == 4
+        assert len(model_events["my_endpoint_2"]) == 4
 
-        # Verify each batch for each model
+        # Verify first 3 successful batches for each model
         expected_batch_sizes = [2, 2, 1]  # 2+2+1 = 5 events
         for model_name in ["my_endpoint", "my_endpoint_2"]:
             start_idx = 0
-            for batch_idx, event in enumerate(model_events[model_name]):
+            for batch_idx in range(3):
+                event = model_events[model_name][batch_idx]
                 expected_size = expected_batch_sizes[batch_idx]
                 end_idx = start_idx + expected_size
                 batch_inputs = BATCH_INPUT_DATA[start_idx:end_idx]
@@ -757,3 +790,9 @@ class TestMockModelProvider(BaseMockModelProviderTest):
                     event, inputs=batch_inputs, model_name=model_name
                 )
                 start_idx = end_idx
+
+        # Verify the error batch (last event) for both models
+        error_inputs = [good_input, error_input]
+        for model_name in ["my_endpoint", "my_endpoint_2"]:
+            error_event = model_events[model_name][3]
+            self._verify_batch_error_tracking(error_event, error_inputs, model_name)

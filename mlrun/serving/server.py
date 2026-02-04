@@ -365,8 +365,8 @@ def add_error_raiser_step(
         graph.add_step(
             class_name="mlrun.serving.states.FlatEventChoice",
             name=flat_event_choice,
-            unpacker_step_name = unpack_step,
-            raise_error_step_name = error_raise_step_name,
+            unpacker_step_name=unpack_step,
+            raise_error_step_name=error_raise_step_name,
             after=monitored_step.name,
             full_event=True,
             raise_exception=monitored_step.raise_exception,

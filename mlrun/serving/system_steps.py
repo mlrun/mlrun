@@ -304,9 +304,25 @@ class MonitoringPreProcessor(storey.MapClass):
                             mm_schemas.StreamProcessingEvent.METRICS
                         )
                     else:
-                        # TODO handle error in batch step
-                        labels = {}
                         error = None
+                        if storey.flow.is_batched_event(event):
+                            sub_events_by_model = []
+                            for se in event.body:
+                                if not isinstance(se.body, dict):
+                                    break
+                                sub_events_by_model.append(se.body[model])
+                            errors = [
+                                sub_event_by_model.get(
+                                    mm_schemas.StreamProcessingEvent.ERROR
+                                )
+                                for sub_event_by_model in sub_events_by_model
+                            ]
+                            if len(set(errors)) > 1:
+                                raise RuntimeError(
+                                    "Inconsistent errors in batched event"
+                                )
+                            error = errors[0] if errors else None
+                        labels = {}
                         metrics = None
 
                     monitoring_event_list.append(
@@ -352,7 +368,11 @@ class MonitoringPreProcessor(storey.MapClass):
                 #  batch step case
                 labels = {}
                 if storey.flow.is_batched_event(event):
-                    errors = [se.body.get(mm_schemas.StreamProcessingEvent.ERROR) for se in event.body if isinstance(se.body, dict)]
+                    errors = [
+                        se.body.get(mm_schemas.StreamProcessingEvent.ERROR)
+                        for se in event.body
+                        if isinstance(se.body, dict)
+                    ]
                     if len(set(errors)) > 1:
                         raise RuntimeError("Inconsistent errors in batched event")
                     error = errors[0] if errors else None

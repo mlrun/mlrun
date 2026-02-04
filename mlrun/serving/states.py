@@ -2554,7 +2554,7 @@ class ModelRunnerErrorRaiser(storey.MapClass):
 
 
 class FlatEventChoice(storey.Choice):
-    def __init__(self, unpacker_step_name:str, raise_error_step_name:str, **kwargs):
+    def __init__(self, unpacker_step_name: str, raise_error_step_name: str, **kwargs):
         self.unpacker_step_name = unpacker_step_name
         self.raise_error_step_name = raise_error_step_name
         super().__init__(**kwargs)
@@ -2563,8 +2563,9 @@ class FlatEventChoice(storey.Choice):
         if storey.flow.is_batched_event(event):
             outlets = [self.unpacker_step_name]
         else:
-            outlets=[self.raise_error_step_name]
+            outlets = [self.raise_error_step_name]
         return outlets
+
 
 class QueueStep(BaseStep, StepToDict):
     """queue step, implement an async queue or represent a stream"""

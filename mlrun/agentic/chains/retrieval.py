@@ -15,7 +15,7 @@
 from typing import Dict, List, Optional
 
 from langchain_core.callbacks import BaseCallbackHandler
-from langchain_community.chains import RetrievalQAWithSourcesChain
+from langchain_community.chains.qa_with_sources.retrieval import RetrievalQAWithSourcesChain
 from langchain_core.prompts import PromptTemplate
 from langchain_core.documents import Document
 

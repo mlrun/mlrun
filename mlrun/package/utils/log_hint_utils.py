@@ -12,8 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import typing
-
 from mlrun.errors import MLRunInvalidArgumentError
 
 
@@ -35,8 +33,8 @@ class LogHintUtils:
 
     @staticmethod
     def parse_log_hint(
-        log_hint: typing.Union[dict[str, str], str, None],
-    ) -> typing.Union[dict[str, str], None]:
+        log_hint: dict[str, str] | str | None,
+    ) -> dict[str, str] | None:
         """
         Parse a given log hint from string to a logging configuration dictionary. The string will be read as the
         artifact key ('key' in the dictionary) and if the string have a single colon, the following structure is
@@ -91,3 +89,46 @@ class LogHintUtils:
             )
 
         return log_hint
+
+    @staticmethod
+    def extract_unbundling_from_key(log_hint: str) -> tuple[str, bool | int]:
+        """
+        Extract unbundling information from a log hint key if exists. If the log hint key contains an asterisk '*', it
+        indicates that unbundling is required. The part before the asterisk represents the unbundle level (an integer or
+        empty for full unbundling), and the part after the asterisk is the actual artifact key.
+
+        :param log_hint: The log hint key to extract unbundling information from.
+
+        :return: A tuple containing the actual artifact key and the unbundle level (True for full unbundling, False for
+                 no unbundling, or an integer for specific unbundle level).
+        """
+        # Check if unbundling is required:
+        if "*" not in log_hint:
+            return log_hint, False
+
+        # Extract unbundle level and key:
+        unbundle_level, key = log_hint.split("*", 1)
+
+        # Make sure a key is given:
+        if not key.strip():
+            raise MLRunInvalidArgumentError(
+                f"Invalid log hint key '{log_hint}'. Key is missing after the '*' indicating unbundling. A log hint "
+                f"key with unbundling should be in the format of "
+                f"'<unbundle_level>*<key>' or '*<key>' for full "
+                f"unbundling."
+            )
+
+        # If unbundle level is given, convert to int:
+        if unbundle_level.strip():
+            try:
+                unbundle_level = int(unbundle_level.strip())
+            except ValueError:
+                raise MLRunInvalidArgumentError(
+                    f"Invalid unbundle level '{unbundle_level}' in log hint '{log_hint}'. "
+                    f"Unbundle level must be an integer."
+                )
+        else:
+            # If no level is given, set to True for full unbundling:
+            unbundle_level = True
+
+        return key.strip(), unbundle_level

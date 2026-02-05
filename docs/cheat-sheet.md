@@ -156,10 +156,10 @@ jobs:
 
     steps:
     - uses: actions/checkout@v3
-    - name: Set up Python 3.9
+    - name: Set up Python 3.11
       uses: actions/setup-python@v4
       with:
-        python-version: '3.9'
+        python-version: '3.11'
         architecture: 'x64'
     
     - name: Install mlrun
@@ -403,6 +403,8 @@ fn.with_node_selection(node_selector={"app.iguazio.com/lifecycle": "non-preempti
 
 Docs: [Nuclio Triggers](https://github.com/nuclio/nuclio-jupyter/blob/master/nuclio/triggers.py)
 
+#### HTTP
+
 By default, Nuclio deploys a default HTTP trigger if the function doesn't have one. This is because users typically want to invoke functions through HTTP. 
 However, we provide a way to disable the default HTTP trigger using:
 `function.disable_default_http_trigger()`
@@ -434,6 +436,22 @@ serve.add_v3io_stream_trigger(
     shards=1,
 )
 
+# RabbitMQ stream trigger
+function.add_rabbitmq_trigger(
+    url="amqp://rabbitmq-host:5672",
+    exchange_name="my-exchange",
+    queue_name="my-queue",
+    username="user",
+    password="pass",
+)
+# or with topics (routing keys):
+
+function.add_rabbitmq_trigger(
+    url="amqp://rabbitmq-host:5672",
+    exchange_name="my-exchange",
+    topics=["key1", "key2"],
+)
+
 # Kafka stream trigger
 serve.add_trigger(
     name="kafka",
@@ -445,6 +463,7 @@ serve.add_trigger(
         initial_offset="earliest",
     ),
 )
+
 
 # Cron trigger
 serve.add_trigger("cron_interval", spec=nuclio.CronTrigger(interval="10s"))
@@ -737,6 +756,35 @@ batch_run = project.run_function(
         "perform_drift_analysis": True,
     },
 )
+```
+### Data store profiles
+  ```python
+  from mlrun.datastore.datastore_profile import (
+      DatastoreProfileKafkaStream,
+      DatastoreProfilePostgreSQL,
+  )
+  # Create and register TSDB profile
+  tsdb_profile = DatastoreProfilePostgreSQL(
+      name=tsdb_profile_name,
+      user="postgres",
+      password="postgres",
+      host="timescaledb",
+      port=5432,
+      database="postgres",
+  )
+  project.register_datastore_profile(tsdb_profile)
+  # Create and register stream profile
+  stream_profile = DatastoreProfileKafkaStream(
+      name=stream_profile_name,
+      brokers="kafka-stream:9092",
+      topics=[],
+  )
+  project.register_datastore_profile(stream_profile)
+  # Set model monitoring credentials and enable the infrastructure
+  project.set_model_monitoring_credentials(
+      tsdb_profile_name=tsdb_profile.name,
+      stream_profile_name=stream_profile.name,
+  )
 ```
 
 ## Alerts and notifications

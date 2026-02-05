@@ -23,10 +23,13 @@ __all__ = [
 import inspect
 import os
 import pathlib
+import shutil
+import tempfile
 import traceback
 import warnings
 from abc import ABC
 from collections.abc import Collection
+from contextlib import contextmanager
 from copy import copy, deepcopy
 from inspect import getfullargspec, signature
 from typing import Any, Optional, Union, cast
@@ -63,7 +66,13 @@ from ..datastore.utils import (
 from ..errors import MLRunInvalidArgumentError, ModelRunnerError, err_to_str
 from ..model import ModelObj, ObjectDict
 from ..platforms.iguazio import parse_path
-from ..utils import get_class, get_function, is_explicit_ack_supported
+from ..utils import (
+    check_if_hub_uri,
+    get_class,
+    get_function,
+    is_explicit_ack_supported,
+    lock_hub_uri_version,
+)
 from .utils import StepToDict, _extract_input_data, _update_result_body
 
 callable_prefix = "_"
@@ -90,6 +99,7 @@ class StepKinds:
     error_step = "error_step"
     monitoring_application = "monitoring_application"
     model_runner = "model_runner"
+    hub_task = "hub_task"
 
 
 _default_fields_to_strip_from_step = [
@@ -138,7 +148,7 @@ class BaseStep(ModelObj):
         self._parent = None
         self.comment = None
         self.context = None
-        self.after = after or []
+        self.after = after
         self._next = None
         self.shape = shape
         self.on_error = None
@@ -173,6 +183,19 @@ class BaseStep(ModelObj):
         elif key not in self.next:
             self._next.append(key)
         return self
+
+    @property
+    def after(self):
+        return self._after
+
+    @after.setter
+    def after(self, value):
+        if value is None:
+            value = []
+        elif not isinstance(value, list):
+            value = [value]
+
+        self._after = value
 
     def after_step(self, *after, append=True):
         """specify the previous step names"""
@@ -268,7 +291,7 @@ class BaseStep(ModelObj):
         """init the step class"""
         self.context = context
 
-    def _is_local_function(self, context):
+    def _is_local_function(self, context, current_function=None):
         return True
 
     def get_children(self):
@@ -749,29 +772,7 @@ class TaskStep(BaseStep):
         self.model_endpoint_creation_strategy = model_endpoint_creation_strategy
         self.endpoint_type = endpoint_type
 
-    def init_object(self, context, namespace, mode="sync", reset=False, **extra_kwargs):
-        self.context = context
-        self._async_object = None
-        if not self._is_local_function(context):
-            # skip init of non local functions
-            return
-
-        if self.handler and not self.class_name:
-            # link to function
-            if callable(self.handler):
-                self._handler = self.handler
-                self.handler = self.handler.__name__
-            else:
-                self._handler = get_function(self.handler, namespace)
-            args = signature(self._handler).parameters
-            if args and "context" in list(args.keys()):
-                self._inject_context = True
-            self._set_error_handler()
-            return
-
-        self._class_object, self.class_name = self.get_step_class_object(
-            namespace=namespace
-        )
+    def _init_class_object_and_handler(self, namespace, reset, **extra_kwargs) -> None:
         if not self._object or reset:
             # init the step class + args
             extracted_class_args = self.get_full_class_args(
@@ -803,6 +804,32 @@ class TaskStep(BaseStep):
                 self._handler = getattr(self._object, handler, None)
             if hasattr(self._object, "select_outlets"):
                 self._outlets_selector = self._object.select_outlets
+
+    def init_object(self, context, namespace, mode="sync", reset=False, **extra_kwargs):
+        self.context = context
+        self._async_object = None
+        if not self._is_local_function(context):
+            # skip init of non local functions
+            return
+
+        if self.handler and not self.class_name:
+            # link to function
+            if callable(self.handler):
+                self._handler = self.handler
+                self.handler = self.handler.__name__
+            else:
+                self._handler = get_function(self.handler, namespace)
+            args = signature(self._handler).parameters
+            if args and "context" in list(args.keys()):
+                self._inject_context = True
+            self._set_error_handler()
+            return
+
+        self._class_object, self.class_name = self.get_step_class_object(
+            namespace=namespace
+        )
+
+        self._init_class_object_and_handler(namespace, reset, **extra_kwargs)
 
         self._set_error_handler()
         if mode != "skip":
@@ -843,9 +870,9 @@ class TaskStep(BaseStep):
                 class_object = get_class(class_name or self._default_class, namespace)
         return class_object, class_name
 
-    def _is_local_function(self, context):
+    def _is_local_function(self, context, current_function=None) -> bool:
         # detect if the class is local (and should be initialized)
-        current_function = get_current_function(context)
+        current_function = current_function or get_current_function(context)
         if current_function == "*":
             return True
         if not self.function and not current_function:
@@ -1214,6 +1241,26 @@ class Model(storey.ParallelExecutionRunnable, ModelObj):
         )
         cls._dict_fields.remove("self")
 
+    def is_streaming(self) -> bool:
+        """
+        Returns True if this model produces streaming output (generator).
+
+        Checks if predict() or predict_async() are generator functions.
+
+        Override to return True if predict() or predict_async() return a generator
+        without being generator functions themselves. For example::
+
+            def predict(self, body, **kwargs):
+                return self._external_streaming_api(body)  # Returns a generator
+
+
+            def is_streaming(self) -> bool:
+                return True  # Override required since predict() is not a generator function
+        """
+        return inspect.isgeneratorfunction(self.predict) or inspect.isasyncgenfunction(
+            self.predict_async
+        )
+
     def load(self) -> None:
         """Override to load model if needed."""
         self._load_artifacts()
@@ -1273,11 +1320,23 @@ class Model(storey.ParallelExecutionRunnable, ModelObj):
         self.load()
 
     def predict(self, body: Any, **kwargs) -> Any:
-        """Override to implement prediction logic. If the logic requires asyncio, override predict_async() instead."""
+        """
+        Override to implement prediction logic. If the logic requires asyncio, override predict_async() instead.
+
+        This method may be a generator function to implement streaming. It may also return a generator
+        (without being a generator function itself), in which case :meth:`is_streaming` should be
+        overridden to return True.
+        """
         raise NotImplementedError("predict() method not implemented")
 
     async def predict_async(self, body: Any, **kwargs) -> Any:
-        """Override to implement prediction logic if the logic requires asyncio."""
+        """
+        Override to implement prediction logic if the logic requires asyncio.
+
+        This method may be an async generator function to implement streaming. It may also return an
+        async generator (without being an async generator function itself), in which case
+        :meth:`is_streaming` should be overridden to return True.
+        """
         raise NotImplementedError("predict_async() method not implemented")
 
     def run(self, body: Any, path: str, origin_name: Optional[str] = None) -> Any:
@@ -1398,7 +1457,7 @@ class LLModel(Model):
     def predict(
         self,
         body: Any,
-        messages: Optional[list[dict]] = None,
+        messages: Optional[Union[list[dict], list[list[dict]]]] = None,
         invocation_config: Optional[dict] = None,
         **kwargs,
     ) -> Any:
@@ -1423,8 +1482,7 @@ class LLModel(Model):
             logger.debug(
                 "LLModel prediction completed",
                 model_name=self.name,
-                answer=response_with_stats.get("answer"),
-                usage=response_with_stats.get("usage"),
+                response=response_with_stats,
             )
         else:
             logger.warning(
@@ -1438,7 +1496,7 @@ class LLModel(Model):
     async def predict_async(
         self,
         body: Any,
-        messages: Optional[list[dict]] = None,
+        messages: Optional[Union[list[dict], list[list[dict]]]] = None,
         invocation_config: Optional[dict] = None,
         **kwargs,
     ) -> Any:
@@ -1463,8 +1521,7 @@ class LLModel(Model):
             logger.debug(
                 "LLModel async prediction completed",
                 model_name=self.name,
-                answer=response_with_stats.get("answer"),
-                usage=response_with_stats.get("usage"),
+                response=response_with_stats,
             )
         else:
             logger.warning(
@@ -1556,7 +1613,33 @@ class LLModel(Model):
             prompt_legend = llm_prompt_artifact.spec.prompt_legend
             prompt_template = deepcopy(llm_prompt_artifact.read_prompt())
             invocation_config = llm_prompt_artifact.spec.invocation_config
+
         input_data = copy(get_data_from_path(self._input_path, body))
+
+        # Handle batch input (list of dicts)
+        if isinstance(input_data, list):
+            enriched_messages_list = []
+            for event in input_data:
+                enriched_messages = self._enrich_single_event(
+                    event, prompt_template, prompt_legend
+                )
+                enriched_messages_list.append(enriched_messages)
+            return enriched_messages_list, invocation_config
+
+        # Handle single input (dict)
+        enriched_messages = self._enrich_single_event(
+            input_data, prompt_template, prompt_legend
+        )
+        return enriched_messages, invocation_config
+
+    def _enrich_single_event(
+        self,
+        input_data: dict,
+        prompt_template: list,
+        prompt_legend: dict,
+    ) -> list:
+        enriched_template = []
+
         if isinstance(input_data, dict) and prompt_template:
             kwargs = (
                 {
@@ -1569,7 +1652,8 @@ class LLModel(Model):
             )
             input_data.update(kwargs)
             default_place_holders = PlaceholderDefaultDict(lambda: None, input_data)
-            for message in prompt_template:
+            enriched_template = deepcopy(prompt_template)
+            for message in enriched_template:
                 try:
                     message["content"] = message["content"].format(**input_data)
                 except KeyError as e:
@@ -1584,14 +1668,15 @@ class LLModel(Model):
         elif isinstance(input_data, dict) and not prompt_template:
             # If there is no prompt template, we assume the input data is already in the correct format.
             logger.debug("Attempting to retrieve messages from the request body.")
-            prompt_template = input_data.get("messages", [])
+            enriched_template = input_data.get("messages", [])
         else:
             logger.warning(
                 "Expected input data to be a dict, prompt template stays unformatted",
                 model_name=self.name,
                 input_data_type=type(input_data).__name__,
             )
-        return prompt_template, invocation_config
+
+        return enriched_template
 
     def _get_invocation_artifact(
         self, origin_name: Optional[str] = None
@@ -1731,7 +1816,11 @@ class ModelRunner(storey.ParallelExecution):
             event._metadata = {}
 
         event._metadata["model_runner_name"] = self.name
-        event._metadata["inputs"] = deepcopy(event.body)
+        # batch of events:
+        if storey.flow.is_batched_event(event):
+            event._metadata["inputs"] = [sub_event.body for sub_event in event.body]
+        else:
+            event._metadata["inputs"] = deepcopy(event.body)
 
         return event
 
@@ -1752,14 +1841,20 @@ class ModelRunner(storey.ParallelExecution):
             ) + sys_outlets
         return None
 
-    def _is_error(self, event: dict) -> bool:
-        if len(self.runnables) == 1:
-            if isinstance(event, dict):
-                return event.get("error") is not None
-        else:
-            for model in event:
-                body_by_model = event.get(model)
-                if isinstance(body_by_model, dict) and "error" in body_by_model:
+    def _is_error(self, event: Union[dict, list]) -> bool:
+        if isinstance(event, dict):
+            if len(self.runnables) == 1:
+                if isinstance(event, dict):
+                    return event.get("error") is not None
+            else:
+                for model in event:
+                    body_by_model = event.get(model)
+                    if isinstance(body_by_model, dict) and "error" in body_by_model:
+                        return True
+        elif storey.flow.is_batched_event(event):
+            #  batch case:
+            for sub_event in event:
+                if self._is_error(sub_event.body):
                     return True
         return False
 
@@ -2440,6 +2535,9 @@ class ModelRunnerErrorRaiser(storey.MapClass):
                     should_raise = event.body.get("error") is not None
                     errors[self._models_names[0]] = event.body.get("error")
             else:
+                if storey.flow.is_batched_event(event):
+                    # TODO fix error raiser for batch, ML-12068
+                    return event
                 for model in event.body:
                     body_by_model = event.body.get(model)
                     errors[model] = None
@@ -2585,7 +2683,7 @@ class FlowStep(BaseStep):
         self._wait_for_result = False
         self._source = None
         self._start_steps = []
-        self._allow_cyclic = allow_cyclic
+        self.allow_cyclic = allow_cyclic
 
     def get_children(self):
         return self._steps.values()
@@ -2867,7 +2965,6 @@ class FlowStep(BaseStep):
             raise GraphError(
                 "sync engine can only have one starting step (without .after)"
             )
-
         default_final_step = None
         if self.final_step:
             if self.final_step not in self.steps:
@@ -2876,8 +2973,9 @@ class FlowStep(BaseStep):
                 )
             default_final_step = self.final_step
 
-        elif len(self._start_steps) == 1:
-            # find the final step in case if a simple sequence of steps
+        elif len(self._start_steps) == 1 and not self.allow_cyclic:
+            # find the final step in case of a simple sequence of steps
+            # default_final_step is used only for feature sets therefore it won't be set when cycles are allowed
             next_obj = self._start_steps[0]
             while next_obj:
                 next = next_obj.next
@@ -2980,9 +3078,7 @@ class FlowStep(BaseStep):
     @staticmethod
     async def _await_and_return_id(awaitable, event):
         await awaitable
-        event = copy(event)
-        event.body = {"id": event.id}
-        return event
+        return {"id": event.id}
 
     def run(self, event, *args, **kwargs):
         if self._controller:
@@ -3154,10 +3250,16 @@ class RootFlowStep(FlowStep):
         engine=None,
         final_step=None,
         allow_cyclic: bool = False,
-        max_iterations: Optional[int] = 10_000,
+        max_iterations: Optional[int] = None,
     ):
         super().__init__(
-            name, steps, after, engine, final_step, allow_cyclic, max_iterations
+            name,
+            steps,
+            after,
+            engine,
+            final_step,
+            allow_cyclic,
+            max_iterations or 100 if allow_cyclic else None,
         )
         self._models = set()
         self._route_models = set()
@@ -3182,7 +3284,14 @@ class RootFlowStep(FlowStep):
 
     @allow_cyclic.setter
     def allow_cyclic(self, allow_cyclic: bool):
-        self._allow_cyclic = allow_cyclic
+        if allow_cyclic and self.engine == "async":
+            self._allow_cyclic = allow_cyclic
+        elif allow_cyclic and self.engine == "sync":
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Cyclic graphs are not supported with sync engine, please use async engine"
+            )
+        else:
+            self._allow_cyclic = allow_cyclic
 
     def add_shared_model(
         self,
@@ -3467,6 +3576,92 @@ class RootFlowStep(FlowStep):
         }
 
 
+class HubTaskStep(TaskStep):
+    """hub task execution step, runs a class or handler from a hub"""
+
+    kind = "hub_task"
+    _dict_fields = TaskStep._dict_fields + ["hub_step_class_name", "requirements"]
+
+    def __init__(
+        self,
+        class_name: Optional[Union[str, type]] = None,
+        hub_step_class_name: Optional[str] = None,
+        class_args: Optional[dict] = None,
+        handler: Optional[str] = None,
+        name: Optional[str] = None,
+        after: Optional[list] = None,
+        full_event: Optional[bool] = None,
+        function: Optional[str] = None,
+        responder: Optional[bool] = None,
+        input_path: Optional[str] = None,
+        result_path: Optional[str] = None,
+        model_endpoint_creation_strategy: Optional[
+            schemas.ModelEndpointCreationStrategy
+        ] = schemas.ModelEndpointCreationStrategy.SKIP,
+        endpoint_type: Optional[schemas.EndpointType] = schemas.EndpointType.NODE_EP,
+        requirements: Optional[list] = None,
+    ):
+        super().__init__(
+            class_name=class_name,
+            class_args=class_args,
+            handler=handler,
+            name=name,
+            after=after,
+            full_event=full_event,
+            function=function,
+            responder=responder,
+            input_path=input_path,
+            result_path=result_path,
+            model_endpoint_creation_strategy=model_endpoint_creation_strategy,
+            endpoint_type=endpoint_type,
+        )
+        self.hub_step_class_name = hub_step_class_name
+        self.requirements = requirements
+
+    @staticmethod
+    @contextmanager
+    def hub_step_tempdir():
+        """
+        Create a temporary directory named 'hub_step' inside the system temp directory.
+        Directory is cleaned up automatically when the context exits.
+        """
+        base = tempfile.gettempdir()
+        path = os.path.join(base, "hub_steps")
+        if os.path.exists(path):
+            shutil.rmtree(path)
+        os.makedirs(path, exist_ok=True)
+        try:
+            yield path
+        finally:
+            shutil.rmtree(path, ignore_errors=True)
+
+    def init_object(self, context, namespace, mode="sync", reset=False, **extra_kwargs):
+        self.context = context
+        self._async_object = None
+        if not self._is_local_function(context):
+            return
+
+        with self.hub_step_tempdir() as local_path:  # self-cleaning tmp dir util
+            hub_step = mlrun.get_hub_step(self.class_name, local_path=local_path)
+            mod = hub_step.module()
+
+        if hub_step.default_handler and not hub_step.class_name:
+            self._handler = getattr(mod, hub_step.default_handler)
+            args = signature(self._handler).parameters
+            if args and "context" in list(args.keys()):
+                self._inject_context = True
+            self._set_error_handler()
+            return
+
+        self._class_object = getattr(mod, hub_step.class_name)
+
+        self._init_class_object_and_handler(namespace, reset, **extra_kwargs)
+
+        self._set_error_handler()
+        if mode != "skip":
+            self._post_init(mode)
+
+
 classes_map = {
     "task": TaskStep,
     "router": RouterStep,
@@ -3475,6 +3670,7 @@ classes_map = {
     "error_step": ErrorStep,
     "monitoring_application": MonitoringApplicationStep,
     "model_runner": ModelRunnerStep,
+    "hub_task": HubTaskStep,
 }
 
 
@@ -3710,6 +3906,30 @@ def params_to_step(
             result_path=result_path,
         )
 
+    elif class_name and check_if_hub_uri(class_name):
+        try:
+            hub_step = mlrun.get_hub_step(url=class_name, download_files=False)
+        except Exception as exc:
+            raise MLRunInvalidArgumentError(
+                f"failed to get hub step from {class_name}, error: {exc}"
+            ) from exc
+        class_name = lock_hub_uri_version(class_name, hub_step.version)
+        name = get_name(name, hub_step.class_name)
+        step = HubTaskStep(
+            hub_step_class_name=hub_step.class_name,
+            class_name=class_name,
+            class_args=class_args,
+            handler=handler,
+            name=name,
+            function=function,
+            full_event=full_event,
+            input_path=input_path,
+            result_path=result_path,
+            model_endpoint_creation_strategy=model_endpoint_creation_strategy,
+            endpoint_type=endpoint_type,
+            requirements=hub_step.requirements,
+        )
+
     elif class_name or handler:
         name = get_name(name, class_name)
         step = TaskStep(
@@ -3825,6 +4045,10 @@ def _init_async_objects(context, steps, root):
                     )
 
             elif not step.async_object or not hasattr(step.async_object, "_outlets"):
+                if not callable(step._handler):
+                    raise mlrun.errors.MLRunValueError(
+                        f"Step '{step.name}' does not have a handler that can be called"
+                    )
                 # if regular class, wrap with storey Map
                 step._async_object = storey.Map(
                     step._handler,
@@ -3839,12 +4063,14 @@ def _init_async_objects(context, steps, root):
                 )
             if (
                 respond_supported
-                and not step.next
+                and (
+                    not step.next or root.allow_cyclic
+                )  # last step can be part of a cycle
                 and hasattr(step, "responder")
                 and step.responder
             ):
                 # if responder step (return result), add Complete()
-                step.async_object.to(storey.Complete(full_event=True))
+                step.async_object.to(storey.Complete())
                 wait_for_result = True
 
     source_args = context.get_param("source_args", {})

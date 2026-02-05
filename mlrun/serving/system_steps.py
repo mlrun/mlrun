@@ -72,8 +72,14 @@ class MonitoringPreProcessor(storey.MapClass):
             input_schema=input_schema,
         )
         if event.body and isinstance(event.body, list):
+            event_body = event.body
+            if storey.flow.is_batched_event(event):
+                event_body = [
+                    sub_event.body.get(model, sub_event.body)
+                    for sub_event in event.body
+                ]
             outputs, new_output_schema = self.get_listed_data(
-                event.body, result_path, output_schema
+                event_body, result_path, output_schema
             )
         else:
             outputs, new_output_schema = self.get_listed_data(
@@ -135,8 +141,40 @@ class MonitoringPreProcessor(storey.MapClass):
                 )
         elif not isinstance(data_from_path, list):
             listed_data = [data_from_path]
-        else:
-            listed_data = data_from_path
+        else:  # list handling
+            # Check if all items are dicts
+            all_dicts = data_from_path and all(
+                isinstance(item, dict) for item in data_from_path
+            )
+
+            if all_dicts:
+                # Check if all dicts have the same keys
+                same_keys = (
+                    len(set(tuple(sorted(item.keys())) for item in data_from_path)) == 1
+                )
+
+                if same_keys:
+                    # batch handling
+                    # All items are dicts with the same keys - transpose by key
+                    # Merge all dicts by combining values for each key into lists
+                    merged_dict = {}
+                    for item in data_from_path:
+                        for key, value in item.items():
+                            if key not in merged_dict:
+                                merged_dict[key] = []
+                            merged_dict[key].append(value)
+                    listed_data, new_schema = self.transpose_by_key(merged_dict, schema)
+                    new_schema = new_schema or schema
+                else:
+                    # Dicts with different keys - warn and fall back to default
+                    logger.warn(
+                        "List contains dicts with different keys; cannot transpose by key. "
+                        "Falling back to default list handling."
+                    )
+                    listed_data = data_from_path
+            else:
+                # Fall back to default list handling
+                listed_data = data_from_path
         return listed_data, new_schema
 
     @staticmethod
@@ -236,7 +274,13 @@ class MonitoringPreProcessor(storey.MapClass):
             metadata=event._metadata,
         )
         if len(monitoring_data) > 1:
-            for model in event.body.keys():
+            if storey.flow.is_batched_event(event):
+                models_by_event = set.intersection(
+                    *(set(sub_event.body.keys()) for sub_event in event.body)
+                )
+            else:
+                models_by_event = event.body.keys()
+            for model in models_by_event:
                 if model in monitoring_data:
                     request, resp = self.reconstruct_request_resp_fields(
                         event, model, monitoring_data[model]
@@ -248,7 +292,9 @@ class MonitoringPreProcessor(storey.MapClass):
                             mm_schemas.StreamProcessingEvent.WHEN
                         )
                     #  if the body is not a dict, use empty labels, error and metrics
-                    if isinstance(event.body[model], dict):
+                    if isinstance(event.body, dict) and isinstance(
+                        event.body[model], dict
+                    ):
                         body_by_model = event.body[model]
                         labels = body_by_model.get("labels") or {}
                         error = body_by_model.get(

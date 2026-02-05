@@ -11,11 +11,10 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import tempfile
 import typing
 
 import httpx
-
-# iguazio package is only supported in Python >= 3.11
 import iguazio
 import sqlalchemy.orm
 from iguazio.schemas import (
@@ -31,20 +30,23 @@ import mlrun.common.types
 import mlrun.errors
 from mlrun.utils import get_in
 
+import framework.utils.clients.helpers as clients_helpers
+import framework.utils.clients.service_account_token as service_account_token
 import framework.utils.projects.remotes.follower as project_follower
 from framework.utils.clients.iguazio.base import BaseAsyncClient, BaseClient
 
 _GROUP_TYPE_KEY = "@type"
-_GROUP_TYPE_VALUE = "type.googleapis.com/group.Group"
+_GROUP_TYPE_VALUE = "type.googleapis.com/usergroup.Group"
 
 
 class Client(BaseClient, project_follower.Member):
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
+        self._service_account_token_client = service_account_token.Client()
         self._client = iguazio.Client(
             api_url=self._api_url,
             auto_login=False,
-            load_token_file=False,
+            use_token_file=False,
             verify_ssl=mlrun.mlconf.iguazio_api_ssl_verify,
         )
 
@@ -143,7 +145,6 @@ class Client(BaseClient, project_follower.Member):
         # Use Iguazio client to revoke the token
         def _revoke_offline_token():
             options = RevokeOfflineTokenOptionsV1(token=token)
-            self._client.set_override_auth_headers(request_headers)
             self._client.revoke_offline_token(options=options)
             self._logger.info("Successfully revoked offline token via Iguazio")
 
@@ -151,7 +152,89 @@ class Client(BaseClient, project_follower.Member):
             _revoke_offline_token,
             mlrun.errors.MLRunUnauthorizedError,
             "Failed to revoke offline token from Iguazio",
+            auth_headers=request_headers,
         )
+
+    def get_user_id_by_username(
+        self,
+        username: str,
+        auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
+    ) -> str:
+        """
+        Translate a username to user_id by querying the Iguazio management API.
+
+        This is used when an admin wants to perform operations on another user's tokens.
+        The admin provides a username, but K8s secrets are indexed by user_id.
+
+        :param username: The username to translate to user_id.
+        :param request_headers: Request headers for authentication with the Iguazio API.
+        :return: The user_id corresponding to the username.
+        :raises mlrun.errors.MLRunUnauthorizedError: If the request fails or the user is not found.
+        """
+
+        def _get_user_id():
+            return self._client.get_user(username).metadata
+
+        return self._try_callback_with_httpx_exceptions(
+            _get_user_id,
+            mlrun.errors.MLRunUnauthorizedError,
+            f"Failed to get user id of '{username}' from Iguazio",
+            auth_headers=auth_info.request_headers,
+        )
+
+    def resolve_token_from_igz_yml(
+        self,
+        igz_yml_content: str,
+        user_id: str,
+        token_name: typing.Optional[str] = None,
+    ) -> str:
+        """
+        Use the iguazio SDK to resolve/validate a token from igz.yml content.
+
+        Creates a temporary file with the provided YAML content and uses the
+        Iguazio SDK's token file resolution to find and validate the token.
+
+        :param igz_yml_content: YAML content with tokens in igz.yml format.
+        :param user_id: The user_id for error messages.
+        :param token_name: Specific token to validate (strict mode), or None (auto-discovery).
+        :return: The resolved token name.
+        :raises MLRunNotFoundError: If no valid token found or validation fails.
+        """
+
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".yml", delete=True
+        ) as temp_file:
+            temp_file.write(igz_yml_content)
+            temp_file.flush()
+
+            try:
+                # Create a separate client configured for token file resolution
+                token_file_client = iguazio.Client(
+                    api_url=self._api_url,
+                    auto_login=False,
+                    use_token_file=True,
+                    token_file_path=temp_file.name,
+                    token_name=token_name,
+                    verify_ssl=mlrun.mlconf.iguazio_api_ssl_verify,
+                )
+                result = token_file_client.get_refresh_token()
+                if not result or not result[0]:
+                    raise mlrun.errors.MLRunNotFoundError(
+                        f"No valid tokens found for user id '{user_id}'"
+                    )
+                resolved_name, _ = result
+                return resolved_name
+
+            except ValueError as exc:
+                # Token not found, empty, or failed validation
+                raise mlrun.errors.MLRunNotFoundError(
+                    f"Token '{token_name}' not found or invalid for user id '{user_id}'"
+                ) from exc
+            except RuntimeError as exc:
+                # No valid tokens found after trying all
+                raise mlrun.errors.MLRunNotFoundError(
+                    f"No valid tokens found for user id '{user_id}'"
+                ) from exc
 
     def create_project(
         self,
@@ -162,7 +245,10 @@ class Client(BaseClient, project_follower.Member):
         self._logger.debug("Creating default project policies in Iguazio")
 
         def _create_default_project_policies():
-            self._client.set_override_auth_headers(auth_info.request_headers)
+            # TODO: Currently, create_default_project_policies relies on the auth info of the incoming request to
+            #       determine the owner of the project. The iguazio api needs to be updated to accept an explicit owner
+            #       parameter so we can use the service account token here.
+            #       This isn't required now, but will be for the project sync functionality.
             self._client.create_default_project_policies(project=project.metadata.name)
             self._logger.info(
                 "Successfully created default project policies in Iguazio"
@@ -172,6 +258,7 @@ class Client(BaseClient, project_follower.Member):
             _create_default_project_policies,
             mlrun.errors.MLRunInternalServerError,
             "Failed to create default project policies in Iguazio",
+            auth_headers=auth_info.request_headers,
         )
 
     def store_project(
@@ -182,37 +269,34 @@ class Client(BaseClient, project_follower.Member):
         auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
     ):
         self._logger.debug(
-            "Storing project owner or creating default policies in Iguazio"
+            "Ensuring default project policies exist in Iguazio", project=name
         )
 
-        def _update_owner_or_create_policies():
-            self._client.set_override_auth_headers(auth_info.request_headers)
+        def _create_policies_if_not_exist():
             try:
-                # Try to create policies first
-                self._client.create_default_project_policies(
-                    project=project.metadata.name
-                )
+                self._client.create_default_project_policies(project=name)
                 self._logger.info(
-                    "Successfully created default project policies in Iguazio"
+                    "Successfully created default project policies in Iguazio",
+                    project=name,
                 )
             except httpx.HTTPStatusError as exc:
-                # If policies already exist (409 Conflict), update owner instead
                 if exc.response.status_code == httpx.codes.CONFLICT:
+                    # Conflict means policies already exist, which is expected when storing
+                    # an existing project (e.g., load_project, sync, or re-save).
+                    # We use "create and handle conflict" instead of "check then create"
+                    # because checking a non-existent project returns 401, not 404.
                     self._logger.debug(
-                        "Project policies already exist, updating owner instead",
-                        project=project.metadata.name,
-                    )
-                    self.patch_project(
-                        session, name, project.dict(), auth_info=auth_info
+                        "Project policies already exist, skipping", project=name
                     )
                 else:
                     # Unexpected error, re-raise
                     raise
 
         self._try_callback_with_httpx_exceptions(
-            _update_owner_or_create_policies,
+            _create_policies_if_not_exist,
             mlrun.errors.MLRunInternalServerError,
-            "Failed to store project owner or create default policies in Iguazio",
+            "Failed to store project policies in Iguazio",
+            auth_headers=auth_info.request_headers,
         )
 
     def patch_project(
@@ -232,7 +316,6 @@ class Client(BaseClient, project_follower.Member):
                 return
 
             options = UpdateProjectOwnerOptionsV1(owner=owner)
-            self._client.set_override_auth_headers(auth_info.request_headers)
             self._client.update_project_owner(project=name, options=options)
             self._logger.info("Successfully updated project owner in Iguazio")
 
@@ -240,6 +323,7 @@ class Client(BaseClient, project_follower.Member):
             _update_project_owner,
             mlrun.errors.MLRunInternalServerError,
             "Failed to update project owner in Iguazio",
+            auth_headers=auth_info.request_headers,
         )
 
     def delete_project(
@@ -252,7 +336,6 @@ class Client(BaseClient, project_follower.Member):
         self._logger.debug("Deleting project policies in Iguazio")
 
         def _delete_project_policies():
-            self._client.set_override_auth_headers(auth_info.request_headers)
             self._client.delete_project_policies(project=name)
             self._logger.info("Successfully deleted project policies in Iguazio")
 
@@ -306,9 +389,13 @@ class Client(BaseClient, project_follower.Member):
     def _project_policies_exist(
         self, project: str, auth_info: mlrun.common.schemas.AuthInfo
     ) -> bool:
-        self._client.set_override_auth_headers(auth_info.request_headers)
         try:
-            self._client.get_project_policy_assignments(project=project)
+            with self._client.with_headers(
+                clients_helpers.enrich_headers(
+                    headers=self._service_account_token_client.auth_headers
+                )
+            ):
+                return self._client.get_project_policy_assignments(project=project)
         except httpx.HTTPStatusError as exc:
             error_message, ctx = self._extract_response_error(exc.response)
             if exc.response.status_code == httpx.codes.NOT_FOUND:
@@ -361,11 +448,14 @@ class Client(BaseClient, project_follower.Member):
         """
         Extract and return AuthInfo from a valid session verification response.
         """
-        username, user_id, group_ids = self._parse_auth_response_data(response_body)
+        username, user_id, group_ids, resource_type = self._parse_auth_response_data(
+            response_body
+        )
         return mlrun.common.schemas.AuthInfo(
             username=username,
             user_id=user_id,
             user_group_ids=group_ids,
+            kind=mlrun.common.schemas.AuthInfoKind(resource_type),
         )
 
     @property
@@ -398,9 +488,15 @@ class Client(BaseClient, project_follower.Member):
         callback: typing.Callable[..., typing.Any],
         exception_type: type[Exception],
         failure_message: str,
+        auth_headers: typing.Optional[dict[str, str]] = None,
     ) -> typing.Any:
         try:
-            return callback()
+            headers = auth_headers or self._service_account_token_client.auth_headers
+            # Inject auth headers and context id to headers for logging correlation
+            with self._client.with_headers(
+                clients_helpers.enrich_headers(headers=headers)
+            ):
+                return callback()
         except httpx.HTTPStatusError as exc:
             error_message, ctx = self._extract_response_error(exc.response)
             self._logger.warning(
@@ -429,9 +525,10 @@ class Client(BaseClient, project_follower.Member):
     @staticmethod
     def _parse_auth_response_data(
         response_body: typing.Mapping[typing.Any, typing.Any],
-    ) -> tuple[str, str, list[str]]:
+    ) -> tuple[str, str, list[str], str]:
         """
-        Validate and parse the authentication response body to extract the username, user ID, and group IDs.
+        Validate and parse the authentication response body to extract the username, user ID, group IDs and type of
+        authentication (user or service account).
         """
         if not isinstance(response_body, dict):
             raise mlrun.errors.MLRunBadRequestError("Expected dict in response body")
@@ -450,6 +547,12 @@ class Client(BaseClient, project_follower.Member):
 
         group_ids = []
 
+        resource_type = get_in(
+            response_body,
+            "metadata.resourceType",
+            mlrun.common.schemas.AuthInfoKind.user,
+        )
+
         relationships = response_body.get("relationships")
         if isinstance(relationships, list):
             for relationship in relationships:
@@ -462,7 +565,7 @@ class Client(BaseClient, project_follower.Member):
                 "Invalid format for 'relationships' in authentication response"
             )
 
-        return username, user_id, group_ids
+        return username, user_id, group_ids, resource_type
 
 
 class AsyncClient(BaseAsyncClient, Client):

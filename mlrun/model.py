@@ -571,13 +571,15 @@ class ImageBuilder(ModelObj):
     def source(self, source):
         if source and not (
             source.startswith("git://")
+            # Allow store artifact URIs for single-file sources
+            or mlrun.datastore.is_store_uri(source)
             # lenient check for file extension because we support many file types locally and remotely
             or pathlib.Path(source).suffix
             or source in [".", "./"]
         ):
             raise mlrun.errors.MLRunInvalidArgumentError(
                 f"source ({source}) must be a compressed (tar.gz / zip) file, a git repo, "
-                f"a file path or in the project's context (.)"
+                f"a file path, a store URI, or in the project's context (.)"
             )
 
         self._source = source
@@ -1077,26 +1079,42 @@ class RunSpec(ModelObj):
         return param_file or self.hyperparams
 
     @property
-    def inputs(self) -> dict[str, str]:
+    def inputs(self) -> dict[str, str | list | dict]:
         """
-        Get the inputs dictionary. A dictionary of parameter names as keys and paths as values.
+        Get the inputs dictionary. A dictionary of parameter names as keys and paths as values. A path can also include
+        an inner collection of inputs, meaning an input can be given as a list or a dictionary of paths as well.
 
         :return: The inputs dictionary.
         """
         return self._inputs
 
     @inputs.setter
-    def inputs(self, inputs: dict[str, str]):
+    def inputs(self, inputs: dict[str, str | list | dict]):
         """
-        Set the given inputs in the spec. Inputs can include a type hint string in their keys following a colon, meaning
-        following this structure: "<input key : type hint>".
+        Set the given inputs in the spec. Inputs can include lists and dicts of inputs. For parsing with MLRun Package,
+        (in case the code doesn't have type hints) the inputs can include a type hint string in their keys following a
+        colon, meaning following this structure: "<input key : type hint>".
 
-        :exmaple:
+        For example, assuming the handler itself has no type hints, let's review all possible scenario::
 
-        >>> run_spec.inputs = {
-        ...     "my_input": "...",
-        ...     "my_hinted_input : pandas.DataFrame": "...",
-        ... }
+            run_spec.inputs = {
+                # Yield a `DataItem` (unless `auto_unpack` is True):
+                "my_input": "...",
+                # Yield a `pandas.DataFrame`:
+                "my_hinted_input : pandas.DataFrame": "...",
+                # Yield a list of `DataItem`s (unless `auto_unpack` is True):
+                "my_input_collection": ["...", "..."],
+                # Yield an `OrderedDict` of `numpy.array`s:
+                "my_hinted_input_collection : collections.OrderedDict[str, numpy.array]": {
+                    "input1": "...",
+                    "input2": "...",
+                },
+                # Yield an `OrderedDict` of `DataItem`s (unless `auto_unpack` is True):
+                "my_other_hinted_input_collection : collections.OrderedDict": {
+                    "my_dataframe": "...",
+                    "my_array": "...",
+                },
+            }
 
         :param inputs: The inputs to set.
         """

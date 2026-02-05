@@ -20,7 +20,6 @@ import warnings
 from dataclasses import dataclass
 from datetime import datetime
 from time import sleep
-from urllib.parse import urlparse, urlunparse
 
 import inflection
 import nuclio
@@ -50,6 +49,7 @@ from mlrun.platforms.iguazio import (
 )
 from mlrun.runtimes.base import FunctionStatus, RunError
 from mlrun.runtimes.mounts import VolumeMount, mount_v3io, v3io_cred
+from mlrun.runtimes.nuclio.triggers import RabbitMQTrigger, extract_credentials_from_url
 from mlrun.runtimes.pod import KubeResource, KubeResourceSpec
 from mlrun.runtimes.utils import get_item_name, log_std
 from mlrun.utils import get_in, logger, update_in
@@ -658,6 +658,106 @@ class RemoteRuntime(KubeResource):
             self.spec.min_replicas = shards
             self.spec.max_replicas = shards
 
+    def add_rabbitmq_trigger(
+        self,
+        url: str,
+        exchange_name: typing.Optional[str] = None,
+        name: str = "rabbitmq",
+        queue_name: typing.Optional[str] = None,
+        topics: typing.Optional[list[str]] = None,
+        username: typing.Optional[str] = None,
+        password: typing.Optional[str] = None,
+        prefetch_count: typing.Optional[int] = None,
+        durable_exchange: typing.Optional[bool] = None,
+        durable_queue: typing.Optional[bool] = None,
+        on_error: typing.Optional[str] = None,
+        requeue_on_error: typing.Optional[bool] = None,
+        reconnect_duration: typing.Optional[str] = None,
+        reconnect_interval: typing.Optional[str] = None,
+        num_workers: typing.Optional[int] = None,
+        worker_termination_timeout: typing.Optional[str] = None,
+    ):
+        """Add a RabbitMQ trigger to the function.
+
+        Allows consuming messages from RabbitMQ queues or topic-based routing.
+        See https://docs.nuclio.io/en/latest/reference/triggers/rabbitmq.html for more details.
+
+        :param url:                       RabbitMQ connection URL in AMQP format
+                                          (e.g., 'amqp://host:port' or 'amqp://user:pass@host:port')
+                                          or a datastore profile URL (e.g., 'ds://profile-name')
+        :param exchange_name:             The exchange that contains the queue (required unless
+                                          using a datastore profile that provides it)
+        :param name:                      Trigger name (default: 'rabbitmq')
+        :param queue_name:                Specific queue to consume from. Either queue_name or
+                                          topics must be specified, but not both.
+        :param topics:                    List of topics (routing keys) to subscribe to. Creates
+                                          a unique queue and binds it to these routing keys. Either
+                                          queue_name or topics must be specified, but not both.
+        :param username:                  RabbitMQ username (can also be embedded in URL)
+        :param password:                  RabbitMQ password (can also be embedded in URL)
+        :param prefetch_count:            Broker channel prefetch limit (0 = unlimited)
+        :param durable_exchange:          Whether the exchange should survive broker restart
+        :param durable_queue:             Whether the queue should survive broker restart
+        :param on_error:                  Error handling strategy: 'ack' or 'nack'
+        :param requeue_on_error:          Whether to requeue failed messages (when on_error='nack')
+        :param reconnect_duration:        Total time to attempt reconnection (e.g., '5m')
+        :param reconnect_interval:        Time between reconnection attempts (e.g., '15s')
+        :param num_workers:               Number of workers processing messages concurrently
+        :param worker_termination_timeout: Timeout for worker termination (e.g., '10s')
+
+        Example usage::
+
+            function.add_rabbitmq_trigger(
+                url="amqp://rabbitmq-host:5672",
+                exchange_name="my-exchange",
+                queue_name="my-queue",
+                username="user",
+                password="pass",
+            )
+
+        Or with topics (routing keys)::
+
+            function.add_rabbitmq_trigger(
+                url="amqp://rabbitmq-host:5672",
+                exchange_name="my-exchange",
+                topics=["key1", "key2"],
+            )
+
+        Or using a datastore profile::
+
+            function.add_rabbitmq_trigger(url="ds://my-rabbitmq-profile")
+
+        When using a datastore profile (ds:// URL), all parameters from the profile
+        are used as defaults. Any parameter explicitly passed to this method will
+        override the corresponding profile value, including falsy values like 0 or False::
+
+            # Profile has prefetch_count=10, but explicit 0 overrides it
+            function.add_rabbitmq_trigger(
+                url="ds://my-rabbitmq-profile",
+                prefetch_count=0,  # Overrides profile's prefetch_count=10
+            )
+        """
+        self.add_trigger(
+            name,
+            RabbitMQTrigger(
+                url=url,
+                exchange_name=exchange_name,
+                queue_name=queue_name,
+                topics=topics,
+                username=username,
+                password=password,
+                prefetch_count=prefetch_count,
+                durable_exchange=durable_exchange,
+                durable_queue=durable_queue,
+                on_error=on_error,
+                requeue_on_error=requeue_on_error,
+                reconnect_duration=reconnect_duration,
+                reconnect_interval=reconnect_interval,
+                num_workers=num_workers,
+                worker_termination_timeout=worker_termination_timeout,
+            ),
+        )
+
     def deploy(
         self,
         project="",
@@ -1153,37 +1253,20 @@ class RemoteRuntime(KubeResource):
         if not url or not isinstance(url, str):
             return
 
-        try:
-            parsed = urlparse(url)
-        except Exception:
-            raise mlrun.errors.MLRunValueError("invalid URL format")
+        creds = extract_credentials_from_url(url)
 
         # Only process if credentials are present in the URL
-        if not (parsed.username or parsed.password):
+        if not creds.username and not creds.password:
             return
 
-        # Extract credentials
-        username = parsed.username or ""
-        password = parsed.password or ""
-
-        # Reconstruct clean URL
-        hostname = parsed.hostname or ""
-        netloc = f"{hostname}:{parsed.port}" if parsed.port else hostname
-
-        clean_url = urlunparse(
-            (
-                parsed.scheme,
-                netloc,
-                parsed.path,
-                parsed.params,
-                parsed.query,
-                parsed.fragment,
-            )
-        )
-
         # Update trigger safely
-        trigger["url"] = clean_url
-        trigger.update({"username": username, "password": password})
+        trigger["url"] = creds.url
+        trigger.update(
+            {
+                "username": creds.username or "",
+                "password": creds.password or "",
+            }
+        )
 
     def _trigger_of_kind_exists(self, kind: str) -> bool:
         if not self.spec.config:

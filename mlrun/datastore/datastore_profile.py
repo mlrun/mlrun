@@ -221,6 +221,72 @@ class DatastoreProfileKafkaSource(DatastoreProfileKafkaStream):
     type: str = pydantic.v1.Field("kafka_source")
 
 
+class DatastoreProfileRabbitMQ(DatastoreProfile):
+    """
+    Datastore profile for RabbitMQ connections.
+
+    Used to configure RabbitMQ triggers for Nuclio functions.
+
+    Example::
+
+        profile = DatastoreProfileRabbitMQ(
+            name="my-rabbitmq",
+            broker_url="amqp://rabbitmq-host:5672",
+            exchange_name="my-exchange",
+            queue_name="my-queue",
+            username="user",
+            password="secret",
+        )
+        project.register_datastore_profile(profile)
+
+        # Then use in trigger:
+        function.add_rabbitmq_trigger(url="ds://my-rabbitmq")
+    """
+
+    type: str = "rabbitmq"
+    _private_attributes = ("password", "username")
+
+    broker_url: str
+    exchange_name: str
+    queue_name: typing.Optional[str] = None
+    topics: typing.Optional[typing.Union[str, list[str]]] = None
+    username: typing.Optional[str] = None
+    password: typing.Optional[str] = None
+    prefetch_count: int = 0
+    durable_exchange: bool = False
+    durable_queue: bool = False
+    on_error: str = "nack"
+    requeue_on_error: bool = False
+    reconnect_duration: str = "5m"
+    reconnect_interval: str = "15s"
+    num_workers: int = 1
+    worker_termination_timeout: str = "10s"
+
+    def attributes(self) -> dict[str, typing.Any]:
+        """Return trigger attributes dictionary."""
+        topics = self.topics
+        if isinstance(topics, str):
+            topics = [topics]
+
+        return {
+            "url": self.broker_url,
+            "exchange_name": self.exchange_name,
+            "queue_name": self.queue_name,
+            "topics": topics,
+            "username": self.username,
+            "password": self.password,
+            "prefetch_count": self.prefetch_count,
+            "durable_exchange": self.durable_exchange,
+            "durable_queue": self.durable_queue,
+            "on_error": self.on_error,
+            "requeue_on_error": self.requeue_on_error,
+            "reconnect_duration": self.reconnect_duration,
+            "reconnect_interval": self.reconnect_interval,
+            "num_workers": self.num_workers,
+            "worker_termination_timeout": self.worker_termination_timeout,
+        }
+
+
 class DatastoreProfileV3io(DatastoreProfile):
     type: str = pydantic.v1.Field("v3io")
     v3io_access_key: typing.Optional[str] = None
@@ -449,49 +515,6 @@ class DatastoreProfileHdfs(DatastoreProfile):
         return f"webhdfs://{self.host}:{self.http_port}{subpath}"
 
 
-class DatastoreProfileTDEngine(DatastoreProfile):
-    """
-    A profile that holds the required parameters for a TDEngine database, with the websocket scheme.
-    https://docs.tdengine.com/developer-guide/connecting-to-tdengine/#websocket-connection
-    """
-
-    type: str = pydantic.v1.Field("taosws")
-    _private_attributes = ["password"]
-    user: str
-    # The password cannot be empty in real world scenarios. It's here just because of the profiles completion design.
-    password: typing.Optional[str]
-    host: str
-    port: int
-
-    def dsn(self) -> str:
-        """Get the Data Source Name of the configured TDEngine profile."""
-        # URL-encode user and password to handle special characters like @, :, /
-        user = quote(self.user, safe="")
-        password = quote(self.password or "", safe="")
-        return f"{self.type}://{user}:{password}@{self.host}:{self.port}"
-
-    @classmethod
-    def from_dsn(cls, dsn: str, profile_name: str) -> "DatastoreProfileTDEngine":
-        """
-        Construct a TDEngine profile from DSN (connection string) and a name for the profile.
-
-        :param dsn:          The DSN (Data Source Name) of the TDEngine database, e.g.: ``"taosws://root:taosdata@localhost:6041"``.
-        :param profile_name: The new profile's name.
-        :return:             The TDEngine profile.
-        """
-        parsed_url = urlparse(dsn)
-        # URL-decode username and password (urlparse doesn't decode them)
-        username = unquote(parsed_url.username) if parsed_url.username else None
-        password = unquote(parsed_url.password) if parsed_url.password else None
-        return cls(
-            name=profile_name,
-            user=username,
-            password=password,
-            host=parsed_url.hostname,
-            port=parsed_url.port,
-        )
-
-
 class DatastoreProfilePostgreSQL(DatastoreProfile):
     """
     A profile that holds the required parameters for a PostgreSQL database.
@@ -569,6 +592,7 @@ class OpenAIProfile(DatastoreProfile):
     base_url: typing.Optional[str] = None
     timeout: typing.Optional[float] = None
     max_retries: typing.Optional[int] = None
+    batch_max_concurrent: typing.Optional[int] = None
 
     def secrets(self) -> dict:
         res = {}
@@ -584,6 +608,9 @@ class OpenAIProfile(DatastoreProfile):
             res["OPENAI_TIMEOUT"] = self.timeout
         if self.max_retries:
             res["OPENAI_MAX_RETRIES"] = self.max_retries
+        #  per batch
+        if self.batch_max_concurrent:
+            res["OPENAI_BATCH_MAX_CONCURRENT"] = self.batch_max_concurrent
         return res
 
     def url(self, subpath):
@@ -627,11 +654,11 @@ _DATASTORE_TYPE_TO_PROFILE_CLASS: dict[str, type[DatastoreProfile]] = {
     "gcs": DatastoreProfileGCS,
     "az": DatastoreProfileAzureBlob,
     "hdfs": DatastoreProfileHdfs,
-    "taosws": DatastoreProfileTDEngine,
     "postgresql": DatastoreProfilePostgreSQL,
     "config": ConfigProfile,
     "openai": OpenAIProfile,
     "huggingface": HuggingFaceProfile,
+    "rabbitmq": DatastoreProfileRabbitMQ,
 }
 
 

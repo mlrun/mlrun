@@ -14,21 +14,25 @@
 
 import json
 import os
+from concurrent.futures import ThreadPoolExecutor
+from time import sleep
 
 import pytest
-from transformers import AutoTokenizer
 
 import mlrun.serving.states
 from mlrun.datastore.datastore_profile import (
     HuggingFaceProfile,
 )
-from mlrun.datastore.model_provider.model_provider import UsageResponseKeys
+from mlrun.runtimes.nuclio.function import AsyncSpec
 from tests.datastore.remote_model.remote_model_utils import (
+    BATCH_INPUT_DATA,
     EXPECTED_RESULTS,
-    INPUT_DATA,
     PROMPT_LEGEND,
     PROMPT_TEMPLATE,
+    retry_on_content_mismatch,
     setup_remote_model_test,
+    validate_llm_batch_response_system,
+    validate_llm_single_response,
 )
 from tests.system.base import TestMLRunSystem
 
@@ -95,26 +99,103 @@ class TestHuggingFaceModelRunner(TestMLRunSystem):
         function.spec.readiness_timeout = 600
 
         function.deploy()
-        response = function.invoke(
-            f"v2/models/{mlrun_model_name}/infer",
-            json.dumps(INPUT_DATA[0]),
-        )["output"]
 
-        assert len(response) == 2
-        answer = response[UsageResponseKeys.ANSWER]
-        assert EXPECTED_RESULTS[0] in answer.lower()
+        from transformers import AutoTokenizer
+
         tokenizer = AutoTokenizer.from_pretrained(self.basic_llm_model)
-        token_count = len(tokenizer.encode(answer))
-        # Token count may be lower due to early stopping or slightly higher (e.g., 101)
-        # due to internal EOS or tokenizer behavior, so we assert within this range.
-        assert 45 <= token_count <= 51
 
-        stats = response[UsageResponseKeys.USAGE]
-        assert stats["completion_tokens"] == token_count
-        assert stats["prompt_tokens"] > 0
-        assert (
-            stats["total_tokens"] == stats["completion_tokens"] + stats["prompt_tokens"]
+        def _test_single():
+            response = function.invoke(
+                f"v2/models/{mlrun_model_name}/infer",
+                json.dumps(BATCH_INPUT_DATA[0]),
+            )["output"]
+            validate_llm_single_response(
+                response, EXPECTED_RESULTS[0], tokenizer, min_tokens=45, max_tokens=51
+            )
+
+        retry_on_content_mismatch(_test_single)
+
+        def _test_batch():
+            batch_response = function.invoke(
+                f"v2/models/{mlrun_model_name}/infer",
+                json.dumps(BATCH_INPUT_DATA),
+            )
+            validate_llm_batch_response_system(
+                batch_response,
+                EXPECTED_RESULTS,
+                tokenizer,
+                min_tokens=45,
+                max_tokens=51,
+            )
+
+        retry_on_content_mismatch(_test_batch)
+
+    @pytest.mark.parametrize(
+        "execution_mechanism",
+        ["naive", "process_pool", "dedicated_process", "thread_pool"],
+    )
+    def test_huggingface_model_runner_batch_step(self, execution_mechanism):
+        from transformers import AutoTokenizer
+
+        self.setup_datastore_profile()
+        mlrun_model_name = "batch_step_model"
+        model_artifact, llm_prompt_artifact, function = setup_remote_model_test(
+            self.project,
+            self.model_url,
+            mlrun_model_name=mlrun_model_name,
+            image=self.image,
+            requirements=[
+                "--extra-index-url",
+                "https://download.pytorch.org/whl/cpu",
+                "torch==2.8.0+cpu",
+                "transformers==4.56.2",
+                "pillow~=11.3",
+            ],
+            default_config={"max_new_tokens": 50},
+            execution_mechanism=execution_mechanism,
+            batch_step=True,
         )
+
+        # Running models requires higher CPU for this pod.
+        function.spec.resources = {
+            "limits": {"cpu": "6", "memory": "20Gi"},
+            "requests": {"cpu": "25m", "memory": "1Mi"},
+        }
+        function.spec.max_replicas = 1
+        function.with_http(
+            gateway_timeout=600,
+            worker_timeout=500,
+            workers=None,
+            async_spec=AsyncSpec(),
+        )
+        function.spec.readiness_timeout = 600
+
+        function.deploy()
+        tokenizer = AutoTokenizer.from_pretrained(self.basic_llm_model)
+
+        def send_event(event, delay):
+            sleep(delay)
+            return function.invoke(
+                f"v2/models/{mlrun_model_name}/infer",
+                json.dumps(event),
+            )
+
+        def _test():
+            with ThreadPoolExecutor(max_workers=len(BATCH_INPUT_DATA)) as executor:
+                futures = [
+                    executor.submit(send_event, event, i * 0.1)
+                    for i, event in enumerate(BATCH_INPUT_DATA)
+                ]
+                batch_response = [future.result() for future in futures]
+            validate_llm_batch_response_system(
+                batch_response,
+                EXPECTED_RESULTS,
+                tokenizer,
+                min_tokens=45,
+                max_tokens=51,
+            )
+
+        retry_on_content_mismatch(_test)
 
     @pytest.mark.parametrize(
         "execution_mechanism",
@@ -251,7 +332,7 @@ class TestHuggingFaceModelRunner(TestMLRunSystem):
         llm_graph.to(model_runner_step).respond()
         function.deploy()
 
-        results = function.invoke("/", json.dumps(INPUT_DATA[0]))
+        results = function.invoke("/", json.dumps(BATCH_INPUT_DATA[0]))
         # Verify we got the expected number of results
 
         assert sorted(list(results.keys())) == sorted([ep_name, second_ep_name])

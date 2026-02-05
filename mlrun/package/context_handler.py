@@ -15,16 +15,12 @@
 import inspect
 import os
 from collections import OrderedDict
-from typing import Union
 
-from mlrun.datastore import DataItem
 from mlrun.errors import MLRunInvalidArgumentError
 from mlrun.execution import MLClientCtx
-from mlrun.run import get_or_create_ctx
-
-from .errors import MLRunPackageCollectionError, MLRunPackagePackingError
-from .packagers_manager import PackagersManager
-from .utils import LogHintUtils, TypeHintUtils
+from mlrun.package.errors import MLRunPackageCollectionError, MLRunPackagePackingError
+from mlrun.package.packagers_manager import PackagersManager
+from mlrun.package.utils import LogHintUtils, TypeHintUtils
 
 
 class ContextHandler:
@@ -70,6 +66,15 @@ class ContextHandler:
         # Prepare the manager (collect the MLRun builtin standard and optional packagers):
         self._collect_mlrun_packagers()
 
+    @property
+    def context(self) -> MLClientCtx:
+        """
+        Get the stored context.
+
+        :returns: The stored MLRun context.
+        """
+        return self._context
+
     def look_for_context(self, args: tuple, kwargs: dict):
         """
         Look for an MLRun context (`mlrun.MLClientCtx`). The handler will look for a context in the given order:
@@ -103,6 +108,8 @@ class ContextHandler:
                     os.path.join("mlrun", "runtimes", "local")
                     in callstack_frame.filename
                 ):
+                    from mlrun.run import get_or_create_ctx
+
                     self._context = get_or_create_ctx("context")
                     break
 
@@ -152,10 +159,7 @@ class ContextHandler:
         parsed_args = []
         type_hints_keys = list(type_hints.keys())
         for i, argument in enumerate(args):
-            if (
-                isinstance(argument, DataItem)
-                and type_hints[type_hints_keys[i]] is not inspect.Parameter.empty
-            ):
+            if argument in self._context.inputs:
                 parsed_args.append(
                     self._packagers_manager.unpack(
                         data_item=argument,
@@ -168,10 +172,7 @@ class ContextHandler:
 
         # Parse the keyword arguments:
         for key, value in kwargs.items():
-            if (
-                isinstance(value, DataItem)
-                and type_hints[key] is not inspect.Parameter.empty
-            ):
+            if key in self._context.inputs:
                 kwargs[key] = self._packagers_manager.unpack(
                     data_item=value, type_hint=type_hints[key]
                 )
@@ -181,7 +182,7 @@ class ContextHandler:
     def log_outputs(
         self,
         outputs: list,
-        log_hints: list[Union[dict[str, str], str, None]],
+        log_hints: list[dict[str, str] | str | None],
     ):
         """
         Log the given outputs as artifacts (or results) with the stored context. Errors raised during the packing will
@@ -223,20 +224,17 @@ class ContextHandler:
             self._context.log_results(results=self._packagers_manager.results)
             for artifact in self._packagers_manager.artifacts:
                 self._context.log_artifact(item=artifact)
+            # Update and log the bundle (if exists):
+            bundle_results = self._packagers_manager.get_bundles_results(
+                logged_outputs={**self._context.artifact_uris, **self._context.results},
+            )
+            if bundle_results:
+                self._context.log_results(results=bundle_results)
         else:
             self._context.logger.debug("Skipping logging - not the logging worker.")
 
         # Clear packagers outputs:
         self._packagers_manager.clear_packagers_outputs()
-
-    def set_labels(self, labels: dict[str, str]):
-        """
-        Set the given labels with the stored context.
-
-        :param labels: The labels to set.
-        """
-        for key, value in labels.items():
-            self._context.set_label(key=key, value=value)
 
     def _collect_packagers(
         self, packagers: list[str], is_mandatory: bool, is_custom_packagers: bool
@@ -310,7 +308,7 @@ class ContextHandler:
     def _validate_objects_to_log_hints_length(
         self,
         outputs: list,
-        log_hints: list[Union[dict[str, str], str, None]],
+        log_hints: list[dict[str, str] | str | None],
     ):
         """
         Validate the outputs and log hints are the same length. If they are not, warnings will be printed on what will

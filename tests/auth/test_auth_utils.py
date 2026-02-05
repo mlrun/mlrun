@@ -605,3 +605,59 @@ def test_resolve_jwt_subject(token, add_defaults, expected_sub):
     jwt_token = _create_jwt_token(token, add_defaults=add_defaults)
     result = mlrun.auth.utils.resolve_jwt_subject(jwt_token, raise_on_error=True)
     assert result == expected_sub
+
+
+@pytest.mark.parametrize(
+    "exp_offset, buffer_seconds, should_expire",
+    [
+        # Token expired 10 seconds ago, no buffer
+        (-10, 0, True),
+        # Token expires in 10 seconds, no buffer
+        (10, 0, False),
+        # Token expires in 10 seconds, buffer 15 seconds (should be expired)
+        (10, 15, True),
+        # Token expires in 10 seconds, buffer 5 seconds (should not be expired)
+        (10, 5, False),
+        # Token expires now, no buffer
+        (0, 0, True),
+    ],
+)
+def test_is_token_expired(exp_offset, buffer_seconds, should_expire):
+    exp = int(time.time()) + exp_offset
+    token = _create_jwt_token({"exp": exp, "sub": "user-1"}, add_defaults=False)
+    result = mlrun.auth.utils.is_token_expired(token, buffer_seconds=buffer_seconds)
+    assert result is should_expire
+
+
+def test_is_token_expired_missing_exp():
+    token = _create_jwt_token({"sub": "user-1"}, add_defaults=False)
+    with pytest.raises(
+        mlrun.errors.MLRunInvalidArgumentError, match="Token is missing the 'exp'"
+    ):
+        mlrun.auth.utils.is_token_expired(token)
+
+
+@pytest.mark.parametrize(
+    "token_payload, expected_username",
+    [
+        # Token with preferred_username claim
+        ({"preferred_username": "alice"}, "alice"),
+        # Token without preferred_username claim
+        ({}, None),
+        # Token with empty preferred_username
+        ({"preferred_username": ""}, ""),
+    ],
+)
+def test_resolve_jwt_username(token_payload, expected_username):
+    """Test extracting 'preferred_username' claim from JWT token."""
+    jwt_token = _create_jwt_token(token_payload, add_defaults=True)
+    result = mlrun.auth.utils.resolve_jwt_username(jwt_token, raise_on_error=False)
+    assert result == expected_username
+
+
+def test_resolve_jwt_username_invalid_token():
+    """Test that resolve_jwt_username handles invalid tokens gracefully."""
+    result = mlrun.auth.utils.resolve_jwt_username(
+        "not-a-valid-jwt", raise_on_error=False
+    )
+    assert result is None

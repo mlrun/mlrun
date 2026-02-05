@@ -19,7 +19,7 @@ import sys
 import tempfile
 import warnings
 from types import ModuleType
-from typing import Any, Optional, Union
+from typing import Any
 
 from mlrun.errors import MLRunInvalidArgumentError
 from mlrun.utils import logger
@@ -34,8 +34,8 @@ class Pickler:
 
     @staticmethod
     def pickle(
-        obj: Any, pickle_module_name: str, output_path: Optional[str] = None
-    ) -> tuple[str, dict[str, Union[str, None]]]:
+        obj: Any, pickle_module_name: str, output_path: str | None = None
+    ) -> tuple[str, dict[str, str | None]]:
         """
         Pickle an object using the given module. The pickled object will be saved to file to the given output path.
 
@@ -91,10 +91,10 @@ class Pickler:
     def unpickle(
         pickle_path: str,
         pickle_module_name: str,
-        object_module_name: Optional[str] = None,
-        python_version: Optional[str] = None,
-        pickle_module_version: Optional[str] = None,
-        object_module_version: Optional[str] = None,
+        object_module_name: str | None = None,
+        python_version: str | None = None,
+        pickle_module_version: str | None = None,
+        object_module_version: str | None = None,
     ) -> Any:
         """
         Unpickle an object using the given instructions. Warnings may be raised in case any of the versions are
@@ -178,7 +178,7 @@ class Pickler:
                 )
 
     @staticmethod
-    def _get_module_version(module_name: str) -> Union[str, None]:
+    def _get_module_version(module_name: str) -> str | None:
         """
         Get a module's version. Most updated modules have versions but some don't. In case the version could not be
         read, None is returned.

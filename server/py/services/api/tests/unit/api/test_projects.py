@@ -1781,6 +1781,10 @@ def _assert_db_resources_in_project(
                     # TimeWindowTracker is not a project-level table
                     cls.__name__ == "TimeWindowTracker"
                 )
+                or (
+                    # TablePartitionInterval is not a project-level table
+                    cls.__name__ == "TablePartitionInterval"
+                )
             ):
                 continue
 

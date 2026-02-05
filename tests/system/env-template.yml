@@ -42,6 +42,9 @@ MLRUN_SYSTEM_TESTS_GOOGLE_BIG_QUERY_CREDENTIALS_JSON:
 # kafka brokers string for kafka tests
 MLRUN_SYSTEM_TESTS_KAFKA_BROKERS:
 
+# RabbitMQ AMQP URL for RabbitMQ trigger tests - e.g. amqp://guest:guest@localhost:5672
+MLRUN_SYSTEM_TESTS_RABBITMQ_URL:
+
 # slack webhook for sending system test reports
 MLRUN_SYSTEM_TESTS_SLACK_WEBHOOK_URL:
 
@@ -85,11 +88,12 @@ mlrun_model_monitoring_tsdb_profile:
   # type: v3io
   # v3io_access_key: # can leave empty
   # # or:
-  # type: taosws
+  # type: postgresql
   # host:
-  # port: 6041
+  # port: 5432
   # user:
   # password:
+  # database:
 
 mlrun_model_monitoring_stream_profile:
   # name: # choose, e.g.: my-mm-stream

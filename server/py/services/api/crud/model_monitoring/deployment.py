@@ -256,6 +256,7 @@ class MonitoringDeployment:
             fn = self._get_model_monitoring_controller_function(
                 image=controller_image, ignore_stream_already_exists_failure=overwrite
             )
+
             minutes = base_period
             hours = days = 0
             batch_dict = {
@@ -380,7 +381,7 @@ class MonitoringDeployment:
                 reason="Unexpected stream profile",
             )
 
-        if not mlrun.mlconf.is_ce_mode():
+        if mlrun.mlconf.is_using_v3io():
             function = self._apply_access_key_and_mount_function(
                 function=function, function_name=function_name
             )
@@ -670,7 +671,7 @@ class MonitoringDeployment:
 
         if (
             function_name in mm_constants.MonitoringFunctionNames.list()
-            and not mlrun.mlconf.is_ce_mode()
+            and mlrun.mlconf.is_using_v3io()
         ):
             # Set model monitoring access key for managing permissions
             function.set_env_from_secret(
@@ -820,7 +821,7 @@ class MonitoringDeployment:
                 image=image,
             )
 
-            if not mlrun.mlconf.is_ce_mode():
+            if mlrun.mlconf.is_using_v3io():
                 logger.info(
                     "Setting the access key for the histogram data drift function"
                 )
@@ -1684,18 +1685,17 @@ class MonitoringDeployment:
         if isinstance(
             tsdb_profile, mlrun.datastore.datastore_profile.DatastoreProfileV3io
         ):
-            if mlrun.mlconf.is_ce_mode():
+            if not mlrun.mlconf.is_using_v3io():
                 raise mlrun.errors.MLRunInvalidMMStoreTypeError(
-                    "MLRun CE supports only TDEngine and TimescaleDB TSDB, received a V3IO profile for the TSDB"
+                    "V3IO TSDB profile is not supported, use TimescaleDB instead."
                 )
         elif not isinstance(
             tsdb_profile,
-            mlrun.datastore.datastore_profile.DatastoreProfileTDEngine
-            | mlrun.datastore.datastore_profile.DatastoreProfilePostgreSQL,
+            mlrun.datastore.datastore_profile.DatastoreProfilePostgreSQL,
         ):
             raise mlrun.errors.MLRunInvalidMMStoreTypeError(
                 f"The model monitoring TSDB profile is of an unexpected type: '{type(tsdb_profile)}'\n"
-                "Expects `DatastoreProfileV3io`, `DatastoreProfileTDEngine`, or `DatastoreProfilePostgreSQL`."
+                "Expects `DatastoreProfileV3io` or `DatastoreProfilePostgreSQL`."
             )
 
         return tsdb_profile
@@ -1769,9 +1769,9 @@ class MonitoringDeployment:
         self,
         v3io_profile: mlrun.datastore.datastore_profile.DatastoreProfileV3io,
     ) -> None:
-        if mlrun.mlconf.is_ce_mode():
+        if not mlrun.mlconf.is_using_v3io():
             raise mlrun.errors.MLRunInvalidMMStoreTypeError(
-                "MLRun CE supports only Kafka streams, received a V3IO profile for the stream"
+                "V3IO stream profile is not supported, use Kafka streams instead."
             )
         self._verify_v3io_access(v3io_profile)
 
@@ -1810,7 +1810,7 @@ class MonitoringDeployment:
         Set the model monitoring credentials for the project. The credentials are stored in the project secrets.
 
         :param tsdb_profile_name:         The TSDB profile name to be used in the project's model monitoring framework.
-                                          Either V3IO or TDEngine profile.
+                                          Either V3IO or TimescaleDB (PostgreSQL) profile.
         :param stream_profile_name:       The stream profile name to be used in the project's model monitoring
                                           framework. Either V3IO or KafkaSource profile.
         :param replace_creds:             If True, the credentials will be set even if they are already set.
@@ -1985,8 +1985,11 @@ class MonitoringDeployment:
         delete_background_task: fastapi.BackgroundTasks,
     ):
         async with semaphore:
-            result = framework.db.session.run_function_with_new_db_session(
-                func=services.api.crud.ModelEndpoints().create_model_endpoints,
+            # Use run_in_threadpool to avoid blocking the event loop
+            # while performing synchronous DB operations
+            result = await run_in_threadpool(
+                framework.db.session.run_function_with_new_db_session,
+                services.api.crud.ModelEndpoints().create_model_endpoints,
                 model_endpoints_instructions=model_endpoints_instructions,
                 project=project,
                 function_name=function_name,

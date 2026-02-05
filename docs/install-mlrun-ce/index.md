@@ -61,7 +61,7 @@ It also supports automated alerts for model exceptions, enabling proactive maint
   - Grafana
 * MLRun Model monitoring - 
   - Kafka - https://github.com/bitnami/charts/tree/main/bitnami/kafka
-  - TDengine - https://github.com/taosdata/TDengine-Operator/blob/3.0/helm/tdengine/values.yaml
+  - TimescaleDB - https://docs.timescale.com/self-hosted/latest/install/
 * KFP Pipelines - https://github.com/kubeflow/pipelines
 
 ## Storage resources

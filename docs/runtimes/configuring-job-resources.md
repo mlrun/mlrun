@@ -111,12 +111,31 @@ that the number of GPUs is equal to the number of workers (or manage the GPU con
 You can change the number of workers after you create the trigger (function object), then you need to 
 redeploy the function. Examples of changing the number of workers:
 
-using {py:meth}`mlrun.runtimes.RemoteRuntime.with_http`:</br>
-`serve.with_http(workers=8, worker_timeout=10)`
+- Using {py:meth}`~mlrun.runtimes.RemoteRuntime.with_http`:
+```python
+serve.with_http(workers=8, worker_timeout=10)
+```
 
-using {py:meth}`mlrun.runtimes.RemoteRuntime.add_v3io_stream_trigger`:</br>
-`serve.add_v3io_stream_trigger(stream_path='v3io:///projects/myproj/stream1', maxWorkers=3,name='stream', group='serving', seek_to='earliest', shards=1) `
-
+- Using {py:meth}`~mlrun.runtimes.RemoteRuntime.add_v3io_stream_trigger`:
+```python
+serve.add_v3io_stream_trigger(
+    stream_path="v3io:///projects/myproj/stream1",
+    maxWorkers=3,
+    name="stream",
+    group="serving",
+    seek_to="earliest",
+    shards=1,
+)
+```
+- Using {py:meth}`~mlrun.runtimes.RemoteRuntime.add_rabbitmq_trigger`
+```python
+serve.add_rabbitmq_trigger(
+    url="amqp://rabbitmq-host:5672",
+    exchange_name="my-exchange",
+    queue_name="my-queue",
+    num_workers=4,
+)
+```
 ## Volumes
 
 When you create a pod in an MLRun job or Nuclio function, the pod by default has access to a file-system which is ephemeral, and gets 

@@ -31,6 +31,7 @@ import mlrun.common.schemas
 import mlrun.common.schemas.model_monitoring.constants as mm_constants
 import mlrun.errors
 import mlrun.launcher.factory
+import mlrun.runtimes
 import mlrun.utils.helpers
 import mlrun.utils.notifications
 import mlrun.utils.regex
@@ -143,7 +144,9 @@ class FunctionSpec(ModelObj):
     def build(self, build):
         self._build = self._verify_dict(build, "build", ImageBuilder)
 
-    def validate_service_account(self, allowed_service_accounts):
+    def validate_service_account(
+        self, allowed_service_accounts, forbidden_service_accounts
+    ):
         pass
 
 
@@ -253,7 +256,10 @@ class BaseRuntime(ModelObj):
         pass
 
     def validate_and_enrich_service_account(
-        self, allowed_service_account, default_service_account
+        self,
+        allowed_service_accounts,
+        forbidden_service_accounts,
+        default_service_account,
     ):
         pass
 
@@ -287,7 +293,7 @@ class BaseRuntime(ModelObj):
         name: Optional[str] = "",
         project: Optional[str] = "",
         params: Optional[dict] = None,
-        inputs: Optional[dict[str, str]] = None,
+        inputs: Optional[dict[str, str | list | dict]] = None,
         out_path: Optional[str] = "",
         workdir: Optional[str] = "",
         artifact_path: Optional[str] = "",
@@ -319,7 +325,8 @@ class BaseRuntime(ModelObj):
         :param params:         Input parameters (dict).
         :param inputs:         Input objects to pass to the handler. Type hints can be given so the input will be parsed
                                during runtime from `mlrun.DataItem` to the given type hint. The type hint can be given
-                               in the key field of the dictionary after a colon, e.g: "<key> : <type_hint>".
+                               in the key field of the dictionary after a colon, e.g: "<key> : <type_hint>". An input
+                               can include a collection of inputs in a dict or list.
         :param out_path:       (deprecated) Default artifact output path.
         :param artifact_path:  (deprecated) Default artifact output path (will replace out_path).
         :param workdir:        Working directory of the executed job and the default path for artifact inputs
@@ -446,9 +453,6 @@ class BaseRuntime(ModelObj):
             "MLRUN_DEFAULT_PROJECT": active_project,
         }
 
-        # Import here to avoid circular import
-        import mlrun.runtimes
-
         # Set auth session only for nuclio runtimes that have an access key
         if (
             self.kind in mlrun.runtimes.RuntimeKinds.nuclio_runtimes()
@@ -529,10 +533,10 @@ class BaseRuntime(ModelObj):
         mlrun.runtimes.utils.enrich_run_labels(
             meta.labels, [mlrun_constants.MLRunInternalLabels.owner]
         )
-        if runspec.spec.output_path:
-            runspec.spec.output_path = runspec.spec.output_path.replace(
-                "{{run.user}}", meta.labels[mlrun_constants.MLRunInternalLabels.owner]
-            )
+        runspec.spec.output_path = mlrun.runtimes.utils.resolve_run_user_template(
+            runspec.spec.output_path,
+            meta.labels.get(mlrun_constants.MLRunInternalLabels.owner),
+        )
 
         if db and self.kind != "handler":
             struct = self.to_dict()
@@ -735,7 +739,7 @@ class BaseRuntime(ModelObj):
         hyperparams=None,
         selector="",
         hyper_param_options: HyperParamOptions = None,
-        inputs: Optional[dict] = None,
+        inputs: Optional[dict[str, str | list | dict]] = None,
         outputs: Optional[list] = None,
         workdir: str = "",
         artifact_path: str = "",
@@ -760,7 +764,8 @@ class BaseRuntime(ModelObj):
                             see: :py:class:`~mlrun.model.HyperParamOptions`
         :param inputs:          Input objects to pass to the handler. Type hints can be given so the input will be
                                 parsed during runtime from `mlrun.DataItem` to the given type hint. The type hint can be
-                                given in the key field of the dictionary after a colon, e.g: "<key> : <type_hint>".
+                                given in the key field of the dictionary after a colon, e.g: "<key> : <type_hint>". An
+                                input can include a collection of inputs in a dict or list.
         :param outputs:         list of outputs which can pass in the workflow
         :param artifact_path:   default artifact output path (replace out_path)
         :param workdir:         working directory of the executed job and the default path for artifact inputs

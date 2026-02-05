@@ -85,7 +85,6 @@ def test_parse_log_hint(log_hint: str | dict, expected_log_hint: str | dict):
         # Full unbundling (no level specified)
         ("*results", "results", True),
         ("*my_data", "my_data", True),
-        ("*", "", True),
         # Level-specific unbundling
         ("1*results", "results", 1),
         ("2*nested", "nested", 2),
@@ -96,6 +95,12 @@ def test_parse_log_hint(log_hint: str | dict, expected_log_hint: str | dict):
         # Error case - invalid level
         ("abc*results", "Invalid unbundle level", None),
         ("1.5*results", "Invalid unbundle level", None),
+        # TODO: Error case - multiple asterisks (will be validated by the LogHint class in next PR
+        # ("1*2*results", "Invalid log hint key", None),
+        # Error case - empty key after asterisk
+        ("*", "Key is missing after the '*'", None),
+        ("  * ", "Key is missing after the '*'", None),
+        ("1*", "Key is missing after the '*'", None),
     ],
 )
 def test_extract_unbundling_from_key(

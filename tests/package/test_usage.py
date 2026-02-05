@@ -238,11 +238,11 @@ def test_mlconf_packagers_enabled(rundb_mock, is_enabled: bool, returns: list):
 
     # There should always be at least two outputs - the manually logged result and artifact:
     if is_enabled and returns:
-        # Plus all configured returning values ("*my_df_dict_" yields 3 outputs + "*my_array_list_" yields 10
+        # Plus all configured returning values ("*my_df_dict_" yields 4 outputs + "*my_array_list_" yields 11
         # outputs - 2, the keys):
         assert (
             len(log_artifacts_and_results_run.outputs)
-            == 2 + len(RETURNS_LOG_HINTS) + 3 + 10 - 2
+            == 2 + len(RETURNS_LOG_HINTS) + 4 + 11 - 2
         )
     else:
         # Plus the default logged output as string MLRun did before packagers and log hints:
@@ -449,23 +449,8 @@ def test_parse_inputs_with_mlconf_packagers_auto_unpack_inputs(
             ],
             "my_object": log_artifacts_and_results_run.outputs["my_object"],
             "my_dict": log_artifacts_and_results_run.outputs["my_dict"],
-            "my_df_dict": {
-                "abc": log_artifacts_and_results_run.outputs["my_df_dict_abc"],
-                "def": log_artifacts_and_results_run.outputs["my_df_dict_def"],
-                "ghi": log_artifacts_and_results_run.outputs["my_df_dict_ghi"],
-            },
-            "my_array_list": [
-                log_artifacts_and_results_run.outputs["my_array_list_0"],
-                log_artifacts_and_results_run.outputs["my_array_list_1"],
-                log_artifacts_and_results_run.outputs["my_array_list_2"],
-                log_artifacts_and_results_run.outputs["my_array_list_3"],
-                log_artifacts_and_results_run.outputs["my_array_list_4"],
-                log_artifacts_and_results_run.outputs["my_array_list_5"],
-                log_artifacts_and_results_run.outputs["my_array_list_6"],
-                log_artifacts_and_results_run.outputs["my_array_list_7"],
-                log_artifacts_and_results_run.outputs["my_array_list_8"],
-                log_artifacts_and_results_run.outputs["my_array_list_9"],
-            ],
+            "my_df_dict": log_artifacts_and_results_run.outputs["my_df_dict"],
+            "my_array_list": log_artifacts_and_results_run.outputs["my_array_list"],
         },
         params={
             "my_int": log_artifacts_and_results_run.outputs["my_int"],

@@ -361,15 +361,8 @@ def unpack_bundled_dict(obj: dict[str, dict]):
     assert obj == _BUNDLE_DICT_SAMPLE
 
 
-def validate_bundled_dict(results: dict) -> bool:
-    # Each key should be packed separately with the prefix "items_"
-    for key in _BUNDLE_DICT_SAMPLE.keys():
-        expected_key = f"items_{key}"
-        if expected_key not in results:
-            return False
-        if results[expected_key] != _BUNDLE_DICT_SAMPLE[key]:
-            return False
-    return True
+def validate_bundled_dict(result: dict) -> bool:
+    return result == _BUNDLE_DICT_SAMPLE
 
 
 def prepare_bundled_dict() -> tuple[dict[str, str], str]:
@@ -486,15 +479,8 @@ def unpack_bundled_list(obj: list[list]):
     assert obj == _BUNDLE_LIST_SAMPLE
 
 
-def validate_bundled_list(results: dict) -> bool:
-    # Each index should be packed separately with the prefix "items_"
-    for i, value in enumerate(_BUNDLE_LIST_SAMPLE):
-        expected_key = f"items_{i}"
-        if expected_key not in results:
-            return False
-        if results[expected_key] != value:
-            return False
-    return True
+def validate_bundled_list(result: list) -> bool:
+    return result == _BUNDLE_LIST_SAMPLE
 
 
 def prepare_bundled_list() -> tuple[list[str], str]:
@@ -612,16 +598,8 @@ def unpack_bundled_tuple(obj: tuple[tuple]):
     assert obj == _BUNDLE_TUPLE_SAMPLE
 
 
-def validate_bundled_tuple(results: dict) -> bool:
-    # Each index should be packed separately with the prefix "items_"
-    for i, value in enumerate(_BUNDLE_TUPLE_SAMPLE):
-        expected_key = f"items_{i}"
-        if expected_key not in results:
-            return False
-        # Tuples are serialized as lists
-        if tuple(results[expected_key]) != value:
-            return False
-    return True
+def validate_bundled_tuple(result: list) -> bool:
+    return tuple(tuple(r) for r in result) == _BUNDLE_TUPLE_SAMPLE
 
 
 def prepare_bundled_tuple() -> tuple[list[str], str]:
@@ -739,17 +717,8 @@ def unpack_bundled_set(obj: set[frozenset]):
     assert obj == _BUNDLE_SET_SAMPLE
 
 
-def validate_bundled_set(results: dict) -> bool:
-    # Each index should be packed separately with the prefix "items_"
-    # Sets are unordered, so we compare collected values as sets
-    collected_values = set()
-    for i in range(len(_BUNDLE_SET_SAMPLE)):
-        expected_key = f"items_{i}"
-        if expected_key not in results:
-            return False
-        # Frozensets are serialized as lists
-        collected_values.add(frozenset(results[expected_key]))
-    return collected_values == _BUNDLE_SET_SAMPLE
+def validate_bundled_set(result: list) -> bool:
+    return set(frozenset(r) for r in result) == _BUNDLE_SET_SAMPLE
 
 
 def prepare_bundled_set() -> tuple[list[str], str]:
@@ -870,17 +839,8 @@ def unpack_bundled_frozenset(obj: frozenset[frozenset]):
     assert obj == _BUNDLE_FROZENSET_SAMPLE
 
 
-def validate_bundled_frozenset(results: dict) -> bool:
-    # Each index should be packed separately with the prefix "items_"
-    # Frozensets are unordered, so we compare collected values as sets
-    collected_values = set()
-    for i in range(len(_BUNDLE_FROZENSET_SAMPLE)):
-        expected_key = f"items_{i}"
-        if expected_key not in results:
-            return False
-        # Frozensets are serialized as lists
-        collected_values.add(frozenset(results[expected_key]))
-    return collected_values == _BUNDLE_FROZENSET_SAMPLE
+def validate_bundled_frozenset(result: list) -> bool:
+    return frozenset(frozenset(r) for r in result) == _BUNDLE_FROZENSET_SAMPLE
 
 
 def prepare_bundled_frozenset() -> tuple[list[str], str]:

@@ -36,6 +36,7 @@ from nuclio import Event
 import mlrun
 import mlrun.common.constants as mlrun_constants
 from mlrun.lists import RunList
+from mlrun.package import handler as mlrun_handler_decorator
 
 from ..errors import err_to_str
 from ..execution import MLClientCtx
@@ -501,7 +502,7 @@ def exec_from_params(handler, runobj: RunObject, context: MLClientCtx, cwd=None)
                 # log hints (Expected behavior: inputs are being parsed when they have type hints in code or given
                 # by user. Outputs are logged only if log hints are provided by the user):
                 if mlrun.mlconf.packagers.enabled:
-                    val = mlrun.handler(
+                    val = mlrun_handler_decorator(
                         inputs=(
                             runobj.spec.inputs_type_hints
                             if runobj.spec.inputs_type_hints

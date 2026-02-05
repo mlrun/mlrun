@@ -170,38 +170,23 @@ def test_packager_pack(rundb_mock, tester: type[PackagerTester], test: PackTest)
         )
         is_unbundling = unbundle_level is not False
 
-        if artifact_type == ArtifactType.RESULT:
-            if is_unbundling:
-                # For unbundling, filter results to only include keys that start with the unbundle prefix
-                unbundled_results = {
-                    k: v
-                    for k, v in pack_run.status.results.items()
-                    if k.startswith(unbundle_key)
-                }
-                assert test.validation_function(
-                    unbundled_results, **test.validation_parameters
-                )
-            else:
-                assert key in pack_run.status.results
-                assert test.validation_function(
-                    pack_run.status.results[key], **test.validation_parameters
-                )
-        else:
-            if is_unbundling:
-                # For unbundling, filter outputs to only include keys that start with the unbundle prefix
-                unbundled_artifacts = {
-                    k: pack_run.outputs[k]
-                    for k in pack_run.outputs
-                    if k.startswith(unbundle_key)
-                }
-                assert test.validation_function(
-                    unbundled_artifacts, **test.validation_parameters
-                )
-            else:
-                assert key in pack_run.outputs
-                assert test.validation_function(
-                    pack_run._artifact(key=key), **test.validation_parameters
-                )
+        # If bundling was performed, check each element from the bundle accordingly (they will be sent to the validation
+        # function as well):
+        unbundled_artifacts = {}
+        if is_unbundling:
+            key = unbundle_key
+            unbundled_artifacts = {
+                k: pack_run.outputs[k]
+                for k in pack_run.outputs
+                if k.startswith(unbundle_key) and k != unbundle_key
+            }
+            assert unbundled_artifacts
+
+        # Verify the output:
+        assert key in pack_run.outputs
+        assert test.validation_function(
+            pack_run.outputs[key], **test.validation_parameters
+        )
     except Exception as exception:
         # An error was raised, check if the test failed or should have failed:
         if test.exception is None:
@@ -320,29 +305,14 @@ def test_packager_pack_to_unpack(
                 for k in pack_run.outputs
                 if k.startswith(unbundle_key)
             }
-            assert len(unbundled_outputs) > 0
-            # Determine if bundle was dict or list based on key suffixes (enumerating happens with "_" for lists):
-            suffixes = [
-                key[len(unbundle_key) + 1 :] for key in unbundled_outputs.keys()
-            ]
-            is_list_like = all(suffix.isdigit() for suffix in suffixes)
-            if is_list_like:
-                # Reconstruct list from indexed outputs for bundling
-                bundled_input = [
-                    unbundled_outputs[f"{unbundle_key}_{i}"]
-                    for i in range(len(unbundled_outputs))
-                ]
-            else:
-                # Reconstruct dict from keyed outputs for bundling
-                bundled_input = {
-                    suffix: unbundled_outputs[f"{unbundle_key}_{suffix}"]
-                    for suffix in suffixes
-                }
+            assert (
+                len(unbundled_outputs) > 2
+            )  # The bundle result + at least one artifact from the bundle.
             # Run unpack handler with bundled input
             mlrun_function.run(
                 name="unpack",
                 handler=test.unpack_handler,
-                inputs={"obj": bundled_input},
+                inputs={"obj": pack_run.outputs[unbundle_key]},
                 params=test.unpack_parameters,
                 artifact_path=test_directory.name,
                 local=True,

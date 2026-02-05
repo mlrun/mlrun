@@ -346,14 +346,9 @@ def test_clear_packagers_outputs():
             {"list_0": 0.12111, "list_1": 0.56111},
         ),
         (
-            "*set",
-            {0.12111, 0.56111},
-            {"set_0": 0.12111, "set_1": 0.56111},
-        ),
-        (
             "*",
             (0.12111, 0.56111),
-            {"_0": 0.12111, "_1": 0.56111},
+            "Key is missing after the '*'",
         ),
         (
             "*dict",
@@ -441,6 +436,16 @@ def test_unbundling_log_hint(
 
     # Validate multiple packages were packed:
     assert packagers_manager.results == expected_results
+
+    # Validate the bundle structure key:
+    assert (
+        list(
+            packagers_manager.get_bundles_results(
+                logged_outputs=packagers_manager.results
+            ).values()
+        )[0]
+        == obj
+    )
 
 
 class _DummyDataItem:

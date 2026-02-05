@@ -17,6 +17,7 @@ import inspect
 import os
 import shutil
 import traceback
+import warnings
 from typing import Any
 
 import mlrun.errors
@@ -62,6 +63,9 @@ class PackagersManager:
         self._artifacts: list[Artifact] = []
         self._results = {}
 
+        # Temporary holder for bundle structures results to update the store paths before logging them as results:
+        self._bundles = {}
+
     @property
     def artifacts(self) -> list[Artifact]:
         """
@@ -79,6 +83,22 @@ class PackagersManager:
         :return: A results dictionary.
         """
         return self._results
+
+    def get_bundles_results(self, logged_outputs: dict) -> dict:
+        """
+        Get the bundles results with updated store paths according to the logged outputs.
+
+        :param logged_outputs: The logged outputs dictionary from the MLRun context.
+
+        :return: A results dictionary with the bundles updated store paths.
+        """
+        updated_bundles = {}
+        for key, bundle_structure in self._bundles.items():
+            updated_bundles[key] = self._update_bundle_results(
+                bundle_structure=bundle_structure,
+                logged_outputs=logged_outputs,
+            )
+        return updated_bundles
 
     def collect_packagers(
         self, packagers: list[type[Packager] | str], default_priority: int = 5
@@ -176,7 +196,6 @@ class PackagersManager:
         self,
         obj: Any,
         log_hint: dict[str, str],
-        _unbundle_level: int | None = None,
     ) -> Artifact | dict | None | list[Artifact | dict | None]:
         """
         Pack an object using one of the manager's packagers.
@@ -193,10 +212,6 @@ class PackagersManager:
 
         :param obj:             The object to pack as an artifact.
         :param log_hint:        The log hint to use.
-        :param _unbundle_level: Inner argument. Mention the level of unbundling to perform. If provided, the method will
-                                unbundle the object only if the level is > 0, and will decrease the level by 1 for every
-                                unbundling. If None is provided (default behavior), the unbundling will be performed
-                                according to the log hint key.
 
         :return: The packaged artifact or result. None is returned if there was a problem while packing the object. If
                  unbundling is performed, a list of all the unbundled packaged objects is returned.
@@ -205,75 +220,40 @@ class PackagersManager:
         :raise MLRunPackagePackingError:    If there was an error during the packing.
         :raise MLRunPackageUnbundlingError: If there was an error during the unbundling.
         """
+        # TODO: Remove in MLRun 1.13.0
+        if "**" in log_hint[LogHintKey.KEY]:
+            warnings.warn(
+                message=(
+                    "The '**' for packing dictionary items separately is replaced by a single '*', same as list. "
+                    "Please read the documentation on the new bundling and unbundling feature. Using '**' will be "
+                    "removed in MLRun 1.13.0. Currently replacing '**' with '*' automatically."
+                ),
+                category=FutureWarning,
+                stacklevel=2,
+            )
+            log_hint[LogHintKey.KEY] = log_hint[LogHintKey.KEY].replace("**", "*")
+
         # Check if needed to unbundle:
         log_hint_key, unbundle_level = LogHintUtils.extract_unbundling_from_key(
             log_hint=log_hint[LogHintKey.KEY]
         )
-        if _unbundle_level is not None:
-            # Inner call with unbundle level provided - override the extracted level:
-            unbundle_level = _unbundle_level
 
-        # If unbundling is required, check the object can be unbundled (we don't want to fail on non-unbundle-able
-        # object as it is common that a user function might return a list[object] | object, so the expected log hint
-        # would be with *):
-        objects_to_pack = None
-        if unbundle_level:
-            try:
-                objects_to_pack = self._unbundle(bundled_object=obj)
-            except MLRunPackageUnbundlingError as unbundling_error:
-                if "No packager was found to unbundle the object" not in str(
-                    unbundling_error
-                ):
-                    raise unbundling_error
-                logger.debug(
-                    f"Unbundle level was not reached for '{log_hint_key}', but it cannot be unbundled (there is no "
-                    f"packager that can unbundle it) so we continue to pack it as a single object."
-                )
-
-        # If unbundling was performed, pack each of the unbundled objects separately:
-        if objects_to_pack is not None:
-            if isinstance(objects_to_pack, dict):
-                objects_to_pack = {
-                    f"{log_hint_key}_{dict_key}": dict_obj
-                    for dict_key, dict_obj in obj.items()
-                }
-            else:
-                objects_to_pack = {
-                    f"{log_hint_key}_{i}": obj_i for i, obj_i in enumerate(obj)
-                }
-            # Go over the collected keys and objects and pack them (with decreased unbundle level):
-            unbundle_level = (
-                unbundle_level
-                if isinstance(unbundle_level, bool)
-                else unbundle_level - 1
-            )
-            packages = []
-            for key, per_key_obj in objects_to_pack.items():
-                # Edit the key in the log hint:
-                per_key_log_hint = log_hint.copy()
-                per_key_log_hint[LogHintKey.KEY] = key
-                # Pack and collect the package:
-                try:
-                    currently_packaged = self.pack(
-                        obj=per_key_obj,
-                        log_hint=per_key_log_hint,
-                        _unbundle_level=unbundle_level,
-                    )
-                    if isinstance(currently_packaged, list):
-                        packages.extend(currently_packaged)
-                    else:
-                        packages.append(currently_packaged)
-                except Exception as exception:
-                    raise MLRunPackagePackingError(
-                        f"An exception was raised during the packing of '{per_key_log_hint}': {exception}"
-                    ) from exception
-            return packages
+        # Update the log hint key:
+        log_hint[LogHintKey.KEY] = log_hint_key
 
         # A single object is required to be packaged:
         try:
-            package = self._pack(
-                obj=obj, log_hint=log_hint.copy()
-            )  # Log hint is copied to preserve key for error.
+            if unbundle_level:
+                package, bundle_result = self._pack_bundle(
+                    obj=obj,
+                    log_hint=log_hint,
+                    unbundle_level=unbundle_level,
+                )
+                self._bundles[log_hint_key] = bundle_result
+            else:
+                package = self._pack(
+                    obj=obj, log_hint=log_hint.copy()
+                )  # Log hint is copied to preserve key for error.
         except Exception as exception:
             raise MLRunPackagePackingError(
                 f"An exception was raised during the packing of '{log_hint[LogHintKey.KEY]}': {exception}"
@@ -428,6 +408,43 @@ class PackagersManager:
         ARTIFACT_TYPE = "artifact_type"
         INSTRUCTIONS = "instructions"
 
+    def _update_bundle_results(
+        self, bundle_structure: Any, logged_outputs: dict
+    ) -> Any:
+        """
+        Update the bundle results according to the logged outputs. This method goes over the bundle structure
+        recursively and look for the log hint keys to update them with the logged outputs paths.
+
+        :param bundle_structure: The bundle structure to update.
+        :param logged_outputs:   The logged outputs dictionary from the MLRun context.
+
+        :return: The updated bundle structure.
+        """
+        # Dict case:
+        if isinstance(bundle_structure, dict):
+            return {
+                bundle_key: (
+                    logged_outputs[package_key]
+                    if not isinstance(package_key, list | dict)
+                    else self._update_bundle_results(
+                        bundle_structure=bundle_structure[bundle_key],
+                        logged_outputs=logged_outputs,
+                    )
+                )
+                for bundle_key, package_key in bundle_structure.items()
+            }
+
+        # List case:
+        return [
+            logged_outputs[package_key]
+            if not isinstance(package_key, list | dict)
+            else self._update_bundle_results(
+                bundle_structure=bundle_structure[index],
+                logged_outputs=logged_outputs,
+            )
+            for index, package_key in enumerate(bundle_structure)
+        ]
+
     def _get_packagers_with_default_packager(self) -> list[Packager]:
         """
         Get the full list of packagers - the collected packagers and the default packager (located at last place in the
@@ -555,6 +572,96 @@ class PackagersManager:
 
         # No packager was found:
         return None
+
+    def _pack_bundle(
+        self, obj: object, log_hint: dict, unbundle_level: bool | int
+    ) -> tuple[list[Artifact | dict | None], dict]:
+        """
+        Pack a bundle of objects using one of the manager's packagers.
+
+        :param obj:            The objects bundle to pack as artifacts.
+        :param log_hint:       The log hint to use.
+        :param unbundle_level: Mention the level of unbundling to perform. If provided, the method will unbundle the
+                               object only if the level is > 0, and will decrease the level by 1 for every unbundling.
+
+        :return: A list of all packaged artifacts or results along the bundle structure as result. None is returned if
+                 there was a problem while packing the objects.
+
+        :raise MLRunPackagePackingError:    If there was an error during the packing.
+        :raise MLRunPackageUnbundlingError: If there was an error during the unbundling.
+        """
+        # Check the object can be unbundled (we don't want to fail on non-unbundle-able object, as it is very common
+        # to return a list[object] | object from a function. In this case, the user may run with a log hint that would
+        # start with * but only a single object will return - we don't want to fail on this, but rather pack it as a
+        # single object):
+        log_hint_key = log_hint[LogHintKey.KEY]
+        unbundled_object = None
+        if unbundle_level:
+            try:
+                unbundled_object = self._unbundle(bundled_object=obj)
+            except MLRunPackageUnbundlingError as unbundling_error:
+                if "No packager was found to unbundle the object" not in str(
+                    unbundling_error
+                ):
+                    raise unbundling_error
+                logger.debug(
+                    f"Unbundle level was not reached for '{log_hint_key}', but it cannot be unbundled (there is no "
+                    f"packager that can unbundle it) so we continue to pack it as a single object."
+                )
+
+        # If the object cannot be unbundled, pack it as a single object:
+        if unbundled_object is None:
+            return [self._pack(obj=obj, log_hint=log_hint)], log_hint_key
+
+        # Unbundling was performed, create a log hint for each of the unbundled items:
+        if isinstance(unbundled_object, dict):
+            objects_to_pack = {
+                f"{log_hint_key}_{dict_key}": dict_obj
+                for dict_key, dict_obj in unbundled_object.items()
+            }
+            bundle_structure = {
+                dict_key: package_key
+                for dict_key, package_key in zip(
+                    unbundled_object.keys(), objects_to_pack.keys()
+                )
+            }
+        else:
+            objects_to_pack = {
+                f"{log_hint_key}_{i}": obj_i for i, obj_i in enumerate(unbundled_object)
+            }
+            bundle_structure = list(objects_to_pack.keys())
+
+        # Go over the collected keys and objects and pack them (with decreased unbundle level):
+        unbundle_level = (
+            unbundle_level if isinstance(unbundle_level, bool) else unbundle_level - 1
+        )
+        packages = []
+        for (key, per_key_obj), i in zip(
+            objects_to_pack.items(),
+            unbundled_object.keys()
+            if isinstance(unbundled_object, dict)
+            else range(len(unbundled_object)),
+        ):
+            # Edit the key in the log hint:
+            per_key_log_hint = log_hint.copy()
+            per_key_log_hint[LogHintKey.KEY] = key
+            # Pack and collect the package:
+            try:
+                currently_packaged, bundle_structure[i] = self._pack_bundle(
+                    obj=per_key_obj,
+                    log_hint=per_key_log_hint,
+                    unbundle_level=unbundle_level,
+                )
+                if isinstance(currently_packaged, list):
+                    packages.extend(currently_packaged)
+                else:
+                    packages.append(currently_packaged)
+            except Exception as exception:
+                raise MLRunPackagePackingError(
+                    f"An exception was raised during the packing of '{per_key_log_hint}': {exception}"
+                ) from exception
+
+        return packages, bundle_structure
 
     def _pack(self, obj: Any, log_hint: dict) -> Artifact | dict | None:
         """

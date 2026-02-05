@@ -107,10 +107,19 @@ class LogHintUtils:
             return log_hint, False
 
         # Extract unbundle level and key:
-        unbundle_level, key = log_hint.split("*")
+        unbundle_level, key = log_hint.split("*", 1)
+
+        # Make sure a key is given:
+        if not key.strip():
+            raise MLRunInvalidArgumentError(
+                f"Invalid log hint key '{log_hint}'. Key is missing after the '*' indicating unbundling. A log hint "
+                f"key with unbundling should be in the format of "
+                f"'<unbundle_level>*<key>' or '*<key>' for full "
+                f"unbundling."
+            )
 
         # If unbundle level is given, convert to int:
-        if unbundle_level:
+        if unbundle_level.strip():
             try:
                 unbundle_level = int(unbundle_level.strip())
             except ValueError:

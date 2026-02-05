@@ -14,6 +14,7 @@
 
 import functools
 import inspect
+import warnings
 from collections import OrderedDict
 from collections.abc import Callable
 
@@ -40,6 +41,7 @@ from mlrun.package.utils import (
 
 
 def handler(
+    labels: dict[str, str] | None = None,  # TODO: Remove in MLRun 1.13.0
     outputs: list[str | dict[str, str]] | None = None,
     inputs: bool | dict[str, str | type] = True,
 ):
@@ -47,6 +49,11 @@ def handler(
     MLRun's handler is a decorator to wrap a function and enable parsing inputs (`mlrun.DataItem`) using type hints and
     log returning outputs using log hints.
 
+    Note: This decorator is applied automatically if `mlrun.mlconf.packagers.enabled` is set to True (by default its
+    True). It should not be used manually in that case.
+
+    :param labels:  Labels to add to the run. Expecting a dictionary with the labels names as keys. Default: None.
+                    Will be deprecated in MLRun 1.13.0 - use the `context` object to set labels.
     :param outputs: Log hints (logging configurations) for the function's returned values. Expecting a list of the
                     following values:
 
@@ -99,6 +106,16 @@ def handler(
             >>> run_object.outputs
             {'my_string': 'I will be logged', 'my_array': 'store://...', 'my_multiplier': 3}
     """
+    # TODO: Remove in MLRun 1.13.0
+    if labels is not None:
+        warnings.warn(
+            message=(
+                "The 'labels' parameter of the 'mlrun.handler' decorator is deprecated and will be removed in MLRun "
+                "1.13.0. Please use the 'context' object to set labels."
+            ),
+            category=FutureWarning,
+            stacklevel=2,
+        )
 
     def decorator(func: Callable):
         def wrapper(*args: tuple, **kwargs: dict):

@@ -21,7 +21,6 @@ from mlrun.execution import MLClientCtx
 from mlrun.package.errors import MLRunPackageCollectionError, MLRunPackagePackingError
 from mlrun.package.packagers_manager import PackagersManager
 from mlrun.package.utils import LogHintUtils, TypeHintUtils
-from mlrun.run import get_or_create_ctx
 
 
 class ContextHandler:
@@ -109,6 +108,8 @@ class ContextHandler:
                     os.path.join("mlrun", "runtimes", "local")
                     in callstack_frame.filename
                 ):
+                    from mlrun.run import get_or_create_ctx
+
                     self._context = get_or_create_ctx("context")
                     break
 
@@ -223,6 +224,12 @@ class ContextHandler:
             self._context.log_results(results=self._packagers_manager.results)
             for artifact in self._packagers_manager.artifacts:
                 self._context.log_artifact(item=artifact)
+            # Update and log the bundle (if exists):
+            bundle_results = self._packagers_manager.get_bundles_results(
+                logged_outputs={**self._context.artifact_uris, **self._context.results},
+            )
+            if bundle_results:
+                self._context.log_results(results=bundle_results)
         else:
             self._context.logger.debug("Skipping logging - not the logging worker.")
 

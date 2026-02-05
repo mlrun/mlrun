@@ -193,11 +193,6 @@ install-docs-requirements: ## Install all requirements needed for compiling mlru
 	$(MLRUN_PYTHON_VENV_PIP_INSTALL) --upgrade $(MLRUN_PIP_NO_CACHE_FLAG) pip~=$(MLRUN_PIP_VERSION)
 	$(MLRUN_PYTHON_VENV_PIP_INSTALL) $(MLRUN_PIP_NO_CACHE_FLAG) -r docs/requirements.txt
 
-.PHONY: install-conda-requirements
-install-conda-requirements: ## Install all requirements needed for development with specific conda packages for arm64
-	conda install --yes --file conda-arm64-requirements-python311.txt
-	make install-requirements
-
 .PHONY: install-complete-requirements
 install-complete-requirements: ## Install all requirements needed for development and testing
 	$(MLRUN_PYTHON_VENV_PIP_INSTALL) --upgrade $(MLRUN_PIP_NO_CACHE_FLAG) pip~=$(MLRUN_PIP_VERSION)

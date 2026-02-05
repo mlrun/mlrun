@@ -36,6 +36,7 @@ See a full description of KFP, Python, and the workflow engines in {ref}`local-r
 ### Serving Graph
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
+|ML-7879|Serving graphs now support consuming messages from RabbitMQ queues and topic-based routing. See {py:meth}`~mlrun.runtimes.RemoteRuntime.add_rabbitmq_trigger`, {ref}`graph-ha-cfg`. |
 |ML-10753|MLRun supports cyclic serving graphs. See [Cyclic graph example](../serving/use-cases.html#exanple-of-a-cyclic-graph), {py:meth}`BaseStep to() <~mlrun.serving.states.BaseStep.to>`, {py:meth}`QueueStep to()<~mlrun.serving.QueueStep.to>`, and {py:meth}`~mlrun.serving.states.BaseStep.cycle_to`.|
 
 ### Model monitoring

@@ -39,15 +39,24 @@ class DeclarativeAgent(ChainRunner):
         model_ref = spec.get("modelRef", {})
         model_name = model_ref.get("name", "gpt-4")
 
-        # Resolve tools from the module that imported this class
+        # Resolve tools from namespace (source file) or __main__
         import sys
-        caller_module = sys.modules.get("__main__")
         tools = []
         for tool_ref in spec.get("tools", []):
             tool_name = tool_ref.get("name") if isinstance(tool_ref, dict) else tool_ref
-            # Look in caller module globals
-            if caller_module and hasattr(caller_module, tool_name):
-                tools.append(getattr(caller_module, tool_name))
+            tool = None
+
+            # First try namespace (the source file's globals)
+            if namespace and tool_name in namespace:
+                tool = namespace[tool_name]
+            else:
+                # Fall back to __main__
+                caller_module = sys.modules.get("__main__")
+                if caller_module and hasattr(caller_module, tool_name):
+                    tool = getattr(caller_module, tool_name)
+
+            if tool:
+                tools.append(tool)
 
         self.agent = create_agent(
             model=model_name,

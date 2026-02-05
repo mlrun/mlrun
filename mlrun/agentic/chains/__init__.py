@@ -41,3 +41,8 @@ try:
     from mlrun.agentic.chains.sentiment_analysis import SentimentAnalysisStep
 except ImportError:
     SentimentAnalysisStep = None
+
+try:
+    from mlrun.agentic.chains.declarative_agent import DeclarativeAgent
+except ImportError:
+    DeclarativeAgent = None

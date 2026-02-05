@@ -1829,9 +1829,11 @@ class ModelRunner(storey.ParallelExecution):
         return self.model_runner_selector.select_models(event, models)
 
     def select_outlets(self, event) -> Optional[Collection[str]]:
+        is_batched = False
         if isinstance(event, list) and any(
             hasattr(subevent, "body") for subevent in event
         ):
+            is_batched = True
             sys_outlets = [f"{self.name}_unpacker"]
         else:
             sys_outlets = [f"{self.name}_error_raise"]
@@ -1844,7 +1846,14 @@ class ModelRunner(storey.ParallelExecution):
             return (
                 user_outlets if isinstance(user_outlets, list) else [user_outlets]
             ) + sys_outlets
-        return None
+
+        #  fall to default behavior of routing to all valid outlets
+        all_outlets = list(self._name_to_outlet.keys())
+        if is_batched:
+            all_outlets.remove(f"{self.name}_error_raise")
+        else:
+            all_outlets.remove(f"{self.name}_unpacker")
+        return all_outlets
 
     def _is_error(self, event: Union[dict, list]) -> bool:
         if isinstance(event, dict):

@@ -80,11 +80,6 @@ class ClientBaseLauncher(launcher.BaseLauncher, abc.ABC):
         mlrun.runtimes.utils.enrich_run_labels(
             run.metadata.labels, [mlrun_constants.MLRunInternalLabels.owner]
         )
-        if run.spec.output_path:
-            run.spec.output_path = run.spec.output_path.replace(
-                "{{run.user}}",
-                run.metadata.labels[mlrun_constants.MLRunInternalLabels.owner],
-            )
 
         # Set the auth token name from RuntimeConfiguration context manager (if used)
         auth_token_name = mlrun.runtime_configuration_context.RuntimeConfigurationContext.get_auth_token_name()

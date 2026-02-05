@@ -460,17 +460,7 @@ def run(
         # Parse run_config into a dictionary for RuntimeConfigurationContext
         runtime_config_dict = fill_params(runtime_config) if runtime_config else {}
 
-        if runtime_config_dict:
-            with RuntimeConfigurationContext(**runtime_config_dict):
-                resp = fn.run(
-                    runobj,
-                    watch=watch,
-                    schedule=schedule,
-                    local=local,
-                    auto_build=auto_build,
-                    project=project,
-                )
-        else:
+        with RuntimeConfigurationContext(**runtime_config_dict):
             resp = fn.run(
                 runobj,
                 watch=watch,

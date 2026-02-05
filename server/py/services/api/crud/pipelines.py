@@ -615,10 +615,9 @@ class Pipelines(
             try:
                 token_name = self.resolve_auth_token_name_from_workflow_manifest(data)
             except yaml.YAMLError as exc:
-                mlrun.utils.logger.warning(
-                    "Failed to parse workflow manifest YAML",
-                    error=mlrun.errors.err_to_str(exc),
-                )
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    f"Failed to parse workflow manifest YAML: {mlrun.errors.err_to_str(exc)}"
+                ) from exc
             content_type = ".yaml"
         elif " /zip" in content_type:
             content_type = ".zip"

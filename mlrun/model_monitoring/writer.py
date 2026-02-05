@@ -46,25 +46,6 @@ from mlrun.model_monitoring.helpers import get_result_instance_fqn
 from mlrun.serving.utils import StepToDict
 from mlrun.utils import logger, now_date
 
-# Module-level worker ID captured by the nuclio handler override below.
-# When running inside a nuclio worker, ``handler()`` populates this before
-# each request so that ``WriterLagEventsGenerator`` can include the worker
-# identity in the lag event entity.
-NUCLIO_WORKER_ID: int | None = None
-
-
-def init_context(context):
-    from mlrun.runtimes import nuclio_init_hook
-
-    nuclio_init_hook(context, globals(), "serving_v2")
-
-
-def handler(context, event):
-    global NUCLIO_WORKER_ID
-    NUCLIO_WORKER_ID = getattr(context, "worker_id", None)
-    return context.mlrun_handler(context, event)
-
-
 _RawEvent = dict[str, Any]
 _AppResultEvent = NewType("_AppResultEvent", _RawEvent)
 
@@ -525,7 +506,7 @@ class WriterLagEventsGenerator(storey.MapClass):
         if lag_seconds < self.lag_threshold_seconds:
             return None
 
-        worker_id = NUCLIO_WORKER_ID if NUCLIO_WORKER_ID is not None else 0
+        worker_id = getattr(self.context, "worker_id", 0)
         now_mono = time.monotonic()
         last_emit = self._last_emit_ts.get(worker_id, -float("inf"))
         if (now_mono - last_emit) < self.lag_event_cooldown_seconds:

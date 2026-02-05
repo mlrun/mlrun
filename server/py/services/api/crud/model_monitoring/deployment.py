@@ -622,6 +622,7 @@ class MonitoringDeployment:
             filename=_MONITORING_APPLICATION_CONTROLLER_FUNCTION_PATH,
             kind=mlrun.run.RuntimeKinds.nuclio,
             image=image,
+            handler="handler",
             labels={
                 mm_constants.ModelMonitoringInfraLabel.KEY: mm_constants.ModelMonitoringInfraLabel.VAL
             },

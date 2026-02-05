@@ -13,8 +13,8 @@
 # limitations under the License.
 
 import time
+import unittest.mock
 from datetime import UTC, datetime, timedelta
-from unittest.mock import patch
 
 import pytest
 
@@ -35,6 +35,8 @@ from mlrun.model_monitoring.writer import (
     WriterGraphFactory,
     WriterLagEventsGenerator,
 )
+from mlrun.serving.server import GraphContext
+from mlrun.serving.states import TaskStep
 
 TEST_PROJECT = "test-lag-detection"
 
@@ -81,11 +83,11 @@ class TestWriterLagEventsGenerator:
             lag_threshold_seconds=300,  # 5 min
             lag_event_cooldown_seconds=0,
         )
+        step.context = unittest.mock.Mock(worker_id=3)
         old_time = datetime.now(tz=UTC) - timedelta(minutes=10)
         event = self._make_event(end_infer_time=old_time)
 
-        with patch("mlrun.model_monitoring.writer.NUCLIO_WORKER_ID", 3):
-            result = step.do(event)
+        result = step.do(event)
 
         assert result["value_dict"].pop("lag_seconds") >= 300
         assert result == {
@@ -136,37 +138,24 @@ class TestWriterLagEventsGenerator:
 
         assert step.do(event) is None
 
-    def test_cooldown_prevents_repeated_events(self):
-        step = WriterLagEventsGenerator(
-            project=TEST_PROJECT,
-            lag_threshold_seconds=300,
-            lag_event_cooldown_seconds=9999,  # very long cooldown
-        )
-        old_time = datetime.now(tz=UTC) - timedelta(minutes=10)
-
-        first = step.do(self._make_event(end_infer_time=old_time))
-
-        assert first["kind"] == "model-monitoring-lag-detected"
-        assert step.do(self._make_event(end_infer_time=old_time)) is None
-
     def test_cooldown_is_per_worker(self):
         step = WriterLagEventsGenerator(
             project=TEST_PROJECT,
             lag_threshold_seconds=300,
             lag_event_cooldown_seconds=9999,  # very long cooldown
         )
+        step.context = unittest.mock.Mock(worker_id=0)
         old_time = datetime.now(tz=UTC) - timedelta(minutes=10)
 
         # Worker 0 triggers, then gets blocked by cooldown
-        with patch("mlrun.model_monitoring.writer.NUCLIO_WORKER_ID", 0):
-            first_w0 = step.do(self._make_event(end_infer_time=old_time))
-            assert first_w0["kind"] == "model-monitoring-lag-detected"
-            assert step.do(self._make_event(end_infer_time=old_time)) is None
+        first_w0 = step.do(self._make_event(end_infer_time=old_time))
+        assert first_w0["kind"] == "model-monitoring-lag-detected"
+        assert step.do(self._make_event(end_infer_time=old_time)) is None
 
         # Worker 1 can still trigger — independent cooldown
-        with patch("mlrun.model_monitoring.writer.NUCLIO_WORKER_ID", 1):
-            first_w1 = step.do(self._make_event(end_infer_time=old_time))
-            assert first_w1["kind"] == "model-monitoring-lag-detected"
+        step.context.worker_id = 1
+        first_w1 = step.do(self._make_event(end_infer_time=old_time))
+        assert first_w1["kind"] == "model-monitoring-lag-detected"
 
     def test_cooldown_expires_allows_new_event(self):
         step = WriterLagEventsGenerator(
@@ -183,7 +172,7 @@ class TestWriterLagEventsGenerator:
         assert first["kind"] == "model-monitoring-lag-detected"
         assert second["kind"] == "model-monitoring-lag-detected"
 
-    def test_entity_id_defaults_worker_0_when_nuclio_id_none(self):
+    def test_entity_id_defaults_worker_0_when_no_context(self):
         step = WriterLagEventsGenerator(
             project="my-project",
             lag_threshold_seconds=60,
@@ -191,8 +180,7 @@ class TestWriterLagEventsGenerator:
         )
         old_time = datetime.now(tz=UTC) - timedelta(minutes=5)
 
-        with patch("mlrun.model_monitoring.writer.NUCLIO_WORKER_ID", None):
-            result = step.do(self._make_event(end_infer_time=old_time))
+        result = step.do(self._make_event(end_infer_time=old_time))
 
         assert result["entity"]["ids"] == ["my-project.writer.0"]
 
@@ -208,6 +196,28 @@ class TestWriterLagEventsGenerator:
         result = step.do(event)
 
         assert result["kind"] == "model-monitoring-lag-detected"
+
+    def test_context_worker_id_propagates_via_task_step(self):
+        """Verify worker_id flows from GraphContext through TaskStep to storey step.
+
+        Note: Accessing task_step._object is necessary here to verify the internal
+        wiring between TaskStep and the underlying storey class. This tests the
+        serving framework's context propagation mechanism.
+        """
+        task_step = TaskStep(
+            class_name="mlrun.model_monitoring.writer.WriterLagEventsGenerator",
+            class_args={
+                "project": TEST_PROJECT,
+                "lag_threshold_seconds": 60,
+                "lag_event_cooldown_seconds": 0,
+            },
+        )
+
+        nuclio_ctx = unittest.mock.Mock(worker_id=7)
+        graph_context = GraphContext(nuclio_context=nuclio_ctx)
+        task_step.init_object(context=graph_context, namespace={}, mode="sync")
+
+        assert task_step._object.context.worker_id == 7
 
 
 # -- KindChoice tests --
@@ -303,60 +313,3 @@ class TestLagDetectionConfig:
         assert int(lag_cfg.min_lag_threshold_minutes) == 5
         assert int(lag_cfg.default_lag_threshold_minutes) == 60
         assert int(lag_cfg.default_lag_event_cooldown_minutes) == 30
-
-
-# -- Handler parameter tests --
-
-
-class TestWriterHandlerParameter:
-    """Verify that passing handler='handler' to code_to_function is a no-op.
-
-    Nuclio discovers handler() and init_context() by name from the source
-    module. The handler parameter only takes effect when using 'module:func'
-    format (with a colon).
-    """
-
-    _WRITER_PATH = mlrun.model_monitoring.writer.__file__
-
-    def test_serving_function_handler_same_with_and_without_param(self):
-        fn_with = mlrun.code_to_function(
-            "writer-with",
-            filename=self._WRITER_PATH,
-            kind="serving",
-            handler="handler",
-        )
-        fn_without = mlrun.code_to_function(
-            "writer-without",
-            filename=self._WRITER_PATH,
-            kind="serving",
-        )
-        assert fn_with.spec.function_handler == fn_without.spec.function_handler
-
-    def test_nuclio_function_handler_same_with_and_without_param(self):
-        fn_with = mlrun.code_to_function(
-            "ctrl-with",
-            filename=self._WRITER_PATH,
-            kind="nuclio",
-            handler="handler",
-        )
-        fn_without = mlrun.code_to_function(
-            "ctrl-without",
-            filename=self._WRITER_PATH,
-            kind="nuclio",
-        )
-        assert fn_with.spec.function_handler == fn_without.spec.function_handler
-
-    def test_colon_format_overrides_function_handler(self):
-        fn_default = mlrun.code_to_function(
-            "default",
-            filename=self._WRITER_PATH,
-            kind="nuclio",
-        )
-        fn_custom = mlrun.code_to_function(
-            "custom",
-            filename=self._WRITER_PATH,
-            kind="nuclio",
-            handler="mymodule:my_func",
-        )
-        assert fn_custom.spec.function_handler == "mymodule:my_func"
-        assert fn_default.spec.function_handler != fn_custom.spec.function_handler

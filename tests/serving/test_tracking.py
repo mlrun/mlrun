@@ -77,7 +77,7 @@ class ModelTestingCustomTrack(ModelTestingClass):
 
 
 class BatchedModel(Model):
-    def __init__(self, model_path: str, return_as_dict: bool, **kwargs):
+    def __init__(self, model_path: str, return_as_dict: bool = False, **kwargs):
         super().__init__(**kwargs)
         self.model_path = model_path
         self.model = None
@@ -2006,3 +2006,182 @@ def test_batch_step_with_mrs(rundb_mock, multiple_models):
             if not base_id:
                 base_id = request_id.split("-")[0]
             assert request_id == f"{base_id}-{i:04d}"
+
+
+@pytest.mark.parametrize("multiple_models", (True, False))
+@pytest.mark.parametrize("raise_exception", (True, False))
+def test_batch_step_with_mrs_comprehensive(
+    multiple_models, raise_exception, rundb_mock
+):
+    """
+    Test batch step with MRS for:
+    - Single vs multiple models
+    - Error handling (valid inputs vs mixed valid/invalid)
+    - Proper tracking of batch events
+    """
+    function = mlrun.new_function("tests", kind="serving")
+    function.set_tracking("dummy://", enable_tracking=True)
+    graph = function.set_topology("flow", engine="async")
+
+    # Batch step: groups events into batches
+    batch_size = 2
+    graph = graph.to(
+        "storey.Batch",
+        "batching",
+        max_events=batch_size,
+        flush_after_seconds=1,
+        full_event=True,
+    )
+
+    # ModelRunnerStep: process batches through the model(s)
+    model_runner_step = ModelRunnerStep(name="model_runner", raise_exception=True)
+
+    model_path = str(Path(__file__).parent / "assets" / "linear_model.pkl")
+    model_path2 = str(Path(__file__).parent / "assets" / "linear_model2.pkl")
+
+    model_runner_step.add_model(
+        model_class="BatchedModel",
+        execution_mechanism="naive",
+        endpoint_name="my_model",
+        model_path=model_path,
+    )
+
+    if multiple_models:
+        model_runner_step.add_model(
+            model_class="BatchedModel",
+            execution_mechanism="naive",
+            endpoint_name="my_model_2",
+            model_path=model_path2,
+        )
+
+    step = graph.to(model_runner_step)
+    step = step.to("storey.FlatMap", _fn="(event.body)", full_event=True)
+    step.respond()
+    server = function.to_mock_server()
+
+    try:
+        if raise_exception:
+            # Mix valid and invalid inputs - invalid list has wrong length
+            events = [
+                [1, 0],  # Valid
+                [],  # Invalid - empty list causes error
+            ]
+        else:
+            # All valid inputs as simple lists
+            events = [
+                [1, 0],
+                [2, 1],
+                [4, 3],
+                [5, 4],
+                [7, 6],
+            ]
+
+        def send_event(event, delay):
+            time.sleep(delay)
+            return server.test(body=event)
+
+        # Send events in thread pool with staggered delays
+        with ThreadPoolExecutor(max_workers=len(events)) as executor:
+            futures = [
+                executor.submit(send_event, event, i * 0.1)
+                for i, event in enumerate(events)
+            ]
+
+            if raise_exception:
+                # Expect error when batch processes
+                error_count = 0
+                for future in futures:
+                    try:
+                        future.result()
+                    except RuntimeError as e:
+                        if "list index out of range" in str(e):
+                            error_count += 1
+                        else:
+                            raise
+                # Both events in the batch should fail together
+                assert error_count == len(
+                    events
+                ), f"Expected {len(events)} errors, got {error_count}"
+            else:
+                responses = [future.result() for future in futures]
+    finally:
+        server.wait_for_completion()
+
+    if not raise_exception:
+        # Verify responses
+        assert len(responses) == len(events)
+        assert all(r is not None for r in responses)
+
+        # Expected responses based on linear model predictions
+        if multiple_models:
+            expected_responses = [
+                {"my_model": 3.0, "my_model_2": 7.0},
+                {"my_model": 8.0, "my_model_2": 12.0},
+                {"my_model": 18.0, "my_model_2": 22.0},
+                {"my_model": 23.0, "my_model_2": 27.0},
+                {"my_model": 33.0, "my_model_2": 37.0},
+            ]
+        else:
+            expected_responses = [3.0, 8.0, 18.0, 23.0, 33.0]
+        assert responses == expected_responses
+
+        # Verify tracking events
+        dummy_stream = server.context.stream.output_stream
+        num_models = 2 if multiple_models else 1
+        num_batches = math.ceil(len(events) / batch_size)  # 3 batches (2+2+1)
+        expected_tracking_events = num_batches * num_models
+
+        assert (
+            len(dummy_stream.event_list) == expected_tracking_events
+        ), f"Expected {expected_tracking_events} tracking events, got {len(dummy_stream.event_list)}"
+
+        # Group events by model
+        model_events = {"my_model": [], "my_model_2": []}
+        for event in dummy_stream.event_list:
+            model_events[event["model"]].append(event)
+
+        # Verify events for each model
+        models_to_check = (
+            ["my_model", "my_model_2"] if multiple_models else ["my_model"]
+        )
+
+        for model_name in models_to_check:
+            model_specific_events = model_events[model_name]
+            assert len(model_specific_events) == num_batches
+
+            for i, event in enumerate(model_specific_events):
+                # Iterate over batches
+                start_idx = i * batch_size
+                end_idx = min(start_idx + batch_size, len(events))
+                batch_events = events[start_idx:end_idx]
+                expected_count = len(batch_events)
+
+                # Extract expected inputs and outputs
+                expected_inputs = batch_events
+                if multiple_models:
+                    expected_outputs = [
+                        expected_responses[j][model_name]
+                        for j in range(start_idx, end_idx)
+                    ]
+                else:
+                    expected_outputs = expected_responses[start_idx:end_idx]
+
+                assert event["effective_sample_count"] == expected_count
+                assert event["model"] == model_name
+                assert event["model_class"] == "BatchedModel"
+                assert event["error"] is None
+                assert event["request"]["inputs"] == expected_inputs
+                assert event["request"]["input_schema"] is None
+                assert event["resp"]["outputs"] == expected_outputs
+                assert event["resp"]["output_schema"] is None
+    else:
+        # Verify error tracking
+        dummy_stream = server.context.stream.output_stream
+        # Should have 1 error event per model (the batch failed)
+        num_models = 2 if multiple_models else 1
+        assert len(dummy_stream.event_list) == num_models
+
+        for event in dummy_stream.event_list:
+            assert event["error"] is not None
+            assert "list index out of range" in event["error"]
+            assert event["effective_sample_count"] == len(events)

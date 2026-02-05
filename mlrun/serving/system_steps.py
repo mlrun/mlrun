@@ -82,10 +82,15 @@ class MonitoringPreProcessor(storey.MapClass):
                 ):
                     is_error = True
                 else:
-                    event_body = [
-                        sub_event.body.get(model, sub_event.body)
-                        for sub_event in event.body
-                    ]
+                    event_body = []
+                    for sub_event in event.body:
+                        if isinstance(sub_event.body, dict):
+                            sub_event_by_model = sub_event.body.get(
+                                model, sub_event.body
+                            )
+                            event_body.append(sub_event_by_model)
+                        else:
+                            event_body.append(sub_event.body)
             if not is_error:
                 outputs, new_output_schema = self.get_listed_data(
                     event_body, result_path, output_schema
@@ -215,7 +220,8 @@ class MonitoringPreProcessor(storey.MapClass):
                 event_data = se.body[model]
             else:
                 event_data = se.body
-
+            if not isinstance(event_data, dict):
+                return None
             error = event_data.get(mm_schemas.StreamProcessingEvent.ERROR)
             errors.append(error)
 

@@ -23,15 +23,21 @@ from mlrun.agentic.chains.refine import (
     RefineQuery,
     get_refine_chain,
 )
-from mlrun.agentic.chains.retrieval import (
-    DocumentCallbackHandler,
-    DocumentRetriever,
-    MultiRetriever,
-    fix_milvus_filter_arg,
-    get_retriever_from_config,
-)
-
 # Optional imports
+try:
+    from mlrun.agentic.chains.retrieval import (
+        DocumentCallbackHandler,
+        DocumentRetriever,
+        MultiRetriever,
+        fix_milvus_filter_arg,
+        get_retriever_from_config,
+    )
+except ImportError:
+    DocumentCallbackHandler = None
+    DocumentRetriever = None
+    MultiRetriever = None
+    fix_milvus_filter_arg = None
+    get_retriever_from_config = None
 try:
     from mlrun.agentic.chains.a2a_client import A2AClient
 except ImportError:

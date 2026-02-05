@@ -90,6 +90,10 @@ class ClientBaseLauncher(launcher.BaseLauncher, abc.ABC):
         auth_token_name = mlrun.runtime_configuration_context.RuntimeConfigurationContext.get_auth_token_name()
         mlrun.utils.helpers.set_auth_token_name(run.spec, auth_token_name)
 
+        run.spec.output_path = mlrun.runtimes.utils.resolve_run_user_template(
+            run.spec.output_path,
+            run.metadata.labels.get(mlrun_constants.MLRunInternalLabels.owner),
+        )
         db = runtime._get_db()
         if db and runtime.kind != "handler":
             struct = runtime.to_dict()

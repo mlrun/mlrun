@@ -39,32 +39,23 @@ class DeclarativeAgent(ChainRunner):
         model_ref = spec.get("modelRef", {})
         model_name = model_ref.get("name", "gpt-4")
 
-        # Resolve tools from namespace (source file) or __main__
+        # Resolve tools by searching sys.modules
         import sys
-        tools = []
-        print(f"[DEBUG] Namespace keys: {list(namespace.keys()) if namespace else 'None'}")
-        print(f"[DEBUG] Looking for tools: {spec.get('tools', [])}")
+        tool_names_to_find = []
         for tool_ref in spec.get("tools", []):
             tool_name = tool_ref.get("name") if isinstance(tool_ref, dict) else tool_ref
-            tool = None
+            tool_names_to_find.append(tool_name)
 
-            # First try namespace (the source file's globals)
-            if namespace and tool_name in namespace:
-                tool = namespace[tool_name]
-                print(f"[DEBUG] Found tool '{tool_name}' in namespace")
-            else:
-                # Fall back to __main__
-                caller_module = sys.modules.get("__main__")
-                if caller_module and hasattr(caller_module, tool_name):
-                    tool = getattr(caller_module, tool_name)
-                    print(f"[DEBUG] Found tool '{tool_name}' in __main__")
-
-            if tool:
-                tools.append(tool)
-            else:
-                print(f"[DEBUG] Tool '{tool_name}' NOT FOUND")
-
-        print(f"[DEBUG] Total tools found: {len(tools)}")
+        tools = []
+        for module_name, module in sys.modules.items():
+            if module is None:
+                continue
+            for tool_name in tool_names_to_find:
+                if hasattr(module, tool_name):
+                    tool = getattr(module, tool_name)
+                    # Check if it's a langchain tool (has .invoke method)
+                    if hasattr(tool, "invoke") and tool not in tools:
+                        tools.append(tool)
 
         self.agent = create_agent(
             model=model_name,

@@ -1829,7 +1829,12 @@ class ModelRunner(storey.ParallelExecution):
         return self.model_runner_selector.select_models(event, models)
 
     def select_outlets(self, event) -> Optional[Collection[str]]:
-        sys_outlets = [f"{self.name}_flat_event_choice"]
+        if isinstance(event, list) and any(
+            hasattr(subevent, "body") for subevent in event
+        ):
+            sys_outlets = [f"{self.name}_unpacker"]
+        else:
+            sys_outlets = [f"{self.name}_error_raise"]
         if "background_task_status_step" in self._name_to_outlet:
             sys_outlets.append("background_task_status_step")
         if self._raise_exception and self._is_error(event):
@@ -2551,20 +2556,6 @@ class ModelRunnerErrorRaiser(storey.MapClass):
             if should_raise:
                 raise ModelRunnerError(models_errors=errors)
         return event
-
-
-class FlatEventChoice(storey.Choice):
-    def __init__(self, unpacker_step_name: str, raise_error_step_name: str, **kwargs):
-        self.unpacker_step_name = unpacker_step_name
-        self.raise_error_step_name = raise_error_step_name
-        super().__init__(**kwargs)
-
-    def select_outlets(self, event):
-        if storey.flow.is_batched_event(event):
-            outlets = [self.unpacker_step_name]
-        else:
-            outlets = [self.raise_error_step_name]
-        return outlets
 
 
 class QueueStep(BaseStep, StepToDict):

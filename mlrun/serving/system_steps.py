@@ -59,7 +59,7 @@ class MonitoringPreProcessor(storey.MapClass):
         )
 
     def reconstruct_request_resp_fields(
-        self, event, model: str, model_monitoring_data: dict, multiple_models = True
+        self, event, model: str, model_monitoring_data: dict, multiple_models=True
     ) -> tuple[dict[str, Any], dict[str, Any]]:
         outputs = None
         new_output_schema = None
@@ -77,7 +77,9 @@ class MonitoringPreProcessor(storey.MapClass):
             is_error = False
             event_body = event.body
             if storey.flow.is_batched_event(event):
-                if self._extract_error_from_batched_event(event, model=model if multiple_models else None):
+                if self._extract_error_from_batched_event(
+                    event, model=model if multiple_models else None
+                ):
                     is_error = True
                 else:
                     event_body = [

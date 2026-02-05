@@ -358,25 +358,12 @@ def add_error_raiser_step(
     graph: RootFlowStep, monitored_steps: dict[str, MonitoredStep]
 ) -> RootFlowStep:
     for monitored_step in monitored_steps.values():
-        flat_event_choice = f"{monitored_step.name}_flat_event_choice"
-        error_raise_step_name = f"{monitored_step.name}_error_raise"
         unpack_step = f"{monitored_step.name}_unpacker"
-        # Add FlatMap step to unpack sub-events (batched events) if present
-        graph.add_step(
-            class_name="mlrun.serving.states.FlatEventChoice",
-            name=flat_event_choice,
-            unpacker_step_name=unpack_step,
-            raise_error_step_name=error_raise_step_name,
-            after=monitored_step.name,
-            full_event=True,
-            raise_exception=monitored_step.raise_exception,
-            model_endpoint_creation_strategy=mlrun.common.schemas.ModelEndpointCreationStrategy.SKIP,
-        )
         graph.add_step(
             class_name="storey.FlatMap",
             name=unpack_step,
             _fn="(event.body)",
-            after=flat_event_choice,
+            after=monitored_step.name,
             full_event=True,
             raise_exception=monitored_step.raise_exception,
             model_endpoint_creation_strategy=mlrun.common.schemas.ModelEndpointCreationStrategy.SKIP,
@@ -385,8 +372,8 @@ def add_error_raiser_step(
         # Add error raiser step after the unpacker
         error_step = graph.add_step(
             class_name="mlrun.serving.states.ModelRunnerErrorRaiser",
-            name=error_raise_step_name,
-            after=[unpack_step, flat_event_choice],
+            name=f"{monitored_step.name}_error_raise",
+            after=[monitored_step.name, unpack_step],
             full_event=True,
             raise_exception=monitored_step.raise_exception,
             models_names=list(monitored_step.class_args["models"].keys()),

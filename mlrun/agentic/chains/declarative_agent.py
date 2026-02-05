@@ -42,6 +42,8 @@ class DeclarativeAgent(ChainRunner):
         # Resolve tools from namespace (source file) or __main__
         import sys
         tools = []
+        print(f"[DEBUG] Namespace keys: {list(namespace.keys()) if namespace else 'None'}")
+        print(f"[DEBUG] Looking for tools: {spec.get('tools', [])}")
         for tool_ref in spec.get("tools", []):
             tool_name = tool_ref.get("name") if isinstance(tool_ref, dict) else tool_ref
             tool = None
@@ -49,14 +51,20 @@ class DeclarativeAgent(ChainRunner):
             # First try namespace (the source file's globals)
             if namespace and tool_name in namespace:
                 tool = namespace[tool_name]
+                print(f"[DEBUG] Found tool '{tool_name}' in namespace")
             else:
                 # Fall back to __main__
                 caller_module = sys.modules.get("__main__")
                 if caller_module and hasattr(caller_module, tool_name):
                     tool = getattr(caller_module, tool_name)
+                    print(f"[DEBUG] Found tool '{tool_name}' in __main__")
 
             if tool:
                 tools.append(tool)
+            else:
+                print(f"[DEBUG] Tool '{tool_name}' NOT FOUND")
+
+        print(f"[DEBUG] Total tools found: {len(tools)}")
 
         self.agent = create_agent(
             model=model_name,

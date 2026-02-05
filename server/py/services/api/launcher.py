@@ -567,6 +567,25 @@ class ServerSideLauncher(launcher.BaseLauncher):
         self, runtime: mlrun.runtimes.base.BaseRuntime, run: mlrun.run.RunObject
     ):
         run.metadata.labels[mlrun_constants.MLRunInternalLabels.kind] = runtime.kind
+
+        # Server-side owner enrichment: override client-provided owner with authenticated username.
+        # In authenticated environments (e.g., IG4), auth_info.username is the source of truth.
+        # This ensures the owner label reflects the authenticated user rather than the local user
+        # on the client machine (e.g., 'jovyan' in Jupyter notebooks).
+        # For CE/unauthenticated deployments, auth_info.username will be None, preserving
+        # any existing owner label from client-side enrichment.
+        if self._auth_info and self._auth_info.username:
+            run.metadata.labels[mlrun_constants.MLRunInternalLabels.owner] = (
+                self._auth_info.username
+            )
+
+        # Replace {{run.user}} template in output_path with the final owner value.
+        # This must happen after owner enrichment to ensure correct substitution.
+        run.spec.output_path = mlrun.runtimes.utils.resolve_run_user_template(
+            run.spec.output_path,
+            run.metadata.labels.get(mlrun_constants.MLRunInternalLabels.owner),
+        )
+
         db = runtime._get_db()
         if db and runtime.kind != "handler":
             struct = runtime.to_dict()

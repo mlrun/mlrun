@@ -532,10 +532,10 @@ class BaseRuntime(ModelObj):
         mlrun.runtimes.utils.enrich_run_labels(
             meta.labels, [mlrun_constants.MLRunInternalLabels.owner]
         )
-        if runspec.spec.output_path:
-            runspec.spec.output_path = runspec.spec.output_path.replace(
-                "{{run.user}}", meta.labels[mlrun_constants.MLRunInternalLabels.owner]
-            )
+        runspec.spec.output_path = mlrun.runtimes.utils.resolve_run_user_template(
+            runspec.spec.output_path,
+            meta.labels.get(mlrun_constants.MLRunInternalLabels.owner),
+        )
 
         if db and self.kind != "handler":
             struct = self.to_dict()

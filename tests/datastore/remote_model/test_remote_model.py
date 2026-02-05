@@ -119,12 +119,7 @@ class BaseMockModelProviderTest:
         """Verify tracking data for error invocation"""
         assert event["request"]["input_schema"] == list(input_data.keys())
         assert event["resp"]["output_schema"] is None
-        # TODO check
-        # for batch step we will got multiple outputs with None, for direct batch, we will got single None result
-        assert (
-            event["resp"]["outputs"] == [None]
-            or event["resp"]["outputs"] == [None] * event["effective_sample_count"]
-        )
+        assert event["resp"]["outputs"] is None
         assert "Mock error triggered by ERROR keyword" in event["error"]
         assert event["model"] == model
         assert event["labels"] == {}

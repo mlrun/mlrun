@@ -59,8 +59,10 @@ class MonitoringPreProcessor(storey.MapClass):
         )
 
     def reconstruct_request_resp_fields(
-        self, event, model: str, model_monitoring_data: dict
+        self, event, model: str, model_monitoring_data: dict, multiple_models = True
     ) -> tuple[dict[str, Any], dict[str, Any]]:
+        outputs = None
+        new_output_schema = None
         result_path = model_monitoring_data.get(MonitoringData.RESULT_PATH)
         input_path = model_monitoring_data.get(MonitoringData.INPUT_PATH)
 
@@ -72,23 +74,33 @@ class MonitoringPreProcessor(storey.MapClass):
             input_schema=input_schema,
         )
         if event.body and isinstance(event.body, list):
+            is_error = False
             event_body = event.body
             if storey.flow.is_batched_event(event):
-                event_body = [
-                    sub_event.body.get(model, sub_event.body)
-                    for sub_event in event.body
-                ]
-            outputs, new_output_schema = self.get_listed_data(
-                event_body, result_path, output_schema
-            )
+                if self._extract_error_from_batched_event(event, model=model if multiple_models else None):
+                    is_error = True
+                else:
+                    event_body = [
+                        sub_event.body.get(model, sub_event.body)
+                        for sub_event in event.body
+                    ]
+            if not is_error:
+                outputs, new_output_schema = self.get_listed_data(
+                    event_body, result_path, output_schema
+                )
         else:
-            outputs, new_output_schema = self.get_listed_data(
-                event.body.get(model, event.body), result_path, output_schema
-            )
+            is_error = False
+            if isinstance(event.body, dict):
+                event_body_by_model = event.body.get(model, event.body)
+                if isinstance(event_body_by_model, dict):
+                    is_error = bool(event_body_by_model.get("error"))
+            if not is_error:
+                outputs, new_output_schema = self.get_listed_data(
+                    event.body.get(model, event.body), result_path, output_schema
+                )
         inputs, new_input_schema = self.get_listed_data(
             event._metadata.get("inputs", {}), input_path, input_schema
         )
-
         if outputs and isinstance(outputs[0], list):
             if output_schema and len(output_schema) != len(outputs[0]):
                 logger.info(
@@ -373,7 +385,7 @@ class MonitoringPreProcessor(storey.MapClass):
         elif monitoring_data:
             model = list(monitoring_data.keys())[0]
             request, resp = self.reconstruct_request_resp_fields(
-                event, model, monitoring_data[model]
+                event, model, monitoring_data[model], multiple_models=False
             )
             if hasattr(event, "_original_timestamp"):
                 when = event._original_timestamp

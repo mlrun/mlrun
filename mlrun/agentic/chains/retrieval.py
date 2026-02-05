@@ -14,10 +14,10 @@
 
 from typing import Dict, List, Optional
 
-from langchain.callbacks.base import BaseCallbackHandler
+from langchain_core.callbacks import BaseCallbackHandler
 from langchain.chains.qa_with_sources.retrieval import RetrievalQAWithSourcesChain
-from langchain.prompts import PromptTemplate
-from langchain.schema import Document
+from langchain_core.prompts import PromptTemplate
+from langchain_core.documents import Document
 
 from mlrun.agentic.chains.base import ChainRunner
 from mlrun.agentic.config import get_llm, get_vector_db

@@ -31,9 +31,9 @@ class LGBMTypes(MLTypes):
     """
 
     # Union (not |) so this is not evaluated at import time during docs build:
-    ModelType = Union[lgb.LGBMModel, lgb.Booster]
-    DatasetType = Union[MLTypes.DatasetType, lgb.Dataset]
-    EvaluationResultType = Union[
+    ModelType = Union[lgb.LGBMModel, lgb.Booster]  # noqa: UP007
+    DatasetType = Union[MLTypes.DatasetType, lgb.Dataset]  # noqa: UP007
+    EvaluationResultType = Union[  # noqa: UP007
         tuple[str, str, float, bool],  # lightgbm.train
         tuple[str, str, float, bool, float],  # lightgbm.cv
     ]

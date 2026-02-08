@@ -32,6 +32,12 @@ max-line-length = 120
 "__init__.py" = ["F401"]
 "docs/**.py" = ["CPY001"]
 "*.ipynb" = ["ALL"]  # TODO: enable linting rules on Jupyter notebooks
+# PyTorch/TensorFlow types (Parameter, Tensor, Variable, TensorSpec) do not support | for unions; keep Union[...]
+"mlrun/frameworks/pytorch/callbacks/tensorboard_logging_callback.py" = ["UP007"]
+"mlrun/frameworks/pytorch/mlrun_interface.py" = ["UP007"]
+"mlrun/frameworks/pytorch/model_server.py" = ["UP007"]
+"mlrun/frameworks/tf_keras/model_handler.py" = ["UP007"]
+"mlrun/frameworks/tf_keras/callbacks/tensorboard_logging_callback.py" = ["UP007"]
 
 [tool.ruff.lint.flake8-copyright]
 author = "Iguazio"

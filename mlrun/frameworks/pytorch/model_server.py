@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Any
+from typing import Any, Union
 
 import numpy as np
 import torch
@@ -158,7 +158,7 @@ class PyTorchModelServer(V2ModelServer):
             model=self._model_handler.model, context=self.context
         )
 
-    def predict(self, request: dict[str, Any]) -> Tensor | list:
+    def predict(self, request: dict[str, Any]) -> Union[Tensor, list]:
         """
         Infer the inputs through the model using MLRun's PyTorch interface and return its output. The inferred data will
         be read from the "inputs" key of the request.

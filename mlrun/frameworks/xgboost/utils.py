@@ -27,8 +27,8 @@ class XGBoostTypes(MLTypes):
     """
 
     # Union (not |) so this is not evaluated at import time during docs build:
-    ModelType = Union[xgb.XGBModel, xgb.Booster]
-    DatasetType = Union[MLTypes.DatasetType, xgb.DMatrix]
+    ModelType = Union[xgb.XGBModel, xgb.Booster]  # noqa: UP007
+    DatasetType = Union[MLTypes.DatasetType, xgb.DMatrix]  # noqa: UP007
 
 
 class XGBoostUtils(MLUtils):

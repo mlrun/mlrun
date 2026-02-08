@@ -38,7 +38,7 @@ class PyTorchModelHandler(DLModelHandler):
     FRAMEWORK_NAME = "torch"
 
     # Declare a type of input sample (Union avoids | at import time for docs build):
-    IOSample = Union[torch.Tensor, np.ndarray]
+    IOSample = Union[torch.Tensor, np.ndarray]  # noqa: UP007
 
     class _LabelKeys:
         """

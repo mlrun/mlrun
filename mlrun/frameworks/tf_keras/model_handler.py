@@ -363,10 +363,9 @@ class TFKerasModelHandler(DLModelHandler):
         self,
         model_name: str | None = None,
         optimize: bool = True,
-        input_signature: list[tf.TensorSpec]
-        | list[np.ndarray]
-        | tf.TensorSpec
-        | np.ndarray = None,
+        input_signature: Union[
+            list[tf.TensorSpec], list[np.ndarray], tf.TensorSpec, np.ndarray
+        ] = None,
         output_path: str | None = None,
         log: bool | None = None,
     ):

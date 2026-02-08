@@ -14,6 +14,7 @@
 
 from collections.abc import Callable
 from datetime import datetime
+from typing import Union
 
 import tensorflow as tf
 from packaging import version
@@ -38,7 +39,7 @@ class _TFKerasTensorboardLogger(TensorboardLogger):
 
     def __init__(
         self,
-        statistics_functions: list[Callable[[Variable], float | Variable]],
+        statistics_functions: list[Callable[[Variable], Union[float, Variable]]],
         context: mlrun.MLClientCtx = None,
         tensorboard_directory: str | None = None,
         run_name: str | None = None,
@@ -256,7 +257,9 @@ class TensorboardLoggingCallback(LoggingCallback):
         tensorboard_directory: str | None = None,
         run_name: str | None = None,
         weights: bool | list[str] = False,
-        statistics_functions: list[Callable[[Variable | Tensor], float | Tensor]]
+        statistics_functions: list[
+            Callable[[Union[Variable, Tensor]], Union[float, Tensor]]
+        ]
         | None = None,
         dynamic_hyperparameters: dict[
             str, list[str | int] | Callable[[], TFKerasTypes.TrackableType]
@@ -550,7 +553,7 @@ class TensorboardLoggingCallback(LoggingCallback):
 
     @staticmethod
     def get_default_weight_statistics_list() -> (
-        list[Callable[[Variable | Tensor], float | Tensor]]
+        list[Callable[[Union[Variable, Tensor]], Union[float, Tensor]]]
     ):
         """
         Get the default list of statistics functions being applied on the tracked weights each epoch.

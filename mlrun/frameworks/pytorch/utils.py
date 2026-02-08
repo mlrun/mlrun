@@ -35,8 +35,8 @@ class PyTorchTypes(DLTypes):
 
     ModelType = Module
     # Union (not |) so this is not evaluated at import time during docs build:
-    MetricValueType = Union[int, float, np.ndarray, Tensor]
-    MetricFunctionType = Union[Callable[[Tensor, Tensor], MetricValueType], Module]
+    MetricValueType = Union[int, float, np.ndarray, Tensor]  # noqa: UP007
+    MetricFunctionType = Union[Callable[[Tensor, Tensor], MetricValueType], Module]  # noqa: UP007
 
 
 class PyTorchUtils(DLUtils):

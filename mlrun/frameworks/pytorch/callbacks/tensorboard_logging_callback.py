@@ -14,6 +14,7 @@
 
 from collections.abc import Callable
 from datetime import datetime
+from typing import Union
 
 import torch
 from torch import Tensor
@@ -63,7 +64,9 @@ class _PyTorchTensorboardLogger(TensorboardLogger):
 
     def __init__(
         self,
-        statistics_functions: list[Callable[[Parameter], float | Parameter]],
+        statistics_functions: list[
+            Callable[[Union[Parameter, Tensor]], Union[float, Parameter]]
+        ],
         context: mlrun.MLClientCtx = None,
         tensorboard_directory: str | None = None,
         run_name: str | None = None,
@@ -248,7 +251,9 @@ class TensorboardLoggingCallback(LoggingCallback):
         tensorboard_directory: str | None = None,
         run_name: str | None = None,
         weights: bool | list[str] = False,
-        statistics_functions: list[Callable[[Parameter | Tensor], float | Tensor]]
+        statistics_functions: list[
+            Callable[[Union[Parameter, Tensor]], Union[float, Tensor]]
+        ]
         | None = None,
         dynamic_hyperparameters: dict[
             str, tuple[str, list[str | int] | Callable[[], PyTorchTypes.TrackableType]]
@@ -360,7 +365,7 @@ class TensorboardLoggingCallback(LoggingCallback):
 
     @staticmethod
     def get_default_weight_statistics_list() -> (
-        list[Callable[[Parameter | Tensor], float | Tensor]]
+        list[Callable[[Union[Parameter, Tensor]], Union[float, Tensor]]]
     ):
         """
         Get the default list of statistics functions being applied on the tracked weights each epoch.

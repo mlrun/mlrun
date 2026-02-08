@@ -13,6 +13,7 @@
 # limitations under the License.
 
 from collections.abc import Callable
+from typing import Union
 
 import numpy as np
 from torch import Tensor
@@ -496,7 +497,7 @@ class LoggingCallback(Callback):
                     )
 
         # Parse the value:
-        if isinstance(value, Tensor | Parameter):
+        if isinstance(value, Union[Tensor, Parameter]):  # noqa: UP007
             if value.numel() == 1:
                 value = float(value)
             else:

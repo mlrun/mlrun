@@ -27,7 +27,7 @@ class SKLearnTypes(MLTypes):
     """
 
     # Union (not |) so this is not evaluated at import time during docs build:
-    ModelType = Union[
+    ModelType = Union[  # noqa: UP007
         sklearn.base.BaseEstimator,
         sklearn.base.BiclusterMixin,
         sklearn.base.ClassifierMixin,

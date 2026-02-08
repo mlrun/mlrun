@@ -14,7 +14,7 @@
 
 import importlib
 import sys
-from typing import Any
+from typing import Any, Union
 
 import torch
 import torch.multiprocessing as mp
@@ -347,7 +347,7 @@ class PyTorchMLRunInterface:
 
     def predict(
         self,
-        inputs: Tensor | list[Tensor],
+        inputs: Union[Tensor, list[Tensor]],
         use_cuda: bool = True,
         batch_size: int = -1,
     ) -> Tensor:
@@ -846,7 +846,7 @@ class PyTorchMLRunInterface:
             accuracies.append(metric_function(y_pred, y_true))
         return accuracies
 
-    def _metric_average(self, rank_value: Tensor | float, name: str) -> float:
+    def _metric_average(self, rank_value: Union[Tensor, float], name: str) -> float:
         """
         Wait for all ranks and calculate the average of the metric provided.
 
@@ -949,8 +949,8 @@ class PyTorchMLRunInterface:
 
     @staticmethod
     def _tensor_to_cuda(
-        tensor: Tensor | dict | list | tuple,
-    ) -> Tensor | dict | list | tuple:
+        tensor: Union[Tensor, dict, list, tuple],
+    ) -> Union[Tensor, dict, list, tuple]:
         """
         Send to given tensor to cuda if it is a tensor. If the given object is a dictionary, the dictionary values will
         be sent to the function again recursively. If the given object is a list or a tuple, all the values in it will

@@ -1840,7 +1840,7 @@ class ModelRunner(storey.ParallelExecution):
             ) + sys_outlets
         return None
 
-    def _is_error(self, event: Union[dict, list]) -> bool:
+    def _is_error(self, event: dict | list) -> bool:
         if isinstance(event, dict):
             if len(self.runnables) == 1:
                 if isinstance(event, dict):

@@ -783,8 +783,8 @@ def _should_fetch_source_code(
 def _configure_source_loader_init_container(
     function: mlrun.runtimes.nuclio.function.RemoteRuntime,
     sidecar: dict,
-    client_version: typing.Optional[str] = None,
-    client_python_version: typing.Optional[str] = None,
+    client_version: str | None = None,
+    client_python_version: str | None = None,
 ):
     """
     Configure an init container for Application runtime to load source code at runtime.
@@ -854,8 +854,8 @@ def _build_source_loader_init_container(
     source: str,
     target_dir: str,
     volume_mount: dict,
-    client_version: typing.Optional[str] = None,
-    client_python_version: typing.Optional[str] = None,
+    client_version: str | None = None,
+    client_python_version: str | None = None,
 ) -> dict:
     """
     Build the init container spec for loading source code.

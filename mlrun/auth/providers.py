@@ -90,7 +90,7 @@ class DynamicTokenProvider(TokenProvider):
         return False
 
     @property
-    def authenticated_username(self) -> typing.Optional[str]:
+    def authenticated_username(self) -> str | None:
         """
         Extract the authenticated username from the JWT access token.
 

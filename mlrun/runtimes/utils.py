@@ -484,7 +484,7 @@ def resolve_owner(
     return getpass.getuser()
 
 
-def _resolve_authenticated_username_from_token_provider() -> Optional[str]:
+def _resolve_authenticated_username_from_token_provider() -> str | None:
     """
     Attempt to resolve the authenticated username from the IG4 token provider.
 

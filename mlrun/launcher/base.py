@@ -52,7 +52,7 @@ class BaseLauncher(abc.ABC):
         task: Optional[
             Union["mlrun.run.RunTemplate", "mlrun.run.RunObject", dict]
         ] = None,
-        handler: Optional[Union[str, Callable]] = None,
+        handler: Optional[str | Callable] = None,
         name: Optional[str] = "",
         project: Optional[str] = "",
         params: Optional[dict] = None,
@@ -63,7 +63,7 @@ class BaseLauncher(abc.ABC):
         output_path: Optional[str] = "",
         watch: Optional[bool] = True,
         schedule: Optional[
-            Union[str, mlrun.common.schemas.schedule.ScheduleCronTrigger]
+            str | mlrun.common.schemas.schedule.ScheduleCronTrigger
         ] = None,
         hyperparams: Optional[dict[str, list]] = None,
         hyper_param_options: Optional[mlrun.model.HyperParamOptions] = None,
@@ -73,9 +73,9 @@ class BaseLauncher(abc.ABC):
         auto_build: Optional[bool] = None,
         param_file_secrets: Optional[dict[str, str]] = None,
         notifications: Optional[list[mlrun.model.Notification]] = None,
-        returns: Optional[list[Union[str, dict[str, str]]]] = None,
+        returns: Optional[list[str | dict[str, str]]] = None,
         state_thresholds: Optional[dict[str, int]] = None,
-        retry: Optional[Union[mlrun.model.Retry, dict]] = None,
+        retry: Optional[mlrun.model.Retry | dict] = None,
     ) -> "mlrun.run.RunObject":
         """run the function from the server/client[local/remote]"""
         pass

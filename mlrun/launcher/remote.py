@@ -48,7 +48,7 @@ class ClientRemoteLauncher(launcher.ClientBaseLauncher):
         output_path: Optional[str] = "",
         watch: Optional[bool] = True,
         schedule: Optional[
-            Union[str, mlrun.common.schemas.schedule.ScheduleCronTrigger]
+            str | mlrun.common.schemas.schedule.ScheduleCronTrigger
         ] = None,
         hyperparams: Optional[dict[str, list]] = None,
         hyper_param_options: Optional[mlrun.model.HyperParamOptions] = None,
@@ -58,10 +58,10 @@ class ClientRemoteLauncher(launcher.ClientBaseLauncher):
         auto_build: Optional[bool] = None,
         param_file_secrets: Optional[dict[str, str]] = None,
         notifications: Optional[list[mlrun.model.Notification]] = None,
-        returns: Optional[list[Union[str, dict[str, str]]]] = None,
+        returns: Optional[list[str | dict[str, str]]] = None,
         state_thresholds: Optional[dict[str, int]] = None,
         reset_on_run: Optional[bool] = None,
-        retry: Optional[Union[mlrun.model.Retry, dict]] = None,
+        retry: Optional[mlrun.model.Retry | dict] = None,
     ) -> "mlrun.run.RunObject":
         self.enrich_runtime(runtime, project)
         run = self._create_run_object(task)

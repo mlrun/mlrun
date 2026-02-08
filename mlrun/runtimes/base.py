@@ -288,7 +288,7 @@ class BaseRuntime(ModelObj):
         runspec: Optional[
             Union["mlrun.run.RunTemplate", "mlrun.run.RunObject", dict]
         ] = None,
-        handler: Optional[Union[str, Callable]] = None,
+        handler: Optional[str | Callable] = None,
         name: Optional[str] = "",
         project: Optional[str] = "",
         params: Optional[dict] = None,
@@ -297,7 +297,7 @@ class BaseRuntime(ModelObj):
         workdir: Optional[str] = "",
         artifact_path: Optional[str] = "",
         watch: Optional[bool] = True,
-        schedule: Optional[Union[str, mlrun.common.schemas.ScheduleCronTrigger]] = None,
+        schedule: Optional[str | mlrun.common.schemas.ScheduleCronTrigger] = None,
         hyperparams: Optional[dict[str, list]] = None,
         hyper_param_options: Optional[HyperParamOptions] = None,
         verbose: Optional[bool] = None,
@@ -307,11 +307,11 @@ class BaseRuntime(ModelObj):
         auto_build: Optional[bool] = None,
         param_file_secrets: Optional[dict[str, str]] = None,
         notifications: Optional[list[mlrun.model.Notification]] = None,
-        returns: Optional[list[Union[str, dict[str, str]]]] = None,
+        returns: Optional[list[str | dict[str, str]]] = None,
         state_thresholds: Optional[dict[str, int]] = None,
         reset_on_run: Optional[bool] = None,
         output_path: Optional[str] = "",
-        retry: Optional[Union[mlrun.model.Retry, dict]] = None,
+        retry: Optional[mlrun.model.Retry | dict] = None,
         **launcher_kwargs,
     ) -> RunObject:
         """

@@ -14,7 +14,6 @@
 
 import inspect
 from http import HTTPMethod
-from typing import Optional
 
 from mlrun.utils import get_in, update_in
 

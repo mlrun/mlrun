@@ -49,7 +49,7 @@ class ClientLocalLauncher(launcher.ClientBaseLauncher):
         task: Optional[
             Union["mlrun.run.RunTemplate", "mlrun.run.RunObject", dict]
         ] = None,
-        handler: Optional[Union[str, Callable]] = None,
+        handler: Optional[str | Callable] = None,
         name: Optional[str] = "",
         project: Optional[str] = "",
         params: Optional[dict] = None,
@@ -60,7 +60,7 @@ class ClientLocalLauncher(launcher.ClientBaseLauncher):
         output_path: Optional[str] = "",
         watch: Optional[bool] = True,
         schedule: Optional[
-            Union[str, mlrun.common.schemas.schedule.ScheduleCronTrigger]
+            str | mlrun.common.schemas.schedule.ScheduleCronTrigger
         ] = None,
         hyperparams: Optional[dict[str, list]] = None,
         hyper_param_options: Optional[mlrun.model.HyperParamOptions] = None,
@@ -70,10 +70,10 @@ class ClientLocalLauncher(launcher.ClientBaseLauncher):
         auto_build: Optional[bool] = None,
         param_file_secrets: Optional[dict[str, str]] = None,
         notifications: Optional[list[mlrun.model.Notification]] = None,
-        returns: Optional[list[Union[str, dict[str, str]]]] = None,
+        returns: Optional[list[str | dict[str, str]]] = None,
         state_thresholds: Optional[dict[str, int]] = None,
         reset_on_run: Optional[bool] = None,
-        retry: Optional[Union[mlrun.model.Retry, dict]] = None,
+        retry: Optional[mlrun.model.Retry | dict] = None,
     ) -> "mlrun.run.RunObject":
         # do not allow local function to be scheduled
         if schedule is not None:

@@ -15,7 +15,7 @@ import os
 import time
 import unittest.mock
 from concurrent.futures import ThreadPoolExecutor
-from typing import Optional, cast
+from typing import cast
 
 import pytest
 import yaml

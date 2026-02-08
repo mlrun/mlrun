@@ -27,7 +27,7 @@ import uuid
 from collections import defaultdict
 from datetime import UTC, datetime
 from http import HTTPMethod
-from typing import Any, Optional, Union
+from typing import Any, Optional
 
 import pandas as pd
 import storey

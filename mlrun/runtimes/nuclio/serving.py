@@ -16,7 +16,6 @@ import os
 from base64 import b64decode
 from copy import deepcopy
 from http import HTTPMethod
-from typing import Optional, Union
 
 import nuclio
 from nuclio import KafkaTrigger
@@ -248,7 +247,7 @@ class ServingSpec(nuclio_function.NuclioSpec):
         model_endpoint_creation_task_name=None,
         serving_spec=None,
         auth=None,
-        streaming: Optional[bool] = None,
+        streaming: bool | None = None,
         api_handler_config: APIHandlerConfig | None = None,
     ):
         super().__init__(
@@ -1161,7 +1160,7 @@ class ServingRuntime(nuclio_function.RemoteRuntime):
                 )
                 self.with_requirements(requirements=reqs_union, overwrite=True)
 
-    def set_api_handler_config(self, config: Union[APIHandlerConfig, dict]) -> None:
+    def set_api_handler_config(self, config: APIHandlerConfig | dict) -> None:
         """Set the API handler configuration for the serving function.
 
         :param config: :py:class:`~mlrun.runtimes.nuclio.serving.APIHandlerConfig` object or dictionary containing

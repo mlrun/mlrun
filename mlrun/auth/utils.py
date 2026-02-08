@@ -347,9 +347,7 @@ def resolve_jwt_subject(token: str, raise_on_error: bool = True) -> str | None:
         return None
 
 
-def resolve_jwt_username(
-    token: str, raise_on_error: bool = False
-) -> typing.Optional[str]:
+def resolve_jwt_username(token: str, raise_on_error: bool = False) -> str | None:
     """
     Extract the 'preferred_username' claim from a JWT token.
 

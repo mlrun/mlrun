@@ -23,6 +23,7 @@ from mlrun.agentic.schemas import WorkflowEvent
 class DeclarativeAgent(ChainRunner):
     """A ChainRunner step that creates a LangChain agent from YAML config."""
 
+    # TODO: resolve namespace for tools source code
     def __init__(self, agent_yaml: str, **kwargs):
         super().__init__(**kwargs)
         self.agent_yaml = agent_yaml

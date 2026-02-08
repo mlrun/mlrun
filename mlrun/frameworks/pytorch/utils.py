@@ -12,7 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from __future__ import annotations
+
 from collections.abc import Callable
+from typing import Union
 
 import numpy as np
 import torch
@@ -30,14 +33,10 @@ class PyTorchTypes(DLTypes):
     Typing hints for the PyTorch framework.
     """
 
-    # Every model in PyTorch must inherit from torch.nn.Module:
     ModelType = Module
-
-    # Supported types of loss and metrics values:
-    MetricValueType = int | float | np.ndarray | Tensor
-
-    # Supported types of metrics:
-    MetricFunctionType = Callable[[Tensor, Tensor], MetricValueType] | Module
+    # Union (not |) so this is not evaluated at import time during docs build:
+    MetricValueType = Union[int, float, np.ndarray, Tensor]
+    MetricFunctionType = Union[Callable[[Tensor, Tensor], MetricValueType], Module]
 
 
 class PyTorchUtils(DLUtils):

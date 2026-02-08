@@ -12,6 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from __future__ import annotations
+
+from typing import Union
 
 import lightgbm as lgb
 import numpy as np
@@ -27,17 +30,13 @@ class LGBMTypes(MLTypes):
     Typing hints for the LightGBM framework.
     """
 
-    # A union of all LightGBM model base classes:
-    ModelType = lgb.LGBMModel | lgb.Booster
-
-    # A type for all the supported dataset types:
-    DatasetType = MLTypes.DatasetType | lgb.Dataset
-
-    # An evaluation result as packaged by the training in LightGBM:
-    EvaluationResultType = (
-        tuple[str, str, float, bool]  # As packaged in `lightgbm.train`
-        | tuple[str, str, float, bool, float]  # As packaged in `lightgbm.cv`
-    )
+    # Union (not |) so this is not evaluated at import time during docs build:
+    ModelType = Union[lgb.LGBMModel, lgb.Booster]
+    DatasetType = Union[MLTypes.DatasetType, lgb.Dataset]
+    EvaluationResultType = Union[
+        tuple[str, str, float, bool],  # lightgbm.train
+        tuple[str, str, float, bool, float],  # lightgbm.cv
+    ]
 
     # Detailed type for the named tuple `CallbackEnv` passed during LightGBM's training for the callbacks:
     CallbackEnvType = tuple[

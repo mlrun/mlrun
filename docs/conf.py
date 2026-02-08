@@ -247,6 +247,8 @@ linkcheck_ignore = [
     "https://docs.confident-ai.com/docs/metrics-faithfulness",
     # ignore links to kubernetes.io, since they often block the traffic
     r"https://kubernetes.io/.*",
+    # huggingface.co often fails linkcheck (SSL/certificate or rate limit in CI)
+    r"https://huggingface\.co/.*",
 ]
 
 # -- Autosummary -------------------------------------------------------------

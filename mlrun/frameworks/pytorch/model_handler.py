@@ -12,7 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from __future__ import annotations
+
 import os
+from typing import Union
 
 import numpy as np
 import torch
@@ -34,8 +37,8 @@ class PyTorchModelHandler(DLModelHandler):
     # Framework name:
     FRAMEWORK_NAME = "torch"
 
-    # Declare a type of input sample:
-    IOSample = torch.Tensor | np.ndarray
+    # Declare a type of input sample (Union avoids | at import time for docs build):
+    IOSample = Union[torch.Tensor, np.ndarray]
 
     class _LabelKeys:
         """

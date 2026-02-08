@@ -246,6 +246,9 @@ helm upgrade --install --reuse-values mlrun-ce —namespace mlrun mlrun-ce/mlrun
 # Example of installing a specific version
 helm upgrade --install --reuse-values mlrun-ce —namespace mlrun mlrun-ce/mlrun-ce --version <chart-version>
 ```
+```{admonition} Note
+you can check all the available versions of the chart in the repo via `helm search repo mlrun-ce/mlrun-ce --versions`.
+```
 
 If it fails, [reinstall the chart](#uninstalling-the-chart), and do the following:
 

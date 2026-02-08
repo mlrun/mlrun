@@ -235,7 +235,8 @@ class TestAPIHandlerConfig:
             match="Invalid HTTP method string 'allow'",
         ):
             config.add_endpoint_handler(
-                "/test", http_method=APIHandlerAction.ALLOW  # Wrong type!
+                "/test",
+                http_method=APIHandlerAction.ALLOW,  # Wrong type!
             )
 
         # Test remove_endpoint_handler with wrong type
@@ -244,7 +245,8 @@ class TestAPIHandlerConfig:
             match="Invalid HTTP method string 'GT'",
         ):
             config.remove_endpoint_handler(
-                "/test", http_method="GT"  # Wrong value
+                "/test",
+                http_method="GT",  # Wrong value
             )
 
         # Test get_endpoint_config with wrong type
@@ -253,7 +255,8 @@ class TestAPIHandlerConfig:
             match="Invalid HTTP method string 'allow'",
         ):
             config.get_endpoint_config(
-                method=APIHandlerAction.ALLOW, path="/test"  # Wrong type!
+                method=APIHandlerAction.ALLOW,
+                path="/test",  # Wrong type!
             )
 
         # Test with invalid string
@@ -268,11 +271,15 @@ class TestAPIHandlerConfig:
         config = APIHandlerConfig()
 
         # Test add with string (lowercase)
-        config.add_endpoint_handler("/test1", http_method="get", action=APIHandlerAction.ALLOW)
+        config.add_endpoint_handler(
+            "/test1", http_method="get", action=APIHandlerAction.ALLOW
+        )
         assert config.get_endpoint_config(HTTPMethod.GET, "/test1") is not None
 
         # Test add with string (uppercase)
-        config.add_endpoint_handler("/test2", http_method="POST", action=APIHandlerAction.FORBID)
+        config.add_endpoint_handler(
+            "/test2", http_method="POST", action=APIHandlerAction.FORBID
+        )
         assert config.get_endpoint_config(HTTPMethod.POST, "/test2") is not None
 
         # Test get with string

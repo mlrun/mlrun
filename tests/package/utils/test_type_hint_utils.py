@@ -113,8 +113,8 @@ def test_is_pure_hint(type_hint: type, expected_result: bool):
         (typing.Dict[str, int], (dict, (str, int))),  # noqa: UP006
         (typing.Tuple[int, str], (tuple, (int, str))),  # noqa: UP006
         # Typing special forms with args:
-        (typing.Optional[int], (typing.Union, (int, type(None)))),  # noqa: UP045
-        (typing.Union[int, str], (typing.Union, (int, str))),  # noqa: UP007
+        (typing.Optional[int], (typing.Union, (int, type(None)))),  # noqa: UP045,UP007
+        (typing.Union[int, str], (typing.Union, (int, str))),  # noqa: UP007,UP007
         # Ellipsis in tuple (should be filtered out):
         (tuple[int, ...], (tuple, (int,))),
         # Non-generic types (no origin, return empty):
@@ -142,7 +142,7 @@ def test_deconstruct_type_hint(type_hint: type, expected_result: tuple):
         ("typing.Tuple[int, str]", typing.Tuple[int, str]),  # noqa: UP006
         ("tuple[int, str]", tuple[int, str]),
         ("dict[str, int]", dict[str, int]),
-        ("typing.Optional[float]", typing.Optional[float]),  # noqa: UP045
+        ("typing.Optional[float]", typing.Optional[float]),  # noqa: UP045,UP007
         ("typing.Union[str, int]", typing.Union[str, int]),  # noqa: UP007
         ("str | int", str | int),
         ("tests.package.utils.test_type_hint_utils.SomeClass", SomeClass),

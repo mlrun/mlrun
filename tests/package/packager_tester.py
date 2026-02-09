@@ -19,7 +19,7 @@ from typing import Any, NamedTuple
 
 import cloudpickle
 
-from mlrun import Packager, LogHint
+from mlrun import LogHint, Packager
 
 # When using artifact type "object", these instructions will be common to most artifacts in the tests:
 COMMON_OBJECT_INSTRUCTIONS = {

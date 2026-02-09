@@ -125,9 +125,13 @@ class NumPyNDArrayPackagerTester(PackagerTester):
         *[
             PackToUnpackTest(
                 pack_handler="pack_array",
-                log_hint=LogHint(key="my_array", artifact_type="file", packing_kwargs={
-                    "file_format": file_format,
-                }),
+                log_hint=LogHint(
+                    key="my_array",
+                    artifact_type="file",
+                    packing_kwargs={
+                        "file_format": file_format,
+                    },
+                ),
                 expected_instructions={"file_format": file_format},
                 unpack_handler="unpack_array",
                 pack_parameters={"i": 0},
@@ -137,9 +141,13 @@ class NumPyNDArrayPackagerTester(PackagerTester):
         ],
         PackToUnpackTest(
             pack_handler="pack_array",
-            log_hint=LogHint(key="my_array", artifact_type="file", packing_kwargs={
-                "file_format": NumPySupportedFormat.NPY,
-            }),
+            log_hint=LogHint(
+                key="my_array",
+                artifact_type="file",
+                packing_kwargs={
+                    "file_format": NumPySupportedFormat.NPY,
+                },
+            ),
             expected_instructions={
                 "file_format": NumPySupportedFormat.NPY,
                 "allow_pickle": True,
@@ -282,9 +290,12 @@ class NumPyNDArrayDictPackagerTester(PackagerTester):
         *[
             PackToUnpackTest(
                 pack_handler="pack_array_dict",
-                log_hint=LogHint(key="my_array", packing_kwargs={
-                    "file_format": file_format,
-                }),
+                log_hint=LogHint(
+                    key="my_array",
+                    packing_kwargs={
+                        "file_format": file_format,
+                    },
+                ),
                 expected_instructions={
                     "file_format": file_format,
                 },
@@ -296,9 +307,12 @@ class NumPyNDArrayDictPackagerTester(PackagerTester):
         ],
         PackToUnpackTest(
             pack_handler="pack_array_dict",
-            log_hint=LogHint(key="my_array", packing_kwargs={
-                "file_format": NumPySupportedFormat.NPZ,
-            }),
+            log_hint=LogHint(
+                key="my_array",
+                packing_kwargs={
+                    "file_format": NumPySupportedFormat.NPZ,
+                },
+            ),
             expected_instructions={
                 "file_format": NumPySupportedFormat.NPZ,
                 "allow_pickle": True,
@@ -391,9 +405,12 @@ class NumPyNDArrayListPackagerTester(PackagerTester):
         *[
             PackToUnpackTest(
                 pack_handler="pack_array_list",
-                log_hint=LogHint(key="my_array", packing_kwargs={
-                    "file_format": file_format,
-                }),
+                log_hint=LogHint(
+                    key="my_array",
+                    packing_kwargs={
+                        "file_format": file_format,
+                    },
+                ),
                 expected_instructions={
                     "file_format": file_format,
                 },
@@ -405,9 +422,12 @@ class NumPyNDArrayListPackagerTester(PackagerTester):
         ],
         PackToUnpackTest(
             pack_handler="pack_array_list",
-            log_hint=LogHint(key="my_array", packing_kwargs={
-                "file_format": NumPySupportedFormat.NPZ,
-            }),
+            log_hint=LogHint(
+                key="my_array",
+                packing_kwargs={
+                    "file_format": NumPySupportedFormat.NPZ,
+                },
+            ),
             expected_instructions={
                 "file_format": NumPySupportedFormat.NPZ,
                 "allow_pickle": True,

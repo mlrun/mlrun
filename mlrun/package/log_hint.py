@@ -1,5 +1,5 @@
-from typing import Any, Self
 import warnings
+from typing import Any, Self
 
 from pydantic import BaseModel, Field
 from pydantic.config import ExtraValues
@@ -26,17 +26,17 @@ class LogHint(BaseModel):
     itemized: bool | int = False
     """
     Determines if collections (lists or dicts) should be **unbundled** and logged as individual items.
-    
-    When `itemized` is enabled, the packager performs an **unbundling** process: instead of 
-    logging a collection as a single unit, it breaks it down into separate artifacts. 
-    Each item is logged under the primary key using either an index suffix (for sequences) 
+
+    When `itemized` is enabled, the packager performs an **unbundling** process: instead of
+    logging a collection as a single unit, it breaks it down into separate artifacts.
+    Each item is logged under the primary key using either an index suffix (for sequences)
     or a sub-key suffix (for maps), inheriting the original log hint configuration.
-    
+
     Accepts the following types:
-    * `bool`: 
+    * `bool`:
         - `True`: Recursively **unbundles** the object all the way down.
         - `False` (default): Logs the collection as a single, opaque artifact.
-    * `int`: Specifies the maximum depth of **unbundling**. For example, `1` will itemize the top-level collection but 
+    * `int`: Specifies the maximum depth of **unbundling**. For example, `1` will itemize the top-level collection but
       log nested collections as single units.
     """
 
@@ -50,8 +50,8 @@ class LogHint(BaseModel):
 
     packing_kwargs: dict | None = Field(default_factory=dict)
     """
-    Additional keyword arguments to pass to the packager's ``pack`` when packing the object for logging. To know which 
-    keyword arguments are supported, check the relevant packager (according to the returned object type) pack method 
+    Additional keyword arguments to pass to the packager's ``pack`` when packing the object for logging. To know which
+    keyword arguments are supported, check the relevant packager (according to the returned object type) pack method
     (according to the given artifact type) documentation.
     """
 
@@ -68,8 +68,8 @@ class LogHint(BaseModel):
 
     metrics: dict = Field(default_factory=dict)
     """
-    Metrics to log alongside the model artifact (only for model artifacts). To link to another package, write the key 
-    and a '...' as the value. For more information, see the 'Linking artifacts' section at the ``Packager`` or 
+    Metrics to log alongside the model artifact (only for model artifacts). To link to another package, write the key
+    and a '...' as the value. For more information, see the 'Linking artifacts' section at the ``Packager`` or
     ``DefaultPackager`` documentation.
     """
 

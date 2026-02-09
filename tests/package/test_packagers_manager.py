@@ -302,7 +302,7 @@ def test_clear_packagers_outputs():
     # Pack objects that will create temporary files and directories:
     packagers_manager.pack(
         obj="I'm a test.",
-        log_hint=LogHint(key="a", artifact_type="b1",packing_kwargs={"fmt": "txt"}),
+        log_hint=LogHint(key="a", artifact_type="b1", packing_kwargs={"fmt": "txt"}),
     )
     packagers_manager.pack(
         obj="I'm another test.",
@@ -310,8 +310,9 @@ def test_clear_packagers_outputs():
             key="b",
             artifact_type="b2",
             packing_kwargs={
-            "amount_of_files": 3,
-        }),
+                "amount_of_files": 3,
+            },
+        ),
     )
 
     # Get the created files:
@@ -595,11 +596,11 @@ def test_link_packages():
     target_artifact = Artifact(key="target_artifact")
     main_artifact = Artifact(key="main_artifact")
     main_artifact.spec.extra_data = {
-        "target_artifact": ...,      # Link to artifact
-        "my_result": ...,            # Link to result from manager's results
-        "additional_result": ...,    # Link to additional_results
-        "nonexistent_key": ...,      # Missing - should be deleted
-        "static_value": "unchanged", # Not a link
+        "target_artifact": ...,  # Link to artifact
+        "my_result": ...,  # Link to result from manager's results
+        "additional_result": ...,  # Link to additional_results
+        "nonexistent_key": ...,  # Missing - should be deleted
+        "static_value": "unchanged",  # Not a link
     }
 
     # Add artifacts and results to the manager:
@@ -645,7 +646,7 @@ def test_link_packages_bidirectional():
     context_artifact = Artifact(key="context_artifact")
     context_artifact.spec.extra_data = {
         "packager_artifact": ...,  # Link to packager artifact
-        "packager_result": ...,    # Link to packager result
+        "packager_result": ...,  # Link to packager result
         "static_value": "unchanged",
     }
 

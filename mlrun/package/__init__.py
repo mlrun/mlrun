@@ -28,6 +28,7 @@ from mlrun.package.errors import (
     MLRunPackageUnbundlingError,
     MLRunPackageUnpackingError,
 )
+from mlrun.package.log_hint import LogHint
 from mlrun.package.packager import Packager
 from mlrun.package.packagers import DefaultPackager
 from mlrun.package.packagers_manager import PackagersManager
@@ -36,7 +37,6 @@ from mlrun.package.utils import (
     ArtifactType,
     StructFileSupportedFormat,
 )
-from mlrun.package.log_hint import LogHint
 
 
 def handler(

@@ -17,6 +17,7 @@ import pytest
 from mlrun.errors import MLRunInvalidArgumentError
 from mlrun.package.log_hint import LogHint
 
+
 @pytest.mark.parametrize(
     "log_hint, expected_log_hint",
     [
@@ -70,7 +71,9 @@ from mlrun.package.log_hint import LogHint
         ("1*", "Key is missing after the unbundle operator '*'"),
     ],
 )
-def test_model_validate_from_string(log_hint: str | dict, expected_log_hint: str | dict):
+def test_model_validate_from_string(
+    log_hint: str | dict, expected_log_hint: str | dict
+):
     """
     Test the `LogHint.model_validate` class method for handling strings.
 

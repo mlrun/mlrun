@@ -19,8 +19,8 @@ from collections import OrderedDict
 from mlrun.errors import MLRunInvalidArgumentError
 from mlrun.execution import MLClientCtx
 from mlrun.package.errors import MLRunPackageCollectionError, MLRunPackagePackingError
-from mlrun.package.packagers_manager import PackagersManager
 from mlrun.package.log_hint import LogHint
+from mlrun.package.packagers_manager import PackagersManager
 from mlrun.package.utils import TypeHintUtils
 
 

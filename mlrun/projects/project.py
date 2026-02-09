@@ -11,8 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from __future__ import annotations
-
 import datetime
 import getpass
 import glob
@@ -4066,7 +4064,7 @@ class MlrunProject(ModelObj):
         schedule: typing.Union[str, mlrun.common.schemas.ScheduleCronTrigger] = None,
         artifact_path: Optional[str] = None,
         notifications: Optional[list[mlrun.model.Notification]] = None,
-        returns: list[str | mlrun.LogHint] | None = None,
+        returns: "list[str | mlrun.LogHint] | None" = None,
         builder_env: Optional[dict] = None,
         reset_on_run: Optional[bool] = None,
         output_path: Optional[str] = None,

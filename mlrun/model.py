@@ -1177,7 +1177,9 @@ class RunSpec(ModelObj):
         for log_hint in returns:
             if not isinstance(log_hint, LogHint):
                 # TODO: Remove the dict support in MLRun 1.13
-                LogHint.model_validate(obj=log_hint.copy() if isinstance(log_hint, dict) else log_hint)
+                LogHint.model_validate(
+                    obj=log_hint.copy() if isinstance(log_hint, dict) else log_hint
+                )
 
         # Store the results:
         self._returns = returns
@@ -1338,7 +1340,9 @@ class RunSpec(ModelObj):
             for log_hint in returns:
                 if not isinstance(log_hint, LogHint):
                     # TODO: Remove the dict support in MLRun 1.13
-                    log_hint = LogHint.model_validate(obj=log_hint.copy() if isinstance(log_hint, dict) else log_hint)
+                    log_hint = LogHint.model_validate(
+                        obj=log_hint.copy() if isinstance(log_hint, dict) else log_hint
+                    )
                 cleared_returns.append(log_hint.key)
 
         # Use `set` join to combine the two lists without duplicates:

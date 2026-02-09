@@ -19,8 +19,6 @@ import shutil
 import traceback
 from typing import Any
 
-from numpy.ma.core import alltrue
-
 import mlrun.errors
 from mlrun.artifacts import Artifact
 from mlrun.artifacts.base import verify_target_path
@@ -696,13 +694,19 @@ class PackagersManager:
         """
         # Get a packager:
         packager = self._get_packager_for_packing(
-            obj=obj, artifact_type=log_hint.artifact_type, configurations=log_hint.packing_kwargs
+            obj=obj,
+            artifact_type=log_hint.artifact_type,
+            configurations=log_hint.packing_kwargs,
         )
         if packager is None:
             if self._default_packager.is_packable(
-                obj=obj, artifact_type=log_hint.artifact_type, configurations=log_hint.packing_kwargs
+                obj=obj,
+                artifact_type=log_hint.artifact_type,
+                configurations=log_hint.packing_kwargs,
             ):
-                logger.info(f"Using the default packager to pack the object '{log_hint.key}'")
+                logger.info(
+                    f"Using the default packager to pack the object '{log_hint.key}'"
+                )
                 packager = self._default_packager
             else:
                 raise MLRunPackagePackingError(
@@ -712,7 +716,10 @@ class PackagersManager:
 
         # Use the packager to pack the object:
         packed_object = packager.pack(
-            obj=obj, key=log_hint.key, artifact_type=log_hint.artifact_type, configurations=log_hint.packing_kwargs
+            obj=obj,
+            key=log_hint.key,
+            artifact_type=log_hint.artifact_type,
+            configurations=log_hint.packing_kwargs,
         )
 
         # If the packed object is a result, return it as is:

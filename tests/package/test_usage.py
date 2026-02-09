@@ -27,8 +27,8 @@ from sklearn.preprocessing import OrdinalEncoder
 
 import mlrun
 from mlrun import DataItem, LogHint
-from mlrun.datastore import get_store_resource
 from mlrun.artifacts import Artifact
+from mlrun.datastore import get_store_resource
 from mlrun.package import DefaultPackager
 from tests.package.usage_assets import BaseClass, InheritingClass
 
@@ -883,7 +883,10 @@ def test_context_artifact_linking_to_packager(rundb_mock):
 
     # Link to packager artifact should be resolved
     assert "packager_data" in extra_data
-    assert extra_data["packager_data"].key == get_store_resource(run.outputs["packager_data"]).key
+    assert (
+        extra_data["packager_data"].key
+        == get_store_resource(run.outputs["packager_data"]).key
+    )
 
     # Static value should remain unchanged
     assert extra_data["static_info"] == "from context"

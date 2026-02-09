@@ -18,6 +18,7 @@ import mlrun
 import mlrun.errors
 from mlrun.utils import logger
 
+
 class MarketplaceAgent:
     """
     This class provides methods to get information about an agent and deploy it
@@ -26,24 +27,24 @@ class MarketplaceAgent:
     """
 
     def __init__(
-            self,
-            name: str,
-            version: str,
-            author: str,
-            description: str,
-            kind: str,
-            protocol: str,
-            framework: str,
-            asset_url: str,
-            requirements: list[str],
-            default_base_image: str,
-            default_port: int,
-            default_command: str,
-            default_args: list[str],
-            inputs: list[dict[str, Any]],
-            categories: Optional[list[str]] = None,
-            default_workdir: Optional[str] = None,
-            build_extra: Optional[str] = None,
+        self,
+        name: str,
+        version: str,
+        author: str,
+        description: str,
+        kind: str,
+        protocol: str,
+        framework: str,
+        asset_url: str,
+        requirements: list[str],
+        default_base_image: str,
+        default_port: int,
+        default_command: str,
+        default_args: list[str],
+        inputs: list[dict[str, Any]],
+        categories: Optional[list[str]] = None,
+        default_workdir: Optional[str] = None,
+        build_extra: Optional[str] = None,
     ):
         """
         :param name: Agent name
@@ -98,9 +99,7 @@ class MarketplaceAgent:
         """
         inputs_keys = [inp["name"] for inp in self.inputs]
         optional_inputs = [
-            k
-            for k in inputs_keys
-            if k not in self.mandatory_configurations
+            k for k in inputs_keys if k not in self.mandatory_configurations
         ]
 
         info_str = (
@@ -191,7 +190,9 @@ class MarketplaceAgent:
     def deploy(
         self,
         project: str,
-        source_url: Optional[str] = None, # todo: delete when there is backend (request source from BE inside this function)
+        source_url: Optional[
+            str
+        ] = None,  # todo: delete when there is backend (request source from BE inside this function)
         gateway_config: Optional[dict[str, Any]] = None,
         force_rebuild: bool = False,
         **kwargs,
@@ -248,9 +249,9 @@ class MarketplaceAgent:
                 existing_func = project_obj.get_function(self.name)
 
                 # For application runtime, the built image is in the sidecar config
-                sidecars = existing_func.spec.config.get('spec.sidecars', [])
+                sidecars = existing_func.spec.config.get("spec.sidecars", [])
                 if sidecars and len(sidecars) > 0:
-                    existing_image = sidecars[0].get('image')
+                    existing_image = sidecars[0].get("image")
                     # Check if it's a built image (not empty and not the base image)
                     if existing_image and existing_image != base_image:
                         use_cached_image = True
@@ -299,14 +300,10 @@ class MarketplaceAgent:
 
         # todo: request source from the backend when implemented
         # Always add source archive (loaded at runtime via store:// URI)
-        app.with_source_archive(
-            source=source_url, pull_at_runtime=False
-        )
+        app.with_source_archive(source=source_url, pull_at_runtime=False)
 
         # Configure application port
-        app.set_internal_application_port(
-            kwargs.get("port") or self.default_port
-        )
+        app.set_internal_application_port(kwargs.get("port") or self.default_port)
 
         # Configure command and args
         app.spec.command = kwargs.get("command") or self.default_command
@@ -331,7 +328,11 @@ class MarketplaceAgent:
             if not gateway_config
             else False
         )
-        app.deploy(with_mlrun=False, create_default_api_gateway=create_default_gateway, show_on_failure=True)
+        app.deploy(
+            with_mlrun=False,
+            create_default_api_gateway=create_default_gateway,
+            show_on_failure=True,
+        )
 
         # Create API gateway if config is provided
         if gateway_config:
@@ -358,6 +359,7 @@ class MarketplaceAgent:
 
         return deployment_url
 
+
 # todo: get the metadata from the backend using name once it's implemented
 def import_agent(name: str, agent_metadata: dict) -> MarketplaceAgent:
     """
@@ -379,8 +381,8 @@ def import_agent(name: str, agent_metadata: dict) -> MarketplaceAgent:
 def deploy_agent(
     name: str,
     project: str,
-    agent_metadata: dict, #todo: delete when there is backend to get it from
-    source: Optional[str] = None, #todo: delete when there is backend to get it from
+    agent_metadata: dict,  # todo: delete when there is backend to get it from
+    source: Optional[str] = None,  # todo: delete when there is backend to get it from
     gateway_config: Optional[dict[str, Any]] = None,
     force_rebuild: bool = False,
     **kwargs,
@@ -415,10 +417,12 @@ def deploy_agent(
              OPENAI_API_KEY="sk-...",  # Stored securely as a secret
          )
     """
-    mp_agent = import_agent(name, agent_metadata) # todo: remove metadata parameter when there is backend
+    mp_agent = import_agent(
+        name, agent_metadata
+    )  # todo: remove metadata parameter when there is backend
     return mp_agent.deploy(
         project=project,
-        source_url=source, # todo: delete when there is backend (the source will be requested from thr BE by deploy())
+        source_url=source,  # todo: delete when there is backend (the source will be requested from thr BE by deploy())
         gateway_config=gateway_config,
         force_rebuild=force_rebuild,
         **kwargs,

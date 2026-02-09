@@ -1,7 +1,8 @@
 (building-graphs)=
 # Building graphs
 
-A step runs a function, class handler, or a REST API call: MLRun comes with pre-built steps that include data manipulation, readers, writers, and model serving.
+MLRun comes with pre-built steps that include data manipulation, readers, writers, and model serving.
+A step runs a function, class handler, or a REST API call.
 A step can also be an external REST API (the special `$remote` class).
 You can also write your own steps using standard Python functions or custom functions/classes.
 

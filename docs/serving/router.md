@@ -4,7 +4,7 @@
 The router topology will be deprecated in v1.12.
 ```
 
-The default topology is the `router` topology. It is a minimal configuration with a single router and one or more child routes/models, used for simple model serving or 
+The `router` topology is a minimal configuration with a single router and one or more child routes/models, used for simple model serving or 
 single hop configurations. The basic routing logic is to route to the child routes based on the `event.path`.
 
 With the `router` topology you can specify different machine learning models. Each model has a logical name. This name is used to route to the correct model when calling the serving function.

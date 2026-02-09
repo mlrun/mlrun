@@ -20,7 +20,6 @@ from collections.abc import Callable
 
 import mlrun
 from mlrun.config import config
-from mlrun.package.context_handler import ContextHandler
 from mlrun.package.errors import (
     MLRunPackageBundlingError,
     MLRunPackageCollectionError,
@@ -35,14 +34,14 @@ from mlrun.package.packagers_manager import PackagersManager
 from mlrun.package.utils import (
     ArchiveSupportedFormat,
     ArtifactType,
-    LogHintKey,
     StructFileSupportedFormat,
 )
+from mlrun.package.log_hint import LogHint
 
 
 def handler(
     labels: dict[str, str] | None = None,  # TODO: Remove in MLRun 1.13.0
-    outputs: list[str | dict[str, str]] | None = None,
+    outputs: list[str | dict[str, str]] | list[LogHint] | None = None,
     inputs: bool | dict[str, str | type] = True,
 ):
     """
@@ -121,6 +120,9 @@ def handler(
         def wrapper(*args: tuple, **kwargs: dict):
             nonlocal outputs
             nonlocal inputs
+
+            # Import ContextHandler locally to avoid circular import:
+            from mlrun.package.context_handler import ContextHandler
 
             # Set default `inputs` - inspect the full signature and add the user's input on top of it:
             if inputs:

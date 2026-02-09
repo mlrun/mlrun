@@ -12,15 +12,21 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import json
+import time
 import unittest
+from concurrent.futures import ThreadPoolExecutor
 from typing import Optional
 
 import pytest
 
 import mlrun
 from mlrun.datastore.model_provider.model_provider import UsageResponseKeys
+from mlrun.serving.states import ModelRunnerStep
 from tests.datastore.remote_model.remote_model_utils import (
     BATCH_INPUT_DATA,
+    FLUSH_AFTER_SECONDS,
+    PROMPT_LEGEND,
+    PROMPT_TEMPLATE,
     create_mocked_get_store_artifact,
     setup_remote_model_test,
 )
@@ -79,7 +85,7 @@ class BaseMockModelProviderTest:
         assert event["error"] is None
         assert event["metrics"] is None
 
-    def _verify_batch_tracking(self, event, inputs=None):
+    def _verify_batch_tracking(self, event, inputs=None, model_name="my_endpoint"):
         """Verify tracking data for batch invocation"""
         if inputs is None:
             inputs = BATCH_INPUT_DATA
@@ -95,8 +101,9 @@ class BaseMockModelProviderTest:
             # Use single tracking output verification for common checks
             self._verify_single_tracking_output(resp)
         assert event["labels"] == {}
-        assert event["model"] == "my_endpoint"
+        assert event["model"] == model_name
         assert event["metrics"] is None
+        assert event["error"] is None
 
     def _verify_error_tracking(self, event, input_data):
         """Verify tracking data for error invocation"""
@@ -351,6 +358,110 @@ class TestMockModelProvider(BaseMockModelProviderTest):
         "execution_mechanism",
         ["process_pool", "dedicated_process", "naive", "asyncio", "thread_pool"],
     )
+    def test_llmodel_batch_multiple_models(self, execution_mechanism, rundb_mock):
+        """Test batch processing with multiple models using MockModelProvider"""
+        project = mlrun.new_project("test-mock-batch-multi", save=False)
+        model_url = "mock://my-mock-model"
+
+        # Create model artifact
+        model_artifact = project.log_model(
+            "model_key",
+            model_url=model_url,
+        )
+
+        llm_prompt_artifact = project.log_llm_prompt(
+            "llm_artifact",
+            prompt_template=PROMPT_TEMPLATE,
+            description="test llm prompt",
+            prompt_legend=PROMPT_LEGEND,
+            model_artifact=model_artifact,
+        )
+
+        # Create serving function
+        function = project.set_function(
+            name="test-llm-function",
+            kind="serving",
+        )
+        function.set_tracking("dummy://", enable_tracking=True)
+
+        graph = function.set_topology("flow", engine="async")
+        model_runner_step = ModelRunnerStep(name="my_model_runner")
+
+        # Add first model
+        model_runner_step.add_model(
+            endpoint_name="my_endpoint",
+            model_artifact=llm_prompt_artifact,
+            execution_mechanism=execution_mechanism,
+            model_class="mlrun.serving.states.LLModel",
+            result_path="output",
+        )
+
+        # Add second model
+        model_runner_step.add_model(
+            endpoint_name="my_endpoint_2",
+            model_artifact=llm_prompt_artifact,
+            execution_mechanism=execution_mechanism,
+            model_class="mlrun.serving.states.LLModel",
+            result_path="output",
+        )
+
+        graph.to(model_runner_step).respond()
+
+        mocked_get_store_artifact = create_mocked_get_store_artifact(
+            {
+                model_artifact.uri: model_artifact,
+                llm_prompt_artifact.uri: llm_prompt_artifact,
+            }
+        )
+        with unittest.mock.patch(
+            "mlrun.artifacts.llm_prompt.mlrun.datastore.store_manager.get_store_artifact",
+            side_effect=lambda *args, **kwargs: mocked_get_store_artifact(
+                *args, **kwargs
+            ),
+        ):
+            server = function.to_mock_server()
+
+        try:
+            # Test batch invocation
+            batch_response = server.test(body=BATCH_INPUT_DATA)
+
+            # Response should be dict with model names as keys
+            assert isinstance(batch_response, dict)
+            assert "my_endpoint" in batch_response
+            assert "my_endpoint_2" in batch_response
+
+            # Verify each model's batch response
+            for model_name in ["my_endpoint", "my_endpoint_2"]:
+                model_batch = batch_response[model_name]
+                assert isinstance(model_batch, list)
+                assert len(model_batch) == len(BATCH_INPUT_DATA)
+
+                for i, full_result in enumerate(model_batch):
+                    result = full_result["output"]
+                    self._verify_single_response(result, expect_counter=True)
+                    assert f"(Item {i})" in result[UsageResponseKeys.ANSWER]
+
+        finally:
+            server.wait_for_completion()
+
+        # Verify tracking data - should have 2 events (one per model)
+        dummy_stream = server.context.stream.output_stream
+        assert len(dummy_stream.event_list) == 2
+
+        # Verify both model events
+        model_events = {event["model"]: event for event in dummy_stream.event_list}
+        assert "my_endpoint" in model_events
+        assert "my_endpoint_2" in model_events
+
+        for model_name, event in model_events.items():
+            self._verify_batch_tracking(
+                event, inputs=BATCH_INPUT_DATA, model_name=model_name
+            )
+
+    @pytest.mark.parametrize(
+        "execution_mechanism",
+        ["process_pool", "dedicated_process", "naive", "asyncio", "thread_pool"],
+    )
     def test_llmodel_batch_with_errors(self, execution_mechanism, rundb_mock):
         """Test that batch processing fails fast when MockModelProvider raises error"""
         project = mlrun.new_project("test-mock-model-batch-errors", save=False)
@@ -397,3 +508,222 @@ class TestMockModelProvider(BaseMockModelProviderTest):
         dummy_stream = server.context.stream.output_stream
         event = dummy_stream.event_list[0]
         self._verify_batch_error_tracking(event, inputs)
+
+    @pytest.mark.parametrize(
+        "execution_mechanism",
+        ["process_pool", "dedicated_process", "naive", "asyncio", "thread_pool"],
+    )
+    def test_llmodel_batch_step(self, execution_mechanism, rundb_mock):
+        """Test batch processing using storey.Batch step with LLModel and MockModelProvider"""
+
+        project = mlrun.new_project("test-mock-batch-graph", save=False)
+        model_url = "mock://my-mock-model"
+
+        model_artifact, llm_prompt_artifact, function = setup_remote_model_test(
+            project, model_url, execution_mechanism=execution_mechanism, batch_step=True
+        )
+        function.set_tracking("dummy://", enable_tracking=True)
+
+        mocked_get_store_artifact = create_mocked_get_store_artifact(
+            {
+                model_artifact.uri: model_artifact,
+                llm_prompt_artifact.uri: llm_prompt_artifact,
+            }
+        )
+        with unittest.mock.patch(
+            "mlrun.artifacts.llm_prompt.mlrun.datastore.store_manager.get_store_artifact",
+            side_effect=lambda *args, **kwargs: mocked_get_store_artifact(
+                *args, **kwargs
+            ),
+        ):
+            server = function.to_mock_server()
+
+        try:
+            # Send events concurrently with staggered timing
+            def send_event(event, delay):
+                time.sleep(delay)
+                return server.test(body=event)
+
+            with ThreadPoolExecutor(max_workers=len(BATCH_INPUT_DATA)) as executor:
+                # MockProvider requires a larger delay (0.3s) because batching output depends on the order of requests,
+                # which can introduce race conditions, unlike real providers where batching output depends on input.
+                futures = [
+                    executor.submit(send_event, event, i * 0.3)
+                    for i, event in enumerate(BATCH_INPUT_DATA)
+                ]
+                responses = [future.result() for future in futures]
+        finally:
+            server.wait_for_completion()
+
+        # Verify we got all responses
+        assert len(responses) == len(BATCH_INPUT_DATA)
+
+        # Verify each response has correct structure
+        for i, response in enumerate(responses):
+            assert "output" in response
+            output = response["output"]
+            self._verify_single_response(output, expect_counter=True)
+            # in order to check batches of 2:
+            expected_counter = i % 2
+            assert f"(Item {expected_counter})" in output[UsageResponseKeys.ANSWER]
+
+        # Verify tracking events - should have 3 batches (2+2+1 = len(BATCH_INPUT_DATA) total events)
+        dummy_stream = server.context.stream.output_stream
+        assert len(dummy_stream.event_list) == 3
+
+        # Verify each batch separately using _verify_batch_tracking
+        expected_batch_sizes = [2, 2, 1]  # 2+2+1 = 5 events
+        start_idx = 0
+
+        for batch_idx, event in enumerate(dummy_stream.event_list):
+            expected_size = expected_batch_sizes[batch_idx]
+            end_idx = start_idx + expected_size
+            batch_inputs = BATCH_INPUT_DATA[start_idx:end_idx]
+            # Use _verify_batch_tracking for each batch
+            self._verify_batch_tracking(event, inputs=batch_inputs)
+            start_idx = end_idx
+
+    @pytest.mark.parametrize(
+        "execution_mechanism",
+        ["process_pool", "dedicated_process", "naive", "asyncio", "thread_pool"],
+    )
+    def test_llmodel_batch_step_multiple_models(self, execution_mechanism, rundb_mock):
+        """Test batch processing using storey.Batch step with multiple LLModels and MockModelProvider"""
+
+        project = mlrun.new_project("test-mock-batch-graph-multiple", save=False)
+        model_url = "mock://my-mock-model"
+
+        model_artifact = project.log_model(
+            "my_model",
+            model_url=model_url,
+        )
+
+        llm_prompt_artifact = project.log_llm_prompt(
+            "llm_artifact",
+            prompt_template=PROMPT_TEMPLATE,
+            description="test llm prompt",
+            prompt_legend=PROMPT_LEGEND,
+            model_artifact=model_artifact,
+        )
+
+        # Create serving function
+        function = project.set_function(
+            name="test-llm-function-batch-multi",
+            kind="serving",
+        )
+        function.set_tracking("dummy://", enable_tracking=True)
+        graph = function.set_topology("flow", engine="async")
+
+        # Add batch step
+        graph = graph.to(
+            "storey.Batch",
+            "my_batching",
+            max_events=2,
+            flush_after_seconds=FLUSH_AFTER_SECONDS,
+            full_event=True,
+        )
+
+        model_runner_step = ModelRunnerStep(name="my_model_runner")
+
+        # Add first model
+        model_runner_step.add_model(
+            endpoint_name="my_endpoint",
+            model_artifact=llm_prompt_artifact,
+            execution_mechanism=execution_mechanism,
+            model_class="mlrun.serving.states.LLModel",
+            result_path="output",
+        )
+
+        # Add second model
+        model_runner_step.add_model(
+            endpoint_name="my_endpoint_2",
+            model_artifact=llm_prompt_artifact,
+            execution_mechanism=execution_mechanism,
+            model_class="mlrun.serving.states.LLModel",
+            result_path="output",
+        )
+
+        step = graph.to(model_runner_step)
+        # FlatMap unpacks batch results back to individual events
+        step = step.to("storey.FlatMap", _fn="(event.body)", full_event=True)
+        step.respond()
+
+        mocked_get_store_artifact = create_mocked_get_store_artifact(
+            {
+                model_artifact.uri: model_artifact,
+                llm_prompt_artifact.uri: llm_prompt_artifact,
+            }
+        )
+        with unittest.mock.patch(
+            "mlrun.artifacts.llm_prompt.mlrun.datastore.store_manager.get_store_artifact",
+            side_effect=lambda *args, **kwargs: mocked_get_store_artifact(
+                *args, **kwargs
+            ),
+        ):
+            server = function.to_mock_server()
+
+        try:
+            # Send events concurrently with staggered timing
+            def send_event(event, delay):
+                time.sleep(delay)
+                return server.test(body=event)
+
+            with ThreadPoolExecutor(max_workers=len(BATCH_INPUT_DATA)) as executor:
+                # MockProvider requires a larger delay (0.3s) because batching output depends on the order of requests,
+                # which can introduce race conditions, unlike real providers where batching output depends on input.
+                futures = [
+                    executor.submit(send_event, event, i * 0.3)
+                    for i, event in enumerate(BATCH_INPUT_DATA)
+                ]
+                responses = [future.result() for future in futures]
+        finally:
+            server.wait_for_completion()
+
+        # Verify we got all responses
+        assert len(responses) == len(BATCH_INPUT_DATA)
+
+        # Verify each response has both models' outputs organized by model name
+        for i, response in enumerate(responses):
+            # Response should be dict with model names as keys
+            assert isinstance(response, dict)
+            assert "my_endpoint" in response
+            assert "my_endpoint_2" in response
+
+            # Verify first model output
+            output = response["my_endpoint"]["output"]
+            self._verify_single_response(output, expect_counter=True)
+            expected_counter = i % 2
+            assert f"(Item {expected_counter})" in output[UsageResponseKeys.ANSWER]
+
+            # Verify second model output
+            output_2 = response["my_endpoint_2"]["output"]
+            self._verify_single_response(output_2, expect_counter=True)
+            assert f"(Item {expected_counter})" in output_2[UsageResponseKeys.ANSWER]
+
+        # Verify tracking events - should have 6 events (2 models × 3 batches)
+        dummy_stream = server.context.stream.output_stream
+        assert len(dummy_stream.event_list) == 6
+
+        # Separate events by model
+        model_events = {"my_endpoint": [], "my_endpoint_2": []}
+        for event in dummy_stream.event_list:
+            model_name = event["model"]
+            model_events[model_name].append(event)
+
+        # Verify each model has 3 batches
+        assert len(model_events["my_endpoint"]) == 3
+        assert len(model_events["my_endpoint_2"]) == 3
+
+        # Verify each batch for each model
+        expected_batch_sizes = [2, 2, 1]  # 2+2+1 = 5 events
+        for model_name in ["my_endpoint", "my_endpoint_2"]:
+            start_idx = 0
+            for batch_idx, event in enumerate(model_events[model_name]):
+                expected_size = expected_batch_sizes[batch_idx]
+                end_idx = start_idx + expected_size
+                batch_inputs = BATCH_INPUT_DATA[start_idx:end_idx]
+                # Use _verify_batch_tracking for each batch
+                self._verify_batch_tracking(
+                    event, inputs=batch_inputs, model_name=model_name
+                )
+                start_idx = end_idx

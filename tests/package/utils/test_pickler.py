@@ -14,7 +14,6 @@
 
 import tempfile
 from pathlib import Path
-from typing import Union
 
 import cloudpickle
 import numpy as np
@@ -49,7 +48,7 @@ from mlrun.package.utils import Pickler
         ("numpy", "A pickle module is expected to have a"),
     ],
 )
-def test_pickler(pickle_module_name: str, expected_notes: Union[dict, str]):
+def test_pickler(pickle_module_name: str, expected_notes: dict | str):
     """
     Test the `Pickler` with multiple pickling modules.
 

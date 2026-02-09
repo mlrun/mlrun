@@ -269,36 +269,33 @@ class Client(BaseClient, project_follower.Member):
         auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
     ):
         self._logger.debug(
-            "Storing project owner or creating default policies in Iguazio"
+            "Ensuring default project policies exist in Iguazio", project=name
         )
 
-        def _update_owner_or_create_policies():
+        def _create_policies_if_not_exist():
             try:
-                # Try to create policies first
-                self._client.create_default_project_policies(
-                    project=project.metadata.name
-                )
+                self._client.create_default_project_policies(project=name)
                 self._logger.info(
-                    "Successfully created default project policies in Iguazio"
+                    "Successfully created default project policies in Iguazio",
+                    project=name,
                 )
             except httpx.HTTPStatusError as exc:
-                # If policies already exist (409 Conflict), update owner instead
                 if exc.response.status_code == httpx.codes.CONFLICT:
+                    # Conflict means policies already exist, which is expected when storing
+                    # an existing project (e.g., load_project, sync, or re-save).
+                    # We use "create and handle conflict" instead of "check then create"
+                    # because checking a non-existent project returns 401, not 404.
                     self._logger.debug(
-                        "Project policies already exist, updating owner instead",
-                        project=project.metadata.name,
-                    )
-                    self.patch_project(
-                        session, name, project.dict(), auth_info=auth_info
+                        "Project policies already exist, skipping", project=name
                     )
                 else:
                     # Unexpected error, re-raise
                     raise
 
         self._try_callback_with_httpx_exceptions(
-            _update_owner_or_create_policies,
+            _create_policies_if_not_exist,
             mlrun.errors.MLRunInternalServerError,
-            "Failed to store project owner or create default policies in Iguazio",
+            "Failed to store project policies in Iguazio",
             auth_headers=auth_info.request_headers,
         )
 

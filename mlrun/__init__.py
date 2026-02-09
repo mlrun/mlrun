@@ -27,6 +27,7 @@ __all__ = [
     "sync_secret_tokens",
 ]
 
+import warnings
 from os import environ, path
 from typing import Optional
 
@@ -40,7 +41,7 @@ from .errors import MLRunInvalidArgumentError, MLRunNotFoundError
 from .execution import MLClientCtx
 from .hub import get_hub_item, get_hub_module, get_hub_step, import_module
 from .model import RunObject, RunTemplate, new_task
-from .package import ArtifactType, DefaultPackager, Packager, handler
+from .package import ArtifactType, DefaultPackager, Packager
 from .projects import (
     MlrunProject,
     ProjectMetadata,
@@ -78,6 +79,30 @@ VolumeMount = mounts.VolumeMount
 mount_v3io = mounts.mount_v3io
 v3io_cred = mounts.v3io_cred
 auto_mount = mounts.auto_mount
+
+
+# TODO: Remove in MLRun 1.13.0.
+def __getattr__(name):
+    """handler decorator property"""
+
+    if name == "handler":
+        import warnings
+
+        warnings.warn(
+            message=(
+                "The `mlrun.handler` decorator is applied automatically if `mlrun.mlconf.packagers.enabled` is set to "
+                "True (by default its True). It should not be used manually in that case."
+                "If you still need to use it manually, please import it from `mlrun.package.handler` instead. Usage of "
+                "the decorator directly from `mlrun.handler` will be removed in MLRun 1.13.0."
+            ),
+            category=FutureWarning,
+            stacklevel=2,
+        )
+        from mlrun.package import handler
+
+        return handler
+
+    raise AttributeError(f"module {__name__} has no attribute {name}")
 
 
 def get_version():

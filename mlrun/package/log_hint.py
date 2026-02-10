@@ -13,10 +13,9 @@
 # limitations under the License.
 
 import warnings
-from typing import Any, Self
+from typing import Any, Literal, Self
 
 from pydantic import BaseModel, Field
-from pydantic.config import ExtraValues
 
 from mlrun.errors import MLRunInvalidArgumentError
 
@@ -93,7 +92,7 @@ class LogHint(BaseModel):
         obj: str | dict,
         *,
         strict: bool | None = None,
-        extra: ExtraValues | None = None,
+        extra: Literal["allow", "ignore", "forbid"] | None = None,
         from_attributes: bool | None = None,
         context: Any | None = None,
         by_alias: bool | None = None,

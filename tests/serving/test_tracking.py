@@ -2010,9 +2010,7 @@ def test_batch_step_with_mrs(rundb_mock, multiple_models):
 
 @pytest.mark.parametrize("multiple_models", (True, False))
 @pytest.mark.parametrize("raise_exception", (True, False))
-def test_batch_step_with_mrs_list(
-    multiple_models, raise_exception, rundb_mock
-):
+def test_batch_step_with_mrs_list(multiple_models, raise_exception, rundb_mock):
     """
     Test batch step with MRS for:
     - Single vs multiple models
@@ -2187,11 +2185,12 @@ def test_batch_step_with_mrs_list(
             assert event["effective_sample_count"] == len(events)
 
 
+@pytest.mark.parametrize("multiple_models", (True, False))
 @pytest.mark.parametrize("raise_exception", (True, False))
-def test_batch_step_with_mrs_string(raise_exception, rundb_mock):
+def test_batch_step_with_mrs_string(multiple_models, raise_exception, rundb_mock):
     """
     Test batch step with MRS for simple string inputs (e.g., "hello", "world").
-    - Single model only (for now)
+    - Single vs multiple models
     - Error handling with invalid inputs
     - Proper tracking of batch events
     """
@@ -2212,13 +2211,22 @@ def test_batch_step_with_mrs_string(raise_exception, rundb_mock):
     # ModelRunnerStep: process batches through the string model
     model_runner_step = ModelRunnerStep(name="model_runner", raise_exception=True)
 
-    suffix = "_processed"
+    suffix1 = "_processed"
+    suffix2 = "_processed2"
     model_runner_step.add_model(
         model_class="StringBatchedModel",
         execution_mechanism="naive",
         endpoint_name="my_string_model",
-        suffix=suffix,
+        suffix=suffix1,
     )
+
+    if multiple_models:
+        model_runner_step.add_model(
+            model_class="StringBatchedModel",
+            execution_mechanism="naive",
+            endpoint_name="my_string_model_2",
+            suffix=suffix2,
+        )
 
     step = graph.to(model_runner_step)
     step = step.to("storey.FlatMap", _fn="(event.body)", full_event=True)
@@ -2255,7 +2263,9 @@ def test_batch_step_with_mrs_string(raise_exception, rundb_mock):
 
             if raise_exception:
                 for future in futures:
-                    with pytest.raises(RuntimeError, match=r".*unsupported operand type"):
+                    with pytest.raises(
+                        RuntimeError, match=r".*unsupported operand type"
+                    ):
                         future.result()
             else:
                 responses = [future.result() for future in futures]
@@ -2267,49 +2277,101 @@ def test_batch_step_with_mrs_string(raise_exception, rundb_mock):
         assert len(responses) == len(events)
         assert all(r is not None for r in responses)
 
-        expected_responses = [
-            "hello_processed",
-            "world_processed",
-            "test_processed",
-            "mlrun_processed",
-            "batch_processed",
-        ]
+        # Expected responses based on string concatenation
+        if multiple_models:
+            expected_responses = [
+                {
+                    "my_string_model": "hello_processed",
+                    "my_string_model_2": "hello_processed2",
+                },
+                {
+                    "my_string_model": "world_processed",
+                    "my_string_model_2": "world_processed2",
+                },
+                {
+                    "my_string_model": "test_processed",
+                    "my_string_model_2": "test_processed2",
+                },
+                {
+                    "my_string_model": "mlrun_processed",
+                    "my_string_model_2": "mlrun_processed2",
+                },
+                {
+                    "my_string_model": "batch_processed",
+                    "my_string_model_2": "batch_processed2",
+                },
+            ]
+        else:
+            expected_responses = [
+                "hello_processed",
+                "world_processed",
+                "test_processed",
+                "mlrun_processed",
+                "batch_processed",
+            ]
         assert responses == expected_responses
 
         dummy_stream = server.context.stream.output_stream
+        num_models = 2 if multiple_models else 1
         num_batches = math.ceil(len(events) / batch_size)  # 3 batches (2+2+1)
-        expected_tracking_events = num_batches
+        expected_tracking_events = num_batches * num_models
 
         assert (
             len(dummy_stream.event_list) == expected_tracking_events
         ), f"Expected {expected_tracking_events} tracking events, got {len(dummy_stream.event_list)}"
 
-        # Verify each batch event
-        for i, event in enumerate(dummy_stream.event_list):
-            # Iterate over batches
-            start_idx = i * batch_size
-            end_idx = min(start_idx + batch_size, len(events))
-            batch_events = events[start_idx:end_idx]
-            expected_count = len(batch_events)
+        # Group events by model
+        model_events = {"my_string_model": [], "my_string_model_2": []}
+        for event in dummy_stream.event_list:
+            model_events[event["model"]].append(event)
 
-            # Extract expected inputs and outputs
-            expected_inputs = batch_events
-            expected_outputs = expected_responses[start_idx:end_idx]
+        # Verify events for each model
+        models_to_check = (
+            ["my_string_model", "my_string_model_2"]
+            if multiple_models
+            else ["my_string_model"]
+        )
 
-            assert event["effective_sample_count"] == expected_count
-            assert event["model"] == "my_string_model"
-            assert event["model_class"] == "StringBatchedModel"
-            assert event["error"] is None
-            assert event["request"]["inputs"] == expected_inputs
-            assert event["request"]["input_schema"] is None
-            assert event["resp"]["outputs"] == expected_outputs
-            assert event["resp"]["output_schema"] is None
+        for model_name in models_to_check:
+            model_specific_events = model_events[model_name]
+            assert len(model_specific_events) == num_batches
+
+            for i, event in enumerate(model_specific_events):
+                # Iterate over batches
+                start_idx = i * batch_size
+                end_idx = min(start_idx + batch_size, len(events))
+                batch_events = events[start_idx:end_idx]
+                expected_count = len(batch_events)
+
+                # Extract expected inputs and outputs
+                expected_inputs = batch_events
+                if multiple_models:
+                    expected_outputs = [
+                        expected_responses[j][model_name]
+                        for j in range(start_idx, end_idx)
+                    ]
+                else:
+                    expected_outputs = expected_responses[start_idx:end_idx]
+
+                assert event["effective_sample_count"] == expected_count
+                assert event["model"] == model_name
+                assert event["model_class"] == "StringBatchedModel"
+                assert event["error"] is None
+                assert event["request"]["inputs"] == expected_inputs
+                assert event["request"]["input_schema"] is None
+                assert event["resp"]["outputs"] == expected_outputs
+                assert event["resp"]["output_schema"] is None
     else:
+        # Verify error tracking
         dummy_stream = server.context.stream.output_stream
-        assert len(dummy_stream.event_list) == 1
+        # Should have 1 error event per model (the batch failed)
+        num_models = 2 if multiple_models else 1
+        assert len(dummy_stream.event_list) == num_models
 
-        event = dummy_stream.event_list[0]
-        assert event["error"] is not None
-        assert "unsupported operand type" in event["error"]
-        assert event["effective_sample_count"] == len(events)
-
+        for event in dummy_stream.event_list:
+            assert event["error"] is not None
+            assert (
+                "unsupported operand type" in event["error"]
+                or "can only concatenate str" in event["error"]
+            )
+            assert event["effective_sample_count"] == len(events)

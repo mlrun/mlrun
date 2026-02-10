@@ -219,121 +219,6 @@ class BatchedGraphModel2(Model):
         return body
 
 
-# Helper functions for batch step tests
-def verify_batch_step_tracking_events(
-    dummy_stream,
-    events,
-    expected_responses,
-    batch_size,
-    multiple_models,
-    model_names,
-    model_class,
-    input_schema=None,
-    output_schema=None,
-):
-    """
-    Verify tracking events for batch step tests.
-
-    Args:
-        dummy_stream: The dummy stream with event_list
-        events: Original input events
-        expected_responses: Expected responses for each event
-        batch_size: Batch size used
-        multiple_models: Whether multiple models are used
-        model_names: List of model names to check (e.g., ["my_model", "my_model_2"])
-        model_class: Expected model class name
-        input_schema: Expected input schema (None for lists/strings)
-        output_schema: Expected output schema (None for lists/strings)
-    """
-    num_models = len(model_names)
-    num_batches = math.ceil(len(events) / batch_size)
-    expected_tracking_events = num_batches * num_models
-
-    assert (
-        len(dummy_stream.event_list) == expected_tracking_events
-    ), f"Expected {expected_tracking_events} tracking events, got {len(dummy_stream.event_list)}"
-
-    # Group events by model
-    model_events = {name: [] for name in model_names}
-    for event in dummy_stream.event_list:
-        if event["model"] in model_events:
-            model_events[event["model"]].append(event)
-
-    # Verify events for each model
-    for model_name in model_names:
-        model_specific_events = model_events[model_name]
-        assert len(model_specific_events) == num_batches
-
-        for i, event in enumerate(model_specific_events):
-            # Iterate over batches
-            start_idx = i * batch_size
-            end_idx = min(start_idx + batch_size, len(events))
-            batch_events = events[start_idx:end_idx]
-            expected_count = len(batch_events)
-
-            # Extract expected inputs and outputs
-            expected_inputs = batch_events
-            if multiple_models:
-                expected_outputs = [
-                    expected_responses[j][model_name] for j in range(start_idx, end_idx)
-                ]
-            else:
-                expected_outputs = expected_responses[start_idx:end_idx]
-
-            assert event["effective_sample_count"] == expected_count
-            assert event["model"] == model_name
-            assert event["model_class"] == model_class
-            assert event["error"] is None
-            assert event["request"]["inputs"] == expected_inputs
-            assert event["request"]["input_schema"] == input_schema
-            assert event["resp"]["outputs"] == expected_outputs
-            assert event["resp"]["output_schema"] == output_schema
-
-
-def verify_batch_step_error_tracking(dummy_stream, events, multiple_models, error_substring):
-    """
-    Verify error tracking events for batch step tests when batch fails.
-
-    Args:
-        dummy_stream: The dummy stream with event_list
-        events: Original input events that caused the error
-        multiple_models: Whether multiple models are used
-        error_substring: Substring expected in error message
-    """
-    num_models = 2 if multiple_models else 1
-    assert len(dummy_stream.event_list) == num_models
-
-    for event in dummy_stream.event_list:
-        assert event["error"] is not None
-        assert error_substring in event["error"]
-        assert event["effective_sample_count"] == len(events)
-
-
-def generate_string_responses(strings, suffixes):
-    """
-    Generate expected string responses for multiple models.
-
-    Args:
-        strings: List of input strings
-        suffixes: List of suffixes for each model (or single suffix for single model)
-
-    Returns:
-        List of expected responses (dicts if multiple models, strings if single model)
-    """
-    if isinstance(suffixes, list):
-        # Multiple models - return list of dicts
-        return [
-            {
-                f"my_string_model" if i == 0 else f"my_string_model_{i+1}": s + suffix
-                for i, suffix in enumerate(suffixes)
-            }
-            for s in strings
-        ]
-    else:
-        # Single model - return list of strings
-        return [s + suffixes for s in strings]
-
-
 def test_tracking(rundb_mock):
     # test that predict() was tracked properly in the stream
     fn = mlrun.new_function("tests", kind="serving")
@@ -1658,6 +1543,124 @@ def test_serving_stream_profile(
         server.wait_for_completion()
 
 
+#  test batch
+# Helper functions for batch step tests
+def verify_batch_step_tracking_events(
+    dummy_stream,
+    events,
+    expected_responses,
+    batch_size,
+    multiple_models,
+    model_names,
+    model_class,
+    input_schema=None,
+    output_schema=None,
+):
+    """
+    Verify tracking events for batch step tests.
+
+    Args:
+        dummy_stream: The dummy stream with event_list
+        events: Original input events
+        expected_responses: Expected responses for each event
+        batch_size: Batch size used
+        multiple_models: Whether multiple models are used
+        model_names: List of model names to check (e.g., ["my_model", "my_model_2"])
+        model_class: Expected model class name
+        input_schema: Expected input schema (None for lists/strings)
+        output_schema: Expected output schema (None for lists/strings)
+    """
+    num_models = len(model_names)
+    num_batches = math.ceil(len(events) / batch_size)
+    expected_tracking_events = num_batches * num_models
+
+    assert (
+        len(dummy_stream.event_list) == expected_tracking_events
+    ), f"Expected {expected_tracking_events} tracking events, got {len(dummy_stream.event_list)}"
+
+    # Group events by model
+    model_events = {name: [] for name in model_names}
+    for event in dummy_stream.event_list:
+        if event["model"] in model_events:
+            model_events[event["model"]].append(event)
+
+    # Verify events for each model
+    for model_name in model_names:
+        model_specific_events = model_events[model_name]
+        assert len(model_specific_events) == num_batches
+
+        for i, event in enumerate(model_specific_events):
+            # Iterate over batches
+            start_idx = i * batch_size
+            end_idx = min(start_idx + batch_size, len(events))
+            batch_events = events[start_idx:end_idx]
+            expected_count = len(batch_events)
+
+            # Extract expected inputs and outputs
+            expected_inputs = batch_events
+            if multiple_models:
+                expected_outputs = [
+                    expected_responses[j][model_name] for j in range(start_idx, end_idx)
+                ]
+            else:
+                expected_outputs = expected_responses[start_idx:end_idx]
+
+            assert event["effective_sample_count"] == expected_count
+            assert event["model"] == model_name
+            assert event["model_class"] == model_class
+            assert event["error"] is None
+            assert event["request"]["inputs"] == expected_inputs
+            assert event["request"]["input_schema"] == input_schema
+            assert event["resp"]["outputs"] == expected_outputs
+            assert event["resp"]["output_schema"] == output_schema
+
+
+def _verify_batch_step_error_tracking(
+    dummy_stream, events, multiple_models, error_substring
+):
+    """
+    Verify error tracking events for batch step tests when batch fails.
+
+    Args:
+        dummy_stream: The dummy stream with event_list
+        events: Original input events that caused the error
+        multiple_models: Whether multiple models are used
+        error_substring: Substring expected in error message
+    """
+    num_models = 2 if multiple_models else 1
+    assert len(dummy_stream.event_list) == num_models
+
+    for event in dummy_stream.event_list:
+        assert event["error"] is not None
+        assert error_substring in event["error"]
+        assert event["effective_sample_count"] == len(events)
+
+
+def _generate_batch_string_responses(strings, suffixes, model_names=None):
+    """
+    Generate expected string responses for multiple models.
+
+    Args:
+        strings: List of input strings
+        suffixes: List of suffixes for each model (or single suffix for single model)
+        model_names: List of model names (default: ["my_model_1", "my_model_2"])
+
+    Returns:
+        List of expected responses (dicts if multiple models, strings if single model)
+    """
+    if isinstance(suffixes, list):
+        # Multiple models - return list of dicts
+        if model_names is None:
+            model_names = ["my_model_1", "my_model_2"]
+        return [
+            {model_names[i]: s + suffix for i, suffix in enumerate(suffixes)}
+            for s in strings
+        ]
+    else:
+        # Single model - return list of strings
+        return [s + suffixes for s in strings]
+
+
 @pytest.mark.parametrize("multiple_models", (True, False))
 @pytest.mark.parametrize("raise_exception", (True, False))
 @pytest.mark.parametrize("return_as_dict", (True, False))
@@ -1872,22 +1875,10 @@ def test_mrs_direct_batch_str(
                 server.test(body=inputs)
         else:
             resp = server.test(body=inputs)
-            expected_output_1 = [
-                "hello_model1",
-                "world_model1",
-                "test_model1",
-                "mlrun_model1",
-                "data_model1",
-                "science_model1",
-            ]
-            expected_output_2 = [
-                "hello_model2",
-                "world_model2",
-                "test_model2",
-                "mlrun_model2",
-                "data_model2",
-                "science_model2",
-            ]
+            # Generate expected outputs using helper function
+            strings = ["hello", "world", "test", "mlrun", "data", "science"]
+            expected_output_1 = _generate_batch_string_responses(strings, "_model1")
+            expected_output_2 = _generate_batch_string_responses(strings, "_model2")
 
             if multiple_models:
                 if return_as_dict:
@@ -1907,6 +1898,11 @@ def test_mrs_direct_batch_str(
     finally:
         server.wait_for_completion()
     if not raise_exception:
+        # Generate expected outputs using helper function
+        strings = ["hello", "world", "test", "mlrun", "data", "science"]
+        expected_output_1 = _generate_batch_string_responses(strings, "_model1")
+        expected_output_2 = _generate_batch_string_responses(strings, "_model2")
+
         expected_inputs = (
             [["hello", "world", "test"], ["mlrun", "data", "science"]]
             if batching_format == "list_of_lists"
@@ -1919,14 +1915,7 @@ def test_mrs_direct_batch_str(
         assert event["effective_sample_count"] == effective_sample_count
         assert event["labels"] == {}
         assert event["request"]["inputs"] == expected_inputs
-        assert event["resp"]["outputs"] == [
-            "hello_model1",
-            "world_model1",
-            "test_model1",
-            "mlrun_model1",
-            "data_model1",
-            "science_model1",
-        ]
+        assert event["resp"]["outputs"] == expected_output_1
         assert event["error"] is None
         assert event["model"] == endpoint_name
         assert event["metrics"] is None
@@ -1935,14 +1924,7 @@ def test_mrs_direct_batch_str(
             assert event["effective_sample_count"] == effective_sample_count
             assert event["labels"] == {}
             assert event["request"]["inputs"] == expected_inputs
-            assert event["resp"]["outputs"] == [
-                "hello_model2",
-                "world_model2",
-                "test_model2",
-                "mlrun_model2",
-                "data_model2",
-                "science_model2",
-            ]
+            assert event["resp"]["outputs"] == expected_output_2
             assert event["error"] is None
             assert event["model"] == endpoint_name2
             assert event["metrics"] is None
@@ -2255,7 +2237,7 @@ def test_batch_step_with_mrs_list(multiple_models, raise_exception, rundb_mock):
     else:
         # Verify error tracking using helper function
         dummy_stream = server.context.stream.output_stream
-        verify_batch_step_error_tracking(
+        _verify_batch_step_error_tracking(
             dummy_stream=dummy_stream,
             events=events,
             multiple_models=multiple_models,
@@ -2289,12 +2271,14 @@ def test_batch_step_with_mrs_string(multiple_models, raise_exception, rundb_mock
     # ModelRunnerStep: process batches through the string model
     model_runner_step = ModelRunnerStep(name="model_runner", raise_exception=True)
 
-    suffix1 = "_processed"
-    suffix2 = "_processed2"
+    suffix1 = "_model1"
+    suffix2 = "_model2"
+    endpoint_name = "my_model_1"
+    endpoint_name2 = "my_model_2"
     model_runner_step.add_model(
         model_class="StringBatchedModel",
         execution_mechanism="naive",
-        endpoint_name="my_string_model",
+        endpoint_name=endpoint_name,
         suffix=suffix1,
     )
 
@@ -2302,7 +2286,7 @@ def test_batch_step_with_mrs_string(multiple_models, raise_exception, rundb_mock
         model_runner_step.add_model(
             model_class="StringBatchedModel",
             execution_mechanism="naive",
-            endpoint_name="my_string_model_2",
+            endpoint_name=endpoint_name2,
             suffix=suffix2,
         )
 
@@ -2355,46 +2339,20 @@ def test_batch_step_with_mrs_string(multiple_models, raise_exception, rundb_mock
         assert len(responses) == len(events)
         assert all(r is not None for r in responses)
 
-        # Expected responses based on string concatenation
+        # Expected responses based on string concatenation using helper function
+        strings = ["hello", "world", "test", "mlrun", "batch"]
         if multiple_models:
-            expected_responses = [
-                {
-                    "my_string_model": "hello_processed",
-                    "my_string_model_2": "hello_processed2",
-                },
-                {
-                    "my_string_model": "world_processed",
-                    "my_string_model_2": "world_processed2",
-                },
-                {
-                    "my_string_model": "test_processed",
-                    "my_string_model_2": "test_processed2",
-                },
-                {
-                    "my_string_model": "mlrun_processed",
-                    "my_string_model_2": "mlrun_processed2",
-                },
-                {
-                    "my_string_model": "batch_processed",
-                    "my_string_model_2": "batch_processed2",
-                },
-            ]
+            expected_responses = _generate_batch_string_responses(
+                strings, ["_model1", "_model2"], ["my_model_1", "my_model_2"]
+            )
         else:
-            expected_responses = [
-                "hello_processed",
-                "world_processed",
-                "test_processed",
-                "mlrun_processed",
-                "batch_processed",
-            ]
+            expected_responses = _generate_batch_string_responses(strings, "_model1")
         assert responses == expected_responses
 
         # Verify tracking events
         dummy_stream = server.context.stream.output_stream
         model_names = (
-            ["my_string_model", "my_string_model_2"]
-            if multiple_models
-            else ["my_string_model"]
+            ["my_model_1", "my_model_2"] if multiple_models else ["my_model_1"]
         )
         verify_batch_step_tracking_events(
             dummy_stream=dummy_stream,
@@ -2410,7 +2368,7 @@ def test_batch_step_with_mrs_string(multiple_models, raise_exception, rundb_mock
     else:
         # Verify error tracking
         dummy_stream = server.context.stream.output_stream
-        verify_batch_step_error_tracking(
+        _verify_batch_step_error_tracking(
             dummy_stream=dummy_stream,
             events=events,
             multiple_models=multiple_models,

@@ -58,6 +58,46 @@ class MonitoringPreProcessor(storey.MapClass):
             getattr(self.context, "server", None) if self.context else None
         )
 
+    def _extract_event_body_for_model(
+        self, event, model: str, multiple_models: bool
+    ) -> tuple[Any, bool]:
+        """
+        Extract event body for a specific model, handling both single and batched events uniformly.
+
+        :param event: Event to extract body from
+        :param model: Model name to extract (when multiple_models=True)
+        :param multiple_models: Whether to extract model-specific body from dict
+        :return: Tuple of (event_body, is_error)
+        """
+        is_error = False
+
+        if storey.flow.is_batched_event(event):
+            # Check for errors first
+            error = self._extract_error_from_batched_event(
+                event, model=model if multiple_models else None
+            )
+            if error:
+                return None, True
+
+            # Extract body from each sub-event
+            event_body = []
+            for sub_event in event.body:
+                if isinstance(sub_event.body, dict):
+                    sub_event_by_model = sub_event.body.get(model, sub_event.body)
+                    event_body.append(sub_event_by_model)
+                else:
+                    event_body.append(sub_event.body)
+        else:
+            # Single event handling
+            if isinstance(event.body, dict):
+                event_body = event.body.get(model, event.body)
+                if isinstance(event_body, dict):
+                    is_error = bool(event_body.get("error"))
+            else:
+                event_body = event.body
+
+        return event_body, is_error
+
     def reconstruct_request_resp_fields(
         self, event, model: str, model_monitoring_data: dict, multiple_models=True
     ) -> tuple[dict[str, Any], dict[str, Any]]:
@@ -73,41 +113,24 @@ class MonitoringPreProcessor(storey.MapClass):
             output_schema=output_schema,
             input_schema=input_schema,
         )
-        if event.body and isinstance(event.body, list):
-            is_error = False
-            event_body = event.body
-            if storey.flow.is_batched_event(event):
-                if self._extract_error_from_batched_event(
-                    event, model=model if multiple_models else None
-                ):
-                    is_error = True
-                else:
-                    event_body = []
-                    for sub_event in event.body:
-                        if isinstance(sub_event.body, dict):
-                            sub_event_by_model = sub_event.body.get(
-                                model, sub_event.body
-                            )
-                            event_body.append(sub_event_by_model)
-                        else:
-                            event_body.append(sub_event.body)
-            if not is_error:
-                outputs, new_output_schema = self.get_listed_data(
-                    event_body, result_path, output_schema
-                )
-        else:
-            is_error = False
-            if isinstance(event.body, dict):
-                event_body_by_model = event.body.get(model, event.body)
-                if isinstance(event_body_by_model, dict):
-                    is_error = bool(event_body_by_model.get("error"))
-            if not is_error:
-                outputs, new_output_schema = self.get_listed_data(
-                    event.body.get(model, event.body), result_path, output_schema
-                )
+
+        # Extract event body uniformly for both single and batched events
+        event_body, is_error = self._extract_event_body_for_model(
+            event, model, multiple_models
+        )
+
+        # Only process outputs if no error
+        if not is_error and event_body is not None:
+            outputs, new_output_schema = self.get_listed_data(
+                event_body, result_path, output_schema
+            )
+
+        # Always process inputs
         inputs, new_input_schema = self.get_listed_data(
             event._metadata.get("inputs", {}), input_path, input_schema
         )
+
+        # Validate outputs
         if outputs and isinstance(outputs[0], list):
             if output_schema and len(output_schema) != len(outputs[0]):
                 logger.info(
@@ -131,6 +154,7 @@ class MonitoringPreProcessor(storey.MapClass):
                     "outputs and inputs are not in the same length check 'input_path' and "
                     "'output_path' was specified if needed"
                 )
+
         request = {
             "inputs": inputs,
             "id": getattr(event, "id", None),

@@ -118,7 +118,7 @@ class BatchedModel(Model):
 
 
 class StringBatchedModel(Model):
-    def __init__(self, suffix: str, return_as_dict: bool, **kwargs):
+    def __init__(self, suffix: str, return_as_dict=False, **kwargs):
         super().__init__(**kwargs)
         self.suffix = suffix
         self.return_as_dict = return_as_dict
@@ -2010,7 +2010,7 @@ def test_batch_step_with_mrs(rundb_mock, multiple_models):
 
 @pytest.mark.parametrize("multiple_models", (True, False))
 @pytest.mark.parametrize("raise_exception", (True, False))
-def test_batch_step_with_mrs_comprehensive(
+def test_batch_step_with_mrs_list(
     multiple_models, raise_exception, rundb_mock
 ):
     """
@@ -2185,3 +2185,131 @@ def test_batch_step_with_mrs_comprehensive(
             assert event["error"] is not None
             assert "list index out of range" in event["error"]
             assert event["effective_sample_count"] == len(events)
+
+
+@pytest.mark.parametrize("raise_exception", (True, False))
+def test_batch_step_with_mrs_string(raise_exception, rundb_mock):
+    """
+    Test batch step with MRS for simple string inputs (e.g., "hello", "world").
+    - Single model only (for now)
+    - Error handling with invalid inputs
+    - Proper tracking of batch events
+    """
+    function = mlrun.new_function("tests", kind="serving")
+    function.set_tracking("dummy://", enable_tracking=True)
+    graph = function.set_topology("flow", engine="async")
+
+    # Batch step: groups events into batches
+    batch_size = 2
+    graph = graph.to(
+        "storey.Batch",
+        "batching",
+        max_events=batch_size,
+        flush_after_seconds=1,
+        full_event=True,
+    )
+
+    # ModelRunnerStep: process batches through the string model
+    model_runner_step = ModelRunnerStep(name="model_runner", raise_exception=True)
+
+    suffix = "_processed"
+    model_runner_step.add_model(
+        model_class="StringBatchedModel",
+        execution_mechanism="naive",
+        endpoint_name="my_string_model",
+        suffix=suffix,
+    )
+
+    step = graph.to(model_runner_step)
+    step = step.to("storey.FlatMap", _fn="(event.body)", full_event=True)
+    step.respond()
+    server = function.to_mock_server()
+
+    try:
+        if raise_exception:
+            # Mix valid and invalid inputs - integers will cause error
+            events = [
+                "hello",  # Valid
+                123,  # Invalid - not a string
+            ]
+        else:
+            # All valid string inputs
+            events = [
+                "hello",
+                "world",
+                "test",
+                "mlrun",
+                "batch",
+            ]
+
+        def send_event(event, delay):
+            time.sleep(delay)
+            return server.test(body=event)
+
+        # Send events in thread pool with staggered delays
+        with ThreadPoolExecutor(max_workers=len(events)) as executor:
+            futures = [
+                executor.submit(send_event, event, i * 0.1)
+                for i, event in enumerate(events)
+            ]
+
+            if raise_exception:
+                for future in futures:
+                    with pytest.raises(RuntimeError, match=r".*unsupported operand type"):
+                        future.result()
+            else:
+                responses = [future.result() for future in futures]
+    finally:
+        server.wait_for_completion()
+
+    if not raise_exception:
+        # Verify responses
+        assert len(responses) == len(events)
+        assert all(r is not None for r in responses)
+
+        expected_responses = [
+            "hello_processed",
+            "world_processed",
+            "test_processed",
+            "mlrun_processed",
+            "batch_processed",
+        ]
+        assert responses == expected_responses
+
+        dummy_stream = server.context.stream.output_stream
+        num_batches = math.ceil(len(events) / batch_size)  # 3 batches (2+2+1)
+        expected_tracking_events = num_batches
+
+        assert (
+            len(dummy_stream.event_list) == expected_tracking_events
+        ), f"Expected {expected_tracking_events} tracking events, got {len(dummy_stream.event_list)}"
+
+        # Verify each batch event
+        for i, event in enumerate(dummy_stream.event_list):
+            # Iterate over batches
+            start_idx = i * batch_size
+            end_idx = min(start_idx + batch_size, len(events))
+            batch_events = events[start_idx:end_idx]
+            expected_count = len(batch_events)
+
+            # Extract expected inputs and outputs
+            expected_inputs = batch_events
+            expected_outputs = expected_responses[start_idx:end_idx]
+
+            assert event["effective_sample_count"] == expected_count
+            assert event["model"] == "my_string_model"
+            assert event["model_class"] == "StringBatchedModel"
+            assert event["error"] is None
+            assert event["request"]["inputs"] == expected_inputs
+            assert event["request"]["input_schema"] is None
+            assert event["resp"]["outputs"] == expected_outputs
+            assert event["resp"]["output_schema"] is None
+    else:
+        dummy_stream = server.context.stream.output_stream
+        assert len(dummy_stream.event_list) == 1
+
+        event = dummy_stream.event_list[0]
+        assert event["error"] is not None
+        assert "unsupported operand type" in event["error"]
+        assert event["effective_sample_count"] == len(events)
+

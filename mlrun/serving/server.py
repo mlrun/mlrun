@@ -519,6 +519,7 @@ def _add_api_handler_step_to_graph(
                 name="api-handler",
                 graph_shape="diamond",
                 config=api_handler_config,
+                context=context,
                 after=None,  # First step
                 full_event=True,
             )

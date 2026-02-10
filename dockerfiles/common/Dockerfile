@@ -28,7 +28,9 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
         libffi-dev \
         python3-dev \
         unzip \
+    # TODO (ML-12122): remove setuptools<82 constraint once pkg_resources usage is dropped
+    && echo 'setuptools<82' > /tmp/constraints.txt \
     && python -m pip list --format=freeze \
         | grep -v '^\-e' \
         | cut -d = -f 1 \
-        | xargs python -m pip install --upgrade
+        | xargs python -m pip install --upgrade -c /tmp/constraints.txt

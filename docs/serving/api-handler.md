@@ -1,18 +1,28 @@
-(api-handlers)=
-# API handlers
+(api-handler)=
+# API handler
 
-API handlers perform preprocessing on serving graphs to add, for example, runtime configuration and administration handlers that perform modifications on the graph without having to re-deploy it.
+API handlers perform preprocessing on serving graphs invoked by HTTP triggers to add, for example, runtime configuration and administration handlers that perform modifications on the graphs.
 API handlers: 
 - Support industry-defined API schemas, such as OpenAI interface for LLMs served by the graph
 - Implement the v2 KFServing REST API (https://kserve.github.io/website/0.8/modelserving/inference_api/)
-- Implement admin APIs for the serving graph, such as:
+- Implement admin APIs for the serving graph, without having to re-deploy them, such as:
   - Enabling and disabling model monitoring on the graph
   - Adding/removing models in real-time
 
-API handlers support Nuclio functions only when the trigger is a HTTP trigger, and the mock server.
+API handlers support Nuclio functions whose trigger is a HTTP trigger, and the mock server.
+
+
+## Overview
+When the GraphServer receives an event with an API handler, and prior to actually sending it to the graph, it evalauates whether the event was sent to a user-configured allowed paths. If yes, it:
+- Sends the event to either the root graph step, or another step named in the configuration, as shown in the diagram.
+- Executes a method on the event. This is used for administrative operations. Once the admin operation is completed, a response is sent back to the user.
+- Can also API handler can perform additional (optional) manipulations on the event body (data), for example, to extract relevant fields from specific paths in the JSON input, and construct the event to be sent to the graph based on the transformations defined by the user.
+
+If the event was sent to an invalid path, it fails the request.
+
 
 ## SDK
-The `set_api_handler_config` accepts the full configuration. You cannot add/remove paths and mappings directly on the serving runtime. !!!!!The ApiHandlerConfig class will enable doing this as mentioned in the api above.!!!!!!
+The `set_api_handler_config` accepts the full configuration. You cannot add/remove paths and mappings directly on the serving runtime. 
 
 
 
@@ -34,6 +44,12 @@ URL information mapping
 - This behavior is controlled by the `include_url_info` configuration, which, when set to `False`, bypasses the entire URL parsing logic (URL parts and query params).
 
 Once configured, the API handler configuration is placed in the serving function’s serving spec, so it can be picked up at deployment time and the handler can be instantiated based on it. 
+
+## Viewing API handlers in graphs
+In a serving graph visualized in the MLRun UI, the graph displays details on the API handler. For example, you can see allowed paths, and also the transformations between schemas. 
+Inn a Jupyter plot of a graph there are indications that an API handler exists without specific details.
+
+
 
 ## Usage
 

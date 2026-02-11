@@ -33,14 +33,18 @@ RUN rm -rf /opt/conda/lib/python${MLRUN_PYTHON_VERSION}/ensurepip
 # e.g.: wheel, requests, etc.
 RUN conda update --all --use-local --yes && conda clean --all --quiet --yes
 
-RUN python -m pip install --upgrade pip~=${MLRUN_PIP_VERSION}
-
 WORKDIR /mlrun
 
 # non-recursive chmod for the run to be able to create the handler file with any security context
 RUN chmod 777 /mlrun
 
-ENV UV_SYSTEM_PYTHON=true UV_LINK_MODE=copy UV_COMPILE_BYTECODE=1
+ENV UV_SYSTEM_PYTHON=true UV_LINK_MODE=copy UV_COMPILE_BYTECODE=1 UV_NO_BUILD_ISOLATION=1
+
+# mpi4py 3.1.x fails to build with setuptools>=69 ("new_compiler() got an unexpected keyword argument 'dry_run'").
+# See pypa/setuptools#4136. Use setuptools<69 and no build isolation so uv builds mpi4py with it; the lock file
+# will then install setuptools==80.9.0 for the rest of the environment.
+RUN --mount=type=cache,id=pip-${MLRUN_PYTHON_VERSION},target=/root/.cache/pip \
+    python -m pip install --upgrade 'setuptools>=40.9,<69' pip~=${MLRUN_PIP_VERSION}
 
 # do not require hashes as PyHive is installed via remote repo
 # and do not have a hash set in the locked-requirements.txt

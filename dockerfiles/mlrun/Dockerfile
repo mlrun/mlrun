@@ -28,7 +28,7 @@ ENV MAMBA_DOWNLOAD_THREADS=16
 ENV MAMBA_EXTRACT_THREADS=8
 
 RUN micromamba install -y -n base -c conda-forge \
-        python=$MLRUN_PYTHON_VERSION openmpi-mpicc=$OMPI_VERSION && \
+        python=$MLRUN_PYTHON_VERSION 'setuptools<82' openmpi-mpicc=$OMPI_VERSION && \
     micromamba clean -afy
 RUN --mount=type=cache,target=/opt/conda/pkgs \
     micromamba config set channel_priority strict && \
@@ -37,6 +37,7 @@ RUN --mount=type=cache,target=/opt/conda/pkgs \
     micromamba install -y -n base -c conda-forge \
         python=${MLRUN_PYTHON_VERSION} \
         pip=${MLRUN_PIP_VERSION} \
+        'setuptools<82' \
         openmpi-mpicc=${OMPI_VERSION} && \
     micromamba clean -afy
 
@@ -50,17 +51,23 @@ ARG MLRUN_PYTHON_VERSION
 ARG MLRUN_PIP_VERSION
 
 COPY --from=conda-build /opt/conda /opt/conda
-ENV PATH="/opt/conda/bin:${PATH}"
 
-RUN --mount=type=cache,id=pip-${MLRUN_PYTHON_VERSION},target=/root/.cache/pip \
-    /opt/conda/bin/python -m pip install --upgrade setuptools pip~=${MLRUN_PIP_VERSION}
+ENV PATH="/opt/conda/bin:${PATH}" \
+    UV_SYSTEM_PYTHON=true \
+    UV_LINK_MODE=copy \
+    UV_COMPILE_BYTECODE=1 \
+    UV_NO_BUILD_ISOLATION=1
 
 WORKDIR /mlrun
 # non-recursive chmod for the run to be able to create the handler file with any security context
 RUN chmod 777 /mlrun
 
-ARG MLRUN_PYTHON_VERSION
-ENV UV_SYSTEM_PYTHON=true UV_LINK_MODE=copy UV_COMPILE_BYTECODE=1
+
+# mpi4py 3.1.x fails to build with setuptools>=69 ("new_compiler() got an unexpected keyword argument 'dry_run'").
+# See pypa/setuptools#4136. Use setuptools<69 and no build isolation so uv builds mpi4py with it; the lock file
+# will then install setuptools==80.9.0 for the rest of the environment.
+RUN --mount=type=cache,id=pip-${MLRUN_PYTHON_VERSION},target=/root/.cache/pip \
+    /opt/conda/bin/python -m pip install --upgrade 'setuptools>=40.9,<69' pip~=${MLRUN_PIP_VERSION}
 
 # Install MLRun:
 # no-deps to ignore existing dependencies, just add the locked requirements

@@ -103,6 +103,7 @@ async def store_project(
         framework.api.deps.get_db_session
     ),
 ):
+    await _ensure_project_create_or_update_permissions(db_session, name, auth_info)
     project, is_running_in_background = await run_in_threadpool(
         get_project_member().store_project,
         db_session,
@@ -129,7 +130,7 @@ async def store_project(
         http.HTTPStatus.ACCEPTED.value: {},
     },
 )
-def patch_project(
+async def patch_project(
     project: dict,
     name: str,
     patch_mode: mlrun.common.schemas.PatchMode = fastapi.Header(
@@ -146,7 +147,15 @@ def patch_project(
         framework.api.deps.get_db_session
     ),
 ):
-    project, is_running_in_background = get_project_member().patch_project(
+    # skip permission check if it's the leader
+    if not framework.utils.helpers.is_request_from_leader(auth_info.projects_role):
+        await framework.utils.auth.verifier.AuthVerifier().query_project_permissions(
+            name,
+            mlrun.common.schemas.AuthorizationAction.update,
+            auth_info,
+        )
+    project, is_running_in_background = await run_in_threadpool(
+        get_project_member().patch_project,
         db_session,
         name,
         project,
@@ -222,6 +231,14 @@ async def delete_project(
     except mlrun.errors.MLRunNotFoundError:
         logger.info("Project not found, nothing to delete", project=name)
         return fastapi.Response(status_code=http.HTTPStatus.NO_CONTENT.value)
+
+    # skip permission check if it's the leader
+    if not framework.utils.helpers.is_request_from_leader(auth_info.projects_role):
+        await framework.utils.auth.verifier.AuthVerifier().query_project_permissions(
+            name,
+            mlrun.common.schemas.AuthorizationAction.delete,
+            auth_info,
+        )
 
     # delete project can be responsible for deleting schedules. Schedules are running only on chief,
     # that is why we re-route requests to chief
@@ -477,6 +494,8 @@ async def load_project(
         spec=mlrun.common.schemas.ProjectSpec(source=url),
     )
 
+    await _ensure_project_create_or_update_permissions(db_session, name, auth_info)
+
     # Ensure the project exists before calling the remote load_project function
     project, _ = await fastapi.concurrency.run_in_threadpool(
         get_project_member().create_project,
@@ -525,3 +544,40 @@ async def load_project(
         project=project,
     )
     return {"data": run.to_dict()}
+
+
+async def _ensure_project_create_or_update_permissions(
+    db_session: sqlalchemy.orm.Session,
+    project_name: str,
+    auth_info: mlrun.common.schemas.AuthInfo,
+):
+    """Ensure create or update permissions based on project existence."""
+    if framework.utils.helpers.is_request_from_leader(auth_info.projects_role):
+        return
+
+    try:
+        await run_in_threadpool(
+            get_project_member().get_project,
+            db_session,
+            project_name,
+            auth_info,
+            format_=mlrun.common.formatters.ProjectFormat.name_only,
+        )
+        project_exists = True
+    except mlrun.errors.MLRunNotFoundError:
+        project_exists = False
+
+    if project_exists:
+        await framework.utils.auth.verifier.AuthVerifier().query_project_permissions(
+            project_name, mlrun.common.schemas.AuthorizationAction.update, auth_info
+        )
+        return
+    
+    # In Iguazio v4 mode, mlrun is the project leader and main entrypoint so we must ensure 
+    # that the user has create permissions for projects.
+    if mlrun.mlconf.is_iguazio_v4_mode():
+        await framework.utils.auth.verifier.AuthVerifier().query_global_resource_permissions(
+            mlrun.common.schemas.AuthorizationResourceTypes.project_global,
+            mlrun.common.schemas.AuthorizationAction.create,
+            auth_info,
+        )

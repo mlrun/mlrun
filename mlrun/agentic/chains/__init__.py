@@ -23,6 +23,7 @@ from mlrun.agentic.chains.refine import (
     RefineQuery,
     get_refine_chain,
 )
+
 # TODO: resolve langchain version missmatch
 # Optional imports
 try:
@@ -50,6 +51,12 @@ except ImportError:
     SentimentAnalysisStep = None
 
 try:
-    from mlrun.agentic.chains.declarative_agent import DeclarativeAgent
+    from mlrun.agentic.chains.declarative import (
+        DeclarativeAgent,
+        DeclarativeRunner,
+        DeclarativeTeam,
+    )
 except ImportError:
     DeclarativeAgent = None
+    DeclarativeRunner = None
+    DeclarativeTeam = None

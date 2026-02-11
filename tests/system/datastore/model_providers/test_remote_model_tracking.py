@@ -17,13 +17,13 @@ from time import sleep
 
 import pandas as pd
 import pytest
-from datastore.remote_model.remote_model_utils import BATCH_INPUT_DATA
 
 import mlrun
 import mlrun.common.schemas.model_monitoring.constants as mm_constants
 from mlrun.datastore.model_provider.model_provider import UsageResponseKeys
 from mlrun.runtimes.nuclio.function import AsyncSpec
 from tests.datastore.remote_model.remote_model_utils import (
+    BATCH_INPUT_DATA,
     setup_remote_model_test,
 )
 from tests.datastore.remote_model.test_remote_model import BaseMockModelProviderTest

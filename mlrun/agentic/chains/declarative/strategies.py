@@ -59,7 +59,7 @@ def _make_agent_node(name: str, agent):
         result = agent.invoke_with_messages(messages)
         answer = result.get("answer", "")
         return {
-            "messages": [{"role": name, "content": answer}],
+            "messages": [{"role": "assistant", "content": f"[{name}] {answer}"}],
             "current_turn": state.get("current_turn", 0) + 1,
             "last_agent": name,
             "final_answer": answer,
@@ -223,7 +223,7 @@ def build_selector_graph(
             choice = valid[0]
 
         return {
-            "messages": [{"role": "selector", "content": f"Selected agent: {choice}"}],
+            "messages": [{"role": "system", "content": f"Selected agent: {choice}"}],
             "last_agent": state.get("last_agent", ""),
             "current_turn": turn,
             "final_answer": state.get("final_answer", ""),

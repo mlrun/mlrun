@@ -59,6 +59,8 @@ def handler(
                     * `str` - A string in the format of '{key}:{artifact_type}'. If a string was given without ':' it
                       will indicate the key, and the artifact type will be according to the returned value type's
                       default artifact type. The artifact types supported are listed in the relevant type packager.
+                      Packing kwargs can be passed alongside the artifact type using square brackets:
+                      ``"{key}:{artifact_type}[{kwarg1}={value1}, {kwarg2}={value2}]"``.
                     * `dict[str, str]` - A dictionary of logging configuration. the key 'key' is mandatory for the
                       logged artifact key.
                     * None - Do not log the output.

@@ -1177,7 +1177,7 @@ class RunSpec(ModelObj):
         for log_hint in returns:
             if not isinstance(log_hint, LogHint):
                 # TODO: Remove the dict support in MLRun 1.13
-                LogHint.model_validate(
+                LogHint.parse_obj(
                     obj=log_hint.copy() if isinstance(log_hint, dict) else log_hint
                 )
 
@@ -1340,7 +1340,7 @@ class RunSpec(ModelObj):
             for log_hint in returns:
                 if not isinstance(log_hint, LogHint):
                     # TODO: Remove the dict support in MLRun 1.13
-                    log_hint = LogHint.model_validate(
+                    log_hint = LogHint.parse_obj(
                         obj=log_hint.copy() if isinstance(log_hint, dict) else log_hint
                     )
                 cleared_returns.append(log_hint.key)

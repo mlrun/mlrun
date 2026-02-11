@@ -207,7 +207,7 @@ class ContextHandler:
                     if log_hint is None:
                         continue
                     # Parse the log hint:
-                    log_hint = LogHint.model_validate(obj=log_hint)
+                    log_hint = LogHint.parse_obj(obj=log_hint)
                     # Pack the object (we don't catch the returned package as we log it after we pack all the outputs to
                     # enable linking extra data of some artifacts):
                     self._packagers_manager.pack(obj=obj, log_hint=log_hint)

@@ -115,7 +115,7 @@ def _get_log_hint(
     tester: type[PackagerTester], test: PackTest | PackToUnpackTest
 ) -> LogHint:
     # Parse the log hint (in case it is a string):
-    log_hint = LogHint.model_validate(obj=test.log_hint)
+    log_hint = LogHint.parse_obj(obj=test.log_hint)
 
     # Get the artifact type (either from the log hint or from the packager - the default artifact type):
     log_hint.artifact_type = (

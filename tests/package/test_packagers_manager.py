@@ -423,7 +423,7 @@ def test_unbundling_log_hint(
     # Pack an arbitrary amount of objects:
     try:
         packagers_manager.pack(
-            obj=obj, log_hint=LogHint.model_validate(obj=f"{key}: result")
+            obj=obj, log_hint=LogHint.parse_obj(obj=f"{key}: result")
         )
     except MLRunInvalidArgumentError as error:
         # Catch only if the expected results is a string, otherwise it is a legitimate exception:

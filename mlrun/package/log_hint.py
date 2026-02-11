@@ -12,10 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import ast
 import warnings
-from typing import Any, Literal, Self
+from typing import Any, Self
 
-from pydantic import BaseModel, Field
+from pydantic.v1 import BaseModel, Field, validator
 
 from mlrun.errors import MLRunInvalidArgumentError
 
@@ -36,7 +37,9 @@ class LogHint(BaseModel):
     The artifact tag to log the object under. Default is an empty string.
     """
 
-    itemized: bool | int = False
+    # TODO: Restore type to `bool | int` once migrated to Pydantic v2, which handles Union[bool, int]. Remove the
+    #  `_validate_itemized` validator as well.
+    itemized: Any = False
     """
     Determines if collections (lists or dicts) should be **unbundled** and logged as individual items.
 
@@ -86,18 +89,16 @@ class LogHint(BaseModel):
     ``DefaultPackager`` documentation.
     """
 
+    @validator("itemized")
+    def _validate_itemized(cls, v):  # noqa: N805
+        if not isinstance(v, bool | int):
+            raise ValueError(
+                f"'itemized' must be bool or int, got {type(v).__name__}"
+            )
+        return v
+
     @classmethod
-    def model_validate(
-        cls,
-        obj: str | dict,
-        *,
-        strict: bool | None = None,
-        extra: Literal["allow", "ignore", "forbid"] | None = None,
-        from_attributes: bool | None = None,
-        context: Any | None = None,
-        by_alias: bool | None = None,
-        by_name: bool | None = None,
-    ) -> Self:
+    def parse_obj(cls, obj: Any) -> Self:
         """
         Override the default `model_validate` method to add support for parsing log hints from the old dictionary
         format.
@@ -107,16 +108,11 @@ class LogHint(BaseModel):
 
         :param obj:             The object to validate and parse into a LogHint instance. This can be in the old
                                 dictionary format or the new LogHint format.
-        :param strict:          Whether to perform strict validation. Passed to the superclass method.
-        :param extra:           How to handle extra fields. Passed to the superclass method.
-        :param from_attributes: Whether to populate the model from attributes. Passed to the superclass method
-        :param context:         Additional context for validation. Passed to the superclass method.
-        :param by_alias:        Whether to populate the model by alias. Passed to the superclass method
-        :param by_name:         Whether to populate the model by field name. Passed to the superclass method.
 
         :return: An instance of ``LogHint`` created from the input object.
         """
-        # CCheck if needed to construct from string:
+        # TODO: Change to `model_validate` once Pydantic v2 is supported.
+        # Check if needed to construct from string:
         if isinstance(obj, str):
             return cls._from_string(log_hint_string=obj)
 
@@ -146,55 +142,82 @@ class LogHint(BaseModel):
                 "packing_kwargs": packing_kwargs,
             }
 
-        return super().model_validate(
-            obj=obj,
-            strict=strict,
-            extra=extra,
-            from_attributes=from_attributes,
-            context=context,
-            by_alias=by_alias,
-            by_name=by_name,
-        )
+        return super().parse_obj(obj=obj)
 
     @classmethod
     def _from_string(cls, log_hint_string: str) -> "LogHint":
         """
-        Create a LogHint object from a string. The string should be in the format of
-        '<artifact_key> : <artifact_type>' or just '<artifact_key>'.
+        Create a LogHint object from a string. The string should be in the format of:
+
+        * `<artifact_key>` - for a simple log hint with only the artifact key. Artifact key is mandatory.
+        * `<unbundle_level>*<artifact_key>` or `*<artifact_key>` - to specify that the returned object should be
+          itemized (unbundled and logged as separate items). The unbundle level is optional and can be an integer
+          specifying the maximum depth of unbundling, or empty for full unbundling.
+        * `<artifact_key> : <artifact_type>[<packing_kwarg1>=<value1>, <packing_kwarg2>=<value2>]` - to specify the
+          artifact type. Artifact type is optional, but if given, the user can also specify packing kwargs in the same
+          string. Packing kwargs are optional and should be given in the format of `<packing_kwarg>=<value>, inside
+          square brackets `[]` at the end of the string.
 
         :param log_hint_string: The log hint string to parse.
 
         :return: The created LogHint object.
+
+        :raise MLRunInvalidArgumentError: If the log hint string has an incorrect pattern.
         """
-        # Check if only key is given:
-        if ":" not in log_hint_string:
-            key = log_hint_string
-            artifact_type = None
-        else:
-            # Check for valid "<key> : <artifact type>" pattern:
-            if log_hint_string.count(":") > 1:
-                raise MLRunInvalidArgumentError(
-                    f"Incorrect log hint pattern. Log hints can have only a single ':' in them to specify the "
-                    f"desired artifact type the returned value will be logged as: "
-                    f"'<artifact_key> : <artifact_type>', but given: {log_hint_string}"
-                )
-            # Split into key and type:
-            key, artifact_type = log_hint_string.replace(" ", "").split(":")
-            if key == "" or artifact_type == "":
-                raise MLRunInvalidArgumentError(
-                    f"Incorrect log hint pattern. The ':' in a log hint should specify the desired artifact type "
-                    f"the returned value will be logged as in the following pattern: "
-                    f"'<artifact_key> : <artifact_type>', but no key or artifact type was given: {log_hint_string}"
-                )
+        # Look for an artifact type:
+        key, artifact_type = cls._extract_artifact_type_from_key(log_hint_key=log_hint_string)
 
         # Look for unbundle operator:
         key, itemized = cls._extract_unbundling_from_key(log_hint_key=key)
+
+        # Look for packing kwargs in the log hint key and move them to the packing_kwargs field:
+        if artifact_type:
+            artifact_type, packing_kwargs = cls._extract_packing_kwargs_from_artifact_type(artifact_type=artifact_type)
+        else:
+            packing_kwargs = {}
 
         return cls(
             key=key,
             artifact_type=artifact_type,
             itemized=itemized,
+            packing_kwargs=packing_kwargs,
         )
+
+    @staticmethod
+    def _extract_artifact_type_from_key(log_hint_key: str) -> tuple[str, str | None]:
+        """
+        Extract artifact type information from a log hint key if exists. If the log hint key contains a colon ':', it
+        indicates that an artifact type is specified. The part before the colon represents the actual artifact key,
+        and the part after the colon is the artifact type.
+
+        :param log_hint_key: The log hint key to extract artifact type information from.
+
+        :return: A tuple containing the actual artifact key and the artifact type (or None if not specified).
+
+        :raise MLRunInvalidArgumentError: If the log hint key has an incorrect pattern.
+        """
+        # Check if only key is given:
+        if ":" not in log_hint_key:
+            return log_hint_key.strip(), None
+
+        # Check for valid "<key> : <artifact type>" pattern:
+        if log_hint_key.count(":") > 1:
+            raise MLRunInvalidArgumentError(
+                f"Incorrect log hint pattern. Log hints can have only a single ':' in them to specify the "
+                f"desired artifact type the returned value will be logged as: "
+                f"'<artifact_key> : <artifact_type>', but given: {log_hint_key}"
+            )
+
+        # Split into key and type:
+        key, artifact_type = log_hint_key.replace(" ", "").split(":")
+        if key == "" or artifact_type == "":
+            raise MLRunInvalidArgumentError(
+                f"Incorrect log hint pattern. The ':' in a log hint should specify the desired artifact type "
+                f"the returned value will be logged as in the following pattern: "
+                f"'<artifact_key> : <artifact_type>', but no key or artifact type was given: {log_hint_key}"
+            )
+
+        return key.strip(), artifact_type.strip()
 
     @staticmethod
     def _extract_unbundling_from_key(log_hint_key: str) -> tuple[str, bool | int]:
@@ -250,3 +273,57 @@ class LogHint(BaseModel):
             unbundle_level = True
 
         return key.strip(), unbundle_level
+
+    @staticmethod
+    def _extract_packing_kwargs_from_artifact_type(artifact_type: str) -> tuple[str, dict]:
+        """
+        Extract packing kwargs from the artifact type string if exists. If the artifact type contains packing kwargs,
+        they should be given in the format of '<artifact_type>[<packing_kwarg1>=<value1>, <packing_kwarg2>=<value2>]'.
+
+        :param artifact_type: The artifact type string to extract packing kwargs from, or None if no artifact type was
+                              specified.
+
+        :return: A tuple containing the actual artifact type (or None) and a dictionary of packing kwargs.
+
+        :raise MLRunInvalidArgumentError: If the artifact type string has an incorrect pattern.
+        """
+        # Check if packing kwargs are given:
+        if "[" not in artifact_type:
+            return artifact_type.strip(), {}
+
+        # Check for valid pattern:
+        if not artifact_type.endswith("]") or artifact_type.count("[") > 1 or artifact_type.count("]") > 1:
+            raise MLRunInvalidArgumentError(
+                f"Incorrect log hint pattern for packing kwargs. Packing kwargs should be given in the format of "
+                f"'<artifact_key> : <artifact_type>[<packing_kwarg1>=<value1>, <packing_kwarg2>=<value2>]', "
+                f"but given: {artifact_type}"
+            )
+
+        # Extract packing kwargs string and convert to dictionary:
+        open_bracket_index = artifact_type.index("[")
+        close_bracket_index = artifact_type.index("]")
+        packing_kwargs_string = artifact_type[open_bracket_index + 1 : close_bracket_index]
+        packing_kwargs = {}
+        for kwarg in packing_kwargs_string.split(","):
+            # Split to key and value:
+            if "=" not in kwarg:
+                raise MLRunInvalidArgumentError(
+                    f"Incorrect log hint pattern for packing kwargs. Each packing kwarg should be given in the format "
+                    f"'<packing_kwarg>=<value>', but given: {kwarg} in log hint: {artifact_type}"
+                )
+            kwarg_key, kwarg_value = kwarg.split("=", 1)
+            # Try to convert the kwarg value to a Python literal:
+            try:
+                kwarg_value = ast.literal_eval(kwarg_value.strip())
+            except Exception as eval_error:
+                raise MLRunInvalidArgumentError(
+                    f"The value for packing kwarg '{kwarg_key.strip()}' is not a valid Python literal value. Packing "
+                    f"kwarg values should be valid Python literals (e.g. int, bool, list, None, or string with quotes)."
+                ) from eval_error
+            # Collect the kwarg:
+            packing_kwargs[kwarg_key.strip()] = kwarg_value
+
+        # Extract actual artifact type without packing kwargs:
+        artifact_type = artifact_type[:open_bracket_index].strip()
+
+        return artifact_type, packing_kwargs

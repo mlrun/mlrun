@@ -362,7 +362,10 @@ class BaseRuntime(ModelObj):
                                       an artifact. To specify The artifact type, it is possible to pass a string in the
                                       following structure: "<key> : <type>". Available artifact types can be seen in
                                       `mlrun.ArtifactType`. If no artifact type is specified, the object's default
-                                      artifact type will be used. Itemization can also be specified before the key using
+                                      artifact type will be used. Packing kwargs can be passed alongside the artifact
+                                      type using square brackets:
+                                      ``"<key> : <type>[<kwarg1>=<value1>, <kwarg2>=<value2>]"``.
+                                      Itemization can also be specified before the key using
                                       the following structure: "<unbundle-level> * <key>". If unbundle level is not
                                       specified, the default is full unbundling.
         :param state_thresholds:    Dictionary of states to time thresholds. The state will be matched against the

@@ -231,7 +231,7 @@ class PackagersManager:
                 self._bundles[log_hint.key] = bundle_result
             else:
                 package = self._pack(
-                    obj=obj, log_hint=log_hint.model_copy()
+                    obj=obj, log_hint=log_hint.copy()
                 )  # Log hint is copied to preserve key for error.
         except Exception as exception:
             raise MLRunPackagePackingError(
@@ -663,7 +663,7 @@ class PackagersManager:
             else range(len(unbundled_object)),
         ):
             # Edit the key in the log hint:
-            per_key_log_hint = log_hint.model_copy()
+            per_key_log_hint = log_hint.copy()
             per_key_log_hint.key = key
             # Pack and collect the package:
             try:

@@ -69,20 +69,64 @@ from mlrun.package.log_hint import LogHint
         ("*", "Key is missing after the unbundle operator '*'"),
         ("  * ", "Key is missing after the unbundle operator '*'"),
         ("1*", "Key is missing after the unbundle operator '*'"),
+        # Packing kwargs - success cases
+        (
+            "key:type[k1=1]",
+            LogHint(key="key", artifact_type="type", packing_kwargs={"k1": 1}),
+        ),
+        (
+            "key:type[k1=1, k2='hello']",
+            LogHint(
+                key="key",
+                artifact_type="type",
+                packing_kwargs={"k1": 1, "k2": "hello"},
+            ),
+        ),
+        (
+            "key : type[n=42, b=True, x=None]",
+            LogHint(
+                key="key",
+                artifact_type="type",
+                packing_kwargs={"n": 42, "b": True, "x": None},
+            ),
+        ),
+        (
+            "*key:type[k1=1]",
+            LogHint(
+                key="key",
+                artifact_type="type",
+                itemized=True,
+                packing_kwargs={"k1": 1},
+            ),
+        ),
+        (
+            "2*key:type[k1=1]",
+            LogHint(
+                key="key",
+                artifact_type="type",
+                itemized=2,
+                packing_kwargs={"k1": 1},
+            ),
+        ),
+        # Packing kwargs - error cases
+        ("key:type[k1=1", "Incorrect log hint pattern for packing kwargs"),
+        ("key:type[k1]", "packing kwarg should be given in the format"),
+        ("key:type[k1=undefined_var]", "not a valid Python literal"),
     ],
 )
 def test_model_validate_from_string(
     log_hint: str | dict, expected_log_hint: str | dict
 ):
     """
-    Test the `LogHint.model_validate` class method for handling strings.
+    Test the `LogHint.parse_obj` (will be `model_validate` when API support Pydantic v2) class method for handling
+    strings.
 
     :param log_hint:          The log hint to parse.
     :param expected_log_hint: The expected parsed log hint. A string value indicates the parsing should fail with the
                               provided error message in the variable.
     """
     try:
-        parsed_log_hint = LogHint.model_validate(obj=log_hint)
+        parsed_log_hint = LogHint.parse_obj(obj=log_hint)
         assert parsed_log_hint == expected_log_hint
     except MLRunInvalidArgumentError as error:
         if isinstance(expected_log_hint, str):

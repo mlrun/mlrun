@@ -81,8 +81,9 @@ async def delete_project(
             name=name, request=request, api_version="v2"
         )
 
-    # usually the CRUD for delete project will check permissions, however, since we are running the crud in a background
-    # task, we need to check permissions here. skip permission check if the request is from the leader in iguazio v3 mode.
+    # usually the CRUD for delete project will check permissions, however, since we are running the
+    # crud in a background task, we need to check permissions here. skip permission check if the request
+    # is from the leader in iguazio v3 mode.
     if (
         mlrun.mlconf.is_iguazio_v4_mode()
         or not framework.utils.helpers.is_request_from_leader(auth_info.projects_role)

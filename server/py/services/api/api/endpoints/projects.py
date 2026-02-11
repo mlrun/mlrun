@@ -572,8 +572,8 @@ async def _ensure_project_create_or_update_permissions(
             project_name, mlrun.common.schemas.AuthorizationAction.update, auth_info
         )
         return
-    
-    # In Iguazio v4 mode, mlrun is the project leader and main entrypoint so we must ensure 
+
+    # In Iguazio v4 mode, mlrun is the project leader and main entrypoint so we must ensure
     # that the user has create permissions for projects.
     if mlrun.mlconf.is_iguazio_v4_mode():
         await framework.utils.auth.verifier.AuthVerifier().query_global_resource_permissions(

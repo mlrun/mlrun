@@ -18,6 +18,7 @@ import unittest.mock
 import pytest
 
 import mlrun.datastore
+import mlrun.errors
 import mlrun.utils.clones
 
 
@@ -68,7 +69,7 @@ def test_add_credentials_git_remote_url(url, secrets, enriched):
 
 
 @pytest.mark.parametrize("project", [None, "my-project"])
-def test_load_source_code_success(tmp_path, project):
+def test_load_artifact_success(tmp_path, project):
     project_name = project or "my-project"
     source_uri = f"store://artifacts/{project_name}/handler.py"
     target_dir = str(tmp_path / "target")
@@ -124,13 +125,13 @@ def test_load_source_code_success(tmp_path, project):
             "s3://path",
             "target_dir is required",
         ),
-        # Invalid store URI
+        # Unsupported source type (not store://, git://, .zip, or .tar.gz)
         (
             "http://not-a-store/file.py",
             "/tmp/target",
             False,
             "s3://path",
-            "must be a store artifact URI",
+            "Unsupported source type",
         ),
         # Artifact without target path
         (
@@ -158,6 +159,80 @@ def test_load_source_code_failures(
         ),
     ):
         with pytest.raises(ValueError, match=error_match):
+            mlrun.utils.clones.load_source_code(
+                source_uri=source_uri,
+                target_dir=target_dir,
+            )
+
+
+def test_load_source_code_git(tmp_path):
+    source_uri = "git://github.com/org/repo.git#main"
+    target_dir = str(tmp_path / "target")
+
+    with unittest.mock.patch.object(mlrun.utils.clones, "clone_git") as mock_clone_git:
+        result = mlrun.utils.clones.load_source_code(
+            source_uri=source_uri,
+            target_dir=target_dir,
+        )
+
+    assert result == target_dir
+    mock_clone_git.assert_called_once_with(source_uri, target_dir)
+
+
+def test_load_source_code_git_failure(tmp_path):
+    source_uri = "git://github.com/org/repo.git"
+    target_dir = str(tmp_path / "target")
+
+    with unittest.mock.patch.object(
+        mlrun.utils.clones, "clone_git", side_effect=Exception("Clone failed")
+    ):
+        with pytest.raises(
+            mlrun.errors.MLRunRuntimeError, match="Failed to clone Git repository"
+        ):
+            mlrun.utils.clones.load_source_code(
+                source_uri=source_uri,
+                target_dir=target_dir,
+            )
+
+
+def test_load_source_code_zip(tmp_path):
+    source_uri = "https://example.com/source.zip"
+    target_dir = str(tmp_path / "target")
+
+    with unittest.mock.patch.object(mlrun.utils.clones, "clone_zip") as mock_clone_zip:
+        result = mlrun.utils.clones.load_source_code(
+            source_uri=source_uri,
+            target_dir=target_dir,
+        )
+
+    assert result == target_dir
+    mock_clone_zip.assert_called_once_with(source_uri, target_dir)
+
+
+def test_load_source_code_tgz(tmp_path):
+    source_uri = "https://example.com/source.tar.gz"
+    target_dir = str(tmp_path / "target")
+
+    with unittest.mock.patch.object(mlrun.utils.clones, "clone_tgz") as mock_clone_tgz:
+        result = mlrun.utils.clones.load_source_code(
+            source_uri=source_uri,
+            target_dir=target_dir,
+        )
+
+    assert result == target_dir
+    mock_clone_tgz.assert_called_once_with(source_uri, target_dir)
+
+
+def test_load_source_code_archive_failure(tmp_path):
+    source_uri = "https://example.com/source.zip"
+    target_dir = str(tmp_path / "target")
+
+    with unittest.mock.patch.object(
+        mlrun.utils.clones, "clone_zip", side_effect=Exception("Extract failed")
+    ):
+        with pytest.raises(
+            mlrun.errors.MLRunRuntimeError, match="Failed to extract archive"
+        ):
             mlrun.utils.clones.load_source_code(
                 source_uri=source_uri,
                 target_dir=target_dir,

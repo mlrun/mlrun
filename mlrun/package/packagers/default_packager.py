@@ -15,17 +15,21 @@
 import inspect
 from abc import ABCMeta
 from types import MethodType
-from typing import Any, Optional, Union
+from typing import Any
 
 import docstring_parser
 
 from mlrun.artifacts import Artifact
 from mlrun.datastore import DataItem
+from mlrun.package.errors import MLRunPackagePackingError, MLRunPackageUnpackingError
+from mlrun.package.packager import Packager
+from mlrun.package.utils import (
+    DEFAULT_PICKLE_MODULE,
+    ArtifactType,
+    Pickler,
+    TypeHintUtils,
+)
 from mlrun.utils import logger
-
-from ..errors import MLRunPackagePackingError, MLRunPackageUnpackingError
-from ..packager import Packager
-from ..utils import DEFAULT_PICKLE_MODULE, ArtifactType, Pickler, TypeHintUtils
 
 
 class _DefaultPackagerMeta(ABCMeta):
@@ -66,7 +70,7 @@ class _DefaultPackagerMeta(ABCMeta):
 
         **Packing Sub-Classes**: True / False
 
-        * **Priority**: ...
+        **Priority**: ...
 
         **Default Artifact Types**:
 
@@ -185,7 +189,8 @@ class DefaultPackager(Packager, metaclass=_DefaultPackagerMeta):
     """
     A default packager that handles all types and packs them as pickle files.
 
-    The default packager implements all the required methods and has a default logic that should satisfy most
+    The default packager implements all the required methods (except for a bundle-supported packager that should still
+    implement both ``bundle`` and ``unbundle`` methods) has a default logic that should satisfy most
     use cases. To work with this class, don't override the abstract class methods, but instead follow the
     guidelines below:
 
@@ -198,6 +203,12 @@ class DefaultPackager(Packager, metaclass=_DefaultPackagerMeta):
     * **The class variable** :py:meth:`DEFAULT_UNPACKING_ARTIFACT_TYPE<DEFAULT_UNPACKING_ARTIFACT_TYPE>`: The default
       artifact type to unpack from. It is returned from the method
       ``get_default_unpacking_artifact_type``.
+    * **The class variable** :py:meth:`BUNDLE_FROM_LIST<BUNDLE_FROM_LIST>`: A flag that indicates whether
+      the ``PACKABLE_OBJECT_TYPE`` can be initialized from a ``list`` to be used as a collection bundle. It is used in
+      the ``can_bundle`` method. Default is False.
+    * **The class variable** :py:meth:`BUNDLE_FROM_DICT<BUNDLE_FROM_DICT>`: A flag that indicates whether
+      the ``PACKABLE_OBJECT_TYPE`` can be initialized from a ``dict`` to be used as a collection bundle. It is used in
+      the ``can_bundle`` method. Default is False.
     * **The abstract class method** :py:meth:`pack`: This method is implemented to get the object and send it to the
       relevant packing method by the given artifact type using the following naming: "pack_<artifact_type>". (If
       the artifact type was not provided, it uses the default). For example: if the artifact type is `x` then
@@ -228,12 +239,29 @@ class DefaultPackager(Packager, metaclass=_DefaultPackagerMeta):
     * **The abstract class method** :py:meth:`is_packable`: The method is implemented to automatically validate
         the object type and artifact type by the following rules:
 
-      * **Object type validation**: Checks if the given object type matches the variable ``PACKABLE_OBJECT_TYPE``
+      * **Object type validation**: Checks if the given object type matches the class variable ``PACKABLE_OBJECT_TYPE``
         with respect to the ``PACK_SUBCLASSES`` class variable.
       * **Artifact type validation**: Checks if the given artifact type is in the list returned from
         ``get_supported_artifact_types``.
 
     * **The abstract class method** :py:meth:`is_unpackable`: The method is left as implemented in ``Packager``.
+    * **The abstract class method** :py:meth:`can_bundle`: The method is implemented to automatically check
+        the bundle type and collection type by the following rules:
+
+      * **Bundle type validation**: Checks if the bundle type to initialize matches the class variable
+        ``PACKABLE_OBJECT_TYPE`` with respect to the ``PACK_SUBCLASSES`` class variable.
+      * **Collection type validation**: Checks if the given collection type appears as ``True`` in the matching flags:
+        ``BUNDLE_FROM_LIST`` or ``BUNDLE_FROM_DICT``.
+
+      Remember, to have a packager that supports bundles, you must also implement the methods
+      :py:meth:`bundle` and :py:meth:`unbundle`.
+    * **The abstract class method** :py:meth:`can_unbundle`: The method is implemented to automatically checks if the
+      packager can be used as a bundle (either class variables ``BUNDLE_FROM_LIST`` or ``BUNDLE_FROM_DICT`` are true)
+      and then checks that the bundle type matches the class variable ``PACKABLE_OBJECT_TYPE`` with respect to the
+      ``PACK_SUBCLASSES`` class variable.
+
+      Remember, to have a packager that supports bundles, you must also implement the methods
+      :py:meth:`bundle` and :py:meth:`unbundle`.
     * **The abstract class method** :py:meth:`get_supported_artifact_types`: The method is implemented to look for all
       pack + unpack class methods implemented to collect the supported artifact types. If ``PackagerX`` has ``pack_y``,
       ``unpack_y`` and ``pack_z``, ``unpack_z`` that means the artifact types supported are `y` and `z`.
@@ -248,34 +276,27 @@ class DefaultPackager(Packager, metaclass=_DefaultPackagerMeta):
 
     From the :py:meth:`Packager<mlrun.package.packager.Packager>` docstring:
 
+    * **Bundles**: A bundle means the type of object handled by this packager can be used to hold a collection of other
+      objects - like a ``list`` or a ``dict`` of packages. A bundle can be sent as a ``list`` or ``dict`` in a
+      function's run input so the packager manager will receive a list or dictionary of data items. A packager that
+      support bundles means it can initialize an object that will hold the unpacked data items later on - based on the
+      type hint the user required.
+
+      A packager can be a bundle if it implements the mandatory methods :py:meth:`can_bundle`, :py:meth:`can_unbundle`,
+      and the methods: :py:meth:`bundle` and :py:meth:`unbundle`.
     * **Linking artifacts** ("extra data"): In order to link between packages (using the extra data or metrics spec
       attributes of an artifact), use the key as if it exists and as value ellipses (...). The manager
       links all packages once it is done packing.
 
-      For example, given extra data keys in the log hint as `extra_data`, set them to an artifact as follows::
-
-          artifact = Artifact(key="my_artifact")
-          artifact.spec.extra_data = {key: ... for key in extra_data}
-
     * **Clearing outputs**: Some packagers may produce files and temporary directories that should be deleted after
       the artifact is logged. The packager can mark paths of files and directories to delete after
       logging using the class method ``add_future_clearing_path``.
-
-      For example, in the following packager's ``pack`` method, you can write a text file, create an artifact, and then
-      mark the text file to be deleted once the artifact is logged::
-
-          with open("./some_file.txt", "w") as file:
-              file.write("Pack me")
-          artifact = Artifact(key="my_artifact")
-          self.add_future_clearing_path(path="./some_file.txt")
-          return artifact, None
-
     """
 
     #: The type of object this packager can pack and unpack.
     PACKABLE_OBJECT_TYPE: type = ...
 
-    #: A flag for indicating whether to also pack all subclasses of the `PACKABLE_OBJECT_TYPE`.
+    #: Whether to also pack all subclasses of the `PACKABLE_OBJECT_TYPE`.
     PACK_SUBCLASSES = False
 
     #: The default artifact type to pack as.
@@ -283,6 +304,12 @@ class DefaultPackager(Packager, metaclass=_DefaultPackagerMeta):
 
     #: The default artifact type to unpack from.
     DEFAULT_UNPACKING_ARTIFACT_TYPE = ArtifactType.OBJECT
+
+    #: Whether the `PACKABLE_OBJECT_TYPE` can be used as a bundle and be initialized from a list.
+    BUNDLE_FROM_LIST = False
+
+    #: Whether the `PACKABLE_OBJECT_TYPE` can be used as a bundle and be initialized from a dictionary.
+    BUNDLE_FROM_DICT = False
 
     def get_default_packing_artifact_type(self, obj: Any) -> str:
         """
@@ -323,10 +350,10 @@ class DefaultPackager(Packager, metaclass=_DefaultPackagerMeta):
     def pack(
         self,
         obj: Any,
-        key: Optional[str] = None,
-        artifact_type: Optional[str] = None,
-        configurations: Optional[dict] = None,
-    ) -> Union[tuple[Artifact, dict], dict]:
+        key: str | None = None,
+        artifact_type: str | None = None,
+        configurations: dict | None = None,
+    ) -> tuple[Artifact, dict] | dict:
         """
         Pack an object as the given artifact type using the provided configurations.
 
@@ -361,8 +388,8 @@ class DefaultPackager(Packager, metaclass=_DefaultPackagerMeta):
     def unpack(
         self,
         data_item: DataItem,
-        artifact_type: Optional[str] = None,
-        instructions: Optional[dict] = None,
+        artifact_type: str | None = None,
+        instructions: dict | None = None,
     ) -> Any:
         """
         Unpack the data item's artifact by the provided type using the given instructions.
@@ -401,8 +428,8 @@ class DefaultPackager(Packager, metaclass=_DefaultPackagerMeta):
     def is_packable(
         self,
         obj: Any,
-        artifact_type: Optional[str] = None,
-        configurations: Optional[dict] = None,
+        artifact_type: str | None = None,
+        configurations: dict | None = None,
     ) -> bool:
         """
         Check if this packager can pack an object of the provided type as the provided artifact type.
@@ -438,6 +465,73 @@ class DefaultPackager(Packager, metaclass=_DefaultPackagerMeta):
             return False
 
         # Packable:
+        return True
+
+    def can_bundle(
+        self, bundle_hint: type, collection_type: type[dict] | type[list]
+    ) -> bool:
+        """
+        Check if the packager can be used to initialize a bundle (a collection of packages) of the required type with
+        the provided collection type.
+
+        The method is implemented to validate the bundle type by checking if the given type matches the variable
+        ``PACKABLE_OBJECT_TYPE`` with respect to the ``PACK_SUBCLASSES`` class variable. If it does, it checks if the
+        given collection type's flag is set (either ``BUNDLE_FROM_LIST`` or ``BUNDLE_FROM_DICT``).
+
+        :param bundle_hint:     The bundle type hint to check if the `PACKABLE_OBJECT_TYPE` matches to.
+        :param collection_type: The available collection type that will be used in the bundle type's constructor.
+
+        :return: True if it can be used as a bundle and False otherwise.
+        """
+        # Check type (ellipses means any type):
+        if self.PACKABLE_OBJECT_TYPE is not ...:
+            if not TypeHintUtils.is_matching(
+                object_type=bundle_hint,
+                type_hint=self.PACKABLE_OBJECT_TYPE,
+                include_subclasses=self.PACK_SUBCLASSES,
+                reduce_type_hint=False,
+            ):
+                return False
+
+        # Check collection type:
+        if collection_type is list and not self.BUNDLE_FROM_LIST:
+            return False
+        if collection_type is dict and not self.BUNDLE_FROM_DICT:
+            return False
+
+        # Can bundle:
+        return True
+
+    def can_unbundle(
+        self,
+        bundled_object: Any,
+    ):
+        """
+        Check if the packager can unbundle a bundled object of the provided type.
+
+        The method is implemented to automatically checks if the packager can be used as a bundle (either class
+        variables ``BUNDLE_FROM_LIST`` or ``BUNDLE_FROM_DICT`` are true) and then checks that the bundle type matches
+        the class variable ``PACKABLE_OBJECT_TYPE`` with respect to the ``PACK_SUBCLASSES`` class variable.
+
+        :param bundled_object: The bundled object to check.
+
+        :return: True if it can unbundle and False otherwise.
+        """
+        # Check if bundling is supported:
+        if not self.BUNDLE_FROM_DICT and not self.BUNDLE_FROM_LIST:
+            return False
+
+        # Check type (ellipses means any type):
+        if self.PACKABLE_OBJECT_TYPE is not ...:
+            if not TypeHintUtils.is_matching(
+                object_type=type(bundled_object),
+                type_hint=self.PACKABLE_OBJECT_TYPE,
+                include_subclasses=self.PACK_SUBCLASSES,
+                reduce_type_hint=False,
+            ):
+                return False
+
+        # Can unbundle:
         return True
 
     def pack_object(
@@ -483,10 +577,10 @@ class DefaultPackager(Packager, metaclass=_DefaultPackagerMeta):
         self,
         data_item: DataItem,
         pickle_module_name: str = DEFAULT_PICKLE_MODULE,
-        object_module_name: Optional[str] = None,
-        python_version: Optional[str] = None,
-        pickle_module_version: Optional[str] = None,
-        object_module_version: Optional[str] = None,
+        object_module_name: str | None = None,
+        python_version: str | None = None,
+        pickle_module_version: str | None = None,
+        object_module_version: str | None = None,
     ) -> Any:
         """
         Unpack the data item's object, unpickle it using the instructions, and return.

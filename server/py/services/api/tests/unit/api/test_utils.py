@@ -2049,40 +2049,32 @@ def test_setenv_from_the_project_secret(secret_name, expect_exception, kind):
 
 
 @pytest.mark.parametrize(
-    "provided_token, secret_name, expected_secret_name, expected_token_name",
+    "provided_token, resolved_token, expected_secret_name",
     [
-        # default token, secret exists
-        (
-            None,
-            "secret-1",
-            "secret-1",
-            mlrun.common.constants.MLRUN_RUNTIME_AUTH_DEFAULT_TOKEN_NAME,
-        ),
-        # explicit token, secret exists
-        ("custom-token", "secret-2", "secret-2", "custom-token"),
-        # default token, secret missing
-        (
-            None,
-            None,
-            None,
-            mlrun.common.constants.MLRUN_RUNTIME_AUTH_DEFAULT_TOKEN_NAME,
-        ),
-        # explicit token, secret missing
-        ("custom-token", None, None, "custom-token"),
+        # auto-discovery resolves to default token
+        (None, "default", "mlrun-auth-secret-abc123"),
+        # explicit token validated
+        ("custom-token", "custom-token", "mlrun-auth-secret-def456"),
     ],
 )
 def test_resolve_auth_secret_name(
-    monkeypatch, provided_token, secret_name, expected_secret_name, expected_token_name
+    monkeypatch, provided_token, resolved_token, expected_secret_name
 ):
     mlrun.mlconf.httpdb.authentication.mode = AuthenticationMode.IGUAZIO_V4
 
-    secret = None
-    if secret_name:
-        secret = unittest.mock.Mock()
-        secret.metadata.name = secret_name
+    # Mock resolve_auth_token_name to return the resolved token
+    def mock_resolve_auth_token_name(provided_token_name, user_id):
+        assert user_id == "test-user"
+        return resolved_token
+
+    monkeypatch.setattr(
+        services.api.utils.helpers,
+        "resolve_auth_token_name",
+        mock_resolve_auth_token_name,
+    )
 
     k8s_helper = unittest.mock.Mock()
-    k8s_helper._get_user_token_secret.return_value = secret
+    k8s_helper._resolve_auth_secret_name.return_value = expected_secret_name
 
     monkeypatch.setattr(
         "framework.utils.singletons.k8s.get_k8s_helper",
@@ -2095,11 +2087,131 @@ def test_resolve_auth_secret_name(
 
     assert result == expected_secret_name
 
-    # Verify the function uses the correct token name (default or provided)
-    k8s_helper._get_user_token_secret.assert_called_once_with(
-        user_id="test-user",
-        token_name=expected_token_name,
+    # Verify the function computes secret name from resolved token
+    k8s_helper._resolve_auth_secret_name.assert_called_once_with(
+        "test-user", resolved_token
     )
+
+
+@pytest.fixture
+def mock_k8s_helper(monkeypatch):
+    """Fixture that provides a mock k8s_helper."""
+    k8s_helper = unittest.mock.Mock()
+    monkeypatch.setattr(
+        "framework.utils.singletons.k8s.get_k8s_helper",
+        lambda: k8s_helper,
+    )
+    return k8s_helper
+
+
+@pytest.mark.parametrize(
+    "provided_token_name,token_data,expected_token",
+    [
+        # Provided token is validated and returned
+        ("my-token", [{"name": "my-token", "token": "jwt-for-my-token"}], "my-token"),
+        # Auto-discovery returns default token
+        (
+            None,
+            [
+                {"name": "token-a", "token": "jwt-for-token-a"},
+                {"name": "default", "token": "jwt-for-default"},
+            ],
+            "default",
+        ),
+    ],
+)
+def test_resolve_auth_token_name_success(
+    monkeypatch, mock_k8s_helper, provided_token_name, token_data, expected_token
+):
+    """Test successful token resolution (both provided and auto-discovery)."""
+    mock_k8s_helper.get_user_secret_tokens_as_igz_yml_data.return_value = token_data
+
+    mock_resolve = unittest.mock.Mock(return_value=expected_token)
+    monkeypatch.setattr(
+        "framework.utils.clients.iguazio.v4.Client.resolve_token_from_igz_yml",
+        mock_resolve,
+    )
+
+    result = services.api.utils.helpers.resolve_auth_token_name(
+        provided_token_name=provided_token_name, user_id="test-user"
+    )
+
+    assert result == expected_token
+
+    # Verify k8s helper was called correctly
+    mock_k8s_helper.get_user_secret_tokens_as_igz_yml_data.assert_called_once_with(
+        "test-user", provided_token_name
+    )
+
+    # Verify resolve_token_from_igz_yml was called with correct arguments
+    mock_resolve.assert_called_once()
+    call_args = mock_resolve.call_args
+    assert call_args[0][1] == "test-user"  # user_id
+    assert call_args[0][2] == provided_token_name  # token_name
+
+
+@pytest.mark.parametrize(
+    "provided_token_name,error_message,expected_match",
+    [
+        # Provided token not found in k8s
+        ("my-token", "Token not found", "Token not found"),
+        # No tokens found for user (auto-discovery)
+        (None, "No tokens found for user 'test-user'", "No tokens found"),
+    ],
+)
+def test_resolve_auth_token_name_k8s_error(
+    mock_k8s_helper, provided_token_name, error_message, expected_match
+):
+    """Test that k8s errors propagate correctly."""
+    mock_k8s_helper.get_user_secret_tokens_as_igz_yml_data.side_effect = (
+        mlrun.errors.MLRunNotFoundError(error_message)
+    )
+
+    with pytest.raises(mlrun.errors.MLRunNotFoundError, match=expected_match):
+        services.api.utils.helpers.resolve_auth_token_name(
+            provided_token_name=provided_token_name, user_id="test-user"
+        )
+
+
+@pytest.mark.parametrize(
+    "provided_token_name,token_data,error_message,expected_match",
+    [
+        # Provided token rejected by SDK as invalid
+        (
+            "my-token",
+            [{"name": "my-token", "token": "expired-jwt"}],
+            "Token 'my-token' not found or invalid for user 'test-user'",
+            "Token 'my-token' not found or invalid",
+        ),
+        # Auto-discovery finds no valid tokens
+        (
+            None,
+            [{"name": "expired-token", "token": "jwt-for-expired-token"}],
+            "No valid tokens found for user 'test-user'",
+            "No valid tokens found",
+        ),
+    ],
+)
+def test_resolve_auth_token_name_sdk_error(
+    monkeypatch,
+    mock_k8s_helper,
+    provided_token_name,
+    token_data,
+    error_message,
+    expected_match,
+):
+    """Test that SDK validation errors propagate correctly."""
+    mock_k8s_helper.get_user_secret_tokens_as_igz_yml_data.return_value = token_data
+
+    monkeypatch.setattr(
+        "framework.utils.clients.iguazio.v4.Client.resolve_token_from_igz_yml",
+        unittest.mock.Mock(side_effect=mlrun.errors.MLRunNotFoundError(error_message)),
+    )
+
+    with pytest.raises(mlrun.errors.MLRunNotFoundError, match=expected_match):
+        services.api.utils.helpers.resolve_auth_token_name(
+            provided_token_name=provided_token_name, user_id="test-user"
+        )
 
 
 @pytest.mark.parametrize(

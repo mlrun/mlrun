@@ -44,6 +44,7 @@ import framework.utils.helpers
 import framework.utils.singletons.db
 import services.api.crud
 import services.api.runtime_handlers
+import services.api.utils.helpers
 
 # Configmap objects on Kubernetes have 10Mb size limit
 SERVING_SPEC_MAX_LENGTH = 10485760
@@ -74,7 +75,7 @@ class ServerSideLauncher(launcher.BaseLauncher):
         name: Optional[str] = "",
         project: Optional[str] = "",
         params: Optional[dict] = None,
-        inputs: Optional[dict[str, str]] = None,
+        inputs: Optional[dict[str, str | dict | list]] = None,
         out_path: Optional[str] = "",
         workdir: Optional[str] = "",
         artifact_path: Optional[str] = "",
@@ -566,6 +567,25 @@ class ServerSideLauncher(launcher.BaseLauncher):
         self, runtime: mlrun.runtimes.base.BaseRuntime, run: mlrun.run.RunObject
     ):
         run.metadata.labels[mlrun_constants.MLRunInternalLabels.kind] = runtime.kind
+
+        # Server-side owner enrichment: override client-provided owner with authenticated username.
+        # In authenticated environments (e.g., IG4), auth_info.username is the source of truth.
+        # This ensures the owner label reflects the authenticated user rather than the local user
+        # on the client machine (e.g., 'jovyan' in Jupyter notebooks).
+        # For CE/unauthenticated deployments, auth_info.username will be None, preserving
+        # any existing owner label from client-side enrichment.
+        if self._auth_info and self._auth_info.username:
+            run.metadata.labels[mlrun_constants.MLRunInternalLabels.owner] = (
+                self._auth_info.username
+            )
+
+        # Replace {{run.user}} template in output_path with the final owner value.
+        # This must happen after owner enrichment to ensure correct substitution.
+        run.spec.output_path = mlrun.runtimes.utils.resolve_run_user_template(
+            run.spec.output_path,
+            run.metadata.labels.get(mlrun_constants.MLRunInternalLabels.owner),
+        )
+
         db = runtime._get_db()
         if db and runtime.kind != "handler":
             struct = runtime.to_dict()
@@ -678,20 +698,19 @@ class ServerSideLauncher(launcher.BaseLauncher):
     def enrich_and_validate_auth_token_name(
         self, object: Union[mlrun.run.RunObject, mlrun.runtimes.RemoteRuntime]
     ):
+        if not (mlrun.mlconf.is_iguazio_v4_mode()):
+            return
+
         if object.spec.auth is None:
             object.spec.auth = {}
 
         # Get the provided token name, if any
         provided_token_name = object.spec.auth.get("token_name")
 
-        # In ML-11600, we will implement a proper resolution logic that checks all secret tokens
-        # of the user and finds a valid one if no token name is provided
-        # If token name not provided, use default
-        token_name = (
-            provided_token_name
-            or mlrun.common.constants.MLRUN_RUNTIME_AUTH_DEFAULT_TOKEN_NAME
+        # Use the token resolution logic that validates existence and expiration
+        token_name = services.api.utils.helpers.resolve_auth_token_name(
+            user_id=self._auth_info.user_id, provided_token_name=provided_token_name
         )
-
         object.spec.auth["token_name"] = token_name
 
 

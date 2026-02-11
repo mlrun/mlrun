@@ -38,6 +38,7 @@ RUN --mount=type=cache,target=/go/pkg/mod \
     go install google.golang.org/protobuf/cmd/protoc-gen-go@${PROTOC_GEN_GO_VERSION} && \
     go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@${PROTOC_GEN_GO_GRPC_VERSION}
 
+# TODO (ML-12122): remove setuptools<82 constraint once pkg_resources usage is dropped
 RUN --mount=type=cache,target=/root/.cache/pip \
-    python -m pip install --upgrade setuptools grpcio-tools${GRPCIO_TOOLS_VERSION}
+    python -m pip install --upgrade 'setuptools<82' grpcio-tools${GRPCIO_TOOLS_VERSION}
 

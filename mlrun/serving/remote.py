@@ -506,8 +506,18 @@ class MLRunAPIRemoteStep(RemoteStep):
                     session_cookie = f'session=j:{{"sid": "{token}"}}'
                     headers["cookie"] = session_cookie
                 else:
-                    if "Authorization" not in kw.setdefault("headers", {}):
-                        headers.update({"Authorization": "Bearer " + token})
+                    if mlrun.common.schemas.HeaderNames.authorization not in headers:
+                        logger.info(
+                            "Adding authorization header with bearer token for MLRun API request"
+                        )
+                        headers.update(
+                            {
+                                mlrun.common.schemas.HeaderNames.authorization: (
+                                    mlrun.common.schemas.AuthorizationHeaderPrefixes.bearer
+                                    + token
+                                )
+                            }
+                        )
 
         if mlrun.common.schemas.HeaderNames.client_version not in headers:
             headers.update(

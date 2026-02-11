@@ -55,10 +55,7 @@ async def create_project(
         framework.api.deps.get_db_session
     ),
 ):
-    if (
-        not framework.utils.helpers.is_request_from_leader(auth_info.projects_role)
-        and mlrun.mlconf.is_iguazio_v4_mode()
-    ):
+    if mlrun.mlconf.is_iguazio_v4_mode():
         await framework.utils.auth.verifier.AuthVerifier().query_global_resource_permissions(
             mlrun.common.schemas.AuthorizationResourceTypes.project_global,
             mlrun.common.schemas.AuthorizationAction.create,
@@ -147,8 +144,11 @@ async def patch_project(
         framework.api.deps.get_db_session
     ),
 ):
-    # skip permission check if it's the leader
-    if not framework.utils.helpers.is_request_from_leader(auth_info.projects_role):
+    # skip permission check if it's the leader in iguazio v3 mode
+    if (
+        mlrun.mlconf.is_iguazio_v4_mode()
+        or not framework.utils.helpers.is_request_from_leader(auth_info.projects_role)
+    ):
         await framework.utils.auth.verifier.AuthVerifier().query_project_permissions(
             name,
             mlrun.common.schemas.AuthorizationAction.update,
@@ -188,8 +188,11 @@ async def get_project(
         auth_info,
         format_=format_,
     )
-    # skip permission check if it's the leader
-    if not framework.utils.helpers.is_request_from_leader(auth_info.projects_role):
+    # skip permission check if it's the leader in iguazio v3 mode
+    if (
+        mlrun.mlconf.is_iguazio_v4_mode()
+        or not framework.utils.helpers.is_request_from_leader(auth_info.projects_role)
+    ):
         await framework.utils.auth.verifier.AuthVerifier().query_project_permissions(
             name,
             mlrun.common.schemas.AuthorizationAction.read,
@@ -232,8 +235,11 @@ async def delete_project(
         logger.info("Project not found, nothing to delete", project=name)
         return fastapi.Response(status_code=http.HTTPStatus.NO_CONTENT.value)
 
-    # skip permission check if it's the leader
-    if not framework.utils.helpers.is_request_from_leader(auth_info.projects_role):
+    # skip permission check if it's the leader in iguazio v3 mode
+    if (
+        mlrun.mlconf.is_iguazio_v4_mode()
+        or not framework.utils.helpers.is_request_from_leader(auth_info.projects_role)
+    ):
         await framework.utils.auth.verifier.AuthVerifier().query_project_permissions(
             name,
             mlrun.common.schemas.AuthorizationAction.delete,
@@ -362,8 +368,11 @@ async def list_projects(
     ),
 ):
     allowed_project_names = None
-    # skip permission check if it's the leader
-    if not framework.utils.helpers.is_request_from_leader(auth_info.projects_role):
+    # skip permission check if it's the leader in iguazio v3 mode
+    if (
+        mlrun.mlconf.is_iguazio_v4_mode()
+        or not framework.utils.helpers.is_request_from_leader(auth_info.projects_role)
+    ):
         projects_output = await run_in_threadpool(
             get_project_member().list_projects,
             db_session,
@@ -413,8 +422,11 @@ async def list_project_summaries(
         state,
     )
     allowed_project_names = projects_output.projects
-    # skip permission check if it's the leader
-    if not framework.utils.helpers.is_request_from_leader(auth_info.projects_role):
+    # skip permission check if it's the leader in iguazio v3 mode
+    if (
+        mlrun.mlconf.is_iguazio_v4_mode()
+        or not framework.utils.helpers.is_request_from_leader(auth_info.projects_role)
+    ):
         auth_verifier = framework.utils.auth.verifier.AuthVerifier()
         allowed_project_names = await auth_verifier.filter_project_resources_by_permissions(
             resource_type=mlrun.common.schemas.AuthorizationResourceTypes.project_summaries,
@@ -451,8 +463,11 @@ async def get_project_summary(
     project_summary = await get_project_member().get_project_summary(
         db_session, name, auth_info
     )
-    # skip permission check if it's the leader
-    if not framework.utils.helpers.is_request_from_leader(auth_info.projects_role):
+    # skip permission check if it's the leader in iguazio v3 mode
+    if (
+        mlrun.mlconf.is_iguazio_v4_mode()
+        or not framework.utils.helpers.is_request_from_leader(auth_info.projects_role)
+    ):
         await framework.utils.auth.verifier.AuthVerifier().query_project_permissions(
             name,
             mlrun.common.schemas.AuthorizationAction.read,

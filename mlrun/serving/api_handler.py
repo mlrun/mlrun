@@ -54,6 +54,7 @@ class _APIHandlerStep(mlrun.serving.states.TaskStep):
         else:
             self.config = mlrun.runtimes.nuclio.serving.APIHandlerConfig()
         self.context = context
+        mlrun.utils.logger.debug("The context in API handler", context=self.context)
 
     def do(self, event):
         """Handle incoming request and validate against configured endpoints"""
@@ -63,22 +64,18 @@ class _APIHandlerStep(mlrun.serving.states.TaskStep):
             method = None
             path = None
 
-            # Try to get event details from context if available
-            if hasattr(self, "context") and self.context:
-                # Check for current event stored in context
+            # Check the event object directly
+            if hasattr(event, "method"):
+                method = event.method
+            if hasattr(event, "path"):
+                path = event.path
+
+            # Fallback to context if available
+            if (method is None or path is None) and self.context:
                 if hasattr(self.context, "current_event"):
                     original_event = self.context.current_event
-                    method = getattr(original_event, "method", None)
-                    path = getattr(original_event, "path", None)
-                # Fallback to other context sources if needed
-                elif hasattr(self.context, "trigger") and hasattr(
-                    self.context.trigger, "headers"
-                ):
-                    headers = self.context.trigger.headers or {}
-                    method_str = headers.get("method")
-                    if method_str:
-                        method = HTTPMethod(method_str.upper())
-                    path = headers.get("path")
+                    method = method or getattr(original_event, "method", None)
+                    path = path or getattr(original_event, "path", None)
 
             # Validate that we have both method and path
             if method is None:

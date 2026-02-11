@@ -14,22 +14,25 @@
 
 import functools
 import inspect
+import warnings
 from collections import OrderedDict
 from collections.abc import Callable
-from typing import Optional, Union
 
-from ..config import config
-from .context_handler import ContextHandler
-from .errors import (
+import mlrun
+from mlrun.config import config
+from mlrun.package.context_handler import ContextHandler
+from mlrun.package.errors import (
+    MLRunPackageBundlingError,
     MLRunPackageCollectionError,
     MLRunPackageError,
     MLRunPackagePackingError,
+    MLRunPackageUnbundlingError,
     MLRunPackageUnpackingError,
 )
-from .packager import Packager
-from .packagers import DefaultPackager
-from .packagers_manager import PackagersManager
-from .utils import (
+from mlrun.package.packager import Packager
+from mlrun.package.packagers import DefaultPackager
+from mlrun.package.packagers_manager import PackagersManager
+from mlrun.package.utils import (
     ArchiveSupportedFormat,
     ArtifactType,
     LogHintKey,
@@ -38,18 +41,19 @@ from .utils import (
 
 
 def handler(
-    labels: Optional[dict[str, str]] = None,
-    outputs: Optional[list[Union[str, dict[str, str]]]] = None,
-    inputs: Union[bool, dict[str, Union[str, type]]] = True,
+    labels: dict[str, str] | None = None,  # TODO: Remove in MLRun 1.13.0
+    outputs: list[str | dict[str, str]] | None = None,
+    inputs: bool | dict[str, str | type] = True,
 ):
     """
-    MLRun's handler is a decorator to wrap a function and enable setting labels, parsing inputs (`mlrun.DataItem`) using
-    type hints and log returning outputs using log hints.
+    MLRun's handler is a decorator to wrap a function and enable parsing inputs (`mlrun.DataItem`) using type hints and
+    log returning outputs using log hints.
 
-    Notice: this decorator is now appplied automatically with the release of `mlrun.package`. It should not be used
-    manually.
+    Note: This decorator is applied automatically if `mlrun.mlconf.packagers.enabled` is set to True (by default its
+    True). It should not be used manually in that case.
 
     :param labels:  Labels to add to the run. Expecting a dictionary with the labels names as keys. Default: None.
+                    Will be deprecated in MLRun 1.13.0 - use the `context` object to set labels.
     :param outputs: Log hints (logging configurations) for the function's returned values. Expecting a list of the
                     following values:
 
@@ -102,10 +106,19 @@ def handler(
             >>> run_object.outputs
             {'my_string': 'I will be logged', 'my_array': 'store://...', 'my_multiplier': 3}
     """
+    # TODO: Remove in MLRun 1.13.0
+    if labels is not None:
+        warnings.warn(
+            message=(
+                "The 'labels' parameter of the 'mlrun.handler' decorator is deprecated and will be removed in MLRun "
+                "1.13.0. Please use the 'context' object to set labels."
+            ),
+            category=FutureWarning,
+            stacklevel=2,
+        )
 
     def decorator(func: Callable):
         def wrapper(*args: tuple, **kwargs: dict):
-            nonlocal labels
             nonlocal outputs
             nonlocal inputs
 
@@ -137,11 +150,18 @@ def handler(
             # Call the original function and get the returning values:
             func_outputs = func(*args, **kwargs)
 
-            # If an MLRun context is found, set the given labels and log the returning values to MLRun via the context:
+            # If 'auto_pack_outputs' is set, add auto log hints for the available outputs:
+            if mlrun.mlconf.packagers.auto_pack_outputs:
+                default_key = (
+                    f"{cxt_handler.context.name}-{mlrun.mlconf.packagers.auto_pack_key}"
+                )
+                outputs = outputs or []
+                if len(outputs) < len(func_outputs):
+                    for index in range(len(func_outputs) - len(outputs)):
+                        outputs.append(f"{default_key}-{index}")
+
+            # If an MLRun context is found, log the returning values to MLRun via the context:
             if cxt_handler.is_context_available():
-                if labels:
-                    # TODO: Should deprecate this labels
-                    cxt_handler.set_labels(labels=labels)
                 if outputs:
                     cxt_handler.log_outputs(
                         outputs=func_outputs

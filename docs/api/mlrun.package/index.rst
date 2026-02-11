@@ -25,7 +25,6 @@ MLRun uses packagers: classes that perform 2 tasks:
 
 .. autosummary::
    :toctree: ./generated_rsts
-   :recursive:
 
    errors
 

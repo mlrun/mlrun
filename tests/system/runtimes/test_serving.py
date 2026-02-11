@@ -13,6 +13,8 @@
 
 from http import HTTPMethod
 
+import pytest
+
 import mlrun
 import tests.system.base
 from mlrun.common.schemas.serving import APIHandlerAction
@@ -119,23 +121,12 @@ class TestServingAPIHandler(tests.system.base.TestMLRunSystem):
 
         # Test the forbidden API endpoint - this should raise an error
         self._logger.debug("Testing forbidden API handler endpoint")
-        try:
-            response = function.invoke(
-                path="/api/v1/admin", body={"test": "restricted"}
+        with pytest.raises(
+            RuntimeError,
+            match=r"MLRunBadRequestError: Access forbidden to GET /api/v1/admin",
+        ):
+            function.invoke(
+                path="/api/v1/admin", method="GET", body={"test": "restricted"}
             )
-            # If we get here without an exception, check if the response indicates forbidden
-            assert (
-                "forbidden" in str(response).lower()
-                or "access denied" in str(response).lower()
-                or "not allowed" in str(response).lower()
-            ), f"Expected forbidden response, got: {response}"
-        except Exception as e:
-            # This is expected - the API handler should block the request
-            self._logger.debug(f"API handler correctly blocked request: {e}")
-            assert (
-                "forbidden" in str(e).lower()
-                or "access denied" in str(e).lower()
-                or "not allowed" in str(e).lower()
-            ), f"Exception should indicate forbidden access: {e}"
 
         self._logger.info("Forbidden API handler test passed")

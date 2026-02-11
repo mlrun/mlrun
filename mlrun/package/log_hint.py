@@ -104,8 +104,8 @@ class LogHint(BaseModel):
         Note: This override is temporary and will be removed in MLRun 1.13.0, at which point only the new ``LogHint``
         format will be supported for parsing.
 
-        :param obj:             The object to validate and parse into a LogHint instance. This can be in the old
-                                dictionary format or the new LogHint format.
+        :param obj: The object to validate and parse into a LogHint instance. This can be in the old dictionary format
+                    or the new LogHint format.
 
         :return: An instance of ``LogHint`` created from the input object.
         """

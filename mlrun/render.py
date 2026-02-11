@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import pathlib
-import typing
 import uuid
 from os import environ, path
 
@@ -364,7 +363,7 @@ def get_tblframe(df, display, classes=None):
 def runs_to_html(
     df: pd.DataFrame,
     display: bool = True,
-    classes: typing.Optional[typing.Union[str, list, tuple]] = None,
+    classes: str | list | tuple | None = None,
     short: bool = False,
 ):
     def time_str(x):

@@ -17,11 +17,9 @@ import concurrent.futures
 import copy
 import json
 import traceback
-import typing
 from datetime import timedelta
 from enum import Enum
 from io import BytesIO
-from typing import Union
 
 import numpy
 import numpy as np
@@ -47,13 +45,13 @@ class BaseModelRouter(RouterToDict):
     def __init__(
         self,
         context=None,
-        name: typing.Optional[str] = None,
+        name: str | None = None,
         routes=None,
-        protocol: typing.Optional[str] = None,
-        url_prefix: typing.Optional[str] = None,
-        health_prefix: typing.Optional[str] = None,
-        input_path: typing.Optional[str] = None,
-        result_path: typing.Optional[str] = None,
+        protocol: str | None = None,
+        url_prefix: str | None = None,
+        health_prefix: str | None = None,
+        input_path: str | None = None,
+        result_path: str | None = None,
         **kwargs,
     ):
         """Model Serving Router, route between child models
@@ -294,13 +292,13 @@ class ParallelRun(BaseModelRouter):
     def __init__(
         self,
         context=None,
-        name: typing.Optional[str] = None,
+        name: str | None = None,
         routes=None,
-        protocol: typing.Optional[str] = None,
-        url_prefix: typing.Optional[str] = None,
-        health_prefix: typing.Optional[str] = None,
+        protocol: str | None = None,
+        url_prefix: str | None = None,
+        health_prefix: str | None = None,
         extend_event=None,
-        executor_type: Union[ParallelRunnerModes, str] = ParallelRunnerModes.thread,
+        executor_type: ParallelRunnerModes | str = ParallelRunnerModes.thread,
         **kwargs,
     ):
         """Process multiple steps (child routes) in parallel and merge the results
@@ -353,12 +351,11 @@ class ParallelRun(BaseModelRouter):
         self.name = name or "ParallelRun"
         self.extend_event = extend_event
         self.executor_type = ParallelRunnerModes(executor_type)
-        self._pool: typing.Optional[
-            Union[
-                concurrent.futures.ProcessPoolExecutor,
-                concurrent.futures.ThreadPoolExecutor,
-            ]
-        ] = None
+        self._pool: (
+            concurrent.futures.ProcessPoolExecutor
+            | concurrent.futures.ThreadPoolExecutor
+            | None
+        ) = None
 
     def _apply_logic(self, results: dict, event=None):
         """
@@ -409,9 +406,7 @@ class ParallelRun(BaseModelRouter):
 
     def _init_pool(
         self,
-    ) -> Union[
-        concurrent.futures.ProcessPoolExecutor, concurrent.futures.ThreadPoolExecutor
-    ]:
+    ) -> concurrent.futures.ProcessPoolExecutor | concurrent.futures.ThreadPoolExecutor:
         """
 
         Get the tasks pool of this runner. If the pool is `None`,
@@ -526,17 +521,17 @@ class VotingEnsemble(ParallelRun):
     def __init__(
         self,
         context=None,
-        name: typing.Optional[str] = None,
+        name: str | None = None,
         routes=None,
-        protocol: typing.Optional[str] = None,
-        url_prefix: typing.Optional[str] = None,
-        health_prefix: typing.Optional[str] = None,
-        vote_type: typing.Optional[str] = None,
-        weights: typing.Optional[dict[str, float]] = None,
-        executor_type: Union[ParallelRunnerModes, str] = ParallelRunnerModes.thread,
+        protocol: str | None = None,
+        url_prefix: str | None = None,
+        health_prefix: str | None = None,
+        vote_type: str | None = None,
+        weights: dict[str, float] | None = None,
+        executor_type: ParallelRunnerModes | str = ParallelRunnerModes.thread,
         format_response_with_col_name_flag: bool = False,
         prediction_col_name: str = "prediction",
-        shard_by_endpoint: typing.Optional[bool] = None,
+        shard_by_endpoint: bool | None = None,
         **kwargs,
     ):
         """Voting Ensemble
@@ -794,7 +789,7 @@ class VotingEnsemble(ParallelRun):
     def _is_int(self, value):
         return float(value).is_integer()
 
-    def logic(self, predictions: list[list[Union[int, float]]], weights: list[float]):
+    def logic(self, predictions: list[list[int | float]], weights: list[float]):
         """
         Returns the final prediction of all the models after applying the desire logic
 
@@ -1057,13 +1052,13 @@ class EnrichmentModelRouter(ModelRouter):
     def __init__(
         self,
         context=None,
-        name: typing.Optional[str] = None,
+        name: str | None = None,
         routes=None,
-        protocol: typing.Optional[str] = None,
-        url_prefix: typing.Optional[str] = None,
-        health_prefix: typing.Optional[str] = None,
+        protocol: str | None = None,
+        url_prefix: str | None = None,
+        health_prefix: str | None = None,
         feature_vector_uri: str = "",
-        impute_policy: typing.Optional[dict] = None,
+        impute_policy: dict | None = None,
         **kwargs,
     ):
         """
@@ -1139,16 +1134,16 @@ class EnrichmentVotingEnsemble(VotingEnsemble):
     def __init__(
         self,
         context=None,
-        name: typing.Optional[str] = None,
+        name: str | None = None,
         routes=None,
         protocol=None,
-        url_prefix: typing.Optional[str] = None,
-        health_prefix: typing.Optional[str] = None,
-        vote_type: typing.Optional[str] = None,
-        executor_type: Union[ParallelRunnerModes, str] = ParallelRunnerModes.thread,
-        prediction_col_name: typing.Optional[str] = None,
+        url_prefix: str | None = None,
+        health_prefix: str | None = None,
+        vote_type: str | None = None,
+        executor_type: ParallelRunnerModes | str = ParallelRunnerModes.thread,
+        prediction_col_name: str | None = None,
         feature_vector_uri: str = "",
-        impute_policy: typing.Optional[dict] = None,
+        impute_policy: dict | None = None,
         **kwargs,
     ):
         """

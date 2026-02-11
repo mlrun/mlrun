@@ -12,8 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from __future__ import annotations
+
 import os
-from typing import Optional, Union
+from typing import Union
 
 import numpy as np
 import torch
@@ -35,8 +37,8 @@ class PyTorchModelHandler(DLModelHandler):
     # Framework name:
     FRAMEWORK_NAME = "torch"
 
-    # Declare a type of input sample:
-    IOSample = Union[torch.Tensor, np.ndarray]
+    # Declare a type of input sample (Union avoids | at import time for docs build):
+    IOSample = Union[torch.Tensor, np.ndarray]  # noqa: UP007
 
     class _LabelKeys:
         """
@@ -48,16 +50,12 @@ class PyTorchModelHandler(DLModelHandler):
     def __init__(
         self,
         model: Module = None,
-        model_path: Optional[str] = None,
-        model_name: Optional[str] = None,
-        model_class: Optional[Union[type[Module], str]] = None,
-        modules_map: Optional[
-            Union[dict[str, Union[None, str, list[str]]], str]
-        ] = None,
-        custom_objects_map: Optional[
-            Union[dict[str, Union[str, list[str]]], str]
-        ] = None,
-        custom_objects_directory: Optional[str] = None,
+        model_path: str | None = None,
+        model_name: str | None = None,
+        model_class: type[Module] | str | None = None,
+        modules_map: dict[str, None | str | list[str]] | str | None = None,
+        custom_objects_map: dict[str, str | list[str]] | str | None = None,
+        custom_objects_directory: str | None = None,
         context: mlrun.MLClientCtx = None,
         **kwargs,
     ):
@@ -156,8 +154,8 @@ class PyTorchModelHandler(DLModelHandler):
 
     def set_labels(
         self,
-        to_add: Optional[dict[str, Union[str, int, float]]] = None,
-        to_remove: Optional[list[str]] = None,
+        to_add: dict[str, str | int | float] | None = None,
+        to_remove: list[str] | None = None,
     ):
         """
         Update the labels dictionary of this model artifact. There are required labels that cannot be edited or removed.
@@ -172,8 +170,8 @@ class PyTorchModelHandler(DLModelHandler):
         self._labels[self._LabelKeys.MODEL_CLASS_NAME] = self._model_class_name
 
     def save(
-        self, output_path: Optional[str] = None, **kwargs
-    ) -> Union[dict[str, Artifact], None]:
+        self, output_path: str | None = None, **kwargs
+    ) -> dict[str, Artifact] | None:
         """
         Save the handled model at the given output path.
 
@@ -198,7 +196,7 @@ class PyTorchModelHandler(DLModelHandler):
 
         return None
 
-    def load(self, checkpoint: Optional[str] = None, **kwargs):
+    def load(self, checkpoint: str | None = None, **kwargs):
         """
         Load the specified model in this handler. If a checkpoint is required to be loaded, it can be given here
         according to the provided model path in the initialization of this handler. Additional parameters for the class
@@ -236,15 +234,15 @@ class PyTorchModelHandler(DLModelHandler):
 
     def to_onnx(
         self,
-        model_name: Optional[str] = None,
-        input_sample: Union[torch.Tensor, tuple[torch.Tensor, ...]] = None,
-        input_layers_names: Optional[list[str]] = None,
-        output_layers_names: Optional[list[str]] = None,
-        dynamic_axes: Optional[dict[str, dict[int, str]]] = None,
+        model_name: str | None = None,
+        input_sample: torch.Tensor | tuple[torch.Tensor, ...] = None,
+        input_layers_names: list[str] | None = None,
+        output_layers_names: list[str] | None = None,
+        dynamic_axes: dict[str, dict[int, str]] | None = None,
         is_batched: bool = True,
         optimize: bool = True,
-        output_path: Optional[str] = None,
-        log: Optional[bool] = None,
+        output_path: str | None = None,
+        log: bool | None = None,
     ):
         """
         Convert the model in this handler to an ONNX model. The layer names are optional, they do not change the

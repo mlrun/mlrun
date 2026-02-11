@@ -15,7 +15,6 @@
 from abc import ABC
 from collections.abc import Callable
 from types import ModuleType
-from typing import Optional, Union
 
 import lightgbm as lgb
 
@@ -68,7 +67,7 @@ class LGBMMLRunInterface(MLRunInterface, ABC):
     @classmethod
     def add_interface(
         cls,
-        obj: Optional[ModuleType] = None,
+        obj: ModuleType | None = None,
         restoration: LGBMTypes.MLRunInterfaceRestorationType = None,
     ):
         """
@@ -168,10 +167,10 @@ class LGBMMLRunInterface(MLRunInterface, ABC):
     def configure_logging(
         context: mlrun.MLClientCtx = None,
         log_model: bool = True,
-        model_handler_kwargs: Optional[dict] = None,
-        log_model_kwargs: Optional[dict] = None,
+        model_handler_kwargs: dict | None = None,
+        log_model_kwargs: dict | None = None,
         log_training: bool = True,
-        mlrun_logging_callback_kwargs: Optional[dict] = None,
+        mlrun_logging_callback_kwargs: dict | None = None,
     ):
         """
         Configure the logging of the training API in LightGBM to log the training and model into MLRun. Each `train`
@@ -260,9 +259,9 @@ class LGBMMLRunInterface(MLRunInterface, ABC):
     @staticmethod
     def _post_train(
         booster: lgb.Booster,
-        train_set: tuple[MLTypes.DatasetType, Union[MLTypes.DatasetType, None]],
+        train_set: tuple[MLTypes.DatasetType, MLTypes.DatasetType | None],
         validation_sets: list[
-            tuple[tuple[MLTypes.DatasetType, Union[MLTypes.DatasetType, None]], str]
+            tuple[tuple[MLTypes.DatasetType, MLTypes.DatasetType | None], str]
         ],
     ):
         """

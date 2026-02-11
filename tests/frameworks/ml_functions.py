@@ -13,7 +13,6 @@
 # limitations under the License.
 
 from abc import ABC, abstractmethod
-from typing import Optional, Union
 
 from sklearn.datasets import (
     make_classification,
@@ -32,7 +31,7 @@ class MLFunctions(ABC):
     def train(
         context: mlrun.MLClientCtx,
         algorithm_functionality: str,
-        model_name: Optional[str] = None,
+        model_name: str | None = None,
     ):
         pass
 
@@ -51,15 +50,15 @@ class MLFunctions(ABC):
     @staticmethod
     def get_dataset(
         algorithm_functionality: AlgorithmFunctionality, for_training: bool
-    ) -> Union[
-        tuple[MLTypes.DatasetType, MLTypes.DatasetType],
-        tuple[
+    ) -> (
+        tuple[MLTypes.DatasetType, MLTypes.DatasetType]
+        | tuple[
             MLTypes.DatasetType,
             MLTypes.DatasetType,
             MLTypes.DatasetType,
             MLTypes.DatasetType,
-        ],
-    ]:
+        ]
+    ):
         if algorithm_functionality.is_regression():
             n_targets = 1 if algorithm_functionality.is_single_output() else 5
             x, y = make_regression(n_targets=n_targets)

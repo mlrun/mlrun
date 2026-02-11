@@ -1,5 +1,3 @@
-from typing import Union
-
 import pandas as pd
 
 import mlrun.model_monitoring.applications.context as mm_context
@@ -20,9 +18,7 @@ class ModelMonitoringApplication(ModelMonitoringApplicationBase):
     def do_tracking(
         self,
         monitoring_context: mm_context.MonitoringApplicationContext,
-    ) -> list[
-        Union[ModelMonitoringApplicationResult, ModelMonitoringApplicationMetric]
-    ]:
+    ) -> list[ModelMonitoringApplicationResult | ModelMonitoringApplicationMetric]:
         """"""
         df = monitoring_context.sample_df
         if df.empty:

@@ -17,7 +17,7 @@ import functools
 import inspect
 from abc import ABC
 from types import FunctionType, MethodType
-from typing import Any, Generic, Optional, Union
+from typing import Any, Generic
 
 from .utils import CommonTypes
 
@@ -173,7 +173,7 @@ class MLRunInterface(ABC, Generic[CommonTypes.MLRunInterfaceableType]):
     def _insert_properties(
         cls,
         obj: CommonTypes.MLRunInterfaceableType,
-        properties: Optional[dict[str, Any]] = None,
+        properties: dict[str, Any] | None = None,
     ):
         """
         Insert the properties of the interface to the object. The properties default values are being copied (not deep
@@ -240,7 +240,7 @@ class MLRunInterface(ABC, Generic[CommonTypes.MLRunInterfaceableType]):
     def _replace_properties(
         cls,
         obj: CommonTypes.MLRunInterfaceableType,
-        properties: Optional[dict[str, Any]] = None,
+        properties: dict[str, Any] | None = None,
     ):
         """
         Replace the properties of the given object according to the configuration in the MLRun interface.
@@ -286,7 +286,7 @@ class MLRunInterface(ABC, Generic[CommonTypes.MLRunInterfaceableType]):
     def _replace_functions(
         cls,
         obj: CommonTypes.MLRunInterfaceableType,
-        functions: Optional[list[str]] = None,
+        functions: list[str] | None = None,
     ):
         """
         Replace the functions / methods of the given object according to the configuration in the MLRun interface.
@@ -421,10 +421,10 @@ class MLRunInterface(ABC, Generic[CommonTypes.MLRunInterfaceableType]):
     def _get_function_argument(
         func: FunctionType,
         argument_name: str,
-        passed_args: Optional[tuple] = None,
-        passed_kwargs: Optional[dict] = None,
+        passed_args: tuple | None = None,
+        passed_kwargs: dict | None = None,
         default_value: Any = None,
-    ) -> tuple[Any, Union[str, int, None]]:
+    ) -> tuple[Any, str | int | None]:
         """
         Get a passed argument (from *args or **kwargs) to a function. If the argument was not found the default value
         will be returned. In addition, the keyword of the argument in `kwargs` or the index of the argument in `args`

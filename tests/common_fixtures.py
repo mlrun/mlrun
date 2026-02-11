@@ -24,7 +24,6 @@ from datetime import datetime as _orig_datetime
 from http import HTTPStatus
 from os import environ
 from pathlib import Path
-from typing import Optional, Union
 from unittest.mock import Mock
 
 import deepdiff
@@ -371,24 +370,20 @@ class RunDBMock:
         labels=None,
         since=None,
         until=None,
-        iter: Optional[int] = None,
+        iter: int | None = None,
         best_iteration: bool = False,
-        kind: Optional[str] = None,
-        category: Union[str, mlrun.common.schemas.ArtifactCategories] = None,
-        tree: Optional[str] = None,
-        format_: Optional[
-            mlrun.common.formatters.ArtifactFormat
-        ] = mlrun.common.formatters.ArtifactFormat.full,
-        partition_by: Optional[
-            Union[mlrun.common.schemas.ArtifactPartitionByField, str]
-        ] = None,
+        kind: str | None = None,
+        category: str | mlrun.common.schemas.ArtifactCategories = None,
+        tree: str | None = None,
+        format_: mlrun.common.formatters.ArtifactFormat
+        | None = mlrun.common.formatters.ArtifactFormat.full,
+        partition_by: mlrun.common.schemas.ArtifactPartitionByField | str | None = None,
         rows_per_partition: int = 1,
-        partition_sort_by: Optional[
-            Union[mlrun.common.schemas.SortField, str]
-        ] = mlrun.common.schemas.SortField.updated,
-        partition_order: Union[
-            mlrun.common.schemas.OrderType, str
-        ] = mlrun.common.schemas.OrderType.desc,
+        partition_sort_by: mlrun.common.schemas.SortField
+        | str
+        | None = mlrun.common.schemas.SortField.updated,
+        partition_order: mlrun.common.schemas.OrderType
+        | str = mlrun.common.schemas.OrderType.desc,
     ):
         def filter_artifact(artifact):
             if artifact["metadata"].get("tag", None) == tag:
@@ -406,7 +401,7 @@ class RunDBMock:
         deletion_strategy: mlrun.common.schemas.artifact.ArtifactsDeletionStrategies = (
             mlrun.common.schemas.artifact.ArtifactsDeletionStrategies.metadata_only
         ),
-        secrets: Optional[dict] = None,
+        secrets: dict | None = None,
         iter=None,
     ):
         self._artifacts.pop((key, iter or 0), None)
@@ -436,25 +431,22 @@ class RunDBMock:
 
     def list_runs(
         self,
-        name: Optional[str] = None,
-        uid: Optional[Union[str, list[str]]] = None,
-        project: Optional[str] = None,
-        labels: Optional[Union[str, list[str]]] = None,
-        state: Optional[str] = None,
+        name: str | None = None,
+        uid: str | list[str] | None = None,
+        project: str | None = None,
+        labels: str | list[str] | None = None,
+        state: str | None = None,
         sort: bool = True,
         iter: bool = False,
-        start_time_from: Optional[datetime] = None,
-        start_time_to: Optional[datetime] = None,
-        last_update_time_from: Optional[datetime] = None,
-        last_update_time_to: Optional[datetime] = None,
-        partition_by: Optional[
-            Union[mlrun.common.schemas.RunPartitionByField, str]
-        ] = None,
+        start_time_from: datetime | None = None,
+        start_time_to: datetime | None = None,
+        last_update_time_from: datetime | None = None,
+        last_update_time_to: datetime | None = None,
+        partition_by: mlrun.common.schemas.RunPartitionByField | str | None = None,
         rows_per_partition: int = 1,
-        partition_sort_by: Optional[Union[mlrun.common.schemas.SortField, str]] = None,
-        partition_order: Union[
-            mlrun.common.schemas.OrderType, str
-        ] = mlrun.common.schemas.OrderType.desc,
+        partition_sort_by: mlrun.common.schemas.SortField | str | None = None,
+        partition_order: mlrun.common.schemas.OrderType
+        | str = mlrun.common.schemas.OrderType.desc,
         max_partitions: int = 0,
         with_notifications: bool = False,
     ) -> mlrun.lists.RunList:
@@ -514,12 +506,11 @@ class RunDBMock:
     def get_pipeline(
         self,
         run_id: str,
-        namespace: Optional[str] = None,
+        namespace: str | None = None,
         timeout: int = 30,
-        format_: Union[
-            str, mlrun.common.formatters.PipelineFormat
-        ] = mlrun.common.formatters.PipelineFormat.summary,
-        project: Optional[str] = None,
+        format_: str
+        | mlrun.common.formatters.PipelineFormat = mlrun.common.formatters.PipelineFormat.summary,
+        project: str | None = None,
     ):
         pass
 
@@ -582,7 +573,7 @@ class RunDBMock:
     def deploy_nuclio_function(
         self,
         func,
-        builder_env: Optional[dict] = None,
+        builder_env: dict | None = None,
     ):
         return self.remote_builder(func, False)
 
@@ -611,7 +602,7 @@ class RunDBMock:
         self._api_gateways[key] = api_gateway
         return api_gateway
 
-    def get_api_gateway(self, name: str, project: Optional[str] = None):
+    def get_api_gateway(self, name: str, project: str | None = None):
         key = self._generate_api_gateway_key(name, project)
         api_gateway = self._api_gateways.get(key)
         if api_gateway:
@@ -747,7 +738,7 @@ class RunDBMock:
     ):
         pass
 
-    def _get_function_internal(self, function_name: Optional[str] = None):
+    def _get_function_internal(self, function_name: str | None = None):
         if function_name:
             return self._functions[function_name]
 
@@ -786,11 +777,11 @@ class RunDBMock:
         self,
         name: str,
         project: str,
-        function_name: Optional[str] = None,
-        function_tag: Optional[str] = None,
-        endpoint_id: Optional[str] = None,
+        function_name: str | None = None,
+        function_tag: str | None = None,
+        endpoint_id: str | None = None,
         tsdb_metrics: bool = True,
-        metric_list: Optional[list[str]] = None,
+        metric_list: list[str] | None = None,
         feature_analysis: bool = False,
     ) -> mlrun.common.schemas.model_monitoring.ModelEndpoint:
         self._get_model_endpoint_calls += 1
@@ -821,24 +812,21 @@ class RunDBMock:
     def list_model_endpoints(
         self,
         project: str = "project",
-        names: Optional[Union[str, list[str]]] = None,
-        function_name: Optional[str] = None,
-        function_tag: Optional[str] = None,
-        model_name: Optional[str] = None,
-        model_tag: Optional[str] = None,
-        labels: Optional[Union[str, dict[str, Optional[str]], list[str]]] = None,
-        start: Optional[datetime] = None,
-        end: Optional[datetime] = None,
-        modes: Optional[
-            Union[
-                mlrun.common.schemas.EndpointMode,
-                list[mlrun.common.schemas.EndpointMode],
-            ]
-        ] = None,
+        names: str | list[str] | None = None,
+        function_name: str | None = None,
+        function_tag: str | None = None,
+        model_name: str | None = None,
+        model_tag: str | None = None,
+        labels: str | dict[str, str | None] | list[str] | None = None,
+        start: datetime | None = None,
+        end: datetime | None = None,
+        modes: mlrun.common.schemas.EndpointMode
+        | list[mlrun.common.schemas.EndpointMode]
+        | None = None,
         tsdb_metrics: bool = False,
-        metric_list: Optional[list[str]] = None,
+        metric_list: list[str] | None = None,
         top_level: bool = False,
-        uids: Optional[list[str]] = None,
+        uids: list[str] | None = None,
         latest_only: bool = False,
     ) -> mlrun.common.schemas.ModelEndpointList:
         if isinstance(names, str):

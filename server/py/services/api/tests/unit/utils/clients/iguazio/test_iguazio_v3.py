@@ -17,7 +17,6 @@ import datetime
 import functools
 import http
 import json
-import typing
 import unittest.mock
 
 import deepdiff
@@ -1168,9 +1167,9 @@ def _generate_project(
 def _build_project_response(
     iguazio_client,
     project: mlrun.common.schemas.Project,
-    job_id: typing.Optional[str] = None,
-    operational_status: typing.Optional[mlrun.common.schemas.ProjectState] = None,
-    owner_access_key: typing.Optional[str] = None,
+    job_id: str | None = None,
+    operational_status: mlrun.common.schemas.ProjectState | None = None,
+    owner_access_key: str | None = None,
     with_mlrun_project: bool = False,
 ):
     body = {

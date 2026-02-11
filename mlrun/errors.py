@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import copy
-import typing
 from http import HTTPStatus
 
 import aiohttp
@@ -41,10 +40,8 @@ class MLRunHTTPError(MLRunBaseError, requests.HTTPError):
     def __init__(
         self,
         *args,
-        response: typing.Optional[
-            typing.Union[requests.Response, aiohttp.ClientResponse]
-        ] = None,
-        status_code: typing.Optional[int] = None,
+        response: requests.Response | aiohttp.ClientResponse | None = None,
+        status_code: int | None = None,
         **kwargs,
     ):
         # because response object is probably with an error, it returns False, so we
@@ -82,11 +79,8 @@ class MLRunHTTPStatusError(MLRunHTTPError):
 
 
 def raise_for_status(
-    response: typing.Union[
-        requests.Response,
-        aiohttp.ClientResponse,
-    ],
-    message: typing.Optional[str] = None,
+    response: requests.Response | aiohttp.ClientResponse,
+    message: str | None = None,
 ):
     """
     Raise a specific MLRunSDK error depending on the given response status code.
@@ -107,7 +101,7 @@ def raise_for_status(
             raise MLRunHTTPError(error_message, response=response) from exc
 
 
-def err_for_status_code(status_code: int, message: typing.Optional[str] = None):
+def err_for_status_code(status_code: int, message: str | None = None):
     """
     Return a specific MLRunSDK error depending on the given response status code.
     If no specific error exists, returns an MLRunHTTPError.
@@ -257,7 +251,7 @@ class MLRunFatalFailureError(Exception):
     """
 
     def __init__(
-        self, *args, original_exception: typing.Optional[Exception] = None, **kwargs
+        self, *args, original_exception: Exception | None = None, **kwargs
     ) -> None:
         super().__init__(*args, **kwargs)
         self.original_exception = original_exception

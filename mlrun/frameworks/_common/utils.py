@@ -60,13 +60,13 @@ class CommonTypes(ABC):
     ]
 
     # A joined type for receiving a path from 'pathlib' or 'os.path':
-    PathType = Union[str, Path]
+    PathType = str | Path
 
     # A joined type for all trackable values (for logging):
-    TrackableType = Union[str, bool, float, int]
+    TrackableType = str | bool | float | int
 
     # Types available in the extra data dictionary of an artifact:
-    ExtraDataType = Union[str, bytes, Artifact, DataItem]
+    ExtraDataType = str | bytes | Artifact | DataItem
 
 
 class LoggingMode(Enum):
@@ -187,7 +187,7 @@ class CommonUtils(ABC):
         )
 
     @staticmethod
-    def convert_np_dtype_to_value_type(np_dtype: Union[np.dtype, type, str]) -> str:
+    def convert_np_dtype_to_value_type(np_dtype: np.dtype | type | str) -> str:
         """
         Convert the given numpy data type to MLRun value type. It is better to use explicit bit namings (for example:
         instead of using 'np.double', use 'np.float64').

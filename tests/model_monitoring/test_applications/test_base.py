@@ -17,7 +17,6 @@ from contextlib import AbstractContextManager
 from contextlib import nullcontext as does_not_raise
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from typing import Optional, Union
 from unittest.mock import Mock, patch
 
 import pandas as pd
@@ -224,9 +223,9 @@ class TestEvaluate:
         ],
     )
     def test_invalid_params(
-        endpoints: Optional[list[tuple[str, str]]],
-        start: Optional[datetime],
-        end: Optional[datetime],
+        endpoints: list[tuple[str, str]] | None,
+        start: datetime | None,
+        end: datetime | None,
         run_local: bool,
         write_output: bool,
         error_msg: str,
@@ -365,9 +364,9 @@ def non_empty_sample_df_context_mock() -> Iterator[MonitoringApplicationContext]
 )
 @pytest.mark.usefixtures("non_empty_sample_df_context_mock")
 def test_window_generator_validation(
-    start: Optional[str],
-    end: Optional[str],
-    base_period: Optional[int],
+    start: str | None,
+    end: str | None,
+    base_period: int | None,
     expectation: AbstractContextManager,
 ) -> None:
     with expectation:
@@ -446,7 +445,7 @@ def test_window_generator_validation(
 def test_windows(
     start: datetime,
     end: datetime,
-    base_period: Optional[int],
+    base_period: int | None,
     expected_windows: list[tuple[datetime, datetime]],
 ) -> None:
     windows = [
@@ -556,12 +555,10 @@ def test_job_handler() -> None:
     ],
 )
 def test_flatten_data_result(
-    result: Union[
-        ModelMonitoringApplicationMetric,
-        ModelMonitoringApplicationResult,
-        list[Union[ModelMonitoringApplicationMetric, ModelMonitoringApplicationResult]],
-    ],
-    expected_flattened_result: Union[dict, list[dict]],
+    result: ModelMonitoringApplicationMetric
+    | ModelMonitoringApplicationResult
+    | list[ModelMonitoringApplicationMetric | ModelMonitoringApplicationResult],
+    expected_flattened_result: dict | list[dict],
 ) -> None:
     assert (
         ModelMonitoringApplicationBase._flatten_data_result(result)
@@ -621,7 +618,7 @@ def project(tmpdir: Path) -> mlrun.MlrunProject:
 @pytest.mark.usefixtures("rundb_mock")
 def test_normalize_and_validate_endpoints(
     project: mlrun.MlrunProject,
-    endpoints: Union[str, list[str], list[tuple[str, str]]],
+    endpoints: str | list[str] | list[tuple[str, str]],
     normalized_endpoints: list[tuple[str, str]],
 ) -> None:
     endpoints_output = ModelMonitoringApplicationBase._normalize_and_validate_endpoints(
@@ -687,7 +684,7 @@ def test_normalize_and_validate_endpoints(
 )
 def test_normalize_and_validate_endpoints_error(
     project: mlrun.MlrunProject,
-    endpoints: Union[str, list[str]],
+    endpoints: str | list[str],
     err_msg: str,
     err_type: type[mlrun.errors.MLRunBaseError],
 ) -> None:
@@ -748,8 +745,8 @@ def test_normalize_and_validate_endpoints_error(
 def test_determine_job_name(
     logger: Mock,
     class_name: str,
-    func_name: Optional[str],
-    class_handler: Optional[str],
+    func_name: str | None,
+    class_handler: str | None,
     handler_to_class: str,
     expectation: AbstractContextManager,
     expected_log: bool,

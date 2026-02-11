@@ -895,7 +895,7 @@ def test_add_route_exceeds_max_models():
             server.graph.add_route(f"test_key_{key}", class_name=ModelTestingClass)
 
     # edit existing model
-    server.graph.add_route(f"test_key_{key-1}", class_name=ModelTestingClass)
+    server.graph.add_route(f"test_key_{key - 1}", class_name=ModelTestingClass)
 
     assert (
         len(server.graph.routes) == max_models

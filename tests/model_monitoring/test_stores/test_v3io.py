@@ -15,7 +15,7 @@
 from collections import Counter
 from collections.abc import Iterator
 from datetime import UTC, datetime, timedelta
-from typing import Any, Optional
+from typing import Any
 from unittest.mock import Mock, patch
 
 import pandas as pd
@@ -135,13 +135,13 @@ def metric_event() -> dict[str, Any]:
     ],
 )
 def test_tsdb_query(
-    endpoint_id: Optional[str],
-    names: Optional[list[tuple[str, str]]],
+    endpoint_id: str | None,
+    names: list[tuple[str, str]] | None,
     table_path: str,
     expected_query: str,
-    columns: Optional[list[str]],
-    application_names: Optional[list[str]],
-    group_by_columns: Optional[list[str]],
+    columns: list[str] | None,
+    application_names: list[str] | None,
+    group_by_columns: list[str] | None,
 ) -> None:
     assert (
         V3IOTSDBConnector._get_sql_query(

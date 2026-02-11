@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import typing
 
 import kubernetes.client
 
@@ -331,9 +330,7 @@ class Spark3JobSpec(KubeResourceSpec):
                     volume_mount, volume_mounts_field_name="_executor_volume_mounts"
                 )
 
-    def _verify_jvm_memory_string(
-        self, resources_field_name: str, memory: typing.Optional[str]
-    ):
+    def _verify_jvm_memory_string(self, resources_field_name: str, memory: str | None):
         if memory:
             verify_field_regex(
                 f"function.spec.{resources_field_name}.requests.memory",
@@ -399,8 +396,8 @@ class Spark3JobSpec(KubeResourceSpec):
     def _verify_and_set_requests(
         self,
         resources_field_name,
-        mem: typing.Optional[str] = None,
-        cpu: typing.Optional[str] = None,
+        mem: str | None = None,
+        cpu: str | None = None,
         patch: bool = False,
     ):
         # Spark operator uses JVM notation for memory, so we must verify it separately
@@ -478,10 +475,10 @@ class Spark3Runtime(KubejobRuntime):
 
     def with_node_selection(
         self,
-        node_name: typing.Optional[str] = None,
-        node_selector: typing.Optional[dict[str, str]] = None,
-        affinity: typing.Optional[kubernetes.client.V1Affinity] = None,
-        tolerations: typing.Optional[list[kubernetes.client.V1Toleration]] = None,
+        node_name: str | None = None,
+        node_selector: dict[str, str] | None = None,
+        affinity: kubernetes.client.V1Affinity | None = None,
+        tolerations: list[kubernetes.client.V1Toleration] | None = None,
     ):
         if node_name:
             raise NotImplementedError(
@@ -508,10 +505,10 @@ class Spark3Runtime(KubejobRuntime):
 
     def with_driver_node_selection(
         self,
-        node_name: typing.Optional[str] = None,
-        node_selector: typing.Optional[dict[str, str]] = None,
-        affinity: typing.Optional[kubernetes.client.V1Affinity] = None,
-        tolerations: typing.Optional[list[kubernetes.client.V1Toleration]] = None,
+        node_name: str | None = None,
+        node_selector: dict[str, str] | None = None,
+        affinity: kubernetes.client.V1Affinity | None = None,
+        tolerations: list[kubernetes.client.V1Toleration] | None = None,
     ):
         """
         Enables control of which k8s node the spark executor will run on.
@@ -540,10 +537,10 @@ class Spark3Runtime(KubejobRuntime):
 
     def with_executor_node_selection(
         self,
-        node_name: typing.Optional[str] = None,
-        node_selector: typing.Optional[dict[str, str]] = None,
-        affinity: typing.Optional[kubernetes.client.V1Affinity] = None,
-        tolerations: typing.Optional[list[kubernetes.client.V1Toleration]] = None,
+        node_name: str | None = None,
+        node_selector: dict[str, str] | None = None,
+        affinity: kubernetes.client.V1Affinity | None = None,
+        tolerations: list[kubernetes.client.V1Toleration] | None = None,
     ):
         """
         Enables control of which k8s node the spark executor will run on.
@@ -571,7 +568,7 @@ class Spark3Runtime(KubejobRuntime):
             self.spec.executor_tolerations = tolerations
 
     def with_preemption_mode(
-        self, mode: typing.Union[mlrun.common.schemas.function.PreemptionModes, str]
+        self, mode: mlrun.common.schemas.function.PreemptionModes | str
     ):
         """
         Use with_driver_preemption_mode / with_executor_preemption_mode to setup preemption_mode for spark operator
@@ -582,7 +579,7 @@ class Spark3Runtime(KubejobRuntime):
         )
 
     def with_driver_preemption_mode(
-        self, mode: typing.Union[mlrun.common.schemas.function.PreemptionModes, str]
+        self, mode: mlrun.common.schemas.function.PreemptionModes | str
     ):
         """
         Preemption mode controls whether the spark driver can be scheduled on preemptible nodes.
@@ -604,7 +601,7 @@ class Spark3Runtime(KubejobRuntime):
         self.spec.driver_preemption_mode = preemption_mode.value
 
     def with_executor_preemption_mode(
-        self, mode: typing.Union[mlrun.common.schemas.function.PreemptionModes, str]
+        self, mode: mlrun.common.schemas.function.PreemptionModes | str
     ):
         """
         Preemption mode controls whether the spark executor can be scheduled on preemptible nodes.
@@ -770,8 +767,8 @@ class Spark3Runtime(KubejobRuntime):
 
     def with_cores(
         self,
-        executor_cores: typing.Optional[int] = None,
-        driver_cores: typing.Optional[int] = None,
+        executor_cores: int | None = None,
+        driver_cores: int | None = None,
     ):
         """
         Allows to configure spark.executor.cores and spark.driver.cores parameters. The values must be integers
@@ -857,7 +854,7 @@ class Spark3Runtime(KubejobRuntime):
         skip_deployed=False,
         is_kfp=False,
         mlrun_version_specifier=None,
-        builder_env: typing.Optional[dict] = None,
+        builder_env: dict | None = None,
         show_on_failure: bool = False,
         force_build: bool = False,
     ):
@@ -949,8 +946,8 @@ class Spark3Runtime(KubejobRuntime):
 
     def with_executor_requests(
         self,
-        mem: typing.Optional[str] = None,
-        cpu: typing.Optional[str] = None,
+        mem: str | None = None,
+        cpu: str | None = None,
         patch: bool = False,
     ):
         """
@@ -961,8 +958,8 @@ class Spark3Runtime(KubejobRuntime):
 
     def with_executor_limits(
         self,
-        cpu: typing.Optional[str] = None,
-        gpus: typing.Optional[int] = None,
+        cpu: str | None = None,
+        gpus: int | None = None,
         gpu_type: str = "nvidia.com/gpu",
         patch: bool = False,
     ):
@@ -978,8 +975,8 @@ class Spark3Runtime(KubejobRuntime):
 
     def with_driver_requests(
         self,
-        mem: typing.Optional[str] = None,
-        cpu: typing.Optional[str] = None,
+        mem: str | None = None,
+        cpu: str | None = None,
         patch: bool = False,
     ):
         """
@@ -990,8 +987,8 @@ class Spark3Runtime(KubejobRuntime):
 
     def with_driver_limits(
         self,
-        cpu: typing.Optional[str] = None,
-        gpus: typing.Optional[int] = None,
+        cpu: str | None = None,
+        gpus: int | None = None,
         gpu_type: str = "nvidia.com/gpu",
         patch: bool = False,
     ):

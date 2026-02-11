@@ -20,7 +20,6 @@ import uuid
 from datetime import UTC, datetime, timedelta
 from random import choice, randint, uniform
 from time import monotonic, sleep
-from typing import Optional, Union
 from uuid import uuid4
 
 import fsspec
@@ -63,12 +62,12 @@ from . import TestMLRunSystemModelMonitoring
 def mock_random_endpoint(
     project_name: str,
     name: str,
-    function_name: Optional[str] = "function-1",
-    function_tag: Optional[str] = "v1",
-    model_path: Optional[str] = None,
+    function_name: str | None = "function-1",
+    function_tag: str | None = "v1",
+    model_path: str | None = None,
     add_labels=True,
     endpoint_type: EndpointType = EndpointType.NODE_EP,
-    mode: Optional[EndpointMode] = None,
+    mode: EndpointMode | None = None,
 ) -> mlrun.common.schemas.model_monitoring.ModelEndpoint:
     def random_labels():
         return {f"{choice(string.ascii_letters)}": randint(0, 100) for _ in range(1, 5)}
@@ -358,8 +357,8 @@ class TestModelEndpointsOperations(TestMLRunSystemModelMonitoring):
 
         endpoints_out = self.project.list_model_endpoints(latest_only=False).endpoints
         assert len(endpoints_out) == number_of_endpoints
-        created: Optional[datetime] = None
-        uid: Optional[str] = None
+        created: datetime | None = None
+        uid: str | None = None
         for mep in endpoints_out:
             if not created or mep.metadata.created < created:
                 created = mep.metadata.created
@@ -792,7 +791,7 @@ class TestBasicModelMonitoring(TestMLRunSystemModelMonitoring):
 
     project_name = "pr-basic-model-monitoring"
     # Set image to "<repo>/mlrun:<tag>" for local testing
-    image: Optional[str] = None
+    image: str | None = None
 
     @pytest.mark.timeout(540)
     def test_basic_model_monitoring(self) -> None:
@@ -1617,7 +1616,7 @@ class TestBatchDrift(TestMLRunSystemModelMonitoring):
 
     project_name = "pr-batch-drift"
     # Set image to "<repo>/mlrun:<tag>" for local testing
-    image: Optional[str] = None
+    image: str | None = None
 
     def custom_setup(self):
         mlrun.runtimes.utils.global_context.set(None)
@@ -1774,7 +1773,7 @@ class TestModelMonitoringKafka(TestMLRunSystemModelMonitoring):
 
     project_name = "pr-kafka-model-monitoring"
     # Set image to "<repo>/mlrun:<tag>" for local testing
-    image: Optional[str] = None
+    image: str | None = None
 
     @pytest.mark.timeout(300)
     @pytest.mark.skipif(
@@ -1879,7 +1878,7 @@ class TestInferenceWithSpecialChars(TestMLRunSystemModelMonitoring):
     project_name = "pr-infer-special-chars"
     name_prefix = "infer-monitoring"
     # Set image to "<repo>/mlrun:<tag>" for local testing
-    image: Optional[str] = None
+    image: str | None = None
 
     @classmethod
     def custom_setup_class(cls) -> None:
@@ -1907,7 +1906,7 @@ class TestInferenceWithSpecialChars(TestMLRunSystemModelMonitoring):
         self.set_mm_credentials()
 
     @classmethod
-    def _generate_data(cls) -> list[Union[pd.DataFrame, pd.Series]]:
+    def _generate_data(cls) -> list[pd.DataFrame | pd.Series]:
         rng = np.random.default_rng(seed=23)
         x = pd.DataFrame(rng.random((cls.num_rows, cls.num_cols)), columns=cls.columns)
         y = pd.Series(np.arange(cls.num_rows) % cls.num_classes, name=cls.y_name)
@@ -1983,7 +1982,7 @@ class TestModelInferenceTSDBRecord(TestMLRunSystemModelMonitoring):
     project_name = "infer-model-tsdb"
     name_prefix = "infer-model-only"
     # Set image to "<repo>/mlrun:<tag>" for local testing
-    image: Optional[str] = None
+    image: str | None = None
 
     @classmethod
     def custom_setup_class(cls) -> None:
@@ -2123,7 +2122,7 @@ class TestModelEndpointGetMetrics(TestMLRunSystemModelMonitoring):
     """Test get_model_endpoint_monitoring_metrics functionality."""
 
     project_name = "model-endpoint-get-metrics"
-    image: Optional[str] = None
+    image: str | None = None
 
     @staticmethod
     def _generate_event(
@@ -2479,7 +2478,7 @@ class TestLLModelWithMonitoring(TestMLRunSystemModelMonitoring):
     """Test LLModel serving with model monitoring enabled."""
 
     project_name = "llmodel-monitoring-5"
-    image: Optional[str] = "mlrun/mlrun"
+    image: str | None = "mlrun/mlrun"
 
     def test_mep_with_remote_model(self):
         self.set_mm_credentials()

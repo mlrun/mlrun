@@ -14,7 +14,7 @@
 import abc
 import json
 from datetime import datetime
-from typing import Any, Literal, NamedTuple, Optional, TypeVar
+from typing import Any, Literal, NamedTuple, TypeVar
 from uuid import UUID
 
 from pydantic import validator  # use `validator` if you’re still on Pydantic v1
@@ -51,7 +51,7 @@ class FeatureValues(BaseModel):
     histogram: Histogram
 
     @classmethod
-    def from_dict(cls, stats: Optional[dict]):
+    def from_dict(cls, stats: dict | None):
         if stats:
             return FeatureValues(
                 min=stats["min"],
@@ -66,15 +66,15 @@ class FeatureValues(BaseModel):
 class Features(BaseModel):
     name: str
     weight: float
-    expected: Optional[FeatureValues]
-    actual: Optional[FeatureValues]
+    expected: FeatureValues | None
+    actual: FeatureValues | None
 
     @classmethod
     def new(
         cls,
         feature_name: str,
-        feature_stats: Optional[dict],
-        current_stats: Optional[dict],
+        feature_stats: dict | None,
+        current_stats: dict | None,
     ):
         return cls(
             name=feature_name,
@@ -93,7 +93,7 @@ class ModelEndpointParser(abc.ABC, BaseModel):
     def from_flat_dict(
         cls,
         endpoint_dict: dict,
-        json_parse_values: Optional[list] = None,
+        json_parse_values: list | None = None,
         validate: bool = True,
     ) -> "ModelEndpointParser":
         """Create a `ModelEndpointParser` object from an endpoint dictionary
@@ -118,8 +118,8 @@ class ModelEndpointParser(abc.ABC, BaseModel):
 class ModelEndpointMetadata(ObjectMetadata, ModelEndpointParser):
     project: constr(regex=PROJECT_PATTERN)
     endpoint_type: EndpointType = EndpointType.NODE_EP
-    uid: Optional[constr(regex=MODEL_ENDPOINT_ID_PATTERN)]
-    mode: Optional[EndpointMode] = None
+    uid: constr(regex=MODEL_ENDPOINT_ID_PATTERN) | None
+    mode: EndpointMode | None = None
 
     @classmethod
     def mutable_fields(cls):
@@ -142,21 +142,21 @@ class ModelEndpointMetadata(ObjectMetadata, ModelEndpointParser):
 
 
 class ModelEndpointSpec(ObjectSpec, ModelEndpointParser):
-    model_class: Optional[str] = ""
-    function_name: Optional[str] = ""
-    function_tag: Optional[str] = ""
-    model_path: Optional[str] = ""
-    model_name: Optional[str] = ""
-    model_tags: Optional[list[str]] = []
-    _model_id: Optional[int] = ""
-    feature_names: Optional[list[str]] = []
-    label_names: Optional[list[str]] = []
-    feature_stats: Optional[dict] = {}
-    function_uri: Optional[str] = ""  # <project_name>/<function_hash>
-    model_uri: Optional[str] = ""
-    children: Optional[list[str]] = []
-    children_uids: Optional[list[str]] = []
-    monitoring_feature_set_uri: Optional[str] = ""
+    model_class: str | None = ""
+    function_name: str | None = ""
+    function_tag: str | None = ""
+    model_path: str | None = ""
+    model_name: str | None = ""
+    model_tags: list[str] | None = []
+    _model_id: int | None = ""
+    feature_names: list[str] | None = []
+    label_names: list[str] | None = []
+    feature_stats: dict | None = {}
+    function_uri: str | None = ""  # <project_name>/<function_hash>
+    model_uri: str | None = ""
+    children: list[str] | None = []
+    children_uids: list[str] | None = []
+    monitoring_feature_set_uri: str | None = ""
 
     @classmethod
     def mutable_fields(cls):
@@ -171,20 +171,20 @@ class ModelEndpointSpec(ObjectSpec, ModelEndpointParser):
 
 
 class ModelEndpointStatus(ObjectStatus, ModelEndpointParser):
-    state: Optional[str] = "unknown"  # will be updated according to the function state
-    first_request: Optional[datetime] = None
-    monitoring_mode: Optional[ModelMonitoringMode] = ModelMonitoringMode.disabled
-    sampling_percentage: Optional[float] = 100
+    state: str | None = "unknown"  # will be updated according to the function state
+    first_request: datetime | None = None
+    monitoring_mode: ModelMonitoringMode | None = ModelMonitoringMode.disabled
+    sampling_percentage: float | None = 100
 
     # operative
-    last_request: Optional[datetime] = None
-    result_status: Optional[int] = -1
-    avg_latency: Optional[float] = None
-    error_count: Optional[int] = 0
-    current_stats: Optional[dict] = {}
-    current_stats_timestamp: Optional[datetime] = None
-    drift_measures: Optional[dict] = {}
-    drift_measures_timestamp: Optional[datetime] = None
+    last_request: datetime | None = None
+    result_status: int | None = -1
+    avg_latency: float | None = None
+    error_count: int | None = 0
+    current_stats: dict | None = {}
+    current_stats_timestamp: datetime | None = None
+    drift_measures: dict | None = {}
+    drift_measures_timestamp: datetime | None = None
 
     @classmethod
     def mutable_fields(cls):
@@ -279,8 +279,8 @@ class ModelEndpointMonitoringMetric(BaseModel):
     app: str
     type: ModelEndpointMonitoringMetricType
     name: str
-    full_name: Optional[str] = None
-    kind: Optional[ResultKindApp] = None
+    full_name: str | None = None
+    kind: ResultKindApp | None = None
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -317,7 +317,7 @@ class _ResultPoint(NamedTuple):
     timestamp: datetime
     value: float
     status: ResultStatusApp
-    extra_data: Optional[str] = ""
+    extra_data: str | None = ""
 
 
 class _ModelEndpointMonitoringMetricValuesBase(BaseModel):
@@ -348,7 +348,7 @@ class ModelEndpointMonitoringMetricNoData(_ModelEndpointMonitoringMetricValuesBa
 class ApplicationBaseRecord(BaseModel):
     type: Literal["metric", "result"]
     value: float
-    time: Optional[datetime] = None
+    time: datetime | None = None
 
 
 class ApplicationResultRecord(ApplicationBaseRecord):

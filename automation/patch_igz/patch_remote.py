@@ -21,7 +21,6 @@ import os
 import shlex
 import subprocess
 import time
-import typing
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import click
@@ -563,7 +562,7 @@ class MLRunPatcher:
             raise subprocess.CalledProcessError(ret_code, cmd)
 
     def _exec_local(
-        self, cmd: list[str], live: bool = False, env: typing.Optional[dict] = None
+        self, cmd: list[str], live: bool = False, env: dict | None = None
     ) -> str:
         logger.debug("Exec local: %s", " ".join(cmd))
         buf = io.StringIO()

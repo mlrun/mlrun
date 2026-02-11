@@ -12,10 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import random
-import typing
 from copy import copy
 from datetime import timedelta
-from typing import Any, Optional, Union
+from typing import Any
 
 import numpy as np
 import storey
@@ -123,9 +122,9 @@ class MonitoringPreProcessor(storey.MapClass):
 
     def get_listed_data(
         self,
-        raw_data: typing.Union[dict, list],
-        data_path: Optional[Union[list[str], str]] = None,
-        schema: Optional[list[str]] = None,
+        raw_data: dict | list,
+        data_path: list[str] | str | None = None,
+        schema: list[str] | None = None,
     ):
         """Get data from a path and transpose it by keys if dict is provided."""
         new_schema = None
@@ -179,8 +178,8 @@ class MonitoringPreProcessor(storey.MapClass):
 
     @staticmethod
     def transpose_by_key(
-        data: dict, schema: Optional[Union[str, list[str]]] = None
-    ) -> tuple[Union[list[Any], list[list[Any]]], list[str]]:
+        data: dict, schema: str | list[str] | None = None
+    ) -> tuple[list[Any] | list[list[Any]], list[str]]:
         """
         Transpose values from a dictionary by keys.
 
@@ -457,7 +456,7 @@ class SamplingStep(storey.MapClass):
 
     def __init__(
         self,
-        sampling_percentage: Optional[float] = 100.0,
+        sampling_percentage: float | None = 100.0,
         **kwargs,
     ):
         super().__init__(**kwargs)

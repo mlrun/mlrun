@@ -13,7 +13,6 @@
 # limitations under the License.
 
 import contextlib
-import typing
 
 import aiohttp
 import fastapi
@@ -174,7 +173,7 @@ class Client(
         )
 
     async def delete_project(
-        self, name, request: fastapi.Request, api_version: typing.Optional[str] = None
+        self, name, request: fastapi.Request, api_version: str | None = None
     ) -> fastapi.Response:
         """
         delete project can be responsible for deleting schedules. Schedules are running only on chief,
@@ -188,7 +187,7 @@ class Client(
 
     async def get_clusterization_spec(
         self, return_fastapi_response: bool = True, raise_on_failure: bool = False
-    ) -> typing.Union[fastapi.Response, mlrun.common.schemas.ClusterizationSpec]:
+    ) -> fastapi.Response | mlrun.common.schemas.ClusterizationSpec:
         """
         This method is used both for proxying requests from worker to chief and for aligning the worker state
         with the clusterization spec brought from the chief
@@ -229,7 +228,7 @@ class Client(
 
     async def store_alert(
         self, project: str, name: str, request: fastapi.Request, json: dict
-    ) -> typing.Union[fastapi.Response, mlrun.common.schemas.AlertConfig]:
+    ) -> fastapi.Response | mlrun.common.schemas.AlertConfig:
         """
         Alerts are running only on chief
         """
@@ -295,8 +294,8 @@ class Client(
         method,
         path,
         request: fastapi.Request = None,
-        json: typing.Optional[dict] = None,
-        version: typing.Optional[str] = None,
+        json: dict | None = None,
+        version: str | None = None,
         raise_on_failure: bool = False,
         **kwargs,
     ) -> fastapi.Response:
@@ -316,7 +315,7 @@ class Client(
         self,
         method,
         path,
-        version: typing.Optional[str] = None,
+        version: str | None = None,
         raise_on_failure: bool = False,
         **kwargs,
     ) -> aiohttp.ClientResponse:

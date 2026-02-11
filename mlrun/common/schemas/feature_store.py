@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Optional
 
 import pydantic.v1
 
@@ -40,7 +39,7 @@ class FeatureStoreBaseModel(pydantic.v1.BaseModel):
 class Feature(FeatureStoreBaseModel):
     name: str
     value_type: str
-    labels: Optional[dict] = {}
+    labels: dict | None = {}
 
     class Config:
         extra = pydantic.v1.Extra.allow
@@ -49,7 +48,7 @@ class Feature(FeatureStoreBaseModel):
 class Entity(FeatureStoreBaseModel):
     name: str
     value_type: str
-    labels: Optional[dict] = {}
+    labels: dict | None = {}
 
     class Config:
         extra = pydantic.v1.Extra.allow
@@ -58,7 +57,7 @@ class Entity(FeatureStoreBaseModel):
 class FeatureSetSpec(ObjectSpec):
     entities: list[Entity] = []
     features: list[Feature] = []
-    engine: Optional[str] = pydantic.v1.Field(default="storey")
+    engine: str | None = pydantic.v1.Field(default="storey")
 
 
 class FeatureSet(FeatureStoreBaseModel):
@@ -189,16 +188,16 @@ class DataSource(FeatureStoreBaseModel):
 class DataTarget(FeatureStoreBaseModel):
     kind: str
     name: str
-    path: Optional[str]
+    path: str | None
 
     class Config:
         extra = pydantic.v1.Extra.allow
 
 
 class FeatureSetIngestInput(FeatureStoreBaseModel):
-    source: Optional[DataSource]
-    targets: Optional[list[DataTarget]]
-    infer_options: Optional[int]
+    source: DataSource | None
+    targets: list[DataTarget] | None
+    infer_options: int | None
     credentials: Credentials = Credentials()
 
 

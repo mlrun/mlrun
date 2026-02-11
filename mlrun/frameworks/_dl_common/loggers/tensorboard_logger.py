@@ -16,7 +16,7 @@ import os
 from abc import abstractmethod
 from collections.abc import Callable
 from datetime import datetime
-from typing import Any, Generic, Optional, Union
+from typing import Any, Generic
 
 import yaml
 
@@ -62,12 +62,12 @@ class TensorboardLogger(Logger, Generic[DLTypes.WeightType]):
     def __init__(
         self,
         statistics_functions: list[
-            Callable[[DLTypes.WeightType], Union[float, DLTypes.WeightType]]
+            Callable[[DLTypes.WeightType], float | DLTypes.WeightType]
         ],
         context: mlrun.MLClientCtx = None,
-        tensorboard_directory: Optional[str] = None,
-        run_name: Optional[str] = None,
-        update_frequency: Union[int, str] = "epoch",
+        tensorboard_directory: str | None = None,
+        run_name: str | None = None,
+        update_frequency: int | str = "epoch",
     ):
         """
         Initialize a tensorboard logger callback with the given configuration. At least one of 'context' and

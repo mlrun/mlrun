@@ -14,7 +14,6 @@
 
 import importlib
 import inspect
-from typing import Union
 
 import mlrun.errors
 from mlrun.config import config as mlconf
@@ -76,7 +75,7 @@ class TrackerManager(metaclass=Singleton):
         for tracker in self._trackers:
             tracker.pre_run(context=context)
 
-    def post_run(self, context: Union[MLClientCtx, dict]) -> Union[MLClientCtx, dict]:
+    def post_run(self, context: MLClientCtx | dict) -> MLClientCtx | dict:
         """
         Goes over all the managed trackers and calls their `post_run` method.
 

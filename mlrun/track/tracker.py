@@ -13,7 +13,7 @@
 # limitations under the License.
 
 from abc import ABC, abstractmethod
-from typing import Any, Optional, Union
+from typing import Any
 
 from mlrun.artifacts import Artifact, ModelArtifact
 from mlrun.execution import MLClientCtx
@@ -50,7 +50,7 @@ class Tracker(ABC):
         """
         pass
 
-    def post_run(self, context: Union[MLClientCtx, dict]):
+    def post_run(self, context: MLClientCtx | dict):
         """
         Performs post-run tasks for logging 3rd party artifacts generated during the run.
 
@@ -63,7 +63,7 @@ class Tracker(ABC):
         project: MlrunProject,
         reference_id: Any,
         function_name: str,
-        handler: Optional[str] = None,
+        handler: str | None = None,
         **kwargs,
     ) -> RunObject:
         """

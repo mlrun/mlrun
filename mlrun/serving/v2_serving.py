@@ -16,7 +16,6 @@ import random
 import threading
 import time
 import traceback
-from typing import Optional
 
 import mlrun.artifacts
 import mlrun.common.model_monitoring.helpers
@@ -34,13 +33,13 @@ class V2ModelServer(StepToDict):
     def __init__(
         self,
         context=None,
-        name: Optional[str] = None,
-        model_path: Optional[str] = None,
+        name: str | None = None,
+        model_path: str | None = None,
         model=None,
         protocol=None,
-        input_path: Optional[str] = None,
-        result_path: Optional[str] = None,
-        shard_by_endpoint: Optional[bool] = None,
+        input_path: str | None = None,
+        result_path: str | None = None,
+        shard_by_endpoint: bool | None = None,
         **kwargs,
     ):
         """base model serving class (v2), using similar API to KFServing v2 and Triton
@@ -103,7 +102,7 @@ class V2ModelServer(StepToDict):
         self.error = ""
         self.protocol = protocol or "v2"
         self.model_path = model_path
-        self.model_spec: Optional[mlrun.artifacts.ModelArtifact] = None
+        self.model_spec: mlrun.artifacts.ModelArtifact | None = None
         self._input_path = input_path
         self._result_path = result_path
         self._kwargs = kwargs  # for to_dict()

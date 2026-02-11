@@ -13,7 +13,7 @@
 # limitations under the License.
 
 from dataclasses import dataclass
-from typing import Final, Optional, Protocol, Union, cast
+from typing import Final, Protocol, cast
 
 import numpy as np
 from pandas import DataFrame, Series
@@ -133,7 +133,7 @@ class HistogramDataDriftApplication(ModelMonitoringApplicationBase):
 
     def __init__(
         self,
-        value_classifier: Optional[ValueClassifier] = None,
+        value_classifier: ValueClassifier | None = None,
         produce_json_artifact: bool = False,
         produce_plotly_artifact: bool = False,
     ) -> None:
@@ -348,11 +348,9 @@ class HistogramDataDriftApplication(ModelMonitoringApplicationBase):
     def do_tracking(
         self, monitoring_context: mm_context.MonitoringApplicationContext
     ) -> list[
-        Union[
-            mm_results.ModelMonitoringApplicationResult,
-            mm_results.ModelMonitoringApplicationMetric,
-            mm_results._ModelMonitoringApplicationStats,
-        ]
+        mm_results.ModelMonitoringApplicationResult
+        | mm_results.ModelMonitoringApplicationMetric
+        | mm_results._ModelMonitoringApplicationStats
     ]:
         """
         Calculate and return the data drift metrics, averaged over the features.

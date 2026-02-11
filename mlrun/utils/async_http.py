@@ -15,7 +15,6 @@
 import asyncio
 import logging
 import typing
-from typing import Optional
 
 import aiohttp
 import aiohttp.http_exceptions
@@ -46,8 +45,8 @@ class AsyncClientWithRetry(RetryClient):
         retry_on_status_codes: list[int] = config.http_retry_defaults.status_codes,
         retry_on_exception: bool = True,
         raise_for_status: bool = True,
-        blacklisted_methods: typing.Optional[list[str]] = None,
-        logger: Optional[logging.Logger] = None,
+        blacklisted_methods: list[str] | None = None,
+        logger: logging.Logger | None = None,
         *args,
         **kwargs,
     ):
@@ -80,8 +79,8 @@ class AsyncClientWithRetry(RetryClient):
     def _make_requests(
         self,
         params_list: list[RequestParams],
-        retry_options: Optional[RetryOptionsBase] = None,
-        raise_for_status: Optional[bool] = None,
+        retry_options: RetryOptionsBase | None = None,
+        raise_for_status: bool | None = None,
     ) -> "_CustomRequestContext":
         if retry_options is None:
             retry_options = self._retry_options
@@ -114,8 +113,8 @@ class ExponentialRetryOverride(ExponentialRetry):
 
     def __init__(
         self,
-        retry_on_exception: typing.Optional[bool] = True,
-        blacklisted_methods: typing.Optional[list[str]] = None,
+        retry_on_exception: bool | None = True,
+        blacklisted_methods: list[str] | None = None,
         *args,
         **kwargs,
     ):
@@ -150,7 +149,7 @@ class _CustomRequestContext(_RequestContext):
         while True:
             current_attempt += 1
             response = None
-            params: typing.Optional[RequestParams] = None
+            params: RequestParams | None = None
             try:
                 try:
                     params = self._params_list[current_attempt - 1]
@@ -165,9 +164,7 @@ class _CustomRequestContext(_RequestContext):
                     f"{aiohttp.http.SERVER_SOFTWARE} mlrun/{config.version}"
                 )
 
-                response: typing.Optional[
-                    aiohttp.ClientResponse
-                ] = await self._request_func(
+                response: aiohttp.ClientResponse | None = await self._request_func(
                     params.method,
                     params.url,
                     headers=headers,

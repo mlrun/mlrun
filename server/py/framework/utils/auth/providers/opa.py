@@ -36,7 +36,7 @@ class Provider(
 ):
     def __init__(self) -> None:
         super().__init__()
-        self._session: typing.Optional[mlrun.utils.AsyncClientWithRetry] = None
+        self._session: mlrun.utils.AsyncClientWithRetry | None = None
         self._api_url = mlrun.mlconf.httpdb.authorization.opa.address
         self._permission_query_path = (
             mlrun.mlconf.httpdb.authorization.opa.permission_query_path

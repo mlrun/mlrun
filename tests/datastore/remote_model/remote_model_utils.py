@@ -13,7 +13,7 @@
 # limitations under the License.
 import asyncio
 import time
-from typing import Any, Optional
+from typing import Any
 
 import fsspec
 
@@ -216,7 +216,7 @@ def setup_remote_model_test(
     image=None,
     requirements=None,
     model_class: str = "LLModel",
-    default_config: Optional[dict] = None,
+    default_config: dict | None = None,
     include_llm_artifact=True,
     batch_step=False,
 ):
@@ -324,7 +324,7 @@ class MyOpenAICustom(mlrun.serving.states.Model):
 
 class MyOpenAIAsyncEvents(mlrun.serving.states.LLModel):
     async def run_async(
-        self, body: Any, path: str, origin_name: Optional[str] = None
+        self, body: Any, path: str, origin_name: str | None = None
     ) -> Any:
         # Temporary workaround for testing purposes only, until events execution will be able to run in parallel
         invocation_config = {}
@@ -341,8 +341,8 @@ class MyOpenAIAsyncEvents(mlrun.serving.states.LLModel):
     async def predict_async(
         self,
         body: Any,
-        messages: Optional[list[dict]] = None,
-        invocation_config: Optional[dict] = None,
+        messages: list[dict] | None = None,
+        invocation_config: dict | None = None,
         **kwargs,
     ):
         if isinstance(

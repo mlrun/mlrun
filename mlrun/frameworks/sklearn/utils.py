@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from __future__ import annotations
+
 from typing import Union
 
 import sklearn.base
@@ -24,8 +26,8 @@ class SKLearnTypes(MLTypes):
     Typing hints for the SciKit-Learn framework.
     """
 
-    # A union of all SciKitLearn model base classes:
-    ModelType = Union[
+    # Union (not |) so this is not evaluated at import time during docs build:
+    ModelType = Union[  # noqa: UP007
         sklearn.base.BaseEstimator,
         sklearn.base.BiclusterMixin,
         sklearn.base.ClassifierMixin,

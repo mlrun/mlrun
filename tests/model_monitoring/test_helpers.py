@@ -14,7 +14,7 @@
 
 import datetime
 from collections.abc import Iterator
-from typing import NamedTuple, Optional, Union
+from typing import NamedTuple
 from unittest.mock import patch
 
 import nuclio
@@ -557,7 +557,7 @@ def test_filter_results_by_regex():
 )
 def test_get_kafka_topic(
     project: str,
-    function_name: Optional[str],
+    function_name: str | None,
     expected_topic: str,
 ) -> None:
     assert (
@@ -600,7 +600,7 @@ def test_get_kafka_topic(
 )
 def test_get_output_stream(
     profile: DatastoreProfile,
-    expected_output_stream_type: Union[type[KafkaOutputStream], type[OutputStream]],
+    expected_output_stream_type: type[KafkaOutputStream] | type[OutputStream],
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     if isinstance(profile, DatastoreProfileV3io):

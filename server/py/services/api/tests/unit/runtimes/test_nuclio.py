@@ -15,7 +15,6 @@
 import base64
 import json
 import os
-import typing
 import unittest.mock
 from contextlib import nullcontext as does_not_raise
 from http import HTTPStatus
@@ -132,7 +131,7 @@ class TestNuclioRuntime(TestRuntimeBase):
 
     def _generate_runtime(
         self, kind=None, labels=None
-    ) -> typing.Union[mlrun.runtimes.RemoteRuntime, mlrun.runtimes.ServingRuntime]:
+    ) -> mlrun.runtimes.RemoteRuntime | mlrun.runtimes.ServingRuntime:
         runtime = code_to_function(
             name=self.name,
             project=self.project,

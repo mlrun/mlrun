@@ -18,10 +18,8 @@ import datetime
 import http
 import json.decoder
 import os
-import typing
 import unittest.mock
 from http import HTTPStatus
-from typing import Optional
 from uuid import uuid4
 
 import deepdiff
@@ -1895,7 +1893,7 @@ def _assert_db_resources_in_project(
 
 
 def _list_project_names_and_assert(
-    client: TestClient, expected_names: list[str], params: Optional[dict] = None
+    client: TestClient, expected_names: list[str], params: dict | None = None
 ):
     params = params or {}
     params["format"] = mlrun.common.formatters.ProjectFormat.name_only
@@ -1917,7 +1915,7 @@ def _list_project_names_and_assert(
 def _assert_project_response(
     expected_project: mlrun.common.schemas.Project,
     response,
-    extra_exclude: Optional[dict] = None,
+    extra_exclude: dict | None = None,
 ):
     project = mlrun.common.schemas.Project(**response.json())
     _assert_project(expected_project, project, extra_exclude)
@@ -1961,7 +1959,7 @@ def _assert_project_summary(
 def _assert_project(
     expected_project: mlrun.common.schemas.Project,
     project: mlrun.common.schemas.Project,
-    extra_exclude: Optional[dict] = None,
+    extra_exclude: dict | None = None,
 ):
     exclude = {"id": ..., "metadata": {"created"}, "status": {"state"}}
     if extra_exclude:
@@ -2116,10 +2114,10 @@ def _create_run(
     run_uid: str,
     run_name: str,
     kind: str,
-    state: typing.Optional[str] = None,
-    start_time: typing.Optional[datetime.datetime] = None,
-    parameters: typing.Optional[dict] = None,
-    iteration: typing.Optional[int] = None,
+    state: str | None = None,
+    start_time: datetime.datetime | None = None,
+    parameters: dict | None = None,
+    iteration: int | None = None,
 ):
     """Helper function to create a single run."""
     run = {
@@ -2176,7 +2174,7 @@ def _create_hyperparam_runs(
     param_name: str,
     values: list,
     state: str,
-    start_time: typing.Optional[datetime.datetime] = None,
+    start_time: datetime.datetime | None = None,
     iteration_start: int = 1,
 ):
     """Create hyperparameter runs with different parameter values."""
@@ -2201,7 +2199,7 @@ def _create_schedule(
     client: TestClient,
     project_name,
     cron_trigger: mlrun.common.schemas.ScheduleCronTrigger,
-    labels: Optional[dict] = None,
+    labels: dict | None = None,
 ):
     if not labels:
         labels = {}

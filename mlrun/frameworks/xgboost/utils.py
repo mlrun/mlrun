@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from __future__ import annotations
+
 from typing import Union
 
 import xgboost as xgb
@@ -24,11 +26,9 @@ class XGBoostTypes(MLTypes):
     Typing hints for the XGBoost framework.
     """
 
-    # A union of all XGBoost model base classes:
-    ModelType = Union[xgb.XGBModel, xgb.Booster]
-
-    # A type for all the supported dataset types:
-    DatasetType = Union[MLTypes.DatasetType, xgb.DMatrix]
+    # Union (not |) so this is not evaluated at import time during docs build:
+    ModelType = Union[xgb.XGBModel, xgb.Booster]  # noqa: UP007
+    DatasetType = Union[MLTypes.DatasetType, xgb.DMatrix]  # noqa: UP007
 
 
 class XGBoostUtils(MLUtils):

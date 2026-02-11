@@ -16,7 +16,7 @@ import collections
 import traceback
 from collections import OrderedDict
 from datetime import datetime
-from typing import Any, Optional, Union
+from typing import Any
 
 import mlrun.common.schemas
 import mlrun.common.schemas.alert as alert_objects
@@ -52,11 +52,9 @@ class _PushToMonitoringWriter(StepToDict):
         self,
         event: tuple[
             list[
-                Union[
-                    ModelMonitoringApplicationResult,
-                    ModelMonitoringApplicationMetric,
-                    _ModelMonitoringApplicationStats,
-                ]
+                ModelMonitoringApplicationResult
+                | ModelMonitoringApplicationMetric
+                | _ModelMonitoringApplicationStats
             ],
             MonitoringApplicationContext,
         ],
@@ -82,9 +80,9 @@ class _PushToMonitoringWriter(StepToDict):
     @property
     def output_stream(
         self,
-    ) -> Union[
-        mlrun.platforms.iguazio.OutputStream, mlrun.platforms.iguazio.KafkaOutputStream
-    ]:
+    ) -> (
+        mlrun.platforms.iguazio.OutputStream | mlrun.platforms.iguazio.KafkaOutputStream
+    ):
         if self._output_stream is None:
             self._output_stream = mlrun.model_monitoring.helpers.get_output_stream(
                 project=self.project,
@@ -164,7 +162,7 @@ class _PrepareMonitoringEvent(StepToDict):
 
 
 class _ApplicationErrorHandler(StepToDict):
-    def __init__(self, project: str, name: Optional[str] = None):
+    def __init__(self, project: str, name: str | None = None):
         self.project = project
         self.name = name or "ApplicationErrorHandler"
 

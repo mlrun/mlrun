@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Any, Optional, Union
+from typing import Any
 
 import mlrun
 from mlrun.datastore.model_provider.model_provider import (
@@ -31,8 +31,8 @@ class MockModelProvider(ModelProvider):
         kind,
         name,
         endpoint="",
-        secrets: Optional[dict] = None,
-        default_invoke_kwargs: Optional[dict] = None,
+        secrets: dict | None = None,
+        default_invoke_kwargs: dict | None = None,
     ):
         super().__init__(
             parent=parent, name=name, kind=kind, endpoint=endpoint, secrets=secrets
@@ -64,8 +64,8 @@ class MockModelProvider(ModelProvider):
         self,
         messages: list[dict],
         invoke_response_format: InvokeResponseFormat,
-        counter: Optional[int] = None,
-    ) -> Union[dict[str, Any], str]:
+        counter: int | None = None,
+    ) -> dict[str, Any] | str:
         """
         Handle a single invocation. Raises error if message contains ERROR keyword.
         """
@@ -102,10 +102,10 @@ class MockModelProvider(ModelProvider):
 
     def invoke(
         self,
-        messages: Union[list[dict], list[list[dict]], Any],
+        messages: list[dict] | list[list[dict]] | Any,
         invoke_response_format: InvokeResponseFormat = InvokeResponseFormat.FULL,
         **invoke_kwargs,
-    ) -> Union[str, dict[str, Any], list[dict[str, Any]], Any]:
+    ) -> str | dict[str, Any] | list[dict[str, Any]] | Any:
         is_batch = self._validate_and_detect_batch_invocation(messages)
         if is_batch:
             # Return list of mock responses with counter
@@ -122,8 +122,8 @@ class MockModelProvider(ModelProvider):
 
     async def async_invoke(
         self,
-        messages: Union[list[dict], list[list[dict]], Any],
+        messages: list[dict] | list[list[dict]] | Any,
         invoke_response_format: InvokeResponseFormat = InvokeResponseFormat.FULL,
         **invoke_kwargs,
-    ) -> Union[str, dict[str, Any], list[dict[str, Any]], Any]:
+    ) -> str | dict[str, Any] | list[dict[str, Any]] | Any:
         return self.invoke(messages, invoke_response_format, **invoke_kwargs)

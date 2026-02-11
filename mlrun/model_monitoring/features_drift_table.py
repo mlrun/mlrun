@@ -15,7 +15,6 @@
 import functools
 import sys
 from collections.abc import Callable
-from typing import Union
 
 import numpy as np
 import plotly.graph_objects as go
@@ -121,7 +120,7 @@ class FeaturesDriftTablePlot:
         self,
         sample_set_statistics: dict,
         inputs_statistics: dict,
-        metrics: dict[str, Union[dict, float]],
+        metrics: dict[str, dict | float],
         drift_results: dict[str, DriftResultType],
     ) -> _PlotlyTableArtifact:
         """
@@ -256,7 +255,7 @@ class FeaturesDriftTablePlot:
             for i in range(0, len(feature_name), self._FEATURE_NAME_MAX_LENGTH)
         ]
 
-    def _get_value_format(self, value: Union[str, int, float]) -> str:
+    def _get_value_format(self, value: str | int | float) -> str:
         """
         Plotly uses D3 formatter to format values. This method return the format according to the configured
         properties in the class to the given value - one of the cells in a feature row statistics and metrics values.
@@ -476,7 +475,7 @@ class FeaturesDriftTablePlot:
         features: list[str],
         sample_set_statistics: dict,
         inputs_statistics: dict,
-        metrics: dict[str, Union[dict, float]],
+        metrics: dict[str, dict | float],
         drift_results: dict[str, DriftResultType],
     ) -> go.Figure:
         """

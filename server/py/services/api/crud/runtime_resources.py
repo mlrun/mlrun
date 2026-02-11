@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import typing
 
 import mergedeep
 import sqlalchemy.orm
@@ -33,17 +32,15 @@ class RuntimeResources(
     def list_runtime_resources(
         self,
         project: str,
-        kind: typing.Optional[str] = None,
-        object_id: typing.Optional[str] = None,
-        label_selector: typing.Optional[str] = None,
-        group_by: typing.Optional[
-            mlrun.common.schemas.ListRuntimeResourcesGroupByField
-        ] = None,
-    ) -> typing.Union[
-        mlrun.common.schemas.RuntimeResourcesOutput,
-        mlrun.common.schemas.GroupedByJobRuntimeResourcesOutput,
-        mlrun.common.schemas.GroupedByProjectRuntimeResourcesOutput,
-    ]:
+        kind: str | None = None,
+        object_id: str | None = None,
+        label_selector: str | None = None,
+        group_by: mlrun.common.schemas.ListRuntimeResourcesGroupByField | None = None,
+    ) -> (
+        mlrun.common.schemas.RuntimeResourcesOutput
+        | mlrun.common.schemas.GroupedByJobRuntimeResourcesOutput
+        | mlrun.common.schemas.GroupedByProjectRuntimeResourcesOutput
+    ):
         response = [] if group_by is None else {}
         kinds = mlrun.runtimes.RuntimeKinds.runtime_with_handlers()
         if kind is not None:
@@ -68,14 +65,12 @@ class RuntimeResources(
         self,
         grouped_by_project_runtime_resources_output: mlrun.common.schemas.GroupedByProjectRuntimeResourcesOutput,
         allowed_projects: list[str],
-        group_by: typing.Optional[
-            mlrun.common.schemas.ListRuntimeResourcesGroupByField
-        ] = None,
-    ) -> typing.Union[
-        mlrun.common.schemas.RuntimeResourcesOutput,
-        mlrun.common.schemas.GroupedByJobRuntimeResourcesOutput,
-        mlrun.common.schemas.GroupedByProjectRuntimeResourcesOutput,
-    ]:
+        group_by: mlrun.common.schemas.ListRuntimeResourcesGroupByField | None = None,
+    ) -> (
+        mlrun.common.schemas.RuntimeResourcesOutput
+        | mlrun.common.schemas.GroupedByJobRuntimeResourcesOutput
+        | mlrun.common.schemas.GroupedByProjectRuntimeResourcesOutput
+    ):
         runtime_resources_by_kind = {}
         for (
             project,
@@ -111,11 +106,11 @@ class RuntimeResources(
     def delete_runtime_resources(
         self,
         db_session: sqlalchemy.orm.Session,
-        kind: typing.Optional[str] = None,
-        object_id: typing.Optional[str] = None,
-        label_selector: typing.Optional[str] = None,
+        kind: str | None = None,
+        object_id: str | None = None,
+        label_selector: str | None = None,
         force: bool = False,
-        grace_period: typing.Optional[int] = None,
+        grace_period: int | None = None,
     ):
         kinds = mlrun.runtimes.RuntimeKinds.runtime_with_handlers()
         if kind is not None:

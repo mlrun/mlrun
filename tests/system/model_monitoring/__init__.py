@@ -123,7 +123,7 @@ class TestMLRunSystemModelMonitoring(TestMLRunSystem):
         cls,
         condition_check: Callable,
         initial_wait: float = 0.0,
-        timeout: Optional[float] = None,
+        timeout: float | None = None,
         retry_interval: float = 10.0,
         condition_description: str = "condition to be met",
     ) -> None:

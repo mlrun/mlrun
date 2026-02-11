@@ -13,7 +13,6 @@
 # limitations under the License.
 
 import datetime
-from typing import Optional
 
 import pandas as pd
 
@@ -70,7 +69,7 @@ class TimescaleDBConnector(TSDBConnector):
         self,
         project: str,
         profile: DatastoreProfilePostgreSQL,
-        pre_aggregate_config: Optional[PreAggregateConfig] = None,
+        pre_aggregate_config: PreAggregateConfig | None = None,
         **kwargs,
     ):
         super().__init__(project=project)
@@ -225,7 +224,7 @@ class TimescaleDBConnector(TSDBConnector):
     def add_basic_metrics(
         self,
         model_endpoint_objects: list[mlrun.common.schemas.ModelEndpoint],
-        metric_list: Optional[list[str]] = None,
+        metric_list: list[str] | None = None,
     ) -> list[mlrun.common.schemas.ModelEndpoint]:
         """
         Add basic metrics to the model endpoint object using TimescaleDB optimizations.
@@ -337,9 +336,9 @@ class TimescaleDBConnector(TSDBConnector):
         table: str,
         start: datetime.datetime,
         end: datetime.datetime,
-        endpoint_id: Optional[str] = None,
-        columns: Optional[list[str]] = None,
-        timestamp_column: Optional[str] = None,
+        endpoint_id: str | None = None,
+        columns: list[str] | None = None,
+        timestamp_column: str | None = None,
     ) -> pd.DataFrame:
         """
         Get raw records from TimescaleDB as pandas DataFrame.
@@ -399,9 +398,9 @@ class TimescaleDBConnector(TSDBConnector):
 
     def count_processed_model_endpoints(
         self,
-        start: Optional[datetime.datetime] = None,
-        end: Optional[datetime.datetime] = None,
-        application_names: Optional[list[str] | str] = None,
+        start: datetime.datetime | None = None,
+        end: datetime.datetime | None = None,
+        application_names: list[str] | str | None = None,
     ) -> dict[str, int]:
         """
         Count unique endpoints per application from METRICS and APP_RESULTS tables.

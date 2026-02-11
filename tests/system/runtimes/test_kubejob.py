@@ -953,7 +953,7 @@ def print_df(df):
             )
             if previous_start_time is not None:
                 assert previous_start_time < current_start_time, (
-                    f"Retry {i} start_time is not after retry {i-1}: "
+                    f"Retry {i} start_time is not after retry {i - 1}: "
                     f"{previous_start_time} >= {current_start_time}"
                 )
             previous_start_time = current_start_time

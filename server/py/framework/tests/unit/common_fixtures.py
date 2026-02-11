@@ -243,7 +243,7 @@ class TestServiceBase:
 
     def set_base_url_for_test_client(
         self,
-        client: typing.Union[httpx.AsyncClient, TestClient],
+        client: httpx.AsyncClient | TestClient,
         prefix: str,
     ):
         client.base_url = client.base_url.join(prefix)

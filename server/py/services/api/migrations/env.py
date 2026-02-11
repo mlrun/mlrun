@@ -59,7 +59,7 @@ def compare_type(
     metadata_column: sqlalchemy.Column[typing.Any],
     inspected_type: sqlalchemy.sql.type_api.TypeEngine[typing.Any],
     metadata_type: sqlalchemy.sql.type_api.TypeEngine[typing.Any],
-) -> typing.Optional[bool]:
+) -> bool | None:
     """Custom compare_type that:
     1. checks mysql.VARCHAR→Utf8BinText by length+collation (utf8mb3_bin≈utf8_bin),
     2. suppresses VARCHAR→Uuid/UuidType only if length matches,

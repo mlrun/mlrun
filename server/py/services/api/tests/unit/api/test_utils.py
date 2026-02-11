@@ -15,7 +15,6 @@
 import base64
 import json
 import pathlib
-import typing
 import unittest.mock
 from contextlib import nullcontext as does_not_raise
 from http import HTTPStatus
@@ -2311,10 +2310,10 @@ def test_resolve_project_service_account_details(
         project: str,
         provider: mlrun.common.schemas.SecretProviderName,
         secret_key: str,
-        token: typing.Optional[str] = None,
+        token: str | None = None,
         allow_secrets_from_k8s: bool = False,
         allow_internal_secrets: bool = False,
-        key_map_secret_key: typing.Optional[str] = None,
+        key_map_secret_key: str | None = None,
     ):
         return {
             "allowed": allowed_secret,

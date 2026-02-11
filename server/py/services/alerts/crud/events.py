@@ -13,7 +13,6 @@
 # limitations under the License.
 
 import datetime
-from typing import Optional
 
 import sqlalchemy.orm
 
@@ -63,7 +62,7 @@ class Events(
         session: sqlalchemy.orm.Session,
         event_data: mlrun.common.schemas.Event,
         event_name: str,
-        project: Optional[str] = None,
+        project: str | None = None,
         validate_event: bool = False,
     ):
         if validate_event and not self.is_valid_event(project, event_data):

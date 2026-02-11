@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from __future__ import annotations
+
 from collections.abc import Callable
 from typing import Union
 
@@ -31,14 +33,10 @@ class PyTorchTypes(DLTypes):
     Typing hints for the PyTorch framework.
     """
 
-    # Every model in PyTorch must inherit from torch.nn.Module:
     ModelType = Module
-
-    # Supported types of loss and metrics values:
-    MetricValueType = Union[int, float, np.ndarray, Tensor]
-
-    # Supported types of metrics:
-    MetricFunctionType = Union[Callable[[Tensor, Tensor], MetricValueType], Module]
+    # Union (not |) so this is not evaluated at import time during docs build:
+    MetricValueType = Union[int, float, np.ndarray, Tensor]  # noqa: UP007
+    MetricFunctionType = Union[Callable[[Tensor, Tensor], MetricValueType], Module]  # noqa: UP007
 
 
 class PyTorchUtils(DLUtils):
@@ -81,7 +79,7 @@ class PyTorchUtils(DLUtils):
         )
 
     @staticmethod
-    def convert_torch_dtype_to_value_type(torch_dtype: Union[torch.dtype, str]) -> str:
+    def convert_torch_dtype_to_value_type(torch_dtype: torch.dtype | str) -> str:
         """
         Convert the given torch data type to MLRun value type. All the CUDA supported data types are supported. For
         more information regarding torch data types, visit: https://pytorch.org/docs/stable/tensors.html#data-types

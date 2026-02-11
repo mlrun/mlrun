@@ -302,7 +302,7 @@ class TestOpenAIProvider(TestBasicOpenAIProvider):
             )
             with pytest.raises(
                 mlrun.errors.MLRunInvalidArgumentError,
-                match="OpenAI custom_invoke " "operation must be a callable",
+                match="OpenAI custom_invoke operation must be a callable",
             ):
                 _ = await model_provider.custom_invoke(operation="test", input=prompt)
         encoding = tiktoken.encoding_for_model(self.embedding_model)

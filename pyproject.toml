@@ -19,9 +19,6 @@ extend-select = [
     "B006", # mutable default arguments
     "RUF013",  # forbid implicit `Optional` type hints
 ]
-# Ignoring UP007 for now. See ticket ML-11573 for investigating runtime-safety of converting certain type
-# annotations to PEP 604 (`X | Y`) syntax.
-ignore = ["UP007"]
 explicit-preview-rules = true
 
 [tool.ruff.lint.isort]
@@ -35,6 +32,12 @@ max-line-length = 120
 "__init__.py" = ["F401"]
 "docs/**.py" = ["CPY001"]
 "*.ipynb" = ["ALL"]  # TODO: enable linting rules on Jupyter notebooks
+# PyTorch/TensorFlow types (Parameter, Tensor, Variable, TensorSpec) do not support | for unions; keep Union[...]
+"mlrun/frameworks/pytorch/callbacks/tensorboard_logging_callback.py" = ["UP007"]
+"mlrun/frameworks/pytorch/mlrun_interface.py" = ["UP007"]
+"mlrun/frameworks/pytorch/model_server.py" = ["UP007"]
+"mlrun/frameworks/tf_keras/model_handler.py" = ["UP007"]
+"mlrun/frameworks/tf_keras/callbacks/tensorboard_logging_callback.py" = ["UP007"]
 
 [tool.ruff.lint.flake8-copyright]
 author = "Iguazio"

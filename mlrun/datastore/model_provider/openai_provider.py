@@ -15,7 +15,7 @@ import asyncio
 import concurrent.futures
 import inspect
 from collections.abc import Awaitable, Callable
-from typing import TYPE_CHECKING, Any, Optional, Union
+from typing import TYPE_CHECKING, Any, Union
 
 import mlrun
 from mlrun.datastore.model_provider.model_provider import (
@@ -54,8 +54,8 @@ class OpenAIProvider(ModelProvider):
         schema,
         name,
         endpoint="",
-        secrets: Optional[dict] = None,
-        default_invoke_kwargs: Optional[dict] = None,
+        secrets: dict | None = None,
+        default_invoke_kwargs: dict | None = None,
     ):
         endpoint = endpoint or mlrun.mlconf.model_providers.openai_default_model
         if schema != "openai":
@@ -166,7 +166,7 @@ class OpenAIProvider(ModelProvider):
         return self._sanitize_options(res)
 
     def custom_invoke(
-        self, operation: Optional[Callable] = None, **invoke_kwargs
+        self, operation: Callable | None = None, **invoke_kwargs
     ) -> Union["ChatCompletion", "BaseModel"]:
         """
         Invokes a model operation from the OpenAI client with the given keyword arguments.
@@ -216,7 +216,7 @@ class OpenAIProvider(ModelProvider):
 
     async def async_custom_invoke(
         self,
-        operation: Optional[Callable[..., Awaitable[Any]]] = None,
+        operation: Callable[..., Awaitable[Any]] | None = None,
         **invoke_kwargs,
     ) -> Union["ChatCompletion", "BaseModel"]:
         """
@@ -377,10 +377,10 @@ class OpenAIProvider(ModelProvider):
 
     def invoke(
         self,
-        messages: Union[list[dict], list[list[dict]]],
+        messages: list[dict] | list[list[dict]],
         invoke_response_format: InvokeResponseFormat = InvokeResponseFormat.FULL,
         **invoke_kwargs,
-    ) -> Union[InvokeResponse, list[InvokeResponse]]:
+    ) -> InvokeResponse | list[InvokeResponse]:
         """
         OpenAI-specific implementation of `ModelProvider.invoke`.
         Invokes an OpenAI model operation using the synchronous client.
@@ -477,10 +477,10 @@ class OpenAIProvider(ModelProvider):
 
     async def async_invoke(
         self,
-        messages: Union[list[dict], list[list[dict]]],
+        messages: list[dict] | list[list[dict]],
         invoke_response_format=InvokeResponseFormat.FULL,
         **invoke_kwargs,
-    ) -> Union[InvokeResponse, list[InvokeResponse]]:
+    ) -> InvokeResponse | list[InvokeResponse]:
         """
         OpenAI-specific implementation of `ModelProvider.async_invoke`.
         Invokes an OpenAI model operation using the asynchronous client.

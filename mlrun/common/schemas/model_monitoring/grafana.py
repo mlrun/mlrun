@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Optional, Union
 
 from pydantic.v1 import BaseModel
 
@@ -39,7 +38,7 @@ class GrafanaStringColumn(GrafanaColumn):
 
 class GrafanaTable(BaseModel):
     columns: list[GrafanaColumn]
-    rows: list[list[Optional[Union[float, int, str]]]] = []
+    rows: list[list[float | int | str | None]] = []
     type: str = "table"
 
     def add_row(self, *args):

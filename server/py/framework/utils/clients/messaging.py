@@ -17,7 +17,6 @@ import http
 import http.cookies
 import re
 import threading
-import typing
 import urllib
 import urllib.parse
 
@@ -47,7 +46,7 @@ class Client(metaclass=mlrun.utils.singleton.AbstractSingleton):
         self,
         path: str,
         version: str = "v1",
-        headers: typing.Optional[dict] = None,
+        headers: dict | None = None,
         raise_on_failure: bool = True,
         **kwargs,
     ):
@@ -65,7 +64,7 @@ class Client(metaclass=mlrun.utils.singleton.AbstractSingleton):
         self,
         path: str,
         version: str = "v1",
-        headers: typing.Optional[dict] = None,
+        headers: dict | None = None,
         raise_on_failure: bool = True,
         **kwargs,
     ):
@@ -83,7 +82,7 @@ class Client(metaclass=mlrun.utils.singleton.AbstractSingleton):
         self,
         path: str,
         version: str = "v1",
-        headers: typing.Optional[dict] = None,
+        headers: dict | None = None,
         raise_on_failure: bool = True,
         **kwargs,
     ):
@@ -101,7 +100,7 @@ class Client(metaclass=mlrun.utils.singleton.AbstractSingleton):
         self,
         path: str,
         version: str = "v1",
-        headers: typing.Optional[dict] = None,
+        headers: dict | None = None,
         raise_on_failure: bool = True,
         **kwargs,
     ):
@@ -120,7 +119,7 @@ class Client(metaclass=mlrun.utils.singleton.AbstractSingleton):
         method: str,
         path: str,
         version: str = "v1",
-        headers: typing.Optional[dict] = None,
+        headers: dict | None = None,
         raise_on_failure: bool = True,
         **kwargs,
     ) -> requests.Response:
@@ -158,7 +157,7 @@ class Client(metaclass=mlrun.utils.singleton.AbstractSingleton):
         method: str,
         url: str,
         request: fastapi.Request = None,
-        json: typing.Optional[dict] = None,
+        json: dict | None = None,
         raise_on_failure: bool = False,
         **kwargs,
     ) -> fastapi.Response:
@@ -412,7 +411,7 @@ class Client(metaclass=mlrun.utils.singleton.AbstractSingleton):
         log_kwargs: dict,
         error_details: dict,
         raise_on_failure: bool,
-        response: typing.Union[aiohttp.ClientResponse, requests.Response],
+        response: aiohttp.ClientResponse | requests.Response,
     ):
         log_kwargs["error_details"] = error_details
         logger.warning("Request to service failed", **log_kwargs)
@@ -435,7 +434,7 @@ class Client(metaclass=mlrun.utils.singleton.AbstractSingleton):
 
     @staticmethod
     async def _resolve_request_kwargs_from_request(
-        request: fastapi.Request = None, json: typing.Optional[dict] = None, **kwargs
+        request: fastapi.Request = None, json: dict | None = None, **kwargs
     ) -> dict:
         request_kwargs = {}
         if request:

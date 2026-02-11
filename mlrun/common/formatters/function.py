@@ -24,7 +24,7 @@ class FunctionFormat(ObjectFormat, mlrun.common.types.StrEnum):
     minimal = "minimal"
 
     @staticmethod
-    def format_method(_format: str) -> typing.Optional[typing.Callable]:
+    def format_method(_format: str) -> typing.Callable | None:
         return {
             FunctionFormat.full: None,
             FunctionFormat.minimal: FunctionFormat.filter_obj_method(

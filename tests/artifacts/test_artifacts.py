@@ -637,7 +637,7 @@ def test_resolve_body_hash_path(
     artifact_path: str,
     expected_hash: str,
     expected_target_path: str,
-    expected_error: typing.Union[mlrun.errors.MLRunBaseError, TypeError],
+    expected_error: mlrun.errors.MLRunBaseError | TypeError,
 ):
     if expected_error:
         with pytest.raises(expected_error):

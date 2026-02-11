@@ -14,7 +14,7 @@
 
 import importlib
 import os
-from typing import Any, Optional, Union
+from typing import Any
 
 import mlrun.common.db.dialects
 import mlrun.errors
@@ -62,7 +62,7 @@ class DBUtil:
 
     def set_configurations(
         self,
-        config_items: Optional[Union[list[str], dict[str, Any]]] = None,
+        config_items: list[str] | dict[str, Any] | None = None,
     ) -> None:
         items = config_items or self._DEFAULT_DB_CONFIGURATIONS
         keys = _to_keyset(items)
@@ -142,7 +142,7 @@ class DBUtil:
     def _apply_configurations(
         self,
         connection: Any,
-        config_items: Union[list[str], dict[str, str]],
+        config_items: list[str] | dict[str, str],
     ) -> None:
         mlrun.utils.logger.debug("Applying configurations", configs=config_items)
 
@@ -216,7 +216,7 @@ class UtilPostgres(DBUtil):
     def _apply_configurations(
         self,
         connection: Any,
-        config_items: Union[list[str], dict[str, str]],
+        config_items: list[str] | dict[str, str],
     ) -> None:
         """
         Accepts either a list of "name=value" strings or a dict{name: value},
@@ -303,7 +303,7 @@ class UtilSQLite(DBUtil):
     def _apply_configurations(
         self,
         connection: Any,
-        config_items: Union[list[str], dict[str, str]],
+        config_items: list[str] | dict[str, str],
     ) -> None:
         if isinstance(config_items, dict):
             items = [f"{k}={v}" for k, v in config_items.items()]
@@ -324,8 +324,8 @@ class UtilSQLite(DBUtil):
 
 
 def _to_keyset(
-    items: Optional[Union[list[str], dict[str, Any]]],
-) -> Optional[set[str]]:
+    items: list[str] | dict[str, Any] | None,
+) -> set[str] | None:
     if items is None:
         return set()
     if isinstance(items, dict):

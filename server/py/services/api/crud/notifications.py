@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import typing
 
 import sqlalchemy.orm
 
@@ -34,7 +33,7 @@ class Notifications(
         session: sqlalchemy.orm.Session,
         notification_objects: list[mlrun.model.Notification],
         alert_id: str,
-        project: typing.Optional[str] = None,
+        project: str | None = None,
         mask_params: bool = True,
     ):
         # we don't mask the notification params when it's a status update as they are already masked
@@ -55,7 +54,7 @@ class Notifications(
         session: sqlalchemy.orm.Session,
         notification_objects: list[mlrun.model.Notification],
         run_uid: str,
-        project: typing.Optional[str] = None,
+        project: str | None = None,
         mask_params: bool = True,
     ):
         # we don't mask the notification params when it's a status update as they are already masked
@@ -84,9 +83,9 @@ class Notifications(
     def delete_run_notifications(
         self,
         session: sqlalchemy.orm.Session,
-        name: typing.Optional[str] = None,
-        run_uid: typing.Optional[str] = None,
-        project: typing.Optional[str] = None,
+        name: str | None = None,
+        run_uid: str | None = None,
+        project: str | None = None,
     ):
         # Delete notification param project secret
         notifications = [
@@ -111,9 +110,8 @@ class Notifications(
         auth_info: mlrun.common.schemas.AuthInfo,
         project: str,
         notifications: list[mlrun.common.schemas.Notification],
-        notification_parent: typing.Union[
-            mlrun.common.schemas.RunIdentifier, mlrun.common.schemas.ScheduleIdentifier
-        ],
+        notification_parent: mlrun.common.schemas.RunIdentifier
+        | mlrun.common.schemas.ScheduleIdentifier,
     ):
         """
         Sets notifications on given object (run or schedule, might be extended in the future).

@@ -16,7 +16,6 @@ import os
 from base64 import b64decode
 from copy import deepcopy
 from http import HTTPMethod
-from typing import Optional, Union
 
 import nuclio
 from nuclio import KafkaTrigger
@@ -186,7 +185,7 @@ class APIHandlerConfig(mlrun.model.ModelObj):
 def new_v2_model_server(
     name,
     model_class: str,
-    models: Optional[dict] = None,
+    models: dict | None = None,
     filename="",
     protocol="",
     image="",
@@ -289,7 +288,7 @@ class ServingSpec(nuclio_function.NuclioSpec):
         model_endpoint_creation_task_name=None,
         serving_spec=None,
         auth=None,
-        streaming: Optional[bool] = None,
+        streaming: bool | None = None,
         api_handler_config: APIHandlerConfig | None = None,
     ):
         super().__init__(
@@ -337,7 +336,7 @@ class ServingSpec(nuclio_function.NuclioSpec):
 
         self.models = models or {}
         self._graph = None
-        self.graph: Union[RouterStep, RootFlowStep] = graph
+        self.graph: RouterStep | RootFlowStep = graph
         self.parameters = parameters or {}
         self.default_class = default_class
         self.load_mode = load_mode
@@ -357,7 +356,7 @@ class ServingSpec(nuclio_function.NuclioSpec):
         )
 
     @property
-    def graph(self) -> Union[RouterStep, RootFlowStep]:
+    def graph(self) -> RouterStep | RootFlowStep:
         """states graph, holding the serving workflow/DAG topology"""
         return self._graph
 
@@ -395,9 +394,9 @@ class ServingRuntime(nuclio_function.RemoteRuntime):
         engine=None,
         exist_ok=False,
         allow_cyclic: bool = False,
-        max_iterations: Optional[int] = None,
+        max_iterations: int | None = None,
         **class_args,
-    ) -> Union[RootFlowStep, RouterStep]:
+    ) -> RootFlowStep | RouterStep:
         """set the serving graph topology (router/flow) and root class or params
 
         examples::
@@ -467,9 +466,9 @@ class ServingRuntime(nuclio_function.RemoteRuntime):
 
     def set_tracking(
         self,
-        stream_path: Optional[str] = None,
+        stream_path: str | None = None,
         sampling_percentage: float = 100,
-        stream_args: Optional[dict] = None,
+        stream_args: dict | None = None,
         enable_tracking: bool = True,
     ) -> None:
         """Apply on your serving function to monitor a deployed model, including real-time dashboards to detect drift
@@ -586,16 +585,15 @@ class ServingRuntime(nuclio_function.RemoteRuntime):
     def add_model(
         self,
         key: str,
-        model_path: Optional[str] = None,
-        class_name: Optional[str] = None,
-        model_url: Optional[str] = None,
-        handler: Optional[str] = None,
-        router_step: Optional[str] = None,
-        child_function: Optional[str] = None,
-        creation_strategy: Optional[
-            schemas.ModelEndpointCreationStrategy
-        ] = schemas.ModelEndpointCreationStrategy.INPLACE,
-        outputs: Optional[list[str]] = None,
+        model_path: str | None = None,
+        class_name: str | None = None,
+        model_url: str | None = None,
+        handler: str | None = None,
+        router_step: str | None = None,
+        child_function: str | None = None,
+        creation_strategy: schemas.ModelEndpointCreationStrategy
+        | None = schemas.ModelEndpointCreationStrategy.INPLACE,
+        outputs: list[str] | None = None,
         **class_args,
     ):
         """Add ml model and/or route to the function.
@@ -778,7 +776,7 @@ class ServingRuntime(nuclio_function.RemoteRuntime):
                         stream.path, group=group, shards=stream.shards, **trigger_args
                     )
 
-    def _deploy_function_refs(self, builder_env: Optional[dict] = None):
+    def _deploy_function_refs(self, builder_env: dict | None = None):
         """set metadata and deploy child functions"""
         for function_ref in self._spec.function_refs.values():
             logger.info(f"deploy child function {function_ref.name} ...")
@@ -857,7 +855,7 @@ class ServingRuntime(nuclio_function.RemoteRuntime):
         project="",
         tag="",
         verbose=False,
-        builder_env: Optional[dict] = None,
+        builder_env: dict | None = None,
         force_build: bool = False,
     ):
         """deploy model serving function to a local/remote cluster
@@ -974,7 +972,7 @@ class ServingRuntime(nuclio_function.RemoteRuntime):
         current_function="*",
         track_models=False,
         workdir=None,
-        stream_profile: Optional[ds_profile.DatastoreProfile] = None,
+        stream_profile: ds_profile.DatastoreProfile | None = None,
         **kwargs,
     ) -> GraphServer:
         """create mock server object for local testing/emulation
@@ -1073,9 +1071,7 @@ class ServingRuntime(nuclio_function.RemoteRuntime):
         )
         self._mock_server = self.to_mock_server()
 
-    def to_job(
-        self, func_name: Optional[str] = None
-    ) -> "kubejob_runtime.KubejobRuntime":
+    def to_job(self, func_name: str | None = None) -> "kubejob_runtime.KubejobRuntime":
         """Convert this ServingRuntime to a KubejobRuntime, so that the graph can be run as a standalone job.
 
         :param func_name: Optional custom name for the job function. If not provided, automatically
@@ -1205,7 +1201,7 @@ class ServingRuntime(nuclio_function.RemoteRuntime):
                 )
                 self.with_requirements(requirements=reqs_union, overwrite=True)
 
-    def set_api_handler_config(self, config: Union[APIHandlerConfig, dict]) -> None:
+    def set_api_handler_config(self, config: APIHandlerConfig | dict) -> None:
         """Set the API handler configuration for the serving function.
 
         :param config: :py:class:`~mlrun.runtimes.nuclio.serving.APIHandlerConfig` object or dictionary containing

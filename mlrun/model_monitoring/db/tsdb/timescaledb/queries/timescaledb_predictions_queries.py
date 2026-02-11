@@ -13,7 +13,6 @@
 # limitations under the License.
 
 from datetime import datetime, timedelta
-from typing import Optional, Union
 
 import pandas as pd
 import v3io_frames.client
@@ -42,10 +41,10 @@ class TimescaleDBPredictionsQueries:
 
     def __init__(
         self,
-        project: Optional[str] = None,
+        project: str | None = None,
         connection=None,
         pre_aggregate_manager=None,
-        tables: Optional[dict] = None,
+        tables: dict | None = None,
     ):
         """
         Initialize TimescaleDB predictions query handler.
@@ -63,15 +62,15 @@ class TimescaleDBPredictionsQueries:
     def read_predictions_impl(
         self,
         *,
-        endpoint_id: Optional[str] = None,
+        endpoint_id: str | None = None,
         start: datetime,
         end: datetime,
-        columns: Optional[list[str]] = None,
-        aggregation_window: Optional[str] = None,
-        agg_funcs: Optional[list[str]] = None,
-        limit: Optional[int] = None,
+        columns: list[str] | None = None,
+        aggregation_window: str | None = None,
+        agg_funcs: list[str] | None = None,
+        limit: int | None = None,
         use_pre_aggregates: bool = True,
-        timestamp_column: Optional[str] = None,
+        timestamp_column: str | None = None,
     ) -> pd.DataFrame:
         """Read predictions data from TimescaleDB (predictions table) - returns DataFrame.
 
@@ -143,14 +142,14 @@ class TimescaleDBPredictionsQueries:
         endpoint_id: str,
         start: datetime,
         end: datetime,
-        aggregation_window: Optional[str] = None,
-        agg_funcs: Optional[list[str]] = None,
-        limit: Optional[int] = None,
+        aggregation_window: str | None = None,
+        agg_funcs: list[str] | None = None,
+        limit: int | None = None,
         use_pre_aggregates: bool = True,
-    ) -> Union[
-        mm_schemas.ModelEndpointMonitoringMetricValues,
-        mm_schemas.ModelEndpointMonitoringMetricNoData,
-    ]:
+    ) -> (
+        mm_schemas.ModelEndpointMonitoringMetricValues
+        | mm_schemas.ModelEndpointMonitoringMetricNoData
+    ):
         """Read predictions with optional pre-aggregate optimization."""
 
         table_schema = self.tables[mm_schemas.TimescaleDBTables.PREDICTIONS]
@@ -204,10 +203,10 @@ class TimescaleDBPredictionsQueries:
 
     def get_last_request(
         self,
-        endpoint_ids: Union[str, list[str]],
-        start: Optional[datetime] = None,
-        end: Optional[datetime] = None,
-        interval: Optional[str] = None,
+        endpoint_ids: str | list[str],
+        start: datetime | None = None,
+        end: datetime | None = None,
+        interval: str | None = None,
     ) -> pd.DataFrame:
         """Get last request timestamp with optional pre-aggregate optimization."""
 
@@ -282,11 +281,11 @@ class TimescaleDBPredictionsQueries:
 
     def get_avg_latency(
         self,
-        endpoint_ids: Union[str, list[str]],
-        start: Optional[datetime] = None,
-        end: Optional[datetime] = None,
+        endpoint_ids: str | list[str],
+        start: datetime | None = None,
+        end: datetime | None = None,
         get_raw: bool = False,
-    ) -> Union[pd.DataFrame, list[v3io_frames.client.RawFrame]]:
+    ) -> pd.DataFrame | list[v3io_frames.client.RawFrame]:
         """Get average latency with automatic pre-aggregate optimization, returning single value per endpoint."""
 
         # Convert single endpoint to list for consistent handling

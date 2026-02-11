@@ -15,7 +15,6 @@ import json
 import time
 import unittest
 from concurrent.futures import ThreadPoolExecutor
-from typing import Optional
 
 import pytest
 
@@ -129,7 +128,7 @@ class BaseMockModelProviderTest:
         self._verify_error_tracking(event, inputs[0])
 
     def _check_single_invocation(
-        self, invoke_func, mlrun_model_name: Optional[str] = None
+        self, invoke_func, mlrun_model_name: str | None = None
     ):
         """Helper to test single invocation and verify response"""
         if mlrun_model_name:
@@ -146,9 +145,7 @@ class BaseMockModelProviderTest:
 
         self._verify_single_response(response)
 
-    def _check_batch_invocation(
-        self, invoke_func, mlrun_model_name: Optional[str] = None
-    ):
+    def _check_batch_invocation(self, invoke_func, mlrun_model_name: str | None = None):
         """Helper to test batch invocation and verify responses"""
         if mlrun_model_name:
             # System test - use function.invoke()
@@ -163,7 +160,7 @@ class BaseMockModelProviderTest:
         self._verify_batch_response(batch_response)
 
     def _check_single_invocation_with_error(
-        self, invoke_func, mlrun_model_name: Optional[str] = None
+        self, invoke_func, mlrun_model_name: str | None = None
     ):
         """Helper to test single invocation with error and verify error is raised"""
         # Single input with ERROR keyword to trigger mock error
@@ -189,7 +186,7 @@ class BaseMockModelProviderTest:
                 invoke_func(body=error_input)
 
     def _check_batch_invocation_with_error(
-        self, invoke_func, mlrun_model_name: Optional[str] = None
+        self, invoke_func, mlrun_model_name: str | None = None
     ):
         """Helper to test batch invocation with error and verify error is raised"""
         # Append error input to BATCH_INPUT_DATA - the ERROR keyword will trigger mock error

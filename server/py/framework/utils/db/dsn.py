@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import re
-from typing import Any, Optional, Union
+from typing import Any
 from urllib.parse import parse_qs, quote, quote_plus, unquote, urlencode, urlparse
 
 import mlrun
@@ -59,7 +59,7 @@ class Dsn:
         # Query configurations
         if self._parsed.query:
             raw_qs = parse_qs(self._parsed.query)
-            self.configurations: dict[str, Union[str, list[str]]] = {
+            self.configurations: dict[str, str | list[str]] = {
                 key: (value[0] if len(value) == 1 else value)
                 for key, value in raw_qs.items()
             }
@@ -206,6 +206,6 @@ class Dsn:
         return self.as_dsn(mask_credentials=True)
 
     @staticmethod
-    def _split_scheme(scheme: str) -> tuple[str, Optional[str]]:
+    def _split_scheme(scheme: str) -> tuple[str, str | None]:
         parts = scheme.split("+", 1)
         return parts[0], parts[1] if len(parts) == 2 else None

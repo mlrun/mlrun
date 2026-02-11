@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import typing
 
 import pytest
 
@@ -54,10 +53,8 @@ import mlrun.launcher.remote
 def test_create_client_launcher(
     is_remote: bool,
     local: bool,
-    expected_instance: typing.Union[
-        mlrun.launcher.base.BaseLauncher,
-        mlrun.launcher.local.ClientLocalLauncher,
-    ],
+    expected_instance: mlrun.launcher.base.BaseLauncher
+    | mlrun.launcher.local.ClientLocalLauncher,
 ):
     launcher = mlrun.launcher.factory.LauncherFactory().create_launcher(
         is_remote, local=local

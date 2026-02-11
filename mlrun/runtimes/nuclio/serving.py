@@ -92,25 +92,64 @@ class APIHandlerConfig(mlrun.model.ModelObj):
                 f"Invalid endpoint key format '{endpoint_key}'. Expected 'METHOD:path'"
             ) from e
 
-    def get_endpoint_config(self, method: HTTPMethod, path: str) -> dict | None:
+    @staticmethod
+    def _normalize_path(path: str) -> str:
+        """Normalize path to ensure it starts with a forward slash.
+
+        :param path: URL path to normalize
+        :return: Normalized path with leading slash
+        """
+        if not path.startswith("/"):
+            return f"/{path}"
+        return path
+
+    @staticmethod
+    def _validate_http_method(http_method: HTTPMethod | str) -> HTTPMethod:
+        """Validate and normalize the provided HTTP method.
+
+        :param http_method: HTTP method to validate (HTTPMethod enum or string)
+        :return: Normalized HTTPMethod enum value
+        :raises mlrun.errors.MLRunInvalidArgumentError: If method is not a valid HTTPMethod or string
+        """
+        if isinstance(http_method, HTTPMethod):
+            return http_method
+        if isinstance(http_method, str):
+            try:
+                return HTTPMethod(http_method.upper())
+            except ValueError:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    f"Invalid HTTP method string '{http_method}'. "
+                    f"Valid values are: {', '.join(m.value for m in HTTPMethod)}"
+                ) from None
+        # Not HTTPMethod or str - reject with helpful error
+        raise mlrun.errors.MLRunInvalidArgumentError(
+            f"http_method must be an HTTPMethod enum or string, got {type(http_method).__name__} "
+            f"with value '{http_method}'. Valid values are: {', '.join(m.value for m in HTTPMethod)}"
+        )
+
+    def get_endpoint_config(self, method: HTTPMethod | str, path: str) -> dict | None:
         """Get endpoint configuration for a specific method and path."""
+        method = self._validate_http_method(method)
+        path = self._normalize_path(path)
         endpoint_key = serving_utils._combine_serving_endpoint_key(method, path)
         return self._endpoints.get(endpoint_key)
 
     def add_endpoint_handler(
         self,
         path: str,
-        http_method: HTTPMethod = HTTPMethod.POST,
+        http_method: HTTPMethod | str = HTTPMethod.POST,
         action: schemas.serving.APIHandlerAction = schemas.serving.APIHandlerAction.ALLOW,
         description: str | None = None,
     ) -> None:
         """Add an endpoint handler configuration.
 
         :param path: URL path for the endpoint (e.g., '/v1/models')
-        :param http_method: HTTP method for the endpoint
+        :param http_method: HTTP method for the endpoint (HTTPMethod enum or string like 'GET', 'POST')
         :param action: Action to take for this endpoint (:py:class:`~mlrun.common.schemas.serving.APIHandlerAction`)
         :param description: Optional description of the endpoint
         """
+        http_method = self._validate_http_method(http_method)
+        path = self._normalize_path(path)
         endpoint_key = serving_utils._combine_serving_endpoint_key(http_method, path)
 
         # Warn if overriding an existing endpoint
@@ -131,13 +170,15 @@ class APIHandlerConfig(mlrun.model.ModelObj):
     def remove_endpoint_handler(
         self,
         path: str,
-        http_method: HTTPMethod = HTTPMethod.POST,
+        http_method: HTTPMethod | str = HTTPMethod.POST,
     ) -> None:
         """Remove an endpoint handler configuration.
 
         :param path: URL path for the endpoint to remove
-        :param http_method: HTTP method for the endpoint to remove
+        :param http_method: HTTP method for the endpoint to remove (HTTPMethod enum or string like 'GET', 'POST')
         """
+        http_method = self._validate_http_method(http_method)
+        path = self._normalize_path(path)
         endpoint_key = serving_utils._combine_serving_endpoint_key(http_method, path)
         self._endpoints.pop(endpoint_key, None)
 

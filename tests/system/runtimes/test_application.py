@@ -116,8 +116,7 @@ class TestApplicationRuntime(tests.system.base.TestMLRunSystem):
     def test_deploy_application_from_project_source(self):
         self._upload_code_to_cluster()
 
-        # pull_at_runtime is not supported and should be overridden
-        self.project.set_source(self._source, pull_at_runtime=True)
+        self.project.set_source(self._source)
         self.project.save()
 
         self._logger.debug("Creating application")

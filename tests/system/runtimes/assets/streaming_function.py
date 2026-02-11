@@ -14,6 +14,40 @@
 
 import asyncio
 
+import storey
+
+from mlrun.serving import Model
+
+
+class StreamingChoice(storey.Choice):
+    """Routes events based on URL path."""
+
+    def select_outlets(self, event):
+        # event.path is the URL path, e.g., "/step" or "/model"
+        path = getattr(event, "path", "/step")
+        route = path.lstrip("/") or "step"
+        return [route]
+
+
+class StreamingModel(Model):
+    """A model that yields streaming chunks from predict()."""
+
+    def __init__(self, num_chunks=3, **kwargs):
+        super().__init__(**kwargs)
+        self.num_chunks = num_chunks
+
+    def predict(self, body, **kwargs):
+        if isinstance(body, bytes):
+            body = body.decode("utf-8")
+
+        for i in range(self.num_chunks):
+            yield f"{body}_chunk_{i}"
+
+
+class Echo:
+    def do(self, x):
+        return x
+
 
 class StreamingStep:
     """A step that yields streaming chunks."""
@@ -25,7 +59,6 @@ class StreamingStep:
 
     async def do(self, x):
         """Yield multiple chunks for a single input."""
-
         if isinstance(x, bytes):
             x = x.decode("utf-8")
 

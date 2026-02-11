@@ -90,6 +90,17 @@ class DynamicTokenProvider(TokenProvider):
     def is_iguazio_session(self):
         return False
 
+    @property
+    def authenticated_username(self) -> typing.Optional[str]:
+        """
+        Extract the authenticated username from the JWT access token.
+
+        :return: The 'preferred_username' claim from the JWT, or None if not present.
+        """
+        if not self._token:
+            return None
+        return mlrun.auth.utils.resolve_jwt_username(self._token, raise_on_error=False)
+
     def fetch_token(self):
         mlrun.utils.helpers.run_with_retry(
             retry_count=self._max_retries,

@@ -562,7 +562,7 @@ class MLClientCtx:
         """
         return mlrun.get_secret_or_env(key, secret_provider=self._secrets_manager)
 
-    def get_input(self, key: str, url: str = ""):
+    def get_input(self, key: str, url: str | dict | list = ""):
         """
         Get an input :py:class:`~mlrun.DataItem` object,
         data objects have methods such as .get(), .download(), .url, .. to access the actual data.
@@ -574,7 +574,7 @@ class MLClientCtx:
 
         :param key:  The key name for the input url entry.
         :param url:  The url of the input data (file, stream, ..) - optional, saved in the inputs dictionary
-                     if the key is not already present.
+                     if the key is not already present. Can be passed as a list or dictionary of urls as well.
 
         :return:     :py:class:`~mlrun.datastore.base.DataItem` object
         """
@@ -582,12 +582,27 @@ class MLClientCtx:
             self._set_input(key, url)
 
         url = self._inputs[key]
-        return self._data_stores.object(
-            url,
-            key,
-            project=self._project,
-            allow_empty_resources=self._allow_empty_resources,
-        )
+
+        def recursive_get_input(input_key: str, input_url: str | dict | list):
+            if isinstance(input_url, dict):
+                inputs_dict = {}
+                for k, v in input_url.items():
+                    inputs_dict[k] = recursive_get_input(k, v)
+                return inputs_dict
+            if isinstance(input_url, list):
+                return [
+                    recursive_get_input(f"{input_key}_{i}", v)
+                    for i, v in enumerate(url)
+                ]
+            # String:
+            return self._data_stores.object(
+                input_url,
+                input_key,
+                project=self._project,
+                allow_empty_resources=self._allow_empty_resources,
+            )
+
+        return recursive_get_input(key, url)
 
     def log_result(self, key: str, value, commit=False):
         """Log a scalar result value
@@ -1470,14 +1485,26 @@ class MLClientCtx:
             self._project_object = self._rundb.get_project(self._project)
         return self._project_object
 
-    def _set_input(self, key, url=""):
+    def _set_input(self, key: str, url: str | dict | list = ""):
         if url is None:
             return
         if not url:
             url = key
-        if self.in_path and is_relative_path(url):
-            url = os.path.join(self._in_path, url)
-        self._inputs[key] = url
+
+        # In case input is a nested structure, we need to recursively set the paths:
+        def recursive_set_input(input_url: str | dict | list):
+            if isinstance(input_url, dict):
+                for k, v in input_url.items():
+                    input_url[k] = recursive_set_input(input_url=v)
+                return input_url
+            if isinstance(input_url, list):
+                return [recursive_set_input(input_url=v) for v in input_url]
+            # String
+            if self.in_path and is_relative_path(input_url):
+                input_url = os.path.join(self._in_path, input_url)
+            return input_url
+
+        self._inputs[key] = recursive_set_input(input_url=url)
 
     def _merge_tmpfile(self):
         if not self._tmpfile:
@@ -1510,6 +1537,8 @@ class MLClientCtx:
 
 
 def _cast_result(value):
+    if value is None:
+        return None
     if isinstance(value, int | str | float):
         return value
     if isinstance(value, list):

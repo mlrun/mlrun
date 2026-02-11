@@ -16,6 +16,7 @@ import ast
 import os
 import pathlib
 import tempfile
+import types
 
 from mlrun import MLClientCtx
 from mlrun.package.packagers.python_standard_library_packagers import (
@@ -47,17 +48,12 @@ from tests.package.packager_tester import (
 # ----------------------------------------------------------------------------------------------------------------------
 
 
-NoneType = type(None)  # TODO: Replace with types.NoneType from python 3.10
-
-
-def pack_none() -> NoneType:
+def pack_none() -> types.NoneType:
     return None
 
 
-def validate_none(result: NoneType) -> bool:
-    # TODO: None values should not be casted to strings when casted to results, once it is implemented in
-    #       'execution._cast_result`, change this validation to `return result is None`.
-    return result == "None"
+def validate_none(result: types.NoneType) -> bool:
+    return result is None
 
 
 class NonePackagerTester(PackagerTester):
@@ -352,6 +348,34 @@ def prepare_dict_file(file_format: str) -> tuple[str, str]:
     return file_path, temp_directory
 
 
+# Unbundling test samples and handlers for dict:
+_BUNDLE_DICT_SAMPLE = {"a": {"x": 1}, "b": {"y": 2}, "c": {"z": 3}}
+
+
+def pack_dict_for_bundling() -> dict:
+    return _BUNDLE_DICT_SAMPLE
+
+
+def unpack_bundled_dict(obj: dict[str, dict]):
+    assert isinstance(obj, dict)
+    assert obj == _BUNDLE_DICT_SAMPLE
+
+
+def validate_bundled_dict(result: dict) -> bool:
+    return result == _BUNDLE_DICT_SAMPLE
+
+
+def prepare_bundled_dict() -> tuple[dict[str, str], str]:
+    temp_directory = tempfile.mkdtemp()
+    formatter = StructFileSupportedFormat.get_format_handler(fmt="json")
+    paths = {}
+    for key, value in _BUNDLE_DICT_SAMPLE.items():
+        file_path = os.path.join(temp_directory, f"{key}.json")
+        formatter.write(obj=value, file_path=file_path)
+        paths[key] = file_path
+    return paths, temp_directory
+
+
 class DictPackagerTester(PackagerTester):
     """
     A tester for the `DictPackager`.
@@ -365,6 +389,11 @@ class DictPackagerTester(PackagerTester):
             log_hint="my_dict",
             validation_function=validate_dict_result,
         ),
+        PackTest(
+            pack_handler="pack_dict_for_bundling",
+            log_hint="1*items",
+            validation_function=validate_bundled_dict,
+        ),
         *[
             UnpackTest(
                 prepare_input_function=prepare_dict_file,
@@ -373,6 +402,10 @@ class DictPackagerTester(PackagerTester):
             )
             for file_format in StructFileSupportedFormat.get_all_formats()
         ],
+        UnpackTest(
+            prepare_input_function=prepare_bundled_dict,
+            unpack_handler="unpack_bundled_dict",
+        ),
         PackToUnpackTest(
             pack_handler="pack_dict",
             log_hint="my_dict",
@@ -401,6 +434,11 @@ class DictPackagerTester(PackagerTester):
             )
             for file_format in StructFileSupportedFormat.get_all_formats()
         ],
+        PackToUnpackTest(
+            pack_handler="pack_dict_for_bundling",
+            log_hint="1*items: object",
+            unpack_handler="unpack_bundled_dict",
+        ),
     ]
 
 
@@ -428,6 +466,34 @@ def prepare_list_file(file_format: str) -> tuple[str, str]:
     return file_path, temp_directory
 
 
+# Bundling/unbundling test samples and handlers for list:
+_BUNDLE_LIST_SAMPLE = [[1, 2], [3, 4], [5, 6]]
+
+
+def pack_list_for_bundling() -> list:
+    return _BUNDLE_LIST_SAMPLE
+
+
+def unpack_bundled_list(obj: list[list]):
+    assert isinstance(obj, list)
+    assert obj == _BUNDLE_LIST_SAMPLE
+
+
+def validate_bundled_list(result: list) -> bool:
+    return result == _BUNDLE_LIST_SAMPLE
+
+
+def prepare_bundled_list() -> tuple[list[str], str]:
+    temp_directory = tempfile.mkdtemp()
+    formatter = StructFileSupportedFormat.get_format_handler(fmt="json")
+    paths = []
+    for i, value in enumerate(_BUNDLE_LIST_SAMPLE):
+        file_path = os.path.join(temp_directory, f"{i}.json")
+        formatter.write(obj=value, file_path=file_path)
+        paths.append(file_path)
+    return paths, temp_directory
+
+
 class ListPackagerTester(PackagerTester):
     """
     A tester for the `ListPackager`.
@@ -441,6 +507,11 @@ class ListPackagerTester(PackagerTester):
             log_hint="my_list",
             validation_function=validate_list_result,
         ),
+        PackTest(
+            pack_handler="pack_list_for_bundling",
+            log_hint="1*items",
+            validation_function=validate_bundled_list,
+        ),
         *[
             UnpackTest(
                 prepare_input_function=prepare_list_file,
@@ -449,6 +520,10 @@ class ListPackagerTester(PackagerTester):
             )
             for file_format in StructFileSupportedFormat.get_all_formats()
         ],
+        UnpackTest(
+            prepare_input_function=prepare_bundled_list,
+            unpack_handler="unpack_bundled_list",
+        ),
         PackToUnpackTest(
             pack_handler="pack_list",
             log_hint="my_list",
@@ -477,6 +552,11 @@ class ListPackagerTester(PackagerTester):
             )
             for file_format in StructFileSupportedFormat.get_all_formats()
         ],
+        PackToUnpackTest(
+            pack_handler="pack_list_for_bundling",
+            log_hint="1*items: object",
+            unpack_handler="unpack_bundled_list",
+        ),
     ]
 
 
@@ -505,6 +585,34 @@ def prepare_tuple_file(file_format: str) -> tuple[str, str]:
     return file_path, temp_directory
 
 
+# Bundling/unbundling test samples and handlers for tuple:
+_BUNDLE_TUPLE_SAMPLE = ((1, 2), (3, 4), (5, 6))
+
+
+def pack_tuple_for_bundling() -> tuple:
+    return _BUNDLE_TUPLE_SAMPLE
+
+
+def unpack_bundled_tuple(obj: tuple[tuple]):
+    assert isinstance(obj, tuple)
+    assert obj == _BUNDLE_TUPLE_SAMPLE
+
+
+def validate_bundled_tuple(result: list) -> bool:
+    return tuple(tuple(r) for r in result) == _BUNDLE_TUPLE_SAMPLE
+
+
+def prepare_bundled_tuple() -> tuple[list[str], str]:
+    temp_directory = tempfile.mkdtemp()
+    formatter = StructFileSupportedFormat.get_format_handler(fmt="json")
+    paths = []
+    for i, value in enumerate(_BUNDLE_TUPLE_SAMPLE):
+        file_path = os.path.join(temp_directory, f"{i}.json")
+        formatter.write(obj=list(value), file_path=file_path)
+        paths.append(file_path)
+    return paths, temp_directory
+
+
 class TuplePackagerTester(PackagerTester):
     """
     A tester for the `TuplePackager`.
@@ -518,6 +626,11 @@ class TuplePackagerTester(PackagerTester):
             log_hint="my_tuple",
             validation_function=validate_tuple_result,
         ),
+        PackTest(
+            pack_handler="pack_tuple_for_bundling",
+            log_hint="1*items",
+            validation_function=validate_bundled_tuple,
+        ),
         *[
             UnpackTest(
                 prepare_input_function=prepare_tuple_file,
@@ -526,6 +639,10 @@ class TuplePackagerTester(PackagerTester):
             )
             for file_format in StructFileSupportedFormat.get_all_formats()
         ],
+        UnpackTest(
+            prepare_input_function=prepare_bundled_tuple,
+            unpack_handler="unpack_bundled_tuple",
+        ),
         PackToUnpackTest(
             pack_handler="pack_tuple",
             log_hint="my_tuple",
@@ -554,6 +671,11 @@ class TuplePackagerTester(PackagerTester):
             )
             for file_format in StructFileSupportedFormat.get_all_formats()
         ],
+        PackToUnpackTest(
+            pack_handler="pack_tuple_for_bundling",
+            log_hint="1*items: object",
+            unpack_handler="unpack_bundled_tuple",
+        ),
     ]
 
 
@@ -582,6 +704,35 @@ def prepare_set_file(file_format: str) -> tuple[str, str]:
     return file_path, temp_directory
 
 
+# Bundling/unbundling test samples and handlers for set:
+_BUNDLE_SET_SAMPLE = {frozenset([1, 2]), frozenset([3, 4]), frozenset([5, 6])}
+
+
+def pack_set_for_bundling() -> set:
+    return _BUNDLE_SET_SAMPLE
+
+
+def unpack_bundled_set(obj: set[frozenset]):
+    assert isinstance(obj, set)
+    assert obj == _BUNDLE_SET_SAMPLE
+
+
+def validate_bundled_set(result: list) -> bool:
+    return set(frozenset(r) for r in result) == _BUNDLE_SET_SAMPLE
+
+
+def prepare_bundled_set() -> tuple[list[str], str]:
+    temp_directory = tempfile.mkdtemp()
+    formatter = StructFileSupportedFormat.get_format_handler(fmt="json")
+    paths = []
+    bundle_list = sorted(_BUNDLE_SET_SAMPLE, key=lambda x: sorted(x))
+    for i, value in enumerate(bundle_list):
+        file_path = os.path.join(temp_directory, f"{i}.json")
+        formatter.write(obj=list(value), file_path=file_path)
+        paths.append(file_path)
+    return paths, temp_directory
+
+
 class SetPackagerTester(PackagerTester):
     """
     A tester for the `SetPackager`.
@@ -595,6 +746,11 @@ class SetPackagerTester(PackagerTester):
             log_hint="my_set",
             validation_function=validate_set_result,
         ),
+        PackTest(
+            pack_handler="pack_set_for_bundling",
+            log_hint="1*items",
+            validation_function=validate_bundled_set,
+        ),
         *[
             UnpackTest(
                 prepare_input_function=prepare_set_file,
@@ -603,6 +759,10 @@ class SetPackagerTester(PackagerTester):
             )
             for file_format in StructFileSupportedFormat.get_all_formats()
         ],
+        UnpackTest(
+            prepare_input_function=prepare_bundled_set,
+            unpack_handler="unpack_bundled_set",
+        ),
         PackToUnpackTest(
             pack_handler="pack_set",
             log_hint="my_set",
@@ -631,6 +791,11 @@ class SetPackagerTester(PackagerTester):
             )
             for file_format in StructFileSupportedFormat.get_all_formats()
         ],
+        PackToUnpackTest(
+            pack_handler="pack_set_for_bundling",
+            log_hint="1*items: object",
+            unpack_handler="unpack_bundled_set",
+        ),
     ]
 
 
@@ -659,6 +824,37 @@ def prepare_frozenset_file(file_format: str) -> tuple[str, str]:
     return file_path, temp_directory
 
 
+# Bundling/unbundling test samples and handlers for frozenset:
+_BUNDLE_FROZENSET_SAMPLE = frozenset(
+    [frozenset([1, 2]), frozenset([3, 4]), frozenset([5, 6])]
+)
+
+
+def pack_frozenset_for_bundling() -> frozenset:
+    return _BUNDLE_FROZENSET_SAMPLE
+
+
+def unpack_bundled_frozenset(obj: frozenset[frozenset]):
+    assert isinstance(obj, frozenset)
+    assert obj == _BUNDLE_FROZENSET_SAMPLE
+
+
+def validate_bundled_frozenset(result: list) -> bool:
+    return frozenset(frozenset(r) for r in result) == _BUNDLE_FROZENSET_SAMPLE
+
+
+def prepare_bundled_frozenset() -> tuple[list[str], str]:
+    temp_directory = tempfile.mkdtemp()
+    formatter = StructFileSupportedFormat.get_format_handler(fmt="json")
+    paths = []
+    bundle_list = sorted(_BUNDLE_FROZENSET_SAMPLE, key=lambda x: sorted(x))
+    for i, value in enumerate(bundle_list):
+        file_path = os.path.join(temp_directory, f"{i}.json")
+        formatter.write(obj=list(value), file_path=file_path)
+        paths.append(file_path)
+    return paths, temp_directory
+
+
 class FrozensetPackagerTester(PackagerTester):
     """
     A tester for the `FrozensetPackager`.
@@ -672,6 +868,11 @@ class FrozensetPackagerTester(PackagerTester):
             log_hint="my_frozenset",
             validation_function=validate_frozenset_result,
         ),
+        PackTest(
+            pack_handler="pack_frozenset_for_bundling",
+            log_hint="1*items",
+            validation_function=validate_bundled_frozenset,
+        ),
         *[
             UnpackTest(
                 prepare_input_function=prepare_frozenset_file,
@@ -680,6 +881,10 @@ class FrozensetPackagerTester(PackagerTester):
             )
             for file_format in StructFileSupportedFormat.get_all_formats()
         ],
+        UnpackTest(
+            prepare_input_function=prepare_bundled_frozenset,
+            unpack_handler="unpack_bundled_frozenset",
+        ),
         PackToUnpackTest(
             pack_handler="pack_frozenset",
             log_hint="my_frozenset",
@@ -708,6 +913,11 @@ class FrozensetPackagerTester(PackagerTester):
             )
             for file_format in StructFileSupportedFormat.get_all_formats()
         ],
+        PackToUnpackTest(
+            pack_handler="pack_frozenset_for_bundling",
+            log_hint="1*items: object",
+            unpack_handler="unpack_bundled_frozenset",
+        ),
     ]
 
 

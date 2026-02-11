@@ -15,7 +15,7 @@
 import sys
 from abc import ABC
 from collections.abc import Callable
-from typing import Any, NamedTuple, Union
+from typing import Any, NamedTuple
 
 import cloudpickle
 
@@ -47,7 +47,7 @@ class PackTest(NamedTuple):
     """
 
     pack_handler: str
-    log_hint: Union[str, dict]
+    log_hint: str | dict
     validation_function: Callable[..., bool]
     pack_parameters: dict = {}
     validation_parameters: dict = {}
@@ -70,7 +70,7 @@ class UnpackTest(NamedTuple):
                                    exception message. Default is None (the test should succeed).
     """
 
-    prepare_input_function: Callable[..., tuple[str, str]]
+    prepare_input_function: Callable[..., tuple[str | dict[str, str] | list[str], str]]
     unpack_handler: str
     prepare_parameters: dict = {}
     unpack_parameters: dict = {}
@@ -98,7 +98,7 @@ class PackToUnpackTest(NamedTuple):
     """
 
     pack_handler: str
-    log_hint: Union[str, dict]
+    log_hint: str | dict
     pack_parameters: dict = {}
     expected_instructions: dict = {}
     unpack_handler: str = None
@@ -117,7 +117,7 @@ class PackagerTester(ABC):
     PACKAGER_IN_TEST: Packager = None
 
     # The list of tests tuples to include from this tester in the tests of "test_packagers.py":
-    TESTS: list[Union[PackTest, UnpackTest, PackToUnpackTest]] = []
+    TESTS: list[PackTest | UnpackTest | PackToUnpackTest] = []
 
 
 class NewClass:

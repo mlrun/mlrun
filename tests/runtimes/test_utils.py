@@ -221,6 +221,71 @@ def test_resolve_owner(labels, env_vars, owner_to_enrich, expected_owner):
             assert owner == expected_owner
 
 
+def test_resolve_owner_uses_ig4_token_provider_username():
+    """Test that resolve_owner uses authenticated_username from IG4 token provider."""
+    # Create a mock token provider with authenticated_username
+    mock_token_provider = unittest.mock.MagicMock()
+    mock_token_provider.authenticated_username = "ig4_authenticated_user"
+
+    # Create a mock db with the token provider
+    mock_db = unittest.mock.MagicMock()
+    mock_db.token_provider = mock_token_provider
+
+    # Clear V3IO_USERNAME to trigger IG4 fallback
+    with unittest.mock.patch.dict(os.environ, {"V3IO_USERNAME": ""}, clear=True):
+        with unittest.mock.patch("mlrun.get_run_db", return_value=mock_db):
+            with unittest.mock.patch("getpass.getuser", return_value="local_user"):
+                owner = mlrun.runtimes.utils.resolve_owner({})
+                assert owner == "ig4_authenticated_user"
+
+
+def test_resolve_owner_falls_back_when_token_provider_has_no_username():
+    """Test that resolve_owner falls back to getpass when token provider has no username."""
+    # Create a mock token provider without authenticated_username
+    mock_token_provider = unittest.mock.MagicMock()
+    mock_token_provider.authenticated_username = None
+
+    # Create a mock db with the token provider
+    mock_db = unittest.mock.MagicMock()
+    mock_db.token_provider = mock_token_provider
+
+    # Clear V3IO_USERNAME to trigger fallback
+    with unittest.mock.patch.dict(os.environ, {"V3IO_USERNAME": ""}, clear=True):
+        with unittest.mock.patch("mlrun.get_run_db", return_value=mock_db):
+            with unittest.mock.patch("getpass.getuser", return_value="local_user"):
+                owner = mlrun.runtimes.utils.resolve_owner({})
+                assert owner == "local_user"
+
+
+def test_resolve_owner_falls_back_when_no_db():
+    """Test that resolve_owner falls back to getpass when no db is available."""
+    # Clear V3IO_USERNAME to trigger fallback
+    with unittest.mock.patch.dict(os.environ, {"V3IO_USERNAME": ""}, clear=True):
+        with unittest.mock.patch("mlrun.get_run_db", return_value=None):
+            with unittest.mock.patch("getpass.getuser", return_value="local_user"):
+                owner = mlrun.runtimes.utils.resolve_owner({})
+                assert owner == "local_user"
+
+
+def test_resolve_owner_v3io_username_takes_precedence_over_ig4():
+    """Test that V3IO_USERNAME takes precedence over IG4 token provider username."""
+    # Create a mock token provider with authenticated_username
+    mock_token_provider = unittest.mock.MagicMock()
+    mock_token_provider.authenticated_username = "ig4_authenticated_user"
+
+    # Create a mock db with the token provider
+    mock_db = unittest.mock.MagicMock()
+    mock_db.token_provider = mock_token_provider
+
+    # Set V3IO_USERNAME to verify it takes precedence
+    with unittest.mock.patch.dict(
+        os.environ, {"V3IO_USERNAME": "v3io_user"}, clear=True
+    ):
+        with unittest.mock.patch("mlrun.get_run_db", return_value=mock_db):
+            owner = mlrun.runtimes.utils.resolve_owner({})
+            assert owner == "v3io_user"
+
+
 def test_results_to_iter_status_resolution(rundb_mock):
     """
     Test that results_to_iter correctly updates the execution state based on the results provided.
@@ -280,3 +345,61 @@ def test_results_to_iter_status_resolution(rundb_mock):
     results = results[1:]
     mlrun.runtimes.utils.results_to_iter(results, run, execution)
     assert execution.state == mlrun.common.runtimes.constants.RunStates.completed
+
+
+@pytest.mark.parametrize(
+    "output_path, owner, expected_output_path",
+    [
+        # Basic substitution
+        (
+            "/data/{{run.user}}/artifacts",
+            "alice",
+            "/data/alice/artifacts",
+        ),
+        # Multiple occurrences
+        (
+            "/{{run.user}}/data/{{run.user}}/artifacts",
+            "bob",
+            "/bob/data/bob/artifacts",
+        ),
+        # No template in path
+        (
+            "/data/artifacts",
+            "alice",
+            "/data/artifacts",
+        ),
+        # Empty output_path returns as-is
+        (
+            "",
+            "alice",
+            "",
+        ),
+        # None output_path returns None
+        (
+            None,
+            "alice",
+            None,
+        ),
+        # Empty owner returns original path
+        (
+            "/data/{{run.user}}/artifacts",
+            "",
+            "/data/{{run.user}}/artifacts",
+        ),
+        # None owner returns original path
+        (
+            "/data/{{run.user}}/artifacts",
+            None,
+            "/data/{{run.user}}/artifacts",
+        ),
+        # Both None returns None
+        (
+            None,
+            None,
+            None,
+        ),
+    ],
+)
+def test_resolve_run_user_template(output_path, owner, expected_output_path):
+    result = mlrun.runtimes.utils.resolve_run_user_template(output_path, owner)
+    assert result == expected_output_path

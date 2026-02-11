@@ -13,9 +13,12 @@
 # limitations under the License.
 
 import json
+import math
 import pickle
+import time
 import typing
 from collections.abc import Iterator
+from concurrent.futures import ThreadPoolExecutor
 from contextlib import AbstractContextManager
 from contextlib import nullcontext as does_not_raise
 from pathlib import Path
@@ -166,6 +169,54 @@ class StringBatchedModel(Model):
             else:
                 batched_body["input"].append(item)
         return batched_body
+
+
+class BatchedGraphModel(Model):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+
+    def load(self) -> None:
+        # No loading needed for this simple model
+        pass
+
+    def predict(self, body, **kwargs):
+        # Handle list of dicts with "input" key
+        # Input: [{"input": [1,2,3]}, {"input": [10,20,30]}, {"input": [100,200,300]}]
+        # Output: [{"input": [1,2,3], "output": 6}, {"input": [10,20,30], "output": 60}, ...]
+        if isinstance(body, list):
+            for item in body:
+                input_data = item["input"]
+                # Simple sum as output (you can change this logic)
+                if isinstance(input_data, list):
+                    output_value = sum(input_data)
+                else:
+                    output_value = input_data
+                item["output"] = output_value
+        return body
+
+
+class BatchedGraphModel2(Model):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+
+    def load(self) -> None:
+        # No loading needed for this simple model
+        pass
+
+    def predict(self, body, **kwargs):
+        # Handle list of dicts with "input" key
+        # Input: [{"input": [1,2,3]}, {"input": [10,20,30]}, {"input": [100,200,300]}]
+        # Output: [{"input": [1,2,3], "output": 6}, {"input": [10,20,30], "output": 60}, ...]
+        if isinstance(body, list):
+            for item in body:
+                input_data = item["input"]
+                # Simple sum as output (you can change this logic)
+                if isinstance(input_data, list):
+                    output_value = sum(input_data) + 1
+                else:
+                    output_value = input_data
+                item["output_2"] = output_value
+        return body
 
 
 def test_tracking(rundb_mock):
@@ -1780,3 +1831,178 @@ def test_mrs_direct_batch_str(
             assert event["error"] is None
             assert event["model"] == endpoint_name2
             assert event["metrics"] is None
+
+
+@pytest.mark.parametrize("multiple_models", [True, False])
+def test_batch_step_with_mrs(rundb_mock, multiple_models):
+    number_of_events = 7
+    batch_size = 2
+    function = mlrun.new_function("test-batch-mrs", kind="serving")
+    function.set_tracking("dummy://", enable_tracking=True)
+    graph = function.set_topology("flow", engine="async")
+
+    # Batch step: accumulate up to 2 events or flush after 1 second
+    graph = graph.to(
+        "storey.Batch",
+        "batching",
+        max_events=batch_size,
+        flush_after_seconds=1,
+        full_event=True,
+    )
+
+    # ModelRunnerStep: process batches through the model(s)
+    model_runner_step = ModelRunnerStep(name="model_runner", raise_exception=True)
+    model_runner_step.add_model(
+        model_class="BatchedGraphModel",
+        execution_mechanism="naive",
+        endpoint_name="my_model",
+        input_path="input",
+        result_path="output",
+    )
+
+    if multiple_models:
+        model_runner_step.add_model(
+            model_class="BatchedGraphModel2",
+            execution_mechanism="naive",
+            endpoint_name="my_model_2",
+            input_path="input",
+            result_path="output_2",
+        )
+
+    step = graph.to(model_runner_step)
+    step = step.to("storey.FlatMap", _fn="(event.body)", full_event=True)
+    step.respond()
+    server = function.to_mock_server()
+
+    try:
+        events = [
+            {"input": [10 + i, 20 + i, 30 + i]} for i in range(0, number_of_events)
+        ]
+
+        def send_event(event, delay):
+            time.sleep(delay)  # Stagger the sends
+            return server.test(body=event)
+
+        # Send events in thread pool with 0.1s between sends using submit
+        with ThreadPoolExecutor(max_workers=number_of_events) as executor:
+            futures = [
+                executor.submit(send_event, event, i * 0.1)
+                for i, event in enumerate(events)
+            ]
+            responses = [future.result() for future in futures]
+    finally:
+        server.wait_for_completion()
+
+    # Verify we got all responses
+    assert (
+        len(responses) == number_of_events
+    ), f"Expected {number_of_events} responses, got {len(responses)}"
+    assert all(r is not None for r in responses)
+
+    # Verify each response has correct input/output
+    if multiple_models:
+        expected_responses = [
+            {
+                "my_model": {"input": [10, 20, 30], "output": 60},
+                "my_model_2": {"input": [10, 20, 30], "output_2": 61},
+            },
+            {
+                "my_model": {"input": [11, 21, 31], "output": 63},
+                "my_model_2": {"input": [11, 21, 31], "output_2": 64},
+            },
+            {
+                "my_model": {"input": [12, 22, 32], "output": 66},
+                "my_model_2": {"input": [12, 22, 32], "output_2": 67},
+            },
+            {
+                "my_model": {"input": [13, 23, 33], "output": 69},
+                "my_model_2": {"input": [13, 23, 33], "output_2": 70},
+            },
+            {
+                "my_model": {"input": [14, 24, 34], "output": 72},
+                "my_model_2": {"input": [14, 24, 34], "output_2": 73},
+            },
+            {
+                "my_model": {"input": [15, 25, 35], "output": 75},
+                "my_model_2": {"input": [15, 25, 35], "output_2": 76},
+            },
+            {
+                "my_model": {"input": [16, 26, 36], "output": 78},
+                "my_model_2": {"input": [16, 26, 36], "output_2": 79},
+            },
+        ]
+    else:
+        expected_responses = [
+            {"input": [10, 20, 30], "output": 60},
+            {"input": [11, 21, 31], "output": 63},
+            {"input": [12, 22, 32], "output": 66},
+            {"input": [13, 23, 33], "output": 69},
+            {"input": [14, 24, 34], "output": 72},
+            {"input": [15, 25, 35], "output": 75},
+            {"input": [16, 26, 36], "output": 78},
+        ]
+    assert responses == expected_responses
+
+    # Verify tracking events
+    # Single model: 4 batches (2+2+2+1 = 4 total batches)
+    # Multiple models: 8 batches (4 batches × 2 models)
+    dummy_stream = server.context.stream.output_stream
+    num_models = 2 if multiple_models else 1
+    num_batches = math.ceil(number_of_events / batch_size)
+    expected_tracking_events = num_batches * num_models
+
+    assert (
+        len(dummy_stream.event_list) == expected_tracking_events
+    ), f"Expected {expected_tracking_events} tracking events, got {len(dummy_stream.event_list)}"
+
+    # Group events by model
+    model_events = {"my_model": [], "my_model_2": []}
+    for event in dummy_stream.event_list:
+        model_events[event["model"]].append(event)
+
+    # Verify events for each model
+    models_to_check = ["my_model", "my_model_2"] if multiple_models else ["my_model"]
+
+    for model_name in models_to_check:
+        events = model_events[model_name]
+        assert len(events) == num_batches
+
+        base_id = None
+        for i, event in enumerate(events):
+            # iterate over batches
+            start_idx = i * batch_size
+            end_idx = min(start_idx + batch_size, len(expected_responses))
+            batch_items = expected_responses[start_idx:end_idx]
+
+            expected_count = len(batch_items)
+
+            # Extract inputs and outputs based on response structure
+            if multiple_models:
+                expected_inputs = [item[model_name]["input"] for item in batch_items]
+                if model_name == "my_model_2":
+                    expected_outputs = [
+                        item[model_name]["output_2"] for item in batch_items
+                    ]
+                else:
+                    expected_outputs = [
+                        item[model_name]["output"] for item in batch_items
+                    ]
+            else:
+                expected_inputs = [item["input"] for item in batch_items]
+                expected_outputs = [item["output"] for item in batch_items]
+
+            assert event["effective_sample_count"] == expected_count
+            assert event["model"] == model_name
+            assert (
+                event["model_class"] == "BatchedGraphModel"
+                if model_name == "my_model"
+                else "BatchedGraphModel2"
+            )
+            assert event["error"] is None
+            assert event["request"]["inputs"] == expected_inputs
+            assert event["resp"]["outputs"] == expected_outputs
+
+            request_id = event["request"]["id"]
+            if not base_id:
+                base_id = request_id.split("-")[0]
+            assert request_id == f"{base_id}-{i:04d}"

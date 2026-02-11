@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import json
+import time
 import typing
 from collections.abc import Callable
 from datetime import UTC, datetime
@@ -43,7 +44,7 @@ from mlrun.model_monitoring.db._stats import (
 )
 from mlrun.model_monitoring.helpers import get_result_instance_fqn
 from mlrun.serving.utils import StepToDict
-from mlrun.utils import logger
+from mlrun.utils import logger, now_date
 
 _RawEvent = dict[str, Any]
 _AppResultEvent = NewType("_AppResultEvent", _RawEvent)
@@ -237,6 +238,8 @@ class WriterGraphFactory:
     def __init__(
         self,
         parquet_path: str,
+        lag_threshold_minutes: int | None = None,
+        lag_event_cooldown_minutes: int | None = None,
     ):
         self.parquet_path = parquet_path
         self.parquet_batching_max_events = (
@@ -245,6 +248,8 @@ class WriterGraphFactory:
         self.parquet_batching_timeout_secs = (
             config.model_endpoint_monitoring.writer_graph.parquet_batching_timeout_secs
         )
+        self.lag_threshold_minutes = lag_threshold_minutes
+        self.lag_event_cooldown_minutes = lag_event_cooldown_minutes
 
     def apply_writer_graph(
         self,
@@ -272,11 +277,27 @@ class WriterGraphFactory:
             after="kind_choice_step",
             project=fn.metadata.project,
         )
+        lag_threshold_seconds = (
+            self.lag_threshold_minutes * 60 if self.lag_threshold_minutes else None
+        )
+        lag_event_cooldown_seconds = (
+            self.lag_event_cooldown_minutes * 60
+            if self.lag_event_cooldown_minutes
+            else None
+        )
+        graph.add_step(
+            "WriterLagEventsGenerator",
+            "lag_events_generator",
+            after="kind_choice_step",
+            project=fn.metadata.project,
+            lag_threshold_seconds=lag_threshold_seconds,
+            lag_event_cooldown_seconds=lag_event_cooldown_seconds,
+        )
         graph.add_step(
             "storey.Filter",
             name="filter_none",
             _fn="(event is not None)",
-            after="alert_generator",
+            after=["alert_generator", "lag_events_generator"],
         )
         graph.add_step(
             "mlrun.serving.remote.MLRunAPIRemoteStep",
@@ -355,9 +376,9 @@ class KindChoice(storey.Choice):
         kind = event.get("kind")
         logger.info("Selecting the outlet for the event", kind=kind)
         if kind == WriterEventKind.METRIC:
-            outlets = ["tsdb_metrics"]
+            outlets = ["tsdb_metrics", "lag_events_generator"]
         elif kind == WriterEventKind.RESULT:
-            outlets = ["tsdb_app_results", "alert_generator"]
+            outlets = ["tsdb_app_results", "alert_generator", "lag_events_generator"]
         elif kind == WriterEventKind.STATS:
             outlets = ["stats_writer"]
         else:
@@ -446,3 +467,73 @@ class AlertGenerator(storey.MapClass):
         )
 
         return event_data
+
+
+class WriterLagEventsGenerator(storey.MapClass):
+    """Detect lag between event inference time and current time.
+
+    When the writer processes events whose ``end_infer_time`` is older than
+    ``lag_threshold_seconds``, an ``Event`` of kind
+    ``MODEL_MONITORING_LAG_DETECTED`` is emitted so the alerting system
+    can notify the user.  A per-worker cooldown prevents flooding.
+    """
+
+    def __init__(
+        self,
+        project: str,
+        lag_threshold_seconds: float | None = None,
+        lag_event_cooldown_seconds: float | None = None,
+        **kwargs,
+    ):
+        super().__init__(**kwargs)
+        self.project = project
+        self.lag_threshold_seconds = lag_threshold_seconds
+        self.lag_event_cooldown_seconds = lag_event_cooldown_seconds or 0
+        self._last_emit_ts: dict[int, float] = {}  # worker_id -> time.monotonic()
+
+    def do(self, event: dict) -> dict[str, Any] | None:
+        if self.lag_threshold_seconds is None:
+            return None
+
+        end_infer_time = event.get(WriterEvent.END_INFER_TIME)
+        if end_infer_time is None:
+            return None
+
+        if isinstance(end_infer_time, str):
+            end_infer_time = datetime.fromisoformat(end_infer_time)
+
+        lag_seconds = (now_date() - end_infer_time.astimezone(UTC)).total_seconds()
+        if lag_seconds < self.lag_threshold_seconds:
+            return None
+
+        worker_id = getattr(self.context, "worker_id", 0)
+        now_mono = time.monotonic()
+        last_emit = self._last_emit_ts.get(worker_id, -float("inf"))
+        if (now_mono - last_emit) < self.lag_event_cooldown_seconds:
+            return None
+
+        self._last_emit_ts[worker_id] = now_mono
+        entity_id = f"{self.project}.writer.{worker_id}"
+
+        event_data = alert_objects.Event(
+            kind=alert_objects.EventKind.MODEL_MONITORING_LAG_DETECTED,
+            entity=alert_objects.EventEntities(
+                kind=alert_objects.EventEntityKind.MODEL_MONITORING_INFRA,
+                project=self.project,
+                ids=[entity_id],
+            ),
+            value_dict={
+                "lag_seconds": round(lag_seconds, 1),
+                "endpoint_name": event.get(WriterEvent.ENDPOINT_NAME, ""),
+                "endpoint_id": event.get(WriterEvent.ENDPOINT_ID, ""),
+                "app_name": event.get(WriterEvent.APPLICATION_NAME, ""),
+                "worker_id": worker_id,
+            },
+        )
+        logger.info(
+            "Lag detected in writer",
+            lag_seconds=round(lag_seconds, 1),
+            entity_id=entity_id,
+            endpoint_name=event.get(WriterEvent.ENDPOINT_NAME, ""),
+        )
+        return event_data.dict()

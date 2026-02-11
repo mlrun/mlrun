@@ -53,7 +53,7 @@ class ClientLocalLauncher(launcher.ClientBaseLauncher):
         name: Optional[str] = "",
         project: Optional[str] = "",
         params: Optional[dict] = None,
-        inputs: Optional[dict[str, str]] = None,
+        inputs: Optional[dict[str, str | list | dict]] = None,
         out_path: Optional[str] = "",
         workdir: Optional[str] = "",
         artifact_path: Optional[str] = "",

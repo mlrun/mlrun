@@ -552,7 +552,11 @@ async def _ensure_project_create_or_update_permissions(
     auth_info: mlrun.common.schemas.AuthInfo,
 ):
     """Ensure create or update permissions based on project existence."""
-    if framework.utils.helpers.is_request_from_leader(auth_info.projects_role):
+    # Only check leader header in iguazio v3
+    if (
+        not mlrun.mlconf.is_iguazio_v4_mode()
+        and framework.utils.helpers.is_request_from_leader(auth_info.projects_role)
+    ):
         return
 
     try:

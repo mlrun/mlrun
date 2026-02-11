@@ -92,9 +92,7 @@ class LogHint(BaseModel):
     @validator("itemized")
     def _validate_itemized(cls, v):  # noqa: N805
         if not isinstance(v, bool | int):
-            raise ValueError(
-                f"'itemized' must be bool or int, got {type(v).__name__}"
-            )
+            raise ValueError(f"'itemized' must be bool or int, got {type(v).__name__}")
         return v
 
     @classmethod
@@ -165,14 +163,20 @@ class LogHint(BaseModel):
         :raise MLRunInvalidArgumentError: If the log hint string has an incorrect pattern.
         """
         # Look for an artifact type:
-        key, artifact_type = cls._extract_artifact_type_from_key(log_hint_key=log_hint_string)
+        key, artifact_type = cls._extract_artifact_type_from_key(
+            log_hint_key=log_hint_string
+        )
 
         # Look for unbundle operator:
         key, itemized = cls._extract_unbundling_from_key(log_hint_key=key)
 
         # Look for packing kwargs in the log hint key and move them to the packing_kwargs field:
         if artifact_type:
-            artifact_type, packing_kwargs = cls._extract_packing_kwargs_from_artifact_type(artifact_type=artifact_type)
+            artifact_type, packing_kwargs = (
+                cls._extract_packing_kwargs_from_artifact_type(
+                    artifact_type=artifact_type
+                )
+            )
         else:
             packing_kwargs = {}
 
@@ -275,7 +279,9 @@ class LogHint(BaseModel):
         return key.strip(), unbundle_level
 
     @staticmethod
-    def _extract_packing_kwargs_from_artifact_type(artifact_type: str) -> tuple[str, dict]:
+    def _extract_packing_kwargs_from_artifact_type(
+        artifact_type: str,
+    ) -> tuple[str, dict]:
         """
         Extract packing kwargs from the artifact type string if exists. If the artifact type contains packing kwargs,
         they should be given in the format of '<artifact_type>[<packing_kwarg1>=<value1>, <packing_kwarg2>=<value2>]'.
@@ -292,7 +298,11 @@ class LogHint(BaseModel):
             return artifact_type.strip(), {}
 
         # Check for valid pattern:
-        if not artifact_type.endswith("]") or artifact_type.count("[") > 1 or artifact_type.count("]") > 1:
+        if (
+            not artifact_type.endswith("]")
+            or artifact_type.count("[") > 1
+            or artifact_type.count("]") > 1
+        ):
             raise MLRunInvalidArgumentError(
                 f"Incorrect log hint pattern for packing kwargs. Packing kwargs should be given in the format of "
                 f"'<artifact_key> : <artifact_type>[<packing_kwarg1>=<value1>, <packing_kwarg2>=<value2>]', "
@@ -302,7 +312,9 @@ class LogHint(BaseModel):
         # Extract packing kwargs string and convert to dictionary:
         open_bracket_index = artifact_type.index("[")
         close_bracket_index = artifact_type.index("]")
-        packing_kwargs_string = artifact_type[open_bracket_index + 1 : close_bracket_index]
+        packing_kwargs_string = artifact_type[
+            open_bracket_index + 1 : close_bracket_index
+        ]
         packing_kwargs = {}
         for kwarg in packing_kwargs_string.split(","):
             # Split to key and value:

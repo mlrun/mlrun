@@ -16,6 +16,7 @@ import inspect
 import os
 from collections import OrderedDict
 
+from mlrun.datastore import DataItem
 from mlrun.errors import MLRunInvalidArgumentError
 from mlrun.execution import MLClientCtx
 from mlrun.package.errors import MLRunPackageCollectionError, MLRunPackagePackingError
@@ -159,7 +160,9 @@ class ContextHandler:
         parsed_args = []
         type_hints_keys = list(type_hints.keys())
         for i, argument in enumerate(args):
-            if argument in self._context.inputs:
+            if argument in self._context.inputs and isinstance(
+                argument, DataItem | list | dict
+            ):
                 parsed_args.append(
                     self._packagers_manager.unpack(
                         data_item=argument,
@@ -172,7 +175,9 @@ class ContextHandler:
 
         # Parse the keyword arguments:
         for key, value in kwargs.items():
-            if key in self._context.inputs:
+            if key in self._context.inputs and isinstance(
+                value, DataItem | list | dict
+            ):
                 kwargs[key] = self._packagers_manager.unpack(
                     data_item=value, type_hint=type_hints[key]
                 )

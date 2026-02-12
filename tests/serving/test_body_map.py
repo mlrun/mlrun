@@ -28,6 +28,21 @@ from mlrun.serving.api_handler import _APIHandlerStep
 
 
 # ---------------------------------------------------------------------------
+# Helper classes for tests
+# ---------------------------------------------------------------------------
+class PrefixStep:
+    """Processing step that adds prefix to mapped values"""
+
+    def __init__(self, prefix: str = "", **kwargs):
+        self.prefix = prefix
+
+    def do(self, event):
+        # Extract the mapped values and add prefix
+        result = f"{self.prefix}: arg1={event['arg1']}, arg2={event['arg2']}"
+        return result
+
+
+# ---------------------------------------------------------------------------
 # APIHandlerConfig body_map tests (config-level)
 # ---------------------------------------------------------------------------
 class TestAPIHandlerConfigBodyMap:
@@ -609,3 +624,54 @@ class TestBodyMapMockServer:
             assert resp == "Received: value1 and value2"
         finally:
             server.wait_for_completion()
+
+
+def test_api_handler_with_body_map_and_processing_step(rundb_mock):
+    """Test API handler with body_map followed by a processing step in the graph."""
+
+    def pass_through(arg1, arg2):
+        """Handler that passes through the mapped values"""
+        return {"arg1": arg1, "arg2": arg2}
+
+    fn = cast(
+        ServingRuntime,
+        mlrun.new_function("test-func", kind="serving", image="mlrun/mlrun"),
+    )
+
+    # Configure API handler with body mapping
+    config = APIHandlerConfig()
+    config.add_body_mapping("arg1", "$.data.field1")
+    config.add_body_mapping("arg2", "$.data.nested.field2")
+    config.add_endpoint_handler(
+        "/predict",
+        HTTPMethod.POST,
+        APIHandlerAction.ALLOW,
+        "Predict with body_map",
+    )
+    fn.set_api_handler_config(config)
+
+    # Build graph: handler -> processor
+    graph = fn.set_topology("flow", engine="sync")
+    graph.to(name="my-handler", handler=pass_through).to(
+        class_name="tests.serving.test_body_map.PrefixStep",
+        name="processor",
+        prefix="Result",
+    ).respond()
+
+    server = fn.to_mock_server()
+    try:
+        # Test with request body
+        resp = server.test(
+            "/predict",
+            method="POST",
+            body={
+                "data": {
+                    "field1": "hello",
+                    "nested": {"field2": "world"},
+                },
+                "metadata": "ignored",
+            },
+        )
+        assert resp == "Result: arg1=hello, arg2=world"
+    finally:
+        server.wait_for_completion()

@@ -57,11 +57,17 @@ serving_subkind = "serving_v2"
 class APIHandlerConfig(mlrun.model.ModelObj):
     """Configuration for API handler in serving graph"""
 
-    _dict_fields = ["enabled", "endpoints"]
+    _dict_fields = ["enabled", "endpoints", "body_map"]
 
-    def __init__(self, enabled: bool = True, endpoints: dict[str, dict] | None = None):
+    def __init__(
+        self,
+        enabled: bool = True,
+        endpoints: dict[str, dict] | None = None,
+        body_map: dict[str, str] | None = None,
+    ):
         self.enabled = enabled
         self._endpoints = endpoints or {}
+        self.body_map = body_map
 
     @property
     def endpoints(self) -> dict[str, dict]:
@@ -181,6 +187,48 @@ class APIHandlerConfig(mlrun.model.ModelObj):
         path = self._normalize_path(path)
         endpoint_key = serving_utils._combine_serving_endpoint_key(http_method, path)
         self._endpoints.pop(endpoint_key, None)
+
+    def add_body_mapping(self, parameter_name: str, json_path: str) -> None:
+        """Add a JSONPath body mapping for extracting request parameters.
+
+        Maps a JSONPath expression to a parameter name. When a request is received,
+        the JSONPath will be evaluated against the request body and the result
+        will be passed as a named parameter to the handler function.
+
+        :param parameter_name: Name of the parameter to pass to the handler
+        :param json_path: JSONPath expression to extract the value from request body
+                         (e.g., '$.user.name' or '$.items[*].id')
+
+        Example::
+
+            config = APIHandlerConfig()
+            config.add_body_mapping("user_name", "$.user.name")
+            config.add_body_mapping("user_email", "$.user.contact.email")
+            config.add_body_mapping(
+                "item_ids", "$.items[*].id"
+            )  # Multiple matches return list
+        """
+        if self.body_map is None:
+            self.body_map = {}
+
+        # Warn if overriding an existing mapping
+        if parameter_name in self.body_map:
+            logger.warning(
+                "Overriding existing body mapping",
+                parameter_name=parameter_name,
+                old_json_path=self.body_map[parameter_name],
+                new_json_path=json_path,
+            )
+
+        self.body_map[parameter_name] = json_path
+
+    def remove_body_mapping(self, parameter_name: str) -> None:
+        """Remove a body mapping by parameter name.
+
+        :param parameter_name: Name of the parameter mapping to remove
+        """
+        if self.body_map:
+            self.body_map.pop(parameter_name, None)
 
 
 def new_v2_model_server(

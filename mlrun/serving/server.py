@@ -365,7 +365,6 @@ def add_error_raiser_step(
             _fn="(event.body)",
             after=monitored_step.name,
             full_event=True,
-            raise_exception=monitored_step.raise_exception,
             model_endpoint_creation_strategy=mlrun.common.schemas.ModelEndpointCreationStrategy.SKIP,
         )
 

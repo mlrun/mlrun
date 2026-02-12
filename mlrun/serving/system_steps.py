@@ -233,17 +233,17 @@ class MonitoringPreProcessor(storey.MapClass):
         :raises RuntimeError: If inconsistent errors are found in batched event
         """
         errors = []
-        for se in event.body:
-            if not isinstance(se.body, dict):
+        for sub_event in event.body:
+            if not isinstance(sub_event.body, dict):
                 break
 
             # If model is specified, get error from se.body[model], otherwise from se.body directly
             if model is not None:
-                if model not in se.body:
+                if model not in sub_event.body:
                     continue
-                event_data = se.body[model]
+                event_data = sub_event.body[model]
             else:
-                event_data = se.body
+                event_data = sub_event.body
             if not isinstance(event_data, dict):
                 return None
             error = event_data.get(mm_schemas.StreamProcessingEvent.ERROR)

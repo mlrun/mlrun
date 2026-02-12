@@ -36,6 +36,7 @@ import mlrun.common.constants
 import mlrun.db
 import mlrun.errors
 import mlrun.k8s_utils
+import mlrun.runtime_configuration_context
 import mlrun.utils
 import mlrun.utils.helpers
 from mlrun.common.schemas import AuthInfo, BatchingSpec
@@ -207,6 +208,7 @@ class NuclioSpec(KubeResourceSpec):
             track_models=track_models,
         )
 
+        self.auth = auth or {}
         self.base_spec = base_spec or {}
         self.function_kind = function_kind
         self.source = source or ""
@@ -228,7 +230,6 @@ class NuclioSpec(KubeResourceSpec):
         # When True it will set Nuclio spec.noBaseImagesPull to False (negative logic)
         # indicate that the base image should be pulled from the container registry (not cached)
         self.base_image_pull = False
-        self.auth = auth or {}
 
     def generate_nuclio_volumes(self):
         nuclio_volumes = []
@@ -793,6 +794,11 @@ class RemoteRuntime(KubeResource):
         # Attempt auto-mounting, before sending to remote build
         self.try_auto_mount_based_on_config()
         self._fill_credentials()
+
+        # Set via context manager because nuclio does not go through the ClientRemoteLauncher
+        auth_token_name = mlrun.runtime_configuration_context.RuntimeConfigurationContext.get_auth_token_name()
+        mlrun.utils.helpers.set_auth_token_name(self.spec, auth_token_name)
+
         db = self._get_db()
         logger.info("Starting remote function deploy")
         data = db.deploy_nuclio_function(func=self, builder_env=builder_env)

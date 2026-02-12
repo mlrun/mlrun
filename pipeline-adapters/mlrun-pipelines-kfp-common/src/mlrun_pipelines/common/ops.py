@@ -33,6 +33,7 @@ from kubernetes.client import V1EnvVar, V1EnvVarSource, V1SecretKeySelector
 import mlrun
 import mlrun.common.constants
 import mlrun.common.schemas
+import mlrun.runtime_configuration_context
 import mlrun_pipelines.common.constants
 import mlrun_pipelines.common.models
 from mlrun.config import config
@@ -265,8 +266,12 @@ def mlrun_op(
 
     mlrun.runtimes.utils.enrich_run_labels(labels)
 
+    auth_token_name = mlrun.runtime_configuration_context.RuntimeConfigurationContext.get_auth_token_name()
+
     if name:
         cmd += ["--name", name]
+    if auth_token_name:
+        cmd += ["--run-config", f"auth_token_name={auth_token_name}"]
     if func_url:
         cmd += ["-f", func_url]
     for secret in secrets:

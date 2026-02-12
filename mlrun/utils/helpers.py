@@ -2704,3 +2704,18 @@ def attach_authorization_namespace_prefix(
     if namespace_prefix:
         resource = f"/{namespace_prefix}{resource}"
     return resource
+
+
+def set_auth_token_name(spec, token_name: Optional[str]):
+    """
+    Set the auth token name on a spec object for runtime handler secret mounting.
+
+    Works with any spec object that has an `auth` attribute (e.g., RunSpec, KubeResourceSpec).
+
+    :param spec: Spec object with an `auth` attribute.
+    :param token_name: Name of the authentication token to use. If None/empty, no action is taken.
+    """
+    if token_name:
+        if not spec.auth:
+            spec.auth = {}
+        spec.auth["token_name"] = token_name

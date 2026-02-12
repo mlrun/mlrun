@@ -25,6 +25,7 @@ __all__ = [
     "auto_mount",
     "VolumeMount",
     "sync_secret_tokens",
+    "RuntimeConfigurationContext",
 ]
 
 import warnings
@@ -32,6 +33,8 @@ from os import environ, path
 from typing import Optional
 
 import dotenv
+
+import mlrun.runtime_configuration_context
 
 from .common.constants import MLRUN_ACTIVE_PROJECT
 from .config import config as mlconf
@@ -79,6 +82,9 @@ VolumeMount = mounts.VolumeMount
 mount_v3io = mounts.mount_v3io
 v3io_cred = mounts.v3io_cred
 auto_mount = mounts.auto_mount
+RuntimeConfigurationContext = (
+    mlrun.runtime_configuration_context.RuntimeConfigurationContext
+)
 
 
 # TODO: Remove in MLRun 1.13.0.

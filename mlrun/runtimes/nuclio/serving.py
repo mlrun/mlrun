@@ -76,6 +76,14 @@ class APIHandlerConfig(mlrun.model.ModelObj):
         """Get the body_map configuration as a dictionary."""
         return self._body_map
 
+    @body_map.setter
+    def body_map(self, value: dict[str, str] | None) -> None:
+        """Set the body_map configuration from a dictionary."""
+        self._body_map = {}
+        if value:
+            for parameter_name, json_path in value.items():
+                self.add_body_mapping(parameter_name, json_path)
+
     @property
     def endpoints(self) -> dict[str, dict]:
         """Get the endpoints configuration as a dictionary."""

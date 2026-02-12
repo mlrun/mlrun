@@ -466,17 +466,6 @@ class ApplicationRuntime(nuclio_function.RemoteRuntime):
                 )
 
     def prepare_image_for_deploy(self):
-        source = self.spec.build.source
-        if source and self.spec.build.load_source_on_run:
-            # store:// URIs are handled by init container at runtime, no need to force build
-            if not mlrun.datastore.is_store_uri(source):
-                # For git/archives, loading at runtime is not yet supported - force build
-                # TODO: Remove this when git/archive extraction is supported in init container
-                logger.warning(
-                    "Application runtime requires loading the source into the application image. "
-                    f"Even though {self.spec.build.load_source_on_run=}, loading on build will be forced."
-                )
-                self.spec.build.load_source_on_run = False
         super().prepare_image_for_deploy()
 
     def requires_build(self) -> bool:
@@ -605,7 +594,7 @@ class ApplicationRuntime(nuclio_function.RemoteRuntime):
         pull_at_runtime: bool = False,
         target_dir: typing.Optional[str] = None,
     ):
-        """load the code from git/tar/zip archive at build
+        """load the code from git/tar/zip archive at build or runtime
 
         :param source:          valid absolute path or URL to git, zip, or tar file, e.g.
                                 git://github.com/mlrun/something.git
@@ -613,20 +602,13 @@ class ApplicationRuntime(nuclio_function.RemoteRuntime):
                                 note path source must exist on the image or exist locally when run is local
                                 (it is recommended to use 'workdir' when source is a filepath instead)
         :param workdir:         working dir relative to the archive root (e.g. './subdir') or absolute to the image root
-        :param pull_at_runtime: currently not supported, source must be loaded into the image during the build process
-        :param target_dir:      target dir on runtime pod or repo clone / archive extraction
+        :param pull_at_runtime: load the archive into the container at runtime (via init container) vs on build
+        :param target_dir:      target dir on runtime pod for repo clone / archive extraction
         """
-        if pull_at_runtime:
-            logger.warning(
-                f"{pull_at_runtime=} is currently not supported for application runtime "
-                "and will be overridden to False",
-                pull_at_runtime=pull_at_runtime,
-            )
-
         self._configure_mlrun_build_with_source(
             source=source,
             workdir=workdir,
-            pull_at_runtime=False,
+            pull_at_runtime=pull_at_runtime,
             target_dir=target_dir,
         )
 

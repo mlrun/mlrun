@@ -1341,22 +1341,34 @@ def show_or_set_config(
     "--project",
     "-p",
     default=None,
-    help="project name (extracted from URI if not provided)",
+    help="project name (used for store:// URIs)",
 )
 @click.option(
     "--target",
     "-t",
     default="/home/mlrun_code",
-    help="target directory to write the source file",
+    help="target directory to write the source",
 )
 def load_source(source_uri, project, target):
-    """Load source code artifact into target directory.
+    """Load source code into target directory.
 
     This is an internal CLI command used by init containers to prepare
     application source code before the sidecar container starts.
 
-    Example:
-        mlrun load-source store://artifacts/my-project/app.py -t /tmp/mlrun_code
+    Supported source types:
+
+    \b
+    - store:// URIs: Single-file artifacts from the MLRun artifact store
+    - git:// URLs: Git repositories (cloned to target directory)
+    - .zip files: ZIP archives (extracted to target directory)
+    - .tar.gz files: Tarball archives (extracted to target directory)
+
+    Examples:
+
+    \b
+        mlrun load-source store://artifacts/my-project/app.py -t /tmp/code
+        mlrun load-source git://github.com/org/repo.git#main -t /tmp/code
+        mlrun load-source https://example.com/source.tar.gz -t /tmp/code
     """
 
     try:

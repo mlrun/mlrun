@@ -147,10 +147,6 @@ class APIHandlerConfig(mlrun.model.ModelObj):
         endpoint_key = serving_utils._combine_serving_endpoint_key(method, path)
         return self._endpoints.get(endpoint_key)
 
-    def to_dict(self, fields=None, exclude=None):
-        """Convert object to dictionary."""
-        return super().to_dict(fields=fields, exclude=exclude)
-
     @classmethod
     def from_dict(
         cls, struct=None, fields=None, deprecated_fields=None, init_with_params=False

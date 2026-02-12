@@ -20,7 +20,7 @@ from mlrun.agentic.chains.declarative.strategies import (
     build_sequential_graph,
 )
 from mlrun.agentic.schemas import WorkflowEvent
-from mlrun.serving.routers import BaseModelRouter
+from mlrun.serving.states import ModelRunnerStep
 
 logger = mlrun.utils.logger
 
@@ -33,12 +33,13 @@ _STRATEGY_BUILDERS = {
 }
 
 
-class DeclarativeTeamRouter(BaseModelRouter):
+class DeclarativeTeamRouter(ModelRunnerStep):
     """A serving router that orchestrates a team of DeclarativeAgents via LangGraph.
 
     Routes are added for graph visualization — each member agent appears as a child
-    node in the serving graph. At runtime, ``do_event`` runs the compiled LangGraph
-    workflow instead of routing to individual models.
+    node in the serving graph (visualized as a folder in ModelRunnerStep style).
+    At runtime, ``do_event`` runs the compiled LangGraph workflow instead of the
+    default ModelRunner execution.
 
     :param context:     For internal use (passed during init).
     :param name:        Step name.
@@ -47,9 +48,54 @@ class DeclarativeTeamRouter(BaseModelRouter):
     """
 
     def __init__(self, context=None, name=None, routes=None, team_config=None, **kwargs):
-        super().__init__(context=context, name=name, routes=routes, **kwargs)
+        # Initialize ModelRunnerStep with minimal args
+        super().__init__(name=name, **kwargs)
+
+        # Store context and routes for compatibility with router pattern
+        self.context = context
+        self.routes = routes or {}
         self.team_config = team_config or {}
         self.compiled_graph = None
+
+    def add_route(
+        self,
+        key: str,
+        route=None,
+        class_name: str = None,
+        class_args: dict = None,
+        **kwargs,
+    ):
+        """Add a route (agent) for visualization and initialization.
+
+        This method provides compatibility with the RouterStep pattern while
+        extending ModelRunnerStep. Routes are stored in self.routes and will
+        be initialized during post_init.
+
+        :param key:        Route name (agent name).
+        :param route:      Optional pre-initialized route object.
+        :param class_name: Class name for the agent (e.g., DeclarativeAgent).
+        :param class_args: Arguments to pass to the agent class.
+        :param kwargs:     Additional arguments merged into class_args.
+        """
+        from mlrun.serving import states
+
+        if route:
+            self.routes[key] = route
+        else:
+            # Merge kwargs into class_args
+            merged_args = class_args or {}
+            merged_args.update(kwargs)
+
+            # Create a step-like object that will be initialized later
+            step = states.TaskStep(
+                class_name=class_name,
+                class_args=merged_args,
+                context=self.context,
+                name=key,
+            )
+            self.routes[key] = step
+
+        return self
 
     def post_init(self, mode="sync", **kwargs):
         """Build agents from initialized routes and compile the strategy graph.

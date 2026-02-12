@@ -1181,6 +1181,8 @@ class TestBasicModelMonitoring(TestMLRunSystemModelMonitoring):
             filename=str(self.assets_path / "models.py"),
             image=self.image,
         )
+        function.spec.replicas = 1
+
         self.set_mm_credentials()
 
         # Set up ModelRunnerStep with streaming model

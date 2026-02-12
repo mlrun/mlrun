@@ -228,12 +228,12 @@ class StreamingModel(mlrun.serving.Model):
         self.num_chunks = num_chunks
 
     def predict(self, body, **kwargs):
-        """Yield streaming chunks with metrics for aggregation testing."""
+        """Yield streaming chunks for aggregation testing."""
         prompt = body.get("prompt", "default") if isinstance(body, dict) else str(body)
         for i in range(self.num_chunks):
             yield {
                 "output": f"{prompt}_chunk_{i}",
-                "metrics": {"token_count": 1},
+                "token_count": 1,
             }
 
 

@@ -409,7 +409,9 @@ def run(
     set_item(runobj.spec.hyper_param_options, selector, "selector")
 
     set_item(
-        runobj.spec, inputs, RunKeys.inputs,
+        runobj.spec,
+        inputs,
+        RunKeys.inputs,
         {k: py_eval(v) for k, v in list2dict(inputs).items()},
     )
     set_item(

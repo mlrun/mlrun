@@ -277,14 +277,20 @@ def mlrun_op(
     for xpram, val in hyperparams.items():
         cmd += ["-x", f"{xpram}={val}"]
     for input_param, val in inputs.items():
-        cmd += ["-i", f"{input_param}={json.dumps(val) if isinstance(val, dict | list) else val}"]
+        cmd += [
+            "-i",
+            f"{input_param}={json.dumps(val) if isinstance(val, dict | list) else val}",
+        ]
     for log_hint in returns:
         # TODO: When moving to Pydantic v2, change `dict` to `model_dump`.
         # TODO: Log hint as dict will be removed in MLRun 1.13, so no need to check inner if.
         cmd += [
             "--returns",
-            json.dumps(log_hint.dict() if isinstance(log_hint, mlrun.LogHint) else log_hint)
-            if isinstance(log_hint, mlrun.LogHint | dict) else log_hint,
+            json.dumps(
+                log_hint.dict() if isinstance(log_hint, mlrun.LogHint) else log_hint
+            )
+            if isinstance(log_hint, mlrun.LogHint | dict)
+            else log_hint,
         ]
     for label, val in labels.items():
         cmd += ["--label", f"{label}={val}"]

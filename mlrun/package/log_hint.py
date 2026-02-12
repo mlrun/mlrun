@@ -118,9 +118,9 @@ class LogHint(BaseModel):
         # Check for the old dict format and raise a deprecation warning:
         if isinstance(obj, dict):
             # Detect new LogHint-format dict (from .dict() serialization):
-            if set(obj.keys()).issubset(set(cls.__fields__.keys())) and "*" not in obj.get(
-                "key", ""
-            ):
+            if set(obj.keys()).issubset(
+                set(cls.__fields__.keys())
+            ) and "*" not in obj.get("key", ""):
                 return super().parse_obj(obj=obj)
             # Potentially old format, try to parse and raise a warning:
             key = obj.pop("key")

@@ -3691,6 +3691,106 @@ def _add_graphviz_router(graph, step, source=None, **kwargs):
         graph.edge(step.fullname, route.fullname)
 
 
+def _add_graphviz_team(graph, step, source=None, next_steps=None, prev_steps=None, **kwargs):
+    """Custom renderer for DeclarativeTeamRouter with strategy-based visualization."""
+    # Get visualization structure from the team router
+    if not hasattr(step, "get_visual_structure"):
+        # Fallback to model runner style if method doesn't exist
+        _add_graphviz_model_runner(graph, step, source=source)
+        return
+
+    visual = step.get_visual_structure()
+    strategy = visual.get("strategy", "sequential")
+    members = visual.get("members", [])
+    routes = visual.get("routes", {})
+    label = visual.get("label", "team")
+
+    # Track terminal nodes for connecting to next steps
+    terminal_nodes = []
+    entry_nodes = []
+
+    if strategy == "sequential":
+        # Sequential: show agents in a linear chain
+        for i, member_name in enumerate(members):
+            route = routes.get(member_name)
+            if route:
+                node_name = f"{step.fullname}_{member_name}"
+                graph.node(node_name, label=member_name, shape="box", style="filled", fillcolor="lightblue")
+
+                # Connect agents in sequence
+                if i > 0:
+                    prev_node = f"{step.fullname}_{members[i-1]}"
+                    graph.edge(prev_node, node_name)
+
+        # First node is entry, last node is terminal
+        if members:
+            entry_nodes.append(f"{step.fullname}_{members[0]}")
+            terminal_nodes.append(f"{step.fullname}_{members[-1]}")
+
+    elif strategy == "graph":
+        # Graph: show agents in a DAG based on edges
+        edges = visual.get("edges", [])
+
+        # Create nodes for all members
+        for member_name in members:
+            route = routes.get(member_name)
+            if route:
+                node_name = f"{step.fullname}_{member_name}"
+                graph.node(node_name, label=member_name, shape="box", style="filled", fillcolor="lightgreen")
+
+        # Add edges between nodes
+        for edge in edges:
+            from_node = f"{step.fullname}_{edge.get('from')}"
+            to_node = f"{step.fullname}_{edge.get('to')}"
+            graph.edge(from_node, to_node)
+
+        # Find entry points (nodes with no incoming edges)
+        if members:
+            to_nodes = {e.get('to') for e in edges}
+            entry_points = [m for m in members if m not in to_nodes]
+            if not entry_points:
+                entry_points = [members[0]]
+
+            entry_nodes = [f"{step.fullname}_{entry}" for entry in entry_points]
+
+        # Find terminal nodes (nodes with no outgoing edges)
+        has_outgoing = {e.get('from') for e in edges}
+        terminal_members = [m for m in members if m not in has_outgoing]
+        if not terminal_members and members:
+            terminal_members = [members[-1]]
+
+        terminal_nodes = [f"{step.fullname}_{m}" for m in terminal_members]
+
+    else:
+        # Round-robin/selector: show as folder with children (default ModelRunnerStep style)
+        if source:
+            graph.node("_start", source.name, shape=source.shape, style="filled")
+            graph.edge("_start", step.fullname)
+
+        graph.node(step.fullname, label=step.name, shape="folder", style="filled", fillcolor="lightyellow")
+        for member_name in members:
+            route = routes.get(member_name)
+            if route:
+                node_name = f"{step.fullname}_{member_name}"
+                graph.node(node_name, label=member_name, shape="box")
+                graph.edge(step.fullname, node_name)
+
+        # For folder style, the router node itself connects to next steps
+        terminal_nodes = [step.fullname]
+
+    # Connect previous steps to entry nodes
+    if prev_steps and entry_nodes:
+        for prev_step_name in prev_steps:
+            for entry_node in entry_nodes:
+                graph.edge(prev_step_name, entry_node)
+
+    # Connect terminal nodes to next steps if provided
+    if next_steps and terminal_nodes:
+        for next_step_name in next_steps:
+            for terminal_node in terminal_nodes:
+                graph.edge(terminal_node, next_step_name)
+
+
 def _add_graphviz_model_runner(graph, step, source=None, is_monitored=False):
     if source:
         graph.node("_start", source.name, shape=source.shape, style="filled")
@@ -3741,6 +3841,17 @@ def _add_graphviz_flow(
         if kind == StepKinds.router:
             with graph.subgraph(name="cluster_" + child.fullname) as sg:
                 _add_graphviz_router(sg, child)
+        elif kind == "team_router":  # Custom team router rendering
+            # Get previous and next steps for connecting entry/terminal nodes
+            prev_step_names = [step[before_name].fullname for before_name in (getattr(child, "before", []) or [])]
+            next_step_names = [step[after_name].fullname for after_name in (child.after or [])]
+            _add_graphviz_team(graph, child, source=source, next_steps=next_step_names, prev_steps=prev_step_names)
+            # Skip _add_edges as we handle connections internally
+            if child.on_error:
+                # For error handling, we'd need to connect terminal nodes to error step
+                # For now, skip this for team routers
+                pass
+            continue
         elif kind == StepKinds.model_runner:
             _add_graphviz_model_runner(graph, child, is_monitored=is_monitored)
         else:

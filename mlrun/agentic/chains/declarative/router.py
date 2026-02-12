@@ -37,7 +37,10 @@ class DeclarativeTeamRouter(ModelRunnerStep):
     """A serving router that orchestrates a team of DeclarativeAgents via LangGraph.
 
     Routes are added for graph visualization — each member agent appears as a child
-    node in the serving graph (visualized as a folder in ModelRunnerStep style).
+    node in the serving graph. The visualization adapts based on strategy:
+    - Sequential/Graph: agents shown in a chain/DAG
+    - Round-robin/Selector: agents shown as children of a folder
+
     At runtime, ``do_event`` runs the compiled LangGraph workflow instead of the
     default ModelRunner execution.
 
@@ -46,6 +49,8 @@ class DeclarativeTeamRouter(ModelRunnerStep):
     :param routes:      For internal use (routes passed during init).
     :param team_config: Pre-parsed YAML dict for the team (kind: Team).
     """
+
+    kind = "team_router"  # Custom kind for team-specific rendering
 
     def __init__(self, context=None, name=None, routes=None, team_config=None, **kwargs):
         # Initialize ModelRunnerStep with minimal args
@@ -217,3 +222,37 @@ class DeclarativeTeamRouter(ModelRunnerStep):
                 )
 
         return {"answer": answer}
+
+    def get_visual_structure(self):
+        """Return visualization metadata for custom graph rendering.
+
+        Returns a dict with:
+        - strategy: The team strategy type
+        - members: Ordered list of member names
+        - edges: List of edges for graph strategy (optional)
+        - label: Team name for grouping (optional)
+        """
+        spec = self.team_config.get("spec", {})
+        strategy = spec.get("strategy", "sequential")
+        normalized = _STRATEGY_BUILDERS.get(strategy, strategy)
+
+        member_refs = spec.get("members", [])
+        member_names = [
+            ref.get("name") if isinstance(ref, dict) else ref for ref in member_refs
+        ]
+
+        team_name = self.team_config.get("metadata", {}).get("name", "team")
+
+        result = {
+            "strategy": normalized,
+            "members": member_names,
+            "label": team_name,
+            "routes": self.routes,  # Access to route objects for rendering
+        }
+
+        # Add graph edges for graph strategy
+        if normalized == "graph":
+            graph_spec = spec.get("graph", {})
+            result["edges"] = graph_spec.get("edges", [])
+
+        return result

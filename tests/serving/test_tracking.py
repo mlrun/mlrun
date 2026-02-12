@@ -28,6 +28,7 @@ from typing import Union, cast
 import numpy as np
 import pandas as pd
 import pytest
+import storey
 
 import mlrun
 import mlrun.common.schemas.model_monitoring.constants as mm_constants
@@ -2023,40 +2024,7 @@ class SimpleTestModel(Model):
 class TestMonitoringPreProcessorStreamingAggregation:
     """Tests for MonitoringPreProcessor streaming chunk aggregation."""
 
-    def test_is_collected_streaming_data_with_string_chunks(self):
-        """Test that string lists are NOT detected as streaming data.
-
-        String lists are ambiguous - they could be batch inputs or LLM tokens.
-        For safety, we only detect dict lists with streaming indicators.
-        """
-        preprocessor = MonitoringPreProcessor()
-
-        # String chunks are NOT detected (could be batch inputs)
-        assert (
-            preprocessor._is_collected_streaming_data(["Hello", " ", "world"]) is False
-        )
-
-        # Empty list
-        assert preprocessor._is_collected_streaming_data([]) is False
-
-        # Not a list
-        assert preprocessor._is_collected_streaming_data("hello") is False
-        assert preprocessor._is_collected_streaming_data({"key": "value"}) is False
-
-    def test_is_collected_streaming_data_with_dict_chunks(self):
-        """Test detection of collected dict chunks."""
-        preprocessor = MonitoringPreProcessor()
-
-        # Dict chunks
-        chunks = [{"output": "chunk1"}, {"output": "chunk2"}]
-        assert preprocessor._is_collected_streaming_data(chunks) is True
-
     def test_aggregate_string_chunks(self):
-        """Test aggregation method for string chunks.
-
-        Note: String lists are not auto-detected as streaming data,
-        but this tests the aggregation logic if called directly.
-        """
         preprocessor = MonitoringPreProcessor()
 
         chunks = ["Hello", " ", "world", "!"]
@@ -2181,6 +2149,86 @@ class TestMonitoringPreProcessorStreamingAggregation:
         chunks = ["string", {"dict": "value"}, 123]
         result = preprocessor._aggregate_collected_chunks(chunks)
         assert result == chunks
+
+    def test_do_aggregates_when_stream_collected_marker_set(self, rundb_mock):
+        """Test that do() aggregates body when event has stream_collected=True."""
+        function = mlrun.new_function("test-stream-agg", kind="serving")
+        graph = function.set_topology("flow", engine="async")
+        model_runner_step = ModelRunnerStep(name="my_runner")
+        model_runner_step.add_model(
+            model_class="SimpleTestModel",
+            execution_mechanism="naive",
+            endpoint_name="my_model",
+        )
+        graph.to(model_runner_step).respond()
+        function.set_tracking()
+        server = function.to_mock_server()
+
+        try:
+            # Build a collected streaming event
+            event = storey.Event(
+                body=[
+                    {"output": "chunk_0", "token_count": 1},
+                    {"output": "chunk_1", "token_count": 1},
+                ],
+            )
+            event._metadata = {
+                "model_runner_name": "my_runner",
+                "when": "2026-01-01 00:00:00.000000+00:00",
+                "microsec": 1000,
+                "inputs": [[1.0, 2.0]],
+            }
+            event.stream_collected = True
+
+            preprocessor = server.graph.steps["monitoring_pre_processor_step"]._object
+            result = preprocessor.do(event)
+
+            # After aggregation, body should be a list of monitoring events (not the raw chunks)
+            assert isinstance(result.body, list)
+            assert len(result.body) == 1
+            monitoring_event = result.body[0]
+            # Outputs should contain the concatenated string
+            assert "chunk_0chunk_1" in str(monitoring_event["resp"]["outputs"])
+        finally:
+            server.wait_for_completion()
+
+    def test_do_does_not_aggregate_without_stream_collected_marker(self, rundb_mock):
+        """Test that do() does NOT aggregate body when stream_collected is absent."""
+        function = mlrun.new_function("test-no-agg", kind="serving")
+        graph = function.set_topology("flow", engine="async")
+        model_runner_step = ModelRunnerStep(name="my_runner")
+        model_runner_step.add_model(
+            model_class="SimpleTestModel",
+            execution_mechanism="naive",
+            endpoint_name="my_model",
+        )
+        graph.to(model_runner_step).respond()
+        function.set_tracking()
+        server = function.to_mock_server()
+
+        try:
+            # Build a regular (non-streaming) event with a dict body
+            event = storey.Event(
+                body={"output": "single_result"},
+            )
+            event._metadata = {
+                "model_runner_name": "my_runner",
+                "when": "2026-01-01 00:00:00.000000+00:00",
+                "microsec": 1000,
+                "inputs": [[1.0, 2.0]],
+            }
+            # No stream_collected marker
+
+            preprocessor = server.graph.steps["monitoring_pre_processor_step"]._object
+            result = preprocessor.do(event)
+
+            assert isinstance(result.body, list)
+            assert len(result.body) == 1
+            monitoring_event = result.body[0]
+            # Should have processed the original dict body directly
+            assert "single_result" in str(monitoring_event["resp"]["outputs"])
+        finally:
+            server.wait_for_completion()
 
 
 def test_collector_step_added_to_monitoring_graph(rundb_mock):

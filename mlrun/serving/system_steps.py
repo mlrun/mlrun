@@ -58,32 +58,6 @@ class MonitoringPreProcessor(storey.MapClass):
             getattr(self.context, "server", None) if self.context else None
         )
 
-    def _is_collected_streaming_data(self, body: Any) -> bool:
-        """
-        Check if the event body is collected streaming data from a Collector step.
-
-        Collected streaming data is a list of chunk bodies. We use conservative
-        detection to avoid mistakenly aggregating batch inputs or predictions.
-        Only detect as streaming data if ALL elements are dicts with streaming
-        indicators (output/outputs/metrics keys).
-
-        Note: We don't aggregate string lists because they could be batch string
-        inputs rather than LLM tokens. String streaming outputs should be wrapped
-        in dicts with proper structure.
-        """
-        if not isinstance(body, list) or len(body) == 0:
-            return False
-
-        # Only detect dict lists with streaming indicators
-        # String lists are ambiguous (could be batch inputs)
-        first = body[0]
-        if not isinstance(first, dict):
-            return False
-
-        # Check for streaming chunk indicators in the first element
-        streaming_keys = {"output", "outputs", "metrics"}
-        return bool(streaming_keys & set(first.keys()))
-
     def _aggregate_collected_chunks(self, chunks: list) -> Any:
         """
         Aggregate collected streaming chunks into a single result for model monitoring.
@@ -406,14 +380,16 @@ class MonitoringPreProcessor(storey.MapClass):
             )
         monitoring_data = step.monitoring_data
 
-        # Check if this is collected streaming data and aggregate if so
-        if self._is_collected_streaming_data(event.body):
+        # Check if this event was collected from a stream by the Collector step
+        if getattr(event, "stream_collected", False):
             logger.debug(
                 "Aggregating collected streaming chunks for monitoring",
-                num_chunks=len(event.body),
+                num_chunks=len(event.body) if isinstance(event.body, list) else 1,
                 model_runner_name=model_runner_name,
             )
-            event.body = self._aggregate_collected_chunks(event.body)
+            event.body = self._aggregate_collected_chunks(
+                event.body if isinstance(event.body, list) else [event.body]
+            )
 
         logger.debug(
             "monitoring preprocessor started",

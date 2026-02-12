@@ -53,6 +53,7 @@ from .run import (
     load_func_code,
     new_function,
 )
+from .runtime_configuration_context import RuntimeConfigurationContext
 from .runtimes import RemoteRuntime, RunError, RuntimeKinds, ServingRuntime
 from .secrets import SecretsStore
 from .utils import (
@@ -207,6 +208,13 @@ def main():
     help="Override the loaded project name. This flag ensures awareness of loading an existing project yaml "
     "as a baseline for a new project with a different name",
 )
+@click.option(
+    "--runtime-config",
+    "-rc",
+    default=[],
+    multiple=True,
+    help="runtime configuration context values, e.g. --runtime-config auth_token_name=my-token",
+)
 def run(
     url,
     param,
@@ -251,6 +259,7 @@ def run(
     ensure_project,
     returns,
     allow_cross_project,
+    runtime_config,
 ):
     """Execute a task and inject parameters."""
 
@@ -447,14 +456,19 @@ def run(
             # and logs periodically
             # TODO: change watch to be a flag with more options (with_logs, wait_for_completion, etc.)
             watch = watch or None
-        resp = fn.run(
-            runobj,
-            watch=watch,
-            schedule=schedule,
-            local=local,
-            auto_build=auto_build,
-            project=project,
-        )
+
+        # Parse run_config into a dictionary for RuntimeConfigurationContext
+        runtime_config_dict = fill_params(runtime_config) if runtime_config else {}
+
+        with RuntimeConfigurationContext(**runtime_config_dict):
+            resp = fn.run(
+                runobj,
+                watch=watch,
+                schedule=schedule,
+                local=local,
+                auto_build=auto_build,
+                project=project,
+            )
         if resp and dump:
             print(resp.to_yaml())
     except RunError as err:

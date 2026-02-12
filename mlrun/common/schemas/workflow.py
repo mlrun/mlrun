@@ -34,6 +34,7 @@ class WorkflowSpec(pydantic.v1.BaseModel):
     run_local: typing.Optional[bool] = None
     image: typing.Optional[str] = None
     workflow_runner_node_selector: typing.Optional[dict[str, str]] = None
+    auth_token_name: typing.Optional[str] = None
 
 
 class WorkflowRequest(pydantic.v1.BaseModel):

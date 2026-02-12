@@ -22,6 +22,9 @@ import nuclio
 from nuclio import KafkaTrigger
 from nuclio.triggers import NuclioTrigger
 
+from jsonpath_ng import parse as jsonpath_parse
+from jsonpath_ng.exceptions import JsonPathLexerError, JsonPathParserError
+
 import mlrun
 import mlrun.common.schemas as schemas
 import mlrun.common.secrets
@@ -211,7 +214,7 @@ class APIHandlerConfig(mlrun.model.ModelObj):
         :param parameter_name: Name of the parameter to pass to the handler
         :param json_path: JSONPath expression to extract the value from request body
                          (e.g., '$.user.name' or '$.items[*].id')
-        :raises mlrun.errors.MLRunInvalidArgumentError: If json_path is not a valid JSONPath expression
+        :raises mlrun.errors.MLRunValueError: If json_path is not a valid JSONPath expression
 
         Example::
 
@@ -223,13 +226,10 @@ class APIHandlerConfig(mlrun.model.ModelObj):
             )  # Multiple matches return list
         """
         # Validate JSONPath expression by parsing it
-        from jsonpath_ng import parse as jsonpath_parse
-        from jsonpath_ng.exceptions import JsonPathLexerError, JsonPathParserError
-
         try:
             jsonpath_parse(json_path)
         except (JsonPathLexerError, JsonPathParserError) as exc:
-            raise mlrun.errors.MLRunInvalidArgumentError(
+            raise mlrun.errors.MLRunValueError(
                 f"Invalid JSON path expression for parameter '{parameter_name}': "
                 f"'{json_path}'. Error: {exc}"
             ) from exc

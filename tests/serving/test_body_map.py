@@ -168,7 +168,7 @@ class TestAPIHandlerConfigBodyMap:
 
         # Should raise for invalid JSONPath syntax
         with pytest.raises(
-            mlrun.errors.MLRunInvalidArgumentError,
+            mlrun.errors.MLRunValueError,
             match=r"Invalid JSON path expression for parameter 'bad_param'",
         ):
             config.add_body_mapping("bad_param", "$.invalid[[[syntax")

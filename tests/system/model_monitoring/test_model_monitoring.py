@@ -2559,6 +2559,7 @@ class TestLLModelWithMonitoring(TestMLRunSystemModelMonitoring):
         assert response["my-model-2"]["result"]["usage"] == {
             "prompt_tokens": 0,
             "completion_tokens": 0,
+            "total_tokens": 0,
         }
 
         assert (
@@ -2568,6 +2569,7 @@ class TestLLModelWithMonitoring(TestMLRunSystemModelMonitoring):
         assert response["my-model-3"]["usage"] == {
             "prompt_tokens": 0,
             "completion_tokens": 0,
+            "total_tokens": 0,
         }
 
         sleep(45)

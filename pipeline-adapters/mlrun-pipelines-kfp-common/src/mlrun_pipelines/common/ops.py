@@ -82,7 +82,7 @@ def mlrun_op(
     hyper_param_options=None,
     verbose=None,
     scrape_metrics=False,
-    returns: list[str | mlrun.LogHint] | None = None,
+    returns: "list[str | mlrun.LogHint] | None" = None,
     auto_build: bool = False,
 ):
     """mlrun KubeFlow pipelines operator, use to form pipeline steps

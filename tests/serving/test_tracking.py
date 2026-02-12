@@ -2288,9 +2288,9 @@ def test_batch_step_with_mrs_list(multiple_models, raise_exception, with_error, 
 @pytest.mark.parametrize(
     "raise_exception, with_error",
     [
-        (False, False),  # Valid inputs, no error
-        (True, True),    # Error raised as exception
-        (False, True),   # Error returned in dict
+        (False, False),
+        (True, True),
+        (False, True),
     ],
 )
 def test_batch_step_with_mrs_string(multiple_models, raise_exception, with_error, rundb_mock):

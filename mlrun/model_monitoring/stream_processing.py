@@ -425,13 +425,7 @@ class ProcessEndpointEvent(mlrun.feature_store.steps.MapClass):
         ):
             full_event.body = None
             return full_event
-        if not self.is_valid(
-            validation_function=is_not_none,
-            field=latency,
-            dict_path=["microsec"],
-        ):
-            full_event.body = None
-            return full_event
+        # Note: latency (microsec) can be None for streaming responses
         if not self.is_valid(
             validation_function=is_not_none,
             field=features,

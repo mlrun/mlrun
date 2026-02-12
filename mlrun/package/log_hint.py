@@ -117,6 +117,12 @@ class LogHint(BaseModel):
         # TODO: Remove in 1.13.0 - this method should only support parsing from the new LogHint format.
         # Check for the old dict format and raise a deprecation warning:
         if isinstance(obj, dict):
+            # Detect new LogHint-format dict (from .dict() serialization):
+            if set(obj.keys()).issubset(set(cls.__fields__.keys())) and "*" not in obj.get(
+                "key", ""
+            ):
+                return super().parse_obj(obj=obj)
+            # Potentially old format, try to parse and raise a warning:
             key = obj.pop("key")
             key, itemized = cls._extract_unbundling_from_key(key)
             artifact_type = obj.pop("artifact_type", None)
@@ -153,7 +159,7 @@ class LogHint(BaseModel):
           specifying the maximum depth of unbundling, or empty for full unbundling.
         * `<artifact_key> : <artifact_type>[<packing_kwarg1>=<value1>, <packing_kwarg2>=<value2>]` - to specify the
           artifact type. Artifact type is optional, but if given, the user can also specify packing kwargs in the same
-          string. Packing kwargs are optional and should be given in the format of `<packing_kwarg>=<value>, inside
+          string. Packing kwargs are optional and should be given in the format of `<packing_kwarg>=<value>`, inside
           square brackets `[]` at the end of the string.
 
         :param log_hint_string: The log hint string to parse.

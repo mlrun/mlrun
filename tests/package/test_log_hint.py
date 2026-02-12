@@ -112,6 +112,29 @@ from mlrun.package.log_hint import LogHint
         ("key:type[k1=1", "Incorrect log hint pattern for packing kwargs"),
         ("key:type[k1]", "packing kwarg should be given in the format"),
         ("key:type[k1=undefined_var]", "not a valid Python literal"),
+        # Round-trip: LogHint → .dict() → parse_obj() preserves all fields
+        (
+            LogHint(
+                key="deep",
+                artifact_type="model",
+                itemized=2,
+                tag="v1",
+                packing_kwargs={"dtype": "float32"},
+                labels={"env": "test"},
+                extra_data={"schema": "..."},
+                metrics={"acc": "..."},
+            ).dict(),
+            LogHint(
+                key="deep",
+                artifact_type="model",
+                itemized=2,
+                tag="v1",
+                packing_kwargs={"dtype": "float32"},
+                labels={"env": "test"},
+                extra_data={"schema": "..."},
+                metrics={"acc": "..."},
+            ),
+        ),
     ],
 )
 def test_model_validate_from_string(

@@ -41,7 +41,7 @@ from mlrun.package.utils import (
 
 def handler(
     labels: dict[str, str] | None = None,  # TODO: Remove in MLRun 1.13.0
-    outputs: list[str | dict[str, str]] | list[LogHint] | None = None,
+    outputs: list[str | dict[str, str] | LogHint] | None = None,
     inputs: bool | dict[str, str | type] = True,
 ):
     """
@@ -56,13 +56,15 @@ def handler(
     :param outputs: Log hints (logging configurations) for the function's returned values. Expecting a list of the
                     following values:
 
+                    * ``LogHint`` - A ``LogHint`` object providing full logging configuration (key, artifact type,
+                      packing kwargs, itemization, labels, etc.).
                     * `str` - A string in the format of '{key}:{artifact_type}'. If a string was given without ':' it
                       will indicate the key, and the artifact type will be according to the returned value type's
                       default artifact type. The artifact types supported are listed in the relevant type packager.
                       Packing kwargs can be passed alongside the artifact type using square brackets:
                       ``"{key}:{artifact_type}[{kwarg1}={value1}, {kwarg2}={value2}]"``.
-                    * `dict[str, str]` - A dictionary of logging configuration. the key 'key' is mandatory for the
-                      logged artifact key.
+                      Unbundling can be specified before the key: ``"<level>*{key}"`` or ``"*{key}"`` for full
+                      unbundling.
                     * None - Do not log the output.
 
                     If the list length is not equal to the total amount of returned values from the function, those
@@ -90,7 +92,7 @@ def handler(
                     "my_string",
                     None,
                     {"key": "my_array", "artifact_type": "file", "file_format": "npy"},
-                    "my_multiplier: reuslt"
+                    "my_multiplier: result"
                 ]
             )
             def my_handler(array: np.ndarray, m: int):

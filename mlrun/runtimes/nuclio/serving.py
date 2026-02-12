@@ -19,11 +19,10 @@ from http import HTTPMethod
 from typing import Optional, Union
 
 import nuclio
-from nuclio import KafkaTrigger
-from nuclio.triggers import NuclioTrigger
-
 from jsonpath_ng import parse as jsonpath_parse
 from jsonpath_ng.exceptions import JsonPathLexerError, JsonPathParserError
+from nuclio import KafkaTrigger
+from nuclio.triggers import NuclioTrigger
 
 import mlrun
 import mlrun.common.schemas as schemas
@@ -76,14 +75,6 @@ class APIHandlerConfig(mlrun.model.ModelObj):
     def body_map(self) -> dict[str, str]:
         """Get the body_map configuration as a dictionary."""
         return self._body_map
-
-    @body_map.setter
-    def body_map(self, value: dict[str, str] | None) -> None:
-        """Set the body_map configuration.
-
-        :param value: Dictionary mapping parameter names to JSONPath expressions, or None.
-        """
-        self._body_map = value or {}
 
     @property
     def endpoints(self) -> dict[str, dict]:
@@ -155,6 +146,23 @@ class APIHandlerConfig(mlrun.model.ModelObj):
         path = self._normalize_path(path)
         endpoint_key = serving_utils._combine_serving_endpoint_key(method, path)
         return self._endpoints.get(endpoint_key)
+
+    def to_dict(self, fields=None, exclude=None):
+        """Convert object to dictionary."""
+        return super().to_dict(fields=fields, exclude=exclude)
+
+    @classmethod
+    def from_dict(
+        cls, struct=None, fields=None, deprecated_fields=None, init_with_params=False
+    ):
+        """Create object from dictionary, handling private _body_map attribute."""
+        if struct and "body_map" in struct:
+            # Extract body_map and set it via __init__ to avoid property setter issues
+            body_map = struct.pop("body_map")
+            obj = super().from_dict(struct, fields, deprecated_fields, init_with_params)
+            obj._body_map = body_map or {}
+            return obj
+        return super().from_dict(struct, fields, deprecated_fields, init_with_params)
 
     def add_endpoint_handler(
         self,

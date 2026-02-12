@@ -874,3 +874,161 @@ class TestMockModelProviderBatchStep(BaseMockModelProviderTest):
         for model_name in ["my_endpoint", "my_endpoint_2"]:
             error_event = model_events[model_name]
             self._verify_batch_error_tracking(error_event, error_inputs, model_name)
+
+    @pytest.mark.parametrize("multiple_models", (True, False))
+    def test_llmodel_batch_step_multiple_models_error_in_dict(
+        self, multiple_models, rundb_mock
+    ):
+        """
+        Test batch step with single/multiple models where errors are returned in response dict (raise_exception=False).
+        Only testing with naive execution mechanism (no need to test all mechanisms again).
+        """
+        project = mlrun.new_project("test-mock-batch-graph-error-dict", save=False)
+        model_url = "mock://my-mock-model"
+
+        # Create model artifact
+        model_artifact = project.log_model(
+            "model_key",
+            model_url=model_url,
+        )
+
+        llm_prompt_artifact = project.log_llm_prompt(
+            "llm_artifact",
+            prompt_template=PROMPT_TEMPLATE,
+            description="test llm prompt",
+            prompt_legend=PROMPT_LEGEND,
+            model_artifact=model_artifact,
+        )
+
+        # Create serving function
+        function = project.set_function(
+            name="test-llm-function-batch-error-dict",
+            kind="serving",
+        )
+        function.set_tracking("dummy://", enable_tracking=True)
+
+        graph = function.set_topology("flow", engine="async")
+
+        # Add batch step
+        graph = graph.to(
+            "storey.Batch",
+            "my_batching",
+            max_events=2,
+            flush_after_seconds=UNIT_TEST_FLUSH_AFTER_SECONDS,
+            full_event=True,
+        )
+
+        # ModelRunnerStep with raise_exception=False to return errors in dict
+        model_runner_step = ModelRunnerStep(
+            name="my_model_runner", raise_exception=False
+        )
+
+        # Add first model
+        model_runner_step.add_model(
+            endpoint_name="my_endpoint",
+            model_artifact=llm_prompt_artifact,
+            execution_mechanism="naive",  # Only testing naive
+            model_class="mlrun.serving.states.LLModel",
+            result_path="output",
+        )
+
+        # Add second model if testing multiple models
+        if multiple_models:
+            model_runner_step.add_model(
+                endpoint_name="my_endpoint_2",
+                model_artifact=llm_prompt_artifact,
+                execution_mechanism="naive",  # Only testing naive
+                model_class="mlrun.serving.states.LLModel",
+                result_path="output",
+            )
+
+        step = graph.to(model_runner_step)
+        step = step.to("storey.FlatMap", _fn="(event.body)", full_event=True)
+        step.respond()
+
+        mocked_get_store_artifact = create_mocked_get_store_artifact(
+            {
+                model_artifact.uri: model_artifact,
+                llm_prompt_artifact.uri: llm_prompt_artifact,
+            }
+        )
+        with unittest.mock.patch(
+            "mlrun.artifacts.llm_prompt.mlrun.datastore.store_manager.get_store_artifact",
+            side_effect=lambda *args, **kwargs: mocked_get_store_artifact(
+                *args, **kwargs
+            ),
+        ):
+            server = function.to_mock_server()
+
+        try:
+            # Send events concurrently with staggered timing
+            def send_event(event, delay):
+                time.sleep(delay)
+                return server.test(body=event)
+
+            # Send 2 events - one good, one with error
+            good_input = BATCH_INPUT_DATA[0]
+
+            # Send both events in parallel - one good, one bad
+            # Error should be returned in dict, not raised
+            with ThreadPoolExecutor(max_workers=2) as executor:
+                futures = [
+                    executor.submit(send_event, good_input, 0),
+                    executor.submit(
+                        send_event, self.ERROR_INPUT, UNIT_REQUEST_DELAY_SECONDS
+                    ),
+                ]
+                responses = [future.result() for future in futures]
+
+        finally:
+            server.wait_for_completion()
+
+        # Verify we got both responses (not exceptions)
+        assert len(responses) == 2
+
+        # All responses should contain error field
+        if multiple_models:
+            model_names = ["my_endpoint", "my_endpoint_2"]
+            for response in responses:
+                assert isinstance(response, dict)
+                assert all(
+                    "error" in response.get(model, {}) for model in model_names
+                ), f"Expected error field for each model in response, got {response}"
+
+                # Verify error message for each model
+                for model_name in model_names:
+                    assert (
+                        "Mock error triggered by ERROR keyword"
+                        in response[model_name]["error"]
+                    )
+        else:
+            # Single model - error should be in response body directly
+            for response in responses:
+                assert isinstance(response, dict)
+                assert (
+                    "error" in response
+                ), f"Expected error field in response, got {response}"
+                assert "Mock error triggered by ERROR keyword" in response["error"]
+
+        # Verify tracking events
+        dummy_stream = server.context.stream.output_stream
+        num_models = 2 if multiple_models else 1
+        assert len(dummy_stream.event_list) == num_models
+
+        # Verify the error batch for each model
+        error_inputs = [good_input, self.ERROR_INPUT]
+        if multiple_models:
+            # Separate events by model
+            model_events = {event["model"]: event for event in dummy_stream.event_list}
+            assert "my_endpoint" in model_events
+            assert "my_endpoint_2" in model_events
+
+            for model_name in ["my_endpoint", "my_endpoint_2"]:
+                error_event = model_events[model_name]
+                self._verify_batch_error_tracking(
+                    error_event, error_inputs, model=model_name
+                )
+        else:
+            # Single model
+            error_event = dummy_stream.event_list[0]
+            self._verify_batch_error_tracking(error_event, error_inputs)

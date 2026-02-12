@@ -147,19 +147,6 @@ class APIHandlerConfig(mlrun.model.ModelObj):
         endpoint_key = serving_utils._combine_serving_endpoint_key(method, path)
         return self._endpoints.get(endpoint_key)
 
-    @classmethod
-    def from_dict(
-        cls, struct=None, fields=None, deprecated_fields=None, init_with_params=False
-    ):
-        """Create object from dictionary, handling private _body_map attribute."""
-        if struct and "body_map" in struct:
-            # Extract body_map and set it via __init__ to avoid property setter issues
-            body_map = struct.pop("body_map")
-            obj = super().from_dict(struct, fields, deprecated_fields, init_with_params)
-            obj._body_map = body_map or {}
-            return obj
-        return super().from_dict(struct, fields, deprecated_fields, init_with_params)
-
     def add_endpoint_handler(
         self,
         path: str,

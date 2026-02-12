@@ -22,6 +22,7 @@ import typing
 import unittest.mock
 from http import HTTPStatus
 from typing import Optional
+from unittest.mock import AsyncMock, Mock
 from uuid import uuid4
 
 import deepdiff
@@ -39,6 +40,7 @@ import mlrun.common.constants as mlrun_constants
 import mlrun.common.formatters
 import mlrun.common.runtimes.constants
 import mlrun.common.schemas
+import mlrun.common.types
 import mlrun.errors
 import mlrun_pipelines.common.models
 from mlrun.artifacts import Artifact
@@ -53,6 +55,7 @@ import framework.utils.singletons.db
 import framework.utils.singletons.k8s
 import framework.utils.singletons.project_member
 import services.alerts.crud
+import services.api.api.endpoints.projects as projects_endpoints
 import services.api.crud
 import services.api.tests.unit.conftest
 import services.api.tests.unit.utils.clients.test_log_collector
@@ -75,6 +78,7 @@ from services.api.daemon import daemon
 ORIGINAL_VERSIONED_API_PREFIX = daemon.service.base_versioned_service_prefix
 FUNCTIONS_API = "projects/{project}/functions/{name}"
 LIST_FUNCTION_API = "projects/{project}/functions"
+PERMISSIONS_PROJECT_NAME = "permissions-project"
 
 
 @pytest.fixture(params=["leader", "follower"])
@@ -169,6 +173,67 @@ def test_get_non_existing_project(
     )
     response = client.get(f"projects/{project}")
     assert response.status_code == HTTPStatus.NOT_FOUND.value
+
+
+@pytest.mark.asyncio
+async def test_project_permissions_create_when_missing(
+    db: Session, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Verify create permissions are required for missing projects."""
+    auth_info = mlrun.common.schemas.AuthInfo()
+    auth_verifier = framework.utils.auth.verifier.AuthVerifier()
+    query_project = AsyncMock()
+    query_global = AsyncMock()
+    resource_type = mlrun.common.schemas.AuthorizationResourceTypes.project_global
+    action = mlrun.common.schemas.AuthorizationAction.create
+    auth_mode = mlrun.common.types.AuthenticationMode.IGUAZIO_V4
+    monkeypatch.setattr(auth_verifier, "query_project_permissions", query_project)
+    monkeypatch.setattr(
+        auth_verifier, "query_global_resource_permissions", query_global
+    )
+    monkeypatch.setattr(mlrun.mlconf.httpdb.authentication, "mode", auth_mode)
+    project_member = framework.utils.singletons.project_member.get_project_member()
+    not_found_error = mlrun.errors.MLRunNotFoundError("Project missing")
+    monkeypatch.setattr(
+        project_member, "get_project", Mock(side_effect=not_found_error)
+    )
+    await projects_endpoints._ensure_project_create_or_update_permissions(
+        db, PERMISSIONS_PROJECT_NAME, auth_info
+    )
+    query_project.assert_not_awaited()
+    query_global.assert_awaited_once_with(resource_type, action, auth_info)
+
+
+@pytest.mark.asyncio
+async def test_project_permissions_update_when_exists(
+    db: Session, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Verify update permissions are required for existing projects."""
+    auth_info = mlrun.common.schemas.AuthInfo()
+    auth_verifier = framework.utils.auth.verifier.AuthVerifier()
+    query_project = AsyncMock()
+    query_global = AsyncMock()
+    action = mlrun.common.schemas.AuthorizationAction.update
+    project_name = PERMISSIONS_PROJECT_NAME
+    auth_mode = mlrun.common.types.AuthenticationMode.IGUAZIO_V4
+    monkeypatch.setattr(auth_verifier, "query_project_permissions", query_project)
+    monkeypatch.setattr(
+        auth_verifier, "query_global_resource_permissions", query_global
+    )
+    monkeypatch.setattr(mlrun.mlconf.httpdb.authentication, "mode", auth_mode)
+    project_member = framework.utils.singletons.project_member.get_project_member()
+    existing_project = mlrun.common.schemas.Project(
+        metadata=mlrun.common.schemas.ProjectMetadata(name=project_name)
+    )
+    monkeypatch.setattr(
+        project_member, "get_project", Mock(return_value=existing_project)
+    )
+
+    await projects_endpoints._ensure_project_create_or_update_permissions(
+        db, project_name, auth_info
+    )
+    query_project.assert_awaited_once_with(project_name, action, auth_info)
+    query_global.assert_not_awaited()
 
 
 @pytest.fixture()

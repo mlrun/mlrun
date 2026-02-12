@@ -53,6 +53,7 @@ from .run import (
     load_func_code,
     new_function,
 )
+from .runtime_configuration_context import RuntimeConfigurationContext
 from .runtimes import RemoteRuntime, RunError, RuntimeKinds, ServingRuntime
 from .secrets import SecretsStore
 from .utils import (
@@ -207,6 +208,13 @@ def main():
     help="Override the loaded project name. This flag ensures awareness of loading an existing project yaml "
     "as a baseline for a new project with a different name",
 )
+@click.option(
+    "--runtime-config",
+    "-rc",
+    default=[],
+    multiple=True,
+    help="runtime configuration context values, e.g. --runtime-config auth_token_name=my-token",
+)
 def run(
     url,
     param,
@@ -251,6 +259,7 @@ def run(
     ensure_project,
     returns,
     allow_cross_project,
+    runtime_config,
 ):
     """Execute a task and inject parameters."""
 
@@ -447,14 +456,19 @@ def run(
             # and logs periodically
             # TODO: change watch to be a flag with more options (with_logs, wait_for_completion, etc.)
             watch = watch or None
-        resp = fn.run(
-            runobj,
-            watch=watch,
-            schedule=schedule,
-            local=local,
-            auto_build=auto_build,
-            project=project,
-        )
+
+        # Parse run_config into a dictionary for RuntimeConfigurationContext
+        runtime_config_dict = fill_params(runtime_config) if runtime_config else {}
+
+        with RuntimeConfigurationContext(**runtime_config_dict):
+            resp = fn.run(
+                runobj,
+                watch=watch,
+                schedule=schedule,
+                local=local,
+                auto_build=auto_build,
+                project=project,
+            )
         if resp and dump:
             print(resp.to_yaml())
     except RunError as err:
@@ -1327,22 +1341,34 @@ def show_or_set_config(
     "--project",
     "-p",
     default=None,
-    help="project name (extracted from URI if not provided)",
+    help="project name (used for store:// URIs)",
 )
 @click.option(
     "--target",
     "-t",
     default="/home/mlrun_code",
-    help="target directory to write the source file",
+    help="target directory to write the source",
 )
 def load_source(source_uri, project, target):
-    """Load source code artifact into target directory.
+    """Load source code into target directory.
 
     This is an internal CLI command used by init containers to prepare
     application source code before the sidecar container starts.
 
-    Example:
-        mlrun load-source store://artifacts/my-project/app.py -t /tmp/mlrun_code
+    Supported source types:
+
+    \b
+    - store:// URIs: Single-file artifacts from the MLRun artifact store
+    - git:// URLs: Git repositories (cloned to target directory)
+    - .zip files: ZIP archives (extracted to target directory)
+    - .tar.gz files: Tarball archives (extracted to target directory)
+
+    Examples:
+
+    \b
+        mlrun load-source store://artifacts/my-project/app.py -t /tmp/code
+        mlrun load-source git://github.com/org/repo.git#main -t /tmp/code
+        mlrun load-source https://example.com/source.tar.gz -t /tmp/code
     """
 
     try:

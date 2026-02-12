@@ -52,6 +52,7 @@ class _CommonParams:
     auth_info: mlrun.common.schemas.AuthInfo
     db_session: Session
     model_monitoring_access_key: Optional[str] = None
+    auth_token_name: Optional[str] = None
 
     def __post_init__(self) -> None:
         if mlrun.mlconf.is_using_v3io():
@@ -69,6 +70,7 @@ class _CommonParams:
             auth_info=self.auth_info,
             db_session=self.db_session,
             model_monitoring_access_key=self.model_monitoring_access_key,
+            auth_token_name=self.auth_token_name,
         )
 
 
@@ -110,6 +112,9 @@ async def _common_parameters(
     client_version: Optional[str] = Header(
         None, alias=mlrun.common.schemas.HeaderNames.client_version
     ),
+    auth_token_name: Optional[str] = Query(
+        None, description="Auth token name (set by mlrun.RuntimeConfigurationContext)"
+    ),
 ) -> _CommonParams:
     """
     Verify authorization and return common parameters.
@@ -118,6 +123,7 @@ async def _common_parameters(
     :param auth_info:       The auth info of the request.
     :param db_session:      A session that manages the current dialog with the database.
     :param client_version:  The client version.
+    :param auth_token_name: The auth token name (set by mlrun.RuntimeConfigurationContext).
     :returns:          A `_CommonParameters` object that contains the input data.
     """
     await _verify_authorization(
@@ -127,6 +133,7 @@ async def _common_parameters(
         project=project,
         auth_info=auth_info,
         db_session=db_session,
+        auth_token_name=auth_token_name,
     )
 
 

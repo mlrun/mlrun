@@ -1636,6 +1636,42 @@ def _verify_batch_step_error_tracking(
         assert event["effective_sample_count"] == len(events)
 
 
+def _verify_error_in_response_body(
+    responses, events, multiple_models, error_substring, model_names=None
+):
+    """
+    Verify that error is returned in response body (not raised as exception).
+    """
+
+    assert len(responses) == len(events)
+
+    if model_names is None:
+        model_names = ["my_model", "my_model_2"]
+
+    # Verify response body contains error field
+    for response in responses:
+        if multiple_models:
+            # Multiple models: {"model1": {"error": "..."}, "model2": {"error": "..."}}
+            assert isinstance(response, dict)
+            assert all(
+                "error" in response.get(model, {}) for model in model_names
+            ), f"Expected error field for each model in response, got {response}"
+            # Verify error message content
+            for model in model_names:
+                assert (
+                    error_substring in response[model]["error"]
+                    or "can only concatenate str" in response[model]["error"]
+                )
+        else:
+            # Single model: {"error": "..."}
+            assert isinstance(response, dict)
+            assert "error" in response, f"Expected error field in body, got {response}"
+            assert (
+                error_substring in response["error"]
+                or "can only concatenate str" in response["error"]
+            )
+
+
 def _generate_batch_string_responses(strings, suffixes, model_names=None):
     """
     Generate expected string responses for multiple models.
@@ -2114,7 +2150,9 @@ def test_batch_step_with_mrs(rundb_mock, multiple_models):
         (False, True),
     ],
 )
-def test_batch_step_with_mrs_list(multiple_models, raise_exception, with_error, rundb_mock):
+def test_batch_step_with_mrs_list(
+    multiple_models, raise_exception, with_error, rundb_mock
+):
     """
     Test batch step with MRS for:
     - Single vs multiple models
@@ -2122,6 +2160,7 @@ def test_batch_step_with_mrs_list(multiple_models, raise_exception, with_error, 
     - Proper tracking of batch events
     - Error returned as dict when raise_exception=False
     """
+
     function = mlrun.new_function("tests", kind="serving")
     function.set_tracking("dummy://", enable_tracking=True)
     graph = function.set_topology("flow", engine="async")
@@ -2137,7 +2176,9 @@ def test_batch_step_with_mrs_list(multiple_models, raise_exception, with_error, 
     )
 
     # ModelRunnerStep: process batches through the model(s)
-    model_runner_step = ModelRunnerStep(name="model_runner", raise_exception=raise_exception)
+    model_runner_step = ModelRunnerStep(
+        name="model_runner", raise_exception=raise_exception
+    )
 
     model_path = str(Path(__file__).parent / "assets" / "linear_model.pkl")
     model_path2 = str(Path(__file__).parent / "assets" / "linear_model2.pkl")
@@ -2221,25 +2262,13 @@ def test_batch_step_with_mrs_list(multiple_models, raise_exception, with_error, 
         )
     elif with_error and not raise_exception:
         # Error should be returned in response dict, not raised
-        assert len(responses) == len(events)
-
-        # Verify response body contains error field
-        for response in responses:
-            if multiple_models:
-                # Multiple models: {"my_model": {"error": "..."}, "my_model_2": {"error": "..."}}
-                assert isinstance(response, dict)
-                models = ["my_model", "my_model_2"]
-                assert all(
-                    "error" in response.get(model, {}) for model in models
-                ), f"Expected error field for each model in response, got {response}"
-                # Verify error message content
-                for model in models:
-                    assert "list index out of range" in response[model]["error"]
-            else:
-                # Single model: {"error": "..."}
-                assert isinstance(response, dict)
-                assert "error" in response, f"Expected error field in body, got {response}"
-                assert "list index out of range" in response["error"]
+        _verify_error_in_response_body(
+            responses=responses,
+            events=events,
+            multiple_models=multiple_models,
+            error_substring="list index out of range",
+            model_names=["my_model", "my_model_2"],
+        )
 
         # Verify error tracking in stream
         dummy_stream = server.context.stream.output_stream
@@ -2283,7 +2312,6 @@ def test_batch_step_with_mrs_list(multiple_models, raise_exception, with_error, 
         )
 
 
-
 @pytest.mark.parametrize("multiple_models", (True, False))
 @pytest.mark.parametrize(
     "raise_exception, with_error",
@@ -2293,7 +2321,9 @@ def test_batch_step_with_mrs_list(multiple_models, raise_exception, with_error, 
         (False, True),
     ],
 )
-def test_batch_step_with_mrs_string(multiple_models, raise_exception, with_error, rundb_mock):
+def test_batch_step_with_mrs_string(
+    multiple_models, raise_exception, with_error, rundb_mock
+):
     """
     Test batch step with MRS for simple string inputs (e.g., "hello", "world").
     - Single vs multiple models
@@ -2316,7 +2346,9 @@ def test_batch_step_with_mrs_string(multiple_models, raise_exception, with_error
     )
 
     # ModelRunnerStep: process batches through the string model
-    model_runner_step = ModelRunnerStep(name="model_runner", raise_exception=raise_exception)
+    model_runner_step = ModelRunnerStep(
+        name="model_runner", raise_exception=raise_exception
+    )
 
     suffix1 = "_model1"
     suffix2 = "_model2"
@@ -2393,25 +2425,13 @@ def test_batch_step_with_mrs_string(multiple_models, raise_exception, with_error
         )
     elif with_error and not raise_exception:
         # Error should be returned in response dict, not raised
-        assert len(responses) == len(events)
-
-        # Verify response body contains error field
-        for response in responses:
-            if multiple_models:
-                # Multiple models: {"my_model_1": {"error": "..."}, "my_model_2": {"error": "..."}}
-                assert isinstance(response, dict)
-                models = ["my_model_1", "my_model_2"]
-                assert all(
-                    "error" in response.get(model, {}) for model in models
-                ), f"Expected error field for each model in response, got {response}"
-                # Verify error message content
-                for model in models:
-                    assert "unsupported operand type" in response[model]["error"] or "can only concatenate str" in response[model]["error"]
-            else:
-                # Single model: {"error": "..."}
-                assert isinstance(response, dict)
-                assert "error" in response, f"Expected error field in body, got {response}"
-                assert "unsupported operand type" in response["error"] or "can only concatenate str" in response["error"]
+        _verify_error_in_response_body(
+            responses=responses,
+            events=events,
+            multiple_models=multiple_models,
+            error_substring="unsupported operand type",
+            model_names=["my_model_1", "my_model_2"],
+        )
 
         # Verify error tracking in stream
         dummy_stream = server.context.stream.output_stream

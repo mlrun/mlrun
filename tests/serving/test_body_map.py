@@ -40,9 +40,9 @@ class TestAPIHandlerConfigBodyMap:
         assert config.body_map == body_map
 
     def test_config_without_body_map(self) -> None:
-        """Test that body_map defaults to None"""
+        """Test that body_map defaults to empty dict"""
         config = APIHandlerConfig()
-        assert config.body_map is None
+        assert config.body_map == {}
 
     def test_body_map_serialization_roundtrip(self) -> None:
         """Test body_map survives to_dict / from_dict round-trip"""
@@ -80,9 +80,9 @@ class TestAPIHandlerConfigBodyMap:
     def test_add_body_mapping() -> None:
         """Test add_body_mapping helper method"""
         config = APIHandlerConfig()
-        assert config.body_map is None
+        assert config.body_map == {}
 
-        # Add first mapping - should initialize body_map
+        # Add first mapping
         config.add_body_mapping("user_name", "$.user.name")
         assert config.body_map == {"user_name": "$.user.name"}
 
@@ -152,12 +152,30 @@ class TestAPIHandlerConfigBodyMap:
         assert config.body_map == {"param": "$.path"}
 
     @staticmethod
-    def test_remove_body_mapping_when_none() -> None:
-        """Test removing mapping when body_map is None"""
+    def test_remove_body_mapping_when_empty() -> None:
+        """Test removing mapping when body_map is empty"""
         config = APIHandlerConfig()
-        assert config.body_map is None
+        assert config.body_map == {}
         config.remove_body_mapping("param")  # Should not raise
-        assert config.body_map is None
+        assert config.body_map == {}
+
+    @staticmethod
+    def test_add_body_mapping_validates_jsonpath() -> None:
+        """Test that add_body_mapping validates JSONPath expression"""
+        import mlrun.errors
+
+        config = APIHandlerConfig()
+
+        # Should raise for invalid JSONPath syntax
+        with pytest.raises(
+            mlrun.errors.MLRunInvalidArgumentError,
+            match=r"Invalid JSON path expression for parameter 'bad_param'",
+        ):
+            config.add_body_mapping("bad_param", "$.invalid[[[syntax")
+
+        # Should not raise for valid JSONPath
+        config.add_body_mapping("good_param", "$.valid.path")
+        assert config.body_map == {"good_param": "$.valid.path"}
 
 
 # ---------------------------------------------------------------------------

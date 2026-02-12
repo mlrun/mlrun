@@ -67,7 +67,20 @@ class APIHandlerConfig(mlrun.model.ModelObj):
     ):
         self.enabled = enabled
         self._endpoints = endpoints or {}
-        self.body_map = body_map
+        self._body_map = body_map or {}
+
+    @property
+    def body_map(self) -> dict[str, str]:
+        """Get the body_map configuration as a dictionary."""
+        return self._body_map
+
+    @body_map.setter
+    def body_map(self, value: dict[str, str] | None) -> None:
+        """Set the body_map configuration.
+
+        :param value: Dictionary mapping parameter names to JSONPath expressions, or None.
+        """
+        self._body_map = value or {}
 
     @property
     def endpoints(self) -> dict[str, dict]:
@@ -198,6 +211,7 @@ class APIHandlerConfig(mlrun.model.ModelObj):
         :param parameter_name: Name of the parameter to pass to the handler
         :param json_path: JSONPath expression to extract the value from request body
                          (e.g., '$.user.name' or '$.items[*].id')
+        :raises mlrun.errors.MLRunInvalidArgumentError: If json_path is not a valid JSONPath expression
 
         Example::
 
@@ -208,27 +222,35 @@ class APIHandlerConfig(mlrun.model.ModelObj):
                 "item_ids", "$.items[*].id"
             )  # Multiple matches return list
         """
-        if self.body_map is None:
-            self.body_map = {}
+        # Validate JSONPath expression by parsing it
+        from jsonpath_ng import parse as jsonpath_parse
+        from jsonpath_ng.exceptions import JsonPathLexerError, JsonPathParserError
+
+        try:
+            jsonpath_parse(json_path)
+        except (JsonPathLexerError, JsonPathParserError) as exc:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"Invalid JSON path expression for parameter '{parameter_name}': "
+                f"'{json_path}'. Error: {exc}"
+            ) from exc
 
         # Warn if overriding an existing mapping
-        if parameter_name in self.body_map:
+        if parameter_name in self._body_map:
             logger.warning(
                 "Overriding existing body mapping",
                 parameter_name=parameter_name,
-                old_json_path=self.body_map[parameter_name],
+                old_json_path=self._body_map[parameter_name],
                 new_json_path=json_path,
             )
 
-        self.body_map[parameter_name] = json_path
+        self._body_map[parameter_name] = json_path
 
     def remove_body_mapping(self, parameter_name: str) -> None:
         """Remove a body mapping by parameter name.
 
         :param parameter_name: Name of the parameter mapping to remove
         """
-        if self.body_map:
-            self.body_map.pop(parameter_name, None)
+        self._body_map.pop(parameter_name, None)
 
 
 def new_v2_model_server(

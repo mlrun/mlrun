@@ -2077,6 +2077,25 @@ class TestMonitoringPreProcessorStreamingAggregation:
         assert result["output"] == "Hello world!"
         assert result["metrics"]["tokens"] == 4
 
+    def test_aggregate_flat_dict_chunks(self):
+        """Test aggregation of flat dict chunks (no nested metrics).
+
+        Matches the StreamingModel output format: {"output": "...", "token_count": 1}.
+        The "output" key is concatenated; other keys take first chunk's value.
+        """
+        preprocessor = MonitoringPreProcessor()
+
+        chunks = [
+            {"output": "test_chunk_0", "token_count": 1},
+            {"output": "test_chunk_1", "token_count": 1},
+            {"output": "test_chunk_2", "token_count": 1},
+        ]
+        result = preprocessor._aggregate_collected_chunks(chunks)
+
+        assert result["output"] == "test_chunk_0test_chunk_1test_chunk_2"
+        # Non-output, non-metrics keys take value from first chunk
+        assert result["token_count"] == 1
+
     def test_aggregate_dict_chunks_with_list_outputs(self):
         """Test aggregation of dict chunks with list outputs."""
         preprocessor = MonitoringPreProcessor()

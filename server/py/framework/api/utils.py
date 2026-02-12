@@ -34,6 +34,7 @@ from fastapi.concurrency import run_in_threadpool
 from kubernetes.client import V1EnvVar, V1EnvVarSource
 from sqlalchemy.orm import Session
 
+import mlrun.common.constants
 import mlrun.common.schemas
 import mlrun.errors
 import mlrun.runtimes.pod
@@ -1352,6 +1353,12 @@ async def _delete_function(
             )
             raise mlrun.errors.MLRunInternalServerError(error_message)
 
+    # For application runtime functions, clean up source artifacts that were uploaded during deploy
+    if functions[0].get("kind") == mlrun.runtimes.RuntimeKinds.application:
+        await _delete_application_source_artifacts(
+            db_session, project, function_name, auth_info
+        )
+
     # delete the function from the database
     await run_in_threadpool(
         services.api.crud.Functions().delete_function,
@@ -1359,6 +1366,48 @@ async def _delete_function(
         project,
         function_name,
     )
+
+
+async def _delete_application_source_artifacts(
+    db_session: sqlalchemy.orm.Session,
+    project: str,
+    function_name: str,
+    auth_info: mlrun.common.schemas.AuthInfo,
+):
+    """
+    Delete source artifacts associated with an application runtime function.
+
+    When an application runtime function is deployed with a local source file, the source is uploaded as an artifact
+    labeled with the function name.
+    This method cleans up those artifacts when the function is deleted.
+    """
+    labels = [
+        f"{mlrun.common.constants.MLRunInternalLabels.function_name}={function_name}",
+        f"{mlrun.common.constants.MLRunInternalLabels.system_generated}=true",
+    ]
+    logger.debug(
+        "Deleting application source artifacts",
+        project=project,
+        function_name=function_name,
+        labels=labels,
+    )
+    try:
+        await run_in_threadpool(
+            services.api.crud.Artifacts().delete_artifacts,
+            db_session,
+            project=project,
+            name="",
+            tag="*",
+            labels=labels,
+            auth_info=auth_info,
+        )
+    except Exception as exc:
+        logger.warning(
+            "Failed to delete application source artifacts, continuing with function deletion",
+            project=project,
+            function_name=function_name,
+            error=err_to_str(exc),
+        )
 
 
 async def _update_functions_with_deletion_info(functions, project, updates: dict):

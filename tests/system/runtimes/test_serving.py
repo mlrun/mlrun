@@ -138,13 +138,13 @@ class TestServingAPIHandler(tests.system.base.TestMLRunSystem):
         self._logger.info("Testing API handler with body_map functionality")
 
         # Create API handler config with body_map for JSONPath extraction
-        config = APIHandlerConfig(
-            body_map={
-                "user_name": "$.user.name",
-                "user_email": "$.user.contact.email",
-                "book_titles": "$.purchases[*].title",  # Multiple matches return list
-            }
-        )
+        config = APIHandlerConfig()
+
+        config.add_body_mapping("user_name", "$.user.name")
+        config.add_body_mapping("user_email", "$.user.contact.email")
+        # Multiple matches return list
+        config.add_body_mapping("book_titles", "$.purchases[*].title")
+
         config.add_endpoint_handler(
             "/api/v1/process",
             HTTPMethod.POST,

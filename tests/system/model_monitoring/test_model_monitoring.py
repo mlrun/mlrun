@@ -792,7 +792,7 @@ class TestBasicModelMonitoring(TestMLRunSystemModelMonitoring):
 
     project_name = "pr-basic-model-monitoring"
     # Set image to "<repo>/mlrun:<tag>" for local testing
-    image: Optional[str] = "galtopperbnkk67393/mlrun:1.11.0-rc33-83fd74"
+    image: Optional[str] = None
 
     @pytest.mark.timeout(540)
     def test_basic_model_monitoring(self) -> None:

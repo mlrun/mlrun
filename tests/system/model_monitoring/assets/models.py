@@ -231,10 +231,7 @@ class StreamingModel(mlrun.serving.Model):
         """Yield streaming chunks for aggregation testing."""
         prompt = body.get("prompt", "default") if isinstance(body, dict) else str(body)
         for i in range(self.num_chunks):
-            yield {
-                "output": f"{prompt}_chunk_{i}",
-                "token_count": 1,
-            }
+            yield f"{prompt}_chunk_{i}"
 
 
 class MyModelSelector(mlrun.serving.states.ModelRunnerSelector):

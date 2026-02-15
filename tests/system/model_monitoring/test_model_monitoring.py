@@ -1187,8 +1187,6 @@ class TestBasicModelMonitoring(TestMLRunSystemModelMonitoring):
             image=self.image,
         )
         function.spec.replicas = 1
-        # TODO: This is needed due to a nuclio (1.15.17) issue when mixing stream and non-stream responses
-        function.with_http(workers=2)
 
         self.set_mm_credentials()
 
@@ -1229,7 +1227,6 @@ class TestBasicModelMonitoring(TestMLRunSystemModelMonitoring):
             **({} if self.image is None else {"image": self.image}),
         )
 
-        # Deploy and invoke
         function.deploy()
 
         # Invoke streaming model alone (mixing streaming + non-streaming is not

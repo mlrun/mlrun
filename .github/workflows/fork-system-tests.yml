@@ -1,0 +1,36 @@
+# Caller workflow for running system tests from a fork.
+# Calls the reusable system-tests-opensource.yml workflow.
+#
+# How to use in your fork:
+#   1. Fork mlrun/mlrun
+#   2. Create two branches: "source" (your changes) and "dest" (base from development)
+#   3. Create a PR from source -> dest
+#   4. Configure these secrets in your fork's repo settings (Settings > Secrets and variables > Actions):
+#     - DOCKER_HUB_DOCKER_REGISTRY_USERNAME
+#     - DOCKER_HUB_DOCKER_REGISTRY_PASSWORD
+#     - SYSTEM_TEST_GITHUB_ACCESS_TOKEN
+#   5. Set up a self-hosted runner (or use GitHub-hosted runners) in a runner group named "mlrun-ce"
+
+name: "System Tests (Fork)"
+
+on:
+  pull_request:
+    branches:
+      - dest
+
+jobs:
+  system-tests:
+    uses: mlrun/mlrun/.github/workflows/system-tests-opensource.yml@feature/system-test-oss-from-fork
+    with:
+      pr_number: ${{ github.event.pull_request.number }}
+    secrets:
+      DOCKER_HUB_DOCKER_REGISTRY_USERNAME: ${{ secrets.DOCKER_HUB_DOCKER_REGISTRY_USERNAME }}
+      DOCKER_HUB_DOCKER_REGISTRY_PASSWORD: ${{ secrets.DOCKER_HUB_DOCKER_REGISTRY_PASSWORD }}
+      SYSTEM_TEST_GITHUB_ACCESS_TOKEN: ${{ secrets.SYSTEM_TEST_GITHUB_ACCESS_TOKEN }}
+      OPENAI_BASE_URL: ${{ secrets.OPENAI_BASE_URL }}
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      QUAY_IO_DOCKER_REGISTRY_USERNAME: ${{ secrets.QUAY_IO_DOCKER_REGISTRY_USERNAME }}
+      QUAY_IO_DOCKER_REGISTRY_PASSWORD: ${{ secrets.QUAY_IO_DOCKER_REGISTRY_PASSWORD }}
+      ARTIFACTORY_URL: ${{ secrets.ARTIFACTORY_URL }}
+      ARTIFACTORY_USERNAME: ${{ secrets.ARTIFACTORY_USERNAME }}
+      ARTIFACTORY_PASSWORD: ${{ secrets.ARTIFACTORY_PASSWORD }}

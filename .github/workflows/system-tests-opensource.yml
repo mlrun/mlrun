@@ -19,7 +19,48 @@ permissions:
   packages: write
 
 on:
-   workflow_dispatch:
+  workflow_call:
+    inputs:
+      pr_number:
+        description: 'PR number to run the system tests against'
+        type: string
+        default: ''
+      pytest_markers:
+        description: 'Pytest markers to run'
+        type: string
+        default: 'not enterprise and smoke'
+      clean_resources_in_teardown:
+        description: 'Clean test resources upon test teardown'
+        type: string
+        default: 'true'
+      debug_enabled:
+        description: 'Allow SSH debugging'
+        type: string
+        default: 'false'
+    secrets:
+      DOCKER_HUB_DOCKER_REGISTRY_USERNAME:
+        required: true
+      DOCKER_HUB_DOCKER_REGISTRY_PASSWORD:
+        required: true
+      SYSTEM_TEST_GITHUB_ACCESS_TOKEN:
+        required: true
+      OPENAI_BASE_URL:
+        required: false
+      OPENAI_API_KEY:
+        required: false
+      # Needed by build-internal.yaml (via secrets: inherit)
+      QUAY_IO_DOCKER_REGISTRY_USERNAME:
+        required: false
+      QUAY_IO_DOCKER_REGISTRY_PASSWORD:
+        required: false
+      ARTIFACTORY_URL:
+        required: false
+      ARTIFACTORY_USERNAME:
+        required: false
+      ARTIFACTORY_PASSWORD:
+        required: false
+
+  workflow_dispatch:
     inputs:
       pr_number:
         description: 'PR number to run the system tests against (default: run on the latest commit in the development branch)'
@@ -109,7 +150,7 @@ jobs:
               rm -rf mlrun-ui)" >> $GITHUB_OUTPUT
           echo "unstable_version_prefix=$(cat automation/version/unstable_version_prefix)" >> $GITHUB_OUTPUT
         env:
-          PR_NUMBER: ${{ github.event.inputs.pr_number }}
+          PR_NUMBER: ${{ inputs.pr_number }}
 
       - name: Set computed versions params
         id: computed_params
@@ -143,15 +184,15 @@ jobs:
             input_system_tests_clean_resources=$INPUT_CLEAN_RESOURCES_IN_TEARDOWN && \
             echo ${input_system_tests_clean_resources:-true})" >> $GITHUB_OUTPUT
         env:
-          INPUT_CLEAN_RESOURCES_IN_TEARDOWN: ${{ github.event.inputs.clean_resources_in_teardown || env.DEFAULT_CLEAN_RESOURCES_IN_TEARDOWN }}
-          PR_NUMBER: ${{ github.event.inputs.pr_number }}
+          INPUT_CLEAN_RESOURCES_IN_TEARDOWN: ${{ inputs.clean_resources_in_teardown || env.DEFAULT_CLEAN_RESOURCES_IN_TEARDOWN }}
+          PR_NUMBER: ${{ inputs.pr_number }}
 
       - name: Print mlrun_hash value
         run: |
           echo "mlrun_hash value: ${{ steps.computed_params.outputs.mlrun_hash }}"
 
   build-mlrun:
-    if: github.event_name == 'pull_request' || github.event.inputs.pr_number != ''
+    if: github.event_name == 'pull_request' || inputs.pr_number != ''
     name: Build MLRun
     uses: ./.github/workflows/build-internal.yaml
     needs: prepare-inputs
@@ -253,7 +294,7 @@ jobs:
 
     - name: Setup tmate session
       uses: mxschmitt/action-tmate@c0afd6f790e3a5564914980036ebf83216678101 # 3.23
-      if: ${{ (github.event.inputs.debug_enabled || env.DEFAULT_DEBUG_ENABLED) == 'true' }}
+      if: ${{ (inputs.debug_enabled || env.DEFAULT_DEBUG_ENABLED) == 'true' }}
       with:
 
         # run in detach mode to allow the workflow to continue running while session is active
@@ -261,26 +302,64 @@ jobs:
         # it will wait until the user disconnects before finishing up the job.
         detached: true
 
-    - name: Setup Local Docker Registry
+    - name: Configure K3S Containerd Registries with Docker Hub and GHCR Authentication
+      env:
+        DOCKER_USERNAME: ${{ secrets.DOCKER_HUB_DOCKER_REGISTRY_USERNAME }}
+        DOCKER_PASSWORD: ${{ secrets.DOCKER_HUB_DOCKER_REGISTRY_PASSWORD }}
+        GHCR_TOKEN: ${{ github.token }}
       run: |
-        sudo tee "/etc/rancher/k3s/registries.yaml" << EOF
+        echo "=== Creating K3S registries configuration ==="
+
+        # Create the K3S config directory if it doesn't exist
+        sudo mkdir -p /etc/rancher/k3s
+
+        # Create registries.yaml with Docker Hub and GHCR authentication
+        # This configures containerd to authenticate when pulling from docker.io and ghcr.io
+        # and sets up a local registry mirror for testing
+        sudo tee "/etc/rancher/k3s/registries.yaml" > /dev/null << EOF
         mirrors:
           registry.localhost:
             endpoint:
             - http://registry.localhost:80
+          docker.io:
+            endpoint:
+            - https://registry-1.docker.io
+          ghcr.io:
+            endpoint:
+            - https://ghcr.io
+        configs:
+          "registry-1.docker.io":
+            auth:
+              username: ${DOCKER_USERNAME}
+              password: ${DOCKER_PASSWORD}
+          "ghcr.io":
+            auth:
+              username: ${{ github.actor }}
+              password: ${GHCR_TOKEN}
         EOF
 
-        # restart k3s to apply the changes
+        echo "=== Configuration preview (credentials masked) ==="
+        sudo sed 's/username:.*/username: ***/' /etc/rancher/k3s/registries.yaml | \
+          sed 's/password:.*/password: ***/'
+
+    - name: Apply Registries Configuration and Setup Local Registry
+      run: |
+        echo "=== Restarting K3S to apply registry configuration ==="
         sudo systemctl restart k3s
 
         # wait ~30s for k3s to stabilize
+        echo "Waiting for K3S to stabilize..."
         sleep 30
 
+        echo "=== Verifying K3S is ready ==="
+        kubectl wait --for=condition=Ready nodes --all --timeout=120s
+
+        echo "=== Deploying local Docker registry ==="
         # create the docker-registry namespace and deploy the registry
         kubectl create namespace docker-registry --dry-run=client -o yaml | kubectl apply -f -
         kubectl apply -f automation/system_test/k3s_docker_registry.yaml
 
-        # restart coredns to apply the changes
+        echo "=== Restarting CoreDNS to apply DNS changes ==="
         kubectl -n kube-system rollout restart deployment coredns
 
     - name: Setup K3S storage and check cluster health
@@ -421,7 +500,7 @@ jobs:
         source venv/bin/activate
         make test-system-open-source
       env:
-        PYTEST_MARKERS: ${{ github.event.inputs.pytest_markers || env.DEFAULT_PYTEST_MARKERS }}
+        PYTEST_MARKERS: ${{ inputs.pytest_markers || env.DEFAULT_PYTEST_MARKERS }}
 
     - name: Output  logs
       if: always()

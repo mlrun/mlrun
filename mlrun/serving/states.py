@@ -2560,6 +2560,8 @@ class ModelRunnerErrorRaiser(storey.MapClass):
                 if storey.flow.is_batched_event(event):
                     # TODO fix error raiser for batch, ML-12068
                     return event
+                if not isinstance(event.body, dict):
+                    return event
                 for model in event.body:
                     body_by_model = event.body.get(model)
                     errors[model] = None

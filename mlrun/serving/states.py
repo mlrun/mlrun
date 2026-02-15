@@ -3681,14 +3681,71 @@ def get_current_function(context):
 
 
 def _add_graphviz_router(graph, step, source=None, **kwargs):
+    """Render a router step to graphviz.
+
+    If the router has a get_internal_graph_structure() method, uses that
+    to render custom internal topology (for DeclarativeTeamRouter).
+    Otherwise falls back to default flat list of routes.
+    """
     if source:
         graph.node("_start", source.name, shape=source.shape, style="filled")
         graph.edge("_start", step.fullname)
 
-    graph.node(step.fullname, label=step.name, shape=step.get_shape())
-    for route in step.get_children():
-        graph.node(route.fullname, label=route.name, shape=route.get_shape())
-        graph.edge(step.fullname, route.fullname)
+    # Check if router has custom graph structure method
+    if hasattr(step, "get_internal_graph_structure") and callable(
+        getattr(step, "get_internal_graph_structure")
+    ):
+        # Use custom rendering for complex team architectures
+        structure = step.get_internal_graph_structure()
+        _render_custom_router_structure(graph, step, structure)
+    else:
+        # Default rendering: router node with child routes
+        graph.node(step.fullname, label=step.name, shape=step.get_shape())
+        for route in step.get_children():
+            graph.node(route.fullname, label=route.name, shape=route.get_shape())
+            graph.edge(step.fullname, route.fullname)
+
+
+def _render_custom_router_structure(graph, step, structure):
+    """Render custom internal structure for routers with complex topologies.
+
+    :param graph:     Graphviz Digraph object
+    :param step:      Router step with get_internal_graph_structure() method
+    :param structure: Dict with 'nodes', 'edges', 'layout' keys
+    """
+    nodes = structure.get("nodes", [])
+    edges = structure.get("edges", [])
+    layout = structure.get("layout", "flat")
+
+    # Create subgraph cluster to group the router's internal structure
+    with graph.subgraph(name=f"cluster_{step.fullname}") as sg:
+        sg.attr(label=step.name, style="rounded", color="blue")
+
+        # Render nodes inside the cluster
+        for node in nodes:
+            node_name = node.get("name")
+            node_type = node.get("type", "agent")
+
+            # Use fullname prefix to avoid conflicts with other steps
+            node_id = f"{step.fullname}_{node_name}"
+
+            # Different shapes for different node types
+            if node_type == "selector":
+                shape = "diamond"
+            elif node_type == "agent":
+                shape = "box"
+            else:
+                shape = "ellipse"
+
+            sg.node(node_id, label=node_name, shape=shape)
+
+        # Render edges between nodes
+        for edge in edges:
+            if isinstance(edge, tuple) and len(edge) == 2:
+                from_node, to_node = edge
+                from_id = f"{step.fullname}_{from_node}"
+                to_id = f"{step.fullname}_{to_node}"
+                sg.edge(from_id, to_id)
 
 
 def _add_graphviz_model_runner(graph, step, source=None, is_monitored=False):

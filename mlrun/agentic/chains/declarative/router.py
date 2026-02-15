@@ -171,3 +171,79 @@ class DeclarativeTeamRouter(BaseModelRouter):
                 )
 
         return {"answer": answer}
+
+    def get_internal_graph_structure(self):
+        """Return visual graph structure for custom rendering.
+
+        Returns a dictionary with nodes, edges, and layout information that
+        describes how this router's internal structure should be visualized.
+        This is separate from the LangGraph execution logic.
+
+        :return: Dict with 'nodes' (list of node dicts), 'edges' (list of tuples),
+                 and 'layout' (str hint: sequential, hub, selector_hub, custom, flat)
+        """
+        spec = self.team_config.get("spec", {})
+        strategy_type = spec.get("strategy", "sequential")
+        member_refs = spec.get("members", [])
+
+        # Extract member names
+        member_names = [
+            ref.get("name") if isinstance(ref, dict) else ref for ref in member_refs
+        ]
+
+        # Build structure based on strategy
+        normalized = _STRATEGY_BUILDERS.get(strategy_type, strategy_type)
+
+        if normalized == "sequential":
+            # Linear chain: agent1 -> agent2 -> agent3
+            nodes = [{"name": name, "type": "agent"} for name in member_names]
+            edges = [
+                (member_names[i], member_names[i + 1])
+                for i in range(len(member_names) - 1)
+            ]
+            return {"nodes": nodes, "edges": edges, "layout": "sequential"}
+
+        elif normalized == "round_robin":
+            # Hub-and-spoke: router in center, agents around it
+            nodes = [{"name": name, "type": "agent"} for name in member_names]
+            # Edges go from router to each agent and back
+            edges = [(self.name, name) for name in member_names]
+            edges.extend([(name, self.name) for name in member_names])
+            return {"nodes": nodes, "edges": edges, "layout": "hub"}
+
+        elif normalized == "selector":
+            # Check if graph spec has custom edges
+            graph_spec = spec.get("graph", {})
+            if graph_spec.get("edges"):
+                # Custom graph from YAML
+                nodes = [{"name": name, "type": "agent"} for name in member_names]
+                edges = []
+                for edge in graph_spec["edges"]:
+                    from_node = edge.get("from")
+                    to_node = edge.get("to")
+                    if from_node and to_node:
+                        edges.append((from_node, to_node))
+                return {"nodes": nodes, "edges": edges, "layout": "custom"}
+            else:
+                # Selector hub-and-spoke with selector logic
+                nodes = [{"name": name, "type": "agent"} for name in member_names]
+                nodes.insert(0, {"name": "selector", "type": "selector"})
+                # Selector to all agents
+                edges = [("selector", name) for name in member_names]
+                return {"nodes": nodes, "edges": edges, "layout": "selector_hub"}
+
+        elif normalized == "graph":
+            # Custom graph from YAML spec
+            graph_spec = spec.get("graph", {})
+            nodes = [{"name": name, "type": "agent"} for name in member_names]
+            edges = []
+            for edge in graph_spec.get("edges", []):
+                from_node = edge.get("from")
+                to_node = edge.get("to")
+                if from_node and to_node:
+                    edges.append((from_node, to_node))
+            return {"nodes": nodes, "edges": edges, "layout": "custom"}
+
+        # Fallback: just list the nodes
+        nodes = [{"name": name, "type": "agent"} for name in member_names]
+        return {"nodes": nodes, "edges": [], "layout": "flat"}

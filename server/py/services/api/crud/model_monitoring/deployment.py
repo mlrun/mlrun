@@ -143,6 +143,8 @@ class MonitoringDeployment:
         image: str = "mlrun/mlrun",
         deploy_histogram_data_drift_app: bool = True,
         fetch_credentials_from_sys_config: bool = False,
+        lag_threshold: int | None = None,
+        lag_event_cooldown: int | None = None,
     ) -> None:
         """
         Deploy model monitoring application controller, writer and stream functions.
@@ -154,6 +156,8 @@ class MonitoringDeployment:
                                                   By default, the image is mlrun/mlrun.
         :param deploy_histogram_data_drift_app:   If true, deploy the default histogram-based data drift application.
         :param fetch_credentials_from_sys_config: If true, fetch the credentials from the system configuration.
+        :param lag_threshold:                     Lag threshold in minutes for writer lag detection.
+        :param lag_event_cooldown:                Cooldown in minutes between consecutive lag events per worker.
         """
         # check if credentials should be fetched from the system configuration or if they are already been set.
         if fetch_credentials_from_sys_config:
@@ -175,11 +179,24 @@ class MonitoringDeployment:
             )
         self.check_if_credentials_are_set()
 
+        # Validate lag_threshold against the server's configured minimum
+        if lag_threshold is not None:
+            min_threshold = int(
+                config.model_endpoint_monitoring.lag_detection.min_lag_threshold_minutes
+            )
+            if lag_threshold < min_threshold:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    f"lag_threshold must be at least {min_threshold} minutes"
+                )
+
         self.deploy_model_monitoring_controller(
             controller_image=image, base_period=base_period
         )
         self.deploy_model_monitoring_writer_application(
             writer_image=image,
+            lag_threshold=lag_threshold,
+            lag_event_cooldown=lag_event_cooldown,
+            base_period=base_period,
         )
         self.deploy_model_monitoring_stream_processing(
             stream_image=image,
@@ -298,7 +315,12 @@ class MonitoringDeployment:
             )
 
     def deploy_model_monitoring_writer_application(
-        self, writer_image: str = "mlrun/mlrun", overwrite: bool = False
+        self,
+        writer_image: str = "mlrun/mlrun",
+        overwrite: bool = False,
+        lag_threshold: int | None = None,
+        lag_event_cooldown: int | None = None,
+        base_period: int = 10,
     ) -> None:
         """
         Deploying model monitoring writer real time nuclio function. The goal of this real time function is
@@ -308,6 +330,10 @@ class MonitoringDeployment:
         :param writer_image:                The image of the model monitoring writer function.
                                             By default, the image is mlrun/mlrun.
         :param overwrite:                   If true, overwrite the existing model monitoring writer. Default is False.
+        :param lag_threshold:               Lag threshold in minutes for writer lag detection.
+        :param lag_event_cooldown:          Cooldown in minutes between consecutive lag events per worker.
+        :param base_period:                 The monitoring controller base period in minutes, used to
+                                            compute default lag values.
         """
 
         if overwrite or self._should_deploy_function(
@@ -318,7 +344,10 @@ class MonitoringDeployment:
                 project=self.project,
             )
             fn = self._initial_model_monitoring_writer_function(
-                writer_image=writer_image
+                writer_image=writer_image,
+                lag_threshold=lag_threshold,
+                lag_event_cooldown=lag_event_cooldown,
+                base_period=base_period,
             )
             mlrun.utils.helpers.set_auth_token_name(fn.spec, self._auth_token_name)
             fn = services.api.api.endpoints.nuclio._deploy_function(
@@ -700,16 +729,43 @@ class MonitoringDeployment:
             framework.api.utils.ensure_function_has_auth_set(function, self.auth_info)
         return function
 
-    def _initial_model_monitoring_writer_function(self, writer_image: str):
+    def _initial_model_monitoring_writer_function(
+        self,
+        writer_image: str,
+        lag_threshold: int | None = None,
+        lag_event_cooldown: int | None = None,
+        base_period: int = 10,
+    ):
         """
         Initialize model monitoring writer function.
 
         :param writer_image:                The image of the model monitoring writer function.
+        :param lag_threshold:               Lag threshold in minutes for writer lag detection.
+                                            If None, computed from config defaults and base_period.
+        :param lag_event_cooldown:          Cooldown in minutes between consecutive lag events per worker.
+                                            If None, computed from config defaults and base_period.
+        :param base_period:                 The monitoring controller base period in minutes.
 
         :return:                            A function object from a mlrun runtime class
         """
 
-        # Create a new serving function for the streaming process
+        # Compute lag detection defaults from config and base_period
+        if lag_threshold is None:
+            lag_threshold = min(
+                int(
+                    config.model_endpoint_monitoring.lag_detection.default_lag_threshold_minutes
+                ),
+                base_period,
+            )
+        if lag_event_cooldown is None:
+            lag_event_cooldown = min(
+                int(
+                    config.model_endpoint_monitoring.lag_detection.default_lag_event_cooldown_minutes
+                ),
+                base_period // 2,
+            )
+
+        # Create a new serving function for the writer process
         function = typing.cast(
             mlrun.runtimes.ServingRuntime,
             mlrun.code_to_function(
@@ -747,6 +803,8 @@ class MonitoringDeployment:
             )
             writer_factory = WriterGraphFactory(
                 parquet_path=parquet_target,
+                lag_threshold_minutes=lag_threshold,
+                lag_event_cooldown_minutes=lag_event_cooldown,
             )
             writer_factory.apply_writer_graph(
                 fn=function,

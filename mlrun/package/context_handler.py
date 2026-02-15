@@ -183,7 +183,7 @@ class ContextHandler:
     def log_outputs(
         self,
         outputs: list,
-        log_hints: list[dict[str, str] | str | None],
+        log_hints: list[LogHint | dict[str, str] | str | None],
     ):
         """
         Log the given outputs as artifacts (or results) with the stored context. Errors raised during the packing will
@@ -207,7 +207,8 @@ class ContextHandler:
                     if log_hint is None:
                         continue
                     # Parse the log hint:
-                    log_hint = LogHint.parse_obj(obj=log_hint)
+                    if not isinstance(log_hint, LogHint):
+                        log_hint = LogHint.parse_obj(obj=log_hint)
                     # Pack the object (we don't catch the returned package as we log it after we pack all the outputs to
                     # enable linking extra data of some artifacts):
                     self._packagers_manager.pack(obj=obj, log_hint=log_hint)
@@ -311,7 +312,7 @@ class ContextHandler:
     def _validate_objects_to_log_hints_length(
         self,
         outputs: list,
-        log_hints: list[dict[str, str] | str | None],
+        log_hints: list[LogHint | dict[str, str] | str | None],
     ):
         """
         Validate the outputs and log hints are the same length. If they are not, warnings will be printed on what will

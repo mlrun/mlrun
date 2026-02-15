@@ -11,6 +11,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
+import contextlib
 import datetime
 import getpass
 import glob
@@ -44,6 +46,7 @@ import mlrun.common.runtimes.constants
 import mlrun.common.schemas.alert
 import mlrun.common.schemas.artifact
 import mlrun.common.schemas.model_monitoring.constants as mm_constants
+import mlrun.common.schemas.notification
 import mlrun.common.secrets
 import mlrun.datastore.datastore_profile
 import mlrun.db
@@ -2738,8 +2741,15 @@ class MlrunProject(ModelObj):
             user_application_list=user_application_list,
         )
         if succeed and delete_resources:
-            if delete_resources:
-                logger.info("Model Monitoring disabled", project=self.name)
+            try:
+                self.delete_model_monitoring_lag_alert()
+            except Exception as exc:
+                logger.warning(
+                    "Failed to delete lag detection alerts during disable",
+                    project=self.name,
+                    error=mlrun.errors.err_to_str(exc),
+                )
+            logger.info("Model Monitoring disabled", project=self.name)
             if delete_user_applications:
                 logger.info(
                     "All the desired monitoring application were deleted",
@@ -2755,6 +2765,74 @@ class MlrunProject(ModelObj):
                     "Some of the desired monitoring application were not deleted",
                     project=self.name,
                 )
+
+    def set_model_monitoring_lag_alert(
+        self,
+        notifications: typing.Union[
+            list[mlrun.common.schemas.notification.Notification],
+            mlrun.common.schemas.notification.Notification,
+        ],
+        *,
+        period: Optional[str] = None,
+        count: Optional[int] = None,
+    ) -> None:
+        """Configure an alert for model monitoring lag detection.
+
+        When the monitoring infrastructure detects that it is processing events
+        whose inference timestamp is significantly in the past, it emits a
+        ``MODEL_MONITORING_LAG_DETECTED`` event.  This method creates a single
+        alert configuration (using a wildcard entity) that matches lag events
+        from any monitoring component.
+
+        :param notifications: One or more notification objects to attach to the
+            alert (e.g. Slack webhook, email).
+        :param period:        Optional sliding-window period for the alert
+            criteria (e.g. ``"10m"``).
+        :param count:         Number of events within *period* before the alert
+            fires.  Defaults to ``1``.
+        """
+        alert_constants = mlrun.common.schemas.alert
+
+        if isinstance(notifications, mlrun.common.schemas.notification.Notification):
+            notifications = [notifications]
+
+        alert_notifications = [
+            alert_constants.AlertNotification(notification=n) for n in notifications
+        ]
+
+        alert_name = mm_constants.MonitoringAlertNames.LAG_DETECTED
+        alert_data = mlrun.alerts.alert.AlertConfig(
+            project=self.name,
+            name=alert_name,
+            summary="Model monitoring lag detected in project {{project}}.",
+            severity=alert_constants.AlertSeverity.MEDIUM,
+            entities=alert_constants.EventEntities(
+                kind=alert_constants.EventEntityKind.MODEL_MONITORING_INFRA,
+                project=self.name,
+                # Wildcard matches lag events from any monitoring entity
+                ids=["*"],
+            ),
+            trigger=alert_constants.AlertTrigger(
+                events=[alert_constants.EventKind.MODEL_MONITORING_LAG_DETECTED]
+            ),
+            criteria=alert_constants.AlertCriteria(
+                count=count or 1,
+                **({"period": period} if period else {}),
+            ),
+            notifications=alert_notifications,
+            reset_policy=alert_constants.ResetPolicy.AUTO,
+        )
+        db = mlrun.db.get_run_db(secrets=self._secrets)
+        db.store_alert_config(alert_name, alert_data, project=self.name)
+
+    def delete_model_monitoring_lag_alert(self) -> None:
+        """Delete the lag detection alert for this project."""
+        db = mlrun.db.get_run_db(secrets=self._secrets)
+        with contextlib.suppress(mlrun.errors.MLRunNotFoundError):
+            db.delete_alert_config(
+                mm_constants.MonitoringAlertNames.LAG_DETECTED,
+                project_name=self.name,
+            )
 
     def set_function(
         self,

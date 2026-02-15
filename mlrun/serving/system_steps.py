@@ -458,7 +458,8 @@ class MonitoringPreProcessor(storey.MapClass):
         monitoring_data = step.monitoring_data
 
         # Check if this event was collected from a stream by the Collector step
-        if getattr(event, "stream_collected", False):
+        is_stream_collected = getattr(event, "stream_collected", False)
+        if is_stream_collected:
             logger.debug(
                 "Aggregating collected streaming chunks for monitoring",
                 num_chunks=len(event.body) if isinstance(event.body, list) else 1,
@@ -467,6 +468,18 @@ class MonitoringPreProcessor(storey.MapClass):
             event.body = self._aggregate_collected_chunks(
                 event.body if isinstance(event.body, list) else [event.body]
             )
+
+        # When streaming chunks were collected from a multi-model MRS, only
+        # one model actually ran (streaming requires a single selected
+        # runnable). The body is the raw aggregated output, not keyed by
+        # model name, so narrow monitoring_data to the single selected model
+        # so the single-model path below is used.
+        if is_stream_collected and len(monitoring_data) > 1:
+            selected_models = event._metadata.get("selected_models", [])
+            if len(selected_models) == 1 and selected_models[0] in monitoring_data:
+                monitoring_data = {
+                    selected_models[0]: monitoring_data[selected_models[0]]
+                }
 
         logger.debug(
             "monitoring preprocessor started",

@@ -1826,7 +1826,12 @@ class ModelRunner(storey.ParallelExecution):
 
     def select_runnables(self, event):
         models = cast(list[Model], self.runnables)
-        return self.model_runner_selector.select_models(event, models)
+        selected = self.model_runner_selector.select_models(event, models)
+        if selected is not None and hasattr(event, "_metadata"):
+            event._metadata["selected_models"] = [
+                model if isinstance(model, str) else model.name for model in selected
+            ]
+        return selected
 
     def select_outlets(self, event) -> Optional[Collection[str]]:
         is_batched = False

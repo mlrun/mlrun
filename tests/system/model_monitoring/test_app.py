@@ -330,7 +330,7 @@ class _V3IORecordsChecker:
 class TestMonitoringAppFlow(TestMLRunSystemModelMonitoring, _V3IORecordsChecker):
     project_name = "test-app-flow"
     # Set image to "<repo>/mlrun:<tag>" for local testing
-    image: typing.Optional[str] = "galtopperbnkk67393/mlrun:1.11.0-rc32-ddd49b"
+    image: typing.Optional[str] = None
     error_count = 10
 
     @classmethod
@@ -840,8 +840,8 @@ class TestMonitoringAppFlow(TestMLRunSystemModelMonitoring, _V3IORecordsChecker)
             len(drift_over_time.values) == 0
         ), "No drift over time should be detected in the past"
 
-    @pytest.mark.parametrize("with_training_set", [False])
-    @pytest.mark.parametrize("with_model_runner", [True])
+    @pytest.mark.parametrize("with_training_set", [True, False])
+    @pytest.mark.parametrize("with_model_runner", [True, False])
     def test_app_flow(self, with_training_set: bool, with_model_runner: bool) -> None:
         self.apps_data = self._get_apps_data(with_training_set)
         self.project = typing.cast(mlrun.projects.MlrunProject, self.project)

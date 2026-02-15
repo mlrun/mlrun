@@ -24,6 +24,7 @@ from mlrun.datastore.model_provider.model_provider import UsageResponseKeys
 from mlrun.runtimes.nuclio.function import AsyncSpec
 from tests.datastore.remote_model.remote_model_utils import (
     BATCH_INPUT_DATA,
+    FLUSH_AFTER_SECONDS,
     setup_remote_model_test,
 )
 from tests.datastore.remote_model.test_remote_model import BaseMockModelProviderTest
@@ -293,6 +294,8 @@ class TestMockModelProviderTracking(
         ["process_pool", "dedicated_process", "naive", "asyncio", "thread_pool"],
     )
     def test_llmodel_batch_step_with_graph(self, execution_mechanism):
+        """Test batch step with graph topology using MockModelProvider with model monitoring
+        Tests both success and error scenarios in a single deployment to minimize setup overhead"""
         mlrun_model_name = "mock_model"
         model_url = "mock://my-mock-model"
 
@@ -318,17 +321,45 @@ class TestMockModelProviderTracking(
             sleep(delay)
             return function.invoke(f"v2/models/{mlrun_model_name}/infer", event)
 
+        # Send success events concurrently
         with ThreadPoolExecutor(max_workers=len(BATCH_INPUT_DATA)) as executor:
-            # MockProvider requires a larger delay (0.3s) because batching output depends on the order of requests,
-            # which can introduce race conditions, unlike real providers where batching output depends on input.
+            # MockProvider requires a larger delay because batching output depends on the order of requests
             futures = [
                 executor.submit(send_event, input_event, i * 0.3)
                 for i, input_event in enumerate(BATCH_INPUT_DATA)
             ]
-            responses = [future.result() for future in futures]
+            success_responses = [future.result() for future in futures]
 
-        self._verify_batch_response(responses)
-        for i, response in enumerate(responses):
+        # Verify success response structure
+        self._verify_batch_response(success_responses)
+        for i, response in enumerate(success_responses):
+            output = response["output"]
+            # in order to check batches of 2:
+            expected_counter = i % 2
+            assert f"(Item {expected_counter})" in output[UsageResponseKeys.ANSWER]
+
+        # Sleep to ensure batch is flushed before sending error events
+        sleep(FLUSH_AFTER_SECONDS + 1)
+
+        # Send error events - both should fail together in the batch
+        good_input = BATCH_INPUT_DATA[0]
+        error_inputs = [good_input, self.ERROR_INPUT]  # 2 events -> 1 error batch
+
+        with ThreadPoolExecutor(max_workers=len(error_inputs)) as executor:
+            futures = [
+                executor.submit(send_event, input_event, i * 0.3)
+                for i, input_event in enumerate(error_inputs)
+            ]
+            # Both should fail when the batch encounters the error
+            for future in futures:
+                with pytest.raises(
+                    RuntimeError, match="Mock error triggered by ERROR keyword"
+                ):
+                    future.result()
+
+        # Verify success response structure
+        self._verify_batch_response(success_responses)
+        for i, response in enumerate(success_responses):
             output = response["output"]
             # in order to check batches of 2:
             expected_counter = i % 2
@@ -359,7 +390,7 @@ class TestMockModelProviderTracking(
             table=mm_constants.V3IOTSDBTables.PREDICTIONS, start="now-50m", end="now"
         )
 
-        # Verify batch sizes (2+2+1)
+        # Verify batch sizes (2+2+1) - error batch not included
         assert len(predictions) == 3
         batch_sizes = predictions["estimated_prediction_count"].tolist()
         assert batch_sizes == [2, 2, 1]
@@ -367,7 +398,14 @@ class TestMockModelProviderTracking(
         v3io_df = pd.read_parquet(
             f"v3io:///projects/{self.project.name}/artifacts/model-endpoints/parquet/key={mep.metadata.uid}"
         )
+        # Only success events are in parquet (5 events), error events are not stored
         assert len(v3io_df) == len(BATCH_INPUT_DATA)
 
-        # Verify batch step structure - still 3 request groups (2+2+1, error batch not included)
+        # Verify batch step structure - 3 request groups (2+2+1, error batch not included)
         self._verify_batch_step_parquet_contents(v3io_df, endpoint_name)
+
+        # Verify error tracking - should have 1 error batch (containing 2 events)
+        error_df = tsdb_client.get_error_count(endpoint_ids=mep.metadata.uid)
+        assert len(error_df) == 1
+        error_dict = error_df.head(1).to_dict(orient="records")[0]
+        assert error_dict["error_count"] == 1

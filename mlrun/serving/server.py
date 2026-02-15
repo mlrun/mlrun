@@ -358,10 +358,21 @@ def add_error_raiser_step(
     graph: RootFlowStep, monitored_steps: dict[str, MonitoredStep]
 ) -> RootFlowStep:
     for monitored_step in monitored_steps.values():
+        unpack_step = f"{monitored_step.name}_unpacker"
+        graph.add_step(
+            class_name="storey.FlatMap",
+            name=unpack_step,
+            _fn="(event.body)",
+            after=monitored_step.name,
+            full_event=True,
+            model_endpoint_creation_strategy=mlrun.common.schemas.ModelEndpointCreationStrategy.SKIP,
+        )
+
+        # Add error raiser step after the unpacker
         error_step = graph.add_step(
             class_name="mlrun.serving.states.ModelRunnerErrorRaiser",
             name=f"{monitored_step.name}_error_raise",
-            after=monitored_step.name,
+            after=[monitored_step.name, unpack_step],
             full_event=True,
             raise_exception=monitored_step.raise_exception,
             models_names=list(monitored_step.class_args["models"].keys()),

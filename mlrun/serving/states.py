@@ -1829,7 +1829,14 @@ class ModelRunner(storey.ParallelExecution):
         return self.model_runner_selector.select_models(event, models)
 
     def select_outlets(self, event) -> Optional[Collection[str]]:
-        sys_outlets = [f"{self.name}_error_raise"]
+        is_batched = False
+        if isinstance(event, list) and any(
+            hasattr(subevent, "body") for subevent in event
+        ):
+            is_batched = True
+            sys_outlets = [f"{self.name}_unpacker"]
+        else:
+            sys_outlets = [f"{self.name}_error_raise"]
         if "background_task_status_step" in self._name_to_outlet:
             sys_outlets.append("background_task_status_step")
         if self._raise_exception and self._is_error(event):
@@ -1839,7 +1846,14 @@ class ModelRunner(storey.ParallelExecution):
             return (
                 user_outlets if isinstance(user_outlets, list) else [user_outlets]
             ) + sys_outlets
-        return None
+
+        #  fall to default behavior of routing to all valid outlets
+        all_outlets = list(self._name_to_outlet.keys())
+        if is_batched:
+            all_outlets.remove(f"{self.name}_error_raise")
+        else:
+            all_outlets.remove(f"{self.name}_unpacker")
+        return all_outlets
 
     def _is_error(self, event: Union[dict, list]) -> bool:
         if isinstance(event, dict):
@@ -1851,9 +1865,12 @@ class ModelRunner(storey.ParallelExecution):
                     body_by_model = event.get(model)
                     if isinstance(body_by_model, dict) and "error" in body_by_model:
                         return True
-        elif storey.flow.is_batched_event(event):
-            #  batch case:
+        elif isinstance(event, list):
             for sub_event in event:
+                if not hasattr(sub_event, "body"):
+                    # a regular output, not a sub-event in a batch:
+                    return False
+                #  batch case, event is list of sub events:
                 if self._is_error(sub_event.body):
                     return True
         return False

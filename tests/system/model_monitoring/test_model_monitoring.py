@@ -1161,7 +1161,7 @@ class TestBasicModelMonitoring(TestMLRunSystemModelMonitoring):
         error_dict = error_df.head(1).to_dict(orient="records")[0]
         assert error_dict["error_count"] == 1
 
-    @pytest.mark.timeout(300)
+    @pytest.mark.timeout(480)
     def test_monitoring_with_streaming_model_runner(self):
         """Test that model monitoring correctly captures streaming outputs from MRS.
 
@@ -1169,6 +1169,7 @@ class TestBasicModelMonitoring(TestMLRunSystemModelMonitoring):
         1. A Collector step is inserted between the streaming MRS and MM steps
         2. The MonitoringPreProcessor aggregates the collected streaming chunks
         3. A model endpoint is created and records monitoring events
+        4. TSDB predictions and parquet data are written correctly
         """
         function_name = "streaming-mm-test"
         endpoint_name = "streaming-model"
@@ -1208,7 +1209,7 @@ class TestBasicModelMonitoring(TestMLRunSystemModelMonitoring):
         function.deploy()
         function.invoke("/", body={"prompt": "test"})
 
-        # Wait for monitoring data to be recorded
+        # Wait for monitoring data to be recorded by the stream processing pod
         sleep(10)
 
         # Verify model endpoint was created
@@ -1229,7 +1230,6 @@ class TestBasicModelMonitoring(TestMLRunSystemModelMonitoring):
         )
 
         # Verify the endpoint has received monitoring events
-        # The last_request should be set after the invoke
         endpoint_with_metrics = mlrun.get_run_db().get_model_endpoint(
             name=endpoint_name,
             project=self.project_name,
@@ -1240,6 +1240,39 @@ class TestBasicModelMonitoring(TestMLRunSystemModelMonitoring):
         assert (
             endpoint_with_metrics.status.last_request is not None
         ), "Expected last_request to be set after streaming invoke"
+
+        # Wait for TSDB and predictions data to be processed
+        sleep(180)
+
+        # Retrieve endpoint with full metrics
+        mep = mlrun.get_run_db().get_model_endpoint(
+            name=endpoint_name,
+            project=self.project_name,
+            function_name=function_name,
+            function_tag="latest",
+            feature_analysis=True,
+            tsdb_metrics=True,
+        )
+
+        # Verify TSDB predictions table
+        tsdb_client = mlrun.model_monitoring.get_tsdb_connector(
+            project=self.project_name, profile=self.mm_tsdb_profile
+        )
+        predictions = tsdb_client._get_records(
+            table=mm_constants.V3IOTSDBTables.PREDICTIONS,
+            start="now-50m",
+            end="now",
+        )
+        assert len(predictions) >= 1, "Expected at least one TSDB predictions record"
+
+        # Verify parquet predictions
+        v3io_df = pd.read_parquet(
+            f"v3io:///projects/{self.project_name}/artifacts/"
+            f"model-endpoints/parquet/key={mep.metadata.uid}"
+        )
+        assert len(v3io_df) >= 1, "Expected at least one parquet predictions row"
+        v3io_dict = v3io_df.head(1).to_dict(orient="records")[0]
+        assert v3io_dict["endpoint_name"] == endpoint_name
 
     def _assert_model_endpoint_tags_and_labels(
         self,

@@ -1249,16 +1249,21 @@ class TestBasicModelMonitoring(TestMLRunSystemModelMonitoring):
             start="now-50m",
             end="now",
         )
-        assert len(predictions) >= 1, "Expected at least one TSDB predictions record"
+        assert len(predictions) == 1
 
         # Verify parquet predictions for the streaming endpoint
         v3io_df = pd.read_parquet(
             f"v3io:///projects/{self.project_name}/artifacts/"
             f"model-endpoints/parquet/key={mep.metadata.uid}"
         )
-        assert len(v3io_df) >= 1, "Expected at least one parquet predictions row"
+        assert len(v3io_df) == 1
         v3io_dict = v3io_df.head(1).to_dict(orient="records")[0]
         assert v3io_dict["endpoint_name"] == streaming_endpoint
+        assert (
+            v3io_dict["effective_sample_count"]
+            == v3io_dict["estimated_prediction_count"]
+            == 1
+        )
 
     def _assert_model_endpoint_tags_and_labels(
         self,

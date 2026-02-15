@@ -123,6 +123,7 @@ class LogHint(BaseModel):
             ) and "*" not in obj.get("key", ""):
                 return super().parse_obj(obj=obj)
             # Potentially old format, try to parse and raise a warning:
+            obj = obj.copy()
             key = obj.pop("key")
             key, itemized = cls._extract_unbundling_from_key(key)
             artifact_type = obj.pop("artifact_type", None)

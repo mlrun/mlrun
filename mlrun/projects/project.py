@@ -2640,13 +2640,6 @@ class MlrunProject(ModelObj):
                 "enable_model_monitoring: 'base_period' < 10 minutes is not supported in production environments",
                 project=self.name,
             )
-        min_threshold = int(
-            mlrun.mlconf.model_endpoint_monitoring.lag_detection.min_lag_threshold_minutes
-        )
-        if lag_threshold is not None and lag_threshold < min_threshold:
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                f"lag_threshold must be at least {min_threshold} minutes"
-            )
         db = mlrun.db.get_run_db(secrets=self._secrets)
         db.enable_model_monitoring(
             project=self.name,

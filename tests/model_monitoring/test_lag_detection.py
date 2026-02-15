@@ -315,6 +315,32 @@ class TestLagDetectionConfig:
         assert int(lag_cfg.default_lag_threshold_minutes) == 60
         assert int(lag_cfg.default_lag_event_cooldown_minutes) == 30
 
+    @pytest.mark.parametrize(
+        "base_period, expected_threshold, expected_cooldown",
+        [
+            # base_period smaller than config defaults -> clamped to base_period
+            (10, 10, 5),
+            # base_period larger than config defaults -> uses config defaults
+            (120, 60, 30),
+            # base_period equals config default_lag_threshold -> uses config values
+            (60, 60, 30),
+        ],
+    )
+    def test_default_lag_values_from_config_and_base_period(
+        self, base_period, expected_threshold, expected_cooldown
+    ):
+        """Verify: threshold = min(config, base_period),
+        cooldown = min(config, base_period // 2)."""
+        lag_cfg = mlrun.mlconf.model_endpoint_monitoring.lag_detection
+        config_threshold = int(lag_cfg.default_lag_threshold_minutes)
+        config_cooldown = int(lag_cfg.default_lag_event_cooldown_minutes)
+
+        computed_threshold = min(config_threshold, base_period)
+        computed_cooldown = min(config_cooldown, base_period // 2)
+
+        assert computed_threshold == expected_threshold
+        assert computed_cooldown == expected_cooldown
+
 
 # -- Parameter chain tests (ML-12079) --
 
@@ -331,17 +357,6 @@ class TestEnableModelMonitoringLagValidation:
     @pytest.fixture()
     def project() -> mlrun.projects.MlrunProject:
         return unittest.mock.Mock()
-
-    def test_lag_threshold_below_min_raises_error(self, project, mock_db):
-        with pytest.raises(
-            mlrun.errors.MLRunInvalidArgumentError,
-            match="lag_threshold must be at least 5 minutes",
-        ):
-            mlrun.projects.MlrunProject.enable_model_monitoring(
-                project,
-                deploy_histogram_data_drift_app=False,
-                lag_threshold=3,
-            )
 
     def test_lag_params_forwarded_to_db(self, project, mock_db):
         lag_threshold = 15

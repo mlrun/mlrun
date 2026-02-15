@@ -179,6 +179,16 @@ class MonitoringDeployment:
             )
         self.check_if_credentials_are_set()
 
+        # Validate lag_threshold against the server's configured minimum
+        if lag_threshold is not None:
+            min_threshold = int(
+                config.model_endpoint_monitoring.lag_detection.min_lag_threshold_minutes
+            )
+            if lag_threshold < min_threshold:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    f"lag_threshold must be at least {min_threshold} minutes"
+                )
+
         self.deploy_model_monitoring_controller(
             controller_image=image, base_period=base_period
         )
@@ -755,7 +765,7 @@ class MonitoringDeployment:
                 base_period // 2,
             )
 
-        # Create a new serving function for the streaming process
+        # Create a new serving function for the writer process
         function = typing.cast(
             mlrun.runtimes.ServingRuntime,
             mlrun.code_to_function(

@@ -417,7 +417,12 @@ def run(
     set_item(runobj.spec.hyper_param_options, hyper_param_strategy, "strategy")
     set_item(runobj.spec.hyper_param_options, selector, "selector")
 
-    set_item(runobj.spec, inputs, RunKeys.inputs, list2dict(inputs))
+    set_item(
+        runobj.spec,
+        inputs,
+        RunKeys.inputs,
+        {k: py_eval(v) for k, v in list2dict(inputs).items()},
+    )
     set_item(
         runobj.spec, returns, RunKeys.returns, [py_eval(value) for value in returns]
     )

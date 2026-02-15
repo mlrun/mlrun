@@ -16,7 +16,6 @@ from mlrun.package.utils._archiver import ArchiveSupportedFormat
 from mlrun.package.utils._formatter import StructFileSupportedFormat
 from mlrun.package.utils._pickler import Pickler
 from mlrun.package.utils._supported_format import SupportedFormat
-from mlrun.package.utils.log_hint_utils import LogHintKey, LogHintUtils
 from mlrun.package.utils.type_hint_utils import TypeHintUtils
 
 # The default pickle module to use for pickling objects:

@@ -17,7 +17,6 @@ __all__ = [
     "set_environment",
     "code_to_function",
     "import_function",
-    "handler",
     "ArtifactType",
     "get_secret_or_env",
     "mount_v3io",
@@ -28,7 +27,6 @@ __all__ = [
     "RuntimeConfigurationContext",
 ]
 
-import warnings
 from os import environ, path
 from typing import Optional
 
@@ -44,7 +42,7 @@ from .errors import MLRunInvalidArgumentError, MLRunNotFoundError
 from .execution import MLClientCtx
 from .hub import get_hub_item, get_hub_module, get_hub_step, import_module
 from .model import RunObject, RunTemplate, new_task
-from .package import ArtifactType, DefaultPackager, Packager
+from .package import ArtifactType, DefaultPackager, LogHint, Packager
 from .projects import (
     MlrunProject,
     ProjectMetadata,

@@ -26,14 +26,16 @@ from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import OrdinalEncoder
 
 import mlrun
-from mlrun import DataItem
+from mlrun import DataItem, LogHint
+from mlrun.artifacts import Artifact
+from mlrun.datastore import get_store_resource
 from mlrun.package import DefaultPackager
 from tests.package.usage_assets import BaseClass, InheritingClass
 
 RETURNS_LOG_HINTS = [
     "my_array",
     "my_df",
-    {"key": "my_dict", "artifact_type": "object"},
+    LogHint(key="my_dict", artifact_type="object"),
     "my_list:  file",
     "my_int",
     "my_str : result",
@@ -769,4 +771,124 @@ def test_parse_local_file(rundb_mock):
     assert my_dict == _JSON_SAMPLE
 
     # Clean the test outputs:
+    artifact_path.cleanup()
+
+
+def log_artifacts_with_linking() -> tuple[pd.DataFrame, dict]:
+    context = mlrun.get_or_create_ctx(name="ctx")
+    context.log_result(key="accuracy", value=0.95)
+
+    training_data = pd.DataFrame({"x": [1, 2, 3], "y": [4, 5, 6]})
+    model_info = {"model_info": "test model"}
+
+    return training_data, model_info
+
+
+def test_artifact_linking(rundb_mock):
+    """
+    Test that artifacts can link to other artifacts and results via extra_data with ellipsis (...) placeholders.
+    """
+    # Create the function:
+    mlrun_function = mlrun.code_to_function(filename=__file__, kind="job")
+    artifact_path = tempfile.TemporaryDirectory()
+
+    # Run the function that logs artifacts with linking:
+    run = mlrun_function.run(
+        handler="log_artifacts_with_linking",
+        returns=[
+            "training_data",
+            LogHint(
+                key="model_metadata",
+                artifact_type="object",
+                extra_data={
+                    "training_data": ...,  # Link to artifact
+                    "accuracy": ...,  # Link to context result
+                    "static_info": "unchanged",
+                },
+            ),
+        ],
+        artifact_path=artifact_path.name,
+        local=True,
+    )
+
+    # Verify both artifacts were logged:
+    assert "training_data" in run.outputs
+    assert "model_metadata" in run.outputs
+
+    # Find the model_metadata artifact and verify its extra_data links:
+    model_metadata_artifact = None
+    for artifact in run.status.artifacts:
+        if artifact["metadata"]["key"] == "model_metadata":
+            model_metadata_artifact = artifact
+            break
+
+    assert model_metadata_artifact is not None
+    extra_data = model_metadata_artifact["spec"]["extra_data"]
+
+    # Link to artifact should be resolved
+    assert "training_data" in extra_data
+
+    # Link to result should be resolved to the actual value
+    assert extra_data["accuracy"] == 0.95
+
+    # Static value should remain unchanged
+    assert extra_data["static_info"] == "unchanged"
+
+    # Clean up:
+    artifact_path.cleanup()
+
+
+def log_context_artifact_with_linking() -> pd.DataFrame:
+    context = mlrun.get_or_create_ctx(name="ctx")
+
+    # Log an artifact via context that links to packager artifact
+    artifact = Artifact(key="context_metadata")
+    artifact.spec.extra_data = {
+        "packager_data": ...,  # Will link to packager artifact
+        "static_info": "from context",
+    }
+    context.log_artifact(item=artifact)
+
+    # Return a value that will be logged via packager
+    return pd.DataFrame({"x": [1, 2, 3], "y": [4, 5, 6]})
+
+
+def test_context_artifact_linking_to_packager(rundb_mock):
+    """
+    Test that context artifacts can link to packager artifacts via extra_data with ellipsis placeholders.
+    """
+    mlrun_function = mlrun.code_to_function(filename=__file__, kind="job")
+    artifact_path = tempfile.TemporaryDirectory()
+
+    run = mlrun_function.run(
+        handler="log_context_artifact_with_linking",
+        returns=["packager_data"],
+        artifact_path=artifact_path.name,
+        local=True,
+    )
+
+    # Verify both artifacts were logged:
+    assert "packager_data" in run.outputs
+    assert "context_metadata" in run.outputs
+
+    # Find the context_metadata artifact and verify its extra_data links:
+    context_metadata_artifact = None
+    for artifact in run.status.artifacts:
+        if artifact["metadata"]["key"] == "context_metadata":
+            context_metadata_artifact = artifact
+            break
+
+    assert context_metadata_artifact is not None
+    extra_data = context_metadata_artifact["spec"]["extra_data"]
+
+    # Link to packager artifact should be resolved
+    assert "packager_data" in extra_data
+    assert (
+        extra_data["packager_data"].key
+        == get_store_resource(run.outputs["packager_data"]).key
+    )
+
+    # Static value should remain unchanged
+    assert extra_data["static_info"] == "from context"
+
     artifact_path.cleanup()

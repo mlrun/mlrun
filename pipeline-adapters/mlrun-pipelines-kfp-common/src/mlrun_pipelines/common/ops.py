@@ -25,7 +25,6 @@ import os
 import zipfile
 from ast import literal_eval
 from copy import deepcopy
-from typing import Union
 
 import yaml
 from kubernetes.client import V1EnvVar, V1EnvVarSource, V1SecretKeySelector
@@ -84,7 +83,7 @@ def mlrun_op(
     hyper_param_options=None,
     verbose=None,
     scrape_metrics=False,
-    returns: typing.Optional[list[Union[str, dict[str, str]]]] = None,
+    returns: "list[str | mlrun.LogHint] | None" = None,
     auto_build: bool = False,
 ):
     """mlrun KubeFlow pipelines operator, use to form pipeline steps
@@ -123,16 +122,18 @@ def mlrun_op(
     :param job_image name of the image user for the job
     :param verbose:  add verbose prints/logs
     :param scrape_metrics:  whether to add the `mlrun/scrape-metrics` label to this run's resources
-    :param returns: List of configurations for how to log the returning values from the handler's run (as artifacts or
-                    results). The list's length must be equal to the amount of returning objects. A configuration may be
-                    given as:
-
-                    * A string of the key to use to log the returning value as result or as an artifact. To specify
-                      The artifact type, it is possible to pass a string in the following structure:
+    :param returns: List of log hints - configurations for how to log the returning values from the handler's run (as
+                    artifacts or results). The list's length must be equal to the amount of returning objects. A log
+                    hint may be given as:
+                    * A ``LogHint`` object with the key and extra configurations.
+                    * A "shortcut" string of the key to use to log the returning value as result or as an artifact. To
+                      specify The artifact type, it is possible to pass a string in the following structure:
                       "<key> : <type>". Available artifact types can be seen in `mlrun.ArtifactType`. If no artifact
-                      type is specified, the object's default artifact type will be used.
-                    * A dictionary of configurations to use when logging. Further info per object type and artifact
-                      type can be given there. The artifact key must appear in the dictionary as "key": "the_key".
+                      type is specified, the object's default artifact type will be used. Packing kwargs can be passed
+                      alongside the artifact type using square brackets:
+                      ``"<key> : <type>[<kwarg1>=<value1>, <kwarg2>=<value2>]"``. Itemization can also be specified
+                      before the key using the following structure: "<unbundle-level> * <key>". If unbundle level is not
+                      specified, the default is full unbundling.
     :param auto_build: when set to True and the function require build it will be built on the first
                        function run, use only if you dont plan on changing the build config between runs
 
@@ -281,11 +282,20 @@ def mlrun_op(
     for xpram, val in hyperparams.items():
         cmd += ["-x", f"{xpram}={val}"]
     for input_param, val in inputs.items():
-        cmd += ["-i", f"{input_param}={val}"]
+        cmd += [
+            "-i",
+            f"{input_param}={json.dumps(val) if isinstance(val, dict | list) else val}",
+        ]
     for log_hint in returns:
+        # TODO: When moving to Pydantic v2, change `dict` to `model_dump`.
+        # TODO: Log hint as dict will be removed in MLRun 1.13, so no need to check inner if.
         cmd += [
             "--returns",
-            json.dumps(log_hint) if isinstance(log_hint, dict) else log_hint,
+            json.dumps(
+                log_hint.dict() if isinstance(log_hint, mlrun.LogHint) else log_hint
+            )
+            if isinstance(log_hint, mlrun.LogHint | dict)
+            else log_hint,
         ]
     for label, val in labels.items():
         cmd += ["--label", f"{label}={val}"]

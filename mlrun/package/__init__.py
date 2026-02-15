@@ -20,7 +20,6 @@ from collections.abc import Callable
 
 import mlrun
 from mlrun.config import config
-from mlrun.package.context_handler import ContextHandler
 from mlrun.package.errors import (
     MLRunPackageBundlingError,
     MLRunPackageCollectionError,
@@ -29,20 +28,20 @@ from mlrun.package.errors import (
     MLRunPackageUnbundlingError,
     MLRunPackageUnpackingError,
 )
+from mlrun.package.log_hint import LogHint
 from mlrun.package.packager import Packager
 from mlrun.package.packagers import DefaultPackager
 from mlrun.package.packagers_manager import PackagersManager
 from mlrun.package.utils import (
     ArchiveSupportedFormat,
     ArtifactType,
-    LogHintKey,
     StructFileSupportedFormat,
 )
 
 
 def handler(
     labels: dict[str, str] | None = None,  # TODO: Remove in MLRun 1.13.0
-    outputs: list[str | dict[str, str]] | None = None,
+    outputs: list[str | dict[str, str] | LogHint] | None = None,
     inputs: bool | dict[str, str | type] = True,
 ):
     """
@@ -57,11 +56,15 @@ def handler(
     :param outputs: Log hints (logging configurations) for the function's returned values. Expecting a list of the
                     following values:
 
+                    * ``LogHint`` - A ``LogHint`` object providing full logging configuration (key, artifact type,
+                      packing kwargs, itemization, labels, etc.).
                     * `str` - A string in the format of '{key}:{artifact_type}'. If a string was given without ':' it
                       will indicate the key, and the artifact type will be according to the returned value type's
                       default artifact type. The artifact types supported are listed in the relevant type packager.
-                    * `dict[str, str]` - A dictionary of logging configuration. the key 'key' is mandatory for the
-                      logged artifact key.
+                      Packing kwargs can be passed alongside the artifact type using square brackets:
+                      ``"{key}:{artifact_type}[{kwarg1}={value1}, {kwarg2}={value2}]"``.
+                      Unbundling can be specified before the key: ``"<level>*{key}"`` or ``"*{key}"`` for full
+                      unbundling.
                     * None - Do not log the output.
 
                     If the list length is not equal to the total amount of returned values from the function, those
@@ -89,7 +92,7 @@ def handler(
                     "my_string",
                     None,
                     {"key": "my_array", "artifact_type": "file", "file_format": "npy"},
-                    "my_multiplier: reuslt"
+                    "my_multiplier: result"
                 ]
             )
             def my_handler(array: np.ndarray, m: int):
@@ -121,6 +124,9 @@ def handler(
         def wrapper(*args: tuple, **kwargs: dict):
             nonlocal outputs
             nonlocal inputs
+
+            # Import ContextHandler locally to avoid circular import:
+            from mlrun.package.context_handler import ContextHandler
 
             # Set default `inputs` - inspect the full signature and add the user's input on top of it:
             if inputs:

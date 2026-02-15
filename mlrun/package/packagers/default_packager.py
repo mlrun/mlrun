@@ -284,9 +284,9 @@ class DefaultPackager(Packager, metaclass=_DefaultPackagerMeta):
 
       A packager can be a bundle if it implements the mandatory methods :py:meth:`can_bundle`, :py:meth:`can_unbundle`,
       and the methods: :py:meth:`bundle` and :py:meth:`unbundle`.
-    * **Linking artifacts** ("extra data"): In order to link between packages (using the extra data or metrics spec
-      attributes of an artifact), use the key as if it exists and as value ellipses (...). The manager
-      links all packages once it is done packing.
+    * **Linking artifacts** ("extra data" and "metrics" (for models)): In order to link between packages (using the
+      extra data or metrics spec attributes of an artifact), use the key as if it exists and as value ellipses (...).
+      The manager links all packages once it is done packing.
 
     * **Clearing outputs**: Some packagers may produce files and temporary directories that should be deleted after
       the artifact is logged. The packager can mark paths of files and directories to delete after

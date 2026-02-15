@@ -237,6 +237,18 @@ class StreamingModel(mlrun.serving.Model):
             }
 
 
+class MyModelSelector(mlrun.serving.states.ModelRunnerSelector):
+    """Selector that reads a 'models' key (comma-separated string) from the
+    event body to choose which models to run. Falls back to all models when
+    the key is absent."""
+
+    def select_models(self, event, available_models):
+        body = event.body if hasattr(event, "body") else event
+        if isinstance(body, dict) and "models" in body:
+            return body.pop("models").split(",")
+        return None
+
+
 class MyDictModel(mlrun.serving.Model):
     def __init__(self, *args, artifact_uri: str, **kwargs):
         super().__init__(*args, artifact_uri=artifact_uri, **kwargs)

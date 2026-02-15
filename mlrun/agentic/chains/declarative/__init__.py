@@ -13,6 +13,7 @@
 # limitations under the License.
 
 from mlrun.agentic.chains.declarative.agent import DeclarativeAgent
+from mlrun.agentic.chains.declarative.deployer import AgentsAtScaleDeployer
 from mlrun.agentic.chains.declarative.router import DeclarativeTeamRouter
 from mlrun.agentic.chains.declarative.runner import DeclarativeRunner
 from mlrun.agentic.chains.declarative.team import DeclarativeTeam

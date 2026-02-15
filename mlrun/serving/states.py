@@ -3691,12 +3691,15 @@ def _add_graphviz_router(graph, step, source=None, **kwargs):
         graph.node("_start", source.name, shape=source.shape, style="filled")
         graph.edge("_start", step.fullname)
 
-    # Check if router has custom graph structure method
-    if hasattr(step, "get_internal_graph_structure") and callable(
-        getattr(step, "get_internal_graph_structure")
+    # Check if the underlying router object has custom graph structure method
+    router_object = getattr(step, "_object", None)
+    if (
+        router_object
+        and hasattr(router_object, "get_internal_graph_structure")
+        and callable(getattr(router_object, "get_internal_graph_structure"))
     ):
         # Use custom rendering for complex team architectures
-        structure = step.get_internal_graph_structure()
+        structure = router_object.get_internal_graph_structure()
         _render_custom_router_structure(graph, step, structure)
     else:
         # Default rendering: router node with child routes

@@ -3729,26 +3729,88 @@ def _add_graphviz_flow(
     source=None,
     targets=None,
 ):
+    """Render a flow graph topology to graphviz.
+
+    Process:
+    1. Create start node and connect to entry steps
+    2. Render each child step:
+       - Routers: wrapped in cluster/subgraph (visual box)
+       - ModelRunners: single node with model count badge
+       - Others: regular nodes
+    3. Add edges between steps (after/before connections)
+    4. Add error handling edges (dashed lines)
+    5. Render target nodes if specified
+
+    :param graph:   Graphviz Digraph object
+    :param step:    Flow step containing child steps
+    :param source:  Source node (usually "_start")
+    :param targets: Optional target steps to render at the end
+    """
     start_steps, default_final_step, responders = step.check_and_process_graph(
         allow_empty=True
     )
+    # 1. Create start node and connect to entry steps
     graph.node("_start", source.name, shape=source.shape, style="filled")
     is_monitored = step.track_models if isinstance(step, RootFlowStep) else False
     for start_step in start_steps:
         graph.edge("_start", start_step.fullname)
+
+    # 2. Group children by team_label for clustering
+    children_by_team = {}
+    children_without_team = []
+
     for child in step.get_children():
+        team_label = getattr(child, "team_label", None)
+        if team_label:
+            if team_label not in children_by_team:
+                children_by_team[team_label] = []
+            children_by_team[team_label].append(child)
+        else:
+            children_without_team.append(child)
+
+    # 3. Render children without team_label normally
+    for child in children_without_team:
         kind = child.kind
         if kind == StepKinds.router:
+            # Routers: create subgraph cluster (visual box with children)
             with graph.subgraph(name="cluster_" + child.fullname) as sg:
                 _add_graphviz_router(sg, child)
         elif kind == StepKinds.model_runner:
+            # ModelRunners: single node with badge
             _add_graphviz_model_runner(graph, child, is_monitored=is_monitored)
         else:
+            # Regular steps: simple node
             graph.node(child.fullname, label=child.name, shape=child.get_shape())
-        _add_edges(child.after or [], step, graph, child)
-        _add_edges(getattr(child, "before", []), step, graph, child, after=False)
+
+        # Add edges between steps
+        _add_edges(child.after or [], step, graph, child)  # incoming edges
+        _add_edges(getattr(child, "before", []), step, graph, child, after=False)  # outgoing edges
+
+        # Add error handling edge (dashed)
         if child.on_error:
             graph.edge(child.fullname, child.on_error, style="dashed")
+
+    # 4. Render team-labeled children in clusters (visual boxes)
+    for team_label, team_children in children_by_team.items():
+        with graph.subgraph(name=f"cluster_{team_label}") as sg:
+            sg.attr(label=team_label, style="rounded", color="blue")
+
+            for child in team_children:
+                kind = child.kind
+                if kind == StepKinds.router:
+                    _add_graphviz_router(sg, child)
+                elif kind == StepKinds.model_runner:
+                    _add_graphviz_model_runner(sg, child, is_monitored=is_monitored)
+                else:
+                    # Render step inside the cluster
+                    sg.node(child.fullname, label=child.name, shape=child.get_shape())
+
+                # Add edges (note: edges connect across cluster boundaries automatically)
+                _add_edges(child.after or [], step, graph, child)
+                _add_edges(getattr(child, "before", []), step, graph, child, after=False)
+
+                if child.on_error:
+                    graph.edge(child.fullname, child.on_error, style="dashed")
 
     # draw targets after the last step (if specified)
     if targets:
@@ -3767,9 +3829,19 @@ def _add_graphviz_flow(
 
 
 def _add_edges(items, step, graph, child, after=True):
+    """Add edges between steps in the graph.
+
+    :param items:  List of step names to connect
+    :param step:   Parent flow step (used to look up child steps)
+    :param graph:  Graphviz Digraph object
+    :param child:  Current child step
+    :param after:  If True, draw edges FROM items TO child (incoming).
+                   If False, draw edges FROM child TO items (outgoing).
+    """
     for item in items:
         next_or_prev_object = step[item]
         kw = {}
+        # Special handling for router edges: connect to cluster boundary
         if next_or_prev_object.kind == StepKinds.router:
             kw["ltail"] = f"cluster_{next_or_prev_object.fullname}"
         if after:

@@ -151,9 +151,11 @@ class AgentsAtScaleDeployer:
 
                 # Create DeclarativeAgent instance and add as step
                 agent = DeclarativeAgent(name=member_name, agent_config=agent_config)
-                agent.team_label = team_name  # Add custom attribute for visual grouping
+                agent_step = current.to(agent)
 
-                current = current.to(agent)
+                # Add custom attribute for visual grouping (must be set AFTER .to())
+                agent_step.team_label = team_name
+                current = agent_step
 
         # End with history saver if needed
         if with_session:

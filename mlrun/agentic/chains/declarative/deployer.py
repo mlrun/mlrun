@@ -149,14 +149,11 @@ class AgentsAtScaleDeployer:
             if member_name in members:
                 agent_config = members[member_name]
 
-                # Add DeclarativeAgent as a step
-                agent_step = current.to(
-                    DeclarativeAgent,
-                    name=member_name,
-                    agent_config=agent_config,
-                )
+                # Create DeclarativeAgent instance and add as step
+                agent = DeclarativeAgent(name=member_name, agent_config=agent_config)
+                agent_step = current.to(agent)
 
-                # Add custom attribute for visual grouping
+                # Add custom attribute for visual grouping (must be set AFTER .to())
                 agent_step.team_label = team_name
                 current = agent_step
 
@@ -174,20 +171,15 @@ class AgentsAtScaleDeployer:
         """
         member_refs = team_config.get("spec", {}).get("members", [])
 
+        # Create DeclarativeTeamRouter instance
+        router = DeclarativeTeamRouter(name="team-router", team_config=team_config)
+
         if with_session:
             session_loader = SessionLoader(name="session-loader")
             history_saver = HistorySaver(name="history-saver")
-            router_step = root.to(session_loader).to(
-                DeclarativeTeamRouter,
-                name="team-router",
-                team_config=team_config,
-            )
+            router_step = root.to(session_loader).to(router)
         else:
-            router_step = root.to(
-                DeclarativeTeamRouter,
-                name="team-router",
-                team_config=team_config,
-            )
+            router_step = root.to(router)
 
         # Add routes for each member agent (for visualization + initialization)
         for ref in member_refs:

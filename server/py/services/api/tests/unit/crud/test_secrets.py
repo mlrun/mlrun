@@ -1008,11 +1008,84 @@ def test_delete_secret_token_k8s_delete_failure(mock_iguazio_client):
 
     with pytest.raises(
         mlrun.errors.MLRunRuntimeError,
-        match="deleted from Iguazio, but failed to delete associated secret",
+        match="Failed to delete secret for token",
     ):
         services.api.crud.Secrets().delete_secret_token(
             token_name=token_name, username=auth_info.username, auth_info=auth_info
         )
+
+
+@pytest.mark.asyncio
+async def test_delete_secret_tokens_success(mock_iguazio_client):
+    """Test bulk delete of all tokens for a user.
+
+    Bulk delete skips token revocation (used during user deletion flow where the
+    user is already deactivated), so only K8s secret deletion should occur.
+    """
+    request_headers = {
+        mlrun.common.schemas.HeaderNames.authorization: f"{mlrun.common.schemas.AuthorizationHeaderPrefixes.bearer}123",
+    }
+    auth_info = mlrun.common.schemas.AuthInfo(
+        username="dummy-user", user_id="user-id-123", request_headers=request_headers
+    )
+
+    token_infos = [
+        mlrun.common.schemas.SecretTokenInfo(
+            name="token-1",
+            expiration=datetime.datetime.now(),
+            user_id=auth_info.user_id,
+        ),
+        mlrun.common.schemas.SecretTokenInfo(
+            name="token-2",
+            expiration=datetime.datetime.now(),
+            user_id=auth_info.user_id,
+        ),
+    ]
+
+    mock_secrets_provider = unittest.mock.Mock()
+    services.api.crud.Secrets().secrets_provider = mock_secrets_provider
+    mock_secrets_provider.list_user_token_secrets.return_value = token_infos
+
+    result = await services.api.crud.Secrets().delete_secret_tokens(
+        username=auth_info.username,
+        auth_info=auth_info,
+    )
+
+    assert result.deleted_count == 2
+    assert result.failed_tokens == []
+
+    mock_secrets_provider.list_user_token_secrets.assert_called_once_with(
+        user_id=auth_info.user_id
+    )
+
+    # Revocation is skipped in bulk delete, only K8s secrets are deleted
+    assert mock_secrets_provider.delete_user_token_secret.call_count == 2
+    mock_secrets_provider.get_user_token_secret_value.assert_not_called()
+    mock_iguazio_client.revoke_offline_token.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_delete_secret_tokens_no_tokens(mock_iguazio_client):
+    """Test bulk delete when user has no tokens."""
+    auth_info = mlrun.common.schemas.AuthInfo(
+        username="dummy-user", user_id="user-id-123"
+    )
+
+    mock_secrets_provider = unittest.mock.Mock()
+    services.api.crud.Secrets().secrets_provider = mock_secrets_provider
+    mock_secrets_provider.list_user_token_secrets.return_value = []
+
+    result = await services.api.crud.Secrets().delete_secret_tokens(
+        username=auth_info.username,
+        auth_info=auth_info,
+    )
+
+    assert result.deleted_count == 0
+    assert result.failed_tokens == []
+
+    # Verify no delete calls were made
+    mock_secrets_provider.delete_user_token_secret.assert_not_called()
+    mock_iguazio_client.revoke_offline_token.assert_not_called()
 
 
 def test_get_secret_token_success():

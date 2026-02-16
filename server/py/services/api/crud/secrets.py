@@ -12,11 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import asyncio
 import enum
 import json
 import typing
 import uuid
 from collections import defaultdict
+
+from fastapi.concurrency import run_in_threadpool
 
 import mlrun.auth.utils
 import mlrun.common
@@ -524,6 +527,57 @@ class Secrets(
             secret_tokens=secret_tokens
         )
 
+    def _delete_single_token(
+        self,
+        target_user_id: str,
+        target_username: str,
+        token_name: str,
+        iguazio_client: "framework.utils.clients.iguazio.v4.Client",
+        request_headers: typing.Optional[dict[str, str]],
+        skip_revocation: bool = False,
+    ) -> None:
+        """
+        Delete a single token: get value, optionally revoke in Iguazio, delete from K8s.
+
+        :param target_user_id: The user_id of the token owner.
+        :param target_username: The username of the token owner (for logging).
+        :param token_name: The name of the token to delete.
+        :param iguazio_client: The Iguazio client to use for revocation.
+        :param request_headers: Request headers for authenticating with Iguazio.
+        :param skip_revocation: If True, skip revoking the token via Iguazio and only delete
+                                the K8s secret. Used in bulk delete during user deletion flow
+                                since tokens are invalidated when the user is deleted anyway.
+        :raises mlrun.errors.MLRunNotFoundError: If the token is not found.
+        :raises mlrun.errors.MLRunRuntimeError: If K8s deletion fails after revocation.
+        """
+        if not skip_revocation:
+            # Get the offline token string
+            token = self.secrets_provider.get_user_token_secret_value(
+                user_id=target_user_id,
+                token_name=token_name,
+            )
+
+            # Revoke via Iguazio
+            iguazio_client.revoke_offline_token(token, request_headers)
+
+        # Delete the Kubernetes secret
+        try:
+            self.secrets_provider.delete_user_token_secret(
+                user_id=target_user_id,
+                token_name=token_name,
+            )
+        except Exception as exc:
+            logger.error(
+                "Failed to delete token secret",
+                target_user_id=target_user_id,
+                target_username=target_username,
+                token_name=token_name,
+                exc=mlrun.errors.err_to_str(exc),
+            )
+            raise mlrun.errors.MLRunRuntimeError(
+                f"Failed to delete secret for token '{token_name}'"
+            ) from exc
+
     def delete_secret_token(
         self,
         token_name: str,
@@ -559,11 +613,16 @@ class Secrets(
             requesting_user=auth_info.username,
         )
 
+        # TODO: move init iguazio_client (ML-11077)
+        iguazio_client = framework.utils.clients.iguazio.v4.Client()
+
         try:
-            # Get the offline token string
-            token = self.secrets_provider.get_user_token_secret_value(
-                user_id=target_user_id,
+            self._delete_single_token(
+                target_user_id=target_user_id,
+                target_username=username,
                 token_name=token_name,
+                iguazio_client=iguazio_client,
+                request_headers=auth_info.request_headers,
             )
         except mlrun.errors.MLRunNotFoundError:
             logger.warning(
@@ -574,29 +633,6 @@ class Secrets(
             )
             return mlrun.common.schemas.DeleteSecretTokenResponse(deleted=False)
 
-        # Revoke via Iguazio
-        # TODO: move init iguazio_client (ML-11077)
-        iguazio_client = framework.utils.clients.iguazio.v4.Client()
-        iguazio_client.revoke_offline_token(token, auth_info.request_headers)
-
-        # Delete the Kubernetes secret
-        try:
-            self.secrets_provider.delete_user_token_secret(
-                user_id=target_user_id,
-                token_name=token_name,
-            )
-        except Exception as exc:
-            logger.error(
-                "Token revoked but failed to delete associated secret",
-                target_user_id=target_user_id,
-                target_username=username,
-                token_name=token_name,
-                exc=mlrun.errors.err_to_str(exc),
-            )
-            raise mlrun.errors.MLRunRuntimeError(
-                f"Token '{token_name}' deleted from Iguazio, but failed to delete associated secret"
-            ) from exc
-
         logger.debug(
             "Finished revoking secret token for user",
             target_user_id=target_user_id,
@@ -604,6 +640,106 @@ class Secrets(
             token_name=token_name,
         )
         return mlrun.common.schemas.DeleteSecretTokenResponse(deleted=True)
+
+    async def delete_secret_tokens(
+        self,
+        username: str,
+        auth_info: mlrun.common.schemas.AuthInfo,
+    ) -> mlrun.common.schemas.DeleteSecretTokensResponse:
+        """
+        Delete all stored offline tokens for a user and their corresponding Kubernetes secrets.
+
+        This method lists all tokens for the user and deletes each one in parallel.
+        Failures are collected and reported, but do not stop processing of remaining tokens.
+
+        :param username:
+            The username of the user whose tokens should be deleted.
+            For regular users, this must be their own username.
+            For system admins, this can be any user's username.
+        :param auth_info:
+            Authentication information of the requesting user.
+        :return: DeleteSecretTokensResponse with deleted_count and any failed_tokens.
+        """
+        # Resolve the target user_id from the username
+        target_user_id = self._resolve_target_user_id(auth_info, username)
+
+        logger.debug(
+            "Deleting all secret tokens for user",
+            target_user_id=target_user_id,
+            target_username=username,
+            requesting_user=auth_info.username,
+        )
+
+        # List all tokens for the user
+        tokens: list[mlrun.common.schemas.SecretTokenInfo] = (
+            self.secrets_provider.list_user_token_secrets(user_id=target_user_id)
+        )
+
+        if not tokens:
+            logger.debug(
+                "No tokens found for user",
+                target_user_id=target_user_id,
+                target_username=username,
+            )
+            return mlrun.common.schemas.DeleteSecretTokensResponse(
+                deleted_count=0, failed_tokens=[]
+            )
+
+        # TODO: move init iguazio_client (ML-11077)
+        iguazio_client = framework.utils.clients.iguazio.v4.Client()
+
+        # Delete tokens in parallel using asyncio to avoid blocking on I/O.
+        # Skip revocation since this endpoint is called during user deletion flow,
+        # where the user is already deactivated and will be deleted from Keycloak
+        # right after this, which invalidates all tokens anyway.
+        tasks = [
+            asyncio.create_task(
+                run_in_threadpool(
+                    self._delete_single_token,
+                    target_user_id=target_user_id,
+                    target_username=username,
+                    token_name=token_info.name,
+                    iguazio_client=iguazio_client,
+                    request_headers=auth_info.request_headers,
+                    skip_revocation=True,
+                )
+            )
+            for token_info in tokens
+        ]
+
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+
+        # Process results to count successes and failures
+        deleted_count = 0
+        failed_tokens: list[str] = []
+
+        for i, result in enumerate(results):
+            token_name = tokens[i].name
+            if isinstance(result, Exception):
+                # K8s deletion errors are already logged in _delete_single_token
+                failed_tokens.append(token_name)
+            else:
+                deleted_count += 1
+
+        if failed_tokens:
+            logger.warning(
+                "Some tokens failed to delete",
+                target_user_id=target_user_id,
+                target_username=username,
+                deleted_count=deleted_count,
+                failed_count=len(failed_tokens),
+            )
+        else:
+            logger.debug(
+                "Finished deleting secret tokens for user",
+                target_user_id=target_user_id,
+                target_username=username,
+                deleted_count=deleted_count,
+            )
+
+        return mlrun.common.schemas.DeleteSecretTokensResponse(
+            deleted_count=deleted_count, failed_tokens=failed_tokens
+        )
 
     def get_secret_token(
         self,

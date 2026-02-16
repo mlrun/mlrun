@@ -36,10 +36,12 @@ class TestApplicationRuntime(tests.system.base.TestMLRunSystem):
         self._vizro_app_code_filename = "vizro_app.py"
         self._function_with_delay_healthcheck = "function_with_delay_healthcheck.py"
         self._simple_flask_app = "simple_flask_app.py"
+        self._source_archive = "source_archive.tar.gz"
         self._files_to_upload = [
             self._vizro_app_code_filename,
             self._function_with_delay_healthcheck,
             self._simple_flask_app,
+            self._source_archive,
         ]
         self._source = os.path.join(self.remote_code_dir, self._vizro_app_code_filename)
 
@@ -114,8 +116,7 @@ class TestApplicationRuntime(tests.system.base.TestMLRunSystem):
     def test_deploy_application_from_project_source(self):
         self._upload_code_to_cluster()
 
-        # pull_at_runtime is not supported and should be overridden
-        self.project.set_source(self._source, pull_at_runtime=True)
+        self.project.set_source(self._source)
         self.project.save()
 
         self._logger.debug("Creating application")
@@ -258,15 +259,116 @@ class TestApplicationRuntime(tests.system.base.TestMLRunSystem):
             function.spec.build.source = source_path
 
             # Redeploy - auto-uploads new source, init container loads it without image rebuild
+            image_before = function.status.application_image
             self._logger.debug("Redeploying with version-2 source")
-            output = self._deploy_application_with_stdout_capture(function)
+            function.deploy(with_mlrun=False)
 
-            # Verify sidecar image build was skipped (only source changed)
-            assert "Started building image" not in output
+            # Verify sidecar image was not rebuilt (only source changed)
+            assert function.status.application_image == image_before
 
             # Invoke and verify version-2
             response = function.invoke("/", verify=False)
             assert response.content.decode("utf-8") == "version-2"
+
+    def test_deploy_application_with_git_source(self):
+        """
+        Test that application runtime uses init container to load Git source at runtime.
+        Verifies that:
+        1. Source is cloned from Git without being built into the image
+        2. Git repo files are accessible (both root and subdir)
+        3. Sidecar image is not rebuilt on redeployment
+        """
+        git_url = "git://github.com/mlrun/test-git-load.git#main"
+
+        self._logger.debug("Creating application with Git source")
+        function = self.project.set_function(
+            name="git-app",
+            kind="application",
+            image="python:3.11",
+        )
+        function.with_source_archive(
+            source=git_url,
+            pull_at_runtime=True,
+        )
+        function.spec.command = "python"
+        function.spec.args = ["-m", "http.server", "8050"]
+        function.set_internal_application_port(8050)
+
+        # First deploy
+        self._logger.debug("First deploy with Git source and pull_at_runtime=True")
+        function.deploy(with_mlrun=False)
+        assert function.status.state == "ready"
+
+        # Verify Git repo was cloned and files are accessible
+        response = function.invoke("/subdir/mylib.py", verify=False)
+        assert response.status_code == 200
+
+        # Verify a root level file is also accessible
+        response = function.invoke("/rootlib.py", verify=False)
+        assert response.status_code == 200
+
+        # Redeploy - sidecar image should not be rebuilt
+        image_before = function.status.application_image
+        self._logger.debug("Redeploying - sidecar build should be skipped")
+        function.deploy(with_mlrun=False)
+        assert function.status.state == "ready"
+        assert function.status.application_image == image_before
+
+        # Verify source is still accessible after redeploy
+        response = function.invoke("/subdir/mylib.py", verify=False)
+        assert response.status_code == 200
+
+        # force_build=True should trigger sidecar image build
+        self._logger.debug("Redeploying with force_build=True")
+        function.deploy(with_mlrun=False, force_build=True)
+        assert function.status.state == "ready"
+        assert function.status.application_image != image_before
+
+        # Verify source is still accessible after forced rebuild
+        response = function.invoke("/subdir/mylib.py", verify=False)
+        assert response.status_code == 200
+
+    def test_deploy_application_with_archive_source(self):
+        """
+        Test that application runtime uses init container to load archive source at runtime.
+        Verifies that:
+        1. Archive is extracted without being built into the image
+        2. Extracted files are accessible
+        3. Sidecar image is not rebuilt on redeployment
+        """
+        # Upload archive to remote storage so init container can access it
+        self._upload_code_to_cluster()
+        archive_url = os.path.join(self.remote_code_dir, self._source_archive)
+
+        self._logger.debug("Creating application with archive source")
+        function = self.project.set_function(
+            name="archive-app",
+            kind="application",
+            image="python:3.11",
+        )
+        function.with_source_archive(
+            source=archive_url,
+            pull_at_runtime=True,
+        )
+        function.spec.command = "python"
+        function.spec.args = ["-m", "http.server", "8050"]
+        function.set_internal_application_port(8050)
+
+        # First deploy
+        self._logger.debug("First deploy with archive source and pull_at_runtime=True")
+        function.deploy(with_mlrun=False)
+        assert function.status.state == "ready"
+
+        # Verify extracted archive files are accessible
+        response = function.invoke("/rootlib.py", verify=False)
+        assert response.status_code == 200
+
+        # Redeploy - sidecar image should not be rebuilt
+        image_before = function.status.application_image
+        self._logger.debug("Redeploying - sidecar build should be skipped")
+        function.deploy(with_mlrun=False)
+        assert function.status.state == "ready"
+        assert function.status.application_image == image_before
 
     def _create_vizro_application(
         self, name="vizro-app", app_image=None, with_repo: bool = False

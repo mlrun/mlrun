@@ -32,10 +32,12 @@ class TestServingAPIHandler(tests.system.base.TestMLRunSystem):
         self,
         name: str,
         api_config: APIHandlerConfig | None = None,
+        func: str | None = None,
     ) -> mlrun.runtimes.ServingRuntime:
         """Create a basic serving function for testing."""
         # Create serving function using project (no external file needed)
         function = self.project.set_function(
+            func=func,
             name=name,
             kind="serving",
             image=self.image,
@@ -130,3 +132,71 @@ class TestServingAPIHandler(tests.system.base.TestMLRunSystem):
             )
 
         self._logger.info("Forbidden API handler test passed")
+
+    def test_api_handler_with_body_mapping(self) -> None:
+        """Test API handler with body_map JSONPath extraction."""
+        self._logger.info("Testing API handler with body_map functionality")
+
+        # Create API handler config with body_map for JSONPath extraction
+        config = APIHandlerConfig()
+
+        config.add_body_mapping("user_name", "$.user.name")
+        config.add_body_mapping("user_email", "$.user.contact.email")
+        # Multiple matches return list
+        config.add_body_mapping("book_titles", "$.purchases[*].title")
+
+        config.add_endpoint_handler(
+            "/api/v1/process",
+            HTTPMethod.POST,
+            APIHandlerAction.ALLOW,
+            "Process endpoint with body mapping",
+        )
+
+        # Create serving function with handler source file using helper method
+        function = self._create_serving_function(
+            name="body-map-handler",
+            api_config=config,
+            func=str(self.assets_path / "body_map_handler.py"),
+        )
+
+        # Set up topology with handler that receives kwargs from body_map
+        graph = function.set_topology("flow", engine="sync", exist_ok=True)
+        graph.to(
+            name="processor", handler="process_mapped_data"
+        ).respond()  # Reference handler by name
+
+        # Deploy the function
+        self._logger.debug("Deploying serving function with body_map")
+        function.deploy()
+
+        # Test with request body that has nested structure
+        test_body = {
+            "user": {
+                "name": "Alice Smith",
+                "contact": {"email": "alice@example.com", "phone": "+1234567890"},
+            },
+            "purchases": [
+                {"title": "MLOps Handbook", "price": 29.99},
+                {"title": "Python Guide", "price": 19.99},
+                {"title": "Data Science Intro", "price": 39.99},
+            ],
+            "timestamp": "2026-02-11T10:00:00Z",
+        }
+
+        self._logger.debug("Testing body_map with nested JSONPath extraction")
+        response = function.invoke(path="/api/v1/process", body=test_body)
+
+        # Verify the mapped values were extracted correctly
+        assert response is not None, "Handler should return a response"
+        assert response["name"] == "Alice Smith", "user_name should be extracted"
+        assert (
+            response["email"] == "alice@example.com"
+        ), "user_email should be extracted from nested path"
+        assert response["titles"] == [
+            "MLOps Handbook",
+            "Python Guide",
+            "Data Science Intro",
+        ], "book_titles should extract multiple matches as list"
+        assert response["count"] == 3, "count should match number of books"
+
+        self._logger.info("Body mapping API handler test passed")

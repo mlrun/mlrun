@@ -592,7 +592,7 @@ class MLClientCtx:
             if isinstance(input_url, list):
                 return [
                     recursive_get_input(f"{input_key}_{i}", v)
-                    for i, v in enumerate(url)
+                    for i, v in enumerate(input_url)
                 ]
             # String:
             return self._data_stores.object(

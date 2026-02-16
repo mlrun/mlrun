@@ -107,11 +107,17 @@ class BaseRunner(metaclass=mlrun.utils.singleton.Singleton):
         :param original_runner_owner: Owner of the original workflow runner.
         :return: RunObject with run metadata, results, and status.
         """
+        auth_token_name = (
+            workflow_request.spec.auth_token_name
+            if workflow_request and workflow_request.spec
+            else None
+        )
         self._enrich_run_labels_and_env(
             labels=labels,
             runner=runner,
             auth_username=auth_info.username,
             original_runner_owner=original_runner_owner,
+            auth_token_name=auth_token_name,
         )
 
         run_object = self._prepare_run_object(
@@ -121,6 +127,9 @@ class BaseRunner(metaclass=mlrun.utils.singleton.Singleton):
             run_name=runner.metadata.name,
             rerun_request=rerun_request,
         )
+
+        # Set auth token name on run spec so the workflow runner can use it to mount the secret token
+        mlrun_utils.helpers.set_auth_token_name(run_object.spec, auth_token_name)
 
         # We want to store the secret params as k8s secret, so later we can access them with the project internal secret
         # key that was created.
@@ -247,6 +256,7 @@ class BaseRunner(metaclass=mlrun.utils.singleton.Singleton):
         runner: mlrun.run.KubejobRuntime,
         auth_username: Optional[str] = None,
         original_runner_owner: Optional[str] = None,
+        auth_token_name: Optional[str] = None,
     ):
         """
         Enriches the run labels and environment variables for the workflow runner.
@@ -257,6 +267,7 @@ class BaseRunner(metaclass=mlrun.utils.singleton.Singleton):
         :param runner: Workflow runner function object.
         :param auth_username: Username from authentication info.
         :param original_runner_owner: Owner of the original workflow runner.
+        :param auth_token_name: Name of the authentication token to use.
         """
         owner_to_enrich = (
             original_runner_owner if original_runner_owner else auth_username
@@ -272,6 +283,13 @@ class BaseRunner(metaclass=mlrun.utils.singleton.Singleton):
             runner.set_env("MLRUN_PYTHON_VERSION", client_python_version)
             labels[mlrun_constants.MLRunInternalLabels.client_python_version] = (
                 client_python_version
+            )
+
+        # Set auth token name via config env var for workflow-runner to use during pipeline compilation.
+        if auth_token_name:
+            runner.set_env(
+                "MLRUN_AUTH_WITH_OAUTH_TOKEN__TOKEN_NAME",
+                auth_token_name,
             )
 
     @staticmethod
@@ -415,7 +433,12 @@ class WorkflowRunners(BaseRunner, metaclass=mlrun.utils.singleton.Singleton):
             mlrun_constants.MLRunInternalLabels.job_type: mlrun_constants.JOB_TYPE_WORKFLOW_RUNNER,
             mlrun_constants.MLRunInternalLabels.workflow: workflow_request.spec.name,
         }
-        self._enrich_run_labels_and_env(labels, runner, auth_info.username)
+        self._enrich_run_labels_and_env(
+            labels,
+            runner,
+            auth_info.username,
+            auth_token_name=workflow_request.spec.auth_token_name,
+        )
 
         # Generate unique UID
         meta_uid = uuid.uuid4().hex
@@ -427,6 +450,10 @@ class WorkflowRunners(BaseRunner, metaclass=mlrun.utils.singleton.Singleton):
             run_name=workflow_request.spec.name,
             uid=meta_uid,
             scrape_metrics=mlrun_config.config.scrape_metrics,
+        )
+
+        mlrun_utils.helpers.set_auth_token_name(
+            run_object.spec, workflow_request.spec.auth_token_name
         )
 
         # Mask notification parameters

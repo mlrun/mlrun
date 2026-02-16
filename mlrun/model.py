@@ -1157,7 +1157,7 @@ class RunSpec(ModelObj):
         return self._returns
 
     @returns.setter
-    def returns(self, returns: list[Union[str, dict[str, str]]]):
+    def returns(self, returns: "list[str | mlrun.LogHint]"):
         """
         Set the returns list to log the returning values at the end of a run.
 
@@ -1165,17 +1165,21 @@ class RunSpec(ModelObj):
 
         :raise MLRunInvalidArgumentError: In case one of the values in the list is invalid.
         """
-        # This import is located in the method due to circular imports error.
-        from mlrun.package.utils import LogHintUtils
-
         if returns is None:
             self._returns = None
             return
         self._verify_list(returns, "returns")
 
+        # Import LogHint locally to avoid circular import:
+        from mlrun.package.log_hint import LogHint
+
         # Validate:
         for log_hint in returns:
-            LogHintUtils.parse_log_hint(log_hint=log_hint)
+            if not isinstance(log_hint, LogHint):
+                # TODO: Remove the dict support in MLRun 1.13
+                LogHint.parse_obj(
+                    obj=log_hint.copy() if isinstance(log_hint, dict) else log_hint
+                )
 
         # Store the results:
         self._returns = returns
@@ -1316,7 +1320,7 @@ class RunSpec(ModelObj):
 
     @staticmethod
     def join_outputs_and_returns(
-        outputs: list[str], returns: list[Union[str, dict[str, str]]]
+        outputs: list[str], returns: "list[str | mlrun.LogHint]"
     ) -> list[str]:
         """
         Get the outputs set in the spec. The outputs are constructed from both the 'outputs' and 'returns' properties
@@ -1327,20 +1331,19 @@ class RunSpec(ModelObj):
 
         :return: The joined 'outputs' and 'returns' list.
         """
+        # Import LogHint locally to avoid circular import:
+        from mlrun.package.log_hint import LogHint
+
         # Collect the 'returns' property keys:
         cleared_returns = []
         if returns:
-            for return_value in returns:
-                # Check if the return entry is a configuration dictionary or a key-type structure string (otherwise its
-                # just a key string):
-                if isinstance(return_value, dict):
-                    # Set it to the artifact key:
-                    return_value = return_value["key"]
-                elif ":" in return_value:
-                    # Take only the key name (returns values pattern is validated when set in the spec):
-                    return_value = return_value.replace(" ", "").split(":")[0]
-                # Collect it:
-                cleared_returns.append(return_value)
+            for log_hint in returns:
+                if not isinstance(log_hint, LogHint):
+                    # TODO: Remove the dict support in MLRun 1.13
+                    log_hint = LogHint.parse_obj(
+                        obj=log_hint.copy() if isinstance(log_hint, dict) else log_hint
+                    )
+                cleared_returns.append(log_hint.key)
 
         # Use `set` join to combine the two lists without duplicates:
         outputs = list(set(outputs if outputs else []) | set(cleared_returns))
@@ -2160,13 +2163,15 @@ def new_task(
                             run (as artifacts or results). The list's length must be equal to the amount of returning
                             objects. A log hint may be given as:
 
-                            * A string of the key to use to log the returning value as result or as an artifact. To
-                              specify The artifact type, it is possible to pass a string in the following structure:
-                              "<key> : <type>". Available artifact types can be seen in `mlrun.ArtifactType`. If no
-                              artifact type is specified, the object's default artifact type will be used.
-                            * A dictionary of configurations to use when logging. Further info per object type and
-                              artifact type can be given there. The artifact key must appear in the dictionary as
-                              "key": "the_key".
+                            * A ``LogHint`` object with the key and extra configurations.
+                            * A "shortcut" string of the key to use to log the returning value as result or as an
+                              artifact. To specify The artifact type, it is possible to pass a string in the following
+                              structure: "<key> : <type>". Available artifact types can be seen in `mlrun.ArtifactType`.
+                              If no artifact type is specified, the object's default artifact type will be used.
+                              Itemization can also be specified before the key using the following structure:
+                              "<unbundle-level> * <key>". If unbundle level is not specified, the default is full
+                              unbundling.
+
     :param retry:           Retry configuration for the run, can be a dict or an instance of mlrun.model.Retry.
     """
 

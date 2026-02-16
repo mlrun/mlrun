@@ -52,6 +52,7 @@ class _CommonParams:
     auth_info: mlrun.common.schemas.AuthInfo
     db_session: Session
     model_monitoring_access_key: Optional[str] = None
+    auth_token_name: Optional[str] = None
 
     def __post_init__(self) -> None:
         if mlrun.mlconf.is_using_v3io():
@@ -69,6 +70,7 @@ class _CommonParams:
             auth_info=self.auth_info,
             db_session=self.db_session,
             model_monitoring_access_key=self.model_monitoring_access_key,
+            auth_token_name=self.auth_token_name,
         )
 
 
@@ -110,6 +112,9 @@ async def _common_parameters(
     client_version: Optional[str] = Header(
         None, alias=mlrun.common.schemas.HeaderNames.client_version
     ),
+    auth_token_name: Optional[str] = Query(
+        None, description="Auth token name (set by mlrun.RuntimeConfigurationContext)"
+    ),
 ) -> _CommonParams:
     """
     Verify authorization and return common parameters.
@@ -118,6 +123,7 @@ async def _common_parameters(
     :param auth_info:       The auth info of the request.
     :param db_session:      A session that manages the current dialog with the database.
     :param client_version:  The client version.
+    :param auth_token_name: The auth token name (set by mlrun.RuntimeConfigurationContext).
     :returns:          A `_CommonParameters` object that contains the input data.
     """
     await _verify_authorization(
@@ -127,6 +133,7 @@ async def _common_parameters(
         project=project,
         auth_info=auth_info,
         db_session=db_session,
+        auth_token_name=auth_token_name,
     )
 
 
@@ -142,6 +149,13 @@ def enable_model_monitoring(
         description=(
             "`fetch_credentials_from_sys_config` is deprecated as of 1.10.0 and will be removed in 1.12.0."
         ),
+    ),
+    lag_threshold: int | None = Query(
+        None, description="Lag threshold in minutes for writer lag detection."
+    ),
+    lag_event_cooldown: int | None = Query(
+        None,
+        description="Cooldown in minutes between consecutive lag events per worker.",
     ),
 ):
     """
@@ -160,6 +174,8 @@ def enable_model_monitoring(
                                               By default, the image is mlrun/mlrun.
     :param deploy_histogram_data_drift_app:   If true, deploy the default histogram-based data drift application.
     :param fetch_credentials_from_sys_config: Deprecated. If true, fetch the credentials from the system configuration.
+    :param lag_threshold:                     Lag threshold in minutes for writer lag detection.
+    :param lag_event_cooldown:                Cooldown in minutes between consecutive lag events per worker.
 
     """
     commons.get_monitoring_deployment().deploy_monitoring_functions(
@@ -167,6 +183,8 @@ def enable_model_monitoring(
         base_period=base_period,
         deploy_histogram_data_drift_app=deploy_histogram_data_drift_app,
         fetch_credentials_from_sys_config=fetch_credentials_from_sys_config,
+        lag_threshold=lag_threshold,
+        lag_event_cooldown=lag_event_cooldown,
     )
 
 

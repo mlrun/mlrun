@@ -17,7 +17,6 @@ __all__ = [
     "set_environment",
     "code_to_function",
     "import_function",
-    "handler",
     "ArtifactType",
     "get_secret_or_env",
     "mount_v3io",
@@ -25,13 +24,15 @@ __all__ = [
     "auto_mount",
     "VolumeMount",
     "sync_secret_tokens",
+    "RuntimeConfigurationContext",
 ]
 
-import warnings
 from os import environ, path
 from typing import Optional
 
 import dotenv
+
+import mlrun.runtime_configuration_context
 
 from .common.constants import MLRUN_ACTIVE_PROJECT
 from .config import config as mlconf
@@ -41,7 +42,7 @@ from .errors import MLRunInvalidArgumentError, MLRunNotFoundError
 from .execution import MLClientCtx
 from .hub import get_hub_item, get_hub_module, get_hub_step, import_module
 from .model import RunObject, RunTemplate, new_task
-from .package import ArtifactType, DefaultPackager, Packager
+from .package import ArtifactType, DefaultPackager, LogHint, Packager
 from .projects import (
     MlrunProject,
     ProjectMetadata,
@@ -79,6 +80,9 @@ VolumeMount = mounts.VolumeMount
 mount_v3io = mounts.mount_v3io
 v3io_cred = mounts.v3io_cred
 auto_mount = mounts.auto_mount
+RuntimeConfigurationContext = (
+    mlrun.runtime_configuration_context.RuntimeConfigurationContext
+)
 
 
 # TODO: Remove in MLRun 1.13.0.

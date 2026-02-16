@@ -102,7 +102,7 @@ class Packager(ABC):
     * :py:meth:`unbundle` - Unbundle a bundled object into a simple collection of objects (either a ``list`` or a
       ``dict``) for later packing them separately.
 
-    .. rubric:: Linking Artifacts (extra data)
+    .. rubric:: Linking Artifacts (extra data and metrics (for models))
 
     To link between packages (using the extra data or metrics spec attributes of an artifact), use
     the key as if it exists and as value ellipses (...). The manager links all packages once it is done packing.

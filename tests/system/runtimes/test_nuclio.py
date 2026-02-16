@@ -648,27 +648,27 @@ class TestNuclioRuntime(TestMLRunSystemModelMonitoring):
 
         # Test 1: StreamingStep path (async generator do() method)
         self._logger.info("Testing StreamingStep path...")
+        start_time = time.monotonic()
         resp = requests.post(f"{url}/step", data="test", stream=True)
         self._logger.info(f"StreamingStep response: {resp}")
         assert resp.ok, f"StreamingStep request failed: {resp.status_code} {resp.text}"
         assert resp.headers.get("Transfer-Encoding") == "chunked"
 
         chunks = []
-        start = time.monotonic()
         for chunk in resp.iter_content(decode_unicode=True, chunk_size=1024):
-            end = time.monotonic()
-            duration = end - start
-            self._logger.info(f"Received chunk after {duration:.2f} seconds: {chunk}")
-            # TODO: Enable once NUC-720 is fixed
-            # assert (
-            #     0.5 < duration < 1.5
-            # ), "Time between chunks should be about 1 second"
             chunks.append(chunk)
-            start = time.monotonic()
+            time_since_start = time.monotonic() - start_time
+            self._logger.info(
+                f"Received chunk '{chunk}' after {time_since_start:.2f} seconds"
+            )
+            response_text = "".join(chunks)
+            if response_text:
+                iteration = int(response_text[-1]) + 1
+                assert (
+                    iteration - 1 < time_since_start < iteration + 1
+                ), "Time between chunks should be about 1 second"
 
-        # TODO: Remove and enable the commented-out line instead once NUC-720 is fixed
-        assert len(chunks) > 0, "Expected streaming chunks from StreamingStep"
-        # assert chunks == ["test_chunk_0", "test_chunk_1", "test_chunk_2"]
+        assert chunks == ["test_chunk_0", "test_chunk_1", "test_chunk_2"]
 
         # Test 2: ModelRunnerStep path (generator predict() method)
         self._logger.info("Testing ModelRunnerStep path...")
@@ -681,9 +681,7 @@ class TestNuclioRuntime(TestMLRunSystemModelMonitoring):
 
         chunks = list(resp.iter_content(decode_unicode=True, chunk_size=1024))
         self._logger.info(f"ModelRunnerStep chunks: {chunks}")
-        # TODO: Remove and enable the commented-out line instead once NUC-720 is fixed
-        assert len(chunks) > 0, "Expected streaming chunks from ModelRunnerStep"
-        # assert chunks == ["test_chunk_0", "test_chunk_1", "test_chunk_2"]
+        assert chunks == ["test_chunk_0", "test_chunk_1", "test_chunk_2"]
 
     @pytest.mark.parametrize("with_object", [True, False])
     def test_mrs_with_tools_routing_sys(self, with_object):

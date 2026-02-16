@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 import datetime
 import getpass
 import glob
@@ -2585,6 +2584,8 @@ class MlrunProject(ModelObj):
         deploy_histogram_data_drift_app: bool = True,
         wait_for_deployment: bool = False,
         fetch_credentials_from_sys_config: bool = False,  # deprecated
+        lag_threshold: int | None = None,
+        lag_event_cooldown: int | None = None,
     ) -> None:
         """
         Deploy model monitoring application controller, writer and stream functions.
@@ -2621,6 +2622,11 @@ class MlrunProject(ModelObj):
                                                   background, including the histogram data drift app if selected.
         :param fetch_credentials_from_sys_config: Deprecated. If true, fetch the credentials from the project
                                                   configuration.
+        :param lag_threshold:                     Duration in minutes that will be considered as lag in the writer.
+                                                  Must be at least ``min_lag_threshold_minutes`` from config.
+                                                  Default computed server-side from config and ``base_period``.
+        :param lag_event_cooldown:                Duration in minutes between consecutive lag events per worker.
+                                                  Default computed server-side from config and ``base_period``.
         """
         if fetch_credentials_from_sys_config:
             warnings.warn(
@@ -2640,6 +2646,8 @@ class MlrunProject(ModelObj):
             base_period=base_period,
             deploy_histogram_data_drift_app=deploy_histogram_data_drift_app,
             fetch_credentials_from_sys_config=fetch_credentials_from_sys_config,
+            lag_threshold=lag_threshold,
+            lag_event_cooldown=lag_event_cooldown,
         )
 
         if wait_for_deployment:
@@ -2668,6 +2676,12 @@ class MlrunProject(ModelObj):
         :param wait_for_deployment: If true, return only after the deployment is done on the backend.
                                     Otherwise, deploy the controller on the background.
         """
+        warnings.warn(
+            "The base_period has been updated. The lag_threshold and lag_event_cooldown "
+            "may no longer be aligned. Consider disabling and re-enabling model monitoring.",
+            UserWarning,
+            stacklevel=2,
+        )
         db = mlrun.db.get_run_db(secrets=self._secrets)
         db.update_model_monitoring_controller(
             project=self.name,
@@ -4065,7 +4079,7 @@ class MlrunProject(ModelObj):
         schedule: typing.Union[str, mlrun.common.schemas.ScheduleCronTrigger] = None,
         artifact_path: Optional[str] = None,
         notifications: Optional[list[mlrun.model.Notification]] = None,
-        returns: Optional[list[Union[str, dict[str, str]]]] = None,
+        returns: "list[str | mlrun.LogHint] | None" = None,
         builder_env: Optional[dict] = None,
         reset_on_run: Optional[bool] = None,
         output_path: Optional[str] = None,
@@ -4119,13 +4133,17 @@ class MlrunProject(ModelObj):
                                 handler's run (as artifacts or results). The list's length must be equal to the amount
                                 of returning objects. A log hint may be given as:
 
-                                * A string of the key to use to log the returning value as result or as an artifact. To
-                                  specify The artifact type, it is possible to pass a string in the following structure:
-                                  "<key> : <type>". Available artifact types can be seen in `mlrun.ArtifactType`. If no
-                                  artifact type is specified, the object's default artifact type will be used.
-                                * A dictionary of configurations to use when logging. Further info per object type and
-                                  artifact type can be given there. The artifact key must appear in the dictionary as
-                                  "key": "the_key".
+                                * A ``LogHint`` object with the key and extra configurations.
+                                * A "shortcut" string of the key to use to log the returning value as result or as an
+                                  artifact. To specify The artifact type, it is possible to pass a string in the
+                                  following structure: "<key> : <type>". Available artifact types can be seen in
+                                  `mlrun.ArtifactType`. If no artifact type is specified, the object's default artifact
+                                  type will be used. Packing kwargs can be passed alongside the artifact type using
+                                  square brackets:
+                                  ``"<key> : <type>[<kwarg1>=<value1>, <kwarg2>=<value2>]"``.
+                                  Itemization can also be specified before the key using the
+                                  following structure: "<unbundle-level> * <key>". If unbundle level is not specified,
+                                  the default is full unbundling.
         :param builder_env:     env vars dict for source archive config/credentials e.g. builder_env={"GIT_TOKEN":
                                 token}
         :param reset_on_run:    When True, function python modules would reload prior to code execution.

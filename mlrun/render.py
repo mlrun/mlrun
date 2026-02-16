@@ -22,7 +22,7 @@ import mlrun.utils
 
 from .config import config
 from .datastore import uri_to_ipython
-from .utils import dict_to_list, get_in, is_jupyter
+from .utils import get_in, is_jupyter
 
 JUPYTER_SERVER_ROOT = environ.get("HOME", "/User")
 supported_viewers = [
@@ -71,8 +71,97 @@ def table_sum(title, df):
         return html_summary(title, df.to_html(escape=False), size)
 
 
-def dict_html(x):
-    return "".join([f'<div class="dictlist">{i}</div>' for i in dict_to_list(x)])
+def _nested_value_html(
+    key: str, value: typing.Any, leaf_fn: typing.Callable[[str, typing.Any], str]
+) -> str:
+    """
+    Render a single value to HTML, recursing into nested dicts and lists.
+
+    Dict and list values are wrapped in an ``input-bundle`` container with recursively rendered children. Leaf (scalar)
+    values are delegated to `leaf_fn`.
+
+    :param key:     The display label (dict key or ``[index]``).
+    :param value:   The value to render — may be a scalar, dict, or list.
+    :param leaf_fn: Callable ``(key, value) -> str`` that renders leaf nodes.
+
+    :return: An HTML string fragment.
+    """
+    if isinstance(value, dict):
+        children = "".join(
+            _nested_value_html(sub_key, sub_val, leaf_fn)
+            for sub_key, sub_val in value.items()
+        )
+        return (
+            f'<div class="input-bundle">'
+            f'<span class="input-bundle-key">{key}</span>'
+            f"{children}</div>"
+        )
+    if isinstance(value, list):
+        children = "".join(
+            _nested_value_html(f"[{i}]", item, leaf_fn) for i, item in enumerate(value)
+        )
+        return (
+            f'<div class="input-bundle">'
+            f'<span class="input-bundle-key">{key}</span>'
+            f"{children}</div>"
+        )
+    return leaf_fn(key, value)
+
+
+def _result_leaf_html(key: str, value: typing.Any) -> str:
+    """
+    Render a scalar result as a ``key=value`` chip with tooltip.
+
+    :param key:   The display label (dict key or ``[index]``).
+    :param value: The value to render — may be a scalar, dict, or list.
+
+    :return: An HTML string fragment.
+    """
+    return f'<div class="dictlist" title="{value}">{key}={value}</div>'
+
+
+def _input_leaf_html(key: str, value: str) -> str:
+    """
+    Render a scalar input as a clickable artifact link (strings) or plain div.
+
+    :param key:   The display label (dict key or ``[index]``).
+    :param value: The value to render — may be a scalar, dict, or list.
+
+    :return: An HTML string fragment.
+    """
+    try:
+        link, ref = link_to_ipython(value)
+        leaf_html = f'<div {ref}title="{link}">{key}</div>'
+    except Exception as exception:
+        mlrun.utils.logger.warning(
+            "Failed to create link for input value, rendering as plain text",
+            key=key,
+            value=value,
+            error=str(exception),
+        )
+        leaf_html = f'<div title="{value}">{key}</div>'
+
+    return leaf_html
+
+
+def dict_html(x: dict):
+    """
+    Render a flat or nested dict as inline HTML chips for table columns.
+
+    Handles three value shapes per key:
+
+    * ``dict`` — grouped bundle with recursively rendered children.
+    * ``list`` — grouped bundle with ``[0], [1], …`` indexed children,
+      each recursively rendered (supports list-of-dicts, nested lists, etc.).
+    * other — simple ``key=value`` chip.
+
+    :param x: The dictionary to render.
+
+    :return: An HTML string, or ``""`` if dict is empty.
+    """
+    if not x:
+        return ""
+    return "".join(_nested_value_html(k, v, _result_leaf_html) for k, v in x.items())
 
 
 def link_to_ipython(link: str):
@@ -136,14 +225,10 @@ def artifacts_html(
     return html
 
 
-def inputs_html(x):
+def inputs_html(x: dict[str, str | list | dict]):
     if not x:
         return ""
-    html = ""
-    for k, v in x.items():
-        link, ref = link_to_ipython(v)
-        html += f'<div {ref}title="{link}">{k}</div>'
-    return html
+    return "".join(_nested_value_html(k, v, _input_leaf_html) for k, v in x.items())
 
 
 def sources_list_html(x):
@@ -259,6 +344,17 @@ iframe.fileview {{
 }}
 .master-wrapper * {{
   box-sizing: border-box;
+}}
+.input-bundle {{
+  border-left: 2px solid {config.background_color};
+  padding-left: 6px;
+  margin: 3px 0;
+}}
+.input-bundle-key {{
+  font-weight: 600;
+  font-size: 0.9em;
+  display: block;
+  margin-bottom: 1px;
 }}
 </style>"""
 

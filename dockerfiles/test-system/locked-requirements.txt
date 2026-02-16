@@ -1887,6 +1887,11 @@ joblib==1.5.3 \
     # via
     #   nltk
     #   scikit-learn
+jsonpath-ng==1.7.0 \
+    --hash=sha256:898c93fc173f0c336784a3fa63d7434297544b7198124a68f9a3ef9597b0ae6e \
+    --hash=sha256:f3d7f9e848cba1b6da28c55b1c26ff915dc9e0b1ba7e752a53d6da8d5cbd00b6 \
+    --hash=sha256:f6f5f7fd4e5ff79c785f1573b394043b39849fb2bb47bcead935d12b00beab3c
+    # via -r requirements.txt
 jsonschema==4.26.0 \
     --hash=sha256:0c26707e2efad8aa1bfc5b7ce170f3fccc2e4918ff85989ba9ffa9facb2be326 \
     --hash=sha256:d489f15263b8d200f8387e64b4c3a75f06629559fb73deb8fdfb525f2dab50ce
@@ -3033,6 +3038,10 @@ pluggy==1.6.0 \
     # via
     #   diff-cover
     #   pytest
+ply==3.11 \
+    --hash=sha256:00c7c1aaa88358b9c765b6d3000c6eec0ba42abca5351b095321aef446081da3 \
+    --hash=sha256:096f9b8350b65ebd2fd1346b12452efe5b9607f7482813ffca50c22722a807ce
+    # via jsonpath-ng
 polyfactory==3.2.0 \
     --hash=sha256:5945799cce4c56cd44ccad96fb0352996914553cc3efaa5a286930599f569571 \
     --hash=sha256:879242f55208f023eee1de48522de5cb1f9fd2d09b2314e999a9592829d596d1
@@ -4502,8 +4511,8 @@ statsmodels==0.14.6 \
     --hash=sha256:f4ff0649a2df674c7ffb6fa1a06bffdb82a6adf09a48e90e000a15a6aaa734b0 \
     --hash=sha256:fe76140ae7adc5ff0e60a3f0d56f4fffef484efa803c3efebf2fcd734d72ecb5
     # via evidently
-storey==1.11.12 \
-    --hash=sha256:21a1433d2f37fec60afb7115e8ad6f7b561c5b6fbdc0cc3bd4a4b3532daf72f4
+storey==1.11.15 \
+    --hash=sha256:d12e3b5fe061be62972c6f56ca9d6d4f9e13490b9e9db884c03e7e78a0ac329e
     # via -r requirements.txt
 strip-hints==0.1.13 \
     --hash=sha256:1feaebde61269ba0dea1e7f093df7ff9d4df4980cce7e3c22ed6d86ae43dbd06 \

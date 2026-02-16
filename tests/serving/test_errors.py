@@ -50,6 +50,16 @@ def raise_500_error(event):
     raise mlrun.errors.MLRunInternalServerError("Internal server error")
 
 
+def raise_405_error(event):
+    """Helper function that raises MLRunMethodNotAllowedError"""
+    raise mlrun.errors.MLRunMethodNotAllowedError("Method not allowed")
+
+
+def raise_422_error(event):
+    """Helper function that raises MLRunUnprocessableEntityError"""
+    raise mlrun.errors.MLRunUnprocessableEntityError("Unprocessable entity")
+
+
 def raise_value_error(event):
     """Helper function that raises ValueError"""
     raise ValueError("Some generic error")
@@ -94,6 +104,18 @@ def raise_runtime_error(event):
             "MLRunInternalServerError",
             "Internal server error",
         ),
+        (
+            "raise_405_error",
+            405,
+            "MLRunMethodNotAllowedError",
+            "Method not allowed",
+        ),
+        (
+            "raise_422_error",
+            422,
+            "MLRunUnprocessableEntityError",
+            "Unprocessable entity",
+        ),
         # Non-MLRun exceptions (backwards compatibility: should return 400)
         (
             "raise_value_error",
@@ -114,6 +136,8 @@ def raise_runtime_error(event):
         "403_access_denied",
         "409_conflict",
         "500_internal_server_error",
+        "405_method_not_allowed",
+        "422_unprocessable_entity",
         "400_value_error_backwards_compat",
         "400_runtime_error_backwards_compat",
     ],

@@ -203,7 +203,13 @@ class DeclarativeTeamRouter(BaseModelRouter):
                 (member_names[i], member_names[i + 1])
                 for i in range(len(member_names) - 1)
             ]
-            return {"nodes": nodes, "edges": edges, "layout": "sequential"}
+            return {
+                "nodes": nodes,
+                "edges": edges,
+                "layout": "sequential",
+                "entry_points": [member_names[0]] if member_names else [],
+                "exit_points": [member_names[-1]] if member_names else [],
+            }
 
         elif normalized == "round_robin":
             # Hub-and-spoke: router in center, agents around it
@@ -212,7 +218,13 @@ class DeclarativeTeamRouter(BaseModelRouter):
             # Edges go from router to each agent and back
             edges = [("router", name) for name in member_names]
             edges.extend([(name, "router") for name in member_names])
-            return {"nodes": nodes, "edges": edges, "layout": "hub"}
+            return {
+                "nodes": nodes,
+                "edges": edges,
+                "layout": "hub",
+                "entry_points": ["router"],
+                "exit_points": ["router"],
+            }
 
         elif normalized == "selector":
             # Check if graph spec has custom edges
@@ -226,14 +238,32 @@ class DeclarativeTeamRouter(BaseModelRouter):
                     to_node = edge.get("to")
                     if from_node and to_node:
                         edges.append((from_node, to_node))
-                return {"nodes": nodes, "edges": edges, "layout": "custom"}
+                # Detect entry/exit points from edges
+                all_nodes = set(member_names)
+                nodes_with_incoming = {to_node for _, to_node in edges}
+                nodes_with_outgoing = {from_node for from_node, _ in edges}
+                entry_points = list(all_nodes - nodes_with_incoming) or [member_names[0]]
+                exit_points = list(all_nodes - nodes_with_outgoing) or [member_names[-1]]
+                return {
+                    "nodes": nodes,
+                    "edges": edges,
+                    "layout": "custom",
+                    "entry_points": entry_points,
+                    "exit_points": exit_points,
+                }
             else:
                 # Selector hub-and-spoke with selector logic
                 nodes = [{"name": name, "type": "agent"} for name in member_names]
                 nodes.insert(0, {"name": "selector", "type": "selector"})
                 # Selector to all agents
                 edges = [("selector", name) for name in member_names]
-                return {"nodes": nodes, "edges": edges, "layout": "selector_hub"}
+                return {
+                    "nodes": nodes,
+                    "edges": edges,
+                    "layout": "selector_hub",
+                    "entry_points": ["selector"],
+                    "exit_points": member_names,  # All agents are potential exits
+                }
 
         elif normalized == "graph":
             # Custom graph from YAML spec
@@ -245,11 +275,29 @@ class DeclarativeTeamRouter(BaseModelRouter):
                 to_node = edge.get("to")
                 if from_node and to_node:
                     edges.append((from_node, to_node))
-            return {"nodes": nodes, "edges": edges, "layout": "custom"}
+            # Detect entry/exit points from edges
+            all_nodes = set(member_names)
+            nodes_with_incoming = {to_node for _, to_node in edges}
+            nodes_with_outgoing = {from_node for from_node, _ in edges}
+            entry_points = list(all_nodes - nodes_with_incoming) or [member_names[0]]
+            exit_points = list(all_nodes - nodes_with_outgoing) or [member_names[-1]]
+            return {
+                "nodes": nodes,
+                "edges": edges,
+                "layout": "custom",
+                "entry_points": entry_points,
+                "exit_points": exit_points,
+            }
 
         # Fallback: just list the nodes
         nodes = [{"name": name, "type": "agent"} for name in member_names]
-        return {"nodes": nodes, "edges": [], "layout": "flat"}
+        return {
+            "nodes": nodes,
+            "edges": [],
+            "layout": "flat",
+            "entry_points": [member_names[0]] if member_names else [],
+            "exit_points": [member_names[-1]] if member_names else [],
+        }
 
     def get_internal_graph_structure(self):
         """Return visual graph structure for custom rendering.

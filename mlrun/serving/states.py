@@ -3687,38 +3687,40 @@ def _add_graphviz_router(graph, step, source=None, **kwargs):
     to render custom internal topology. Otherwise falls back to default
     flat list of routes.
     """
-    if source:
-        graph.node("_start", source.name, shape=source.shape, style="filled")
-        graph.edge("_start", step.fullname)
-
     # Check for pre-computed graph structure (set by specialized routers)
     structure = getattr(step, "_graph_structure", None)
 
     if structure:
         # Use custom rendering for complex architectures
-        _render_custom_router_structure(graph, step, structure)
+        _render_custom_router_structure(graph, step, structure, source)
     else:
         # Default rendering: router node with child routes
+        if source:
+            graph.node("_start", source.name, shape=source.shape, style="filled")
+            graph.edge("_start", step.fullname)
         graph.node(step.fullname, label=step.name, shape=step.get_shape())
         for route in step.get_children():
             graph.node(route.fullname, label=route.name, shape=route.get_shape())
             graph.edge(step.fullname, route.fullname)
 
 
-def _render_custom_router_structure(graph, step, structure):
+def _render_custom_router_structure(graph, step, structure, source=None):
     """Render custom internal structure for routers with complex topologies.
 
     :param graph:     Graphviz Digraph object
     :param step:      Router step with get_internal_graph_structure() method
-    :param structure: Dict with 'nodes', 'edges', 'layout' keys
+    :param structure: Dict with 'nodes', 'edges', 'layout', 'entry_points', 'exit_points' keys
+    :param source:    Source step to connect from
     """
     nodes = structure.get("nodes", [])
     edges = structure.get("edges", [])
     layout = structure.get("layout", "flat")
+    entry_points = structure.get("entry_points", [])
+    exit_points = structure.get("exit_points", [])
 
     # Create subgraph cluster to group the router's internal structure
     with graph.subgraph(name=f"cluster_{step.fullname}") as sg:
-        sg.attr(label=step.name, style="rounded", color="blue")
+        sg.attr(label=step.name, style="rounded", color="black")
 
         # Render nodes inside the cluster
         for node in nodes:
@@ -3747,6 +3749,13 @@ def _render_custom_router_structure(graph, step, structure):
                 from_id = f"{step.fullname}_{from_node}"
                 to_id = f"{step.fullname}_{to_node}"
                 sg.edge(from_id, to_id)
+
+    # Connect source to entry points (outside the subgraph for proper routing)
+    if source and entry_points:
+        graph.node("_start", source.name, shape=source.shape, style="filled")
+        for entry_point in entry_points:
+            entry_id = f"{step.fullname}_{entry_point}"
+            graph.edge("_start", entry_id)
 
 
 def _add_graphviz_model_runner(graph, step, source=None, is_monitored=False):

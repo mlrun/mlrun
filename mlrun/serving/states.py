@@ -3958,8 +3958,13 @@ def _add_edges(items, step, graph, child, after=True):
         next_or_prev_object = step[item]
         kw = {}
 
+        # Check if either end of the edge is a team router with custom structure
+        next_is_team = getattr(next_or_prev_object, "_graph_structure", None)
+        child_is_team = getattr(child, "_graph_structure", None)
+
         # Team routers: connect to cluster boundary using lhead/ltail with anchor nodes
-        if getattr(next_or_prev_object, "_graph_structure", None):
+        if next_is_team:
+            # The OTHER step is a team router
             if after:
                 # Incoming edge: FROM team router TO child
                 # Use exit anchor (positioned on right) and ltail for cluster boundary
@@ -3972,6 +3977,20 @@ def _add_edges(items, step, graph, child, after=True):
                 from_node = child.fullname
                 to_node = f"{next_or_prev_object.fullname}_entry"
                 kw["lhead"] = f"cluster_{next_or_prev_object.fullname}"
+        elif child_is_team:
+            # The CURRENT step is a team router
+            if after:
+                # Incoming edge: FROM other step TO team router
+                # Use entry anchor (positioned on left) and lhead for cluster boundary
+                from_node = next_or_prev_object.fullname
+                to_node = f"{child.fullname}_entry"
+                kw["lhead"] = f"cluster_{child.fullname}"
+            else:
+                # Outgoing edge: FROM team router TO other step
+                # Use exit anchor (positioned on right) and ltail for cluster boundary
+                from_node = f"{child.fullname}_exit"
+                to_node = next_or_prev_object.fullname
+                kw["ltail"] = f"cluster_{child.fullname}"
         # Regular routers: use ltail for cluster boundary
         elif next_or_prev_object.kind == StepKinds.router:
             if after:

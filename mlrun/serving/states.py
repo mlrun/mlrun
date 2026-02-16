@@ -3683,16 +3683,18 @@ def get_current_function(context):
 def _add_graphviz_router(graph, step, source=None, **kwargs):
     """Render a router step to graphviz.
 
-    If step has a pre-computed _graph_structure attribute, uses that
-    to render custom internal topology. Otherwise falls back to default
+    If step has a pre-computed _graph_structure attribute, renders it as a
+    team cluster with internal structure. Otherwise falls back to default
     flat list of routes.
     """
     # Check for pre-computed graph structure (set by specialized routers)
     structure = getattr(step, "_graph_structure", None)
 
     if structure:
-        # Use custom rendering for complex architectures
-        _render_custom_router_structure(graph, step, structure, source)
+        # Team router: render as cluster with internal structure
+        with graph.subgraph(name=f"cluster_{step.fullname}") as sg:
+            sg.attr(label=step.name, style="rounded", color="black")
+            _render_team_internal_structure(sg, step)
     else:
         # Default rendering: router node with child routes
         if source:
@@ -3704,74 +3706,66 @@ def _add_graphviz_router(graph, step, source=None, **kwargs):
             graph.edge(step.fullname, route.fullname)
 
 
-def _render_custom_router_structure(graph, step, structure, source=None):
-    """Render custom internal structure for routers with complex topologies.
+def _render_team_internal_structure(subgraph, router_step):
+    """Render team internal structure - pure visualization inside a cluster.
 
-    Replaces the router node with its internal structure by rendering internal
-    nodes directly in the main graph and handling entry/exit connections.
+    This function draws the internal topology of a team (agents and their
+    connections) inside a graphviz subgraph cluster. The internal structure
+    is for documentation/visualization only and doesn't affect the main
+    graph topology.
 
-    :param graph:     Graphviz Digraph object
-    :param step:      Router step with get_internal_graph_structure() method
-    :param structure: Dict with 'nodes', 'edges', 'layout', 'entry_points', 'exit_points' keys
-    :param source:    Source step to connect from
+    :param subgraph:    Graphviz subgraph (cluster) to render into
+    :param router_step: Router step with _graph_structure attribute
     """
+    structure = getattr(router_step, "_graph_structure", None)
+    if not structure:
+        return
+
     nodes = structure.get("nodes", [])
     edges = structure.get("edges", [])
-    entry_points = structure.get("entry_points", [])
-    exit_points = structure.get("exit_points", [])
 
-    # Wrap internal structure in a cluster with rounded black border
-    with graph.subgraph(name=f"cluster_{step.fullname}") as sg:
-        sg.attr(label=step.name, style="rounded", color="black")
+    # Render internal nodes inside the cluster
+    for node in nodes:
+        node_name = node.get("name")
+        node_type = node.get("type", "agent")
 
-        # Render internal nodes inside the cluster
-        for node in nodes:
-            node_name = node.get("name")
-            node_type = node.get("type", "agent")
+        # Use child route's fullname if it exists, otherwise create a unique ID
+        child_step = None
+        if hasattr(router_step, 'routes') and node_name in router_step.routes:
+            child_step = router_step.routes[node_name]
 
-            # Use child route's fullname if it exists, otherwise create a unique ID
-            child_step = None
-            if hasattr(step, 'routes') and node_name in step.routes:
-                child_step = step.routes[node_name]
+        if child_step:
+            node_id = child_step.fullname
+        else:
+            node_id = f"{router_step.fullname}_{node_name}"
 
-            if child_step:
-                node_id = child_step.fullname
-            else:
-                node_id = f"{step.fullname}_{node_name}"
+        # Different shapes for different node types
+        if node_type == "selector":
+            shape = "diamond"
+        elif node_type == "router":
+            shape = "doubleoctagon"
+        elif node_type == "agent":
+            shape = "box"
+        else:
+            shape = "ellipse"
 
-            # Different shapes for different node types
-            if node_type == "selector":
-                shape = "diamond"
-            elif node_type == "router":
-                shape = "doubleoctagon"
-            elif node_type == "agent":
-                shape = "box"
-            else:
-                shape = "ellipse"
+        subgraph.node(node_id, label=node_name, shape=shape)
 
-            sg.node(node_id, label=node_name, shape=shape)
-
-        # Render edges between internal nodes
-        for edge in edges:
-            if isinstance(edge, tuple) and len(edge) == 2:
-                from_node, to_node = edge
-                # Resolve node IDs
-                from_child = None
-                to_child = None
-                if hasattr(step, 'routes'):
-                    if from_node in step.routes:
-                        from_child = step.routes[from_node]
-                    if to_node in step.routes:
-                        to_child = step.routes[to_node]
-                from_id = from_child.fullname if from_child else f"{step.fullname}_{from_node}"
-                to_id = to_child.fullname if to_child else f"{step.fullname}_{to_node}"
-                sg.edge(from_id, to_id)
-
-    # Note: Entry/exit point connections are handled by _add_graphviz_flow
-    # which has access to the actual previous/next steps in the graph
-
-    # Mark step as having custom structure so child routes aren't rendered separately
-    step._has_custom_structure = True
+    # Render edges between internal nodes
+    for edge in edges:
+        if isinstance(edge, tuple) and len(edge) == 2:
+            from_node, to_node = edge
+            # Resolve node IDs
+            from_child = None
+            to_child = None
+            if hasattr(router_step, 'routes'):
+                if from_node in router_step.routes:
+                    from_child = router_step.routes[from_node]
+                if to_node in router_step.routes:
+                    to_child = router_step.routes[to_node]
+            from_id = from_child.fullname if from_child else f"{router_step.fullname}_{from_node}"
+            to_id = to_child.fullname if to_child else f"{router_step.fullname}_{to_node}"
+            subgraph.edge(from_id, to_id)
 
 
 def _add_graphviz_model_runner(graph, step, source=None, is_monitored=False):
@@ -3855,12 +3849,12 @@ def _add_graphviz_flow(
     for child in children_without_team:
         kind = child.kind
         if kind == StepKinds.router:
-            # Check if router has custom structure that replaces itself
+            # Team routers render as clusters, regular routers in subgraphs
             if getattr(child, "_graph_structure", None):
-                # Render directly - internal structure replaces the router node
+                # Team router: rendered as cluster by _add_graphviz_router
                 _add_graphviz_router(graph, child)
             else:
-                # Routers: create subgraph cluster (visual box with children)
+                # Regular router: create subgraph cluster (visual box with children)
                 with graph.subgraph(name="cluster_" + child.fullname) as sg:
                     _add_graphviz_router(sg, child)
         elif kind == StepKinds.model_runner:
@@ -3870,41 +3864,13 @@ def _add_graphviz_flow(
             # Regular steps: simple node
             graph.node(child.fullname, label=child.name, shape=child.get_shape())
 
-        # Add edges between steps
-        if kind == StepKinds.router and getattr(child, "_graph_structure", None):
-            # For routers with custom structure, connect through entry/exit points
-            structure = getattr(child, "_graph_structure", {})
-            entry_points = structure.get("entry_points", [])
-            exit_points = structure.get("exit_points", [])
+        # Add edges between steps (unified handling for all step types)
+        _add_edges(child.after or [], step, graph, child)  # incoming edges
+        _add_edges(getattr(child, "before", []), step, graph, child, after=False)  # outgoing edges
 
-            # Incoming edges: from previous steps to entry points
-            for prev_step_name in child.after or []:
-                prev_step = step[prev_step_name]
-                for entry_point in entry_points:
-                    entry_child = None
-                    if hasattr(child, 'routes') and entry_point in child.routes:
-                        entry_child = child.routes[entry_point]
-                    entry_id = entry_child.fullname if entry_child else f"{child.fullname}_{entry_point}"
-                    # Direct edge - GraphViz should handle cluster boundaries automatically
-                    graph.edge(prev_step.fullname, entry_id)
-
-            # Outgoing edges: from exit points to next steps
-            for next_step_name in getattr(child, "before", []):
-                next_step = step[next_step_name]
-                for exit_point in exit_points:
-                    exit_child = None
-                    if hasattr(child, 'routes') and exit_point in child.routes:
-                        exit_child = child.routes[exit_point]
-                    exit_id = exit_child.fullname if exit_child else f"{child.fullname}_{exit_point}"
-                    # Direct edge from exit point to next step
-                    graph.edge(exit_id, next_step.fullname)
-        else:
-            _add_edges(child.after or [], step, graph, child)  # incoming edges
-            _add_edges(getattr(child, "before", []), step, graph, child, after=False)  # outgoing edges
-
-            # Add error handling edge (dashed)
-            if child.on_error:
-                graph.edge(child.fullname, child.on_error, style="dashed")
+        # Add error handling edge (dashed)
+        if child.on_error:
+            graph.edge(child.fullname, child.on_error, style="dashed")
 
     # 4. Render team-labeled children in clusters (visual boxes)
     for team_label, team_children in children_by_team.items():
@@ -3914,11 +3880,7 @@ def _add_graphviz_flow(
             for child in team_children:
                 kind = child.kind
                 if kind == StepKinds.router:
-                    if getattr(child, "_graph_structure", None):
-                        # Render directly - internal structure replaces the router node
-                        _add_graphviz_router(sg, child)
-                    else:
-                        _add_graphviz_router(sg, child)
+                    _add_graphviz_router(sg, child)
                 elif kind == StepKinds.model_runner:
                     _add_graphviz_model_runner(sg, child, is_monitored=is_monitored)
                 else:
@@ -3926,39 +3888,11 @@ def _add_graphviz_flow(
                     sg.node(child.fullname, label=child.name, shape=child.get_shape())
 
                 # Add edges (note: edges connect across cluster boundaries automatically)
-                if kind == StepKinds.router and getattr(child, "_graph_structure", None):
-                    # For routers with custom structure, connect through entry/exit points
-                    structure = getattr(child, "_graph_structure", {})
-                    entry_points = structure.get("entry_points", [])
-                    exit_points = structure.get("exit_points", [])
+                _add_edges(child.after or [], step, graph, child)
+                _add_edges(getattr(child, "before", []), step, graph, child, after=False)
 
-                    # Incoming edges: from previous steps to entry points
-                    for prev_step_name in child.after or []:
-                        prev_step = step[prev_step_name]
-                        for entry_point in entry_points:
-                            entry_child = None
-                            if hasattr(child, 'routes') and entry_point in child.routes:
-                                entry_child = child.routes[entry_point]
-                            entry_id = entry_child.fullname if entry_child else f"{child.fullname}_{entry_point}"
-                            # Direct edge - GraphViz should handle cluster boundaries automatically
-                            graph.edge(prev_step.fullname, entry_id)
-
-                    # Outgoing edges: from exit points to next steps
-                    for next_step_name in getattr(child, "before", []):
-                        next_step = step[next_step_name]
-                        for exit_point in exit_points:
-                            exit_child = None
-                            if hasattr(child, 'routes') and exit_point in child.routes:
-                                exit_child = child.routes[exit_point]
-                            exit_id = exit_child.fullname if exit_child else f"{child.fullname}_{exit_point}"
-                            # Direct edge from exit point to next step
-                            graph.edge(exit_id, next_step.fullname)
-                else:
-                    _add_edges(child.after or [], step, graph, child)
-                    _add_edges(getattr(child, "before", []), step, graph, child, after=False)
-
-                    if child.on_error:
-                        graph.edge(child.fullname, child.on_error, style="dashed")
+                if child.on_error:
+                    graph.edge(child.fullname, child.on_error, style="dashed")
 
     # draw targets after the last step (if specified)
     if targets:
@@ -3979,6 +3913,9 @@ def _add_graphviz_flow(
 def _add_edges(items, step, graph, child, after=True):
     """Add edges between steps in the graph.
 
+    For team routers (with _graph_structure), edges connect to cluster boundaries
+    using lhead/ltail. For regular routers and steps, edges connect normally.
+
     :param items:  List of step names to connect
     :param step:   Parent flow step (used to look up child steps)
     :param graph:  Graphviz Digraph object
@@ -3989,38 +3926,25 @@ def _add_edges(items, step, graph, child, after=True):
     for item in items:
         next_or_prev_object = step[item]
         kw = {}
-        # Handle routers with custom structure - connect to entry/exit points
-        structure = getattr(next_or_prev_object, "_graph_structure", None)
-        if structure:
-            if after:
-                # Incoming edge: FROM router (exit points) TO child
-                exit_points = structure.get("exit_points", [])
-                for exit_point in exit_points:
-                    exit_child = None
-                    if hasattr(next_or_prev_object, 'routes') and exit_point in next_or_prev_object.routes:
-                        exit_child = next_or_prev_object.routes[exit_point]
-                    exit_id = exit_child.fullname if exit_child else f"{next_or_prev_object.fullname}_{exit_point}"
-                    graph.edge(exit_id, child.fullname)
-            else:
-                # Outgoing edge: FROM child TO router (entry points)
-                entry_points = structure.get("entry_points", [])
-                for entry_point in entry_points:
-                    entry_child = None
-                    if hasattr(next_or_prev_object, 'routes') and entry_point in next_or_prev_object.routes:
-                        entry_child = next_or_prev_object.routes[entry_point]
-                    entry_id = entry_child.fullname if entry_child else f"{next_or_prev_object.fullname}_{entry_point}"
-                    graph.edge(child.fullname, entry_id)
-        else:
-            # Normal router or non-router step
-            if (
-                next_or_prev_object.kind == StepKinds.router
-            ):
-                kw["ltail"] = f"cluster_{next_or_prev_object.fullname}"
 
+        # Team routers: connect to cluster boundary using lhead/ltail
+        if getattr(next_or_prev_object, "_graph_structure", None):
             if after:
-                graph.edge(next_or_prev_object.fullname, child.fullname, **kw)
+                # Incoming edge: FROM team router TO child
+                # Use ltail to connect from cluster boundary
+                kw["ltail"] = f"cluster_{next_or_prev_object.fullname}"
             else:
-                graph.edge(child.fullname, next_or_prev_object.fullname, **kw)
+                # Outgoing edge: FROM child TO team router
+                # Use lhead to connect to cluster boundary
+                kw["lhead"] = f"cluster_{next_or_prev_object.fullname}"
+        # Regular routers: use ltail for cluster boundary
+        elif next_or_prev_object.kind == StepKinds.router:
+            kw["ltail"] = f"cluster_{next_or_prev_object.fullname}"
+
+        if after:
+            graph.edge(next_or_prev_object.fullname, child.fullname, **kw)
+        else:
+            graph.edge(child.fullname, next_or_prev_object.fullname, **kw)
 
 
 def _generate_graphviz(

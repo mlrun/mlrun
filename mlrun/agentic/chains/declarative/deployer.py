@@ -83,7 +83,7 @@ class AgentsAtScaleDeployer:
         :return: MLRun serving function
         """
         default_reqs = [
-            "git+https://github.com/mlrun/mlrun@agentic-ai-declerative-team-drawing",
+            "git+https://github.com/mlrun/mlrun@agentic-ai-declerative-team-drawing-2",
             "langchain",
             "langchain-openai",
             "langgraph",

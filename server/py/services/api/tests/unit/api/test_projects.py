@@ -849,7 +849,7 @@ def test_delete_project_ig4_check_skips_igz_delete(
     k8s_secrets_mock.set_is_running_in_k8s_cluster(False)
     with unittest.mock.patch(
         "framework.utils.clients.iguazio.v4.iguazio.Client"
-    ) as igz_clmakient_mock:
+    ) as igz_client_mock:
         framework.utils.singletons.project_member.initialize_project_member()
         _create_project(client, TEST_PROJECT_NAME)
         response = client.delete(
@@ -860,8 +860,8 @@ def test_delete_project_ig4_check_skips_igz_delete(
                 )
             },
         )
-    assert response.status_code == HTTPStatus.NO_CONTENT.value
-    igz_client_mock.return_value.delete_project_policies.assert_not_called()
+        assert response.status_code == HTTPStatus.NO_CONTENT.value
+        igz_client_mock.return_value.delete_project_policies.assert_not_called()
 
 
 @pytest.mark.parametrize("project_member_mode", ["leader"], indirect=True)

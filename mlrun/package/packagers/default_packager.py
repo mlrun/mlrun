@@ -15,7 +15,7 @@
 import inspect
 from abc import ABCMeta
 from types import MethodType
-from typing import Any
+from typing import Any, Literal
 
 import docstring_parser
 
@@ -77,7 +77,19 @@ class _DefaultPackagerMeta(ABCMeta):
           * **Packing**: ...
           * **Unpacking**: ...
 
-        **Artifact Types**:
+        **Packing Artifact Types**:
+
+        * **type 1**: ...
+
+          * configuration 1 - ...
+          * configuration 2 - ...
+
+        * **type 2**: ...
+
+          * configuration 1: ...
+          * configuration 2: ...
+
+        **Unpacking Artifact Types**:
 
         * **type 1**: ...
 
@@ -126,7 +138,7 @@ class _DefaultPackagerMeta(ABCMeta):
         priority = f"**Priority**: {priority_value}"
 
         # Default artifact types:
-        def get_default_artifact_type(pack_or_unpack: str) -> str:
+        def get_default_artifact_type(pack_or_unpack: Literal["pack", "unpack"]) -> str:
             pack_or_unpack = f"default_{pack_or_unpack}ing_artifact_type"
             method_name = f"get_{pack_or_unpack}"
             argument_name = pack_or_unpack.upper()
@@ -147,29 +159,47 @@ class _DefaultPackagerMeta(ABCMeta):
         )
 
         # Artifact types section:
-        artifact_types = "**Artifact Types**:"
-        for artifact_type in packager.get_supported_artifact_types():
-            # Get the packing method docstring:
-            method_doc = docstring_parser.parse(
-                getattr(packager, f"pack_{artifact_type}").__doc__
-            )
-            # Add the artifact type bullet:
-            artifact_type_doc = f"{method_doc.short_description or ''}{method_doc.long_description or ''}".replace(
-                "\n", ""
-            )
-            artifact_types += (
-                f"\n\n* :py:meth:`{artifact_type}<{packager_module}.{packager_name}.pack_{artifact_type}>` - "
-                + artifact_type_doc
-            )
-            # Add the artifact type configurations (ignoring the `obj` and `key` parameters):
-            configurations_doc = "\n\n  * ".join(
-                "{} - {}".format(
-                    parameter.arg_name, parameter.description.replace("\n", "")
+        def get_artifact_type_methods(pack_or_unpack: Literal["pack", "unpack"]) -> str:
+            artifact_type_methods = ""
+            for artifact_type in (
+                packager.get_supported_packing_artifact_types()
+                if pack_or_unpack == "pack"
+                else packager.get_supported_unpacking_artifact_types()
+            ):
+                # Get the packing method docstring:
+                method_doc = docstring_parser.parse(
+                    getattr(packager, f"{pack_or_unpack}_{artifact_type}").__doc__
                 )
-                for parameter in method_doc.params[2:]
-            )
-            if configurations_doc:
-                artifact_types += f"\n\n  * {configurations_doc}"
+                # Add the artifact type bullet:
+                artifact_type_doc = f"{method_doc.short_description or ''}{method_doc.long_description or ''}".replace(
+                    "\n", ""
+                )
+                artifact_type_methods += (
+                    f"\n\n* :py:meth:`{artifact_type}"
+                    f"<{packager_module}.{packager_name}.{pack_or_unpack}_{artifact_type}>` - "
+                    + artifact_type_doc
+                )
+                # Add the artifact type configurations (ignoring the `obj` and `key` parameters for pack and the
+                # `data_item` parameter for unpack):
+                configurations_doc = "\n\n  * ".join(
+                    "{} - {}".format(
+                        parameter.arg_name, parameter.description.replace("\n", "")
+                    )
+                    for parameter in method_doc.params[
+                        2 if pack_or_unpack == "pack" else 1 :
+                    ]
+                )
+                if configurations_doc:
+                    artifact_type_methods += f"\n\n  * {configurations_doc}"
+
+            return artifact_type_methods or "None"
+
+        packing_artifact_types = (
+            "**Packing Artifact Types**:" f"\n\n{get_artifact_type_methods('pack')}"
+        )
+        unpacking_artifact_types = (
+            "**Unpacking Artifact Types**:" f"\n\n{get_artifact_type_methods('unpack')}"
+        )
 
         # Construct the final doc string and return:
         doc = (
@@ -179,7 +209,8 @@ class _DefaultPackagerMeta(ABCMeta):
             f"\n\n{packing_sub_classes}"
             f"\n\n{priority}"
             f"\n\n{default_artifact_types}"
-            f"\n\n{artifact_types}"
+            f"\n\n{packing_artifact_types}"
+            f"\n\n{unpacking_artifact_types}"
             f"\n\n"
         )
         return doc
@@ -242,7 +273,7 @@ class DefaultPackager(Packager, metaclass=_DefaultPackagerMeta):
       * **Object type validation**: Checks if the given object type matches the class variable ``PACKABLE_OBJECT_TYPE``
         with respect to the ``PACK_SUBCLASSES`` class variable.
       * **Artifact type validation**: Checks if the given artifact type is in the list returned from
-        ``get_supported_artifact_types``.
+        ``get_supported_packing_artifact_types``.
 
     * **The abstract class method** :py:meth:`is_unpackable`: The method is left as implemented in ``Packager``.
     * **The abstract class method** :py:meth:`can_bundle`: The method is implemented to automatically check
@@ -262,9 +293,15 @@ class DefaultPackager(Packager, metaclass=_DefaultPackagerMeta):
 
       Remember, to have a packager that supports bundles, you must also implement the methods
       :py:meth:`bundle` and :py:meth:`unbundle`.
-    * **The abstract class method** :py:meth:`get_supported_artifact_types`: The method is implemented to look for all
-      pack + unpack class methods implemented to collect the supported artifact types. If ``PackagerX`` has ``pack_y``,
-      ``unpack_y`` and ``pack_z``, ``unpack_z`` that means the artifact types supported are `y` and `z`.
+    * **The abstract class method** :py:meth:`get_supported_artifact_types`: The method is implemented to return the
+      union of ``get_supported_packing_artifact_types`` and ``get_supported_unpacking_artifact_types``.
+
+      * **The class method** :py:meth:`get_supported_packing_artifact_types`: Scans for ``pack_*`` methods to discover
+        artifact types available for packing.
+      * **The class method** :py:meth:`get_supported_unpacking_artifact_types`: Scans for ``unpack_*`` methods to
+        discover artifact types available for unpacking. A ``pack_*`` method without a matching ``unpack_*`` method
+        means that artifact type is pack-only.
+
     * **The abstract class method** :py:meth:`get_default_packing_artifact_type`: The method is implemented to return
       the new class variable ``DEFAULT_PACKING_ARTIFACT_TYPE``. You can still override the method if the default
       artifact type you need could change according to the object that's about to be packed.
@@ -335,17 +372,32 @@ class DefaultPackager(Packager, metaclass=_DefaultPackagerMeta):
 
     def get_supported_artifact_types(self) -> list[str]:
         """
-        Get all the supported artifact types on this packager.
+        Get all the supported artifact types on this packager (union of packing and unpacking).
 
         :return: A list of all the supported artifact types.
         """
-        # We look for pack + unpack method couples so there won't be a scenario where an object can be packed but not
-        # unpacked. Result has no unpacking so we add it separately.
-        return [
-            key[len("pack_") :]
-            for key in dir(self)
-            if key.startswith("pack_") and f"unpack_{key[len('pack_'):]}" in dir(self)
-        ] + ["result"]
+        return list(
+            set(
+                self.get_supported_packing_artifact_types()
+                + self.get_supported_unpacking_artifact_types()
+            )
+        )
+
+    def get_supported_packing_artifact_types(self) -> list[str]:
+        """
+        Get the supported artifact types for packing by scanning for ``pack_*`` methods.
+
+        :return: A list of artifact types discovered from ``pack_*`` method names.
+        """
+        return [key[len("pack_") :] for key in dir(self) if key.startswith("pack_")]
+
+    def get_supported_unpacking_artifact_types(self) -> list[str]:
+        """
+        Get the supported artifact types for unpacking by scanning for ``unpack_*`` methods.
+
+        :return: A list of artifact types discovered from ``unpack_*`` method names.
+        """
+        return [key[len("unpack_") :] for key in dir(self) if key.startswith("unpack_")]
 
     def pack(
         self,
@@ -436,7 +488,8 @@ class DefaultPackager(Packager, metaclass=_DefaultPackagerMeta):
 
         The method is implemented to validate the object's type and artifact type by checking if the given object type
         matches the variable ``PACKABLE_OBJECT_TYPE`` with respect to the ``PACK_SUBCLASSES`` class variable. If it
-        does, it checks if the given artifact type is in the list returned from ``get_supported_artifact_types``.
+        does, it checks if the given artifact type is in the list returned from
+        ``get_supported_packing_artifact_types``.
 
         :param obj:            The object to pack.
         :param artifact_type:  The artifact type to log the object as.
@@ -460,7 +513,7 @@ class DefaultPackager(Packager, metaclass=_DefaultPackagerMeta):
         # Check the artifact type:
         if (
             artifact_type is not None
-            and artifact_type not in self.get_supported_artifact_types()
+            and artifact_type not in self.get_supported_packing_artifact_types()
         ):
             return False
 

@@ -10,6 +10,7 @@ Learn how to create a model training job, work with the input data and the model
 
 ../training/create-a-basic-training-job
 ../training/working-with-data-and-model-artifacts
+../concepts/packagers/index
 ../concepts/auto-logging-mlops
 ../training/built-in-training-function
 ../hyper-params

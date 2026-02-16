@@ -3691,15 +3691,35 @@ def _add_graphviz_router(graph, step, source=None, **kwargs):
         graph.node("_start", source.name, shape=source.shape, style="filled")
         graph.edge("_start", step.fullname)
 
-    # Check if the underlying router object has custom graph structure method
-    router_object = getattr(step, "_object", None)
+    # Check if this is a DeclarativeTeamRouter with team_config
+    # (before init_object is called, _object is None, so we check class_args)
+    structure = None
     if (
-        router_object
-        and hasattr(router_object, "get_internal_graph_structure")
-        and callable(getattr(router_object, "get_internal_graph_structure"))
+        step.class_name
+        and "DeclarativeTeamRouter" in step.class_name
+        and step.class_args
+        and "team_config" in step.class_args
     ):
+        # Import here to avoid circular dependency
+        from mlrun.agentic.chains.declarative.router import DeclarativeTeamRouter
+
+        team_config = step.class_args.get("team_config", {})
+        structure = DeclarativeTeamRouter.get_internal_graph_structure_static(
+            team_config
+        )
+
+    # Fallback: check if the underlying router object has the method (after init_object)
+    if not structure:
+        router_object = getattr(step, "_object", None)
+        if (
+            router_object
+            and hasattr(router_object, "get_internal_graph_structure")
+            and callable(getattr(router_object, "get_internal_graph_structure"))
+        ):
+            structure = router_object.get_internal_graph_structure()
+
+    if structure:
         # Use custom rendering for complex team architectures
-        structure = router_object.get_internal_graph_structure()
         _render_custom_router_structure(graph, step, structure)
     else:
         # Default rendering: router node with child routes
@@ -3735,6 +3755,8 @@ def _render_custom_router_structure(graph, step, structure):
             # Different shapes for different node types
             if node_type == "selector":
                 shape = "diamond"
+            elif node_type == "router":
+                shape = "doubleoctagon"
             elif node_type == "agent":
                 shape = "box"
             else:

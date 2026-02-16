@@ -172,17 +172,19 @@ class DeclarativeTeamRouter(BaseModelRouter):
 
         return {"answer": answer}
 
-    def get_internal_graph_structure(self):
-        """Return visual graph structure for custom rendering.
+    @staticmethod
+    def get_internal_graph_structure_static(team_config):
+        """Static version of get_internal_graph_structure for use before initialization.
 
         Returns a dictionary with nodes, edges, and layout information that
         describes how this router's internal structure should be visualized.
         This is separate from the LangGraph execution logic.
 
+        :param team_config: Team configuration dict (kind: Team)
         :return: Dict with 'nodes' (list of node dicts), 'edges' (list of tuples),
                  and 'layout' (str hint: sequential, hub, selector_hub, custom, flat)
         """
-        spec = self.team_config.get("spec", {})
+        spec = team_config.get("spec", {})
         strategy_type = spec.get("strategy", "sequential")
         member_refs = spec.get("members", [])
 
@@ -205,10 +207,11 @@ class DeclarativeTeamRouter(BaseModelRouter):
 
         elif normalized == "round_robin":
             # Hub-and-spoke: router in center, agents around it
-            nodes = [{"name": name, "type": "agent"} for name in member_names]
+            nodes = [{"name": "router", "type": "router"}]
+            nodes.extend([{"name": name, "type": "agent"} for name in member_names])
             # Edges go from router to each agent and back
-            edges = [(self.name, name) for name in member_names]
-            edges.extend([(name, self.name) for name in member_names])
+            edges = [("router", name) for name in member_names]
+            edges.extend([(name, "router") for name in member_names])
             return {"nodes": nodes, "edges": edges, "layout": "hub"}
 
         elif normalized == "selector":
@@ -247,3 +250,15 @@ class DeclarativeTeamRouter(BaseModelRouter):
         # Fallback: just list the nodes
         nodes = [{"name": name, "type": "agent"} for name in member_names]
         return {"nodes": nodes, "edges": [], "layout": "flat"}
+
+    def get_internal_graph_structure(self):
+        """Return visual graph structure for custom rendering.
+
+        Returns a dictionary with nodes, edges, and layout information that
+        describes how this router's internal structure should be visualized.
+        This is separate from the LangGraph execution logic.
+
+        :return: Dict with 'nodes' (list of node dicts), 'edges' (list of tuples),
+                 and 'layout' (str hint: sequential, hub, selector_hub, custom, flat)
+        """
+        return self.get_internal_graph_structure_static(self.team_config)

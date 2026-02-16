@@ -1281,14 +1281,17 @@ class TestSpark3Runtime(services.api.tests.unit.runtimes.base.TestRuntimeBase):
         k8s_helper.get_project_secret_keys = unittest.mock.Mock(return_value=[])
 
         try:
-            with unittest.mock.patch(
-                "services.api.crud.secrets.Secrets.list_project_secrets",
-                return_value=mlrun.common.schemas.SecretsData(
-                    provider="kubernetes", secrets={"tokensFile": "dummy-token"}
+            with (
+                unittest.mock.patch(
+                    "services.api.crud.secrets.Secrets.list_project_secrets",
+                    return_value=mlrun.common.schemas.SecretsData(
+                        provider="kubernetes", secrets={"tokensFile": "dummy-token"}
+                    ),
                 ),
-            ), unittest.mock.patch(
-                "services.api.utils.helpers.resolve_auth_token_name",
-                return_value=token_name,
+                unittest.mock.patch(
+                    "services.api.utils.helpers.resolve_auth_token_name",
+                    return_value=token_name,
+                ),
             ):
                 # Execute function with auth in run_spec
                 run_spec = {"parameters": {}, "auth": {"token_name": token_name}}

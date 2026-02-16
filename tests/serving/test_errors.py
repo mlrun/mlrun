@@ -1,4 +1,4 @@
-# Copyright 2024 Iguazio
+# Copyright 2026 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -15,7 +15,7 @@
 """Tests for error handling and HTTP status codes in serving runtime"""
 
 from http import HTTPMethod
-from typing import cast
+from typing import Callable, cast
 
 import pytest
 
@@ -24,111 +24,38 @@ from mlrun.common.schemas.serving import APIHandlerAction
 from mlrun.runtimes.nuclio.serving import APIHandlerConfig, ServingRuntime
 
 
-# Helper functions for error status code tests
-def raise_404_error(event):
-    """Helper function that raises MLRunNotFoundError"""
-    raise mlrun.errors.MLRunNotFoundError("Resource not found")
+def _make_error_handler(error_class: type[Exception], message: str) -> Callable:
+    """Factory function to create error handler functions
 
+    Args:
+        error_class: The exception class to raise
+        message: The error message to include
 
-def raise_400_error(event):
-    """Helper function that raises MLRunBadRequestError"""
-    raise mlrun.errors.MLRunBadRequestError("Invalid request")
+    Returns:
+        A handler function that raises the specified exception
+    """
 
+    def handler(event):
+        raise error_class(message)
 
-def raise_403_error(event):
-    """Helper function that raises MLRunAccessDeniedError"""
-    raise mlrun.errors.MLRunAccessDeniedError("Access denied")
-
-
-def raise_409_error(event):
-    """Helper function that raises MLRunConflictError"""
-    raise mlrun.errors.MLRunConflictError("Resource conflict")
-
-
-def raise_500_error(event):
-    """Helper function that raises MLRunInternalServerError"""
-    raise mlrun.errors.MLRunInternalServerError("Internal server error")
-
-
-def raise_405_error(event):
-    """Helper function that raises MLRunMethodNotAllowedError"""
-    raise mlrun.errors.MLRunMethodNotAllowedError("Method not allowed")
-
-
-def raise_422_error(event):
-    """Helper function that raises MLRunUnprocessableEntityError"""
-    raise mlrun.errors.MLRunUnprocessableEntityError("Unprocessable entity")
-
-
-def raise_value_error(event):
-    """Helper function that raises ValueError"""
-    raise ValueError("Some generic error")
-
-
-def raise_runtime_error(event):
-    """Helper function that raises RuntimeError"""
-    raise RuntimeError("Runtime error occurred")
+    handler.__name__ = f"raise_{error_class.__name__}"
+    return handler
 
 
 @pytest.mark.parametrize(
-    "error_handler,expected_status_code,error_class_name,error_message",
+    "error_class,error_message,expected_status_code",
     [
         # MLRun exceptions with specific status codes
-        (
-            "raise_404_error",
-            404,
-            "MLRunNotFoundError",
-            "Resource not found",
-        ),
-        (
-            "raise_400_error",
-            400,
-            "MLRunBadRequestError",
-            "Invalid request",
-        ),
-        (
-            "raise_403_error",
-            403,
-            "MLRunAccessDeniedError",
-            "Access denied",
-        ),
-        (
-            "raise_409_error",
-            409,
-            "MLRunConflictError",
-            "Resource conflict",
-        ),
-        (
-            "raise_500_error",
-            500,
-            "MLRunInternalServerError",
-            "Internal server error",
-        ),
-        (
-            "raise_405_error",
-            405,
-            "MLRunMethodNotAllowedError",
-            "Method not allowed",
-        ),
-        (
-            "raise_422_error",
-            422,
-            "MLRunUnprocessableEntityError",
-            "Unprocessable entity",
-        ),
+        (mlrun.errors.MLRunNotFoundError, "Resource not found", 404),
+        (mlrun.errors.MLRunBadRequestError, "Invalid request", 400),
+        (mlrun.errors.MLRunAccessDeniedError, "Access denied", 403),
+        (mlrun.errors.MLRunConflictError, "Resource conflict", 409),
+        (mlrun.errors.MLRunInternalServerError, "Internal server error", 500),
+        (mlrun.errors.MLRunMethodNotAllowedError, "Method not allowed", 405),
+        (mlrun.errors.MLRunUnprocessableEntityError, "Unprocessable entity", 422),
         # Non-MLRun exceptions (backwards compatibility: should return 400)
-        (
-            "raise_value_error",
-            400,
-            "ValueError",
-            "Some generic error",
-        ),
-        (
-            "raise_runtime_error",
-            400,
-            "RuntimeError",
-            "Runtime error occurred",
-        ),
+        (ValueError, "Some generic error", 400),
+        (RuntimeError, "Runtime error occurred", 400),
     ],
     ids=[
         "404_not_found",
@@ -143,10 +70,9 @@ def raise_runtime_error(event):
     ],
 )
 def test_error_status_codes(
-    error_handler: str,
-    expected_status_code: int,
-    error_class_name: str,
+    error_class: type[Exception],
     error_message: str,
+    expected_status_code: int,
 ) -> None:
     """Test that different error types return proper HTTP status codes
 
@@ -155,6 +81,9 @@ def test_error_status_codes(
     - Non-MLRun exceptions return 400 for backwards compatibility
     - Error messages are properly included in response body
     """
+    # Create error handler dynamically
+    error_handler = _make_error_handler(error_class, error_message)
+
     fn = cast(ServingRuntime, mlrun.new_function("test-error", kind="serving"))
     graph = fn.set_topology("flow", engine="sync")
     graph.to(
@@ -166,11 +95,11 @@ def test_error_status_codes(
     try:
         resp = server.test("/", method="GET", body="test", silent=True)
         assert resp.status_code == expected_status_code, (
-            f"Expected status code {expected_status_code} for {error_class_name}, "
+            f"Expected status code {expected_status_code} for {error_class.__name__}, "
             f"got {resp.status_code}"
         )
-        assert error_class_name in resp.body, (
-            f"Expected error class '{error_class_name}' in response body, "
+        assert error_class.__name__ in resp.body, (
+            f"Expected error class '{error_class.__name__}' in response body, "
             f"got: {resp.body}"
         )
         assert error_message in resp.body, (

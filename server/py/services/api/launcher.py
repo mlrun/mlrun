@@ -75,7 +75,7 @@ class ServerSideLauncher(launcher.BaseLauncher):
         name: Optional[str] = "",
         project: Optional[str] = "",
         params: Optional[dict] = None,
-        inputs: Optional[dict[str, str]] = None,
+        inputs: Optional[dict[str, str | dict | list]] = None,
         out_path: Optional[str] = "",
         workdir: Optional[str] = "",
         artifact_path: Optional[str] = "",
@@ -701,17 +701,15 @@ class ServerSideLauncher(launcher.BaseLauncher):
         if not (mlrun.mlconf.is_iguazio_v4_mode()):
             return
 
-        if object.spec.auth is None:
-            object.spec.auth = {}
-
         # Get the provided token name, if any
-        provided_token_name = object.spec.auth.get("token_name")
+        provided_token_name = (object.spec.auth or {}).get("token_name")
 
         # Use the token resolution logic that validates existence and expiration
         token_name = services.api.utils.helpers.resolve_auth_token_name(
             user_id=self._auth_info.user_id, provided_token_name=provided_token_name
         )
-        object.spec.auth["token_name"] = token_name
+
+        mlrun.utils.helpers.set_auth_token_name(object.spec, token_name)
 
 
 # Once this file is imported it will set the container server side launcher

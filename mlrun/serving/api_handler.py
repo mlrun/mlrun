@@ -16,6 +16,9 @@
 
 from http import HTTPMethod
 
+from jsonpath_ng import parse as jsonpath_parse
+from jsonpath_ng.exceptions import JsonPathLexerError, JsonPathParserError
+
 import mlrun.common.schemas as schemas
 import mlrun.errors
 import mlrun.runtimes.nuclio.serving
@@ -24,6 +27,7 @@ import mlrun.serving.states
 import mlrun.serving.utils as serving_utils
 import mlrun.utils
 from mlrun.common.schemas.serving import _APIEndpointKeys
+from mlrun.serving.utils import _MappedBody
 
 
 class _APIHandlerStep(mlrun.serving.states.TaskStep):
@@ -55,6 +59,42 @@ class _APIHandlerStep(mlrun.serving.states.TaskStep):
             self.config = mlrun.runtimes.nuclio.serving.APIHandlerConfig()
         self.context = context
 
+        # Parse JSONPath expressions during initialization for performance and early error detection
+        self._parsed_body_map = {}
+        if self.config.body_map:
+            for param_name, jsonpath_expr in self.config.body_map.items():
+                try:
+                    self._parsed_body_map[param_name] = jsonpath_parse(jsonpath_expr)
+                except (JsonPathLexerError, JsonPathParserError) as exc:
+                    raise mlrun.errors.MLRunInvalidArgumentError(
+                        f"Invalid JSON path expression for parameter '{param_name}': "
+                        f"'{jsonpath_expr}'. Error: {exc}"
+                    ) from exc
+
+        mlrun.utils.logger.debug("The context in API handler", context=self.context)
+
+    def _apply_parsed_body_map(self, body: dict) -> "_MappedBody":
+        """Apply pre-parsed JSONPath expressions to extract parameters from event body.
+
+        :param body: The event body dict to extract parameters from.
+        :return: A :class:`_MappedBody` with extracted parameters.
+        :raises KeyError: If any JSONPath expression has no match in body.
+        """
+        result = {}
+        for param_name, parsed_expr in self._parsed_body_map.items():
+            matches = parsed_expr.find(body)
+            if not matches:
+                raise KeyError(
+                    f"JSONPath expression for parameter '{param_name}' "
+                    f"matched nothing in the event body"
+                )
+            # Single match: return value; multiple matches: return list
+            if len(matches) == 1:
+                result[param_name] = matches[0].value
+            else:
+                result[param_name] = [match.value for match in matches]
+        return _MappedBody(result)
+
     def do(self, event):
         """Handle incoming request and validate against configured endpoints"""
         try:
@@ -63,22 +103,18 @@ class _APIHandlerStep(mlrun.serving.states.TaskStep):
             method = None
             path = None
 
-            # Try to get event details from context if available
-            if hasattr(self, "context") and self.context:
-                # Check for current event stored in context
+            # Check the event object directly
+            if hasattr(event, "method"):
+                method = event.method
+            if hasattr(event, "path"):
+                path = event.path
+
+            # Fallback to context if available
+            if (method is None or path is None) and self.context:
                 if hasattr(self.context, "current_event"):
                     original_event = self.context.current_event
-                    method = getattr(original_event, "method", None)
-                    path = getattr(original_event, "path", None)
-                # Fallback to other context sources if needed
-                elif hasattr(self.context, "trigger") and hasattr(
-                    self.context.trigger, "headers"
-                ):
-                    headers = self.context.trigger.headers or {}
-                    method_str = headers.get("method")
-                    if method_str:
-                        method = HTTPMethod(method_str.upper())
-                    path = headers.get("path")
+                    method = method or getattr(original_event, "method", None)
+                    path = path or getattr(original_event, "path", None)
 
             # Validate that we have both method and path
             if method is None:
@@ -139,6 +175,26 @@ class _APIHandlerStep(mlrun.serving.states.TaskStep):
 
             # Handle the action
             if action == schemas.APIHandlerAction.ALLOW:
+                # Apply body_map transformation if configured at the config level
+                if self._parsed_body_map:
+                    body = event.body if hasattr(event, "body") else event
+                    if isinstance(body, dict):
+                        mapped_body = self._apply_parsed_body_map(body)
+                        mlrun.utils.logger.debug(
+                            "Applied body_map transformation",
+                            body_map=self.config.body_map,
+                            mapped_params=list(mapped_body.keys()),
+                        )
+                        if hasattr(event, "body"):
+                            event.body = mapped_body
+                        else:
+                            event = mapped_body
+                    else:
+                        mlrun.utils.logger.warning(
+                            "body_map configured but event body is not a dict, "
+                            "skipping body_map transformation",
+                            body_type=type(body).__name__,
+                        )
                 # Pass the event to the next step in the graph
                 return event
             elif action == schemas.APIHandlerAction.FORBID:

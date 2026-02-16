@@ -56,7 +56,7 @@ class BaseLauncher(abc.ABC):
         name: Optional[str] = "",
         project: Optional[str] = "",
         params: Optional[dict] = None,
-        inputs: Optional[dict[str, str]] = None,
+        inputs: Optional[dict[str, str | list | dict]] = None,
         out_path: Optional[str] = "",
         workdir: Optional[str] = "",
         artifact_path: Optional[str] = "",
@@ -143,7 +143,7 @@ class BaseLauncher(abc.ABC):
         run: "mlrun.run.RunObject",
     ):
         mlrun.utils.helpers.verify_dict_items_type(
-            "Inputs", run.spec.inputs, [str], [str]
+            "Inputs", run.spec.inputs, [str], [str, list, dict]
         )
 
         if runtime.spec.mode and runtime.spec.mode not in run_modes:

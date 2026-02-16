@@ -1,5 +1,4 @@
-# Copyright 2023 Iguazio
-#
+# Copyright 2026 Iguazio
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -12,4 +11,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from mlrun.package.packagers.default_packager import DefaultPackager
+
+def process_mapped_data(user_name: str, user_email: str, book_titles: list) -> dict:
+    """Handler that receives mapped parameters from body_map."""
+    return {
+        "name": user_name,
+        "email": user_email,
+        "titles": book_titles,
+        "count": len(book_titles),
+    }

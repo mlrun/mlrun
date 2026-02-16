@@ -19,6 +19,8 @@ from http import HTTPMethod
 from typing import Optional, Union
 
 import nuclio
+from jsonpath_ng import parse as jsonpath_parse
+from jsonpath_ng.exceptions import JsonPathLexerError, JsonPathParserError
 from nuclio import KafkaTrigger
 from nuclio.triggers import NuclioTrigger
 
@@ -57,11 +59,30 @@ serving_subkind = "serving_v2"
 class APIHandlerConfig(mlrun.model.ModelObj):
     """Configuration for API handler in serving graph"""
 
-    _dict_fields = ["enabled", "endpoints"]
+    _dict_fields = ["enabled", "endpoints", "body_map"]
 
-    def __init__(self, enabled: bool = True, endpoints: dict[str, dict] | None = None):
+    def __init__(
+        self,
+        enabled: bool = True,
+        endpoints: dict[str, dict] | None = None,
+        body_map: dict[str, str] | None = None,
+    ):
         self.enabled = enabled
         self._endpoints = endpoints or {}
+        self._body_map = body_map or {}
+
+    @property
+    def body_map(self) -> dict[str, str]:
+        """Get the body_map configuration as a dictionary."""
+        return self._body_map
+
+    @body_map.setter
+    def body_map(self, value: dict[str, str] | None) -> None:
+        """Set the body_map configuration from a dictionary."""
+        self._body_map = {}
+        if value:
+            for parameter_name, json_path in value.items():
+                self.add_body_mapping(parameter_name, json_path)
 
     @property
     def endpoints(self) -> dict[str, dict]:
@@ -92,25 +113,64 @@ class APIHandlerConfig(mlrun.model.ModelObj):
                 f"Invalid endpoint key format '{endpoint_key}'. Expected 'METHOD:path'"
             ) from e
 
-    def get_endpoint_config(self, method: HTTPMethod, path: str) -> dict | None:
+    @staticmethod
+    def _normalize_path(path: str) -> str:
+        """Normalize path to ensure it starts with a forward slash.
+
+        :param path: URL path to normalize
+        :return: Normalized path with leading slash
+        """
+        if not path.startswith("/"):
+            return f"/{path}"
+        return path
+
+    @staticmethod
+    def _validate_http_method(http_method: HTTPMethod | str) -> HTTPMethod:
+        """Validate and normalize the provided HTTP method.
+
+        :param http_method: HTTP method to validate (HTTPMethod enum or string)
+        :return: Normalized HTTPMethod enum value
+        :raises mlrun.errors.MLRunInvalidArgumentError: If method is not a valid HTTPMethod or string
+        """
+        if isinstance(http_method, HTTPMethod):
+            return http_method
+        if isinstance(http_method, str):
+            try:
+                return HTTPMethod(http_method.upper())
+            except ValueError:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    f"Invalid HTTP method string '{http_method}'. "
+                    f"Valid values are: {', '.join(m.value for m in HTTPMethod)}"
+                ) from None
+        # Not HTTPMethod or str - reject with helpful error
+        raise mlrun.errors.MLRunInvalidArgumentError(
+            f"http_method must be an HTTPMethod enum or string, got {type(http_method).__name__} "
+            f"with value '{http_method}'. Valid values are: {', '.join(m.value for m in HTTPMethod)}"
+        )
+
+    def get_endpoint_config(self, method: HTTPMethod | str, path: str) -> dict | None:
         """Get endpoint configuration for a specific method and path."""
+        method = self._validate_http_method(method)
+        path = self._normalize_path(path)
         endpoint_key = serving_utils._combine_serving_endpoint_key(method, path)
         return self._endpoints.get(endpoint_key)
 
     def add_endpoint_handler(
         self,
         path: str,
-        http_method: HTTPMethod = HTTPMethod.POST,
+        http_method: HTTPMethod | str = HTTPMethod.POST,
         action: schemas.serving.APIHandlerAction = schemas.serving.APIHandlerAction.ALLOW,
         description: str | None = None,
     ) -> None:
         """Add an endpoint handler configuration.
 
         :param path: URL path for the endpoint (e.g., '/v1/models')
-        :param http_method: HTTP method for the endpoint
+        :param http_method: HTTP method for the endpoint (HTTPMethod enum or string like 'GET', 'POST')
         :param action: Action to take for this endpoint (:py:class:`~mlrun.common.schemas.serving.APIHandlerAction`)
         :param description: Optional description of the endpoint
         """
+        http_method = self._validate_http_method(http_method)
+        path = self._normalize_path(path)
         endpoint_key = serving_utils._combine_serving_endpoint_key(http_method, path)
 
         # Warn if overriding an existing endpoint
@@ -131,15 +191,65 @@ class APIHandlerConfig(mlrun.model.ModelObj):
     def remove_endpoint_handler(
         self,
         path: str,
-        http_method: HTTPMethod = HTTPMethod.POST,
+        http_method: HTTPMethod | str = HTTPMethod.POST,
     ) -> None:
         """Remove an endpoint handler configuration.
 
         :param path: URL path for the endpoint to remove
-        :param http_method: HTTP method for the endpoint to remove
+        :param http_method: HTTP method for the endpoint to remove (HTTPMethod enum or string like 'GET', 'POST')
         """
+        http_method = self._validate_http_method(http_method)
+        path = self._normalize_path(path)
         endpoint_key = serving_utils._combine_serving_endpoint_key(http_method, path)
         self._endpoints.pop(endpoint_key, None)
+
+    def add_body_mapping(self, parameter_name: str, json_path: str) -> None:
+        """Add a JSONPath body mapping for extracting request parameters.
+
+        Maps a JSONPath expression to a parameter name. When a request is received,
+        the JSONPath will be evaluated against the request body and the result
+        will be passed as a named parameter to the handler function.
+
+        :param parameter_name: Name of the parameter to pass to the handler
+        :param json_path: JSONPath expression to extract the value from request body
+                         (e.g., '$.user.name' or '$.items[*].id')
+        :raises mlrun.errors.MLRunValueError: If json_path is not a valid JSONPath expression
+
+        Example::
+
+            config = APIHandlerConfig()
+            config.add_body_mapping("user_name", "$.user.name")
+            config.add_body_mapping("user_email", "$.user.contact.email")
+            config.add_body_mapping(
+                "item_ids", "$.items[*].id"
+            )  # Multiple matches return list
+        """
+        # Validate JSONPath expression by parsing it
+        try:
+            jsonpath_parse(json_path)
+        except (JsonPathLexerError, JsonPathParserError) as exc:
+            raise mlrun.errors.MLRunValueError(
+                f"Invalid JSON path expression for parameter '{parameter_name}': "
+                f"'{json_path}'. Error: {exc}"
+            ) from exc
+
+        # Warn if overriding an existing mapping
+        if parameter_name in self._body_map:
+            logger.warning(
+                "Overriding existing body mapping",
+                parameter_name=parameter_name,
+                old_json_path=self._body_map[parameter_name],
+                new_json_path=json_path,
+            )
+
+        self._body_map[parameter_name] = json_path
+
+    def remove_body_mapping(self, parameter_name: str) -> None:
+        """Remove a body mapping by parameter name.
+
+        :param parameter_name: Name of the parameter mapping to remove
+        """
+        self._body_map.pop(parameter_name, None)
 
 
 def new_v2_model_server(

@@ -303,6 +303,8 @@ jobs:
     name: Run Backward Compatibility Tests
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     env:
       MLRUN_BC_TESTS_HOME_PATH: /home/runner/work/mlrun/mlrun
       MLRUN_BC_TESTS_BASE_CODE_PATH: /home/runner/work/mlrun/mlrun/base/mlrun

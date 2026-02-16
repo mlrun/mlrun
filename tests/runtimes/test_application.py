@@ -265,6 +265,41 @@ def test_application_image_build(remote_builder_mock, igz_version_mock):
     )
 
 
+@pytest.mark.parametrize(
+    "source,commands,requirements,expected",
+    [
+        # No source, no commands, no requirements - no build needed
+        (None, None, None, False),
+        # store:// URI alone doesn't require build (init container handles it)
+        ("store://artifacts/project/my-source", None, None, False),
+        # store:// URI with commands requires build
+        ("store://artifacts/project/my-source", ["pip install foo"], None, True),
+        # store:// URI with requirements requires build
+        ("store://artifacts/project/my-source", None, ["pandas"], True),
+        # Remote source without load_source_on_run requires build
+        ("https://github.com/repo.git", None, None, True),
+        # Commands alone require build
+        (None, ["pip install foo"], None, True),
+        # Requirements alone require build
+        (None, None, ["pandas"], True),
+    ],
+)
+def test_application_requires_build(source, commands, requirements, expected):
+    fn: mlrun.runtimes.ApplicationRuntime = mlrun.new_function(
+        "application-test",
+        kind="application",
+        image="mlrun/mlrun",
+    )
+    if source:
+        fn.spec.build.source = source
+    if commands:
+        fn.spec.build.commands = commands
+    if requirements:
+        fn.spec.build.requirements = requirements
+
+    assert fn.requires_build() == expected
+
+
 def test_application_default_api_gateway(rundb_mock, igz_version_mock):
     function_name = "application-test"
     fn: mlrun.runtimes.ApplicationRuntime = mlrun.new_function(

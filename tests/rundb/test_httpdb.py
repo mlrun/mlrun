@@ -1517,6 +1517,108 @@ def test_store_secret_tokens_invalid_inputs(create_server, secret_tokens):
         db.store_secret_tokens(secret_tokens)
 
 
+def test_enable_model_monitoring_passes_auth_token_from_context():
+    """Test that enable_model_monitoring passes auth_token_name from RuntimeConfigurationContext."""
+    import mlrun.runtime_configuration_context
+
+    db = HTTPRunDB("http://fake-api:8080")
+
+    with patch.object(db, "api_call") as mock_api_call:
+        with mlrun.RuntimeConfigurationContext(auth_token_name="test-mm-token"):
+            db.enable_model_monitoring(
+                project="test-project",
+                base_period=10,
+                image="mlrun/mlrun",
+                deploy_histogram_data_drift_app=False,
+            )
+
+        mock_api_call.assert_called_once()
+        call_kwargs = mock_api_call.call_args
+        params = call_kwargs.kwargs.get("params") or call_kwargs[1].get("params")
+        assert params["auth_token_name"] == "test-mm-token"
+
+
+def test_enable_model_monitoring_passes_none_without_context():
+    """Test that enable_model_monitoring passes None when no RuntimeConfigurationContext is active."""
+    db = HTTPRunDB("http://fake-api:8080")
+
+    with patch.object(db, "api_call") as mock_api_call:
+        db.enable_model_monitoring(
+            project="test-project",
+            base_period=10,
+            image="mlrun/mlrun",
+            deploy_histogram_data_drift_app=False,
+        )
+
+        mock_api_call.assert_called_once()
+        call_kwargs = mock_api_call.call_args
+        params = call_kwargs.kwargs.get("params") or call_kwargs[1].get("params")
+        assert params["auth_token_name"] is None
+
+
+def test_submit_workflow_passes_auth_token_from_context():
+    """Test that submit_workflow passes auth_token_name from RuntimeConfigurationContext."""
+    import mlrun.runtime_configuration_context
+
+    db = HTTPRunDB("http://fake-api:8080")
+
+    workflow_spec = {
+        "name": "test-workflow",
+        "image": "mlrun/mlrun",
+    }
+
+    with patch.object(db, "api_call") as mock_api_call:
+        mock_api_call.return_value = MagicMock(
+            ok=True,
+            json=MagicMock(
+                return_value={
+                    "data": {"run_id": "test-run-id", "status": {}, "workflow": {}}
+                }
+            ),
+        )
+        with mlrun.RuntimeConfigurationContext(auth_token_name="test-wf-token"):
+            db.submit_workflow(
+                project="test-project",
+                name="test-workflow",
+                workflow_spec=workflow_spec,
+            )
+
+        mock_api_call.assert_called_once()
+        call_kwargs = mock_api_call.call_args
+        json_body = call_kwargs.kwargs.get("json")
+        assert json_body["spec"]["auth_token_name"] == "test-wf-token"
+
+
+def test_submit_workflow_passes_none_without_context():
+    """Test that submit_workflow passes None when no RuntimeConfigurationContext is active."""
+    db = HTTPRunDB("http://fake-api:8080")
+
+    workflow_spec = {
+        "name": "test-workflow",
+        "image": "mlrun/mlrun",
+    }
+
+    with patch.object(db, "api_call") as mock_api_call:
+        mock_api_call.return_value = MagicMock(
+            ok=True,
+            json=MagicMock(
+                return_value={
+                    "data": {"run_id": "test-run-id", "status": {}, "workflow": {}}
+                }
+            ),
+        )
+        db.submit_workflow(
+            project="test-project",
+            name="test-workflow",
+            workflow_spec=workflow_spec,
+        )
+
+        mock_api_call.assert_called_once()
+        call_kwargs = mock_api_call.call_args
+        json_body = call_kwargs.kwargs.get("json")
+        assert json_body["spec"]["auth_token_name"] is None
+
+
 def _assert_projects(expected_project, project):
     assert (
         deepdiff.DeepDiff(

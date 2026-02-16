@@ -193,10 +193,105 @@ class TestAPIHandlerConfig:
         config.remove_endpoint_handler("/api/test", HTTPMethod.POST)
         assert config.get_endpoint_config(HTTPMethod.POST, "/api/test") is None
 
+    def test_remove_endpoint_handler_without_leading_slash(self) -> None:
+        """Test removing endpoint handlers works with and without leading slash"""
+        config = APIHandlerConfig()
+
+        # Add with leading slash
+        config.add_endpoint_handler(
+            "/api/test", HTTPMethod.POST, APIHandlerAction.ALLOW
+        )
+        assert config.get_endpoint_config(HTTPMethod.POST, "/api/test") is not None
+
+        # Remove without leading slash should still work
+        config.remove_endpoint_handler("api/test", HTTPMethod.POST)
+        assert config.get_endpoint_config(HTTPMethod.POST, "/api/test") is None
+
+        # Add without leading slash
+        config.add_endpoint_handler(
+            "api/test2", HTTPMethod.GET, APIHandlerAction.FORBID
+        )
+        # Should be retrievable with or without leading slash
+        assert config.get_endpoint_config(HTTPMethod.GET, "/api/test2") is not None
+        assert config.get_endpoint_config(HTTPMethod.GET, "api/test2") is not None
+
+        # Remove with leading slash should still work
+        config.remove_endpoint_handler("/api/test2", HTTPMethod.GET)
+        assert config.get_endpoint_config(HTTPMethod.GET, "/api/test2") is None
+
     def test_get_endpoint_config_not_found(self) -> None:
         """Test getting non-existent endpoint config"""
         config = APIHandlerConfig()
         assert config.get_endpoint_config(HTTPMethod.GET, "/nonexistent") is None
+
+    def test_invalid_http_method_validation(self) -> None:
+        """Test that invalid http_method types are rejected with clear error messages"""
+        config = APIHandlerConfig()
+
+        # Test add_endpoint_handler with wrong type (APIHandlerAction instead of HTTPMethod)
+        # APIHandlerAction is a StrEnum, so it's treated as a string and validated
+        with pytest.raises(
+            mlrun.errors.MLRunInvalidArgumentError,
+            match="Invalid HTTP method string 'allow'",
+        ):
+            config.add_endpoint_handler(
+                "/test",
+                http_method=APIHandlerAction.ALLOW,  # Wrong type!
+            )
+
+        # Test remove_endpoint_handler with wrong type
+        with pytest.raises(
+            mlrun.errors.MLRunInvalidArgumentError,
+            match="Invalid HTTP method string 'GT'",
+        ):
+            config.remove_endpoint_handler(
+                "/test",
+                http_method="GT",  # Wrong value
+            )
+
+        # Test get_endpoint_config with wrong type
+        with pytest.raises(
+            mlrun.errors.MLRunInvalidArgumentError,
+            match="Invalid HTTP method string 'allow'",
+        ):
+            config.get_endpoint_config(
+                method=APIHandlerAction.ALLOW,
+                path="/test",  # Wrong type!
+            )
+
+        # Test with invalid string
+        with pytest.raises(
+            mlrun.errors.MLRunInvalidArgumentError,
+            match="Invalid HTTP method string 'INVALID'",
+        ):
+            config.add_endpoint_handler("/test", http_method="INVALID")
+
+    def test_http_method_string_conversion(self) -> None:
+        """Test that string HTTP methods are correctly converted to HTTPMethod enum"""
+        config = APIHandlerConfig()
+
+        # Test add with string (lowercase)
+        config.add_endpoint_handler(
+            "/test1", http_method="get", action=APIHandlerAction.ALLOW
+        )
+        assert config.get_endpoint_config(HTTPMethod.GET, "/test1") is not None
+
+        # Test add with string (uppercase)
+        config.add_endpoint_handler(
+            "/test2", http_method="POST", action=APIHandlerAction.FORBID
+        )
+        assert config.get_endpoint_config(HTTPMethod.POST, "/test2") is not None
+
+        # Test get with string
+        assert config.get_endpoint_config("get", "/test1") is not None
+        assert config.get_endpoint_config("post", "/test2") is not None
+
+        # Test remove with string
+        config.remove_endpoint_handler("/test1", http_method="get")
+        assert config.get_endpoint_config(HTTPMethod.GET, "/test1") is None
+
+        # Verify test2 still exists
+        assert config.get_endpoint_config(HTTPMethod.POST, "/test2") is not None
 
     def test_endpoints_property_setter(self) -> None:
         """Test setting endpoints via property"""

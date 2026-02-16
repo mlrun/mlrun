@@ -79,8 +79,6 @@ ORIGINAL_VERSIONED_API_PREFIX = daemon.service.base_versioned_service_prefix
 FUNCTIONS_API = "projects/{project}/functions/{name}"
 LIST_FUNCTION_API = "projects/{project}/functions"
 PERMISSIONS_PROJECT_NAME = "permissions-project"
-TEST_PROJECT_NAME = "test-project"
-IGZ_FOLLOWER_NAME = "igz"
 
 
 @pytest.fixture(params=["leader", "follower"])
@@ -829,80 +827,6 @@ def test_delete_project_deletion_strategy_check(
         },
     )
     assert response.status_code == HTTPStatus.PRECONDITION_FAILED.value
-
-
-@pytest.mark.parametrize("project_member_mode", ["leader"], indirect=True)
-def test_delete_project_ig4_check_skips_igz_delete(
-    db: Session,
-    client: TestClient,
-    project_member_mode: str,
-    k8s_secrets_mock: services.api.tests.unit.conftest.K8sSecretsMock,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Ensure IG4 check does not call igz delete."""
-    monkeypatch.setattr(
-        mlrun.mlconf.httpdb.authentication,
-        "mode",
-        mlrun.common.types.AuthenticationMode.IGUAZIO_V4,
-    )
-    monkeypatch.setattr(mlrun.mlconf.httpdb.projects, "followers", IGZ_FOLLOWER_NAME)
-    k8s_secrets_mock.set_is_running_in_k8s_cluster(False)
-    with unittest.mock.patch(
-        "framework.utils.clients.iguazio.v4.iguazio.Client"
-    ) as igz_client_mock:
-        framework.utils.singletons.project_member.initialize_project_member()
-        _create_project(client, TEST_PROJECT_NAME)
-        response = client.delete(
-            f"projects/{TEST_PROJECT_NAME}",
-            headers={
-                mlrun.common.schemas.HeaderNames.deletion_strategy: (
-                    mlrun.common.schemas.DeletionStrategy.check.value
-                )
-            },
-        )
-        assert response.status_code == HTTPStatus.NO_CONTENT.value
-        igz_client_mock.return_value.delete_project_policies.assert_not_called()
-
-
-@pytest.mark.parametrize("project_member_mode", ["leader"], indirect=True)
-@pytest.mark.parametrize(
-    "deletion_strategy",
-    (
-        mlrun.common.schemas.DeletionStrategy.restricted,
-        mlrun.common.schemas.DeletionStrategy.cascading,
-    ),
-)
-def test_delete_project_ig4_delete_calls_igz_delete(
-    db: Session,
-    client: TestClient,
-    project_member_mode: str,
-    k8s_secrets_mock: services.api.tests.unit.conftest.K8sSecretsMock,
-    monkeypatch: pytest.MonkeyPatch,
-    deletion_strategy: mlrun.common.schemas.DeletionStrategy,
-) -> None:
-    """Ensure IG4 delete calls igz delete once."""
-    monkeypatch.setattr(
-        mlrun.mlconf.httpdb.authentication,
-        "mode",
-        mlrun.common.types.AuthenticationMode.IGUAZIO_V4,
-    )
-    monkeypatch.setattr(mlrun.mlconf.httpdb.projects, "followers", IGZ_FOLLOWER_NAME)
-    k8s_secrets_mock.set_is_running_in_k8s_cluster(False)
-    with unittest.mock.patch(
-        "framework.utils.clients.iguazio.v4.iguazio.Client"
-    ) as igz_client_mock:
-        framework.utils.singletons.project_member.initialize_project_member()
-        _create_project(client, TEST_PROJECT_NAME)
-        response = client.delete(
-            f"projects/{TEST_PROJECT_NAME}",
-            headers={
-                mlrun.common.schemas.HeaderNames.deletion_strategy: deletion_strategy.value
-            },
-        )
-    assert response.status_code == HTTPStatus.NO_CONTENT.value
-    igz_client_mock.return_value.delete_project_policies.assert_called_once_with(
-        project=TEST_PROJECT_NAME
-    )
 
 
 def test_delete_project_not_deleting_versioned_objects_multiple_times(

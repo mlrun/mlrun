@@ -11,6 +11,9 @@ A **custom packager** gives you full control over how your type is serialized an
 deserialized, producing readable, portable artifacts (PNG images, JSON configs, CSV
 tables) instead of pickle blobs.
 
+**Reminder**: Packing applies to function **outputs** (return values → artifacts) and unpacking applies to 
+function **inputs** (artifacts → typed Python objects).
+
 ## When to write a custom packager
 
 Write a custom packager when:
@@ -34,7 +37,7 @@ base class for custom packagers. It implements all the abstract methods from `Pa
 with sensible default logic — routing pack/unpack calls to the right method by artifact
 type, validating arguments, and falling back to pickle when needed. Instead of overriding
 abstract methods, you configure behavior through **class variables** and implement
-**named methods** (`pack_<type>`, `unpack_<type>`).
+**named methods** (`pack_<artifact_type>`, `unpack_<artifact_type>`).
 
 The class variables you can set:
 
@@ -103,11 +106,10 @@ class MyTypePackager(DefaultPackager):
 If your type has subclasses that should also be handled by this packager, set
 `PACK_SUBCLASSES = True`.
 
-### 3. Implement `pack_<type>()` methods
+### 3. Implement `pack_<artifact_type>()` methods
 
 Each packing method serializes the object and returns a tuple of `(Artifact, instructions_dict)`.
 The `instructions_dict` carries metadata needed to reconstruct the object when unpacking.
-For result types, return a plain `dict` with the key and value.
 
 ```python
 from mlrun import Artifact
@@ -130,6 +132,13 @@ def pack_file(
     return artifact, {"file_format": file_format}
 ```
 
+```{note}
+Inside a `pack_*` method you create and **return** an `Artifact` object — you do not
+call `context.log_artifact()` or `context.log_dataset()`. The packager manager handles
+the actual logging and uploading; the pack method's job is only to serialize the data and
+describe the artifact.
+```
+
 The method name determines the artifact type: `pack_file` handles `artifact_type="file"`,
 `pack_plot` handles `"plot"`, and so on.
 
@@ -142,7 +151,25 @@ returns = ['my_output : file[file_format="csv"]']
 
 All packing kwargs must have default values so users aren't forced to specify them.
 
-### 4. Implement `unpack_<type>()` methods
+#### Result artifact type
+
+A **special case** of a `pack_<artifact_type>()` method is the **result** artifact type — a scalar 
+or simple value (`int`, `float`, `str`, `bool`) stored directly in run metadata (visible 
+in `run.status.results` and in the MLRun UI without downloading anything). For result 
+types, the pack method returns a plain `dict` with the key and value instead of an 
+`(Artifact, instructions)` tuple:
+
+```python
+def pack_result(self, obj: MyType, key: str) -> dict:
+    # Stored as run metadata, not as a file artifact
+    return {key: obj.score}
+```
+
+`DefaultPackager` already provides a generic `pack_result` implementation, so you only
+need to override it if you want custom extraction logic (e.g. pulling a specific field
+from your type). The `"result"` type is always available for packing.
+
+### 4. Implement `unpack_<artifact_type>()` methods
 
 Each unpacking method takes a {py:class}`~mlrun.datastore.base.DataItem` and the
 instructions that were stored during packing, and returns the reconstructed object:
@@ -215,17 +242,26 @@ To remove a registered packager:
 project.remove_custom_packager("my_module.MyTypePackager")
 ```
 
-### 8. Set `pull_at_runtime` for remote execution
+### 8. Make the packager importable on the remote worker
 
-When running remotely, the worker needs access to your packager module. Set the project
-source with `pull_at_runtime=True` so the code is pulled before the function executes:
+When running remotely, the worker must be able to import your packager module. There
+are several ways to achieve this:
 
-```python
-project.set_source(source="./", pull_at_runtime=True)
-```
+* **Pull at runtime** (simplest) — set the project source with `pull_at_runtime=True`
+  so the code is fetched before execution:
 
-Without this, the remote worker won't be able to import your packager class and the run
-will fail (if `is_mandatory=True`) or fall back to pickle (if `is_mandatory=False`).
+  ```python
+  project.set_source(source="./", pull_at_runtime=True)
+  ```
+
+* **Build into the function image** — include the packager source in the function's
+  build so it is baked into the container image.
+
+* **Shared storage** — place the packager module on a shared volume and configure the
+  function's working directory to point there.
+
+If the packager module is missing at runtime, the run fails immediately when
+`is_mandatory=True`, or falls back to pickle when `is_mandatory=False`.
 
 ## Tutorials
 

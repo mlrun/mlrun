@@ -15,11 +15,11 @@ custom_packagers/index
 
 ## What are packagers?
 
-Writing a function locally and running it remotely should feel identical. Locally, your
-function accepts a DataFrame and returns a cleaned dataset — objects live in memory and
-everything just works. But when you move that same function to a remote job, Python objects
-can't be sent over the wire, and whatever the function returns simply disappears into the
-void. 
+Writing a function locally and running it remotely should feel identical. For example, 
+running locally, your function accepts a DataFrame and returns a cleaned dataset — objects 
+live in memory and everything just works. But when you move that same function to a remote 
+job, Python objects can't be sent over the wire, and whatever the function returns simply 
+disappears into the void. 
 
 Packagers bridge this gap: they serialize inputs before they reach your code and
 capture outputs after it runs, handling all the MLRun-specific I/O behind the scenes so
@@ -46,7 +46,7 @@ Packagers offer several advantages over manual artifact handling and the legacy 
 ### Better and faster learning curve
 
 With packagers you don't need to learn about `Artifact`s, `DataItem`s, or the MLRun context object. You write standard 
-Python with type hints and returning values — MLRun integrates into your existing code without changing it.
+Python with type hints and returning values — MLRun wraps your existing code without changing it.
 
 **Before** — manual artifact handling:
 
@@ -98,7 +98,8 @@ ML engineers can define how artifacts are serialized once and have that conventi
 across every development notebook, CI pipeline, and production project in the organization.
 Because packagers standardize the serialization format, artifacts become truly portable — a
 DataFrame logged in one project can be consumed by a function in a completely different
-project without conversion steps or format mismatches.
+project without conversion steps or format mismatches (of course, given access is allowed across 
+these projects).
 
 In a pipeline, functions don't need to agree on file formats or know about MLRun's artifact
 API. The producer just `return`s the object and the consumer receives it as a typed
@@ -117,32 +118,31 @@ def train_model(data: pd.DataFrame): ...
 No manual `data_item.as_df()` calls, no format negotiation — the same artifact flows
 cleanly between functions, projects, and teams.
 
-### Automatic distribution across workers (coming soon)
-
-Running at scale means dealing with multiple workers, jobs, nodes, resource allocation
-(GPUs, memory), and a distribution framework — concerns that normally require significant
-code changes. 
-
-Packagers are the key to seamless distribution: because they know exactly how
-to serialize and deserialize every argument, MLRun can automatically split inputs across
-workers on different jobs and nodes, assign the right resources to each, and gather the
-outputs back into a single result — all without touching your function code. A function
-with typed I/O can move from a single machine to a distributed cluster with zero changes.
-
 ### Adaptive to user needs
 
 MLRun provides common built-in packagers with rich options and configurations. For
-example, you can control the output format with a single log hint:
+example, you can control the output format with a single log hint string:
 
-    returns=['data : dataset[format="parquet"]']
+```python
+returns = ['data : dataset[format="parquet"]']
+```
 
-instead of writing manual pandas I/O and artifact construction.
+or equivalently using the {py:class}`~mlrun.package.log_hint.LogHint` class for full
+control:
+
+```python
+from mlrun import LogHint
+
+returns = [
+    LogHint(key="data", artifact_type="dataset", packing_kwargs={"format": "parquet"})
+]
+```
+
+Either form replaces manual pandas I/O and artifact construction.
 
 Beyond built-in packagers, MLRun supports **custom packagers** that you write and
-register in your project to handle domain-specific types. Custom packagers imported
-from the MLRun Hub are coming soon.
-
-Need to handle a custom type? See the {ref}`custom packagers tutorials <custom-packagers-tutorials>`.
+register in your project to handle domain-specific types.
+See the {ref}`custom packagers tutorials <custom-packagers-tutorials>`.
 
 ## How to use packagers
 
@@ -254,6 +254,62 @@ A `LogHint` has the following fields:
 | `labels` | `dict[str, str]` | Labels to add to the logged artifact. |
 | `extra_data` | `dict` | Extra data to attach to the artifact. Use `...` (Ellipsis) as a value to link to another package by key. |
 | `metrics` | `dict` | Metrics to log alongside a model artifact. Use `...` (Ellipsis) as a value to link to another package by key. |
+
+#### Linking artifacts
+
+When a function returns multiple values, you can **link** them together so that
+related outputs are attached to a primary artifact. For example, you might want a
+model artifact to carry its evaluation metrics and supporting artifacts (plots, test
+data) as part of its metadata. This is done through the `extra_data` and `metrics`
+fields of `LogHint`, using Python's `...` (Ellipsis) as a placeholder meaning
+"fill this in with the package that has this key."
+
+Consider a training function that returns a model alongside its metrics, a loss plot,
+and a test dataset:
+
+```python
+def train(dataset: pd.DataFrame):
+    # ... training logic ...
+    return my_model, some_result, loss_plot, test_dataset
+
+
+fn.run(
+    handler="train",
+    inputs={"dataset": "store://my-dataset"},
+    returns=[
+        LogHint(
+            key="my_model",
+            artifact_type="model",
+            metrics={"some_result": ...},
+            extra_data={"loss_plot": ..., "test_dataset": ...},
+        ),
+        "some_results : result",
+        "loss_plot : plot",
+        "test_dataset : dataset",
+    ],
+)
+```
+
+After all four values are packed, the packager manager resolves every `...`:
+
+- `"some_result"` is a result (scalar), so it is placed into the model's `metrics`.
+- `"loss_plot"` and `"test_dataset"` are artifacts, so they are placed into the
+  model's `extra_data`.
+
+The result is a model artifact with its evaluation metrics and supporting data
+attached directly — visible as a single unit in the MLRun UI.
+
+```{note}
+**Linking rules:**
+
+* `metrics` is available only on **model** artifacts and can link to **results** only
+  (scalar values in run metadata).
+* `extra_data` works with any artifact type and can link to both artifacts and results.
+* If a referenced key is not found among the packed outputs, the entry is removed and
+  a warning is logged.
+* The order of items in `returns` does not matter — linking is resolved after all
+  packing is complete.
+```
 
 #### String shortcut
 

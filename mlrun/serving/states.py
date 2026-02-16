@@ -3885,8 +3885,8 @@ def _add_graphviz_flow(
                     if hasattr(child, 'routes') and entry_point in child.routes:
                         entry_child = child.routes[entry_point]
                     entry_id = entry_child.fullname if entry_child else f"{child.fullname}_{entry_point}"
-                    # Use lhead to indicate edge goes into the cluster
-                    graph.edge(prev_step.fullname, entry_id, lhead=f"cluster_{child.fullname}")
+                    # Direct edge - GraphViz should handle cluster boundaries automatically
+                    graph.edge(prev_step.fullname, entry_id)
 
             # Outgoing edges: from exit points to next steps
             for next_step_name in getattr(child, "before", []):
@@ -3896,8 +3896,8 @@ def _add_graphviz_flow(
                     if hasattr(child, 'routes') and exit_point in child.routes:
                         exit_child = child.routes[exit_point]
                     exit_id = exit_child.fullname if exit_child else f"{child.fullname}_{exit_point}"
-                    # Use ltail to indicate edge leaves from inside the cluster
-                    graph.edge(exit_id, next_step.fullname, ltail=f"cluster_{child.fullname}")
+                    # Direct edge from exit point to next step
+                    graph.edge(exit_id, next_step.fullname)
         else:
             _add_edges(child.after or [], step, graph, child)  # incoming edges
             _add_edges(getattr(child, "before", []), step, graph, child, after=False)  # outgoing edges
@@ -3940,8 +3940,8 @@ def _add_graphviz_flow(
                             if hasattr(child, 'routes') and entry_point in child.routes:
                                 entry_child = child.routes[entry_point]
                             entry_id = entry_child.fullname if entry_child else f"{child.fullname}_{entry_point}"
-                            # Use lhead to indicate edge goes into the cluster
-                            graph.edge(prev_step.fullname, entry_id, lhead=f"cluster_{child.fullname}")
+                            # Direct edge - GraphViz should handle cluster boundaries automatically
+                            graph.edge(prev_step.fullname, entry_id)
 
                     # Outgoing edges: from exit points to next steps
                     for next_step_name in getattr(child, "before", []):
@@ -3951,8 +3951,8 @@ def _add_graphviz_flow(
                             if hasattr(child, 'routes') and exit_point in child.routes:
                                 exit_child = child.routes[exit_point]
                             exit_id = exit_child.fullname if exit_child else f"{child.fullname}_{exit_point}"
-                            # Use ltail to indicate edge leaves from inside the cluster
-                            graph.edge(exit_id, next_step.fullname, ltail=f"cluster_{child.fullname}")
+                            # Direct edge from exit point to next step
+                            graph.edge(exit_id, next_step.fullname)
                 else:
                     _add_edges(child.after or [], step, graph, child)
                     _add_edges(getattr(child, "before", []), step, graph, child, after=False)

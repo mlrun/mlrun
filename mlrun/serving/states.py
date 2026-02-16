@@ -3724,6 +3724,10 @@ def _render_team_internal_structure(subgraph, router_step):
     nodes = structure.get("nodes", [])
     edges = structure.get("edges", [])
 
+    # Create hidden anchor node for cluster boundary connections
+    # This allows lhead/ltail to work properly with external edges
+    subgraph.node(router_step.fullname, label="", shape="point", width="0", style="invis")
+
     # Render internal nodes inside the cluster
     for node in nodes:
         node_name = node.get("name")

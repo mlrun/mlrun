@@ -113,30 +113,32 @@ def test_error_status_codes(
 @pytest.mark.parametrize(
     "endpoint_path,expected_status_code,error_class_name,error_pattern,endpoints_config",
     [
-        pytest.param(
+        (
             "/api/v1/not-found",
             404,
             "MLRunNotFoundError",
             "Endpoint not found: GET /api/v1/not-found",
             {"/api/v1/exists": APIHandlerAction.ALLOW},
-            id="404_endpoint_not_found",
         ),
-        pytest.param(
+        (
             "/api/v1/forbidden",
             403,
             "MLRunAccessDeniedError",
             "Access forbidden to GET /api/v1/forbidden",
             {"/api/v1/forbidden": APIHandlerAction.FORBID},
-            id="403_endpoint_forbidden",
         ),
-        pytest.param(
+        (
             "/api/v1/resource",
             405,
             "MLRunMethodNotAllowedError",
             "Method not allowed: GET /api/v1/resource",
             {"POST:/api/v1/resource": APIHandlerAction.ALLOW},
-            id="405_method_not_allowed",
         ),
+    ],
+    ids=[
+        "404_endpoint_not_found",
+        "403_endpoint_forbidden",
+        "405_method_not_allowed",
     ],
 )
 def test_api_handler_error_status_codes(

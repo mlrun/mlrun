@@ -3779,6 +3779,29 @@ def _render_team_internal_structure(subgraph, router_step):
             to_id = to_child.fullname if to_child else f"{router_step.fullname}_{to_node}"
             subgraph.edge(from_id, to_id)
 
+    # Position anchors using invisible edges with constraint=false
+    # This positions the anchors without affecting the internal layout
+    entry_points = structure.get("entry_points", [])
+    exit_points = structure.get("exit_points", [])
+
+    if entry_points:
+        # Connect entry anchor to first entry point with invisible, non-constraining edge
+        first_entry = entry_points[0]
+        entry_child = None
+        if hasattr(router_step, 'routes') and first_entry in router_step.routes:
+            entry_child = router_step.routes[first_entry]
+        entry_node_id = entry_child.fullname if entry_child else f"{router_step.fullname}_{first_entry}"
+        subgraph.edge(entry_anchor, entry_node_id, style="invis", constraint="false")
+
+    if exit_points:
+        # Connect last exit point to exit anchor with invisible, non-constraining edge
+        last_exit = exit_points[-1]
+        exit_child = None
+        if hasattr(router_step, 'routes') and last_exit in router_step.routes:
+            exit_child = router_step.routes[last_exit]
+        exit_node_id = exit_child.fullname if exit_child else f"{router_step.fullname}_{last_exit}"
+        subgraph.edge(exit_node_id, exit_anchor, style="invis", constraint="false")
+
 
 def _add_graphviz_model_runner(graph, step, source=None, is_monitored=False):
     if source:

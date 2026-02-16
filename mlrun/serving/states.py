@@ -3986,8 +3986,18 @@ def _add_edges(items, step, graph, child, after=True):
         next_or_prev_object = step[item]
         kw = {}
         # Special handling for router edges: connect to cluster boundary
-        if next_or_prev_object.kind == StepKinds.router:
+        # BUT skip this for routers with custom structure (they handle their own edges)
+        if (
+            next_or_prev_object.kind == StepKinds.router
+            and not getattr(next_or_prev_object, "_graph_structure", None)
+        ):
             kw["ltail"] = f"cluster_{next_or_prev_object.fullname}"
+
+        # Skip creating edges for routers with custom structure
+        # (they connect through entry/exit points instead)
+        if getattr(next_or_prev_object, "_graph_structure", None):
+            continue
+
         if after:
             graph.edge(next_or_prev_object.fullname, child.fullname, **kw)
         else:

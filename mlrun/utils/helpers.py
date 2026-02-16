@@ -2493,6 +2493,9 @@ def get_data_from_path(
         return output_data
     elif isinstance(data, dict):
         return get_data_from_dict(path, data)
+    elif path is None:
+        # Scalar data (e.g. aggregated streaming string) with no path -- return as-is
+        return data
     else:
         raise mlrun.errors.MLRunInvalidArgumentError(
             "Expected data be of type dict or list"

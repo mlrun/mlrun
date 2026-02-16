@@ -3726,7 +3726,10 @@ def _render_custom_router_structure(graph, step, structure, source=None):
         node_type = node.get("type", "agent")
 
         # Use child route's fullname if it exists, otherwise create a unique ID
-        child_step = step.routes.get(node_name) if hasattr(step, 'routes') else None
+        child_step = None
+        if hasattr(step, 'routes') and node_name in step.routes:
+            child_step = step.routes[node_name]
+
         if child_step:
             node_id = child_step.fullname
         else:
@@ -3750,8 +3753,13 @@ def _render_custom_router_structure(graph, step, structure, source=None):
         if isinstance(edge, tuple) and len(edge) == 2:
             from_node, to_node = edge
             # Resolve node IDs
-            from_child = step.routes.get(from_node) if hasattr(step, 'routes') else None
-            to_child = step.routes.get(to_node) if hasattr(step, 'routes') else None
+            from_child = None
+            to_child = None
+            if hasattr(step, 'routes'):
+                if from_node in step.routes:
+                    from_child = step.routes[from_node]
+                if to_node in step.routes:
+                    to_child = step.routes[to_node]
             from_id = from_child.fullname if from_child else f"{step.fullname}_{from_node}"
             to_id = to_child.fullname if to_child else f"{step.fullname}_{to_node}"
             graph.edge(from_id, to_id)
@@ -3760,7 +3768,9 @@ def _render_custom_router_structure(graph, step, structure, source=None):
     if source and entry_points:
         graph.node("_start", source.name, shape=source.shape, style="filled")
         for entry_point in entry_points:
-            entry_child = step.routes.get(entry_point) if hasattr(step, 'routes') else None
+            entry_child = None
+            if hasattr(step, 'routes') and entry_point in step.routes:
+                entry_child = step.routes[entry_point]
             entry_id = entry_child.fullname if entry_child else f"{step.fullname}_{entry_point}"
             graph.edge("_start", entry_id)
 
@@ -3874,7 +3884,9 @@ def _add_graphviz_flow(
             for next_step_name in getattr(child, "before", []):
                 next_step = step[next_step_name]
                 for exit_point in exit_points:
-                    exit_child = child.routes.get(exit_point) if hasattr(child, 'routes') else None
+                    exit_child = None
+                    if hasattr(child, 'routes') and exit_point in child.routes:
+                        exit_child = child.routes[exit_point]
                     exit_id = exit_child.fullname if exit_child else f"{child.fullname}_{exit_point}"
                     graph.edge(exit_id, next_step.fullname)
 
@@ -3916,7 +3928,9 @@ def _add_graphviz_flow(
                     for next_step_name in getattr(child, "before", []):
                         next_step = step[next_step_name]
                         for exit_point in exit_points:
-                            exit_child = child.routes.get(exit_point) if hasattr(child, 'routes') else None
+                            exit_child = None
+                            if hasattr(child, 'routes') and exit_point in child.routes:
+                                exit_child = child.routes[exit_point]
                             exit_id = exit_child.fullname if exit_child else f"{child.fullname}_{exit_point}"
                             graph.edge(exit_id, next_step.fullname)
                 else:

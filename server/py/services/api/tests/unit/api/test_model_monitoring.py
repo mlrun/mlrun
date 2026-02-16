@@ -20,6 +20,10 @@ from unittest.mock import Mock, patch
 import pytest
 from fastapi.testclient import TestClient
 
+import mlrun.common.schemas
+import mlrun.runtimes.nuclio.function
+import mlrun.utils.helpers
+
 
 @pytest.fixture
 def mock_delete_application_records() -> Iterator[Mock]:
@@ -71,3 +75,45 @@ def test_delete_model_monitoring_metrics(
             application_name=params.get("application-name"),
             endpoint_ids=params.get("endpoint-id"),
         )
+
+
+class TestUpdateControllerAuthToken:
+    """Tests for ML-12021: Preserve auth token in update_model_monitoring_controller"""
+
+    TOKEN_NAME = "my-iguazio-token"
+
+    def test_auth_token_round_trips_through_nuclio_spec(self):
+        spec = mlrun.runtimes.nuclio.function.NuclioSpec()
+        mlrun.utils.helpers.set_auth_token_name(spec, self.TOKEN_NAME)
+
+        spec_dict = spec.to_dict()
+        extracted = spec_dict.get("auth", {}).get("token_name")
+
+        assert extracted == self.TOKEN_NAME
+
+    def test_nuclio_spec_without_auth_extracts_none(self):
+        spec = mlrun.runtimes.nuclio.function.NuclioSpec()
+
+        spec_dict = spec.to_dict()
+        extracted = spec_dict.get("auth", {}).get("token_name")
+
+        assert extracted is None
+
+    @patch(
+        "services.api.api.endpoints.model_monitoring.process_model_monitoring_secret"
+    )
+    def test_common_params_propagates_token_to_monitoring_deployment(
+        self, _mock_secret
+    ):
+        from services.api.api.endpoints.model_monitoring import _CommonParams
+
+        commons = _CommonParams(
+            project="test-project",
+            auth_info=mlrun.common.schemas.AuthInfo(),
+            db_session=Mock(),
+            auth_token_name=self.TOKEN_NAME,
+        )
+
+        deployment = commons.get_monitoring_deployment()
+
+        assert deployment._auth_token_name == self.TOKEN_NAME

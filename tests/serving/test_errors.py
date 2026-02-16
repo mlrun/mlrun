@@ -182,48 +182,62 @@ def test_error_status_codes(
 
 
 @pytest.mark.parametrize(
-    "endpoint_path,expected_status_code,error_class_name,error_pattern",
+    "endpoint_path,expected_status_code,error_class_name,error_pattern,endpoints_config",
     [
-        (
+        pytest.param(
             "/api/v1/not-found",
             404,
             "MLRunNotFoundError",
             "Endpoint not found: GET /api/v1/not-found",
+            {"/api/v1/exists": APIHandlerAction.ALLOW},
+            id="404_endpoint_not_found",
         ),
-        (
+        pytest.param(
             "/api/v1/forbidden",
-            400,
-            "MLRunBadRequestError",
+            403,
+            "MLRunAccessDeniedError",
             "Access forbidden to GET /api/v1/forbidden",
+            {"/api/v1/forbidden": APIHandlerAction.FORBID},
+            id="403_endpoint_forbidden",
+        ),
+        pytest.param(
+            "/api/v1/resource",
+            405,
+            "MLRunMethodNotAllowedError",
+            "Method not allowed: GET /api/v1/resource",
+            {"POST:/api/v1/resource": APIHandlerAction.ALLOW},
+            id="405_method_not_allowed",
         ),
     ],
-    ids=["404_endpoint_not_found", "400_endpoint_forbidden"],
 )
 def test_api_handler_error_status_codes(
     endpoint_path: str,
     expected_status_code: int,
     error_class_name: str,
     error_pattern: str,
+    endpoints_config: dict,
 ) -> None:
     """Test that API handler returns correct status codes for different error scenarios
 
     This test verifies that:
     - Non-existent endpoints return 404
-    - Forbidden endpoints return 400 (current behavior)
+    - Forbidden endpoints return 403
+    - Wrong HTTP method for existing endpoint returns 405
     """
     fn = cast(ServingRuntime, mlrun.new_function("test-api-handler", kind="serving"))
 
     config = APIHandlerConfig()
-    # Add only one allowed endpoint - others will be not found
-    config.add_endpoint_handler(
-        "/api/v1/exists", HTTPMethod.GET, APIHandlerAction.ALLOW
-    )
+    # Add configured endpoints
+    for endpoint_key, action in endpoints_config.items():
+        # Parse method and path from endpoint_key
+        if ":" in endpoint_key:
+            method_str, path = endpoint_key.split(":", 1)
+            method = HTTPMethod[method_str]
+        else:
+            method = HTTPMethod.GET
+            path = endpoint_key
 
-    # Add a forbidden endpoint if we're testing that case
-    if "forbidden" in endpoint_path:
-        config.add_endpoint_handler(
-            endpoint_path, HTTPMethod.GET, APIHandlerAction.FORBID
-        )
+        config.add_endpoint_handler(path, method, action)
 
     fn.set_api_handler_config(config)
     graph = fn.set_topology("flow", engine="sync")

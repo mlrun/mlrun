@@ -566,7 +566,9 @@ class TestAPIHandlerStep:
         step = _APIHandlerStep(config=config)
         step.context = context
 
-        with pytest.raises(mlrun.errors.MLRunBadRequestError, match="Access forbidden"):
+        with pytest.raises(
+            mlrun.errors.MLRunAccessDeniedError, match="Access forbidden"
+        ):
             step.do({"data": "test"})
 
     def test_run_no_matching_endpoint(self) -> None:

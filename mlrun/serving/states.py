@@ -3764,15 +3764,8 @@ def _render_custom_router_structure(graph, step, structure, source=None):
             to_id = to_child.fullname if to_child else f"{step.fullname}_{to_node}"
             graph.edge(from_id, to_id)
 
-    # Connect source to entry points
-    if source and entry_points:
-        graph.node("_start", source.name, shape=source.shape, style="filled")
-        for entry_point in entry_points:
-            entry_child = None
-            if hasattr(step, 'routes') and entry_point in step.routes:
-                entry_child = step.routes[entry_point]
-            entry_id = entry_child.fullname if entry_child else f"{step.fullname}_{entry_point}"
-            graph.edge("_start", entry_id)
+    # Note: Entry/exit point connections are handled by _add_graphviz_flow
+    # which has access to the actual previous/next steps in the graph
 
     # Mark step as having custom structure so child routes aren't rendered separately
     step._has_custom_structure = True
@@ -3876,9 +3869,20 @@ def _add_graphviz_flow(
 
         # Add edges between steps
         if kind == StepKinds.router and getattr(child, "_has_custom_structure", False):
-            # For routers with custom structure, connect from exit points to next steps
+            # For routers with custom structure, connect through entry/exit points
             structure = getattr(child, "_graph_structure", {})
+            entry_points = structure.get("entry_points", [])
             exit_points = structure.get("exit_points", [])
+
+            # Incoming edges: from previous steps to entry points
+            for prev_step_name in child.after or []:
+                prev_step = step[prev_step_name]
+                for entry_point in entry_points:
+                    entry_child = None
+                    if hasattr(child, 'routes') and entry_point in child.routes:
+                        entry_child = child.routes[entry_point]
+                    entry_id = entry_child.fullname if entry_child else f"{child.fullname}_{entry_point}"
+                    graph.edge(prev_step.fullname, entry_id)
 
             # Outgoing edges: from exit points to next steps
             for next_step_name in getattr(child, "before", []):
@@ -3889,8 +3893,6 @@ def _add_graphviz_flow(
                         exit_child = child.routes[exit_point]
                     exit_id = exit_child.fullname if exit_child else f"{child.fullname}_{exit_point}"
                     graph.edge(exit_id, next_step.fullname)
-
-            # Incoming edges are handled in _render_custom_router_structure
         else:
             _add_edges(child.after or [], step, graph, child)  # incoming edges
             _add_edges(getattr(child, "before", []), step, graph, child, after=False)  # outgoing edges
@@ -3920,9 +3922,20 @@ def _add_graphviz_flow(
 
                 # Add edges (note: edges connect across cluster boundaries automatically)
                 if kind == StepKinds.router and getattr(child, "_has_custom_structure", False):
-                    # For routers with custom structure, connect from exit points to next steps
+                    # For routers with custom structure, connect through entry/exit points
                     structure = getattr(child, "_graph_structure", {})
+                    entry_points = structure.get("entry_points", [])
                     exit_points = structure.get("exit_points", [])
+
+                    # Incoming edges: from previous steps to entry points
+                    for prev_step_name in child.after or []:
+                        prev_step = step[prev_step_name]
+                        for entry_point in entry_points:
+                            entry_child = None
+                            if hasattr(child, 'routes') and entry_point in child.routes:
+                                entry_child = child.routes[entry_point]
+                            entry_id = entry_child.fullname if entry_child else f"{child.fullname}_{entry_point}"
+                            graph.edge(prev_step.fullname, entry_id)
 
                     # Outgoing edges: from exit points to next steps
                     for next_step_name in getattr(child, "before", []):

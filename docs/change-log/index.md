@@ -25,6 +25,32 @@ Upgrading these three MLRun dependencies spans several releases.  The upgrades a
 
 See a full description of KFP, Python, and the workflow engines in {ref}`local-remote`. Specific changes are listed under the relevant versions.
 
+(v1102)=
+## v1.10.2 (February 2025)
+### Closed issues
+| ID    |Description                                                                 |
+|-------|----------------------------------------------------------------------------|
+|ML-11771|Resolved issue of Users temporarily unable to access projects by improving all the async clients to use per-thread session instances and all http clients to use a dummy cookie jar.|
+
+(v1101)=
+## v1.10.1 (January 2026)
+
+### Closed issues
+| ID    |Description                                                                 |
+|-------|----------------------------------------------------------------------------|
+|ML-10488|Validation of mail configuration does not fail on non-required parameters. See the updated documentation [Mail notifications](../concepts/notifications.md#mail-notifications).|
+|ML-11277|Increased the performance of reading partitioned parquets, thereby preventing lag in processing the model monitoring events.|
+|ML-11383|Monitoring app UI: The Kind column in the Results tab now prints the description, and not the value as previously. |
+|ML-11400|When deploying a serving function as a job, the artifact is now as expected. |
+|ML-11408|After an app runtime reached `max_replicas`, it now scales down to `min_replicas` as expected when load decreases.|
+|ML-11517|Resolved the thread-safety issues that occasionally caused failure during invoke time when serving using 2 Hugging Face models with `thread_pool` execution mechanism.|
+|ML-11530|Model monitoring appplications that have underscores in their names no longer causebreakage when trying to view the counters from the Project view. Underscores in function names will be deprecated in v1.11.0. See [Upcoming changes](#upcoming-changes).|
+|ML-11545|Running a workflow with Jupyter on Iguazio systems, the pipeline UI link now resolves successfully. |
+|ML-11597|The Model monitoring tutorial now runs successfully. Previously it failed with an error "NameError: name 'alert_objects' is not defined".|
+|ML-11602|In a Python 3.9 environment on Dask clusters, when running code that specifies the `mlrun/ml-base` image, the image name is now replaced  with `mlrun/mlrun`. |
+|ML-11791|Documentation: Clarified project.save() and function.save(): functions are not saved when you save your project, and how to save functions to the DB. See [A word about saving functions](../runtimes/create-and-use-functions.ipynb#a-word-about-saving-functions).|
+|NA|Security fixes.|
+
 (v1100)=
 ## v1.10.0 (November 2025)
 

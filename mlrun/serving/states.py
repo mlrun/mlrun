@@ -3683,7 +3683,7 @@ def get_current_function(context):
 def _add_graphviz_router(graph, step, source=None, **kwargs):
     """Render a router step to graphviz.
 
-    If step has a pre-computed _graph_structure in class_args, uses that
+    If step has a pre-computed _graph_structure attribute, uses that
     to render custom internal topology. Otherwise falls back to default
     flat list of routes.
     """
@@ -3692,7 +3692,7 @@ def _add_graphviz_router(graph, step, source=None, **kwargs):
         graph.edge("_start", step.fullname)
 
     # Check for pre-computed graph structure (set by specialized routers)
-    structure = step.class_args.get("_graph_structure") if step.class_args else None
+    structure = getattr(step, "_graph_structure", None)
 
     if structure:
         # Use custom rendering for complex architectures

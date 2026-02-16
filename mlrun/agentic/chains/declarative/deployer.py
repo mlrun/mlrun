@@ -184,9 +184,8 @@ class AgentsAtScaleDeployer:
         else:
             router_step = root.to(router)
 
-        # Inject pre-computed structure into step for plotting
-        router_step.class_args = router_step.class_args or {}
-        router_step.class_args["_graph_structure"] = structure
+        # Inject pre-computed structure as step attribute (not class_arg)
+        router_step._graph_structure = structure
 
         # Add routes for each member agent (for visualization + initialization)
         for ref in member_refs:

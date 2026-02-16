@@ -3918,7 +3918,7 @@ def _add_edges(items, step, graph, child, after=True):
     """Add edges between steps in the graph.
 
     For team routers (with _graph_structure), edges connect to cluster boundaries
-    using lhead/ltail. For regular routers and steps, edges connect normally.
+    using lhead/ltail with compass points for proper positioning.
 
     :param items:  List of step names to connect
     :param step:   Parent flow step (used to look up child steps)
@@ -3931,24 +3931,39 @@ def _add_edges(items, step, graph, child, after=True):
         next_or_prev_object = step[item]
         kw = {}
 
-        # Team routers: connect to cluster boundary using lhead/ltail
+        # Team routers: connect to cluster boundary using lhead/ltail with compass points
         if getattr(next_or_prev_object, "_graph_structure", None):
             if after:
                 # Incoming edge: FROM team router TO child
-                # Use ltail to connect from cluster boundary
+                # Use :e (east/right) port and ltail for right-side exit
+                from_node = f"{next_or_prev_object.fullname}:e"
+                to_node = child.fullname
                 kw["ltail"] = f"cluster_{next_or_prev_object.fullname}"
             else:
                 # Outgoing edge: FROM child TO team router
-                # Use lhead to connect to cluster boundary
+                # Use :w (west/left) port and lhead for left-side entry
+                from_node = child.fullname
+                to_node = f"{next_or_prev_object.fullname}:w"
                 kw["lhead"] = f"cluster_{next_or_prev_object.fullname}"
         # Regular routers: use ltail for cluster boundary
         elif next_or_prev_object.kind == StepKinds.router:
+            if after:
+                from_node = next_or_prev_object.fullname
+                to_node = child.fullname
+            else:
+                from_node = child.fullname
+                to_node = next_or_prev_object.fullname
             kw["ltail"] = f"cluster_{next_or_prev_object.fullname}"
-
-        if after:
-            graph.edge(next_or_prev_object.fullname, child.fullname, **kw)
         else:
-            graph.edge(child.fullname, next_or_prev_object.fullname, **kw)
+            # Normal steps
+            if after:
+                from_node = next_or_prev_object.fullname
+                to_node = child.fullname
+            else:
+                from_node = child.fullname
+                to_node = next_or_prev_object.fullname
+
+        graph.edge(from_node, to_node, **kw)
 
 
 def _generate_graphviz(

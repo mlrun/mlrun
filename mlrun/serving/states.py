@@ -3724,13 +3724,13 @@ def _render_team_internal_structure(subgraph, router_step):
     nodes = structure.get("nodes", [])
     edges = structure.get("edges", [])
 
-    # Align all internal nodes vertically to make cluster taller/narrower
-    # This helps GraphViz route external edges to left/right boundaries
-    subgraph.attr(rank="same")
+    # Create two anchor nodes: one for left (entry) and one for right (exit)
+    # These are invisible nodes that serve as connection points for external edges
+    entry_anchor = f"{router_step.fullname}_entry"
+    exit_anchor = f"{router_step.fullname}_exit"
 
-    # Create hidden anchor node for cluster boundary connections
-    # This allows lhead/ltail to work properly with external edges
-    subgraph.node(router_step.fullname, label="", shape="point", width="0", style="invis")
+    subgraph.node(entry_anchor, label="", shape="point", width="0", style="invis")
+    subgraph.node(exit_anchor, label="", shape="point", width="0", style="invis")
 
     # Render internal nodes inside the cluster
     for node in nodes:
@@ -3774,6 +3774,29 @@ def _render_team_internal_structure(subgraph, router_step):
             from_id = from_child.fullname if from_child else f"{router_step.fullname}_{from_node}"
             to_id = to_child.fullname if to_child else f"{router_step.fullname}_{to_node}"
             subgraph.edge(from_id, to_id)
+
+    # Position anchors using invisible edges to entry/exit points
+    # This helps control where external edges connect to the cluster
+    entry_points = structure.get("entry_points", [])
+    exit_points = structure.get("exit_points", [])
+
+    if entry_points:
+        # Connect entry anchor to first entry point with invisible edge
+        first_entry = entry_points[0]
+        entry_child = None
+        if hasattr(router_step, 'routes') and first_entry in router_step.routes:
+            entry_child = router_step.routes[first_entry]
+        entry_node_id = entry_child.fullname if entry_child else f"{router_step.fullname}_{first_entry}"
+        subgraph.edge(entry_anchor, entry_node_id, style="invis")
+
+    if exit_points:
+        # Connect last exit point to exit anchor with invisible edge
+        last_exit = exit_points[-1]
+        exit_child = None
+        if hasattr(router_step, 'routes') and last_exit in router_step.routes:
+            exit_child = router_step.routes[last_exit]
+        exit_node_id = exit_child.fullname if exit_child else f"{router_step.fullname}_{last_exit}"
+        subgraph.edge(exit_node_id, exit_anchor, style="invis")
 
 
 def _add_graphviz_model_runner(graph, step, source=None, is_monitored=False):
@@ -3935,19 +3958,19 @@ def _add_edges(items, step, graph, child, after=True):
         next_or_prev_object = step[item]
         kw = {}
 
-        # Team routers: connect to cluster boundary using lhead/ltail with compass points
+        # Team routers: connect to cluster boundary using lhead/ltail with anchor nodes
         if getattr(next_or_prev_object, "_graph_structure", None):
             if after:
                 # Incoming edge: FROM team router TO child
-                # Use :e (east/right) port and ltail for right-side exit
-                from_node = f"{next_or_prev_object.fullname}:e"
+                # Use exit anchor (positioned on right) and ltail for cluster boundary
+                from_node = f"{next_or_prev_object.fullname}_exit"
                 to_node = child.fullname
                 kw["ltail"] = f"cluster_{next_or_prev_object.fullname}"
             else:
                 # Outgoing edge: FROM child TO team router
-                # Use :w (west/left) port and lhead for left-side entry
+                # Use entry anchor (positioned on left) and lhead for cluster boundary
                 from_node = child.fullname
-                to_node = f"{next_or_prev_object.fullname}:w"
+                to_node = f"{next_or_prev_object.fullname}_entry"
                 kw["lhead"] = f"cluster_{next_or_prev_object.fullname}"
         # Regular routers: use ltail for cluster boundary
         elif next_or_prev_object.kind == StepKinds.router:

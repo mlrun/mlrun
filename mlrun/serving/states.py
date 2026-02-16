@@ -3683,43 +3683,19 @@ def get_current_function(context):
 def _add_graphviz_router(graph, step, source=None, **kwargs):
     """Render a router step to graphviz.
 
-    If the router has a get_internal_graph_structure() method, uses that
-    to render custom internal topology (for DeclarativeTeamRouter).
-    Otherwise falls back to default flat list of routes.
+    If step has a pre-computed _graph_structure in class_args, uses that
+    to render custom internal topology. Otherwise falls back to default
+    flat list of routes.
     """
     if source:
         graph.node("_start", source.name, shape=source.shape, style="filled")
         graph.edge("_start", step.fullname)
 
-    # Check if this is a DeclarativeTeamRouter with team_config
-    # (before init_object is called, _object is None, so we check class_args)
-    structure = None
-    if (
-        step.class_name
-        and "DeclarativeTeamRouter" in step.class_name
-        and step.class_args
-        and "team_config" in step.class_args
-    ):
-        # Import here to avoid circular dependency
-        from mlrun.agentic.chains.declarative.router import DeclarativeTeamRouter
-
-        team_config = step.class_args.get("team_config", {})
-        structure = DeclarativeTeamRouter.get_internal_graph_structure_static(
-            team_config
-        )
-
-    # Fallback: check if the underlying router object has the method (after init_object)
-    if not structure:
-        router_object = getattr(step, "_object", None)
-        if (
-            router_object
-            and hasattr(router_object, "get_internal_graph_structure")
-            and callable(getattr(router_object, "get_internal_graph_structure"))
-        ):
-            structure = router_object.get_internal_graph_structure()
+    # Check for pre-computed graph structure (set by specialized routers)
+    structure = step.class_args.get("_graph_structure") if step.class_args else None
 
     if structure:
-        # Use custom rendering for complex team architectures
+        # Use custom rendering for complex architectures
         _render_custom_router_structure(graph, step, structure)
     else:
         # Default rendering: router node with child routes

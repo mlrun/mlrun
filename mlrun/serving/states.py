@@ -3720,49 +3720,52 @@ def _render_custom_router_structure(graph, step, structure, source=None):
     entry_points = structure.get("entry_points", [])
     exit_points = structure.get("exit_points", [])
 
-    # Render internal nodes directly in main graph (replaces router node)
-    for node in nodes:
-        node_name = node.get("name")
-        node_type = node.get("type", "agent")
+    # Wrap internal structure in a cluster with rounded black border
+    with graph.subgraph(name=f"cluster_{step.fullname}") as sg:
+        sg.attr(label=step.name, style="rounded", color="black")
 
-        # Use child route's fullname if it exists, otherwise create a unique ID
-        child_step = None
-        if hasattr(step, 'routes') and node_name in step.routes:
-            child_step = step.routes[node_name]
+        # Render internal nodes inside the cluster
+        for node in nodes:
+            node_name = node.get("name")
+            node_type = node.get("type", "agent")
 
-        if child_step:
-            node_id = child_step.fullname
-        else:
-            node_id = f"{step.fullname}_{node_name}"
+            # Use child route's fullname if it exists, otherwise create a unique ID
+            child_step = None
+            if hasattr(step, 'routes') and node_name in step.routes:
+                child_step = step.routes[node_name]
 
-        # Different shapes for different node types
-        if node_type == "selector":
-            shape = "diamond"
-        elif node_type == "router":
-            shape = "doubleoctagon"
-        elif node_type == "agent":
-            shape = "box"
-        else:
-            shape = "ellipse"
+            if child_step:
+                node_id = child_step.fullname
+            else:
+                node_id = f"{step.fullname}_{node_name}"
 
-        # Add light gray background to show team grouping
-        graph.node(node_id, label=node_name, shape=shape, style="filled", fillcolor="lightgray")
+            # Different shapes for different node types
+            if node_type == "selector":
+                shape = "diamond"
+            elif node_type == "router":
+                shape = "doubleoctagon"
+            elif node_type == "agent":
+                shape = "box"
+            else:
+                shape = "ellipse"
 
-    # Render edges between internal nodes
-    for edge in edges:
-        if isinstance(edge, tuple) and len(edge) == 2:
-            from_node, to_node = edge
-            # Resolve node IDs
-            from_child = None
-            to_child = None
-            if hasattr(step, 'routes'):
-                if from_node in step.routes:
-                    from_child = step.routes[from_node]
-                if to_node in step.routes:
-                    to_child = step.routes[to_node]
-            from_id = from_child.fullname if from_child else f"{step.fullname}_{from_node}"
-            to_id = to_child.fullname if to_child else f"{step.fullname}_{to_node}"
-            graph.edge(from_id, to_id)
+            sg.node(node_id, label=node_name, shape=shape)
+
+        # Render edges between internal nodes
+        for edge in edges:
+            if isinstance(edge, tuple) and len(edge) == 2:
+                from_node, to_node = edge
+                # Resolve node IDs
+                from_child = None
+                to_child = None
+                if hasattr(step, 'routes'):
+                    if from_node in step.routes:
+                        from_child = step.routes[from_node]
+                    if to_node in step.routes:
+                        to_child = step.routes[to_node]
+                from_id = from_child.fullname if from_child else f"{step.fullname}_{from_node}"
+                to_id = to_child.fullname if to_child else f"{step.fullname}_{to_node}"
+                sg.edge(from_id, to_id)
 
     # Note: Entry/exit point connections are handled by _add_graphviz_flow
     # which has access to the actual previous/next steps in the graph
@@ -3853,7 +3856,7 @@ def _add_graphviz_flow(
         kind = child.kind
         if kind == StepKinds.router:
             # Check if router has custom structure that replaces itself
-            if getattr(child, "_has_custom_structure", False):
+            if getattr(child, "_graph_structure", None):
                 # Render directly - internal structure replaces the router node
                 _add_graphviz_router(graph, child)
             else:
@@ -3868,7 +3871,7 @@ def _add_graphviz_flow(
             graph.node(child.fullname, label=child.name, shape=child.get_shape())
 
         # Add edges between steps
-        if kind == StepKinds.router and getattr(child, "_has_custom_structure", False):
+        if kind == StepKinds.router and getattr(child, "_graph_structure", None):
             # For routers with custom structure, connect through entry/exit points
             structure = getattr(child, "_graph_structure", {})
             entry_points = structure.get("entry_points", [])
@@ -3909,7 +3912,7 @@ def _add_graphviz_flow(
             for child in team_children:
                 kind = child.kind
                 if kind == StepKinds.router:
-                    if getattr(child, "_has_custom_structure", False):
+                    if getattr(child, "_graph_structure", None):
                         # Render directly - internal structure replaces the router node
                         _add_graphviz_router(sg, child)
                     else:
@@ -3921,7 +3924,7 @@ def _add_graphviz_flow(
                     sg.node(child.fullname, label=child.name, shape=child.get_shape())
 
                 # Add edges (note: edges connect across cluster boundaries automatically)
-                if kind == StepKinds.router and getattr(child, "_has_custom_structure", False):
+                if kind == StepKinds.router and getattr(child, "_graph_structure", None):
                     # For routers with custom structure, connect through entry/exit points
                     structure = getattr(child, "_graph_structure", {})
                     entry_points = structure.get("entry_points", [])

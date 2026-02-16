@@ -657,6 +657,28 @@ class TestAPIHandlerStep:
         ):
             step.do({"data": "test"})
 
+    def test_run_body_map_with_missing_body(self) -> None:
+        """Test that body_map with missing/non-dict body raises 422 error"""
+        config = APIHandlerConfig()
+        config.body_map = {"$.name": "user_name"}
+        config.add_endpoint_handler("/test", HTTPMethod.POST, APIHandlerAction.ALLOW)
+
+        context = MagicMock()
+        mock_event = MagicMock()
+        mock_event.method = HTTPMethod.POST
+        mock_event.path = "/test"
+        mock_event.body = None
+        context.current_event = mock_event
+
+        step = _APIHandlerStep(config=config)
+        step.context = context
+
+        with pytest.raises(
+            mlrun.errors.MLRunUnprocessableEntityError,
+            match="body_map configured but request body is not a dict",
+        ):
+            step.do(mock_event)
+
 
 class TestAddAPIHandlerStepToGraph:
     """Direct tests for _add_api_handler_step_to_graph function"""

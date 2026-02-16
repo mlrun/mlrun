@@ -215,10 +215,9 @@ class _APIHandlerStep(mlrun.serving.states.TaskStep):
                                 f"Failed to process body_map transformation: {exc}"
                             ) from exc
                     else:
-                        mlrun.utils.logger.warning(
-                            "body_map configured but event body is not a dict, "
-                            "skipping body_map transformation",
-                            body_type=type(body).__name__,
+                        raise mlrun.errors.MLRunUnprocessableEntityError(
+                            f"body_map configured but request body is not a dict (got {type(body).__name__}). "
+                            f"A valid JSON body is required when body_map transformation is configured."
                         )
                 # Pass the event to the next step in the graph
                 return event

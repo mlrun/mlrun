@@ -69,9 +69,9 @@ You override `pack()` and `unpack()` directly and manage artifact-type routing, 
 and fallback behavior yourself. Use this only when `DefaultPackager`'s convention-based
 approach doesn't fit your needs.
 
-## The three patterns
+## The four patterns
 
-Custom packagers follow one of three patterns, depending on what your type needs:
+Custom packagers follow one of four patterns, depending on what your type needs:
 
 | Pattern | When to use | What to implement |
 |---------|-------------|-------------------|
@@ -94,7 +94,7 @@ class MyTypePackager(DefaultPackager): ...
 
 ### 2. Set class variables
 
-At minimum, set the type your packager handles and the default artifact type:
+At the minimum, set the type your packager handles and the default artifact type:
 
 ```python
 class MyTypePackager(DefaultPackager):
@@ -187,7 +187,7 @@ def unpack_file(self, data_item: mlrun.DataItem, file_format: str = "json") -> M
 ```
 
 Each instruction parameter (e.g. `file_format`) must be **optional** (have a default
-value) so the method can also handle objects that were logged manually rather than
+value) so that the method can also handle objects that were logged manually rather than
 through this packager.
 
 For pack-only packagers, you can skip implementing `unpack_*` methods entirely —
@@ -208,7 +208,7 @@ uploaded. This prevents temporary files from accumulating on the worker.
 
 ### 6. Set the priority (optional)
 
-The `PRIORITY` class variable (integer 1–10, lower = higher priority) controls which
+The `PRIORITY` class variable (integer 1–10, 1 = highest priority) controls which
 packager is selected when multiple packagers can handle the same type. Custom packagers
 default to priority **3**, which is higher than the built-in packagers at **5**. You
 rarely need to change this unless you have multiple custom packagers competing for the

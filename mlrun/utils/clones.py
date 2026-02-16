@@ -219,26 +219,59 @@ def load_source_code(
     project: str | None = None,
 ) -> str:
     """
-    Load a single-file artifact from the artifact store into a target directory.
+    Load source code from various sources into a target directory.
     This function is used by the Application Runtime init container to prepare
     source code on a shared volume before the sidecar container starts.
 
-    :param source_uri: URI of the artifact (store://artifacts/project/key)
-    :param target_dir: Target directory where the file will be placed
-    :param project:    Optional project name (extracted from URI if not provided)
+    Supported source types:
+    - store:// URIs: Single-file artifacts from the MLRun artifact store
+    - git:// URLs: Git repositories (cloned to target directory)
+    - .zip files: ZIP archives (extracted to target directory)
+    - .tar.gz files: Tarball archives (extracted to target directory)
 
-    :returns: Path to the loaded file
+    :param source_uri: Source URI (store://, git://, or archive URL)
+    :param target_dir: Target directory where source will be placed
+    :param project:    Optional project name (used for store:// URIs)
+
+    :returns: Path to the loaded source (file path for store://, directory for git/archives)
     """
     if not source_uri:
         raise mlrun.errors.MLRunInvalidArgumentError("source_uri is required")
     if not target_dir:
         raise mlrun.errors.MLRunInvalidArgumentError("target_dir is required")
-    # Validate that source_uri is a store artifact URI
-    if not mlrun.datastore.is_store_uri(source_uri):
-        raise mlrun.errors.MLRunInvalidArgumentError(
-            f"source_uri must be a store artifact URI (store://...), got: {source_uri}"
-        )
 
+    # Handle store:// artifact URIs
+    if mlrun.datastore.is_store_uri(source_uri):
+        return _load_store_artifact(source_uri, target_dir, project)
+
+    # Handle git:// URLs
+    if source_uri.startswith("git://"):
+        return _load_git_source(source_uri, target_dir)
+
+    # Handle archive files (.zip, .tar.gz)
+    if source_uri.endswith(".zip") or source_uri.endswith(".tar.gz"):
+        return _load_archive_source(source_uri, target_dir)
+
+    raise mlrun.errors.MLRunInvalidArgumentError(
+        f"Unsupported source type: {source_uri}. "
+        "Supported types: store:// URIs, git:// URLs, .zip and .tar.gz archives"
+    )
+
+
+def _load_store_artifact(
+    source_uri: str,
+    target_dir: str,
+    project: str | None = None,
+) -> str:
+    """
+    Load a single-file artifact from the MLRun artifact store.
+
+    :param source_uri: Artifact URI (store://artifacts/project/key)
+    :param target_dir: Target directory where the file will be placed
+    :param project:    Optional project name (extracted from URI if not provided)
+
+    :returns: Path to the loaded file
+    """
     # Resolve the artifact from the store
     artifact = mlrun.datastore.get_store_resource(source_uri, project=project)
 
@@ -263,3 +296,54 @@ def load_source_code(
         ) from exc
 
     return local_file_path
+
+
+def _load_git_source(source_uri: str, target_dir: str) -> str:
+    """
+    Clone a Git repository into the target directory.
+
+    Git credentials are automatically retrieved from environment variables
+    by clone_git -> add_credentials_git_remote_url -> get_secret_or_env.
+
+    :param source_uri: Git URL (git://github.com/org/repo.git#branch)
+    :param target_dir: Target directory for the cloned repository
+
+    :returns: Path to the cloned repository
+    """
+    os.makedirs(target_dir, exist_ok=True)
+
+    try:
+        clone_git(source_uri, target_dir)
+    except Exception as exc:
+        raise mlrun.errors.MLRunRuntimeError(
+            f"Failed to clone Git repository {source_uri} to {target_dir}"
+        ) from exc
+
+    return target_dir
+
+
+def _load_archive_source(source_uri: str, target_dir: str) -> str:
+    """
+    Extract an archive (ZIP or tar.gz) into the target directory.
+
+    Storage credentials (S3, V3IO, etc.) are automatically retrieved from
+    environment variables by get_dataitem -> store._get_secret_or_env.
+
+    :param source_uri: URL to the archive file
+    :param target_dir: Target directory for extraction
+
+    :returns: Path to the extracted directory
+    """
+    os.makedirs(target_dir, exist_ok=True)
+
+    try:
+        if source_uri.endswith(".zip"):
+            clone_zip(source_uri, target_dir)
+        elif source_uri.endswith(".tar.gz"):
+            clone_tgz(source_uri, target_dir)
+    except Exception as exc:
+        raise mlrun.errors.MLRunRuntimeError(
+            f"Failed to extract archive {source_uri} to {target_dir}"
+        ) from exc
+
+    return target_dir

@@ -73,7 +73,7 @@ from ..utils import (
     is_explicit_ack_supported,
     lock_hub_uri_version,
 )
-from .utils import StepToDict, _extract_input_data, _update_result_body
+from .utils import StepToDict, _extract_input_data, _MappedBody, _update_result_body
 
 callable_prefix = "_"
 path_splitter = "/"
@@ -931,9 +931,13 @@ class TaskStep(BaseStep):
                     f"step {self.name} does not have a handler"
                 )
 
-            result = self._handler(
-                _extract_input_data(self.input_path, event.body), *args, **kwargs
-            )
+            body = _extract_input_data(self.input_path, event.body)
+            if isinstance(body, _MappedBody):
+                # body_map-transformed bodies are unpacked as **kwargs
+                # so handler signatures like def fun(book: str) work
+                result = self._handler(**body, **kwargs)
+            else:
+                result = self._handler(body, *args, **kwargs)
             event.body = _update_result_body(self.result_path, event.body, result)
         except Exception as exc:
             if self._on_error_handler:
@@ -1826,10 +1830,22 @@ class ModelRunner(storey.ParallelExecution):
 
     def select_runnables(self, event):
         models = cast(list[Model], self.runnables)
-        return self.model_runner_selector.select_models(event, models)
+        selected = self.model_runner_selector.select_models(event, models)
+        if selected is not None and hasattr(event, "_metadata"):
+            event._metadata["selected_models"] = [
+                model if isinstance(model, str) else model.name for model in selected
+            ]
+        return selected
 
     def select_outlets(self, event) -> Optional[Collection[str]]:
-        sys_outlets = [f"{self.name}_error_raise"]
+        is_batched = False
+        if isinstance(event, list) and any(
+            hasattr(subevent, "body") for subevent in event
+        ):
+            is_batched = True
+            sys_outlets = [f"{self.name}_unpacker"]
+        else:
+            sys_outlets = [f"{self.name}_error_raise"]
         if "background_task_status_step" in self._name_to_outlet:
             sys_outlets.append("background_task_status_step")
         if self._raise_exception and self._is_error(event):
@@ -1839,7 +1855,14 @@ class ModelRunner(storey.ParallelExecution):
             return (
                 user_outlets if isinstance(user_outlets, list) else [user_outlets]
             ) + sys_outlets
-        return None
+
+        #  fall to default behavior of routing to all valid outlets
+        all_outlets = list(self._name_to_outlet.keys())
+        if is_batched:
+            all_outlets.remove(f"{self.name}_error_raise")
+        else:
+            all_outlets.remove(f"{self.name}_unpacker")
+        return all_outlets
 
     def _is_error(self, event: Union[dict, list]) -> bool:
         if isinstance(event, dict):
@@ -1851,9 +1874,12 @@ class ModelRunner(storey.ParallelExecution):
                     body_by_model = event.get(model)
                     if isinstance(body_by_model, dict) and "error" in body_by_model:
                         return True
-        elif storey.flow.is_batched_event(event):
-            #  batch case:
+        elif isinstance(event, list):
             for sub_event in event:
+                if not hasattr(sub_event, "body"):
+                    # a regular output, not a sub-event in a batch:
+                    return False
+                #  batch case, event is list of sub events:
                 if self._is_error(sub_event.body):
                     return True
         return False
@@ -2538,6 +2564,8 @@ class ModelRunnerErrorRaiser(storey.MapClass):
                 if storey.flow.is_batched_event(event):
                     # TODO fix error raiser for batch, ML-12068
                     return event
+                if not isinstance(event.body, dict):
+                    return event
                 for model in event.body:
                     body_by_model = event.body.get(model)
                     errors[model] = None
@@ -3078,9 +3106,7 @@ class FlowStep(BaseStep):
     @staticmethod
     async def _await_and_return_id(awaitable, event):
         await awaitable
-        event = copy(event)
-        event.body = {"id": event.id}
-        return event
+        return {"id": event.id}
 
     def run(self, event, *args, **kwargs):
         if self._controller:

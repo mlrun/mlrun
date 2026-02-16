@@ -15,9 +15,12 @@ import json
 import os
 from base64 import b64decode
 from copy import deepcopy
+from http import HTTPMethod
 from typing import Optional, Union
 
 import nuclio
+from jsonpath_ng import parse as jsonpath_parse
+from jsonpath_ng.exceptions import JsonPathLexerError, JsonPathParserError
 from nuclio import KafkaTrigger
 from nuclio.triggers import NuclioTrigger
 
@@ -28,6 +31,8 @@ import mlrun.datastore.datastore_profile as ds_profile
 import mlrun.runtimes.kubejob as kubejob_runtime
 import mlrun.runtimes.nuclio.function as nuclio_function
 import mlrun.runtimes.pod as pod_runtime
+import mlrun.serving.utils as serving_utils
+from mlrun.common.schemas.serving import _APIEndpointKeys
 from mlrun.datastore import get_kafka_brokers_from_dict, parse_kafka_url
 from mlrun.model import ObjectList
 from mlrun.runtimes.function_reference import FunctionReference
@@ -49,6 +54,202 @@ from mlrun.serving.states import (
 from mlrun.utils import get_caller_globals, logger, merge_requirements, set_paths
 
 serving_subkind = "serving_v2"
+
+
+class APIHandlerConfig(mlrun.model.ModelObj):
+    """Configuration for API handler in serving graph"""
+
+    _dict_fields = ["enabled", "endpoints", "body_map"]
+
+    def __init__(
+        self,
+        enabled: bool = True,
+        endpoints: dict[str, dict] | None = None,
+        body_map: dict[str, str] | None = None,
+    ):
+        self.enabled = enabled
+        self._endpoints = endpoints or {}
+        self._body_map = body_map or {}
+
+    @property
+    def body_map(self) -> dict[str, str]:
+        """Get the body_map configuration as a dictionary."""
+        return self._body_map
+
+    @body_map.setter
+    def body_map(self, value: dict[str, str] | None) -> None:
+        """Set the body_map configuration from a dictionary."""
+        self._body_map = {}
+        if value:
+            for parameter_name, json_path in value.items():
+                self.add_body_mapping(parameter_name, json_path)
+
+    @property
+    def endpoints(self) -> dict[str, dict]:
+        """Get the endpoints configuration as a dictionary."""
+        return self._endpoints
+
+    @endpoints.setter
+    def endpoints(self, endpoints: dict[str, dict]) -> None:
+        """Set the endpoints configuration from a dictionary."""
+        self._endpoints = {}
+        for endpoint_key, config in endpoints.items():
+            method, path = self._parse_endpoint_key(endpoint_key)
+            self.add_endpoint_handler(
+                path=path,
+                http_method=method,
+                action=schemas.serving.APIHandlerAction(
+                    config.get(_APIEndpointKeys.ACTION)
+                ),
+                description=config.get(_APIEndpointKeys.DESCRIPTION),
+            )
+
+    def _parse_endpoint_key(self, endpoint_key: str) -> tuple[HTTPMethod, str]:
+        """Parse endpoint key 'METHOD:path' back to method and path components."""
+        try:
+            return serving_utils._split_serving_endpoint_key(endpoint_key)
+        except (ValueError, AttributeError) as e:
+            raise ValueError(
+                f"Invalid endpoint key format '{endpoint_key}'. Expected 'METHOD:path'"
+            ) from e
+
+    @staticmethod
+    def _normalize_path(path: str) -> str:
+        """Normalize path to ensure it starts with a forward slash.
+
+        :param path: URL path to normalize
+        :return: Normalized path with leading slash
+        """
+        if not path.startswith("/"):
+            return f"/{path}"
+        return path
+
+    @staticmethod
+    def _validate_http_method(http_method: HTTPMethod | str) -> HTTPMethod:
+        """Validate and normalize the provided HTTP method.
+
+        :param http_method: HTTP method to validate (HTTPMethod enum or string)
+        :return: Normalized HTTPMethod enum value
+        :raises mlrun.errors.MLRunInvalidArgumentError: If method is not a valid HTTPMethod or string
+        """
+        if isinstance(http_method, HTTPMethod):
+            return http_method
+        if isinstance(http_method, str):
+            try:
+                return HTTPMethod(http_method.upper())
+            except ValueError:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    f"Invalid HTTP method string '{http_method}'. "
+                    f"Valid values are: {', '.join(m.value for m in HTTPMethod)}"
+                ) from None
+        # Not HTTPMethod or str - reject with helpful error
+        raise mlrun.errors.MLRunInvalidArgumentError(
+            f"http_method must be an HTTPMethod enum or string, got {type(http_method).__name__} "
+            f"with value '{http_method}'. Valid values are: {', '.join(m.value for m in HTTPMethod)}"
+        )
+
+    def get_endpoint_config(self, method: HTTPMethod | str, path: str) -> dict | None:
+        """Get endpoint configuration for a specific method and path."""
+        method = self._validate_http_method(method)
+        path = self._normalize_path(path)
+        endpoint_key = serving_utils._combine_serving_endpoint_key(method, path)
+        return self._endpoints.get(endpoint_key)
+
+    def add_endpoint_handler(
+        self,
+        path: str,
+        http_method: HTTPMethod | str = HTTPMethod.POST,
+        action: schemas.serving.APIHandlerAction = schemas.serving.APIHandlerAction.ALLOW,
+        description: str | None = None,
+    ) -> None:
+        """Add an endpoint handler configuration.
+
+        :param path: URL path for the endpoint (e.g., '/v1/models')
+        :param http_method: HTTP method for the endpoint (HTTPMethod enum or string like 'GET', 'POST')
+        :param action: Action to take for this endpoint (:py:class:`~mlrun.common.schemas.serving.APIHandlerAction`)
+        :param description: Optional description of the endpoint
+        """
+        http_method = self._validate_http_method(http_method)
+        path = self._normalize_path(path)
+        endpoint_key = serving_utils._combine_serving_endpoint_key(http_method, path)
+
+        # Warn if overriding an existing endpoint
+        if endpoint_key in self._endpoints:
+            logger.warning(
+                "Overriding existing endpoint handler configuration",
+                method=http_method.value,
+                path=path,
+                old_action=self._endpoints[endpoint_key].get(_APIEndpointKeys.ACTION),
+                new_action=str(action),
+            )
+
+        self._endpoints[endpoint_key] = {
+            _APIEndpointKeys.ACTION: str(action),
+            _APIEndpointKeys.DESCRIPTION: description,
+        }
+
+    def remove_endpoint_handler(
+        self,
+        path: str,
+        http_method: HTTPMethod | str = HTTPMethod.POST,
+    ) -> None:
+        """Remove an endpoint handler configuration.
+
+        :param path: URL path for the endpoint to remove
+        :param http_method: HTTP method for the endpoint to remove (HTTPMethod enum or string like 'GET', 'POST')
+        """
+        http_method = self._validate_http_method(http_method)
+        path = self._normalize_path(path)
+        endpoint_key = serving_utils._combine_serving_endpoint_key(http_method, path)
+        self._endpoints.pop(endpoint_key, None)
+
+    def add_body_mapping(self, parameter_name: str, json_path: str) -> None:
+        """Add a JSONPath body mapping for extracting request parameters.
+
+        Maps a JSONPath expression to a parameter name. When a request is received,
+        the JSONPath will be evaluated against the request body and the result
+        will be passed as a named parameter to the handler function.
+
+        :param parameter_name: Name of the parameter to pass to the handler
+        :param json_path: JSONPath expression to extract the value from request body
+                         (e.g., '$.user.name' or '$.items[*].id')
+        :raises mlrun.errors.MLRunValueError: If json_path is not a valid JSONPath expression
+
+        Example::
+
+            config = APIHandlerConfig()
+            config.add_body_mapping("user_name", "$.user.name")
+            config.add_body_mapping("user_email", "$.user.contact.email")
+            config.add_body_mapping(
+                "item_ids", "$.items[*].id"
+            )  # Multiple matches return list
+        """
+        # Validate JSONPath expression by parsing it
+        try:
+            jsonpath_parse(json_path)
+        except (JsonPathLexerError, JsonPathParserError) as exc:
+            raise mlrun.errors.MLRunValueError(
+                f"Invalid JSON path expression for parameter '{parameter_name}': "
+                f"'{json_path}'. Error: {exc}"
+            ) from exc
+
+        # Warn if overriding an existing mapping
+        if parameter_name in self._body_map:
+            logger.warning(
+                "Overriding existing body mapping",
+                parameter_name=parameter_name,
+                old_json_path=self._body_map[parameter_name],
+                new_json_path=json_path,
+            )
+
+        self._body_map[parameter_name] = json_path
+
+    def remove_body_mapping(self, parameter_name: str) -> None:
+        """Remove a body mapping by parameter name.
+
+        :param parameter_name: Name of the parameter mapping to remove
+        """
+        self._body_map.pop(parameter_name, None)
 
 
 def new_v2_model_server(
@@ -99,6 +300,7 @@ class ServingSpec(nuclio_function.NuclioSpec):
         "secret_sources",
         "track_models",
         "streaming",
+        "api_handler_config",
     ]
 
     def __init__(
@@ -157,6 +359,7 @@ class ServingSpec(nuclio_function.NuclioSpec):
         serving_spec=None,
         auth=None,
         streaming: Optional[bool] = None,
+        api_handler_config: APIHandlerConfig | None = None,
     ):
         super().__init__(
             command=command,
@@ -216,6 +419,11 @@ class ServingSpec(nuclio_function.NuclioSpec):
         self.default_content_type = default_content_type
         self.model_endpoint_creation_task_name = model_endpoint_creation_task_name
         self.streaming = streaming
+        self.api_handler_config = (
+            api_handler_config.to_dict()
+            if isinstance(api_handler_config, APIHandlerConfig)
+            else api_handler_config
+        )
 
     @property
     def graph(self) -> Union[RouterStep, RootFlowStep]:
@@ -815,6 +1023,10 @@ class ServingRuntime(nuclio_function.RemoteRuntime):
             "filename": getattr(self.spec, "filename", None),
         }
 
+        # Include API handler config if present
+        if self.spec.api_handler_config:
+            serving_spec["api_handler_config"] = self.spec.api_handler_config
+
         if self.spec.secret_sources:
             self._secrets = SecretsStore.from_list(self.spec.secret_sources)
             serving_spec["secret_sources"] = self._secrets.to_serial()
@@ -872,6 +1084,7 @@ class ServingRuntime(nuclio_function.RemoteRuntime):
             function_name=self.metadata.name,
             function_tag=self.metadata.tag,
             project=self.metadata.project,
+            api_handler_config=self.spec.api_handler_config,
             **kwargs,
         )
         server.init_states(
@@ -934,12 +1147,9 @@ class ServingRuntime(nuclio_function.RemoteRuntime):
     ) -> "kubejob_runtime.KubejobRuntime":
         """Convert this ServingRuntime to a KubejobRuntime, so that the graph can be run as a standalone job.
 
-        Args:
-            func_name: Optional custom name for the job function. If not provided, automatically
-                      appends '-batch' suffix to the serving function name to prevent database collision.
-
-        Returns:
-            KubejobRuntime configured to execute the serving graph as a batch job.
+        :param func_name: Optional custom name for the job function. If not provided, automatically
+                         appends '-batch' suffix to the serving function name to prevent database collision.
+        :return: KubejobRuntime configured to execute the serving graph as a batch job.
 
         Note:
             The job will have a different name than the serving function to prevent database collision.
@@ -1063,3 +1273,47 @@ class ServingRuntime(nuclio_function.RemoteRuntime):
                     reqs_secondary=step_requirements,
                 )
                 self.with_requirements(requirements=reqs_union, overwrite=True)
+
+    def set_api_handler_config(self, config: Union[APIHandlerConfig, dict]) -> None:
+        """Set the API handler configuration for the serving function.
+
+        :param config: :py:class:`~mlrun.runtimes.nuclio.serving.APIHandlerConfig` object or dictionary containing
+                      the configuration for handling different API endpoints and their actions.
+
+        Example::
+
+            # Using APIHandlerConfig object
+            from mlrun.runtimes.nuclio.serving import APIHandlerConfig
+            from mlrun.common.schemas.serving import APIHandlerAction
+            from http import HTTPMethod
+
+            api_config = APIHandlerConfig()
+            api_config.add_endpoint_handler(
+                "/v1/models", HTTPMethod.GET, APIHandlerAction.ALLOW
+            )
+            serving_fn.set_api_handler_config(api_config)
+
+            # Using dictionary
+            serving_fn.set_api_handler_config(
+                {"endpoints": {("GET", "/v1/models"): {"action": "allow"}}}
+            )
+        """
+        if isinstance(config, APIHandlerConfig):
+            config = config.to_dict()
+        elif isinstance(config, dict):
+            # Validate the dict by converting it to APIHandlerConfig and back
+            # This ensures it has the correct format
+            try:
+                validated_config = APIHandlerConfig.from_dict(config)
+                config = validated_config.to_dict()
+            except Exception as exc:
+                raise ValueError(
+                    f"Invalid API handler config dict format: {exc}"
+                ) from exc
+        else:
+            raise ValueError(
+                f"config must be `APIHandlerConfig` or a `dict`, got {type(config)}"
+            )
+
+        # Store the configuration in the spec for serialization
+        self.spec.api_handler_config = config

@@ -15,20 +15,20 @@
 import os
 import pathlib
 import tempfile
-from typing import Optional, Union
+import types
+from typing import Any
 
 from mlrun.artifacts import Artifact
 from mlrun.datastore import DataItem
 from mlrun.errors import MLRunInvalidArgumentError
-
-from ..utils import (
+from mlrun.package.packagers.default_packager import DefaultPackager
+from mlrun.package.utils import (
     DEFAULT_ARCHIVE_FORMAT,
     DEFAULT_STRUCT_FILE_FORMAT,
     ArchiveSupportedFormat,
     ArtifactType,
     StructFileSupportedFormat,
 )
-from .default_packager import DefaultPackager
 
 # ----------------------------------------------------------------------------------------------------------------------
 # builtins packagers:
@@ -40,11 +40,11 @@ class NonePackager(DefaultPackager):
     ``None`` packager.
     """
 
-    # TODO: From python 3.10 the `PACKABLE_OBJECT_TYPE` should be changed to `types.NoneType`
-    PACKABLE_OBJECT_TYPE = type(None)
+    PACKABLE_OBJECT_TYPE = types.NoneType
     DEFAULT_PACKING_ARTIFACT_TYPE = ArtifactType.RESULT
 
-    # TODO: `None` as pickle will be available from Python 3.10, so this method can be removed once we move to 3.10.
+    # `None` as pickle is possible since Python 3.10, but it cannot be imported from `builtins`, hence we have this
+    # method to keep it unpickle-able by design.
     def get_supported_artifact_types(self) -> list[str]:
         """
         Get all the supported artifact types on this packager. It will be the same as `DefaultPackager` but without the
@@ -140,7 +140,7 @@ class StrPackager(DefaultPackager):
         self,
         data_item: DataItem,
         is_directory: bool = False,
-        archive_format: Optional[str] = None,
+        archive_format: str | None = None,
     ) -> str:
         """
         Unpack a data item representing a path string. If the path is of a file, the file is downloaded to a local
@@ -193,9 +193,37 @@ class _BuiltinCollectionPackager(DefaultPackager):
     DEFAULT_PACKING_ARTIFACT_TYPE = ArtifactType.RESULT
     DEFAULT_UNPACKING_ARTIFACT_TYPE = ArtifactType.FILE
 
+    def bundle(
+        self,
+        collection: dict | list,
+    ) -> Any:
+        """
+        Bundle a dictionary or a list into the packager's object type.
+
+        :param collection: The dictionary or list to bundle.
+
+        :return: The bundled object.
+        """
+        return self.PACKABLE_OBJECT_TYPE(collection)
+
+    def unbundle(
+        self,
+        bundled_object: Any,
+    ) -> dict | list:
+        """
+        Unbundle the packager's object type into a dictionary or a list.
+
+        :param bundled_object: The bundled object to unbundle.
+
+        :return: The unbundled dictionary or list.
+        """
+        # We can be sure the returned type is correct since the manager will only assign the correct packager for the
+        # type.
+        return bundled_object
+
     def pack_file(
         self,
-        obj: Union[dict, list],
+        obj: dict | list,
         key: str,
         file_format: str = DEFAULT_STRUCT_FILE_FORMAT,
     ) -> tuple[Artifact, dict]:
@@ -222,8 +250,8 @@ class _BuiltinCollectionPackager(DefaultPackager):
         return artifact, instructions
 
     def unpack_file(
-        self, data_item: DataItem, file_format: Optional[str] = None
-    ) -> Union[dict, list]:
+        self, data_item: DataItem, file_format: str | None = None
+    ) -> dict | list:
         """
         Unpack a builtin collection from file.
 
@@ -258,10 +286,9 @@ class DictPackager(_BuiltinCollectionPackager):
     """
 
     PACKABLE_OBJECT_TYPE = dict
+    BUNDLE_FROM_DICT = True
 
-    def unpack_file(
-        self, data_item: DataItem, file_format: Optional[str] = None
-    ) -> dict:
+    def unpack_file(self, data_item: DataItem, file_format: str | None = None) -> dict:
         """
         Unpack a dictionary from file.
 
@@ -286,10 +313,9 @@ class ListPackager(_BuiltinCollectionPackager):
     """
 
     PACKABLE_OBJECT_TYPE = list
+    BUNDLE_FROM_LIST = True
 
-    def unpack_file(
-        self, data_item: DataItem, file_format: Optional[str] = None
-    ) -> list:
+    def unpack_file(self, data_item: DataItem, file_format: str | None = None) -> list:
         """
         Unpack a list from file.
 
@@ -359,9 +385,7 @@ class TuplePackager(ListPackager):
         """
         return super().pack_file(obj=list(obj), key=key, file_format=file_format)
 
-    def unpack_file(
-        self, data_item: DataItem, file_format: Optional[str] = None
-    ) -> tuple:
+    def unpack_file(self, data_item: DataItem, file_format: str | None = None) -> tuple:
         """
         Unpack a tuple from file.
 
@@ -406,9 +430,7 @@ class SetPackager(ListPackager):
         """
         return super().pack_file(obj=list(obj), key=key, file_format=file_format)
 
-    def unpack_file(
-        self, data_item: DataItem, file_format: Optional[str] = None
-    ) -> set:
+    def unpack_file(self, data_item: DataItem, file_format: str | None = None) -> set:
         """
         Unpack a set from file.
 
@@ -443,7 +465,7 @@ class FrozensetPackager(SetPackager):
         return super().pack_file(obj=set(obj), key=key, file_format=file_format)
 
     def unpack_file(
-        self, data_item: DataItem, file_format: Optional[str] = None
+        self, data_item: DataItem, file_format: str | None = None
     ) -> frozenset:
         """
         Unpack a frozenset from file.
@@ -465,6 +487,8 @@ class BytesPackager(ListPackager):
     """
 
     PACKABLE_OBJECT_TYPE = bytes
+    # Disable bundling since bytes bundling seem impractical.
+    BUNDLE_FROM_LIST = False
 
     def pack_result(self, obj: bytes, key: str) -> dict:
         """
@@ -491,9 +515,7 @@ class BytesPackager(ListPackager):
         """
         return super().pack_file(obj=list(obj), key=key, file_format=file_format)
 
-    def unpack_file(
-        self, data_item: DataItem, file_format: Optional[str] = None
-    ) -> bytes:
+    def unpack_file(self, data_item: DataItem, file_format: str | None = None) -> bytes:
         """
         Unpack a bytes from file.
 
@@ -539,7 +561,7 @@ class BytearrayPackager(BytesPackager):
         return super().pack_file(obj=bytes(obj), key=key, file_format=file_format)
 
     def unpack_file(
-        self, data_item: DataItem, file_format: Optional[str] = None
+        self, data_item: DataItem, file_format: str | None = None
     ) -> bytearray:
         """
         Unpack a bytearray from file.
@@ -599,7 +621,7 @@ class PathPackager(StrPackager):
         self,
         data_item: DataItem,
         is_directory: bool = False,
-        archive_format: Optional[str] = None,
+        archive_format: str | None = None,
     ) -> pathlib.Path:
         """
         Unpack a data item representing a `Path`. If the path is of a file, the file is downloaded to a local

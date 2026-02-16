@@ -3726,15 +3726,11 @@ def _render_team_internal_structure(subgraph, router_step):
 
     # Create two anchor nodes: one for left (entry) and one for right (exit)
     # These are invisible nodes that serve as connection points for external edges
-    # Align them at the same rank for consistent vertical positioning
     entry_anchor = f"{router_step.fullname}_entry"
     exit_anchor = f"{router_step.fullname}_exit"
 
-    # Create a subgraph to force entry and exit anchors to same rank (vertical alignment)
-    with subgraph.subgraph() as rank_sub:
-        rank_sub.attr(rank="same")
-        rank_sub.node(entry_anchor, label="", shape="point", width="0", style="invis")
-        rank_sub.node(exit_anchor, label="", shape="point", width="0", style="invis")
+    subgraph.node(entry_anchor, label="", shape="point", width="0", style="invis")
+    subgraph.node(exit_anchor, label="", shape="point", width="0", style="invis")
 
     # Render internal nodes inside the cluster
     for node in nodes:
@@ -3779,28 +3775,28 @@ def _render_team_internal_structure(subgraph, router_step):
             to_id = to_child.fullname if to_child else f"{router_step.fullname}_{to_node}"
             subgraph.edge(from_id, to_id)
 
-    # Position anchors using invisible edges with constraint=false
-    # This positions the anchors without affecting the internal layout
+    # Position anchors using invisible edges to entry/exit points
+    # This helps control where external edges connect to the cluster
     entry_points = structure.get("entry_points", [])
     exit_points = structure.get("exit_points", [])
 
     if entry_points:
-        # Connect entry anchor to first entry point with invisible, non-constraining edge
+        # Connect entry anchor to first entry point with invisible edge
         first_entry = entry_points[0]
         entry_child = None
         if hasattr(router_step, 'routes') and first_entry in router_step.routes:
             entry_child = router_step.routes[first_entry]
         entry_node_id = entry_child.fullname if entry_child else f"{router_step.fullname}_{first_entry}"
-        subgraph.edge(entry_anchor, entry_node_id, style="invis", constraint="false")
+        subgraph.edge(entry_anchor, entry_node_id, style="invis")
 
     if exit_points:
-        # Connect last exit point to exit anchor with invisible, non-constraining edge
+        # Connect last exit point to exit anchor with invisible edge
         last_exit = exit_points[-1]
         exit_child = None
         if hasattr(router_step, 'routes') and last_exit in router_step.routes:
             exit_child = router_step.routes[last_exit]
         exit_node_id = exit_child.fullname if exit_child else f"{router_step.fullname}_{last_exit}"
-        subgraph.edge(exit_node_id, exit_anchor, style="invis", constraint="false")
+        subgraph.edge(exit_node_id, exit_anchor, style="invis")
 
 
 def _add_graphviz_model_runner(graph, step, source=None, is_monitored=False):

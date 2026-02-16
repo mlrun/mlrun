@@ -11,6 +11,14 @@ With the `router` topology you can specify different machine learning models. Ea
 
 More advanced or custom routing can be used, for example, the ensemble router sends the event to all child routes in parallel, aggregates the result, and responds.
 
+## Built-in steps
+
+- [ModelRouter](#modelrouter)
+- [EnrichmentVotingEnsemble](#enrichmentvotingensemble)
+### ModelRouter
+Description:  Basic model router, for calling different models per each model path. See {py:class}`~mlrun.serving.routers.ModelRouter`.
+### Example
+
 ```
 from sklearn.datasets import load_iris
 
@@ -35,9 +43,33 @@ server.wait_for_completion()
 
 print(result)
 ```
+## EnrichmentVotingEnsemble
+### Description
+The typical usage is to pass a feature vector URI that points to a registered feature store vector. The router:
+- Fetches features from the feature vector  
+- Enriches the incoming event  
+- Runs the internal model routes  
+- Aggregates the results based on `vote_type`
 
-## Built-in steps
+Notes:
+- Only `feature_vector_uri` and `vote_type` are required (no need to pass `models` or `feature_store` in many versions).  
+- The router internally handles model execution and merging.
 
-| Class name                                                  | Description                                                                                                                                                                                                                                                                   |        
-|-------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| {py:class}`~mlrun.serving.routers.ModelRouter`              | Basic model router, for calling different models per each model path.                                                                                                                                                                                                         | 
+```{admonition} Note
+The `*` prefix indicates a router class (not a simple processing step).
+```
+
+### Use Case
+
+
+### Example
+```python
+enricher = graph.add_step(
+    "*mlrun.serving.EnrichmentVotingEnsemble",
+    name="enricher",
+    feature_vector_uri="store://feature-vectors/user_features_v1",
+    vote_type="regression"  # or "classification"
+)
+```
+
+

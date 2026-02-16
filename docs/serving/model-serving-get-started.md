@@ -14,8 +14,9 @@ available-steps
 model-serving-steps
 remote-steps
 writing-custom-steps
+router-steps
 router
 ```
-See also
+**See also**
 - [Queues and streams](../serving/remote-execution.ipynb#queues-and-streams).
-- {ref}`importing steps rom the MLRun hub<load-from-hub>`
+- {ref}`Importing steps from the MLRun hub<load-from-hub>`

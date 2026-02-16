@@ -3,8 +3,13 @@
 
 Use RemoteStep in both sync and async engines to invoke an external URI (HTTP or MLRun function). 
 
+## Description
+
 See the full parameter list in {py:class}`~mlrun.serving.remote.RemoteStep`.
 
+## Use cases
+
+## Examples
 Using the `async` engine to trigger an external heavy process, such as a service generating a test using model and storing it in a DB would look similar to:
 ```python
 flow = function.set_topology("flow", engine="async")

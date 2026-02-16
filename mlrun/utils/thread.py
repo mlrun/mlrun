@@ -14,7 +14,8 @@
 
 import inspect
 import threading
-from typing import Callable, Optional, TypeVar
+from collections.abc import Callable
+from typing import Optional, TypeVar
 
 T = TypeVar("T")
 

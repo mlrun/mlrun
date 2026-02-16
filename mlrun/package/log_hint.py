@@ -50,9 +50,9 @@ class LogHint(BaseModel):
 
     Accepts the following types:
 
-    * ``bool`` - ``True`` recursively unbundles the object all the way down. ``False`` (default) logs the collection as 
+    * ``bool`` - ``True`` recursively unbundles the object all the way down. ``False`` (default) logs the collection as
       a single, opaque artifact.
-    * ``int`` - Specifies the maximum depth of unbundling. For example, ``1`` itemizes the top-level collection but 
+    * ``int`` - Specifies the maximum depth of unbundling. For example, ``1`` itemizes the top-level collection but
       logs nested collections as single units.
     """
 

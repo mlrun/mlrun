@@ -231,7 +231,7 @@ class BaseAsyncClient(BaseClient):
         self._prepare_request_kwargs(session, path, kwargs=kwargs)
         async_session = self._async_sessions.get()
         # take the session default
-        retry_options = copy.deepcopy(self._async_session.retry_options)
+        retry_options = copy.deepcopy(async_session.retry_options)
 
         # override with cherry-picked options
         if retry_options_override:

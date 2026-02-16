@@ -44,3 +44,4 @@ aiosmtplib~=3.0
 # # deepdiff 8.6.0 has a vulnerability (Class Pollution in Delta class leading to DoS)
 deepdiff>=8.6.1,<9.0.0
 pyjwt~=2.10
+jsonpath-ng~=1.7

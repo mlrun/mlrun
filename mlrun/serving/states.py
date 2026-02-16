@@ -73,7 +73,7 @@ from ..utils import (
     is_explicit_ack_supported,
     lock_hub_uri_version,
 )
-from .utils import StepToDict, _extract_input_data, _update_result_body
+from .utils import StepToDict, _extract_input_data, _MappedBody, _update_result_body
 
 callable_prefix = "_"
 path_splitter = "/"
@@ -931,9 +931,13 @@ class TaskStep(BaseStep):
                     f"step {self.name} does not have a handler"
                 )
 
-            result = self._handler(
-                _extract_input_data(self.input_path, event.body), *args, **kwargs
-            )
+            body = _extract_input_data(self.input_path, event.body)
+            if isinstance(body, _MappedBody):
+                # body_map-transformed bodies are unpacked as **kwargs
+                # so handler signatures like def fun(book: str) work
+                result = self._handler(**body, **kwargs)
+            else:
+                result = self._handler(body, *args, **kwargs)
             event.body = _update_result_body(self.result_path, event.body, result)
         except Exception as exc:
             if self._on_error_handler:

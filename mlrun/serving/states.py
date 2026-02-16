@@ -3989,23 +3989,38 @@ def _add_edges(items, step, graph, child, after=True):
     for item in items:
         next_or_prev_object = step[item]
         kw = {}
-        # Special handling for router edges: connect to cluster boundary
-        # BUT skip this for routers with custom structure (they handle their own edges)
-        if (
-            next_or_prev_object.kind == StepKinds.router
-            and not getattr(next_or_prev_object, "_graph_structure", None)
-        ):
-            kw["ltail"] = f"cluster_{next_or_prev_object.fullname}"
-
-        # Skip creating edges for routers with custom structure
-        # (they connect through entry/exit points instead)
-        if getattr(next_or_prev_object, "_graph_structure", None):
-            continue
-
-        if after:
-            graph.edge(next_or_prev_object.fullname, child.fullname, **kw)
+        # Handle routers with custom structure - connect to entry/exit points
+        structure = getattr(next_or_prev_object, "_graph_structure", None)
+        if structure:
+            if after:
+                # Incoming edge: FROM router (exit points) TO child
+                exit_points = structure.get("exit_points", [])
+                for exit_point in exit_points:
+                    exit_child = None
+                    if hasattr(next_or_prev_object, 'routes') and exit_point in next_or_prev_object.routes:
+                        exit_child = next_or_prev_object.routes[exit_point]
+                    exit_id = exit_child.fullname if exit_child else f"{next_or_prev_object.fullname}_{exit_point}"
+                    graph.edge(exit_id, child.fullname)
+            else:
+                # Outgoing edge: FROM child TO router (entry points)
+                entry_points = structure.get("entry_points", [])
+                for entry_point in entry_points:
+                    entry_child = None
+                    if hasattr(next_or_prev_object, 'routes') and entry_point in next_or_prev_object.routes:
+                        entry_child = next_or_prev_object.routes[entry_point]
+                    entry_id = entry_child.fullname if entry_child else f"{next_or_prev_object.fullname}_{entry_point}"
+                    graph.edge(child.fullname, entry_id)
         else:
-            graph.edge(child.fullname, next_or_prev_object.fullname, **kw)
+            # Normal router or non-router step
+            if (
+                next_or_prev_object.kind == StepKinds.router
+            ):
+                kw["ltail"] = f"cluster_{next_or_prev_object.fullname}"
+
+            if after:
+                graph.edge(next_or_prev_object.fullname, child.fullname, **kw)
+            else:
+                graph.edge(child.fullname, next_or_prev_object.fullname, **kw)
 
 
 def _generate_graphviz(

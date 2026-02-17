@@ -15,17 +15,20 @@
 """Tests for streaming support in serving graphs."""
 
 import inspect
+import unittest.mock
 
 import pytest
 
 import mlrun
 import mlrun.errors
+from mlrun.datastore.model_provider.model_provider import ModelProvider
 from mlrun.runtimes.nuclio.serving import ServingSpec
 from mlrun.serving import Model
 from mlrun.serving.server import (
     v2_serving_handler,
     v2_serving_streaming_handler,
 )
+from mlrun.serving.states import LLModel
 
 
 class TestServingSpecStreaming:
@@ -559,3 +562,122 @@ class TestModelIsStreaming:
         result = model.predict("test")
         assert inspect.isgenerator(result)
         assert list(result) == ["test_chunk_0", "test_chunk_1", "test_chunk_2"]
+
+
+class _MockStreamingProvider(ModelProvider):
+    """A mock model provider that supports streaming."""
+
+    supports_streaming = True
+
+    def __init__(self):
+        # Skip ModelProvider.__init__ which requires parent/kind/name
+        self.default_invoke_kwargs = {}
+
+    def invoke_stream(self, messages, **invoke_kwargs):
+        for i in range(3):
+            yield f"token_{i}"
+
+    async def async_invoke_stream(self, messages, **invoke_kwargs):
+        for i in range(3):
+            yield f"token_{i}"
+
+
+class _MockNonStreamingProvider(ModelProvider):
+    """A mock model provider that does NOT support streaming."""
+
+    supports_streaming = False
+
+    def __init__(self):
+        self.default_invoke_kwargs = {}
+
+
+class _MockServerWithStreaming:
+    """Mock server with streaming enabled."""
+
+    streaming = True
+
+
+class _MockServerWithoutStreaming:
+    """Mock server with streaming disabled."""
+
+    streaming = False
+
+
+class _MockContext:
+    """Mock context with a configurable server."""
+
+    def __init__(self, server):
+        self.server = server
+
+
+class TestLLModelStreaming:
+    """Tests for LLModel streaming integration with model providers."""
+
+    _sentinel = object()
+
+    @classmethod
+    def _make_model(cls, streaming_server=True, provider=_sentinel):
+        model = LLModel(name="test")
+        server = (
+            _MockServerWithStreaming()
+            if streaming_server
+            else _MockServerWithoutStreaming()
+        )
+        model.context = _MockContext(server)
+        model.model_provider = (
+            _MockStreamingProvider() if provider is cls._sentinel else provider
+        )
+        return model
+
+    def test_is_streaming_true(self):
+        """is_streaming returns True when server.streaming and provider both support it."""
+        assert self._make_model().is_streaming() is True
+
+    @pytest.mark.parametrize(
+        "streaming_server, provider",
+        [
+            (False, _MockStreamingProvider()),
+            (True, _MockNonStreamingProvider()),
+            (True, None),
+        ],
+        ids=["server-off", "provider-unsupported", "no-provider"],
+    )
+    def test_is_streaming_false(self, streaming_server, provider):
+        """is_streaming returns False when any precondition is missing."""
+        assert self._make_model(streaming_server, provider).is_streaming() is False
+
+    def test_predict_returns_generator_when_streaming(self):
+        """predict() returns a generator of tokens when streaming is active."""
+        model = self._make_model()
+        result = model.predict(
+            body={"input": "hello"},
+            messages=[{"role": "user", "content": "hello"}],
+            llm_prompt_artifact=unittest.mock.MagicMock(
+                spec=mlrun.artifacts.LLMPromptArtifact
+            ),
+        )
+        assert inspect.isgenerator(result)
+        assert list(result) == ["token_0", "token_1", "token_2"]
+
+    @pytest.mark.asyncio
+    async def test_predict_async_returns_async_generator_when_streaming(self):
+        """predict_async() returns an async generator of tokens when streaming is active."""
+        result = await self._make_model().predict_async(
+            body={"input": "hello"},
+            messages=[{"role": "user", "content": "hello"}],
+            llm_prompt_artifact=unittest.mock.MagicMock(
+                spec=mlrun.artifacts.LLMPromptArtifact
+            ),
+        )
+        assert inspect.isasyncgen(result)
+        assert [token async for token in result] == ["token_0", "token_1", "token_2"]
+
+    def test_init_raises_when_provider_does_not_support_streaming(self):
+        """init() raises when streaming is enabled but provider doesn't support it."""
+        model = self._make_model(provider=_MockNonStreamingProvider())
+        model._execution_mechanism = "asyncio"
+        with pytest.raises(
+            mlrun.errors.MLRunInvalidArgumentError,
+            match="does not support streaming",
+        ):
+            model.init()

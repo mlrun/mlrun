@@ -710,3 +710,17 @@ class TestHuggingFaceAIModel(TestBasicHuggingFaceProvider):
                 assert "paris" in model_result["output"]["answer"].lower()
         finally:
             server.wait_for_completion()
+
+
+class TestHuggingFaceProviderStreaming(TestBasicHuggingFaceProvider):
+    def test_invoke_stream(self):
+        """Streaming yields non-empty tokens that form a coherent answer."""
+        model_url = self.url_prefix + self.basic_llm_model
+        provider = mlrun.get_model_provider(
+            url=model_url, default_invoke_kwargs={"max_new_tokens": 60}
+        )
+        messages = [formatted_messages[0]]
+        tokens = list(provider.invoke_stream(messages=messages))
+        assert len(tokens) > 1, "Expected multiple streamed tokens"
+        full_text = "".join(tokens)
+        assert EXPECTED_RESULTS[0] in full_text.lower()

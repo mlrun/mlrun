@@ -20,6 +20,7 @@ import unittest.mock
 import pytest
 
 import mlrun
+import mlrun.errors
 
 
 class TestOpenAIBatch:
@@ -352,3 +353,152 @@ class TestOpenAIBatch:
             match=error_match,
         ):
             await provider.async_invoke(messages=invalid_messages)
+
+
+class _MockChunkDelta:
+    """Simulates openai ChatCompletionChunk delta."""
+
+    def __init__(self, content):
+        self.content = content
+
+
+class _MockChunkChoice:
+    """Simulates openai ChatCompletionChunk choice."""
+
+    def __init__(self, content):
+        self.delta = _MockChunkDelta(content)
+
+
+class _MockChunk:
+    """Simulates openai ChatCompletionChunk."""
+
+    def __init__(self, content):
+        self.choices = [_MockChunkChoice(content)] if content is not None else []
+
+
+class TestOpenAIStreaming:
+    """Tests for OpenAI streaming invoke methods."""
+
+    def test_supports_streaming_flag(self):
+        """Verify that OpenAIProvider declares streaming support."""
+        provider = mlrun.get_model_provider(
+            url="openai://gpt-4o-mini",
+            secrets={"OPENAI_API_KEY": "test-key"},
+        )
+        assert provider.supports_streaming is True
+
+    def test_invoke_stream_yields_tokens(self):
+        """invoke_stream yields content tokens from the OpenAI streaming API."""
+        chunks = [_MockChunk("Hello"), _MockChunk(None), _MockChunk(" world")]
+
+        provider = mlrun.get_model_provider(
+            url="openai://gpt-4o-mini",
+            secrets={"OPENAI_API_KEY": "test-key"},
+        )
+        with unittest.mock.patch.object(
+            provider.client.chat.completions, "create", return_value=iter(chunks)
+        ):
+            tokens = list(
+                provider.invoke_stream(
+                    messages=[{"role": "user", "content": "hi"}],
+                )
+            )
+        assert tokens == ["Hello", " world"]
+
+    def test_invoke_stream_rejects_batch(self):
+        """invoke_stream raises on batch invocation (list of lists)."""
+        provider = mlrun.get_model_provider(
+            url="openai://gpt-4o-mini",
+            secrets={"OPENAI_API_KEY": "test-key"},
+        )
+        with pytest.raises(
+            mlrun.errors.MLRunInvalidArgumentError,
+            match="Batch invocation is not supported in streaming mode",
+        ):
+            list(
+                provider.invoke_stream(
+                    messages=[
+                        [{"role": "user", "content": "msg1"}],
+                        [{"role": "user", "content": "msg2"}],
+                    ],
+                )
+            )
+
+    @pytest.mark.asyncio
+    async def test_async_invoke_stream_yields_tokens(self):
+        """async_invoke_stream yields content tokens from the OpenAI async streaming API."""
+        chunks = [_MockChunk("Hello"), _MockChunk(None), _MockChunk(" world")]
+
+        class _MockAsyncStream:
+            """Simulates an OpenAI AsyncStream object (awaitable + async iterable)."""
+
+            def __init__(self, items):
+                self._items = items
+
+            def __aiter__(self):
+                return self._async_iter()
+
+            async def _async_iter(self):
+                for item in self._items:
+                    yield item
+
+        async def _mock_create(**kwargs):
+            return _MockAsyncStream(chunks)
+
+        provider = mlrun.get_model_provider(
+            url="openai://gpt-4o-mini",
+            secrets={"OPENAI_API_KEY": "test-key"},
+        )
+        with unittest.mock.patch.object(
+            provider.async_client.chat.completions,
+            "create",
+            side_effect=_mock_create,
+        ):
+            tokens = [
+                token
+                async for token in provider.async_invoke_stream(
+                    messages=[{"role": "user", "content": "hi"}],
+                )
+            ]
+        assert tokens == ["Hello", " world"]
+
+    @pytest.mark.asyncio
+    async def test_async_invoke_stream_rejects_batch(self):
+        """async_invoke_stream raises on batch invocation."""
+        provider = mlrun.get_model_provider(
+            url="openai://gpt-4o-mini",
+            secrets={"OPENAI_API_KEY": "test-key"},
+        )
+        with pytest.raises(
+            mlrun.errors.MLRunInvalidArgumentError,
+            match="Batch invocation is not supported in streaming mode",
+        ):
+            async for _ in provider.async_invoke_stream(
+                messages=[
+                    [{"role": "user", "content": "msg1"}],
+                    [{"role": "user", "content": "msg2"}],
+                ],
+            ):
+                pass
+
+    def test_invoke_stream_passes_invoke_kwargs(self):
+        """invoke_stream forwards invoke_kwargs and default_invoke_kwargs to the API call."""
+        provider = mlrun.get_model_provider(
+            url="openai://gpt-4o-mini",
+            secrets={"OPENAI_API_KEY": "test-key"},
+        )
+        mock_create = unittest.mock.MagicMock(return_value=iter([]))
+        with unittest.mock.patch.object(
+            provider.client.chat.completions, "create", mock_create
+        ):
+            list(
+                provider.invoke_stream(
+                    messages=[{"role": "user", "content": "hi"}],
+                    temperature=0.5,
+                )
+            )
+        mock_create.assert_called_once()
+        call_kwargs = mock_create.call_args
+        assert call_kwargs.kwargs["stream"] is True
+        assert call_kwargs.kwargs["temperature"] == 0.5
+        assert call_kwargs.kwargs["model"] == "gpt-4o-mini"

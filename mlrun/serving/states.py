@@ -1458,6 +1458,34 @@ class LLModel(Model):
             result_path=result_path,
         )
 
+    def is_streaming(self) -> bool:
+        """
+        Returns True if this LLModel is in streaming mode.
+
+        Streaming is active when the serving graph has streaming enabled
+        (``server.streaming``) and the model provider supports streaming.
+        """
+        context = getattr(self, "context", None)
+        return (
+            getattr(getattr(context, "server", None), "streaming", False)
+            and isinstance(self.model_provider, ModelProvider)
+            and self.model_provider.supports_streaming
+        )
+
+    def _can_invoke_provider(self, llm_prompt_artifact) -> bool:
+        """Check whether the model provider can be invoked for this prediction."""
+        if isinstance(
+            llm_prompt_artifact, mlrun.artifacts.LLMPromptArtifact
+        ) and isinstance(self.model_provider, ModelProvider):
+            return True
+        logger.warning(
+            "LLModel invocation artifact or model provider not set, skipping prediction",
+            model_name=self.name,
+            invocation_artifact_type=type(llm_prompt_artifact).__name__,
+            model_provider_type=type(self.model_provider).__name__,
+        )
+        return False
+
     def predict(
         self,
         body: Any,
@@ -1465,36 +1493,35 @@ class LLModel(Model):
         invocation_config: Optional[dict] = None,
         **kwargs,
     ) -> Any:
-        llm_prompt_artifact = kwargs.get("llm_prompt_artifact")
-        if isinstance(
-            llm_prompt_artifact, mlrun.artifacts.LLMPromptArtifact
-        ) and isinstance(self.model_provider, ModelProvider):
+        if not self._can_invoke_provider(kwargs.get("llm_prompt_artifact")):
+            return body
+        if self.is_streaming():
             logger.debug(
-                "Invoking model provider",
+                "Invoking model provider in streaming mode",
                 model_name=self.name,
                 messages=messages,
-                invocation_config=invocation_config,
             )
-            response_with_stats = self.model_provider.invoke(
+            return self.model_provider.invoke_stream(
                 messages=messages,
-                invoke_response_format=InvokeResponseFormat.USAGE,
                 **(invocation_config or {}),
             )
-            set_data_by_path(
-                path=self._result_path, data=body, value=response_with_stats
-            )
-            logger.debug(
-                "LLModel prediction completed",
-                model_name=self.name,
-                response=response_with_stats,
-            )
-        else:
-            logger.warning(
-                "LLModel invocation artifact or model provider not set, skipping prediction",
-                model_name=self.name,
-                invocation_artifact_type=type(llm_prompt_artifact).__name__,
-                model_provider_type=type(self.model_provider).__name__,
-            )
+        logger.debug(
+            "Invoking model provider",
+            model_name=self.name,
+            messages=messages,
+            invocation_config=invocation_config,
+        )
+        response_with_stats = self.model_provider.invoke(
+            messages=messages,
+            invoke_response_format=InvokeResponseFormat.USAGE,
+            **(invocation_config or {}),
+        )
+        set_data_by_path(path=self._result_path, data=body, value=response_with_stats)
+        logger.debug(
+            "LLModel prediction completed",
+            model_name=self.name,
+            response=response_with_stats,
+        )
         return body
 
     async def predict_async(
@@ -1504,36 +1531,35 @@ class LLModel(Model):
         invocation_config: Optional[dict] = None,
         **kwargs,
     ) -> Any:
-        llm_prompt_artifact = kwargs.get("llm_prompt_artifact")
-        if isinstance(
-            llm_prompt_artifact, mlrun.artifacts.LLMPromptArtifact
-        ) and isinstance(self.model_provider, ModelProvider):
+        if not self._can_invoke_provider(kwargs.get("llm_prompt_artifact")):
+            return body
+        if self.is_streaming():
             logger.debug(
-                "Async invoking model provider",
+                "Invoking model provider in streaming mode",
                 model_name=self.name,
                 messages=messages,
-                invocation_config=invocation_config,
             )
-            response_with_stats = await self.model_provider.async_invoke(
+            return self.model_provider.async_invoke_stream(
                 messages=messages,
-                invoke_response_format=InvokeResponseFormat.USAGE,
                 **(invocation_config or {}),
             )
-            set_data_by_path(
-                path=self._result_path, data=body, value=response_with_stats
-            )
-            logger.debug(
-                "LLModel async prediction completed",
-                model_name=self.name,
-                response=response_with_stats,
-            )
-        else:
-            logger.warning(
-                "LLModel invocation artifact or model provider not set, skipping async prediction",
-                model_name=self.name,
-                invocation_artifact_type=type(llm_prompt_artifact).__name__,
-                model_provider_type=type(self.model_provider).__name__,
-            )
+        logger.debug(
+            "Invoking model provider",
+            model_name=self.name,
+            messages=messages,
+            invocation_config=invocation_config,
+        )
+        response_with_stats = await self.model_provider.async_invoke(
+            messages=messages,
+            invoke_response_format=InvokeResponseFormat.USAGE,
+            **(invocation_config or {}),
+        )
+        set_data_by_path(path=self._result_path, data=body, value=response_with_stats)
+        logger.debug(
+            "LLModel prediction completed",
+            model_name=self.name,
+            response=response_with_stats,
+        )
         return body
 
     def init(self):
@@ -1553,6 +1579,18 @@ class LLModel(Model):
                     f"Model provider could not be determined for model '{self.name}',"
                     f" and the {predict_function_name} function was not overridden."
                 )
+        elif (
+            getattr(
+                getattr(getattr(self, "context", None), "server", None),
+                "streaming",
+                False,
+            )
+            and not self.model_provider.supports_streaming
+        ):
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"Streaming is enabled but model provider"
+                f" '{type(self.model_provider).__name__}' does not support streaming"
+            )
 
     def run(self, body: Any, path: str, origin_name: Optional[str] = None) -> Any:
         llm_prompt_artifact = self._get_invocation_artifact(origin_name)

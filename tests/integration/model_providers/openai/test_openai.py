@@ -523,3 +523,32 @@ class TestOpenAIModel(TestBasicOpenAIProvider):
         validate_openai_batch_response(
             batch_response, EXPECTED_RESULTS, self.basic_llm_model
         )
+
+
+class TestOpenAIProviderStreaming(TestBasicOpenAIProvider):
+    def test_invoke_stream(self):
+        """Sync streaming yields non-empty tokens that form a coherent answer."""
+        model_url = self.url_prefix + self.basic_llm_model
+        provider = mlrun.get_model_provider(
+            url=model_url, default_invoke_kwargs={"max_tokens": 60}
+        )
+        messages = [formatted_messages[0]]
+        tokens = list(provider.invoke_stream(messages=messages))
+        assert len(tokens) > 1, "Expected multiple streamed tokens"
+        full_text = "".join(tokens)
+        assert EXPECTED_RESULTS[0] in full_text.lower()
+
+    @pytest.mark.asyncio
+    async def test_async_invoke_stream(self):
+        """Async streaming yields non-empty tokens that form a coherent answer."""
+        model_url = self.url_prefix + self.basic_llm_model
+        provider = mlrun.get_model_provider(
+            url=model_url, default_invoke_kwargs={"max_tokens": 60}
+        )
+        messages = [formatted_messages[0]]
+        tokens = [
+            token async for token in provider.async_invoke_stream(messages=messages)
+        ]
+        assert len(tokens) > 1, "Expected multiple streamed tokens"
+        full_text = "".join(tokens)
+        assert EXPECTED_RESULTS[0] in full_text.lower()

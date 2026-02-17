@@ -337,6 +337,41 @@ async def test_verify_request_session_single_group_untyped(
     assert auth_info.user_group_ids == ["valid-group-id"]
 
 
+@pytest.mark.parametrize("iguazio_client", [("v4", "sync")], indirect=True)
+def test_delete_project_check_skips_igz_delete(
+    iguazio_client, mock_service_account_auth_headers
+) -> None:
+    """Ensure IG4 check does not call igz delete project policies."""
+    iguazio_client.delete_project(
+        None,
+        TEST_PROJECT_NAME,
+        deletion_strategy=mlrun.common.schemas.DeletionStrategy.check,
+    )
+    iguazio_client._client.delete_project_policies.assert_not_called()
+
+
+@pytest.mark.parametrize("iguazio_client", [("v4", "sync")], indirect=True)
+@pytest.mark.parametrize(
+    "deletion_strategy",
+    (
+        mlrun.common.schemas.DeletionStrategy.restricted,
+        mlrun.common.schemas.DeletionStrategy.cascading,
+    ),
+)
+def test_delete_project_calls_igz_delete(
+    iguazio_client,
+    deletion_strategy: mlrun.common.schemas.DeletionStrategy,
+    mock_service_account_auth_headers,
+) -> None:
+    """Ensure IG4 delete calls igz delete project policies once."""
+    iguazio_client.delete_project(
+        None, TEST_PROJECT_NAME, deletion_strategy=deletion_strategy
+    )
+    iguazio_client._client.delete_project_policies.assert_called_once_with(
+        project=TEST_PROJECT_NAME
+    )
+
+
 def sample_user_info(username="dummy-user", user_id="dummy-user-id", group_ids=None):
     group_ids = group_ids or ["dummy-group-id-g1", "dummy-group-id-g2"]
     return {

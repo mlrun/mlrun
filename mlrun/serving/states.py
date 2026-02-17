@@ -1275,14 +1275,9 @@ class Model(storey.ParallelExecutionRunnable, ModelObj):
                 raise_missing_schema_exception=False,
             )
 
-        # Check if the relevant predict method is implemented when trying to initialize the model.
-        # For asyncio, allow sync-only streaming models (generator predict) since
-        # run_async falls back to predict() for generator functions.
+        # Check if the relevant predict method is implemented when trying to initialize the model
         if self._execution_mechanism == storey.ParallelExecutionMechanisms.asyncio:
-            if (
-                self.__class__.predict_async is Model.predict_async
-                and not inspect.isgeneratorfunction(self.predict)
-            ):
+            if self.__class__.predict_async is Model.predict_async:
                 raise mlrun.errors.ModelRunnerError(
                     {
                         self.name: f"is running with {self._execution_mechanism} "
@@ -1356,10 +1351,6 @@ class Model(storey.ParallelExecutionRunnable, ModelObj):
     def run_async(self, body: Any, path: str, origin_name: Optional[str] = None) -> Any:
         if isinstance(body, list):
             body = self.format_batch(body)
-        if inspect.isasyncgenfunction(self.predict_async):
-            return self.predict_async(body)
-        if inspect.isgeneratorfunction(self.predict):
-            return self.predict(body)
         return self.predict_async(body)
 
     def get_local_model_path(self, suffix="") -> (str, dict):

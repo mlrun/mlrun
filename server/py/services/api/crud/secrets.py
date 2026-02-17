@@ -40,7 +40,6 @@ import framework.utils.singletons.k8s
 import services.api
 import services.api.utils.events.events_factory as events_factory
 
-
 # Maximum number of concurrent K8s secret deletions during bulk token cleanup
 MAX_CONCURRENT_TOKEN_DELETIONS = 10
 
@@ -663,9 +662,7 @@ class Secrets(
             Authentication information of the requesting user.
         :return: DeleteSecretTokensResponse with deleted_count and any failed_tokens.
         """
-        target_user_id = await run_in_threadpool(
-            self._get_user_id, auth_info, username
-        )
+        target_user_id = await run_in_threadpool(self._get_user_id, auth_info, username)
 
         logger.debug(
             "Deleting all secret tokens for user",
@@ -674,11 +671,9 @@ class Secrets(
             requesting_user=auth_info.username,
         )
 
-        tokens: list[mlrun.common.schemas.SecretTokenInfo] = (
-            await run_in_threadpool(
-                self.secrets_provider.list_user_token_secrets,
-                user_id=target_user_id,
-            )
+        tokens: list[mlrun.common.schemas.SecretTokenInfo] = await run_in_threadpool(
+            self.secrets_provider.list_user_token_secrets,
+            user_id=target_user_id,
         )
 
         if not tokens:
@@ -695,9 +690,12 @@ class Secrets(
         iguazio_client = framework.utils.clients.iguazio.v4.Client()
 
         # Delete tokens in parallel (with bounded concurrency) using asyncio.
-        # Skip revocation since this endpoint is called during user deletion flow,
-        # where the user is already deactivated and will be deleted from Keycloak
-        # right after this, which invalidates all tokens anyway.
+        # Note: skip_revocation=True is intentional here. This bulk-delete endpoint
+        # is currently only called by orca during user deletion, where the user is
+        # already deactivated and will be deleted from Keycloak right after,
+        # invalidating all tokens anyway. If this endpoint is ever exposed for
+        # general-purpose use, skip_revocation should become a caller-controlled flag
+        # to ensure tokens are properly revoked before secret deletion.
         semaphore = asyncio.Semaphore(MAX_CONCURRENT_TOKEN_DELETIONS)
 
         async def _delete_with_semaphore(token_name: str):
@@ -712,12 +710,10 @@ class Secrets(
                     skip_revocation=True,
                 )
 
-        tasks = [
-            asyncio.create_task(_delete_with_semaphore(token_info.name))
-            for token_info in tokens
-        ]
-
-        results = await asyncio.gather(*tasks, return_exceptions=True)
+        results = await asyncio.gather(
+            *[_delete_with_semaphore(token_info.name) for token_info in tokens],
+            return_exceptions=True,
+        )
 
         # Process results to count successes and failures
         deleted_count = 0

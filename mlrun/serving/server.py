@@ -339,7 +339,6 @@ class GraphServer(ModelObj):
             if isinstance(exc, mlrun.errors.MLRunHTTPStatusError):
                 status_code = exc.error_status_code
             else:
-                # Non-MLRun exceptions default to 400 (current behavior for backwards compatibility)
                 status_code = 400
 
             message = f"{exc.__class__.__name__}: {err_to_str(exc)}"

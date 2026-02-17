@@ -571,6 +571,29 @@ class TestAPIHandlerStep:
         ):
             step.do({"data": "test"})
 
+    def test_run_method_not_allowed(self) -> None:
+        """Test that wrong HTTP method for existing endpoint returns 405"""
+        config = APIHandlerConfig()
+        # Endpoint exists for POST, but we'll try GET
+        config.add_endpoint_handler(
+            "/resource", HTTPMethod.POST, APIHandlerAction.ALLOW
+        )
+
+        # Create a mock context with current_event
+        context = MagicMock()
+        mock_event = MagicMock()
+        mock_event.method = HTTPMethod.GET
+        mock_event.path = "/resource"
+        context.current_event = mock_event
+
+        step = _APIHandlerStep(config=config)
+        step.context = context
+
+        with pytest.raises(
+            mlrun.errors.MLRunMethodNotAllowedError, match="Method not allowed"
+        ):
+            step.do({"data": "test"})
+
     def test_run_no_matching_endpoint(self) -> None:
         """Test running with no matching endpoint"""
         config = APIHandlerConfig()

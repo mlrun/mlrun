@@ -15,14 +15,12 @@
 """Tests for error handling and HTTP status codes in serving runtime"""
 
 from collections.abc import Callable
-from http import HTTPMethod
 from typing import cast
 
 import pytest
 
 import mlrun
-from mlrun.common.schemas.serving import APIHandlerAction
-from mlrun.runtimes.nuclio.serving import APIHandlerConfig, ServingRuntime
+from mlrun.runtimes.nuclio.serving import ServingRuntime
 
 
 def _make_error_handler(error_class: type[Exception], message: str) -> Callable:
@@ -105,89 +103,6 @@ def test_error_status_codes(
         )
         assert error_message in resp.body, (
             f"Expected error message '{error_message}' in response body, "
-            f"got: {resp.body}"
-        )
-    finally:
-        server.wait_for_completion()
-
-
-@pytest.mark.parametrize(
-    "endpoint_path,expected_status_code,error_class_name,error_pattern,endpoints_config",
-    [
-        (
-            "/api/v1/not-found",
-            404,
-            "MLRunNotFoundError",
-            "Endpoint not found: GET /api/v1/not-found",
-            {"/api/v1/exists": APIHandlerAction.ALLOW},
-        ),
-        (
-            "/api/v1/forbidden",
-            403,
-            "MLRunAccessDeniedError",
-            "Access forbidden to GET /api/v1/forbidden",
-            {"/api/v1/forbidden": APIHandlerAction.FORBID},
-        ),
-        (
-            "/api/v1/resource",
-            405,
-            "MLRunMethodNotAllowedError",
-            "Method not allowed: GET /api/v1/resource",
-            {"POST:/api/v1/resource": APIHandlerAction.ALLOW},
-        ),
-    ],
-    ids=[
-        "404_endpoint_not_found",
-        "403_endpoint_forbidden",
-        "405_method_not_allowed",
-    ],
-)
-def test_api_handler_error_status_codes(
-    endpoint_path: str,
-    expected_status_code: int,
-    error_class_name: str,
-    error_pattern: str,
-    endpoints_config: dict,
-) -> None:
-    """Test that API handler returns correct status codes for different error scenarios
-
-    This test verifies that:
-    - Non-existent endpoints return 404
-    - Forbidden endpoints return 403
-    - Wrong HTTP method for existing endpoint returns 405
-    """
-    fn = cast(ServingRuntime, mlrun.new_function("test-api-handler", kind="serving"))
-
-    config = APIHandlerConfig()
-    # Add configured endpoints
-    for endpoint_key, action in endpoints_config.items():
-        # Parse method and path from endpoint_key
-        if ":" in endpoint_key:
-            method_str, path = endpoint_key.split(":", 1)
-            method = HTTPMethod[method_str]
-        else:
-            method = HTTPMethod.GET
-            path = endpoint_key
-
-        config.add_endpoint_handler(path, method, action)
-
-    fn.set_api_handler_config(config)
-    graph = fn.set_topology("flow", engine="sync")
-    graph.to(name="echo", handler="(event)").respond()
-
-    server = fn.to_mock_server()
-    try:
-        resp = server.test(endpoint_path, method="GET", body="test", silent=True)
-        assert resp.status_code == expected_status_code, (
-            f"Expected status code {expected_status_code} for {endpoint_path}, "
-            f"got {resp.status_code}"
-        )
-        assert error_class_name in resp.body, (
-            f"Expected error class '{error_class_name}' in response body, "
-            f"got: {resp.body}"
-        )
-        assert error_pattern in resp.body, (
-            f"Expected error pattern '{error_pattern}' in response body, "
             f"got: {resp.body}"
         )
     finally:

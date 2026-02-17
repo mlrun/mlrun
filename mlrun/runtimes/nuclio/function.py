@@ -561,9 +561,9 @@ class RemoteRuntime(KubeResource):
             )
         elif validate_nuclio_version_compatibility("1.15.3"):
             trigger._struct["mode"] = (
-                "async" if async_spec and async_spec.enabled else "sync"
+                "async" if getattr(async_spec, "enabled", False) else "sync"
             )
-            if async_spec.enabled:
+            if getattr(async_spec, "enabled", False):
                 trigger._struct["async"] = {
                     "maxConnectionsNumber": async_spec.max_connections,
                     "connectionAvailabilityTimeout": async_spec.connection_availability_timeout,

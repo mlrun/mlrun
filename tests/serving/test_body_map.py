@@ -259,7 +259,7 @@ class TestAPIHandlerStepBodyMap:
 
     @staticmethod
     def test_body_map_missing_params_raises_error() -> None:
-        """Test that missing body_map params raise KeyError"""
+        """Test that missing body_map params raise MLRunUnprocessableEntityError"""
         body_map = {
             "name": "$.name",
             "missing": "$.nonexistent.path",
@@ -271,8 +271,10 @@ class TestAPIHandlerStepBodyMap:
         event.path = "/predict"
         event.body = {"name": "test-model"}
 
-        # Should raise KeyError since $.nonexistent.path has no matches
-        with pytest.raises(KeyError, match="matched nothing"):
+        # Should raise MLRunUnprocessableEntityError since $.nonexistent.path has no matches
+        with pytest.raises(
+            mlrun.errors.MLRunUnprocessableEntityError, match="matched nothing"
+        ):
             step.do(event)
 
     def test_no_body_map_passes_event_through(self) -> None:
@@ -299,8 +301,8 @@ class TestAPIHandlerStepBodyMap:
         assert result.body is original_body
 
     @staticmethod
-    def test_body_map_non_dict_body_skips_transform() -> None:
-        """Test that non-dict body is passed through even with body_map configured"""
+    def test_body_map_non_dict_body_raises_error() -> None:
+        """Test that non-dict body raises MLRunUnprocessableEntityError when body_map is configured"""
         body_map = {"param": "$.field"}
         step = TestAPIHandlerStepBodyMap._make_step_with_body_map(body_map)
 
@@ -309,8 +311,12 @@ class TestAPIHandlerStepBodyMap:
         event.path = "/predict"
         event.body = "plain string body"
 
-        result = step.do(event)
-        assert result.body == "plain string body"
+        # Should raise MLRunUnprocessableEntityError since body_map requires dict body
+        with pytest.raises(
+            mlrun.errors.MLRunUnprocessableEntityError,
+            match="body_map configured but request body is not a dict",
+        ):
+            step.do(event)
 
     def test_body_map_applies_to_all_endpoints(self) -> None:
         """Test that the same body_map is applied regardless of which endpoint matched"""

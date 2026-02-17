@@ -334,13 +334,20 @@ class GraphServer(ModelObj):
 
             response = self.graph.run(event, **(extra_args or {}))
         except Exception as exc:
+            # Extract appropriate status code from MLRunHTTPStatusError exceptions
+            # For backwards compatibility, default to 400 for other exceptions
+            if isinstance(exc, mlrun.errors.MLRunHTTPStatusError):
+                status_code = exc.error_status_code
+            else:
+                status_code = 400
+
             message = f"{exc.__class__.__name__}: {err_to_str(exc)}"
             if server_context.verbose:
                 message += "\n" + str(traceback.format_exc())
             context.logger.error(f"run error, {traceback.format_exc()}")
             server_context.push_error(event, message, source="_handler")
             return context.Response(
-                body=message, content_type="text/plain", status_code=400
+                body=message, content_type="text/plain", status_code=status_code
             )
 
         # TODO: this is only relevant in certain flows (MockServer, sync...)

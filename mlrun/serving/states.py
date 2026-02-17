@@ -1610,9 +1610,7 @@ class LLModel(Model):
             llm_prompt_artifact=llm_prompt_artifact,
         )
 
-    async def run_async(
-        self, body: Any, path: str, origin_name: Optional[str] = None
-    ) -> Any:
+    def run_async(self, body: Any, path: str, origin_name: Optional[str] = None) -> Any:
         llm_prompt_artifact = self._get_invocation_artifact(origin_name)
         messages, invocation_config = self.enrich_prompt(
             body, origin_name, llm_prompt_artifact
@@ -1623,7 +1621,13 @@ class LLModel(Model):
             model_endpoint_name=origin_name,
             messages_len=len(messages) if messages else 0,
         )
-        return await self.predict_async(
+        if self.is_streaming() and self._can_invoke_provider(llm_prompt_artifact):
+            # Return an async generator
+            return self.model_provider.async_invoke_stream(
+                messages=messages,
+                **(invocation_config or {}),
+            )
+        return self.predict_async(
             body,
             messages=messages,
             invocation_config=invocation_config,

@@ -14,8 +14,9 @@
 #
 """Tests for error handling and HTTP status codes in serving runtime"""
 
+from collections.abc import Callable
 from http import HTTPMethod
-from typing import Callable, cast
+from typing import cast
 
 import pytest
 

@@ -566,7 +566,32 @@ class TestAPIHandlerStep:
         step = _APIHandlerStep(config=config)
         step.context = context
 
-        with pytest.raises(mlrun.errors.MLRunBadRequestError, match="Access forbidden"):
+        with pytest.raises(
+            mlrun.errors.MLRunAccessDeniedError, match="Access forbidden"
+        ):
+            step.do({"data": "test"})
+
+    def test_run_method_not_allowed(self) -> None:
+        """Test that wrong HTTP method for existing endpoint returns 405"""
+        config = APIHandlerConfig()
+        # Endpoint exists for POST, but we'll try GET
+        config.add_endpoint_handler(
+            "/resource", HTTPMethod.POST, APIHandlerAction.ALLOW
+        )
+
+        # Create a mock context with current_event
+        context = MagicMock()
+        mock_event = MagicMock()
+        mock_event.method = HTTPMethod.GET
+        mock_event.path = "/resource"
+        context.current_event = mock_event
+
+        step = _APIHandlerStep(config=config)
+        step.context = context
+
+        with pytest.raises(
+            mlrun.errors.MLRunMethodNotAllowedError, match="Method not allowed"
+        ):
             step.do({"data": "test"})
 
     def test_run_no_matching_endpoint(self) -> None:
@@ -654,6 +679,28 @@ class TestAPIHandlerStep:
             mlrun.errors.MLRunBadRequestError, match="Unsupported HTTP method"
         ):
             step.do({"data": "test"})
+
+    def test_run_body_map_with_missing_body(self) -> None:
+        """Test that body_map with missing/non-dict body raises 422 error"""
+        config = APIHandlerConfig()
+        config.body_map = {"$.name": "user_name"}
+        config.add_endpoint_handler("/test", HTTPMethod.POST, APIHandlerAction.ALLOW)
+
+        context = MagicMock()
+        mock_event = MagicMock()
+        mock_event.method = HTTPMethod.POST
+        mock_event.path = "/test"
+        mock_event.body = None
+        context.current_event = mock_event
+
+        step = _APIHandlerStep(config=config)
+        step.context = context
+
+        with pytest.raises(
+            mlrun.errors.MLRunUnprocessableEntityError,
+            match="body_map configured but request body is not a dict",
+        ):
+            step.do(mock_event)
 
 
 class TestAddAPIHandlerStepToGraph:

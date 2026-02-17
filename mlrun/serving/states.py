@@ -1348,10 +1348,10 @@ class Model(storey.ParallelExecutionRunnable, ModelObj):
             body = self.format_batch(body)
         return self.predict(body)
 
-    async def run_async(
-        self, body: Any, path: str, origin_name: Optional[str] = None
-    ) -> Any:
-        return await self.predict_async(body)
+    def run_async(self, body: Any, path: str, origin_name: Optional[str] = None) -> Any:
+        if isinstance(body, list):
+            body = self.format_batch(body)
+        return self.predict_async(body)
 
     def get_local_model_path(self, suffix="") -> (str, dict):
         """

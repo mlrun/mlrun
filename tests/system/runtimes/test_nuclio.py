@@ -605,7 +605,11 @@ class TestNuclioRuntime(TestMLRunSystemModelMonitoring):
         ):
             function.invoke(path="/", body={"counter": -5})
 
-    def test_streaming_serving_function(self):
+    @pytest.mark.parametrize(
+        "execution_mechanism",
+        ("naive", "thread_pool", "asyncio", "process_pool", "dedicated_process"),
+    )
+    def test_streaming_serving_function(self, execution_mechanism):
         """Test that streaming serving functions return chunked HTTP responses.
 
         Tests both StreamingStep (async generator do() method) and ModelRunnerStep
@@ -628,7 +632,7 @@ class TestNuclioRuntime(TestMLRunSystemModelMonitoring):
         model_runner_step = ModelRunnerStep(name="model_runner")
         model_runner_step.add_model(
             model_class="StreamingModel",
-            execution_mechanism="naive",
+            execution_mechanism=execution_mechanism,
             endpoint_name="streaming_model",
             num_chunks=3,
         )

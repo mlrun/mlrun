@@ -84,7 +84,7 @@ class _APIHandlerStep(mlrun.serving.states.TaskStep):
         for param_name, parsed_expr in self._parsed_body_map.items():
             matches = parsed_expr.find(body)
             if not matches:
-                raise KeyError(
+                raise mlrun.errors.MLRunUnprocessableEntityError(
                     f"JSONPath expression for parameter '{param_name}' "
                     f"matched nothing in the event body"
                 )
@@ -146,7 +146,23 @@ class _APIHandlerStep(mlrun.serving.states.TaskStep):
             matching_endpoint_key = self._match_endpoint(method, path)
 
             if not matching_endpoint_key:
-                # No matching endpoint found
+                # Check if path exists with different method (405 Method Not Allowed)
+                path_exists_with_other_method = any(
+                    self.config._parse_endpoint_key(key)[1] == path
+                    for key in self.config._endpoints.keys()
+                )
+
+                if path_exists_with_other_method:
+                    mlrun.utils.logger.warning(
+                        "Method not allowed for endpoint",
+                        method=method.value,
+                        path=path,
+                    )
+                    raise mlrun.errors.MLRunMethodNotAllowedError(
+                        f"Method not allowed: {method.value} {path}"
+                    )
+
+                # No matching endpoint found (404 Not Found)
                 mlrun.utils.logger.warning(
                     "No matching endpoint found",
                     method=method.value,
@@ -179,31 +195,39 @@ class _APIHandlerStep(mlrun.serving.states.TaskStep):
                 if self._parsed_body_map:
                     body = event.body if hasattr(event, "body") else event
                     if isinstance(body, dict):
-                        mapped_body = self._apply_parsed_body_map(body)
-                        mlrun.utils.logger.debug(
-                            "Applied body_map transformation",
-                            body_map=self.config.body_map,
-                            mapped_params=list(mapped_body.keys()),
-                        )
-                        if hasattr(event, "body"):
-                            event.body = mapped_body
-                        else:
-                            event = mapped_body
+                        try:
+                            mapped_body = self._apply_parsed_body_map(body)
+                            mlrun.utils.logger.debug(
+                                "Applied body_map transformation",
+                                body_map=self.config.body_map,
+                                mapped_params=list(mapped_body.keys()),
+                            )
+                            if hasattr(event, "body"):
+                                event.body = mapped_body
+                            else:
+                                event = mapped_body
+                        except mlrun.errors.MLRunUnprocessableEntityError:
+                            # Re-raise validation errors as-is
+                            raise
+                        except Exception as exc:
+                            # Wrap other errors in BadRequest
+                            raise mlrun.errors.MLRunBadRequestError(
+                                f"Failed to process body_map transformation: {exc}"
+                            ) from exc
                     else:
-                        mlrun.utils.logger.warning(
-                            "body_map configured but event body is not a dict, "
-                            "skipping body_map transformation",
-                            body_type=type(body).__name__,
+                        raise mlrun.errors.MLRunUnprocessableEntityError(
+                            f"body_map configured but request body is not a dict (got {type(body).__name__}). "
+                            f"A valid JSON body is required when body_map transformation is configured."
                         )
                 # Pass the event to the next step in the graph
                 return event
             elif action == schemas.APIHandlerAction.FORBID:
                 # Reject the request
-                raise mlrun.errors.MLRunBadRequestError(
+                raise mlrun.errors.MLRunAccessDeniedError(
                     f"Access forbidden to {method.value} {path}"
                 )
             else:
-                raise mlrun.errors.MLRunBadRequestError(f"Unknown action: {action}")
+                raise mlrun.errors.MLRunInternalServerError(f"Unknown action: {action}")
 
         except Exception as exc:
             # Log the error and re-raise

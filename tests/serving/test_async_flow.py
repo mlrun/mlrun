@@ -1642,6 +1642,10 @@ class StreamingModel(Model):
         for i in range(self.num_chunks):
             yield f"{body}_chunk_{i}"
 
+    async def predict_async(self, body: typing.Any, **kwargs) -> typing.Any:
+        for i in range(self.num_chunks):
+            yield f"{body}_chunk_{i}"
+
 
 class StreamingModelRunnerSelector(ModelRunnerSelector):
     """A selector that always picks the streaming_model."""
@@ -1650,35 +1654,12 @@ class StreamingModelRunnerSelector(ModelRunnerSelector):
         return ["streaming_model"]
 
 
-def test_model_runner_streaming_naive():
-    """Test that streaming models work with naive execution mechanism."""
-    function = mlrun.new_function("tests", kind="serving")
-    graph = function.set_topology("flow", engine="async")
-    model_runner_step = ModelRunnerStep(name="my_model_runner")
-    model_runner_step.add_model(
-        model_class="StreamingModel",
-        execution_mechanism="naive",
-        endpoint_name="streaming_model",
-        num_chunks=3,
-    )
-    graph.to(model_runner_step).to(
-        name="collector", class_name="storey.Collector"
-    ).respond()
-
-    server = function.to_mock_server()
-    try:
-        resp = server.test(body="test")
-        assert resp == ["test_chunk_0", "test_chunk_1", "test_chunk_2"]
-    finally:
-        server.wait_for_completion()
-
-
 @pytest.mark.parametrize(
     "execution_mechanism",
-    ["process_pool", "dedicated_process"],
+    ["naive", "thread_pool", "asyncio", "process_pool", "dedicated_process"],
 )
-def test_model_runner_streaming_process_based(execution_mechanism):
-    """Test that streaming models work with process-based execution mechanisms."""
+def test_model_runner_streaming(execution_mechanism):
+    """Test that streaming models work with all execution mechanisms."""
     function = mlrun.new_function("tests", kind="serving")
     graph = function.set_topology("flow", engine="async")
     model_runner_step = ModelRunnerStep(name="my_model_runner")

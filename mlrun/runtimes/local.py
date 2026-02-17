@@ -36,6 +36,7 @@ from nuclio import Event
 import mlrun
 import mlrun.common.constants as mlrun_constants
 from mlrun.lists import RunList
+from mlrun.package import handler as mlrun_handler_decorator
 
 from ..errors import err_to_str
 from ..execution import MLClientCtx
@@ -501,7 +502,7 @@ def exec_from_params(handler, runobj: RunObject, context: MLClientCtx, cwd=None)
                 # log hints (Expected behavior: inputs are being parsed when they have type hints in code or given
                 # by user. Outputs are logged only if log hints are provided by the user):
                 if mlrun.mlconf.packagers.enabled:
-                    val = mlrun.handler(
+                    val = mlrun_handler_decorator(
                         inputs=(
                             runobj.spec.inputs_type_hints
                             if runobj.spec.inputs_type_hints
@@ -552,10 +553,13 @@ def get_func_arg(handler, runobj: RunObject, context: MLClientCtx, is_nuclio=Fal
 
     def _get_input_value(input_key: str):
         input_obj = context.get_input(input_key, inputs[input_key])
-        # If there is no type hint annotation but there is a default value and its type is string, point the data
-        # item to local downloaded file path (`local()` returns the downloaded temp path string):
-        if args[input_key].annotation is inspect.Parameter.empty and isinstance(
-            args[input_key].default, str
+        # If it's a single data item (not a dictionary or list of data items) and there is no type hint annotation but
+        # there is a default value and its type is string, point the data item to local downloaded file path (`local()`
+        # returns the downloaded temp path string):
+        if (
+            not isinstance(input_obj, dict | list)
+            and args[input_key].annotation is inspect.Parameter.empty
+            and isinstance(args[input_key].default, str)
         ):
             return input_obj.local()
         else:

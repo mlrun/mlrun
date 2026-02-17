@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import inspect
+from http import HTTPMethod
 from typing import Optional
 
 from mlrun.utils import get_in, update_in
@@ -42,6 +43,25 @@ def _update_result_body(result_path, event_body, result):
     else:
         event_body = result
     return event_body
+
+
+class _MappedBody(dict):
+    """Marker dict subclass for body_map-transformed event bodies.
+
+    When a downstream :class:`TaskStep` receives a body that is an instance
+    of ``_MappedBody``, it unpacks the dict as ``**kwargs`` to the handler
+    instead of passing it as a single positional argument.  This allows
+    handler functions to declare named parameters that match the body_map
+    keys, e.g.::
+
+        body_map = {"book": "$.age"}
+
+
+        def handler(book):
+            return f"{book} - this is the book"
+    """
+
+    pass
 
 
 class StepToDict:
@@ -118,3 +138,14 @@ class RouterToDict(StepToDict):
         strip: bool = False,
     ):
         return super().to_dict(exclude=["routes"], strip=strip)
+
+
+def _combine_serving_endpoint_key(method: HTTPMethod, path: str) -> str:
+    """Combine method and path to create a unique endpoint key"""
+    return f"{method.value}:{path}"
+
+
+def _split_serving_endpoint_key(endpoint_key: str) -> tuple[HTTPMethod, str]:
+    """Split the endpoint key into method and path"""
+    method_str, path = endpoint_key.split(":", 1)
+    return HTTPMethod(method_str), path

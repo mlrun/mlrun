@@ -362,6 +362,7 @@ class Alerts(
 
     @staticmethod
     def _event_entity_matches(alert_entity, event_entity):
+        # A wildcard id ("*") matches any incoming entity id
         if "*" in alert_entity.ids:
             return True
 

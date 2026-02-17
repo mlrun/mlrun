@@ -284,11 +284,7 @@ default_config = {
             },
             "service_account": {
                 "default": None,
-                "forbidden_service_accounts": [
-                    "mlrun-api",
-                    "iguazio",
-                    "nuclio",
-                ],
+                "forbidden_service_accounts": "",
             },
             "state_thresholds": {
                 "default": {
@@ -315,7 +311,7 @@ default_config = {
         "application": {
             "default_sidecar_internal_port": 8050,
             "default_authentication_mode": mlrun.common.schemas.APIGatewayAuthenticationMode.none,
-            "default_worker_number": 10000,
+            "default_worker_number": 100,
         },
     },
     # TODO: function defaults should be moved to the function spec config above
@@ -681,6 +677,11 @@ default_config = {
             "parquet_batching_max_events": 10,
             "parquet_batching_timeout_secs": 30,
         },
+        "lag_detection": {
+            "min_lag_threshold_minutes": 5,
+            "default_lag_threshold_minutes": 60,
+            "default_lag_event_cooldown_minutes": 30,
+        },
         # Store prefixes are used to handle model monitoring storing policies based on project and kind, such as events,
         # stream, and endpoints.
         "store_prefixes": {
@@ -856,13 +857,23 @@ default_config = {
         # Whether to enable packagers. True will wrap each run in the `mlrun.package.handler` decorator to log and parse
         # using packagers.
         "enabled": True,
+        # Whether to automatically unpack inputs with no type hints instead of leaving them as `mlrun.DataItem` objects.
+        # If True, all inputs without type hints that were originally logged via `mlrun.package` will be unpacked
+        # automatically. Default is False.
+        "auto_unpack_inputs": False,
+        # Whether to automatically pack outputs, even if not log hints were provided by the user running the function.
+        # If True, returned objects will be packed with their default packager and their artifact key will be equal to
+        # the following name template: "<context_name>-<auto_pack_key>-<i>" where "i" is enumerated. If
+        # False, the returned objects will simply be ignored. Default is False.
+        "auto_pack_outputs": False,
+        "auto_pack_key": "artifact",
         # Whether to treat returned tuples from functions as a tuple and not as multiple returned items. If True, all
         # returned values will be packaged together as the tuple they are returned in. Default is False to enable
         # logging multiple returned items.
         "pack_tuples": False,
         # In multi-workers run, only the logging worker will pack the outputs and log the results and artifacts.
         # Otherwise, the workers will log the results and artifacts using the same keys, overriding them. It is common
-        # that only the main worker (usualy rank 0) will log, so this is the default value.
+        # that only the main worker (usually rank 0) will log, so this is the default value.
         "logging_worker": 0,
         # TODO: Consider adding support for logging from all workers (ignoring the `logging_worker`) and add the worker
         #       number to the artifact / result key (like "<key>-rank<#>". Results can have reduce operation in the
@@ -911,6 +922,12 @@ default_config = {
         # Default is empty because if set, searches for the specific token name in the file, if empty, it will look
         # for a token named "default", if "default" does not exist, it will use the first token in the file
         "token_name": "",
+        # Timeout in seconds for token refresh retries when running inside an MLRun runtime.
+        # This allows time for Kubelet to propagate updated tokens from secrets to mounted files.
+        # Set to 0 to disable runtime-specific retry behavior.
+        "runtime_token_refresh_timeout": 120,
+        # Backoff interval in seconds between token refresh retry attempts when running in a runtime.
+        "runtime_token_refresh_backoff": 10,
     },
     # a runtime computed value. Do not set it manually.
     "auth_token_endpoint": "",
@@ -1458,12 +1475,27 @@ class Config:
             == mlrun.common.types.AuthenticationMode.IGUAZIO_V4
         )
 
+    def is_using_v3io(self) -> bool:
+        return not self.is_iguazio_v4_mode() and not self.is_ce_mode()
+
     def is_explicit_ack_enabled(self) -> bool:
         return self.httpdb.nuclio.explicit_ack == "enabled" and (
             not self.nuclio_version
             or semver.VersionInfo.parse(self.nuclio_version)
             >= semver.VersionInfo.parse("1.12.10")
         )
+
+    def default_forbidden_service_accounts(self):
+        forbidden_service_accounts_str = (
+            self.function.spec.service_account.forbidden_service_accounts
+        )
+        if forbidden_service_accounts_str:
+            return [
+                service_account.strip()
+                for service_account in forbidden_service_accounts_str.split(",")
+            ]
+
+        return []
 
 
 # Global configuration

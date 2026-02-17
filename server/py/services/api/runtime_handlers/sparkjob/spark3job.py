@@ -186,11 +186,15 @@ class Spark3RuntimeHandler(KubeRuntimeHandler, abc.ABC):
             ),
         )
 
-        update_in(job, "spec.volumes", runtime.spec.volumes)
-
         self.add_secrets_to_spec_before_running(
-            runtime, project_name=run.metadata.project
+            runtime,
+            project_name=run.metadata.project,
+            token_name=(run.spec.auth or {}).get("token_name"),
+            auth_info=auth_info,
         )
+
+        # Update volumes after secrets are added to ensure secret volumes are included
+        update_in(job, "spec.volumes", runtime.spec.volumes)
 
         command, args, extra_env = self._get_cmd_args(runtime, run, auth_info=auth_info)
         code = None

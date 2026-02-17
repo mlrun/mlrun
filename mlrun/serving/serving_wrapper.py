@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import asyncio
+import inspect
 
 # serving runtime hooks, used in empty serving functions
 from mlrun.runtimes import nuclio_init_hook
@@ -25,4 +26,7 @@ async def handler(context, event):
     result = context.mlrun_handler(context, event)
     if asyncio.iscoroutine(result):
         return await result
-    return result
+    elif inspect.isgenerator(result) or inspect.isasyncgen(result):
+        return context.Response(body=result)
+    else:
+        return result

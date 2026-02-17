@@ -15,6 +15,7 @@ import typing
 from copy import copy
 
 import mlrun
+import mlrun.common.schemas
 import mlrun.errors
 from mlrun.common.schemas import AuthorizationVerificationInput
 from mlrun.runtimes import BaseRuntime

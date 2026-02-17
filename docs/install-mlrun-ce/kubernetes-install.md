@@ -240,10 +240,17 @@ helm repo update
 Then try to upgrade the chart:
 
 ```bash
+# Example of installing the latest version
 helm upgrade --install --reuse-values mlrun-ce —namespace mlrun mlrun-ce/mlrun-ce
+
+# Example of installing a specific version
+helm upgrade --install --reuse-values mlrun-ce —namespace mlrun mlrun-ce/mlrun-ce --version <chart-version>
+```
+```{admonition} Note
+you can check all the available versions of the chart in the repo via `helm search repo mlrun-ce/mlrun-ce --versions`.
 ```
 
-If it fails, reinstall the chart:
+If it fails, [reinstall the chart](#uninstalling-the-chart), and do the following:
 
 1. Remove the current mlrun-ce:
 ```bash
@@ -253,10 +260,10 @@ helm uninstall mlrun-ce
 ```
 2.  Reinstall the mlrun-ce, reusing the values:
 ```bash
-helm install -n mlrun --values ~/tmp/mlrun-ce-values.yaml mlrun-ce mlrun-ce/mlrun-ce --devel
+helm install -n mlrun --values ~/tmp/mlrun-ce-values.yaml mlrun-ce mlrun-ce/mlrun-ce
 ```
 
 ```{admonition} Note
-If your values have fixed mlrun service versions (e.g.: mlrun:1.8.0) then you might want to remove it from the values file to allow newer chart defaults to kick in.
+* MLRun CE is compatible with one minor version back. For example, MLRun CE 0.10.x is compatible with MLRun CE 0.9.x as long as both versions support the same infrastructure and component versions.
+* If your values have fixed mlrun service versions (e.g.: mlrun:1.10.0) then you might want to remove it from the values file to allow newer chart defaults to kick in.
 ```
-

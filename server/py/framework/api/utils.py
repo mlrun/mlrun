@@ -34,6 +34,7 @@ from fastapi.concurrency import run_in_threadpool
 from kubernetes.client import V1EnvVar, V1EnvVarSource
 from sqlalchemy.orm import Session
 
+import mlrun.common.constants
 import mlrun.common.schemas
 import mlrun.errors
 import mlrun.runtimes.pod
@@ -790,9 +791,7 @@ def resolve_project_service_account_details(
             for service_account in allowed_service_accounts.split(",")
         ]
 
-    forbidden_service_accounts = (
-        mlrun.mlconf.function.spec.service_account.forbidden_service_accounts[:]
-    )
+    forbidden_service_accounts = mlrun.mlconf.default_forbidden_service_accounts()
     forbidden_service_accounts_secret = (
         services.api.crud.secrets.Secrets().get_project_secret(
             project_name,
@@ -838,23 +837,9 @@ def resolve_project_service_account_details(
         default_service_account or mlrun.mlconf.function.spec.service_account.default
     )
 
-    # Sanity check on project configuration
-    if (
-        default_service_account
-        and (
-            allowed_service_accounts
-            and default_service_account not in allowed_service_accounts
-        )
-        or (
-            forbidden_service_accounts
-            and default_service_account in forbidden_service_accounts
-        )
-    ):
-        raise mlrun.errors.MLRunInvalidArgumentError(
-            f"Default service account {default_service_account} is not in list of allowed "
-            + f"service accounts {allowed_service_accounts} or is in the list of forbidden service accounts "
-            + f"{forbidden_service_accounts}"
-        )
+    _validate_service_account_details(
+        default_service_account, allowed_service_accounts, forbidden_service_accounts
+    )
 
     return allowed_service_accounts, forbidden_service_accounts, default_service_account
 
@@ -1368,6 +1353,12 @@ async def _delete_function(
             )
             raise mlrun.errors.MLRunInternalServerError(error_message)
 
+    # For application runtime functions, clean up source artifacts that were uploaded during deploy
+    if functions[0].get("kind") == mlrun.runtimes.RuntimeKinds.application:
+        await _delete_application_source_artifacts(
+            db_session, project, function_name, auth_info
+        )
+
     # delete the function from the database
     await run_in_threadpool(
         services.api.crud.Functions().delete_function,
@@ -1375,6 +1366,48 @@ async def _delete_function(
         project,
         function_name,
     )
+
+
+async def _delete_application_source_artifacts(
+    db_session: sqlalchemy.orm.Session,
+    project: str,
+    function_name: str,
+    auth_info: mlrun.common.schemas.AuthInfo,
+):
+    """
+    Delete source artifacts associated with an application runtime function.
+
+    When an application runtime function is deployed with a local source file, the source is uploaded as an artifact
+    labeled with the function name.
+    This method cleans up those artifacts when the function is deleted.
+    """
+    labels = [
+        f"{mlrun.common.constants.MLRunInternalLabels.function_name}={function_name}",
+        f"{mlrun.common.constants.MLRunInternalLabels.system_generated}=true",
+    ]
+    logger.debug(
+        "Deleting application source artifacts",
+        project=project,
+        function_name=function_name,
+        labels=labels,
+    )
+    try:
+        await run_in_threadpool(
+            services.api.crud.Artifacts().delete_artifacts,
+            db_session,
+            project=project,
+            name="",
+            tag="*",
+            labels=labels,
+            auth_info=auth_info,
+        )
+    except Exception as exc:
+        logger.warning(
+            "Failed to delete application source artifacts, continuing with function deletion",
+            project=project,
+            function_name=function_name,
+            error=err_to_str(exc),
+        )
 
 
 async def _update_functions_with_deletion_info(functions, project, updates: dict):
@@ -1394,3 +1427,35 @@ async def _update_functions_with_deletion_info(functions, project, updates: dict
 
     tasks = [update_function(function) for function in functions]
     await asyncio.gather(*tasks)
+
+
+def _validate_service_account_details(
+    default_service_account: str,
+    allowed_service_accounts: typing.Optional[list[str]],
+    forbidden_service_accounts: typing.Optional[list[str]],
+):
+    """
+    Sanity check on project configuration.
+    Make sure the default service account is in the allowed list and not in the forbidden list if such lists exist.
+
+    :param default_service_account: The default service account name.
+    :param allowed_service_accounts: List of allowed service accounts.
+    :param forbidden_service_accounts: List of forbidden service accounts.
+
+    :raises MLRunInvalidArgumentError: In case of misconfiguration.
+    """
+    if default_service_account and (
+        (
+            allowed_service_accounts
+            and default_service_account not in allowed_service_accounts
+        )
+        or (
+            forbidden_service_accounts
+            and default_service_account in forbidden_service_accounts
+        )
+    ):
+        raise mlrun.errors.MLRunInvalidArgumentError(
+            f"Default service account {default_service_account} is not in list of allowed "
+            + f"service accounts {allowed_service_accounts} or is in the list of forbidden service accounts "
+            + f"{forbidden_service_accounts}"
+        )

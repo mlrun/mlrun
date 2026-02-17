@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import tempfile
 import typing
 
 import httpx
@@ -35,7 +36,7 @@ import framework.utils.projects.remotes.follower as project_follower
 from framework.utils.clients.iguazio.base import BaseAsyncClient, BaseClient
 
 _GROUP_TYPE_KEY = "@type"
-_GROUP_TYPE_VALUE = "type.googleapis.com/group.Group"
+_GROUP_TYPE_VALUE = "type.googleapis.com/usergroup.Group"
 
 
 class Client(BaseClient, project_follower.Member):
@@ -151,7 +152,89 @@ class Client(BaseClient, project_follower.Member):
             _revoke_offline_token,
             mlrun.errors.MLRunUnauthorizedError,
             "Failed to revoke offline token from Iguazio",
+            auth_headers=request_headers,
         )
+
+    def get_user_id_by_username(
+        self,
+        username: str,
+        auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
+    ) -> str:
+        """
+        Translate a username to user_id by querying the Iguazio management API.
+
+        This is used when an admin wants to perform operations on another user's tokens.
+        The admin provides a username, but K8s secrets are indexed by user_id.
+
+        :param username: The username to translate to user_id.
+        :param request_headers: Request headers for authentication with the Iguazio API.
+        :return: The user_id corresponding to the username.
+        :raises mlrun.errors.MLRunUnauthorizedError: If the request fails or the user is not found.
+        """
+
+        def _get_user_id():
+            return self._client.get_user(username).metadata
+
+        return self._try_callback_with_httpx_exceptions(
+            _get_user_id,
+            mlrun.errors.MLRunUnauthorizedError,
+            f"Failed to get user id of '{username}' from Iguazio",
+            auth_headers=auth_info.request_headers,
+        )
+
+    def resolve_token_from_igz_yml(
+        self,
+        igz_yml_content: str,
+        user_id: str,
+        token_name: typing.Optional[str] = None,
+    ) -> str:
+        """
+        Use the iguazio SDK to resolve/validate a token from igz.yml content.
+
+        Creates a temporary file with the provided YAML content and uses the
+        Iguazio SDK's token file resolution to find and validate the token.
+
+        :param igz_yml_content: YAML content with tokens in igz.yml format.
+        :param user_id: The user_id for error messages.
+        :param token_name: Specific token to validate (strict mode), or None (auto-discovery).
+        :return: The resolved token name.
+        :raises MLRunNotFoundError: If no valid token found or validation fails.
+        """
+
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".yml", delete=True
+        ) as temp_file:
+            temp_file.write(igz_yml_content)
+            temp_file.flush()
+
+            try:
+                # Create a separate client configured for token file resolution
+                token_file_client = iguazio.Client(
+                    api_url=self._api_url,
+                    auto_login=False,
+                    use_token_file=True,
+                    token_file_path=temp_file.name,
+                    token_name=token_name,
+                    verify_ssl=mlrun.mlconf.iguazio_api_ssl_verify,
+                )
+                result = token_file_client.get_refresh_token()
+                if not result or not result[0]:
+                    raise mlrun.errors.MLRunNotFoundError(
+                        f"No valid tokens found for user id '{user_id}'"
+                    )
+                resolved_name, _ = result
+                return resolved_name
+
+            except ValueError as exc:
+                # Token not found, empty, or failed validation
+                raise mlrun.errors.MLRunNotFoundError(
+                    f"Token '{token_name}' not found or invalid for user id '{user_id}'"
+                ) from exc
+            except RuntimeError as exc:
+                # No valid tokens found after trying all
+                raise mlrun.errors.MLRunNotFoundError(
+                    f"No valid tokens found for user id '{user_id}'"
+                ) from exc
 
     def create_project(
         self,
@@ -186,36 +269,33 @@ class Client(BaseClient, project_follower.Member):
         auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
     ):
         self._logger.debug(
-            "Storing project owner or creating default policies in Iguazio"
+            "Ensuring default project policies exist in Iguazio", project=name
         )
 
-        def _update_owner_or_create_policies():
+        def _create_policies_if_not_exist():
             try:
-                # Try to create policies first
-                self._client.create_default_project_policies(
-                    project=project.metadata.name
-                )
+                self._client.create_default_project_policies(project=name)
                 self._logger.info(
-                    "Successfully created default project policies in Iguazio"
+                    "Successfully created default project policies in Iguazio",
+                    project=name,
                 )
             except httpx.HTTPStatusError as exc:
-                # If policies already exist (409 Conflict), update owner instead
                 if exc.response.status_code == httpx.codes.CONFLICT:
+                    # Conflict means policies already exist, which is expected when storing
+                    # an existing project (e.g., load_project, sync, or re-save).
+                    # We use "create and handle conflict" instead of "check then create"
+                    # because checking a non-existent project returns 401, not 404.
                     self._logger.debug(
-                        "Project policies already exist, updating owner instead",
-                        project=project.metadata.name,
-                    )
-                    self.patch_project(
-                        session, name, project.dict(), auth_info=auth_info
+                        "Project policies already exist, skipping", project=name
                     )
                 else:
                     # Unexpected error, re-raise
                     raise
 
         self._try_callback_with_httpx_exceptions(
-            _update_owner_or_create_policies,
+            _create_policies_if_not_exist,
             mlrun.errors.MLRunInternalServerError,
-            "Failed to store project owner or create default policies in Iguazio",
+            "Failed to store project policies in Iguazio",
             auth_headers=auth_info.request_headers,
         )
 
@@ -253,6 +333,9 @@ class Client(BaseClient, project_follower.Member):
         deletion_strategy: mlrun.common.schemas.DeletionStrategy = mlrun.common.schemas.DeletionStrategy.default(),
         auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
     ):
+        if deletion_strategy == mlrun.common.schemas.DeletionStrategy.check:
+            return
+
         self._logger.debug("Deleting project policies in Iguazio")
 
         def _delete_project_policies():

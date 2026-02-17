@@ -41,15 +41,15 @@ def test_extras_requirement_file_aligned():
     extras_requirements_file_specifiers_map = _parse_requirement_specifiers_list(
         extras_requirements_file_specifiers
     )
-    # Since these packages are only present in the mlrun-kfp image, and also can't coexist with each other,
-    # we exclude them from the comparison
-    # mlflow is only present in test image
+    # we exclude packages that are opt-in by mlrun from the comparison,
+    # i.e. they are not present in the extras-requirements.txt file
     excluded_packages = [
         "mlrun_pipelines_kfp_v1_8",
         "mlrun_pipelines_kfp_v1_8[kfp]",
         "pytest-mock-resources[postgres]",
         "mlrun_pipelines_kfp_v2",
         "mlflow",
+        "iguazio",
     ]
     for package in excluded_packages:
         if package in setup_py_extras_requirements_specifiers_map:
@@ -128,7 +128,7 @@ def test_requirement_specifiers_convention():
 
     ignored_invalid_map = {
         # See comment near requirement for why we're limiting to patch changes only for all of these
-        "storey": {"~=1.11.7"},
+        "storey": {"~=1.11.15"},
         "pydantic": {">=1.10.15", ">=1,<2"},
         "nuclio-sdk": {">=0.5"},
         "scipy": {"~=1.16.3"},

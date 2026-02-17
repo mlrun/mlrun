@@ -20,6 +20,7 @@ import v3io_frames.client
 
 import mlrun
 import mlrun.common.schemas.model_monitoring as mm_schemas
+import mlrun.model_monitoring.db.tsdb.base
 import mlrun.model_monitoring.db.tsdb.timescaledb.timescaledb_schema as timescaledb_schema
 import mlrun.utils
 from mlrun.model_monitoring.db.tsdb.timescaledb.utils.timescaledb_dataframe_processor import (
@@ -410,10 +411,19 @@ class TimescaleDBResultsQueries:
                         If not provided, will be automatically determined based on query duration.
         :return: ModelEndpointDriftValues containing time-binned drift counts
         """
-        # Prepare time range and interval using helper
-        start, end, interval = TimescaleDBQueryBuilder.prepare_time_range_and_interval(
-            self._pre_aggregate_manager, start, end, interval
-        )
+        # Use V3IO-compatible fixed-threshold interval selection for drift data when
+        # no explicit interval is provided. This ensures consistency between TSDB backends
+        # and prevents over-counting when the UI aggregates fine-grained intervals into
+        # coarser display bars.
+        # ML-12076: Formula-based interval selection (targeting ~100 data points) caused
+        # inflated counts because the UI sums 15-minute buckets into hourly bars,
+        # counting the same endpoint multiple times per hour.
+        if interval is None:
+            start, end, interval = (
+                mlrun.model_monitoring.db.tsdb.base.TSDBConnector._prepare_aligned_start_end(
+                    start, end
+                )
+            )
 
         # Build status filter for drift-related statuses only
         suspected_status = mm_schemas.ResultStatusApp.potential_detection.value  # 1

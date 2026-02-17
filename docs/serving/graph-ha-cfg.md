@@ -16,7 +16,7 @@ As explained in {ref}`serving-graph`, the serving graph is based on Nuclio funct
  
 ## Using Nuclio with stream triggers
 
-Nuclio can use different trigger types. When used with stream triggers, such as Kafka and V3IO, it uses a consumer group to 
+Nuclio can use different trigger types. When used with stream triggers, such as Kafka, RabbitMQ, and V3IO, it uses a consumer group to 
 continue reading from the last processed offset on function restart. This provides the "at least once" semantics for stateless functions. 
 However, if the function does have state, such as persisting a batch of events to storage (e.g. parquet files, database) or if the function 
 performs additional processing of events after the function handler returns, then the flow can get into situations where events seem to be 
@@ -34,18 +34,47 @@ The size of the required Window ACK is based on the number of events that could 
 define a window ACK per trigger (Kafka, V3IO stream, etc.). When used with a serving graph, the appropriate Window ACK size depends on the 
 graph structure and should be calculated accordingly. The following sections explain the relevant considerations.
 
+See {py:class}`~mlrun.datastore.KafkaSource.add_nuclio_trigger`, {py:class}`~mlrun.runtimes.RemoteRuntime.add_rabbitmq_trigger` and {py:class}`~mlrun.runtimes.RemoteRuntime.add_v3io_stream_trigger`.
+
 ## Consumer function configuration
 
-A consumer function is essentially a Nuclio function with a stream trigger. As part of the trigger, you can set a consumer group.  
+A consumer function is essentially a Nuclio function with a stream trigger. As part of the trigger, you can set a consumer group. See examples of consumer groups in [Queue (streaming)](./remote-execution.ipynb#queue-streaming).
 
-The number of replicas per function depends on the  source:
+Other configurables:
 - `StreamSource`: The number of replicas is derived from the number of shards and is therefore non-configurable. Furthermore, the number of workers in each replica is set to 1 and also is not configurable.  
-- `KafkaSource`: For Nuclio earlier than 1.12.10, it is 1 and non-configurable. For 1.12.10 and later, the number of replicas is set with, for example:
-   - `function.spec.min_replicas = 2`. Default = 1
-   - `function.spec.max_replicas = 3`. Default = 4	
-   
-   and the number of workers is set with:
-   - `KafkaSource(attributes={"max_workers": 1})`. Default = 1
+- `KafkaSource`: 
+   - For Nuclio earlier than 1.12.10, the number of replicas is 1 and non-configurable. For 1.12.10 and later, the number of replicas is set with:
+      ```
+      function.spec.min_replicas = 2 # default = 1
+      function.spec.max_replicas = 3 # default = 4
+      ```
+   - Number of workers is set with:
+     ```
+     KafkaSource(attributes={"max_workers": 1}) # default = 1
+     ```
+- `RabbitMQSource`:
+   - Replicas are set in the function spec:
+      ```
+      function.spec.min_replicas = 2
+      function.spec.max_replicas = 8
+      ```
+      or when creating the function:
+      ```
+      function = mlrun.code_to_function(
+         ...,
+         min_replicas=2,
+         max_replicas=8,
+      )
+      ```
+   - The default `num_workers` is a Nuclio default, which is 1. To modify it, pass it to `add_rabbitmq_trigger()`:
+     ```
+     function.add_rabbitmq_trigger(
+      url="amqp://host:5672",
+      exchange_name="my-exchange",
+      queue_name="my-queue",
+      num_workers=4,  # Override default of 1
+      )
+      ```
    
 The consumer function has one buffer per worker, measured in number of messages, holding the incoming events that were received by the worker and are waiting to be 
 processed. Once this buffer is full, events need to be processed so that the function is able to receive more events. The buffer size is 
@@ -120,8 +149,6 @@ and parameters that provide high availability, using a non-default configuration
 
 Make sure you thoroughly understand your serving graph and its functions before defining the `ack_window_size`. Its value depends on the 
 entire graph flow. You need to understand which steps are parallel (branching) vs. sequential invocation. Another key aspect is that the number of workers affects the window size.
-      
-See the {py:class}`~mlrun.runtimes.RemoteRuntime.add_v3io_stream_trigger`.
 
 For example:  
 - If a graph includes: consumer -> remote r1 -> remote r2:

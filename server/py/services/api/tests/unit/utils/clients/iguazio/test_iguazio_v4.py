@@ -143,7 +143,7 @@ async def test_verify_request_session_success(
             "metadata": {},
             "relationships": [
                 {
-                    "@type": "type.googleapis.com/group.Group",
+                    "@type": "type.googleapis.com/usergroup.Group",
                     "metadata": {
                         "id": "dummy-group-id-g1",
                     },
@@ -155,7 +155,7 @@ async def test_verify_request_session_success(
             "metadata": {"username": "dummy-user"},
             "relationships": [
                 {
-                    "@type": "type.googleapis.com/group.Group",
+                    "@type": "type.googleapis.com/usergroup.Group",
                     "metadata": {"id": "dummy-group-id-g1"},
                 },
             ],
@@ -165,7 +165,7 @@ async def test_verify_request_session_success(
             "metadata": "not-a-dict",
             "relationships": [
                 {
-                    "@type": "type.googleapis.com/group.Group",
+                    "@type": "type.googleapis.com/usergroup.Group",
                     "metadata": {
                         "id": "dummy-group-id-g1",
                     },
@@ -307,7 +307,7 @@ async def test_verify_request_session_single_group_untyped(
         "metadata": {"username": "dummy-user", "id": "dummy-id"},
         "relationships": [
             {
-                "@type": "type.googleapis.com/group.Group",
+                "@type": "type.googleapis.com/usergroup.Group",
                 "metadata": {"id": "valid-group-id"},
             },
             {
@@ -337,13 +337,48 @@ async def test_verify_request_session_single_group_untyped(
     assert auth_info.user_group_ids == ["valid-group-id"]
 
 
+@pytest.mark.parametrize("iguazio_client", [("v4", "sync")], indirect=True)
+def test_delete_project_check_skips_igz_delete(
+    iguazio_client, mock_service_account_auth_headers
+) -> None:
+    """Ensure IG4 check does not call igz delete project policies."""
+    iguazio_client.delete_project(
+        None,
+        TEST_PROJECT_NAME,
+        deletion_strategy=mlrun.common.schemas.DeletionStrategy.check,
+    )
+    iguazio_client._client.delete_project_policies.assert_not_called()
+
+
+@pytest.mark.parametrize("iguazio_client", [("v4", "sync")], indirect=True)
+@pytest.mark.parametrize(
+    "deletion_strategy",
+    (
+        mlrun.common.schemas.DeletionStrategy.restricted,
+        mlrun.common.schemas.DeletionStrategy.cascading,
+    ),
+)
+def test_delete_project_calls_igz_delete(
+    iguazio_client,
+    deletion_strategy: mlrun.common.schemas.DeletionStrategy,
+    mock_service_account_auth_headers,
+) -> None:
+    """Ensure IG4 delete calls igz delete project policies once."""
+    iguazio_client.delete_project(
+        None, TEST_PROJECT_NAME, deletion_strategy=deletion_strategy
+    )
+    iguazio_client._client.delete_project_policies.assert_called_once_with(
+        project=TEST_PROJECT_NAME
+    )
+
+
 def sample_user_info(username="dummy-user", user_id="dummy-user-id", group_ids=None):
     group_ids = group_ids or ["dummy-group-id-g1", "dummy-group-id-g2"]
     return {
         "metadata": {"resourceType": "user", "username": username, "id": user_id},
         "relationships": [
             {
-                "@type": "type.googleapis.com/group.Group",
+                "@type": "type.googleapis.com/usergroup.Group",
                 "metadata": {"id": gid},
             }
             for gid in group_ids
@@ -456,6 +491,94 @@ def test_revoke_offline_token_success(
 
 
 @pytest.mark.parametrize("iguazio_client", [("v4", "sync")], indirect=True)
+def test_resolve_token_from_igz_yml_success(iguazio_client, monkeypatch):
+    """Test successful token resolution from igz.yml content."""
+    igz_yml_content = "secretTokens:\n- name: my-token\n  token: jwt-value\n"
+
+    # Mock iguazio.Client for the token file client
+    mock_token_client = unittest.mock.Mock()
+    mock_token_client.get_refresh_token.return_value = ("my-token", "jwt-value")
+
+    with unittest.mock.patch("iguazio.Client", return_value=mock_token_client):
+        result = iguazio_client.resolve_token_from_igz_yml(
+            igz_yml_content, "test-user", "my-token"
+        )
+
+    assert result == "my-token"
+    mock_token_client.get_refresh_token.assert_called_once()
+
+
+@pytest.mark.parametrize("iguazio_client", [("v4", "sync")], indirect=True)
+def test_resolve_token_from_igz_yml_auto_discovery(iguazio_client, monkeypatch):
+    """Test auto-discovery mode returns first valid token."""
+    igz_yml_content = "secretTokens:\n- name: default\n  token: jwt-default\n- name: other\n  token: jwt-other\n"
+
+    mock_token_client = unittest.mock.Mock()
+    mock_token_client.get_refresh_token.return_value = ("default", "jwt-default")
+
+    with unittest.mock.patch(
+        "iguazio.Client", return_value=mock_token_client
+    ) as mock_class:
+        result = iguazio_client.resolve_token_from_igz_yml(
+            igz_yml_content, "test-user", None
+        )
+
+    assert result == "default"
+    # Verify token_name=None for auto-discovery
+    call_kwargs = mock_class.call_args.kwargs
+    assert call_kwargs["token_name"] is None
+
+
+@pytest.mark.parametrize("iguazio_client", [("v4", "sync")], indirect=True)
+def test_resolve_token_from_igz_yml_token_not_found(iguazio_client):
+    """Test MLRunNotFoundError when specific token is not found."""
+    igz_yml_content = "secretTokens:\n- name: other-token\n  token: jwt-value\n"
+
+    with unittest.mock.patch(
+        "iguazio.Client", side_effect=ValueError("Token 'my-token' not found")
+    ):
+        with pytest.raises(
+            mlrun.errors.MLRunNotFoundError, match="not found or invalid"
+        ):
+            iguazio_client.resolve_token_from_igz_yml(
+                igz_yml_content, "test-user", "my-token"
+            )
+
+
+@pytest.mark.parametrize("iguazio_client", [("v4", "sync")], indirect=True)
+def test_resolve_token_from_igz_yml_no_valid_tokens(iguazio_client):
+    """Test MLRunNotFoundError when no valid tokens are found in auto-discovery."""
+    igz_yml_content = "secretTokens:\n- name: expired\n  token: expired-jwt\n"
+
+    with unittest.mock.patch(
+        "iguazio.Client", side_effect=RuntimeError("No valid tokens found")
+    ):
+        with pytest.raises(
+            mlrun.errors.MLRunNotFoundError, match="No valid tokens found"
+        ):
+            iguazio_client.resolve_token_from_igz_yml(
+                igz_yml_content, "test-user", None
+            )
+
+
+@pytest.mark.parametrize("iguazio_client", [("v4", "sync")], indirect=True)
+def test_resolve_token_from_igz_yml_sdk_returns_none(iguazio_client):
+    """Test MLRunNotFoundError when SDK returns None."""
+    igz_yml_content = "secretTokens:\n- name: some-token\n  token: jwt-value\n"
+
+    mock_token_client = unittest.mock.Mock()
+    mock_token_client.get_refresh_token.return_value = (None, None)
+
+    with unittest.mock.patch("iguazio.Client", return_value=mock_token_client):
+        with pytest.raises(
+            mlrun.errors.MLRunNotFoundError, match="No valid tokens found"
+        ):
+            iguazio_client.resolve_token_from_igz_yml(
+                igz_yml_content, "test-user", None
+            )
+
+
+@pytest.mark.parametrize("iguazio_client", [("v4", "sync")], indirect=True)
 def test_create_project(
     mock_session, iguazio_client, igv4_auth_info, mock_service_account_auth_headers
 ):
@@ -523,23 +646,14 @@ def test_store_project(
         mock_session, TEST_PROJECT_NAME, project, auth_info=igv4_auth_info
     )
 
-    # create_project is always called first (which calls create_default_project_policies)
+    # Policies creation is always attempted
     iguazio_client._client.create_default_project_policies.assert_called_once_with(
         project=TEST_PROJECT_NAME
     )
 
-    if not project_exists:
-        # New project: create succeeded, no need to update owner
-        iguazio_client._client.update_project_owner.assert_not_called()
-    else:
-        # Existing project: 409 Conflict triggered patch_project
-        if not owner:
-            iguazio_client._client.update_project_owner.assert_not_called()
-        else:
-            iguazio_client._client.update_project_owner.assert_called_once_with(
-                project=TEST_PROJECT_NAME,
-                options=iguazio.schemas.UpdateProjectOwnerOptionsV1(owner=owner),
-            )
+    # store_project should not update the owner.
+    # Owner updates should only happen via explicit patch_project calls.
+    iguazio_client._client.update_project_owner.assert_not_called()
 
 
 @pytest.mark.parametrize("iguazio_client", [("v4", "sync")], indirect=True)
@@ -727,11 +841,11 @@ def _generate_igv4_httpx_exception(
                 },
                 "relationships": [
                     {
-                        "@type": "type.googleapis.com/group.Group",
+                        "@type": "type.googleapis.com/usergroup.Group",
                         "metadata": {"id": "group1"},
                     },
                     {
-                        "@type": "type.googleapis.com/group.Group",
+                        "@type": "type.googleapis.com/usergroup.Group",
                         "metadata": {"id": "group2"},
                     },
                 ],

@@ -110,101 +110,66 @@ def test_enrich_headers_injects_context_id(set_context_id):
     assert result[mlrun.common.schemas.HeaderNames.igz_ctx] == context_id
 
 
-def test_enrich_headers_adds_projects_role_when_leader_is_mlrun(set_context_id):
+def test_enrich_headers_adds_projects_role(set_context_id):
+    """
+    Test that the projects role header is always added when the path contains "projects"
+    """
     set_context_id(None)
-    original_leader = mlrun.mlconf.httpdb.projects.leader
-    mlrun.mlconf.httpdb.projects.leader = "mlrun"
-
-    try:
-        result = clients_helpers.enrich_headers(
-            headers={}, path="/api/v1/projects/my-project"
-        )
-        assert result[mlrun.common.schemas.HeaderNames.projects_role] == "mlrun"
-    finally:
-        mlrun.mlconf.httpdb.projects.leader = original_leader
-
-
-def test_enrich_headers_does_not_add_projects_role_when_leader_is_not_mlrun(
-    set_context_id,
-):
-    set_context_id(None)
-    original_leader = mlrun.mlconf.httpdb.projects.leader
-    mlrun.mlconf.httpdb.projects.leader = "iguazio"
-
-    try:
-        result = clients_helpers.enrich_headers(
-            headers={}, path="/api/v1/projects/my-project"
-        )
-        assert mlrun.common.schemas.HeaderNames.projects_role not in result
-    finally:
-        mlrun.mlconf.httpdb.projects.leader = original_leader
+    result = clients_helpers.enrich_headers(
+        headers={}, path="/api/v1/projects/my-project"
+    )
+    assert (
+        result[mlrun.common.schemas.HeaderNames.projects_role]
+        == mlrun.mlconf.httpdb.projects.leader
+    )
 
 
 def test_enrich_headers_does_not_add_projects_role_when_path_is_none(set_context_id):
     set_context_id(None)
-    original_leader = mlrun.mlconf.httpdb.projects.leader
-    mlrun.mlconf.httpdb.projects.leader = "mlrun"
-
-    try:
-        result = clients_helpers.enrich_headers(headers={}, path=None)
-        assert mlrun.common.schemas.HeaderNames.projects_role not in result
-    finally:
-        mlrun.mlconf.httpdb.projects.leader = original_leader
+    result = clients_helpers.enrich_headers(headers={}, path=None)
+    assert mlrun.common.schemas.HeaderNames.projects_role not in result
 
 
 def test_enrich_headers_does_not_add_projects_role_when_path_has_no_projects(
     set_context_id,
 ):
     set_context_id(None)
-    original_leader = mlrun.mlconf.httpdb.projects.leader
-    mlrun.mlconf.httpdb.projects.leader = "mlrun"
-
-    try:
-        result = clients_helpers.enrich_headers(
-            headers={}, path="/api/v1/functions/my-function"
-        )
-        assert mlrun.common.schemas.HeaderNames.projects_role not in result
-    finally:
-        mlrun.mlconf.httpdb.projects.leader = original_leader
+    result = clients_helpers.enrich_headers(
+        headers={}, path="/api/v1/functions/my-function"
+    )
+    assert mlrun.common.schemas.HeaderNames.projects_role not in result
 
 
 def test_enrich_headers_does_not_override_existing_projects_role(set_context_id):
     set_context_id(None)
-    original_leader = mlrun.mlconf.httpdb.projects.leader
-    mlrun.mlconf.httpdb.projects.leader = "mlrun"
     existing_role = "custom-role"
 
-    try:
-        result = clients_helpers.enrich_headers(
-            headers={mlrun.common.schemas.HeaderNames.projects_role: existing_role},
-            path="/api/v1/projects/my-project",
-        )
-        assert result[mlrun.common.schemas.HeaderNames.projects_role] == existing_role
-    finally:
-        mlrun.mlconf.httpdb.projects.leader = original_leader
+    result = clients_helpers.enrich_headers(
+        headers={mlrun.common.schemas.HeaderNames.projects_role: existing_role},
+        path="/api/v1/projects/my-project",
+    )
+    assert result[mlrun.common.schemas.HeaderNames.projects_role] == existing_role
 
 
 def test_enrich_headers_preserves_existing_headers(set_context_id):
     context_id = "test-context"
     set_context_id(context_id)
-    original_leader = mlrun.mlconf.httpdb.projects.leader
-    mlrun.mlconf.httpdb.projects.leader = "mlrun"
 
-    try:
-        headers = {
-            "Authorization": "Bearer token",
-            "X-Custom-Header": "custom-value",
-        }
-        result = clients_helpers.enrich_headers(
-            headers=headers, path="/api/v1/projects/my-project"
-        )
+    headers = {
+        "Authorization": "Bearer token",
+        "X-Custom-Header": "custom-value",
+    }
+    result = clients_helpers.enrich_headers(
+        headers=headers, path="/api/v1/projects/my-project"
+    )
 
-        # Should preserve existing headers
-        assert result["Authorization"] == "Bearer token"
-        assert result["X-Custom-Header"] == "custom-value"
-        # Should add context id
-        assert result[mlrun.common.schemas.HeaderNames.igz_ctx] == context_id
-        # Should add projects role
-        assert result[mlrun.common.schemas.HeaderNames.projects_role] == "mlrun"
-    finally:
-        mlrun.mlconf.httpdb.projects.leader = original_leader
+    # Should preserve existing headers
+    assert result["Authorization"] == "Bearer token"
+    assert result["X-Custom-Header"] == "custom-value"
+    # Should add context id
+    assert result[mlrun.common.schemas.HeaderNames.igz_ctx] == context_id
+    # Should add projects role
+    assert (
+        result[mlrun.common.schemas.HeaderNames.projects_role]
+        == mlrun.mlconf.httpdb.projects.leader
+    )

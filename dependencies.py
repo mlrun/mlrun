@@ -60,6 +60,7 @@ def extra_requirements() -> dict[str, list[str]]:
             # because confluent kafka supports avro format by default
             "avro~=1.11",
         ],
+        "rabbitmq": ["pika~=1.3"],
         "redis": ["redis~=4.3"],
         "databricks-sdk": ["databricks-sdk~=0.20.0"],
         "sqlalchemy": ["sqlalchemy~=2.0"],
@@ -84,6 +85,7 @@ def extra_requirements() -> dict[str, list[str]]:
             "dev-postgres": ["pytest-mock-resources[postgres]~=2.12"],
             "kfp18": ["mlrun_pipelines_kfp_v1_8[kfp]~=0.6.0"],
             "mlflow": ["mlflow~=3.0"],
+            "ig4": ["iguazio~=0.0.1"],
             # TODO uncomment when KFP 1.8 support is removed
             # "kfp2": ["mlrun_pipelines_kfp_v2[kfp]>=0.5.0 ; python_version >= '3.11'"],
             "api": api_deps,

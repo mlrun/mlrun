@@ -35,6 +35,7 @@ class Claims:
 
     SUBJECT = "sub"
     EXPIRATION = "exp"
+    PREFERRED_USERNAME = "preferred_username"
 
 
 def load_offline_token(raise_on_error=True) -> typing.Optional[str]:
@@ -342,6 +343,30 @@ def resolve_jwt_subject(
         # ability to verify its signature here.
         return _decode_token_unverified(token).get(Claims.SUBJECT)
     except jwt.PyJWTError as exc:
+        mlrun.utils.helpers.raise_or_log_error(
+            f"Failed to decode JWT token: {exc}", raise_on_error
+        )
+        return None
+
+
+def resolve_jwt_username(
+    token: str, raise_on_error: bool = False
+) -> typing.Optional[str]:
+    """
+    Extract the 'preferred_username' claim from a JWT token.
+
+    The token is decoded without signature verification since it has already
+    been verified earlier during the authentication process.
+
+    :param token: The JWT token string.
+    :param raise_on_error: Whether to raise an error or log a warning on failure.
+    :return: The 'preferred_username' claim value, or None if not present or extraction fails.
+    """
+    try:
+        # This method is used from the client side after receiving this token from the server, there's no need or
+        # ability to verify its signature here.
+        return _decode_token_unverified(token).get(Claims.PREFERRED_USERNAME)
+    except mlrun.errors.MLRunInvalidArgumentError as exc:
         mlrun.utils.helpers.raise_or_log_error(
             f"Failed to decode JWT token: {exc}", raise_on_error
         )

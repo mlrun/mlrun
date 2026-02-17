@@ -635,3 +635,29 @@ def test_is_token_expired_missing_exp():
         mlrun.errors.MLRunInvalidArgumentError, match="Token is missing the 'exp'"
     ):
         mlrun.auth.utils.is_token_expired(token)
+
+
+@pytest.mark.parametrize(
+    "token_payload, expected_username",
+    [
+        # Token with preferred_username claim
+        ({"preferred_username": "alice"}, "alice"),
+        # Token without preferred_username claim
+        ({}, None),
+        # Token with empty preferred_username
+        ({"preferred_username": ""}, ""),
+    ],
+)
+def test_resolve_jwt_username(token_payload, expected_username):
+    """Test extracting 'preferred_username' claim from JWT token."""
+    jwt_token = _create_jwt_token(token_payload, add_defaults=True)
+    result = mlrun.auth.utils.resolve_jwt_username(jwt_token, raise_on_error=False)
+    assert result == expected_username
+
+
+def test_resolve_jwt_username_invalid_token():
+    """Test that resolve_jwt_username handles invalid tokens gracefully."""
+    result = mlrun.auth.utils.resolve_jwt_username(
+        "not-a-valid-jwt", raise_on_error=False
+    )
+    assert result is None

@@ -70,6 +70,7 @@ class AuthorizationResourceTypes(mlrun.common.types.StrEnum):
     datastore_profile = "datastore-profile"
     api_gateway = "api-gateway"
     project_summaries = "project-summaries"
+    tokens = "tokens"
 
     def to_resource_string(
         self,
@@ -110,12 +111,18 @@ class AuthorizationResourceTypes(mlrun.common.types.StrEnum):
             # workflow define how to run a pipeline and can be considered as the specification of a pipeline.
             AuthorizationResourceTypes.workflow: "/projects/{project_name}/workflows/{resource_name}",
             AuthorizationResourceTypes.api_gateway: "/projects/{project_name}/api-gateways/{resource_name}",
+            AuthorizationResourceTypes.tokens: "/user_secrets/tokens",
         }[self].format(project_name=project_name, resource_name=resource_name)
 
 
 class AuthorizationVerificationInput(pydantic.v1.BaseModel):
     resource: str
     action: AuthorizationAction
+
+
+class AuthInfoKind(mlrun.common.types.StrEnum):
+    user = "user"
+    service_account = "serviceaccount"
 
 
 class AuthInfo(pydantic.v1.BaseModel):
@@ -136,6 +143,7 @@ class AuthInfo(pydantic.v1.BaseModel):
     user_unix_id: typing.Optional[int] = None
     projects_role: typing.Optional[ProjectsRole] = None
     planes: list[str] = []
+    kind: AuthInfoKind = AuthInfoKind.user
 
     def get_member_ids(self) -> list[str]:
         member_ids = []
@@ -149,6 +157,9 @@ class AuthInfo(pydantic.v1.BaseModel):
 
     def get_session(self) -> str:
         return self.data_session or self.session
+
+    def is_service_account(self) -> bool:
+        return self.kind == AuthInfoKind.service_account
 
 
 class Credentials(pydantic.v1.BaseModel):

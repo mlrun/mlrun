@@ -73,7 +73,7 @@ from ..utils import (
     is_explicit_ack_supported,
     lock_hub_uri_version,
 )
-from .utils import StepToDict, _extract_input_data, _update_result_body
+from .utils import StepToDict, _extract_input_data, _MappedBody, _update_result_body
 
 callable_prefix = "_"
 path_splitter = "/"
@@ -935,9 +935,13 @@ class TaskStep(BaseStep):
                     f"step {self.name} does not have a handler"
                 )
 
-            result = self._handler(
-                _extract_input_data(self.input_path, event.body), *args, **kwargs
-            )
+            body = _extract_input_data(self.input_path, event.body)
+            if isinstance(body, _MappedBody):
+                # body_map-transformed bodies are unpacked as **kwargs
+                # so handler signatures like def fun(book: str) work
+                result = self._handler(**body, **kwargs)
+            else:
+                result = self._handler(body, *args, **kwargs)
             event.body = _update_result_body(self.result_path, event.body, result)
         except Exception as exc:
             if self._on_error_handler:
@@ -1245,6 +1249,26 @@ class Model(storey.ParallelExecutionRunnable, ModelObj):
         )
         cls._dict_fields.remove("self")
 
+    def is_streaming(self) -> bool:
+        """
+        Returns True if this model produces streaming output (generator).
+
+        Checks if predict() or predict_async() are generator functions.
+
+        Override to return True if predict() or predict_async() return a generator
+        without being generator functions themselves. For example::
+
+            def predict(self, body, **kwargs):
+                return self._external_streaming_api(body)  # Returns a generator
+
+
+            def is_streaming(self) -> bool:
+                return True  # Override required since predict() is not a generator function
+        """
+        return inspect.isgeneratorfunction(self.predict) or inspect.isasyncgenfunction(
+            self.predict_async
+        )
+
     def load(self) -> None:
         """Override to load model if needed."""
         self._load_artifacts()
@@ -1304,11 +1328,23 @@ class Model(storey.ParallelExecutionRunnable, ModelObj):
         self.load()
 
     def predict(self, body: Any, **kwargs) -> Any:
-        """Override to implement prediction logic. If the logic requires asyncio, override predict_async() instead."""
+        """
+        Override to implement prediction logic. If the logic requires asyncio, override predict_async() instead.
+
+        This method may be a generator function to implement streaming. It may also return a generator
+        (without being a generator function itself), in which case :meth:`is_streaming` should be
+        overridden to return True.
+        """
         raise NotImplementedError("predict() method not implemented")
 
     async def predict_async(self, body: Any, **kwargs) -> Any:
-        """Override to implement prediction logic if the logic requires asyncio."""
+        """
+        Override to implement prediction logic if the logic requires asyncio.
+
+        This method may be an async generator function to implement streaming. It may also return an
+        async generator (without being an async generator function itself), in which case
+        :meth:`is_streaming` should be overridden to return True.
+        """
         raise NotImplementedError("predict_async() method not implemented")
 
     def run(self, body: Any, path: str, origin_name: Optional[str] = None) -> Any:
@@ -1429,7 +1465,7 @@ class LLModel(Model):
     def predict(
         self,
         body: Any,
-        messages: Optional[list[dict]] = None,
+        messages: Optional[Union[list[dict], list[list[dict]]]] = None,
         invocation_config: Optional[dict] = None,
         **kwargs,
     ) -> Any:
@@ -1454,8 +1490,7 @@ class LLModel(Model):
             logger.debug(
                 "LLModel prediction completed",
                 model_name=self.name,
-                answer=response_with_stats.get("answer"),
-                usage=response_with_stats.get("usage"),
+                response=response_with_stats,
             )
         else:
             logger.warning(
@@ -1469,7 +1504,7 @@ class LLModel(Model):
     async def predict_async(
         self,
         body: Any,
-        messages: Optional[list[dict]] = None,
+        messages: Optional[Union[list[dict], list[list[dict]]]] = None,
         invocation_config: Optional[dict] = None,
         **kwargs,
     ) -> Any:
@@ -1494,8 +1529,7 @@ class LLModel(Model):
             logger.debug(
                 "LLModel async prediction completed",
                 model_name=self.name,
-                answer=response_with_stats.get("answer"),
-                usage=response_with_stats.get("usage"),
+                response=response_with_stats,
             )
         else:
             logger.warning(
@@ -1587,7 +1621,33 @@ class LLModel(Model):
             prompt_legend = llm_prompt_artifact.spec.prompt_legend
             prompt_template = deepcopy(llm_prompt_artifact.read_prompt())
             invocation_config = llm_prompt_artifact.spec.invocation_config
+
         input_data = copy(get_data_from_path(self._input_path, body))
+
+        # Handle batch input (list of dicts)
+        if isinstance(input_data, list):
+            enriched_messages_list = []
+            for event in input_data:
+                enriched_messages = self._enrich_single_event(
+                    event, prompt_template, prompt_legend
+                )
+                enriched_messages_list.append(enriched_messages)
+            return enriched_messages_list, invocation_config
+
+        # Handle single input (dict)
+        enriched_messages = self._enrich_single_event(
+            input_data, prompt_template, prompt_legend
+        )
+        return enriched_messages, invocation_config
+
+    def _enrich_single_event(
+        self,
+        input_data: dict,
+        prompt_template: list,
+        prompt_legend: dict,
+    ) -> list:
+        enriched_template = []
+
         if isinstance(input_data, dict) and prompt_template:
             kwargs = (
                 {
@@ -1600,7 +1660,8 @@ class LLModel(Model):
             )
             input_data.update(kwargs)
             default_place_holders = PlaceholderDefaultDict(lambda: None, input_data)
-            for message in prompt_template:
+            enriched_template = deepcopy(prompt_template)
+            for message in enriched_template:
                 try:
                     message["content"] = message["content"].format(**input_data)
                 except KeyError as e:
@@ -1615,14 +1676,15 @@ class LLModel(Model):
         elif isinstance(input_data, dict) and not prompt_template:
             # If there is no prompt template, we assume the input data is already in the correct format.
             logger.debug("Attempting to retrieve messages from the request body.")
-            prompt_template = input_data.get("messages", [])
+            enriched_template = input_data.get("messages", [])
         else:
             logger.warning(
                 "Expected input data to be a dict, prompt template stays unformatted",
                 model_name=self.name,
                 input_data_type=type(input_data).__name__,
             )
-        return prompt_template, invocation_config
+
+        return enriched_template
 
     def _get_invocation_artifact(
         self, origin_name: Optional[str] = None
@@ -1762,16 +1824,32 @@ class ModelRunner(storey.ParallelExecution):
             event._metadata = {}
 
         event._metadata["model_runner_name"] = self.name
-        event._metadata["inputs"] = deepcopy(event.body)
+        # batch of events:
+        if storey.flow.is_batched_event(event):
+            event._metadata["inputs"] = [sub_event.body for sub_event in event.body]
+        else:
+            event._metadata["inputs"] = deepcopy(event.body)
 
         return event
 
     def select_runnables(self, event):
         models = cast(list[Model], self.runnables)
-        return self.model_runner_selector.select_models(event, models)
+        selected = self.model_runner_selector.select_models(event, models)
+        if selected is not None and hasattr(event, "_metadata"):
+            event._metadata["selected_models"] = [
+                model if isinstance(model, str) else model.name for model in selected
+            ]
+        return selected
 
     def select_outlets(self, event) -> Optional[Collection[str]]:
-        sys_outlets = [f"{self.name}_error_raise"]
+        is_batched = False
+        if isinstance(event, list) and any(
+            hasattr(subevent, "body") for subevent in event
+        ):
+            is_batched = True
+            sys_outlets = [f"{self.name}_unpacker"]
+        else:
+            sys_outlets = [f"{self.name}_error_raise"]
         if "background_task_status_step" in self._name_to_outlet:
             sys_outlets.append("background_task_status_step")
         if self._raise_exception and self._is_error(event):
@@ -1781,16 +1859,32 @@ class ModelRunner(storey.ParallelExecution):
             return (
                 user_outlets if isinstance(user_outlets, list) else [user_outlets]
             ) + sys_outlets
-        return None
 
-    def _is_error(self, event: dict) -> bool:
-        if len(self.runnables) == 1:
-            if isinstance(event, dict):
-                return event.get("error") is not None
+        #  fall to default behavior of routing to all valid outlets
+        all_outlets = list(self._name_to_outlet.keys())
+        if is_batched:
+            all_outlets.remove(f"{self.name}_error_raise")
         else:
-            for model in event:
-                body_by_model = event.get(model)
-                if isinstance(body_by_model, dict) and "error" in body_by_model:
+            all_outlets.remove(f"{self.name}_unpacker")
+        return all_outlets
+
+    def _is_error(self, event: Union[dict, list]) -> bool:
+        if isinstance(event, dict):
+            if len(self.runnables) == 1:
+                if isinstance(event, dict):
+                    return event.get("error") is not None
+            else:
+                for model in event:
+                    body_by_model = event.get(model)
+                    if isinstance(body_by_model, dict) and "error" in body_by_model:
+                        return True
+        elif isinstance(event, list):
+            for sub_event in event:
+                if not hasattr(sub_event, "body"):
+                    # a regular output, not a sub-event in a batch:
+                    return False
+                #  batch case, event is list of sub events:
+                if self._is_error(sub_event.body):
                     return True
         return False
 
@@ -2471,6 +2565,11 @@ class ModelRunnerErrorRaiser(storey.MapClass):
                     should_raise = event.body.get("error") is not None
                     errors[self._models_names[0]] = event.body.get("error")
             else:
+                if storey.flow.is_batched_event(event):
+                    # TODO fix error raiser for batch, ML-12068
+                    return event
+                if not isinstance(event.body, dict):
+                    return event
                 for model in event.body:
                     body_by_model = event.body.get(model)
                     errors[model] = None
@@ -2899,7 +2998,6 @@ class FlowStep(BaseStep):
             raise GraphError(
                 "sync engine can only have one starting step (without .after)"
             )
-
         default_final_step = None
         if self.final_step:
             if self.final_step not in self.steps:
@@ -2908,8 +3006,9 @@ class FlowStep(BaseStep):
                 )
             default_final_step = self.final_step
 
-        elif len(self._start_steps) == 1:
-            # find the final step in case if a simple sequence of steps
+        elif len(self._start_steps) == 1 and not self.allow_cyclic:
+            # find the final step in case of a simple sequence of steps
+            # default_final_step is used only for feature sets therefore it won't be set when cycles are allowed
             next_obj = self._start_steps[0]
             while next_obj:
                 next = next_obj.next
@@ -3012,9 +3111,7 @@ class FlowStep(BaseStep):
     @staticmethod
     async def _await_and_return_id(awaitable, event):
         await awaitable
-        event = copy(event)
-        event.body = {"id": event.id}
-        return event
+        return {"id": event.id}
 
     def run(self, event, *args, **kwargs):
         if self._controller:
@@ -3982,6 +4079,10 @@ def _init_async_objects(context, steps, root):
                     )
 
             elif not step.async_object or not hasattr(step.async_object, "_outlets"):
+                if not callable(step._handler):
+                    raise mlrun.errors.MLRunValueError(
+                        f"Step '{step.name}' does not have a handler that can be called"
+                    )
                 # if regular class, wrap with storey Map
                 step._async_object = storey.Map(
                     step._handler,
@@ -3996,12 +4097,14 @@ def _init_async_objects(context, steps, root):
                 )
             if (
                 respond_supported
-                and not step.next
+                and (
+                    not step.next or root.allow_cyclic
+                )  # last step can be part of a cycle
                 and hasattr(step, "responder")
                 and step.responder
             ):
                 # if responder step (return result), add Complete()
-                step.async_object.to(storey.Complete(full_event=True))
+                step.async_object.to(storey.Complete())
                 wait_for_result = True
 
     source_args = context.get_param("source_args", {})

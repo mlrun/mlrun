@@ -25,6 +25,13 @@ Upgrading these three MLRun dependencies spans several releases.  The upgrades a
 
 See a full description of KFP, Python, and the workflow engines in {ref}`local-remote`. Specific changes are listed under the relevant versions.
 
+(v1102)=
+## v1.10.2 (February 2025)
+### Closed issues
+| ID    |Description                                                                 |
+|-------|----------------------------------------------------------------------------|
+|ML-11771|Resolved issue of Users temporarily unable to access projects by improving all the async clients to use per-thread session instances and all http clients to use a dummy cookie jar.|
+
 (v1101)=
 ## v1.10.1 (January 2026)
 
@@ -461,7 +468,7 @@ To upgrade the MLRun server:
 | ID      | Description                                                                                                 |
 |---------|-------------------------------------------------------------------------------------------------------------|
 | ML-6052 | New page: {ref}`log-artifacts`.                                                                             |
-| ML-7480 | New note: [ARM64 (Apple Silicon) Users and Python 3.9](#apple-silicon). |
+| ML-7480 | New note: [ARM64 (Apple Silicon) Users and Python 3.9](https://docs.mlrun.org/en/v1.7/install/remote.html#note-for-arm64-apple-silicon-users). |
 | ML-7669 | New topic: [Setting the log level](../runtimes/configuring-job-resources.md#setting-the-log-level).         |
 | NA      | New tutorial: {ref}`genai-02-mm-llm`.                                                                       |
 | NA      | New page: {ref}`mm-applications`.                                                                           |

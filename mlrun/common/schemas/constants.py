@@ -110,6 +110,8 @@ class HeaderNames:
     cookies = "cookies"
     cookie = "cookie"
     x_request_id = "x-request-id"
+    igz_ctx = "x-igz-ctx"
+    igz_ctx_legacy = "igz-ctx"
     patch_mode = f"{headers_prefix}patch-mode"
     deletion_strategy = f"{headers_prefix}deletion-strategy"
     secret_store_token = f"{headers_prefix}secret-store-token"

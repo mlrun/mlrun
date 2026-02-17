@@ -43,6 +43,7 @@ import mlrun.common.types
 import mlrun.k8s_utils
 import mlrun.platforms
 import mlrun.projects
+import mlrun.runtime_configuration_context
 import mlrun.runtimes.nuclio.api_gateway
 import mlrun.runtimes.nuclio.function
 import mlrun.utils
@@ -632,7 +633,7 @@ class HTTPRunDB(RunDBInterface):
             )
             for prefix in ["default", "user_space", "monitoring_application"]:
                 store_prefix_value = model_monitoring_store_prefixes.get(prefix)
-                if server_prefix_value is not None:
+                if store_prefix_value is not None:
                     setattr(
                         config.model_endpoint_monitoring.store_prefixes,
                         prefix,
@@ -641,6 +642,11 @@ class HTTPRunDB(RunDBInterface):
             config.httpdb.authentication.mode = (
                 server_cfg.get("authentication_mode")
                 or config.httpdb.authentication.mode
+            )
+
+            config.httpdb.authorization.namespaces.resources = (
+                server_cfg.get("authorization_namespaces_resources")
+                or config.httpdb.authorization.namespaces.resources
             )
 
             # Iguazio V4 OAuth token config auto-initialization
@@ -4045,6 +4051,8 @@ class HTTPRunDB(RunDBInterface):
         image: str = "mlrun/mlrun",
         deploy_histogram_data_drift_app: bool = True,
         fetch_credentials_from_sys_config: bool = False,
+        lag_threshold: int | None = None,
+        lag_event_cooldown: int | None = None,
     ) -> None:
         """
         Deploy model monitoring application controller, writer and stream functions.
@@ -4062,17 +4070,27 @@ class HTTPRunDB(RunDBInterface):
                                                   By default, the image is mlrun/mlrun.
         :param deploy_histogram_data_drift_app:   If true, deploy the default histogram-based data drift application.
         :param fetch_credentials_from_sys_config: If true, fetch the credentials from the system configuration.
+        :param lag_threshold:                     Lag threshold in minutes for writer lag detection.
+        :param lag_event_cooldown:                Cooldown in minutes between consecutive lag events per worker.
 
         """
+        auth_token_name = mlrun.runtime_configuration_context.RuntimeConfigurationContext.get_auth_token_name()
+
+        params = {
+            "base_period": base_period,
+            "image": image,
+            "deploy_histogram_data_drift_app": deploy_histogram_data_drift_app,
+            "fetch_credentials_from_sys_config": fetch_credentials_from_sys_config,
+            "auth_token_name": auth_token_name,
+        }
+        if lag_threshold is not None:
+            params["lag_threshold"] = lag_threshold
+        if lag_event_cooldown is not None:
+            params["lag_event_cooldown"] = lag_event_cooldown
         self.api_call(
             method=mlrun.common.types.HTTPMethod.PUT,
             path=f"projects/{project}/model-monitoring/",
-            params={
-                "base_period": base_period,
-                "image": image,
-                "deploy_histogram_data_drift_app": deploy_histogram_data_drift_app,
-                "fetch_credentials_from_sys_config": fetch_credentials_from_sys_config,
-            },
+            params=params,
             timeout=300,  # 5 minutes
         )
 
@@ -4760,6 +4778,8 @@ class HTTPRunDB(RunDBInterface):
 
         :returns:    :py:class:`~mlrun.common.schemas.WorkflowResponse`.
         """
+        auth_token_name = mlrun.runtime_configuration_context.RuntimeConfigurationContext.get_auth_token_name()
+
         image = (
             workflow_spec.image
             if hasattr(workflow_spec, "image")
@@ -4788,6 +4808,7 @@ class HTTPRunDB(RunDBInterface):
             req["spec"] = workflow_spec
         req["spec"]["image"] = image
         req["spec"]["name"] = workflow_name
+        req["spec"]["auth_token_name"] = auth_token_name
         if notifications:
             req["notifications"] = [
                 notification.to_dict() for notification in notifications
@@ -5392,27 +5413,77 @@ class HTTPRunDB(RunDBInterface):
     @mlrun.utils.iguazio_v4_only
     def list_secret_tokens(
         self,
+        username: Optional[str] = None,
     ) -> mlrun.common.schemas.ListSecretTokensResponse:
         """
-        List all secret tokens for the current user.
+        List secret tokens. Only system-administrators can list tokens for other users.
+
+        :param username: Optional; the username for which to list secret tokens.
+                         Use ``"*"`` to list tokens for all users.
+        :return: A ``ListSecretTokensResponse`` object containing a list of
+                 ``SecretTokenInfo`` objects.
+
+        Example::
+
+            # As a regular user, list your own tokens
+            tokens_response = db.list_secret_tokens()
+            for token in tokens_response.secret_tokens:
+                print(
+                    f"User ID: {token.user_id}, Token name: {token.name}, "
+                    f"Expiration: {token.expiration}"
+                )
+
+            # As a system admin, list tokens for a specific user
+            user_tokens = db.list_secret_tokens(username="john_doe")
+
+            # As a system admin, list tokens for all users
+            all_tokens = db.list_secret_tokens(username="*")
         """
         endpoint_path = "user-secrets/tokens"
+        params = None
+        if username is not None:
+            params = {"username": username}
         response = self.api_call(
             mlrun.common.types.HTTPMethod.GET,
             endpoint_path,
             "list user secret tokens",
+            params=params,
         )
 
         return mlrun.common.schemas.ListSecretTokensResponse(**response.json())
 
     @mlrun.utils.iguazio_v4_only
-    def revoke_secret_token(self, token_name: str) -> None:
+    def delete_secret_token(
+        self, token_name: str, username: Optional[str] = None
+    ) -> mlrun.common.schemas.DeleteSecretTokenResponse:
+        """
+        Delete a secret token. Only system-administrators can delete tokens for other users.
+
+        :param token_name: The name of the token to delete.
+        :param username: Optional; the username of the token owner.
+        """
         endpoint_path = f"user-secrets/tokens/{token_name}"
-        self.api_call(
+        params = None
+        if username is not None:
+            params = {"username": username}
+        response = self.api_call(
             mlrun.common.types.HTTPMethod.DELETE,
             endpoint_path,
             "delete user secret token",
+            params=params,
         )
+        result = mlrun.common.schemas.DeleteSecretTokenResponse(**response.json())
+        if result.deleted:
+            logger.info(
+                "Token was successfully deleted",
+                token_name=token_name,
+                username=username,
+            )
+        else:
+            logger.info(
+                "Token could not be deleted", token_name=token_name, username=username
+            )
+        return result
 
     @mlrun.utils.iguazio_v4_only
     def get_secret_token(

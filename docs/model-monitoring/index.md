@@ -82,12 +82,11 @@ For example:
 Model monitoring supports Kafka or V3IO as streaming platforms, and TimescaleDB (PostgreSQL) or V3IO TSDB platforms.
 
 The recommended versions are:
-
 - TimescaleDB: PostgreSQL `17` with TimescaleDB extension
 - Kafka: `3.9.0` self-hosted, or Confluent Cloud (tested against `7.9`)
 
-Before you deploy the model monitoring or serving function, you need to set the credentials with {py:meth}`mlrun.projects.MlrunProject.set_model_monitoring_credentials`.
-See also [Configuring Kafka for model monitoring](../install-mlrun-ce/mlrun-ce-development-notes.md).
+Before you deploy the model monitoring or serving function, you need to set the credentials with {py:meth}`~mlrun.projects.MlrunProject.set_model_monitoring_credentials`.
+See also [Configuring TimescaleDB and Kafka for model monitoring](../install-mlrun-ce/mlrun-ce-development-notes.md#configuring-timescaledb-and-kafka-for-model-monitoring).
 
 ## Model monitoring applications
 

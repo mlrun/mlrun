@@ -37,9 +37,6 @@ MLRUN_PYTHON_VERSION ?= 3.11
 MLRUN_MYSQL_IMAGE ?= gcr.io/iguazio/mlrun-mysql:8.4
 MLRUN_POSTGRES_IMAGE = gcr.io/iguazio/postgres:17
 
-# TODO: remove this once iguazio package is released to PyPI and move to requirements.txt
-IGUAZIO_PACKAGE_VERSION ?= 0.0.1a22
-
 MLRUN_SKIP_COMPILE_SCHEMAS ?=
 INCLUDE_PYTHON_VERSION_SUFFIX ?=
 MLRUN_PIP_VERSION ?= 25.0.0
@@ -169,21 +166,6 @@ install-requirements: ## Install all requirements needed for development
 		-r dev-requirements.txt \
 		-r dockerfiles/mlrun-api/requirements.txt
 
-	$(MAKE) install-iguazio-sdk
-
-# TODO: Remove the iguazio installation here when the package is released to PyPI and move it to requirements.txt
-.PHONY: install-iguazio-sdk
-install-iguazio-sdk: ## Install iguazio package from Test PyPI only for Python 3.11
-	@if [ "$(MLRUN_PYTHON_VERSION)" = "3.11" ]; then \
-		echo "Installing iguazio package version $(IGUAZIO_PACKAGE_VERSION) for Python $(MLRUN_PYTHON_VERSION)..."; \
-		$(MLRUN_PYTHON_VENV_PIP_INSTALL) $(MLRUN_PIP_NO_CACHE_FLAG) \
-			--index-url https://test.pypi.org/simple/ \
-			--extra-index-url https://pypi.org/simple \
-			"iguazio~=$(IGUAZIO_PACKAGE_VERSION)"; \
-	else \
-		echo "Skipping iguazio install (Python $(MLRUN_PYTHON_VERSION))"; \
-	fi
-
 .PHONY: install-dev-requirements
 install-dev-requirements: ## Install dev-requirements relevant for pytest and coverage.
 	# relevant for pip package installer only
@@ -210,11 +192,6 @@ install-automation-requirements: ## Install automation-requirements relevant for
 install-docs-requirements: ## Install all requirements needed for compiling mlrun docs
 	$(MLRUN_PYTHON_VENV_PIP_INSTALL) --upgrade $(MLRUN_PIP_NO_CACHE_FLAG) pip~=$(MLRUN_PIP_VERSION)
 	$(MLRUN_PYTHON_VENV_PIP_INSTALL) $(MLRUN_PIP_NO_CACHE_FLAG) -r docs/requirements.txt
-
-.PHONY: install-conda-requirements
-install-conda-requirements: ## Install all requirements needed for development with specific conda packages for arm64
-	conda install --yes --file conda-arm64-requirements-python311.txt
-	make install-requirements
 
 .PHONY: install-complete-requirements
 install-complete-requirements: ## Install all requirements needed for development and testing
@@ -561,7 +538,6 @@ api: common-image-3.11 compile-schemas update-version-file ## Build mlrun-api do
 		--build-arg MLRUN_PYTHON_VERSION=$(MLRUN_PYTHON_VERSION) \
 		--build-arg MLRUN_UV_IMAGE=$(MLRUN_UV_IMAGE) \
 		--build-arg DOCKER_DEFAULT_PLATFORM=$(DOCKER_DEFAULT_PLATFORM) \
-		--build-arg IGUAZIO_PACKAGE_VERSION=$(IGUAZIO_PACKAGE_VERSION) \
 		--platform $(DOCKER_DEFAULT_PLATFORM) \
 		$(MLRUN_API_IMAGE_DOCKER_CACHE_FROM_FLAG) \
 		$(MLRUN_DOCKER_NO_CACHE_FLAG) \
@@ -594,7 +570,6 @@ build-test: common-image compile-schemas update-version-file ## Build test docke
 		--build-arg MLRUN_PIP_VERSION=$(MLRUN_PIP_VERSION) \
 		--build-arg MLRUN_UV_VERSION=$(MLRUN_UV_VERSION) \
 		--build-arg DOCKER_DEFAULT_PLATFORM=$(DOCKER_DEFAULT_PLATFORM) \
-		--build-arg IGUAZIO_PACKAGE_VERSION=$(IGUAZIO_PACKAGE_VERSION) \
 		--platform $(DOCKER_DEFAULT_PLATFORM) \
 		$(MLRUN_TEST_IMAGE_DOCKER_CACHE_FROM_FLAG) \
 		$(MLRUN_DOCKER_NO_CACHE_FLAG) \
@@ -988,7 +963,7 @@ endif
 	python -m pytest -v --capture=no --disable-warnings --durations=100 server/py/services/api/tests/unit/api/test_docs.py::test_save_openapi_json
 
 	# Run OpenAPI diff to check compatibility
-	docker run --rm -t -v $(MLRUN_BC_TESTS_OPENAPI_OUTPUT_PATH):/specs:ro openapitools/openapi-diff:latest /specs/mlrun_bc_base_oai.json /specs/mlrun_bc_head_oai.json --fail-on-incompatible
+	docker run --rm -t -v $(MLRUN_BC_TESTS_OPENAPI_OUTPUT_PATH):/specs:ro openapitools/openapi-diff:latest /specs/mlrun_bc_base_oai.json /specs/mlrun_bc_head_oai.json --fail-on-incompatible --config-prop incompatible.response.enum.increased:false
 
 
 .PHONY: release-notes

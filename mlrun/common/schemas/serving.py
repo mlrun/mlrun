@@ -12,11 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import enum
+from enum import Enum, StrEnum
 
 from pydantic.v1 import BaseModel
-
-from mlrun.common.types import StrEnum
 
 from .background_task import BackgroundTaskList
 
@@ -44,9 +42,23 @@ class MonitoringData(StrEnum):
     MODEL_CLASS = "model_class"
 
 
-class ModelsData(enum.Enum):
+class ModelsData(Enum):
     MODEL_CLASS = 0
     MODEL_PARAMETERS = 1
 
 
 MAX_BATCH_JOB_DURATION = "1w"
+
+
+class APIHandlerAction(StrEnum):
+    """Supported API handler actions for serving endpoints"""
+
+    ALLOW = "allow"
+    FORBID = "forbid"
+
+
+class _APIEndpointKeys(StrEnum):
+    """Private enum for endpoint configuration dictionary keys"""
+
+    ACTION = "action"
+    DESCRIPTION = "description"

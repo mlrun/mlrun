@@ -125,3 +125,52 @@ def test_cli_load_source_failure():
 
     assert result.exit_code == 1
     assert "Error loading source:" in result.output
+
+
+@pytest.mark.parametrize(
+    "source_uri,expected_target",
+    [
+        ("git://github.com/org/repo.git#main", "/home/mlrun_code"),
+        ("https://example.com/source.zip", "/home/mlrun_code"),
+        ("https://example.com/source.tar.gz", "/home/mlrun_code"),
+    ],
+)
+def test_cli_load_source_git_and_archives(source_uri, expected_target):
+    # Test load-source CLI with git and archive sources
+    runner = CliRunner()
+
+    with unittest.mock.patch(
+        "mlrun.__main__.load_source_code",
+        return_value=expected_target,
+    ) as mock_load:
+        result = runner.invoke(main, ["load-source", source_uri])
+
+    assert result.exit_code == 0
+    assert "Successfully loaded source to:" in result.output
+    mock_load.assert_called_once_with(
+        source_uri=source_uri,
+        target_dir=expected_target,
+        project=None,
+    )
+
+
+def test_cli_load_source_custom_target():
+    # Test load-source CLI with custom target directory
+    runner = CliRunner()
+    source_uri = "git://github.com/org/repo.git"
+    custom_target = "/custom/path"
+
+    with unittest.mock.patch(
+        "mlrun.__main__.load_source_code",
+        return_value=custom_target,
+    ) as mock_load:
+        result = runner.invoke(
+            main, ["load-source", source_uri, "--target", custom_target]
+        )
+
+    assert result.exit_code == 0
+    mock_load.assert_called_once_with(
+        source_uri=source_uri,
+        target_dir=custom_target,
+        project=None,
+    )

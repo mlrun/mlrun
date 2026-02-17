@@ -12,7 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import os
+import time
 import unittest.mock
+from concurrent.futures import ThreadPoolExecutor
 from typing import Optional, cast
 
 import pytest
@@ -33,23 +35,18 @@ from mlrun.datastore.model_provider.model_provider import (
     UsageResponseKeys,
 )
 from tests.datastore.remote_model.remote_model_utils import (
+    BATCH_INPUT_DATA,
     EXPECTED_RESULTS,
-    INPUT_DATA,
     PROMPT_LEGEND,
     PROMPT_TEMPLATE,
-    formatted_messages,
-    setup_remote_model_test,
-)
-from tests.integration.model_providers.model_providers_utils import (
+    LLMContentMismatchError,
     create_mocked_get_store_artifact,
+    formatted_messages,
+    retry_on_content_mismatch,
+    setup_remote_model_test,
+    validate_llm_batch_response_system,
+    validate_llm_single_response,
 )
-
-
-class LLMContentMismatchError(AssertionError):
-    """Raised when LLM generates unexpected content (retriable error)."""
-
-    pass
-
 
 here = os.path.dirname(__file__)
 config = {}
@@ -248,15 +245,15 @@ class TestHuggingFaceProvider(TestBasicHuggingFaceProvider):
                     max_new_tokens=50,
                     invoke_response_format=InvokeResponseFormat.USAGE,
                 )
-                cls._check_usage_response(
+                validate_llm_single_response(
                     response,
                     EXPECTED_RESULTS[0],
-                    messages=messages,
-                    tokenizer=model_provider.client.tokenizer,
+                    model_provider.client.tokenizer,
                     min_tokens=45,
                     max_tokens=51,
                 )
                 break
+
             except LLMContentMismatchError as e:
                 if attempt == cls.max_retries:
                     raise
@@ -336,7 +333,9 @@ class TestHuggingFaceProvider(TestBasicHuggingFaceProvider):
                             model_provider.client.tokenizer,
                         )
                     elif invoke_response_format == InvokeResponseFormat.USAGE:
-                        self._check_usage_response(result, EXPECTED_RESULTS[i])
+                        validate_llm_single_response(
+                            result, EXPECTED_RESULTS[i], model_provider.client.tokenizer
+                        )
 
                 break
 
@@ -456,34 +455,115 @@ class TestHuggingFaceAIModel(TestBasicHuggingFaceProvider):
         try:
             from transformers import AutoTokenizer
 
-            messages = [
-                {
-                    "role": prompt["role"],
-                    "content": prompt["content"].format(**INPUT_DATA[0]),
-                }
-                for prompt in PROMPT_TEMPLATE
-            ]
+            tokenizer = AutoTokenizer.from_pretrained(self.basic_llm_model)
+
+            def _test():
+                response = server.test(body=BATCH_INPUT_DATA[0])["output"]
+                validate_llm_single_response(response, EXPECTED_RESULTS[0], tokenizer)
+
+            retry_on_content_mismatch(_test, self.max_retries + 1)
+
+        finally:
+            server.wait_for_completion()
+
+    @pytest.mark.parametrize(
+        "execution_mechanism",
+        ["process_pool", "dedicated_process", "naive", "thread_pool"],
+    )
+    def test_model_runner_batch_with_hf(self, execution_mechanism):
+        """Test batch processing of multiple events with HuggingFace model"""
+        project = mlrun.new_project("test-hf-model-batch", save=False)
+        model_url = self.url_prefix + self.basic_llm_model
+        model_artifact, llm_prompt_artifact, function = setup_remote_model_test(
+            project,
+            model_url,
+            execution_mechanism=execution_mechanism,
+            default_config={"max_new_tokens": 100},
+        )
+        mocked_get_store_artifact = create_mocked_get_store_artifact(
+            {
+                model_artifact.uri: model_artifact,
+                llm_prompt_artifact.uri: llm_prompt_artifact,
+            }
+        )
+        with (
+            unittest.mock.patch(
+                "mlrun.artifacts.llm_prompt.mlrun.datastore.store_manager.get_store_artifact",
+                side_effect=lambda *args, **kwargs: mocked_get_store_artifact(
+                    *args, **kwargs
+                ),
+            ),
+        ):
+            server = function.to_mock_server()
+        try:
+            from transformers import AutoTokenizer
 
             tokenizer = AutoTokenizer.from_pretrained(self.basic_llm_model)
 
-            for attempt in range(self.max_retries + 1):
-                try:
-                    response = server.test(body=INPUT_DATA[0])["output"]
+            def _test():
+                batch_response = server.test(body=BATCH_INPUT_DATA)
+                validate_llm_batch_response_system(
+                    batch_response, EXPECTED_RESULTS, tokenizer
+                )
 
-                    self._check_usage_response(
-                        response,
-                        EXPECTED_RESULTS[0],
-                        messages=messages,
-                        tokenizer=tokenizer,
-                    )
-                    break
+            retry_on_content_mismatch(_test, self.max_retries + 1)
 
-                except LLMContentMismatchError as e:
-                    if attempt == self.max_retries:
-                        raise
-                    print(
-                        f"LLM content mismatch (attempt {attempt + 1}/{self.max_retries + 1}): {e}"
-                    )
+        finally:
+            server.wait_for_completion()
+
+    @pytest.mark.parametrize(
+        "execution_mechanism",
+        ["naive", "process_pool", "dedicated_process", "thread_pool"],
+    )
+    def test_model_runner_batch_step_with_hf(self, execution_mechanism):
+        from transformers import AutoTokenizer
+
+        project = mlrun.new_project("test-hf-batch-step", save=False)
+        model_url = self.url_prefix + self.basic_llm_model
+
+        model_artifact, llm_prompt_artifact, function = setup_remote_model_test(
+            project,
+            model_url,
+            execution_mechanism=execution_mechanism,
+            default_config={"max_new_tokens": 100},
+            batch_step=True,
+        )
+
+        mocked_get_store_artifact = create_mocked_get_store_artifact(
+            {
+                model_artifact.uri: model_artifact,
+                llm_prompt_artifact.uri: llm_prompt_artifact,
+            }
+        )
+        with unittest.mock.patch(
+            "mlrun.artifacts.llm_prompt.mlrun.datastore.store_manager.get_store_artifact",
+            side_effect=lambda *args, **kwargs: mocked_get_store_artifact(
+                *args, **kwargs
+            ),
+        ):
+            server = function.to_mock_server()
+
+        try:
+            tokenizer = AutoTokenizer.from_pretrained(self.basic_llm_model)
+
+            # Send events concurrently with staggered timing
+            def send_event(event, delay):
+                time.sleep(delay)
+                return server.test(body=event)
+
+            # Verify each response has correct structure
+            def _test():
+                with ThreadPoolExecutor(max_workers=len(BATCH_INPUT_DATA)) as executor:
+                    futures = [
+                        executor.submit(send_event, event, i * 0.1)
+                        for i, event in enumerate(BATCH_INPUT_DATA)
+                    ]
+                    batch_response = [future.result() for future in futures]
+                validate_llm_batch_response_system(
+                    batch_response, EXPECTED_RESULTS, tokenizer
+                )
+
+            retry_on_content_mismatch(_test, self.max_retries + 1)
 
         finally:
             server.wait_for_completion()
@@ -622,7 +702,7 @@ class TestHuggingFaceAIModel(TestBasicHuggingFaceProvider):
         ):
             server = function.to_mock_server()
         try:
-            results = server.test(body=INPUT_DATA[0])
+            results = server.test(body=BATCH_INPUT_DATA[0])
             # Verify we got the expected number of results
 
             assert sorted(list(results.keys())) == sorted([ep_name, second_ep_name])

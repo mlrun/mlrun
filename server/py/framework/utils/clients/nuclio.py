@@ -240,10 +240,11 @@ class Client(
         if kwargs.get("timeout") is None:
             kwargs["timeout"] = 20
 
-        if mlrun.mlconf.httpdb.projects.leader == "mlrun":
-            framework.utils.clients.helpers.add_project_role_headers_if_needed(
-                path, kwargs
-            )
+        kwargs["headers"] = framework.utils.clients.helpers.enrich_headers(
+            headers=kwargs.get("headers"),
+            path=path,
+        )
+
         # requests no longer supports header values to be enum (https://github.com/psf/requests/pull/6154)
         # convert to strings. Do the same for params for niceness
         for kwarg in ["headers", "params"]:

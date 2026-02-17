@@ -46,6 +46,7 @@ from mlrun.utils.helpers import (
     parse_artifact_uri,
     remove_tag_from_artifact_uri,
     resolve_image_tag_suffix,
+    set_auth_token_name,
     set_data_by_path,
     split_path,
     str_to_timestamp,
@@ -1935,6 +1936,20 @@ def test_get_data_from_path_invalid_path_type():
             {"new_key": 123},
             {"existing": "data", "new_key": 123},
         ),
+        # List of dicts - simple path
+        (
+            "b",
+            [{"a": 1}, {"a": 2}, {"a": 3}],
+            [10, 20, 30],
+            [{"a": 1, "b": 10}, {"a": 2, "b": 20}, {"a": 3, "b": 30}],
+        ),
+        # List of dicts - nested path
+        (
+            "outer.b",
+            [{"outer": {"a": 1}}, {"outer": {"a": 2}}],
+            [10, 20],
+            [{"outer": {"a": 1, "b": 10}}, {"outer": {"a": 2, "b": 20}}],
+        ),
     ],
 )
 def test_set_data_by_path_success(path, initial_data, value, expected_data):
@@ -1944,26 +1959,46 @@ def test_set_data_by_path_success(path, initial_data, value, expected_data):
 
 
 @pytest.mark.parametrize(
-    "path, value, exc_type, exc_msg",
+    "path, initial_data, value, exc_type, exc_msg",
     [
         # For path=None, test that non-dict value raises ValueError
-        (None, "not a dict", ValueError, "value must be a dictionary"),
-        # For path=None with dict value, no exception expected, so not included here
+        (None, {}, "not a dict", ValueError, "value must be a dictionary"),
         # For invalid path types, test MLRunInvalidArgumentError is raised
-        (123, "some_value", mlrun.errors.MLRunInvalidArgumentError, "Expected path"),
-        (3.14, "some_value", mlrun.errors.MLRunInvalidArgumentError, "Expected path"),
         (
-            {"not": "a path"},
+            123,
+            {},
             "some_value",
             mlrun.errors.MLRunInvalidArgumentError,
             "Expected path",
         ),
+        (
+            3.14,
+            {},
+            "some_value",
+            mlrun.errors.MLRunInvalidArgumentError,
+            "Expected path",
+        ),
+        (
+            {"not": "a path"},
+            {},
+            "some_value",
+            mlrun.errors.MLRunInvalidArgumentError,
+            "Expected path",
+        ),
+        # List length mismatch
+        (
+            "b",
+            [{"a": 1}, {"a": 2}, {"a": 3}],
+            [10, 20],
+            mlrun.errors.MLRunInvalidArgumentError,
+            "must match data list length",
+        ),
     ],
 )
-def test_set_data_by_path_invalid_path(path, value, exc_type, exc_msg):
-    data = {}
+def test_set_data_by_path_invalid_path(path, initial_data, value, exc_type, exc_msg):
     with pytest.raises(exc_type, match=exc_msg):
-        set_data_by_path(path, data, value)
+        path_as_list = split_path(path) if isinstance(path, str) else path
+        set_data_by_path(path_as_list, initial_data, value)
 
 
 @pytest.mark.parametrize(
@@ -2053,3 +2088,55 @@ def test_validate_function_name(function_name, expected):
     """Test that validate_function_name enforces DNS-1123 label requirements."""
     with expected:
         validate_function_name(function_name)
+
+
+@pytest.mark.parametrize("token_name", [None, ""])
+def test_set_auth_token_name_noop_for_empty_token(token_name):
+    """Test that None or empty token_name does not modify spec."""
+
+    class MockSpec:
+        auth = None
+
+    spec = MockSpec()
+    set_auth_token_name(spec, token_name)
+    assert spec.auth is None
+
+
+@pytest.mark.parametrize(
+    "initial_auth,expected_auth",
+    [
+        (None, {"token_name": "my-token"}),
+        ({}, {"token_name": "my-token"}),
+        ({"other_key": "value"}, {"other_key": "value", "token_name": "my-token"}),
+        ({"token_name": "old-token"}, {"token_name": "my-token"}),
+    ],
+)
+def test_set_auth_token_name_sets_token(initial_auth, expected_auth):
+    """Test that set_auth_token_name correctly sets token on various auth states."""
+
+    class MockSpec:
+        auth = initial_auth
+
+    spec = MockSpec()
+    set_auth_token_name(spec, "my-token")
+    assert spec.auth == expected_auth
+
+
+def test_set_auth_token_name_works_with_run_spec():
+    """Test that set_auth_token_name works with actual RunSpec."""
+    import mlrun.model
+
+    spec = mlrun.model.RunSpec()
+    set_auth_token_name(spec, "my-token")
+    assert spec.auth["token_name"] == "my-token"
+
+
+def test_set_auth_token_name_works_with_nuclio_spec():
+    """Test that set_auth_token_name works with actual NuclioSpec.
+
+    Note: auth on function spec is only supported for Nuclio runtimes, not job runtimes.
+    """
+
+    spec = mlrun.runtimes.nuclio.function.NuclioSpec()
+    set_auth_token_name(spec, "my-token")
+    assert spec.auth["token_name"] == "my-token"

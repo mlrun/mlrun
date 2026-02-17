@@ -525,7 +525,7 @@ def _deploy_nuclio_runtime(
     )
 
     if monitoring_application or serving_to_monitor:
-        if not mlrun.mlconf.is_ce_mode():
+        if mlrun.mlconf.is_using_v3io():
             model_monitoring_access_key = process_model_monitoring_secret(
                 db_session,
                 fn.metadata.project,

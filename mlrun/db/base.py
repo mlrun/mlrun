@@ -1086,6 +1086,8 @@ class RunDBInterface(ABC):
         image: str = "mlrun/mlrun",
         deploy_histogram_data_drift_app: bool = True,
         fetch_credentials_from_sys_config: bool = False,
+        lag_threshold: int | None = None,
+        lag_event_cooldown: int | None = None,
     ) -> None:
         pass
 
@@ -1183,11 +1185,14 @@ class RunDBInterface(ABC):
     @abstractmethod
     def list_secret_tokens(
         self,
+        username: Optional[str] = None,
     ) -> mlrun.common.schemas.ListSecretTokensResponse:
         pass
 
     @abstractmethod
-    def revoke_secret_token(self, token_name: str) -> None:
+    def delete_secret_token(
+        self, token_name: str, username: Optional[str] = None
+    ) -> mlrun.common.schemas.DeleteSecretTokenResponse:
         pass
 
     @abstractmethod

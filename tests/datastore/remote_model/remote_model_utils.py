@@ -246,6 +246,7 @@ def setup_remote_model_test(
         image=image,
         requirements=requirements,
     )
+    function.spec.replicas = 1
     graph = function.set_topology("flow", engine="async")
     if batch_step:
         # When deploying with batch_step in system tests, configure async HTTP via

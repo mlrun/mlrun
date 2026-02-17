@@ -233,12 +233,6 @@ class StreamingModel(mlrun.serving.Model):
         for i in range(self.num_chunks):
             yield f"{prompt}_chunk_{i}"
 
-    async def predict_async(self, body, **kwargs):
-        """Yield streaming chunks for aggregation testing."""
-        prompt = body.get("prompt", "default") if isinstance(body, dict) else str(body)
-        for i in range(self.num_chunks):
-            yield f"{prompt}_chunk_{i}"
-
 
 class MyModelSelector(mlrun.serving.states.ModelRunnerSelector):
     """Selector that reads a 'models' key (comma-separated string) from the

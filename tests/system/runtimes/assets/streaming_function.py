@@ -43,6 +43,13 @@ class StreamingModel(Model):
         for i in range(self.num_chunks):
             yield f"{body}_chunk_{i}"
 
+    async def predict_async(self, body, **kwargs):
+        if isinstance(body, bytes):
+            body = body.decode("utf-8")
+
+        for i in range(self.num_chunks):
+            yield f"{body}_chunk_{i}"
+
 
 class Echo:
     def do(self, x):

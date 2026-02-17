@@ -41,6 +41,10 @@ import services.api
 import services.api.utils.events.events_factory as events_factory
 
 
+# Maximum number of concurrent K8s secret deletions during bulk token cleanup
+MAX_CONCURRENT_TOKEN_DELETIONS = 10
+
+
 class SecretsClientType(str, enum.Enum):
     schedules = "schedules"
     model_monitoring = "model-monitoring"
@@ -516,8 +520,7 @@ class Secrets(
                          Use "*" to list all users' tokens (admin only).
         :return: ListSecretTokensResponse containing token names and expirations.
         """
-        # Resolve the target user_id
-        target_user_id = self._resolve_target_user_id(auth_info, username)
+        target_user_id = self._get_user_id(auth_info, username)
 
         secret_tokens = self.secrets_provider.list_user_token_secrets(
             user_id=target_user_id,
@@ -603,8 +606,7 @@ class Secrets(
                  or deleted=False if token was not found.
         """
 
-        # Resolve the target user_id from the username
-        target_user_id = self._resolve_target_user_id(auth_info, username)
+        target_user_id = self._get_user_id(auth_info, username)
 
         logger.debug(
             "Revoking secret token for user",
@@ -649,8 +651,9 @@ class Secrets(
         """
         Delete all stored offline tokens for a user and their corresponding Kubernetes secrets.
 
-        This method lists all tokens for the user and deletes each one in parallel.
-        Failures are collected and reported, but do not stop processing of remaining tokens.
+        This method lists all tokens for the user and deletes each one in parallel
+        (capped by a semaphore). Failures are collected and reported, but do not stop
+        processing of remaining tokens.
 
         :param username:
             The username of the user whose tokens should be deleted.
@@ -660,8 +663,9 @@ class Secrets(
             Authentication information of the requesting user.
         :return: DeleteSecretTokensResponse with deleted_count and any failed_tokens.
         """
-        # Resolve the target user_id from the username
-        target_user_id = self._resolve_target_user_id(auth_info, username)
+        target_user_id = await run_in_threadpool(
+            self._get_user_id, auth_info, username
+        )
 
         logger.debug(
             "Deleting all secret tokens for user",
@@ -670,9 +674,11 @@ class Secrets(
             requesting_user=auth_info.username,
         )
 
-        # List all tokens for the user
         tokens: list[mlrun.common.schemas.SecretTokenInfo] = (
-            self.secrets_provider.list_user_token_secrets(user_id=target_user_id)
+            await run_in_threadpool(
+                self.secrets_provider.list_user_token_secrets,
+                user_id=target_user_id,
+            )
         )
 
         if not tokens:
@@ -688,22 +694,26 @@ class Secrets(
         # TODO: move init iguazio_client (ML-11077)
         iguazio_client = framework.utils.clients.iguazio.v4.Client()
 
-        # Delete tokens in parallel using asyncio to avoid blocking on I/O.
+        # Delete tokens in parallel (with bounded concurrency) using asyncio.
         # Skip revocation since this endpoint is called during user deletion flow,
         # where the user is already deactivated and will be deleted from Keycloak
         # right after this, which invalidates all tokens anyway.
-        tasks = [
-            asyncio.create_task(
-                run_in_threadpool(
+        semaphore = asyncio.Semaphore(MAX_CONCURRENT_TOKEN_DELETIONS)
+
+        async def _delete_with_semaphore(token_name: str):
+            async with semaphore:
+                await run_in_threadpool(
                     self._delete_single_token,
                     target_user_id=target_user_id,
                     target_username=username,
-                    token_name=token_info.name,
+                    token_name=token_name,
                     iguazio_client=iguazio_client,
                     request_headers=auth_info.request_headers,
                     skip_revocation=True,
                 )
-            )
+
+        tasks = [
+            asyncio.create_task(_delete_with_semaphore(token_info.name))
             for token_info in tokens
         ]
 
@@ -766,24 +776,24 @@ class Secrets(
             token=token_value,
         )
 
-    def _resolve_target_user_id(
+    def _get_user_id(
         self,
         auth_info: mlrun.common.schemas.AuthInfo,
         username: typing.Optional[str],
     ) -> str:
         """
-        Resolve the target user_id for token operations.
+        Get the user_id for token operations.
 
         If the username is None, empty, or matches the authenticated user's username,
         returns the authenticated user's user_id directly.
 
         If the username is "*", returns "*" to indicate all users (for list operations).
 
-        Otherwise, translates the username to user_id via the Iguazio API.
+        Otherwise, fetches the user_id from the Iguazio API (blocking I/O).
 
         :param auth_info: Authentication information of the requesting user.
-        :param username: Target username to resolve. Can be None, "", "*", or a specific username.
-        :return: The resolved user_id, or "*" for all users.
+        :param username: Target username. Can be None, "", "*", or a specific username.
+        :return: The user_id, or "*" for all users.
         :raises mlrun.errors.MLRunNotFoundError: If the username cannot be found.
         """
         # No username provided or matches self -> use authenticated user's user_id
@@ -794,7 +804,7 @@ class Secrets(
         if username == "*":
             return "*"
 
-        # Different user - need to translate username to user_id
+        # Different user - fetch user_id from Iguazio API
         iguazio_client = framework.utils.clients.iguazio.v4.Client()
         return iguazio_client.get_user_id_by_username(username, auth_info)
 

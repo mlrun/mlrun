@@ -576,9 +576,12 @@ class Secrets(
                 token_name=token_name,
                 exc=mlrun.errors.err_to_str(exc),
             )
-            raise mlrun.errors.MLRunRuntimeError(
-                f"Failed to delete secret for token '{token_name}'"
-            ) from exc
+            err_msg = (
+                f"Failed to delete K8s secret for token '{token_name}'"
+                if skip_revocation
+                else f"Token '{token_name}' revoked but failed to delete associated K8s secret"
+            )
+            raise mlrun.errors.MLRunRuntimeError(err_msg) from exc
 
     def delete_secret_token(
         self,
@@ -648,11 +651,15 @@ class Secrets(
         auth_info: mlrun.common.schemas.AuthInfo,
     ) -> mlrun.common.schemas.DeleteSecretTokensResponse:
         """
-        Delete all stored offline tokens for a user and their corresponding Kubernetes secrets.
+        Delete all Kubernetes secrets storing tokens for a user.
 
-        This method lists all tokens for the user and deletes each one in parallel
-        (capped by a semaphore). Failures are collected and reported, but do not stop
-        processing of remaining tokens.
+        Deletes each token's K8s secret in parallel (bounded by MAX_CONCURRENT_TOKEN_DELETIONS).
+        Failures are collected and returned without stopping other deletions.
+
+        Token revocation is intentionally skipped — this endpoint is designed for the
+        user-deletion flow where the user is already deactivated and Keycloak removal
+        invalidates all tokens. If this endpoint is ever reused outside that flow,
+        skip_revocation should become a caller-controlled flag.
 
         :param username:
             The username of the user whose tokens should be deleted.
@@ -677,11 +684,6 @@ class Secrets(
         )
 
         if not tokens:
-            logger.debug(
-                "No tokens found for user",
-                target_user_id=target_user_id,
-                target_username=username,
-            )
             return mlrun.common.schemas.DeleteSecretTokensResponse(
                 deleted_count=0, failed_tokens=[]
             )
@@ -689,13 +691,6 @@ class Secrets(
         # TODO: move init iguazio_client (ML-11077)
         iguazio_client = framework.utils.clients.iguazio.v4.Client()
 
-        # Delete tokens in parallel (with bounded concurrency) using asyncio.
-        # Note: skip_revocation=True is intentional here. This bulk-delete endpoint
-        # is currently only called by orca during user deletion, where the user is
-        # already deactivated and will be deleted from Keycloak right after,
-        # invalidating all tokens anyway. If this endpoint is ever exposed for
-        # general-purpose use, skip_revocation should become a caller-controlled flag
-        # to ensure tokens are properly revoked before secret deletion.
         semaphore = asyncio.Semaphore(MAX_CONCURRENT_TOKEN_DELETIONS)
 
         async def _delete_with_semaphore(token_name: str):
@@ -722,7 +717,6 @@ class Secrets(
         for i, result in enumerate(results):
             token_name = tokens[i].name
             if isinstance(result, Exception):
-                # K8s deletion errors are already logged in _delete_single_token
                 failed_tokens.append(token_name)
             else:
                 deleted_count += 1
@@ -735,13 +729,14 @@ class Secrets(
                 deleted_count=deleted_count,
                 failed_count=len(failed_tokens),
             )
-        else:
-            logger.debug(
-                "Finished deleting secret tokens for user",
-                target_user_id=target_user_id,
-                target_username=username,
-                deleted_count=deleted_count,
-            )
+
+        logger.debug(
+            "Finished deleting secret tokens for user",
+            target_user_id=target_user_id,
+            target_username=username,
+            deleted_count=deleted_count,
+            failed_count=len(failed_tokens),
+        )
 
         return mlrun.common.schemas.DeleteSecretTokensResponse(
             deleted_count=deleted_count, failed_tokens=failed_tokens

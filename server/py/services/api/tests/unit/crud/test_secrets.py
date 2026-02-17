@@ -1008,7 +1008,7 @@ def test_delete_secret_token_k8s_delete_failure(mock_iguazio_client):
 
     with pytest.raises(
         mlrun.errors.MLRunRuntimeError,
-        match="Failed to delete secret for token",
+        match="revoked but failed to delete associated K8s secret",
     ):
         services.api.crud.Secrets().delete_secret_token(
             token_name=token_name, username=auth_info.username, auth_info=auth_info

@@ -1363,13 +1363,13 @@ mistune==3.2.0 \
     --hash=sha256:708487c8a8cdd99c9d90eb3ed4c3ed961246ff78ac82f03418f5183ab70e398a \
     --hash=sha256:febdc629a3c78616b94393c6580551e0e34cc289987ec6c35ed3f4be42d0eee1
     # via nbconvert
-mlrun-pipelines-kfp-common==0.6.0 \
-    --hash=sha256:0bc0318ce52999ad068cb7fefdb6a32178baaa4874e627b41fb3f14251f532b8 \
-    --hash=sha256:62feaca1c9d618bf3599ef577e18b1ea586e1135cec3a50bd0bcbf86da7255c4
+mlrun-pipelines-kfp-common==0.6.2 \
+    --hash=sha256:3110e45e71b7ae3e79b00d37330e4e74c1ee45c04594cbeb7df39586b3323df0 \
+    --hash=sha256:b279274398db70d0598b6cdc28ed1321a7c1ed82f8ebe22ffb3750330ee10cd8
     # via -r requirements.txt
-mlrun-pipelines-kfp-v1-8==0.6.0 \
-    --hash=sha256:1cd1f11ba0aaa9ca448080e690fd4c07f961f29697f41e1fa71c2c0bda39625a \
-    --hash=sha256:70670f1fb26cc55ae012a822b98c446adc031664896696a435497f0866030f3e
+mlrun-pipelines-kfp-v1-8==0.6.3 \
+    --hash=sha256:8466b790aa675afbb1369d80597de06b3f7f94c67b628822168fabb0d3be29e9 \
+    --hash=sha256:e212cb8483e459c4bbb9f66f4a0304b6491e2c9a2076a566d56f599b96471fef
     # via
     #   -r dockerfiles/mlrun-kfp/requirements.txt
     #   -r requirements.txt

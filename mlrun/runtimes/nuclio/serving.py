@@ -1098,7 +1098,7 @@ class ServingRuntime(nuclio_function.RemoteRuntime):
 
         server.graph = add_system_steps_to_graph(
             server.project,
-            server.graph,
+            deepcopy(server.graph),
             self.spec.track_models,
             server.context,
             self.spec,

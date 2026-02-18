@@ -345,6 +345,10 @@ class MonitoringFunctionNames(MonitoringStrEnum):
     WRITER = "model-monitoring-writer"
 
 
+class MonitoringAlertNames(MonitoringStrEnum):
+    LAG_DETECTED = "monitoring-lag-detected"
+
+
 class V3IOTSDBTables(MonitoringStrEnum):
     APP_RESULTS = "app-results"
     METRICS = "metrics"

@@ -269,29 +269,45 @@ def test_mlrun_function_translation_to_nuclio(
         ),
     ],
 )
+@pytest.mark.parametrize("nuclio_support_async", [True, False])
 def test_with_http_async_spec(
-    async_spec, expected_mode, expected_async_struct, expected_workers
+    async_spec,
+    expected_mode,
+    expected_async_struct,
+    expected_workers,
+    nuclio_support_async,
 ):
     """Test with_http method with various async_spec configurations."""
     func = mlrun.runtimes.nuclio.function.RemoteRuntime()
 
     with patch(
         "mlrun.runtimes.nuclio.function.validate_nuclio_version_compatibility",
-        return_value=True,
+        return_value=nuclio_support_async,
     ):
-        func.with_http(async_spec=async_spec)
+        if not nuclio_support_async and async_spec is not None:
+            with pytest.raises(
+                mlrun.errors.MLRunValueError,
+                match="Async spec is only supported from Nuclio 1.15.3",
+            ):
+                func.with_http(async_spec=async_spec)
+        else:
+            func.with_http(async_spec=async_spec)
+            trigger = func.spec.config.get("spec.triggers.http")
+            assert trigger is not None
+            if nuclio_support_async:
+                # Check mode
+                assert trigger.get("mode") == expected_mode
 
-    trigger = func.spec.config.get("spec.triggers.http")
-    assert trigger is not None
+                # Check workers
+                assert trigger.get("maxWorkers") == expected_workers
+            else:
+                assert trigger.get("mode") is None
+                assert (
+                    trigger.get("maxWorkers") == 8
+                )  # Default workers when async is not supported
 
-    # Check mode
-    assert trigger.get("mode") == expected_mode
-
-    # Check workers
-    assert trigger.get("maxWorkers") == expected_workers
-
-    # Check async struct
-    if expected_async_struct is not None:
-        assert trigger.get("async") == expected_async_struct
-    else:
-        assert "async" not in trigger
+            # Check async struct
+            if expected_async_struct is not None:
+                assert trigger.get("async") == expected_async_struct
+            else:
+                assert "async" not in trigger

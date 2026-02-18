@@ -513,7 +513,14 @@ class RemoteRuntime(KubeResource):
                 "Adding HTTP trigger despite the default HTTP trigger creation being disabled"
             )
 
-        if async_spec and async_spec.enabled:
+        nuclio_version_support_async = validate_nuclio_version_compatibility("1.15.3")
+        if async_spec is not None and not nuclio_version_support_async:
+            raise mlrun.errors.MLRunValueError(
+                "Async spec is only supported from Nuclio 1.15.3"
+            )
+
+        async_enabled = getattr(async_spec, "enabled", False)
+        if async_enabled:
             workers = 1 if workers is None else workers
         else:
             workers = 8 if workers is None else workers
@@ -555,15 +562,9 @@ class RemoteRuntime(KubeResource):
                 )
             trigger._struct["batch"] = batching_config
 
-        if async_spec and not validate_nuclio_version_compatibility("1.15.3"):
-            raise mlrun.errors.MLRunValueError(
-                "Async spec is only supported on Nuclio 1.15.3 and higher"
-            )
-        elif validate_nuclio_version_compatibility("1.15.3"):
-            trigger._struct["mode"] = (
-                "async" if getattr(async_spec, "enabled", False) else "sync"
-            )
-            if getattr(async_spec, "enabled", False):
+        if nuclio_version_support_async:
+            trigger._struct["mode"] = "async" if async_enabled else "sync"
+            if async_enabled:
                 trigger._struct["async"] = {
                     "maxConnectionsNumber": async_spec.max_connections,
                     "connectionAvailabilityTimeout": async_spec.connection_availability_timeout,

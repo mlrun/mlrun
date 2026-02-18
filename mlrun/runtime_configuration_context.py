@@ -67,6 +67,8 @@ class RuntimeConfigurationContext:
             return ctx.auth_token_name
 
         rundb = mlrun.get_run_db()
-        if rundb and rundb.token_provider:
+
+        # ensure that rundb of SQLDB wont get into here
+        if rundb and getattr(rundb, "token_provider", None):
             return getattr(rundb.token_provider, "token_name", None)
         return None

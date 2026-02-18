@@ -38,7 +38,7 @@ class TokenProvider(ABC):
 
 
 class StaticTokenProvider(TokenProvider):
-    def __init__(self, token: str, token_name: str | None = None):
+    def __init__(self, token: str):
         self.token = token
 
     def get_token(self):

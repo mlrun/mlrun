@@ -5447,9 +5447,7 @@ class HTTPRunDB(RunDBInterface):
         :param username: Optional; the username of the token owner.
         """
         endpoint_path = f"user-secrets/tokens/{token_name}"
-        params = None
-        if username is not None:
-            params = {"username": username}
+        params = {"username": username} if username else None
         response = self.api_call(
             mlrun.common.types.HTTPMethod.DELETE,
             endpoint_path,
@@ -5489,9 +5487,7 @@ class HTTPRunDB(RunDBInterface):
             response = db.delete_secret_tokens(username="john_doe")
         """
         endpoint_path = "user-secrets/tokens"
-        params = None
-        if username is not None:
-            params = {"username": username}
+        params = {"username": username} if username else None
         response = self.api_call(
             mlrun.common.types.HTTPMethod.DELETE,
             endpoint_path,

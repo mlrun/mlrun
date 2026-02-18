@@ -40,9 +40,6 @@ import framework.utils.singletons.k8s
 import services.api
 import services.api.utils.events.events_factory as events_factory
 
-# Maximum number of concurrent K8s secret deletions during bulk token cleanup
-MAX_CONCURRENT_TOKEN_DELETIONS = 10
-
 
 class SecretsClientType(str, enum.Enum):
     schedules = "schedules"
@@ -653,7 +650,8 @@ class Secrets(
         """
         Delete all Kubernetes secrets storing tokens for a user.
 
-        Deletes each token's K8s secret in parallel (bounded by MAX_CONCURRENT_TOKEN_DELETIONS).
+        Deletes each token's K8s secret in parallel (bounded by
+        secret_stores.kubernetes.concurrent_token_deletions).
         Failures are collected and returned without stopping other deletions.
 
         Token revocation is intentionally skipped — this endpoint is designed for the
@@ -691,7 +689,9 @@ class Secrets(
         # TODO: move init iguazio_client (ML-11077)
         iguazio_client = framework.utils.clients.iguazio.v4.Client()
 
-        semaphore = asyncio.Semaphore(MAX_CONCURRENT_TOKEN_DELETIONS)
+        semaphore = asyncio.Semaphore(
+            mlrun.mlconf.secret_stores.kubernetes.concurrent_token_deletions
+        )
 
         async def _delete_with_semaphore(token_name: str):
             async with semaphore:
@@ -710,7 +710,6 @@ class Secrets(
             return_exceptions=True,
         )
 
-        # Process results to count successes and failures
         deleted_count = 0
         failed_tokens: list[str] = []
 

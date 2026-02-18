@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import asyncio
+import inspect
 import math
 import time
 import unittest.mock
@@ -524,9 +525,7 @@ class TestOpenAIStreaming:
                 mock_async_stream,
             ):
                 response = server.test(body=BATCH_INPUT_DATA[0])
-            import types
-
-            if isinstance(response, types.GeneratorType):
+            if inspect.isgenerator(response):
                 response = "".join(response)
             assert isinstance(response, str)
             assert "Hello world" in response

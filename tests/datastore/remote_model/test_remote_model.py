@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import inspect
 import json
 import time
 import unittest
@@ -1040,9 +1041,7 @@ class TestMockModelProviderStreaming(BaseMockModelProviderTest):
     @staticmethod
     def _consume_streaming_response(response):
         """Consume a streaming response generator and return the joined text."""
-        import types
-
-        if isinstance(response, types.GeneratorType):
+        if inspect.isgenerator(response):
             return "".join(response)
         return response
 

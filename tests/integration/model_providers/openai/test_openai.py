@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import asyncio
+import inspect
 import os
 import time
 import unittest.mock
@@ -577,6 +578,8 @@ class TestOpenAIModel(TestBasicOpenAIProvider):
             server = function.to_mock_server()
         try:
             response = server.test(body=BATCH_INPUT_DATA[0])
+            if inspect.isgenerator(response):
+                response = "".join(response)
             assert isinstance(
                 response, str
             ), f"Expected streamed string, got {type(response)}"

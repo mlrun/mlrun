@@ -478,11 +478,20 @@ jobs:
         else
           PR="${{ github.event.inputs.pr_number }}"
         fi
-        gh pr edit "$PR" --remove-label "OSS System tests failed" --repo "$GITHUB_REPOSITORY" 2>&1 || true
-        gh pr edit "$PR" --add-label "OSS System tests passed" --repo "$GITHUB_REPOSITORY"
+        API_URL="https://api.github.com/repos/${{ github.repository }}/issues/${PR}/labels"
+        # Remove conflicting label (ignore if not present)
+        curl -sS -X DELETE \
+          -H "Authorization: token ${GITHUB_TOKEN}" \
+          -H "Accept: application/vnd.github+json" \
+          "${API_URL}/OSS%20System%20tests%20failed" || true
+        # Add success label
+        curl -sS -X POST \
+          -H "Authorization: token ${GITHUB_TOKEN}" \
+          -H "Accept: application/vnd.github+json" \
+          -d '{"labels":["OSS System tests passed"]}' \
+          "${API_URL}"
       env:
-        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        GITHUB_REPOSITORY: ${{ github.repository }}
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
     - name: Output  logs
       if: always()

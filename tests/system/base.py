@@ -193,7 +193,7 @@ class TestMLRunSystem:
             else cls.mandatory_env_vars
         )
         if cls._has_marker(test, cls.model_monitoring_marker_name):
-            mandatory_env_vars += cls.model_monitoring_mandatory_keys
+            mandatory_env_vars = mandatory_env_vars + cls.model_monitoring_mandatory_keys
 
         missing_env_vars = []
         try:

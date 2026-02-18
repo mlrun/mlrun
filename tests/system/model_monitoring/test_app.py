@@ -232,8 +232,8 @@ class _V3IORecordsChecker:
         cls,
         ep_id: str,
         apps_data: list[_AppData],
-        last_request: typing.Optional[datetime] = None,
-        error_count: typing.Optional[float] = None,
+        last_request: datetime | None = None,
+        error_count: float | None = None,
     ) -> None:
         cls._test_tsdb_record(
             ep_id,
@@ -326,11 +326,10 @@ class _V3IORecordsChecker:
 
 
 @TestMLRunSystemModelMonitoring.skip_test_if_env_not_configured
-@pytest.mark.enterprise
 class TestMonitoringAppFlow(TestMLRunSystemModelMonitoring, _V3IORecordsChecker):
     project_name = "test-app-flow"
     # Set image to "<repo>/mlrun:<tag>" for local testing
-    image: typing.Optional[str] = None
+    image: str | None = None
     error_count = 10
 
     @classmethod
@@ -940,7 +939,7 @@ class TestRecordResults(TestMLRunSystemModelMonitoring, _V3IORecordsChecker):
     project_name = "test-mm-record"
     name_prefix = "infer-monitoring"
     # Set image to "<repo>/mlrun:<tag>" for local testing
-    image: typing.Optional[str] = None
+    image: str | None = None
 
     @classmethod
     def custom_setup_class(cls) -> None:
@@ -1082,7 +1081,7 @@ class TestServingJobEndpoint(TestMLRunSystemModelMonitoring, _V3IORecordsChecker
     project_name = "test-mm-serving-job"
     name_prefix = "infer-monitoring"
     # Set image to "<repo>/mlrun:<tag>" for local testing
-    image: typing.Optional[str] = None
+    image: str | None = None
 
     @classmethod
     def custom_setup_class(cls) -> None:
@@ -1262,8 +1261,8 @@ class TestServingJobEndpoint(TestMLRunSystemModelMonitoring, _V3IORecordsChecker
         ep_id: str,
         metrics_full_names: list[str],
         run_db: mlrun.db.httpdb.HTTPRunDB,
-        start: typing.Optional[float],
-        end: typing.Optional[float],
+        start: float | None,
+        end: float | None,
     ) -> None:
         base_query = f"?name={'&name='.join(metrics_full_names)}"
         query = f"{base_query}&start={start}&end={end}"
@@ -1331,7 +1330,7 @@ class TestModelMonitoringInitialize(TestMLRunSystemModelMonitoring):
 
     project_name = "test-mm-initialize"
     # Set image to "<repo>/mlrun:<tag>" for local testing
-    image: typing.Optional[str] = None
+    image: str | None = None
 
     def test_model_monitoring_crud(self) -> None:
         # Main validations:
@@ -1547,7 +1546,7 @@ class TestUpdateControllerPreservesAuthToken(TestMLRunSystemModelMonitoring):
     the auth token that was set during enable_model_monitoring."""
 
     project_name = "test-mm-auth-token"
-    image: typing.Optional[str] = None
+    image: str | None = None
 
     @pytest.mark.timeout(600)
     def test_auth_token_preserved_after_controller_update(self) -> None:
@@ -1594,7 +1593,7 @@ class TestUpdateControllerPreservesAuthToken(TestMLRunSystemModelMonitoring):
 class TestMonitoredServings(TestMLRunSystemModelMonitoring):
     project_name = "test-mm-serving"
     # Set image to "<repo>/mlrun:<tag>" for local testing
-    image: typing.Optional[str] = None
+    image: str | None = None
 
     @classmethod
     def custom_setup_class(cls) -> None:
@@ -1677,7 +1676,7 @@ class TestMonitoredServings(TestMLRunSystemModelMonitoring):
         self,
         model_name: str,
         training_set: pd.DataFrame = None,
-        label_column: typing.Optional[typing.Union[str, list[str]]] = None,
+        label_column: typing.Union[str, list[str]] | None = None,
     ) -> None:
         self.project.log_model(
             model_name,
@@ -2075,7 +2074,7 @@ class TestAppJob(TestMLRunSystem):
     """
 
     project_name = "mm-app-as-job"
-    image: typing.Optional[str] = None
+    image: str | None = None
 
     @pytest.mark.parametrize("run_local", [False, True])
     def test_histogram_app(self, run_local: bool) -> None:
@@ -2145,7 +2144,7 @@ class TestAppJobModelEndpointData(TestMLRunSystemModelMonitoring):
     """
 
     project_name = "mm-job-mep-data"
-    image: typing.Optional[str] = None
+    image: str | None = None
     _serving_function_name = "model-server"
     _model_name = "classifier-0"
 
@@ -2364,7 +2363,7 @@ class TestBatchServingWithSampling(TestMLRunSystemModelMonitoring):
     """
 
     project_name = "mm-sampling"
-    image: typing.Optional[str] = None
+    image: str | None = None
     _serving_function_name_with_sample = "model-server-v1"
     _serving_function_name_without_sample = "model-server-v2"
     _model_name = "classifier-0"
@@ -2386,8 +2385,8 @@ class TestBatchServingWithSampling(TestMLRunSystemModelMonitoring):
     def _deploy_model_serving(
         self,
         model_uri: str,
-        sampling_percentage: typing.Optional[float] = None,
-        with_model_runner: typing.Optional[bool] = False,
+        sampling_percentage: float | None = None,
+        with_model_runner: bool | None = False,
     ) -> mlrun.runtimes.nuclio.serving.ServingRuntime:
         if with_model_runner:
             code_path = (
@@ -2437,7 +2436,7 @@ class TestBatchServingWithSampling(TestMLRunSystemModelMonitoring):
         return serving_fn
 
     def _setup_resources(
-        self, with_model_runner: typing.Optional[bool] = False
+        self, with_model_runner: bool | None = False
     ) -> None:
         self.set_mm_credentials()
         model_uri = self._log_model()

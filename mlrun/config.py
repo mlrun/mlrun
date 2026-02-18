@@ -734,6 +734,7 @@ default_config = {
             "auth_secret_name": "mlrun-auth-secrets.{hashed_access_key}",
             "env_variable_prefix": "",
             "global_function_env_secret_name": None,
+            "concurrent_token_deletions": 10,
         },
     },
     "feature_store": {

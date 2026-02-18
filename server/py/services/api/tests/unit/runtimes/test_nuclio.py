@@ -519,6 +519,51 @@ class TestNuclioRuntime(TestRuntimeBase):
         )
         assert ingresses == []
 
+    @pytest.mark.parametrize("nuclio_support_async", [True, False])
+    def test_enrich_with_ingress_trigger_mode_field(
+        self, db: Session, client: TestClient, nuclio_support_async
+    ):
+        """
+        Test that enrich_function_with_ingress correctly sets the mode field in the trigger spec
+        based on nuclio version compatibility.
+        """
+        function = self._generate_runtime(self.runtime_kind)
+        (
+            function_name,
+            project_name,
+            config,
+        ) = services.api.crud.runtimes.nuclio.function._compile_function_config(
+            function
+        )
+        service_type = "NodePort"
+
+        with unittest.mock.patch(
+            "services.api.crud.runtimes.nuclio.helpers.validate_nuclio_version_compatibility",
+            return_value=nuclio_support_async,
+        ):
+            services.api.crud.runtimes.nuclio.helpers.enrich_function_with_ingress(
+                config, NuclioIngressAddTemplatedIngressModes.always, service_type
+            )
+
+        # Check that trigger was created
+        http_trigger = (
+            services.api.crud.runtimes.nuclio.helpers.resolve_function_http_trigger(
+                config["spec"]
+            )
+        )
+        assert http_trigger is not None
+
+        # Check mode field based on nuclio version support
+        if nuclio_support_async:
+            assert http_trigger.get("mode") == "sync"
+        else:
+            assert http_trigger.get("mode") is None
+
+        # Verify other trigger fields are set correctly
+        assert http_trigger.get("kind") == "http"
+        assert http_trigger.get("name") == "http"
+        assert http_trigger.get("maxWorkers") == 1
+
     def test_nuclio_config_spec_env(self, db: Session, client: TestClient):
         function = self._generate_runtime(self.runtime_kind)
 

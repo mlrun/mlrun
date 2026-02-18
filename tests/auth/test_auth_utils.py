@@ -53,24 +53,26 @@ def test_get_offline_token_from_env(monkeypatch):
 
 
 @pytest.mark.parametrize(
-    "data, token_name, expected_token",
+    "data, token_name, expected_token, expected_name",
     [
         # 1. Valid default token
         (
             [{"name": "default", "token": "file-token"}],
             None,
             "file-token",
+            "default",
         ),
         # 2. Valid token with custom name
         (
             [{"name": "custom", "token": "custom-token"}],
             "custom",
             "custom-token",
+            "custom",
         ),
         # # 3. secretTokens not a list
-        ("not-a-list", None, None),
+        ("not-a-list", None, None, None),
         # # 4. secretTokens empty list
-        ([], None, None),
+        ([], None, None, None),
         # 5. Multiple matching tokens
         (
             [
@@ -79,9 +81,10 @@ def test_get_offline_token_from_env(monkeypatch):
             ],
             None,
             None,
+            None,
         ),
         # 6. Token entry missing 'token' field
-        ([{"name": "default"}], None, None),
+        ([{"name": "default"}], None, None, None),
         # 7. Empty default token name, no default, use 1st token
         (
             [
@@ -90,15 +93,19 @@ def test_get_offline_token_from_env(monkeypatch):
             ],
             None,
             "file-token1",
+            "token1",
         ),
     ],
 )
-def test_parse_offline_token_data_cases(data, token_name, expected_token, monkeypatch):
+def test_parse_offline_token_data_cases(
+    data, token_name, expected_token, expected_name, monkeypatch
+):
     monkeypatch.setattr(
         "mlrun.config.config.auth_with_oauth_token.token_name", token_name
     )
     # Suppress raising errors, we just check return value
-    token = mlrun.auth.utils.parse_offline_token_data(data, raise_on_error=False)
+    token, name = mlrun.auth.utils.parse_offline_token_data(data, raise_on_error=False)
+    assert name == expected_name
     assert token == expected_token
 
 
@@ -134,31 +141,34 @@ def test_parse_offline_token_data_raise_exception(data, token_name, monkeypatch)
     "env_token, file_token, expected",
     [
         # env token exists
-        ("env-token", None, "env-token"),
+        ("env-token", None, ("env-token", "default")),
         # only file token exists
-        (None, "file-token", "file-token"),
+        (None, ("file-token", "default"), ("file-token", "default")),
         # token missing
-        (None, None, None),
+        (None, (None, None), (None, None)),
     ],
 )
-def test_load_offline_token_parametrized(env_token, file_token, expected):
+def test_load_offline_token_parametrized(env_token, file_token, expected, monkeypatch):
+    monkeypatch.setattr(config.auth_with_oauth_token, "token_name", None)
     with (
         patch.object(
             mlrun.auth.utils, "get_offline_token_from_env", return_value=env_token
         ),
         patch.object(
-            mlrun.auth.utils, "get_offline_token_from_file", return_value=file_token
+            mlrun.auth.utils,
+            "get_offline_token_from_file",
+            return_value=file_token,
         ),
     ):
-        token = mlrun.auth.utils.load_offline_token(raise_on_error=False)
-        assert token == expected
+        token, _ = mlrun.auth.utils.load_offline_token(raise_on_error=False)
+        assert token == expected[0]
 
 
 def test_token_file_not_exists(monkeypatch):
     fake_file = "no_such_file.yaml"
     monkeypatch.setattr(config.auth_with_oauth_token, "token_file", str(fake_file))
 
-    result = mlrun.auth.utils.get_offline_token_from_file(raise_on_error=False)
+    result, _ = mlrun.auth.utils.get_offline_token_from_file(raise_on_error=False)
     assert result is None
 
     with pytest.raises(mlrun.errors.MLRunRuntimeError):
@@ -207,7 +217,7 @@ def test_get_offline_token_from_file(
         with pytest.raises(mlrun.errors.MLRunRuntimeError):
             mlrun.auth.utils.get_offline_token_from_file(raise_on_error=True)
     else:
-        token = mlrun.auth.utils.get_offline_token_from_file(
+        token, _ = mlrun.auth.utils.get_offline_token_from_file(
             raise_on_error=raise_on_error
         )
         assert token == expected_token

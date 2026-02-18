@@ -484,13 +484,13 @@ jobs:
         REPO_LABELS_URL="https://api.github.com/repos/${{ github.repository }}/labels"
 
         if [ "${{ steps.system-tests.outcome }}" = "success" ]; then
-          LABEL="OSS-System-test: Pass"
+          LABEL="Smoke tests: Pass"
           LABEL_COLOR="0e8a16"
-          REMOVE_LABEL="OSS-System-test: Fail"
+          REMOVE_LABEL="Smoke tests: Fail"
         else
-          LABEL="OSS-System-test: Fail"
+          LABEL="Smoke tests: Fail"
           LABEL_COLOR="d93f0b"
-          REMOVE_LABEL="OSS-System-test: Pass"
+          REMOVE_LABEL="Smoke tests: Pass"
         fi
 
         ENCODED_LABEL=$(echo "${LABEL}" | sed 's/ /%20/g; s/:/%3A/g')
@@ -515,7 +515,7 @@ jobs:
         curl -sS -X DELETE \
           -H "Authorization: token ${GITHUB_TOKEN}" \
           -H "Accept: application/vnd.github+json" \
-          "${API_URL}/OSS-System-test%3A%20Unknown" || true
+          "${API_URL}/Smoke tests%3A%20Unknown" || true
 
         # Add the correct label
         curl -sS -X POST \

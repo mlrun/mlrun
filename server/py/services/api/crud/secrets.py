@@ -689,6 +689,8 @@ class Secrets(
         # TODO: move init iguazio_client (ML-11077)
         iguazio_client = framework.utils.clients.iguazio.v4.Client()
 
+        # TODO: Replace per-token deletion with delete_collection_namespaced_secret
+        # This would reduce N K8s API calls to a single collection delete. (IG4-1510)
         semaphore = asyncio.Semaphore(
             mlrun.mlconf.secret_stores.kubernetes.concurrent_token_deletions
         )
@@ -702,6 +704,7 @@ class Secrets(
                     token_name=token_name,
                     iguazio_client=iguazio_client,
                     request_headers=auth_info.request_headers,
+                    # User is already deactivated and Keycloak removal invalidates tokens
                     skip_revocation=True,
                 )
 

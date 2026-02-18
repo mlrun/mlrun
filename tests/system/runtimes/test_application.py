@@ -24,7 +24,6 @@ from nuclio.auth import AuthInfo as NuclioAuthInfo
 import mlrun.common.schemas
 import mlrun.runtimes
 import mlrun.runtimes.utils
-import mlrun.utils.helpers
 import tests.system.base
 
 
@@ -238,13 +237,15 @@ class TestApplicationRuntime(tests.system.base.TestMLRunSystem):
             function = self._create_simple_flask_application(
                 name="source-reload-app", source=source_path
             )
+            function.set_probe(type="readiness", http_path="/health", period_seconds=2)
 
             # First deploy - auto-uploads source as artifact
             self._logger.debug("Deploying application with version-1 source")
             function.deploy(with_mlrun=False)
 
             # Invoke and verify version-1
-            self._invoke_and_assert(function, "/", expected_body="version-1")
+            response = function.invoke("/", verify=False)
+            assert response.content.decode("utf-8") == "version-1"
 
             # Update source to version-2 by modifying the VERSION constant
             self._logger.debug("Updating source to version-2")
@@ -267,7 +268,8 @@ class TestApplicationRuntime(tests.system.base.TestMLRunSystem):
             assert function.status.application_image == image_before
 
             # Invoke and verify version-2
-            self._invoke_and_assert(function, "/", expected_body="version-2")
+            response = function.invoke("/", verify=False)
+            assert response.content.decode("utf-8") == "version-2"
 
     def test_deploy_application_with_git_source(self):
         """
@@ -292,6 +294,7 @@ class TestApplicationRuntime(tests.system.base.TestMLRunSystem):
         function.spec.command = "python"
         function.spec.args = ["-m", "http.server", "8050"]
         function.set_internal_application_port(8050)
+        function.set_probe(type="readiness", http_path="/", period_seconds=2)
 
         # First deploy
         self._logger.debug("First deploy with Git source and pull_at_runtime=True")
@@ -299,8 +302,11 @@ class TestApplicationRuntime(tests.system.base.TestMLRunSystem):
         assert function.status.state == "ready"
 
         # Verify Git repo was cloned and files are accessible
-        self._invoke_and_assert(function, "/subdir/mylib.py")
-        self._invoke_and_assert(function, "/rootlib.py")
+        response = function.invoke("/subdir/mylib.py", verify=False)
+        assert response.status_code == 200
+
+        response = function.invoke("/rootlib.py", verify=False)
+        assert response.status_code == 200
 
         # Redeploy - sidecar image should not be rebuilt
         image_before = function.status.application_image
@@ -310,7 +316,8 @@ class TestApplicationRuntime(tests.system.base.TestMLRunSystem):
         assert function.status.application_image == image_before
 
         # Verify source is still accessible after redeploy
-        self._invoke_and_assert(function, "/subdir/mylib.py")
+        response = function.invoke("/subdir/mylib.py", verify=False)
+        assert response.status_code == 200
 
         # force_build=True should trigger sidecar image build
         self._logger.debug("Redeploying with force_build=True")
@@ -319,7 +326,8 @@ class TestApplicationRuntime(tests.system.base.TestMLRunSystem):
         assert function.status.application_image != image_before
 
         # Verify source is still accessible after forced rebuild
-        self._invoke_and_assert(function, "/subdir/mylib.py")
+        response = function.invoke("/subdir/mylib.py", verify=False)
+        assert response.status_code == 200
 
     def test_deploy_application_with_archive_source(self):
         """
@@ -346,6 +354,7 @@ class TestApplicationRuntime(tests.system.base.TestMLRunSystem):
         function.spec.command = "python"
         function.spec.args = ["-m", "http.server", "8050"]
         function.set_internal_application_port(8050)
+        function.set_probe(type="readiness", http_path="/", period_seconds=2)
 
         # First deploy
         self._logger.debug("First deploy with archive source and pull_at_runtime=True")
@@ -353,7 +362,8 @@ class TestApplicationRuntime(tests.system.base.TestMLRunSystem):
         assert function.status.state == "ready"
 
         # Verify extracted archive files are accessible
-        self._invoke_and_assert(function, "/rootlib.py")
+        response = function.invoke("/rootlib.py", verify=False)
+        assert response.status_code == 200
 
         # Redeploy - sidecar image should not be rebuilt
         image_before = function.status.application_image
@@ -444,23 +454,3 @@ class TestApplicationRuntime(tests.system.base.TestMLRunSystem):
             "--port=5000",
         ]
         return function
-
-    def _invoke_and_assert(
-        self, function, path, expected_status=200, expected_body=None, timeout=30
-    ):
-        """Invoke with retry — the sidecar may need a few seconds after deploy to start serving."""
-
-        def _do_invoke():
-            resp = function.invoke(path, verify=False)
-            assert (
-                resp.status_code == expected_status
-            ), f"Expected {expected_status}, got {resp.status_code}: {resp.content.decode()}"
-            if expected_body is not None:
-                assert (
-                    resp.content.decode("utf-8") == expected_body
-                ), f"Expected body '{expected_body}', got '{resp.content.decode('utf-8')}'"
-            return resp
-
-        return mlrun.utils.helpers.retry_until_successful(
-            2, timeout, self._logger, True, _do_invoke
-        )

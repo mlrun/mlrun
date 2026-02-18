@@ -441,6 +441,7 @@ jobs:
             done
 
     - name: Run system tests
+      id: system-tests
       run: |
         # Define get_host_ip function
         get_host_ip() {
@@ -468,9 +469,9 @@ jobs:
       env:
         PYTEST_MARKERS: ${{ github.event.inputs.pytest_markers || env.DEFAULT_PYTEST_MARKERS }}
 
-    - name: Label PR on success
+    - name: Label PR with system test result
       if: >-
-        success() &&
+        always() &&
         (github.event_name == 'pull_request' || github.event.inputs.pr_number != '')
       run: |
         if [ "${{ github.event_name }}" = "pull_request" ]; then
@@ -479,16 +480,30 @@ jobs:
           PR="${{ github.event.inputs.pr_number }}"
         fi
         API_URL="https://api.github.com/repos/${{ github.repository }}/issues/${PR}/labels"
-        # Remove conflicting label (ignore if not present)
+
+        if [ "${{ steps.system-tests.outcome }}" = "success" ]; then
+          LABEL="OSS-System-test: Pass"
+          REMOVE_LABEL="OSS-System-test: Fail"
+        else
+          LABEL="OSS-System-test: Fail"
+          REMOVE_LABEL="OSS-System-test: Pass"
+        fi
+
+        # Remove the opposite label and the Unknown label (ignore errors if not present)
         curl -sS -X DELETE \
           -H "Authorization: token ${GITHUB_TOKEN}" \
           -H "Accept: application/vnd.github+json" \
-          "${API_URL}/OSS%20System%20tests%20failed" || true
-        # Add success label
+          "${API_URL}/$(echo "${REMOVE_LABEL}" | sed 's/ /%20/g')" || true
+        curl -sS -X DELETE \
+          -H "Authorization: token ${GITHUB_TOKEN}" \
+          -H "Accept: application/vnd.github+json" \
+          "${API_URL}/OSS-System-test%3A%20Unknown" || true
+
+        # Add the correct label
         curl -sS -X POST \
           -H "Authorization: token ${GITHUB_TOKEN}" \
           -H "Accept: application/vnd.github+json" \
-          -d '{"labels":["OSS System tests passed"]}' \
+          -d "{\"labels\":[\"${LABEL}\"]}" \
           "${API_URL}"
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

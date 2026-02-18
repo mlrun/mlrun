@@ -1465,9 +1465,14 @@ class LLModel(Model):
         Streaming is active when the serving graph has streaming enabled
         (``server.streaming``) and the model provider supports streaming.
         """
-        context = getattr(self, "context", None)
+        streaming_enabled = getattr(self, "_streaming_enabled", None)
+        if streaming_enabled is None:
+            context = getattr(self, "context", None)
+            streaming_enabled = getattr(
+                getattr(context, "server", None), "streaming", False
+            )
         return (
-            getattr(getattr(context, "server", None), "streaming", False)
+            streaming_enabled
             and isinstance(self.model_provider, ModelProvider)
             and self.model_provider.supports_streaming
         )
@@ -1580,11 +1585,7 @@ class LLModel(Model):
                     f" and the {predict_function_name} function was not overridden."
                 )
         elif (
-            getattr(
-                getattr(getattr(self, "context", None), "server", None),
-                "streaming",
-                False,
-            )
+            getattr(self, "_streaming_enabled", False)
             and not self.model_provider.supports_streaming
         ):
             raise mlrun.errors.MLRunInvalidArgumentError(
@@ -2544,6 +2545,9 @@ class ModelRunnerStep(MonitoredStep):
             model._raise_exception = False
             model._execution_mechanism = execution_mechanism_by_model_name.get(
                 model_name
+            )
+            model._streaming_enabled = getattr(
+                getattr(context, "server", None), "streaming", False
             )
             model_objects.append(model)
         self._async_object = ModelRunner(

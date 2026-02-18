@@ -591,25 +591,6 @@ class _MockNonStreamingProvider(ModelProvider):
         self.default_invoke_kwargs = {}
 
 
-class _MockServerWithStreaming:
-    """Mock server with streaming enabled."""
-
-    streaming = True
-
-
-class _MockServerWithoutStreaming:
-    """Mock server with streaming disabled."""
-
-    streaming = False
-
-
-class _MockContext:
-    """Mock context with a configurable server."""
-
-    def __init__(self, server):
-        self.server = server
-
-
 class TestLLModelStreaming:
     """Tests for LLModel streaming integration with model providers."""
 
@@ -618,12 +599,7 @@ class TestLLModelStreaming:
     @classmethod
     def _make_model(cls, streaming_server=True, provider=_sentinel):
         model = LLModel(name="test")
-        server = (
-            _MockServerWithStreaming()
-            if streaming_server
-            else _MockServerWithoutStreaming()
-        )
-        model.context = _MockContext(server)
+        model._streaming_enabled = streaming_server
         model.model_provider = (
             _MockStreamingProvider() if provider is cls._sentinel else provider
         )

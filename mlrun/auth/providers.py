@@ -211,7 +211,9 @@ class DynamicTokenProvider(TokenProvider):
         pass
 
     @abstractmethod
-    def _build_token_request(self, raise_on_error=False):
+    def _build_token_request(
+        self, raise_on_error: bool = False
+    ) -> tuple[dict | None, dict | None, str | None]:
         """
         Build the request body and headers for the token request.
 
@@ -244,7 +246,9 @@ class OAuthClientIDTokenProvider(DynamicTokenProvider):
         super().__init__(token_endpoint=token_endpoint, timeout=timeout)
 
     def _cleanup(self):
-        self._token = self.token_expiry_time = self.token_refresh_time = None
+        super()._cleanup()
+        self.token_expiry_time = None
+        self.token_refresh_time = None
 
     def _is_token_within_refresh_threshold(self, cleanup_if_expired=True) -> bool:
         """
@@ -272,7 +276,9 @@ class OAuthClientIDTokenProvider(DynamicTokenProvider):
             self._cleanup()
         return False
 
-    def _build_token_request(self, raise_on_error=False):
+    def _build_token_request(
+        self, raise_on_error: bool = False
+    ) -> tuple[dict | None, dict | None, str | None]:
         headers = {"Content-Type": "application/x-www-form-urlencoded"}
         request_body = {
             "grant_type": "client_credentials",
@@ -390,7 +396,9 @@ class IGTokenProvider(DynamicTokenProvider):
             * mlconf.auth_with_oauth_token.refresh_threshold
         )
 
-    def _build_token_request(self, raise_on_error=False) -> tuple[dict, dict, str]:
+    def _build_token_request(
+        self, raise_on_error: bool = False
+    ) -> tuple[dict | None, dict | None, str | None]:
         """
         Build the request body and headers for the token request.
 

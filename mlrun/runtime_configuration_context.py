@@ -68,5 +68,5 @@ class RuntimeConfigurationContext:
 
         rundb = mlrun.get_run_db()
         if rundb and rundb.token_provider:
-            return rundb.token_provider.token_name
+            return getattr(rundb.token_provider, "token_name", None)
         return None

@@ -38,7 +38,9 @@ class Claims:
     PREFERRED_USERNAME = "preferred_username"
 
 
-def load_offline_token(raise_on_error=True) -> typing.Optional[str]:
+def load_offline_token(
+    raise_on_error: bool = True,
+) -> tuple[typing.Optional[str], typing.Optional[str]]:
     """
     Load the offline token from the environment variable or YAML file.
 
@@ -48,16 +50,17 @@ def load_offline_token(raise_on_error=True) -> typing.Optional[str]:
 
     :param raise_on_error: If True, raises an error when the offline token cannot be resolved.
                            If False, logs a warning instead.
-    :return: The offline token if found, otherwise None.
+    :return: A tuple containing the offline token and its resolved token name.
+             Returns (None, None) when token resolution fails.
     """
     if token_env := get_offline_token_from_env():
-        return token_env, mlrun.secrets.get_secret_or_env(
-            "MLRUN_AUTH_OFFLINE_TOKEN_NAME", default="default"
-        )
+        return token_env, mlconf.auth_with_oauth_token.token_name or "default"
     return get_offline_token_from_file(raise_on_error=raise_on_error)
 
 
-def get_offline_token_from_file(raise_on_error: bool = True) -> typing.Optional[str]:
+def get_offline_token_from_file(
+    raise_on_error: bool = True,
+) -> tuple[typing.Optional[str], typing.Optional[str]]:
     """
     Retrieve the offline token from a configured file.
 
@@ -66,7 +69,8 @@ def get_offline_token_from_file(raise_on_error: bool = True) -> typing.Optional[
     raises an error or logs a warning based on the `raise_on_error` parameter.
 
     :param raise_on_error: Whether to raise an error or log a warning on failure.
-    :return: The offline token if found, otherwise None.
+    :return: A tuple containing the offline token and its resolved token name.
+             Returns (None, None) when token resolution fails.
     """
     tokens = load_secret_tokens_from_file(raise_on_error=raise_on_error)
     if not tokens:
@@ -184,7 +188,8 @@ def parse_offline_token_data(
 
     :param tokens: List of token dictionaries loaded from the YAML file.
     :param raise_on_error: Whether to raise an error or log a warning on failure.
-    :return: The resolved offline token, or None if resolution fails.
+    :return: A tuple of (resolved offline token, resolved token name),
+             or (None, None) if resolution fails.
     """
     if not isinstance(tokens, list) or not tokens:
         mlrun.utils.helpers.raise_or_log_error(
@@ -193,14 +198,14 @@ def parse_offline_token_data(
         )
         return None, None
 
-    name = mlconf.auth_with_oauth_token.token_name or "default"
-    matches = [t for t in tokens if t.get("name") == name] or (
+    default_token_name = mlconf.auth_with_oauth_token.token_name or "default"
+    matches = [t for t in tokens if t.get("name") == default_token_name] or (
         [tokens[0]] if not mlconf.auth_with_oauth_token.token_name else []
     )
 
     if len(matches) != 1:
         mlrun.utils.helpers.raise_or_log_error(
-            f"Failed to resolve a unique token. Found {len(matches)} entries for name '{name}'",
+            f"Failed to resolve a unique token. Found {len(matches)} entries for name '{default_token_name}'",
             raise_on_error,
         )
         return None, None
@@ -213,7 +218,8 @@ def parse_offline_token_data(
         )
         return None, None
 
-    return token_value, name
+    token_name = matches[0].get("name")
+    return token_value, token_name
 
 
 def get_offline_token_from_env() -> typing.Optional[str]:

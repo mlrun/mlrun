@@ -91,7 +91,7 @@ def test_get_offline_token_from_env(monkeypatch):
                 {"name": "token1", "token": "file-token1"},
                 {"name": "token2", "token": "file-token2"},
             ],
-            "token1",
+            None,
             "file-token1",
             "token1",
         ),
@@ -141,7 +141,7 @@ def test_parse_offline_token_data_raise_exception(data, token_name, monkeypatch)
     "env_token, file_token, expected",
     [
         # env token exists
-        ("env-token", None, ("env-token", None)),
+        ("env-token", None, ("env-token", "default")),
         # only file token exists
         (None, ("file-token", "default"), ("file-token", "default")),
         # token missing

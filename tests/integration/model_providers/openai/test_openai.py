@@ -276,6 +276,33 @@ class TestOpenAIProvider(TestBasicOpenAIProvider):
         assert result
         assert " " not in result.strip()  # checking one-word answer
 
+    def test_invoke_stream(self):
+        """Sync streaming yields non-empty tokens that form a coherent answer."""
+        model_url = self.url_prefix + self.basic_llm_model
+        provider = mlrun.get_model_provider(
+            url=model_url, default_invoke_kwargs={"max_tokens": 60}
+        )
+        messages = [formatted_messages[0]]
+        tokens = list(provider.invoke_stream(messages=messages))
+        assert len(tokens) > 1, "Expected multiple streamed tokens"
+        full_text = "".join(tokens)
+        assert EXPECTED_RESULTS[0] in full_text.lower()
+
+    @pytest.mark.asyncio
+    async def test_async_invoke_stream(self):
+        """Async streaming yields non-empty tokens that form a coherent answer."""
+        model_url = self.url_prefix + self.basic_llm_model
+        provider = mlrun.get_model_provider(
+            url=model_url, default_invoke_kwargs={"max_tokens": 60}
+        )
+        messages = [formatted_messages[0]]
+        tokens = [
+            token async for token in provider.async_invoke_stream(messages=messages)
+        ]
+        assert len(tokens) > 1, "Expected multiple streamed tokens"
+        full_text = "".join(tokens)
+        assert EXPECTED_RESULTS[0] in full_text.lower()
+
     @pytest.mark.asyncio
     @pytest.mark.parametrize("run_async", [True, False])
     async def test_custom_invoke(self, run_async):
@@ -524,31 +551,35 @@ class TestOpenAIModel(TestBasicOpenAIProvider):
             batch_response, EXPECTED_RESULTS, self.basic_llm_model
         )
 
-
-class TestOpenAIProviderStreaming(TestBasicOpenAIProvider):
-    def test_invoke_stream(self):
-        """Sync streaming yields non-empty tokens that form a coherent answer."""
+    def test_model_runner_streaming(self):
+        """Test streaming through MRS with OpenAI provider."""
+        project = mlrun.new_project("test-openai-streaming", save=False)
         model_url = self.url_prefix + self.basic_llm_model
-        provider = mlrun.get_model_provider(
-            url=model_url, default_invoke_kwargs={"max_tokens": 60}
+        model_artifact, llm_prompt_artifact, function = setup_remote_model_test(
+            project,
+            model_url,
+            execution_mechanism="asyncio",
+            default_config={"max_tokens": 60},
+            streaming=True,
         )
-        messages = [formatted_messages[0]]
-        tokens = list(provider.invoke_stream(messages=messages))
-        assert len(tokens) > 1, "Expected multiple streamed tokens"
-        full_text = "".join(tokens)
-        assert EXPECTED_RESULTS[0] in full_text.lower()
-
-    @pytest.mark.asyncio
-    async def test_async_invoke_stream(self):
-        """Async streaming yields non-empty tokens that form a coherent answer."""
-        model_url = self.url_prefix + self.basic_llm_model
-        provider = mlrun.get_model_provider(
-            url=model_url, default_invoke_kwargs={"max_tokens": 60}
+        mocked_get_store_artifact = create_mocked_get_store_artifact(
+            {
+                model_artifact.uri: model_artifact,
+                llm_prompt_artifact.uri: llm_prompt_artifact,
+            }
         )
-        messages = [formatted_messages[0]]
-        tokens = [
-            token async for token in provider.async_invoke_stream(messages=messages)
-        ]
-        assert len(tokens) > 1, "Expected multiple streamed tokens"
-        full_text = "".join(tokens)
-        assert EXPECTED_RESULTS[0] in full_text.lower()
+        with unittest.mock.patch(
+            "mlrun.artifacts.llm_prompt.mlrun.datastore.store_manager.get_store_artifact",
+            side_effect=lambda *args, **kwargs: mocked_get_store_artifact(
+                *args, **kwargs
+            ),
+        ):
+            server = function.to_mock_server()
+        try:
+            response = server.test(body=BATCH_INPUT_DATA[0])
+            assert isinstance(
+                response, str
+            ), f"Expected streamed string, got {type(response)}"
+            assert EXPECTED_RESULTS[0] in response.lower()
+        finally:
+            server.wait_for_completion()

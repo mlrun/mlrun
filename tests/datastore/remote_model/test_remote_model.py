@@ -1032,3 +1032,54 @@ class TestMockModelProviderBatchStep(BaseMockModelProviderTest):
             # Single model
             error_event = dummy_stream.event_list[0]
             self._verify_batch_error_tracking(error_event, error_inputs)
+
+
+class TestMockModelProviderStreaming(BaseMockModelProviderTest):
+    """Tests for streaming invocation with MockModelProvider through MRS."""
+
+    @staticmethod
+    def _consume_streaming_response(response):
+        """Consume a streaming response generator and return the joined text."""
+        import types
+
+        if isinstance(response, types.GeneratorType):
+            return "".join(response)
+        return response
+
+    def _verify_streaming_response(self, response):
+        """Verify that a streaming response contains the expected mock text."""
+        text = self._consume_streaming_response(response)
+        assert isinstance(text, str), f"Expected streamed string, got {type(text)}"
+        assert "mock model provider" in text.lower()
+
+    def test_llmodel_streaming(self, rundb_mock):
+        """Test streaming invocation through MRS with MockModelProvider."""
+        project = mlrun.new_project("test-mock-streaming", save=False)
+        model_url = "mock://my-mock-model"
+
+        model_artifact, llm_prompt_artifact, function = setup_remote_model_test(
+            project,
+            model_url,
+            execution_mechanism="asyncio",
+            streaming=True,
+        )
+
+        mocked_get_store_artifact = create_mocked_get_store_artifact(
+            {
+                model_artifact.uri: model_artifact,
+                llm_prompt_artifact.uri: llm_prompt_artifact,
+            }
+        )
+        with unittest.mock.patch(
+            "mlrun.artifacts.llm_prompt.mlrun.datastore.store_manager.get_store_artifact",
+            side_effect=lambda *args, **kwargs: mocked_get_store_artifact(
+                *args, **kwargs
+            ),
+        ):
+            server = function.to_mock_server()
+
+        try:
+            response = server.test(body=BATCH_INPUT_DATA[0])
+            self._verify_streaming_response(response)
+        finally:
+            server.wait_for_completion()

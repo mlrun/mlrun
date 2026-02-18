@@ -1087,6 +1087,7 @@ class ServingRuntime(nuclio_function.RemoteRuntime):
             api_handler_config=self.spec.api_handler_config,
             **kwargs,
         )
+        server.streaming = self.spec.streaming
         server.init_states(
             context=None,
             namespace=namespace,

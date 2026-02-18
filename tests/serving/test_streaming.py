@@ -21,6 +21,7 @@ import pytest
 
 import mlrun
 import mlrun.errors
+from mlrun.datastore.model_provider.mock_model_provider import MockModelProvider
 from mlrun.datastore.model_provider.model_provider import ModelProvider
 from mlrun.runtimes.nuclio.serving import ServingSpec
 from mlrun.serving import Model
@@ -564,22 +565,11 @@ class TestModelIsStreaming:
         assert list(result) == ["test_chunk_0", "test_chunk_1", "test_chunk_2"]
 
 
-class _MockStreamingProvider(ModelProvider):
-    """A mock model provider that supports streaming."""
-
-    supports_streaming = True
-
-    def __init__(self):
-        # Skip ModelProvider.__init__ which requires parent/kind/name
-        self.default_invoke_kwargs = {}
-
-    def invoke_stream(self, messages, **invoke_kwargs):
-        for i in range(3):
-            yield f"token_{i}"
-
-    async def async_invoke_stream(self, messages, **invoke_kwargs):
-        for i in range(3):
-            yield f"token_{i}"
+def _make_mock_streaming_provider():
+    """Create a MockModelProvider instance without a real parent."""
+    provider = MockModelProvider.__new__(MockModelProvider)
+    provider.default_invoke_kwargs = {}
+    return provider
 
 
 class _MockNonStreamingProvider(ModelProvider):
@@ -601,7 +591,7 @@ class TestLLModelStreaming:
         model = LLModel(name="test")
         model._streaming_enabled = streaming_server
         model.model_provider = (
-            _MockStreamingProvider() if provider is cls._sentinel else provider
+            _make_mock_streaming_provider() if provider is cls._sentinel else provider
         )
         return model
 
@@ -612,7 +602,7 @@ class TestLLModelStreaming:
     @pytest.mark.parametrize(
         "streaming_server, provider",
         [
-            (False, _MockStreamingProvider()),
+            (False, _make_mock_streaming_provider()),
             (True, _MockNonStreamingProvider()),
             (True, None),
         ],
@@ -633,7 +623,10 @@ class TestLLModelStreaming:
             ),
         )
         assert inspect.isgenerator(result)
-        assert list(result) == ["token_0", "token_1", "token_2"]
+        tokens = list(result)
+        assert len(tokens) > 0
+        full_text = "".join(tokens)
+        assert "mock model provider" in full_text.lower()
 
     def test_run_async_returns_async_generator_when_streaming(self):
         """run_async() returns an async generator directly when streaming is active."""

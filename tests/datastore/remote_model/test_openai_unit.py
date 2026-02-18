@@ -481,6 +481,58 @@ class TestOpenAIStreaming:
             ):
                 pass
 
+    def test_llmodel_streaming(self, monkeypatch):
+        """Streaming through MRS yields concatenated token string via mocked OpenAI."""
+        monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+        monkeypatch.setenv("OPENAI_BASE_URL", "http://localhost:1234")
+
+        from tests.datastore.remote_model.remote_model_utils import (
+            BATCH_INPUT_DATA,
+            create_mocked_get_store_artifact,
+            setup_remote_model_test,
+        )
+
+        project = mlrun.new_project("test-openai-stream-mrs", save=False)
+        model_artifact, llm_prompt_artifact, function = setup_remote_model_test(
+            project,
+            "openai://gpt-4o-mini",
+            execution_mechanism="asyncio",
+            streaming=True,
+        )
+        mocked_get_store_artifact = create_mocked_get_store_artifact(
+            {
+                model_artifact.uri: model_artifact,
+                llm_prompt_artifact.uri: llm_prompt_artifact,
+            }
+        )
+        with unittest.mock.patch(
+            "mlrun.artifacts.llm_prompt.mlrun.datastore.store_manager.get_store_artifact",
+            side_effect=lambda *args, **kwargs: mocked_get_store_artifact(
+                *args, **kwargs
+            ),
+        ):
+            server = function.to_mock_server()
+
+        try:
+
+            async def mock_async_stream(self_provider, messages, **kwargs):
+                for token in ["Hello", " world"]:
+                    yield token
+
+            with unittest.mock.patch(
+                "mlrun.datastore.model_provider.openai_provider.OpenAIProvider.async_invoke_stream",
+                mock_async_stream,
+            ):
+                response = server.test(body=BATCH_INPUT_DATA[0])
+            import types
+
+            if isinstance(response, types.GeneratorType):
+                response = "".join(response)
+            assert isinstance(response, str)
+            assert "Hello world" in response
+        finally:
+            server.wait_for_completion()
+
     def test_invoke_stream_passes_invoke_kwargs(self):
         """invoke_stream forwards invoke_kwargs and default_invoke_kwargs to the API call."""
         provider = mlrun.get_model_provider(

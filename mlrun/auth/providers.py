@@ -36,15 +36,10 @@ class TokenProvider(ABC):
     def is_iguazio_session(self):
         pass
 
-    @property
-    def token_name(self) -> str | None:
-        return None
-
 
 class StaticTokenProvider(TokenProvider):
     def __init__(self, token: str, token_name: str | None = None):
         self.token = token
-        self._token_name: str | None = token_name
 
     def get_token(self):
         return self.token
@@ -70,6 +65,7 @@ class DynamicTokenProvider(TokenProvider):
                 "No token endpoint provided, cannot initialize token provider"
             )
         self._token = None
+        self._token_name = None
         self._token_endpoint = token_endpoint
         self._timeout = timeout
         self._max_retries = max_retries
@@ -82,6 +78,10 @@ class DynamicTokenProvider(TokenProvider):
         )
         self._cleanup()
         self._refresh_token_if_needed()
+
+    @property
+    def token_name(self) -> str | None:
+        return self._token_name
 
     def get_token(self):
         """
@@ -185,6 +185,13 @@ class DynamicTokenProvider(TokenProvider):
 
         return self._token
 
+    def _cleanup(self):
+        """
+        Clean up the token and related metadata.
+        """
+        self._token = None
+        self._token_name = None
+
     @abstractmethod
     def _post_fetch_hook(self, raise_on_error=True):
         """
@@ -200,13 +207,6 @@ class DynamicTokenProvider(TokenProvider):
 
         :param cleanup_if_expired: Whether to clean up the token if it is expired.
         :return: True if the token is valid, False otherwise.
-        """
-        pass
-
-    @abstractmethod
-    def _cleanup(self):
-        """
-        Clean up the token and related metadata.
         """
         pass
 
@@ -360,7 +360,7 @@ class IGTokenProvider(DynamicTokenProvider):
             )
 
     def _cleanup(self):
-        self._token = None
+        super()._cleanup()
         self._token_total_lifetime = 0
         self._token_expiry_time = None
 

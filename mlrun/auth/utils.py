@@ -51,7 +51,9 @@ def load_offline_token(raise_on_error=True) -> typing.Optional[str]:
     :return: The offline token if found, otherwise None.
     """
     if token_env := get_offline_token_from_env():
-        return token_env
+        return token_env, mlrun.secrets.get_secret_or_env(
+            "MLRUN_AUTH_OFFLINE_TOKEN_NAME", default="default"
+        )
     return get_offline_token_from_file(raise_on_error=raise_on_error)
 
 
@@ -68,7 +70,7 @@ def get_offline_token_from_file(raise_on_error: bool = True) -> typing.Optional[
     """
     tokens = load_secret_tokens_from_file(raise_on_error=raise_on_error)
     if not tokens:
-        return None
+        return None, None
     return parse_offline_token_data(tokens=tokens, raise_on_error=raise_on_error)
 
 
@@ -161,7 +163,7 @@ def read_secret_tokens_file(
 
 def parse_offline_token_data(
     tokens: list[dict[str, typing.Any]], raise_on_error: bool = True
-) -> typing.Optional[str]:
+) -> tuple[typing.Optional[str], typing.Optional[str]]:
     """
     Extract the correct offline token entry from the parsed tokens list.
 
@@ -189,7 +191,7 @@ def parse_offline_token_data(
             "Invalid token file: 'secretTokens' must be a non-empty list",
             raise_on_error,
         )
-        return None
+        return None, None
 
     name = mlconf.auth_with_oauth_token.token_name or "default"
     matches = [t for t in tokens if t.get("name") == name] or (
@@ -201,7 +203,7 @@ def parse_offline_token_data(
             f"Failed to resolve a unique token. Found {len(matches)} entries for name '{name}'",
             raise_on_error,
         )
-        return None
+        return None, None
 
     token_value = matches[0].get("token")
     if not token_value:
@@ -209,9 +211,9 @@ def parse_offline_token_data(
             "Resolved token entry missing 'token' field",
             raise_on_error,
         )
-        return None
+        return None, None
 
-    return token_value
+    return token_value, name
 
 
 def get_offline_token_from_env() -> typing.Optional[str]:

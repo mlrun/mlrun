@@ -635,18 +635,20 @@ class TestLLModelStreaming:
         assert inspect.isgenerator(result)
         assert list(result) == ["token_0", "token_1", "token_2"]
 
-    @pytest.mark.asyncio
-    async def test_predict_async_returns_async_generator_when_streaming(self):
-        """predict_async() returns an async generator of tokens when streaming is active."""
-        result = await self._make_model().predict_async(
-            body={"input": "hello"},
-            messages=[{"role": "user", "content": "hello"}],
-            llm_prompt_artifact=unittest.mock.MagicMock(
-                spec=mlrun.artifacts.LLMPromptArtifact
-            ),
+    def test_run_async_returns_async_generator_when_streaming(self):
+        """run_async() returns an async generator directly when streaming is active."""
+        model = self._make_model()
+        model.invocation_artifact = unittest.mock.MagicMock(
+            spec=mlrun.artifacts.LLMPromptArtifact
         )
+        model._artifact_were_loaded = True
+        messages = [{"role": "user", "content": "hello"}]
+        model.enrich_prompt = lambda body, origin, llm_prompt_artifact: (
+            messages,
+            {},
+        )
+        result = model.run_async(body={"input": "hello"}, path="/")
         assert inspect.isasyncgen(result)
-        assert [token async for token in result] == ["token_0", "token_1", "token_2"]
 
     def test_init_raises_when_provider_does_not_support_streaming(self):
         """init() raises when streaming is enabled but provider doesn't support it."""

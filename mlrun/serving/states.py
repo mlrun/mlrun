@@ -1538,16 +1538,6 @@ class LLModel(Model):
     ) -> Any:
         if not self._can_invoke_provider(kwargs.get("llm_prompt_artifact")):
             return body
-        if self.is_streaming():
-            logger.debug(
-                "Invoking model provider in streaming mode",
-                model_name=self.name,
-                messages=messages,
-            )
-            return self.model_provider.async_invoke_stream(
-                messages=messages,
-                **(invocation_config or {}),
-            )
         logger.debug(
             "Invoking model provider",
             model_name=self.name,

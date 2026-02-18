@@ -17,7 +17,6 @@ import importlib.metadata as importlib_metadata
 import os
 import sys
 import tempfile
-import warnings
 from types import ModuleType
 from typing import Any
 

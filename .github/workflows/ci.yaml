@@ -428,6 +428,20 @@ jobs:
           PR="${{ github.event.pull_request.number }}"
           API_URL="https://api.github.com/repos/${{ github.repository }}/issues/${PR}/labels"
 
+          REPO_LABELS_URL="https://api.github.com/repos/${{ github.repository }}/labels"
+
+          # Ensure the Unknown label exists with gray color
+          curl -sS -X PATCH \
+            -H "Authorization: token ${GITHUB_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            -d '{"color":"c5def5"}' \
+            "${REPO_LABELS_URL}/OSS-System-test%3A%20Unknown" || \
+          curl -sS -X POST \
+            -H "Authorization: token ${GITHUB_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            -d '{"name":"OSS-System-test: Unknown","color":"c5def5"}' \
+            "${REPO_LABELS_URL}"
+
           # Remove Pass and Fail labels (ignore errors if not present)
           curl -sS -X DELETE \
             -H "Authorization: token ${GITHUB_TOKEN}" \

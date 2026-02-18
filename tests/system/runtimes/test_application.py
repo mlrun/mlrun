@@ -305,6 +305,7 @@ class TestApplicationRuntime(tests.system.base.TestMLRunSystem):
         response = function.invoke("/subdir/mylib.py", verify=False)
         assert response.status_code == 200
 
+        # Verify a root level file is also accessible
         response = function.invoke("/rootlib.py", verify=False)
         assert response.status_code == 200
 

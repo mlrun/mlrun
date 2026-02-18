@@ -17,6 +17,7 @@ name: System Tests Open Source
 permissions:
   contents: read
   packages: write
+  pull-requests: write
   
 on:
    workflow_dispatch:
@@ -466,6 +467,22 @@ jobs:
         make test-system-open-source
       env:
         PYTEST_MARKERS: ${{ github.event.inputs.pytest_markers || env.DEFAULT_PYTEST_MARKERS }}
+
+    - name: Label PR on success
+      if: >-
+        success() &&
+        (github.event_name == 'pull_request' || github.event.inputs.pr_number != '')
+      run: |
+        if [ "${{ github.event_name }}" = "pull_request" ]; then
+          PR="${{ github.event.pull_request.number }}"
+        else
+          PR="${{ github.event.inputs.pr_number }}"
+        fi
+        gh pr edit "$PR" --remove-label "OSS System tests failed" --repo "$GITHUB_REPOSITORY" 2>&1 || true
+        gh pr edit "$PR" --add-label "OSS System tests passed" --repo "$GITHUB_REPOSITORY"
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        GITHUB_REPOSITORY: ${{ github.repository }}
 
     - name: Output  logs
       if: always()

@@ -134,20 +134,23 @@ def test_parse_offline_token_data_raise_exception(data, token_name, monkeypatch)
     "env_token, file_token, expected",
     [
         # env token exists
-        ("env-token", None, "env-token"),
+        ("env-token", None, ("env-token", None)),
         # only file token exists
-        (None, "file-token", "file-token"),
+        (None, ("file-token", "default"), ("file-token", "default")),
         # token missing
-        (None, None, None),
+        (None, (None, None), (None, None)),
     ],
 )
-def test_load_offline_token_parametrized(env_token, file_token, expected):
+def test_load_offline_token_parametrized(env_token, file_token, expected, monkeypatch):
+    monkeypatch.setattr(config.auth_with_oauth_token, "token_name", None)
     with (
         patch.object(
             mlrun.auth.utils, "get_offline_token_from_env", return_value=env_token
         ),
         patch.object(
-            mlrun.auth.utils, "get_offline_token_from_file", return_value=file_token
+            mlrun.auth.utils,
+            "get_offline_token_and_name_from_file",
+            return_value=file_token,
         ),
     ):
         token = mlrun.auth.utils.load_offline_token(raise_on_error=False)

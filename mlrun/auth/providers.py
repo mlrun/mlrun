@@ -36,10 +36,15 @@ class TokenProvider(ABC):
     def is_iguazio_session(self):
         pass
 
+    @property
+    def token_name(self) -> str | None:
+        return None
+
 
 class StaticTokenProvider(TokenProvider):
-    def __init__(self, token: str):
+    def __init__(self, token: str, token_name: str | None = None):
         self.token = token
+        self._token_name: str | None = token_name
 
     def get_token(self):
         return self.token
@@ -385,19 +390,20 @@ class IGTokenProvider(DynamicTokenProvider):
             * mlconf.auth_with_oauth_token.refresh_threshold
         )
 
-    def _build_token_request(self, raise_on_error=False):
+    def _build_token_request(self, raise_on_error=False) -> tuple[dict, dict, str]:
         """
         Build the request body and headers for the token request.
 
         :param raise_on_error: Whether to raise an error if the request cannot be built.
         :return: A tuple containing the request body and headers.
         """
-        offline_token = mlrun.auth.utils.load_offline_token(
+        offline_token, token_name = mlrun.auth.utils.load_offline_token(
             raise_on_error=raise_on_error
         )
+        self._token_name = token_name
         if not offline_token:
             # Error already handled in `_load_offline_token`
-            return None, None
+            return None, None, None
 
         headers = {"Content-Type": "application/json"}
         request_body = {"refreshToken": offline_token}

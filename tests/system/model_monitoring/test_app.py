@@ -840,10 +840,13 @@ class TestMonitoringAppFlow(TestMLRunSystemModelMonitoring, _V3IORecordsChecker)
         ), "No drift over time should be detected in the past"
 
     @pytest.mark.parametrize(
-        "with_training_set", [pytest.param(True, marks=pytest.mark.smoke), False]
-    )
-    @pytest.mark.parametrize(
-        "with_model_runner", [pytest.param(True, marks=pytest.mark.smoke), False]
+        "with_training_set, with_model_runner",
+        [
+            pytest.param(True, True, marks=pytest.mark.smoke),
+            pytest.param(True, False),
+            pytest.param(False, True),
+            pytest.param(False, False),
+        ],
     )
     def test_app_flow(self, with_training_set: bool, with_model_runner: bool) -> None:
         self.apps_data = self._get_apps_data(with_training_set)

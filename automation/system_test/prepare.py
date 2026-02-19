@@ -482,13 +482,6 @@ class SystemTestPreparer:
             }
         )
 
-        # S3 credentials for the test client to access SeaweedFS.
-        # The endpoint URL (AWS_ENDPOINT_URL_S3) is resolved dynamically
-        # in the workflow after helm install, since it depends on the
-        # SeaweedFS service ClusterIP.
-        self._env_config["AWS_ACCESS_KEY_ID"] = "minio"
-        self._env_config["AWS_SECRET_ACCESS_KEY"] = "minio123"
-
     def _install_dev_utilities(self):
         list_uninstall = [
             "dev_utilities.py",

@@ -35,7 +35,8 @@ To create a custom packager, see :ref:`custom-packagers-tutorials`.
 
    errors
 
-.. rubric:: Built-in packager modules
+**Built-in packager modules**
+
 
 MLRun includes the following built-in packager modules. All built-in packagers
 subclass :py:class:`~mlrun.package.packagers.default_packager.DefaultPackager` and

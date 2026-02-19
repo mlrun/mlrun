@@ -1104,6 +1104,9 @@ class ServingRuntime(nuclio_function.RemoteRuntime):
             self.spec,
         )
 
+        # Update context.root to point to the new graph
+        server.context.root = server.graph
+
         if workdir:
             os.chdir(old_workdir)
 

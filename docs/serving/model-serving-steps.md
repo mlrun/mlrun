@@ -20,7 +20,7 @@ See [Basic code examples](#basic-code-examples) and {py:meth}`mlrun.serving.Mode
 
 ModelRunnerSteps have model endpoints, and can therefore be monitored. The input and output of each step are user-configurable. See {py:meth}`mlrun.serving.ModelRunnerStep.add_model`.
 
-When a `ModelRunnerStep `is included in a function graph, MLRun automatically imports the default language model class (`LLModel` or `mlrun.serving.states.LLModel`) during function deployment to wrap the model for handling a LLM prompt-based inference. This class extends the base Model to provide specialized handling for `LLMPromptArtifact` objects, enabling both synchronous and asynchronous invocation of language models. Follow the class description and implement your own enrichment when a custom class is needed.
+When a `ModelRunnerStep `is included in a graph, MLRun automatically imports the default language model class (`LLModel` or `mlrun.serving.states.LLModel`) during function deployment to wrap the model for handling a LLM prompt-based inference. This class extends the base Model to provide specialized handling for `LLMPromptArtifact` objects, enabling both synchronous and asynchronous invocation of language models. Follow the class description and implement your own enrichment when a custom class is needed.
 
 ModelRunnerStep can only be added to a graph that has the {ref}`flow-topology` and running with the async engine, giving better utilization of CPU/GPU.
 

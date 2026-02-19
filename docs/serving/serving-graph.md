@@ -1,7 +1,10 @@
 (serving-graph)=
 # Real-time serving pipelines (graphs)
 
-MLRun graphs enable building and running DAGs (directed acyclic graph) that are easy to build and deploy, including distributed real-time computation graphs; use the real-time serverless engine (Nuclio) for auto-scaling and optimized resource utilization; use built-in operators to handle data manipulation, IO, machine learning, deep-learning, NLP, etc.; use built-in monitoring for performance, resources, errors, data, model behaviour, and custom metrics; can be debugged in the IDE/Notebook.
+MLRun graphs enable building and running cyclic graphs and DAGs (directed acyclic graph) that are easy to build and deploy, including distributed
+real-time computation graphs; use the real-time serverless engine (Nuclio) for auto-scaling and optimized resource utilization; use built-in
+operators to handle data manipulation, IO, machine learning, deep-learning, NLP, etc.; use built-in monitoring for performance, resources,
+errors, data, model behavior, and custom metrics; can be debugged in the IDE/Notebook.
 
 Graphs are composed of individual steps. 
 The first graph element accepts an `Event` object, transforms/processes the event and passes the result to the next steps

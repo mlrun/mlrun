@@ -14,6 +14,15 @@ Router steps allow branching, enrichment, aggregation, etc.
 The `*` prefix indicates a router class (not a simple processing step).
 ```
 
+## Router
+### Description
+{py:class}`~mlrun.serving.RouterStep' implements routing logic for running child routes.
+
+### Use Case
+
+
+### Examples
+
 ## VotingEnsemble
 ### Description
 {py:class}`~mlrun.serving.routers.VotingEnsemble` is a router that encapsulates both execution and aggregation of multiple model routes. It outputs a single result.

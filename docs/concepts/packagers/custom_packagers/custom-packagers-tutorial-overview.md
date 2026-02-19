@@ -150,13 +150,6 @@ returns = ['my_output : file[file_format="csv"]']
 
 All packing kwargs must have default values so users aren't forced to specify them.
 
-#### Artifact types
-
-Returning an artifact means that you can return any of the common subclasses of Artifact, including:
-ModelArtifact, DatasetArtifact and LLMPromptArtifact. The default packing and unpacking class variables 
-should always be set. They are by default set to "object". You can change it to any valid
-artifact type.
-
 #### Result artifact type
 
 A **special case** of a `pack_<artifact_type>()` method is the **result** artifact type — a scalar 
@@ -251,6 +244,7 @@ To remove a registered packager:
 ```python
 project.remove_custom_packager("my_module.MyTypePackager")
 ```
+
 (make-the-packager-importable-on-the-remote-worker)=
 ### 8. Make the packager importable on the remote worker
 

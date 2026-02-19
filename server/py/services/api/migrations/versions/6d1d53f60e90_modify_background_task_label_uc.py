@@ -18,6 +18,28 @@ Revision ID: 6d1d53f60e90
 Revises: 0da0066c77f5
 Create Date: 2025-11-18 09:44:39.663052
 
+This migration changes the unique constraint on background_task_labels from (task_id, name) to
+(project, name, value) and adds a new `project` column.
+
+The original version of this migration added `project` as NOT NULL and applied the new constraint directly,
+which failed on upgrades from < 1.11.0 when the table already contained data.
+Two issues caused the failure:
+
+1. Under the old (task_id, name) constraint, near-simultaneous requests could create labels with the same
+   (name, value) under different task_ids in the same project.
+   After backfilling `project` from the parent table, these rows become duplicates under the new (project, name, value)
+   constraint, causing an IntegrityError.
+
+2. The column was added as NOT NULL without backfilling, so existing rows with NULL project would be rejected.
+
+The fix:
+  1. Add `project` as nullable
+  2. Backfill from the parent background_tasks table
+  3. Deduplicate (project, name, value) rows, keeping the latest entry
+  4. Alter the column to NOT NULL
+  5. Drop the old constraint and create the new one
+
+See: ML-11774 for more details.
 """
 
 import sqlalchemy as sa

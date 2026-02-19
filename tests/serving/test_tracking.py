@@ -2363,6 +2363,48 @@ class TestMonitoringPreProcessorStreamingAggregation:
         finally:
             server.wait_for_completion()
 
+    def test_do_aggregates_string_chunks_with_result_path(self, rundb_mock):
+        """Test that stream-collected string chunks work even when result_path is set.
+
+        LLModel through MRS always has result_path='output'. In streaming mode the
+        aggregated body is a plain string (not a dict), so result_path must be
+        ignored during output extraction.
+        """
+        function = mlrun.new_function("test-stream-str-rp", kind="serving")
+        graph = function.set_topology("flow", engine="async")
+        model_runner_step = ModelRunnerStep(name="my_runner")
+        model_runner_step.add_model(
+            model_class="SimpleTestModel",
+            execution_mechanism="naive",
+            endpoint_name="my_model",
+            result_path="output",
+        )
+        graph.to(model_runner_step).respond()
+        function.set_tracking()
+        server = function.to_mock_server()
+
+        try:
+            event = storey.Event(
+                body=["hello ", "world "],
+            )
+            event._metadata = {
+                "model_runner_name": "my_runner",
+                "when": "2026-01-01 00:00:00.000000+00:00",
+                "microsec": 1000,
+                "inputs": {"question": "test"},
+            }
+            event.stream_collected = True
+
+            preprocessor = server.graph.steps["monitoring_pre_processor_step"]._object
+            result = preprocessor.do(event)
+
+            assert isinstance(result.body, list)
+            assert len(result.body) == 1
+            monitoring_event = result.body[0]
+            assert "hello world " in str(monitoring_event["resp"]["outputs"])
+        finally:
+            server.wait_for_completion()
+
 
 def test_collector_step_added_to_monitoring_graph(rundb_mock):
     """Test that Collector steps are added between MRS and monitoring steps when streaming is enabled."""

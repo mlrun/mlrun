@@ -231,6 +231,13 @@ class MonitoringPreProcessor(storey.MapClass):
             event, model, multiple_models
         )
 
+        # For stream-collected events the aggregated body IS the raw output
+        # (e.g. concatenated text tokens), not wrapped in the result_path dict.
+        if getattr(event, "stream_collected", False) and not isinstance(
+            event_body, dict | list
+        ):
+            result_path = None
+
         # Only process outputs if no error
         if not is_error and event_body is not None:
             outputs, new_output_schema = self.get_listed_data(

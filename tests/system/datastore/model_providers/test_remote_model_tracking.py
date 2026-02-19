@@ -325,7 +325,7 @@ class TestMockModelProviderTracking(
         with ThreadPoolExecutor(max_workers=len(BATCH_INPUT_DATA)) as executor:
             # MockProvider requires a larger delay because batching output depends on the order of requests
             futures = [
-                executor.submit(send_event, input_event, i * 0.3)
+                executor.submit(send_event, input_event, i * 0.6)
                 for i, input_event in enumerate(BATCH_INPUT_DATA)
             ]
             success_responses = [future.result() for future in futures]
@@ -347,7 +347,7 @@ class TestMockModelProviderTracking(
 
         with ThreadPoolExecutor(max_workers=len(error_inputs)) as executor:
             futures = [
-                executor.submit(send_event, input_event, i * 0.3)
+                executor.submit(send_event, input_event, i * 0.6)
                 for i, input_event in enumerate(error_inputs)
             ]
             # Both should fail when the batch encounters the error

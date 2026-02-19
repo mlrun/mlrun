@@ -237,6 +237,7 @@ class TestApplicationRuntime(tests.system.base.TestMLRunSystem):
             function = self._create_simple_flask_application(
                 name="source-reload-app", source=source_path
             )
+            function.set_probe(type="readiness", http_path="/health", period_seconds=2)
 
             # First deploy - auto-uploads source as artifact
             self._logger.debug("Deploying application with version-1 source")
@@ -293,6 +294,7 @@ class TestApplicationRuntime(tests.system.base.TestMLRunSystem):
         function.spec.command = "python"
         function.spec.args = ["-m", "http.server", "8050"]
         function.set_internal_application_port(8050)
+        function.set_probe(type="readiness", http_path="/", period_seconds=2)
 
         # First deploy
         self._logger.debug("First deploy with Git source and pull_at_runtime=True")
@@ -353,6 +355,7 @@ class TestApplicationRuntime(tests.system.base.TestMLRunSystem):
         function.spec.command = "python"
         function.spec.args = ["-m", "http.server", "8050"]
         function.set_internal_application_port(8050)
+        function.set_probe(type="readiness", http_path="/", period_seconds=2)
 
         # First deploy
         self._logger.debug("First deploy with archive source and pull_at_runtime=True")

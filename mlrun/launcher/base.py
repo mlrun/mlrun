@@ -14,8 +14,11 @@
 import abc
 import ast
 import copy
+import difflib
+import inspect
 import os
 import uuid
+import warnings
 from collections.abc import Callable
 from typing import Any, Optional, Union
 
@@ -43,7 +46,26 @@ class BaseLauncher(abc.ABC):
     """
 
     def __init__(self, **kwargs):
-        pass
+        if not kwargs:
+            return
+
+        valid_launch_params = set(inspect.signature(self.launch).parameters) - {"self"}
+        for key in sorted(kwargs):
+            if key in valid_launch_params:
+                continue
+
+            suggestion = ""
+            close_match = difflib.get_close_matches(
+                key, valid_launch_params, n=1, cutoff=0.8
+            )
+            if close_match:
+                suggestion = f" Did you mean '{close_match[0]}'?"
+
+            warnings.warn(
+                f"Unexpected run keyword argument '{key}' was ignored.{suggestion}",
+                UserWarning,
+                stacklevel=3,
+            )
 
     @abc.abstractmethod
     def launch(

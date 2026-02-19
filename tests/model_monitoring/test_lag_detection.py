@@ -19,14 +19,21 @@ from datetime import UTC, datetime, timedelta
 import pytest
 
 import mlrun
+import mlrun.common.schemas.notification
 import mlrun.db.httpdb
 import mlrun.model_monitoring
 from mlrun.common.schemas.alert import (
+    AlertCriteria,
+    AlertSeverity,
+    AlertTrigger,
+    EventEntities,
     EventEntityKind,
     EventKind,
+    ResetPolicy,
     _event_kind_entity_map,
 )
 from mlrun.common.schemas.model_monitoring.constants import (
+    MonitoringAlertNames,
     WriterEvent,
     WriterEventKind,
 )
@@ -410,3 +417,120 @@ class TestHTTPDBLagParams:
         params = db.api_call.call_args.kwargs["params"]
         assert "lag_threshold" not in params
         assert "lag_event_cooldown" not in params
+
+
+# -- SDK lag alert methods tests (ML-11675) --
+
+_LAG_ALERT_PROJECT = "test-lag-alert"
+
+
+@pytest.fixture()
+def lag_alert_mock_db():
+    mock = unittest.mock.Mock()
+    with unittest.mock.patch("mlrun.db.get_run_db", return_value=mock):
+        yield mock
+
+
+@pytest.fixture()
+def lag_alert_project():
+    mock = unittest.mock.Mock()
+    mock.name = _LAG_ALERT_PROJECT
+    return mock
+
+
+def _make_notification(name: str = "test-notif"):
+    return mlrun.common.schemas.notification.Notification(
+        kind="slack",
+        name=name,
+        secret_params={"webhook": "https://hooks.slack.com/test"},
+    )
+
+
+class TestSetModelMonitoringLagAlert:
+    def test_creates_single_wildcard_alert(self, lag_alert_mock_db, lag_alert_project):
+        mlrun.projects.MlrunProject.set_model_monitoring_lag_alert(
+            lag_alert_project,
+            notifications=_make_notification(),
+        )
+
+        lag_alert_mock_db.store_alert_config.assert_called_once()
+        call_args = lag_alert_mock_db.store_alert_config.call_args
+        assert call_args.args[0] == MonitoringAlertNames.LAG_DETECTED
+        assert call_args.args[1].entities.ids == ["*"]
+
+    def test_alert_config_fields(self, lag_alert_mock_db, lag_alert_project):
+        period = "10m"
+        count = 2
+
+        mlrun.projects.MlrunProject.set_model_monitoring_lag_alert(
+            lag_alert_project,
+            notifications=_make_notification(),
+            period=period,
+            count=count,
+        )
+
+        alert_data = lag_alert_mock_db.store_alert_config.call_args.args[1]
+        assert alert_data.severity == AlertSeverity.MEDIUM
+        assert alert_data.reset_policy == ResetPolicy.AUTO
+        assert alert_data.trigger == AlertTrigger(
+            events=[EventKind.MODEL_MONITORING_LAG_DETECTED]
+        )
+        assert alert_data.criteria == AlertCriteria(count=count, period=period)
+        assert alert_data.entities == EventEntities(
+            kind=EventEntityKind.MODEL_MONITORING_INFRA,
+            project=_LAG_ALERT_PROJECT,
+            ids=["*"],
+        )
+
+    def test_wraps_single_notification_in_list(
+        self, lag_alert_mock_db, lag_alert_project
+    ):
+        notification = _make_notification()
+
+        mlrun.projects.MlrunProject.set_model_monitoring_lag_alert(
+            lag_alert_project,
+            notifications=notification,
+        )
+
+        alert_data = lag_alert_mock_db.store_alert_config.call_args.args[1]
+        assert len(alert_data.notifications) == 1
+        assert alert_data.notifications[0].notification.name == notification.name
+
+    def test_accepts_list_of_notifications(self, lag_alert_mock_db, lag_alert_project):
+        notifications = [
+            _make_notification("n1"),
+            _make_notification("n2"),
+        ]
+
+        mlrun.projects.MlrunProject.set_model_monitoring_lag_alert(
+            lag_alert_project,
+            notifications=notifications,
+        )
+
+        alert_data = lag_alert_mock_db.store_alert_config.call_args.args[1]
+        assert len(alert_data.notifications) == len(notifications)
+        actual_names = [n.notification.name for n in alert_data.notifications]
+        assert actual_names == ["n1", "n2"]
+
+
+class TestDeleteModelMonitoringLagAlert:
+    def test_deletes_alert(self, lag_alert_mock_db, lag_alert_project):
+        mlrun.projects.MlrunProject.delete_model_monitoring_lag_alert(
+            lag_alert_project,
+        )
+
+        lag_alert_mock_db.delete_alert_config.assert_called_once_with(
+            MonitoringAlertNames.LAG_DETECTED,
+            project_name=_LAG_ALERT_PROJECT,
+        )
+
+    def test_ignores_not_found_errors(self, lag_alert_mock_db, lag_alert_project):
+        lag_alert_mock_db.delete_alert_config.side_effect = (
+            mlrun.errors.MLRunNotFoundError("not found")
+        )
+
+        mlrun.projects.MlrunProject.delete_model_monitoring_lag_alert(
+            lag_alert_project,
+        )
+
+        lag_alert_mock_db.delete_alert_config.assert_called_once()

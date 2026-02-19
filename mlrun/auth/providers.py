@@ -65,6 +65,7 @@ class DynamicTokenProvider(TokenProvider):
                 "No token endpoint provided, cannot initialize token provider"
             )
         self._token = None
+        self._token_name = None
         self._token_endpoint = token_endpoint
         self._timeout = timeout
         self._max_retries = max_retries
@@ -77,6 +78,10 @@ class DynamicTokenProvider(TokenProvider):
         )
         self._cleanup()
         self._refresh_token_if_needed()
+
+    @property
+    def token_name(self) -> str | None:
+        return self._token_name
 
     def get_token(self):
         """
@@ -180,6 +185,13 @@ class DynamicTokenProvider(TokenProvider):
 
         return self._token
 
+    def _cleanup(self):
+        """
+        Clean up the token and related metadata.
+        """
+        self._token = None
+        self._token_name = None
+
     @abstractmethod
     def _post_fetch_hook(self, raise_on_error=True):
         """
@@ -199,14 +211,9 @@ class DynamicTokenProvider(TokenProvider):
         pass
 
     @abstractmethod
-    def _cleanup(self):
-        """
-        Clean up the token and related metadata.
-        """
-        pass
-
-    @abstractmethod
-    def _build_token_request(self, raise_on_error=False):
+    def _build_token_request(
+        self, raise_on_error: bool = False
+    ) -> tuple[dict | None, dict | None, str | None]:
         """
         Build the request body and headers for the token request.
 
@@ -239,7 +246,9 @@ class OAuthClientIDTokenProvider(DynamicTokenProvider):
         super().__init__(token_endpoint=token_endpoint, timeout=timeout)
 
     def _cleanup(self):
-        self._token = self.token_expiry_time = self.token_refresh_time = None
+        super()._cleanup()
+        self.token_expiry_time = None
+        self.token_refresh_time = None
 
     def _is_token_within_refresh_threshold(self, cleanup_if_expired=True) -> bool:
         """
@@ -267,7 +276,9 @@ class OAuthClientIDTokenProvider(DynamicTokenProvider):
             self._cleanup()
         return False
 
-    def _build_token_request(self, raise_on_error=False):
+    def _build_token_request(
+        self, raise_on_error: bool = False
+    ) -> tuple[dict | None, dict | None, str | None]:
         headers = {"Content-Type": "application/x-www-form-urlencoded"}
         request_body = {
             "grant_type": "client_credentials",
@@ -355,7 +366,7 @@ class IGTokenProvider(DynamicTokenProvider):
             )
 
     def _cleanup(self):
-        self._token = None
+        super()._cleanup()
         self._token_total_lifetime = 0
         self._token_expiry_time = None
 
@@ -385,19 +396,22 @@ class IGTokenProvider(DynamicTokenProvider):
             * mlconf.auth_with_oauth_token.refresh_threshold
         )
 
-    def _build_token_request(self, raise_on_error=False):
+    def _build_token_request(
+        self, raise_on_error: bool = False
+    ) -> tuple[dict | None, dict | None, str | None]:
         """
         Build the request body and headers for the token request.
 
         :param raise_on_error: Whether to raise an error if the request cannot be built.
         :return: A tuple containing the request body and headers.
         """
-        offline_token = mlrun.auth.utils.load_offline_token(
+        offline_token, token_name = mlrun.auth.utils.load_offline_token(
             raise_on_error=raise_on_error
         )
+        self._token_name = token_name
         if not offline_token:
             # Error already handled in `_load_offline_token`
-            return None, None
+            return None, None, None
 
         headers = {"Content-Type": "application/json"}
         request_body = {"refreshToken": offline_token}

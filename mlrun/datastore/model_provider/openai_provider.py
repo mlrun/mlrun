@@ -47,6 +47,7 @@ class OpenAIProvider(ModelProvider):
     """
 
     support_async = True
+    supports_streaming = True
 
     def __init__(
         self,
@@ -558,3 +559,60 @@ class OpenAIProvider(ModelProvider):
             invoke_response_format=invoke_response_format,
             **invoke_kwargs,
         )
+
+    def _prepare_stream_kwargs(self, messages: list[dict], invoke_kwargs: dict) -> dict:
+        """Validate messages and build the kwargs dict for a streaming create() call."""
+        if self._validate_and_detect_batch_invocation(messages):
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Batch invocation is not supported in streaming mode"
+            )
+        invoke_kwargs = self.get_invoke_kwargs(invoke_kwargs)
+        model = invoke_kwargs.pop("model", None) or self.model
+        return {"messages": messages, "stream": True, "model": model, **invoke_kwargs}
+
+    @staticmethod
+    def _extract_stream_token(chunk) -> Optional[str]:
+        """Extract the text token from a streaming chunk, or None if empty."""
+        if chunk.choices and chunk.choices[0].delta.content:
+            return chunk.choices[0].delta.content
+        return None
+
+    def invoke_stream(
+        self,
+        messages: list[dict],
+        **invoke_kwargs,
+    ):
+        """
+        Invokes the OpenAI chat completions API in streaming mode, yielding text tokens
+        as they are generated.
+
+        :param messages:        A list of message dicts (single conversation, not a batch).
+        :param invoke_kwargs:   Additional keyword arguments passed to the OpenAI client.
+        :return:                A generator yielding text tokens as strings.
+        """
+        create_kwargs = self._prepare_stream_kwargs(messages, invoke_kwargs)
+        stream = self.client.chat.completions.create(**create_kwargs)
+        for chunk in stream:
+            token = self._extract_stream_token(chunk)
+            if token:
+                yield token
+
+    async def async_invoke_stream(
+        self,
+        messages: list[dict],
+        **invoke_kwargs,
+    ):
+        """
+        Asynchronously invokes the OpenAI chat completions API in streaming mode,
+        yielding text tokens as they are generated.
+
+        :param messages:        A list of message dicts (single conversation, not a batch).
+        :param invoke_kwargs:   Additional keyword arguments passed to the OpenAI client.
+        :return:                An async generator yielding text tokens as strings.
+        """
+        create_kwargs = self._prepare_stream_kwargs(messages, invoke_kwargs)
+        stream = await self.async_client.chat.completions.create(**create_kwargs)
+        async for chunk in stream:
+            token = self._extract_stream_token(chunk)
+            if token:
+                yield token

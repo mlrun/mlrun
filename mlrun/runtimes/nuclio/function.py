@@ -503,8 +503,9 @@ class RemoteRuntime(KubeResource):
         :param batching_spec: BatchingSpec object that defines batching configuration.
             By default, batching is disabled.
 
-        :param async_spec: AsyncSpec object defines async configuration. If number of max connections
-            won't be set, the default value will be set to 1000 according to nuclio default.
+        :param async_spec: AsyncSpec object defines async configuration. By default, mode will be sync.
+            If number of max connections won't be set, the default value will be set to 1000 according to nuclio
+            default.
 
         :return: function object (self)
         """
@@ -513,7 +514,14 @@ class RemoteRuntime(KubeResource):
                 "Adding HTTP trigger despite the default HTTP trigger creation being disabled"
             )
 
-        if async_spec and async_spec.enabled:
+        nuclio_version_support_async = validate_nuclio_version_compatibility("1.15.3")
+        if async_spec is not None and not nuclio_version_support_async:
+            raise mlrun.errors.MLRunValueError(
+                "Async spec is only supported from Nuclio 1.15.3"
+            )
+
+        async_enabled = getattr(async_spec, "enabled", False)
+        if async_enabled:
             workers = 1 if workers is None else workers
         else:
             workers = 8 if workers is None else workers
@@ -555,13 +563,9 @@ class RemoteRuntime(KubeResource):
                 )
             trigger._struct["batch"] = batching_config
 
-        if async_spec:
-            if not validate_nuclio_version_compatibility("1.15.3"):
-                raise mlrun.errors.MLRunValueError(
-                    "Async spec is only supported on Nuclio 1.15.3 and higher"
-                )
-            if async_spec.enabled:
-                trigger._struct["mode"] = "async"
+        if nuclio_version_support_async:
+            trigger._struct["mode"] = "async" if async_enabled else "sync"
+            if async_enabled:
                 trigger._struct["async"] = {
                     "maxConnectionsNumber": async_spec.max_connections,
                     "connectionAvailabilityTimeout": async_spec.connection_availability_timeout,

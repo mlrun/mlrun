@@ -391,7 +391,7 @@ def test_child_function_tracking_with_model_runner(rundb_mock):
     assert dummy_stream.event_list[0].get("resp", {}).get("outputs") == [2]
     assert dummy_stream.event_list[0].get("request", {}).get("inputs") == [1]
 
-    output_stream = graph.steps["out"].async_object
+    output_stream = server.graph.steps["out"].async_object
     assert len(output_stream.event_list) == 1
 
 
@@ -560,7 +560,10 @@ class SubDictOutputModel(Model):
 
 
 def _test_monitoring_system_steps_structure(
-    graph: RootFlowStep, model_runners_names: list[str], streaming_enabled: bool = False
+    server_graph: RootFlowStep,
+    spec_graph: RootFlowStep,
+    model_runners_names: list[str],
+    streaming_enabled: bool = False,
 ):
     # When streaming is enabled, Collector steps are inserted between MRS and MM pipeline
     if streaming_enabled:
@@ -578,21 +581,31 @@ def _test_monitoring_system_steps_structure(
             "filter_none_sampling"
         ],  # mock creates a dummy pusher and not target
     }
-    for step in graph.steps.values():
+    for step in server_graph.steps.values():
         if step.name in system_steps:
             assert step.after == system_steps[step.name]
+    for step in system_steps.keys():
+        assert (
+            step not in spec_graph.steps.keys()
+        ), f"spec graph should not contain system step {step}"
 
 
-def _test_graph_structure(graph: RootFlowStep, tracked: bool):
-    """Expects server graph contains system steps"""
+def _test_graph_structure(
+    server_graph: RootFlowStep, spec_graph: RootFlowStep, tracked: bool
+):
+    """Expects server graph contains system steps and function graph does not contain system steps."""
     model_runners = []
-    for step in graph.steps.values():
+    for step in server_graph.steps.values():
         if isinstance(step, ModelRunnerStep):
             model_runners.append(step.name)
         elif model_runners and step.name == f"{model_runners[-1]}_error_raise":
             assert model_runners[-1] in step.after or model_runners[-1] in step.after
+    for model_runner in model_runners:
+        assert (
+            f"{model_runner}_error_raise" not in spec_graph.steps.keys()
+        ), "spec graph should not contain error raise steps"
     if tracked:
-        _test_monitoring_system_steps_structure(graph, model_runners)
+        _test_monitoring_system_steps_structure(server_graph, spec_graph, model_runners)
 
 
 @pytest.mark.parametrize("enable_tracking", [True, False])
@@ -623,7 +636,7 @@ def test_tracked_model_runner(rundb_mock, enable_tracking: bool):
     else:
         assert len(dummy_stream.event_list) == 0, "expected stream to be empty"
 
-    _test_graph_structure(server.graph, enable_tracking)
+    _test_graph_structure(server.graph, function.spec.graph, enable_tracking)
 
 
 @pytest.mark.parametrize("enable_tracking", [True, False])
@@ -659,7 +672,7 @@ def test_tracked_model_runner_with_tools(rundb_mock, enable_tracking: bool):
     else:
         assert len(dummy_stream.event_list) == 0, "expected stream to be empty"
 
-    _test_graph_structure(server.graph, enable_tracking)
+    _test_graph_structure(server.graph, function.spec.graph, enable_tracking)
 
 
 @pytest.mark.parametrize("with_schema", [True, False])
@@ -1050,7 +1063,7 @@ def test_tracked_model_runner_multiple_models(rundb_mock):
     models.sort()
     output_models.sort()
     assert output_models == models, "expected models to be the same"
-    _test_graph_structure(server.graph, True)
+    _test_graph_structure(server.graph, function.spec.graph, True)
 
 
 def test_set_untracked_with_model_runner(rundb_mock):
@@ -1074,10 +1087,10 @@ def test_set_untracked_with_model_runner(rundb_mock):
     server.wait_for_completion()
 
     dummy_stream = server.context.stream.output_stream
-    _test_graph_structure(server.graph, True)
+    _test_graph_structure(server.graph, function.spec.graph, True)
     assert len(dummy_stream.event_list) == 1, "expected stream to get one message"
     function.set_tracking("dummy://", enable_tracking=False)
-    _test_graph_structure(graph, False)
+    _test_graph_structure(graph, function.spec.graph, False)
     server = function.to_mock_server()
     server.test("/", {"n": 1})
     server.wait_for_completion()
@@ -1173,7 +1186,7 @@ def test_sampling_model_runner(rundb_mock, sampling_percentage: float):
 
     dummy_stream = server.context.stream.output_stream
 
-    _test_graph_structure(server.graph, True)
+    _test_graph_structure(server.graph, function.spec.graph, True)
 
     if sampling_percentage == 100.0:
         assert len(dummy_stream.event_list) == 1, "expected stream to get one message"
@@ -1240,7 +1253,7 @@ def test_tracked_model_runner_shared(rundb_mock, enable_tracking: bool):
     else:
         assert len(dummy_stream.event_list) == 0, "expected stream to be empty"
 
-    _test_graph_structure(server.graph, enable_tracking)
+    _test_graph_structure(server.graph, function.spec.graph, enable_tracking)
 
 
 def test_shared_model_invalid_usage():
@@ -1396,7 +1409,7 @@ def test_tracked_model_runner_with_error_handler(
             "error": 'TypeError: can only concatenate str (not "int") to str'
         }
 
-    _test_graph_structure(server.graph, enable_tracking)
+    _test_graph_structure(server.graph, function.spec.graph, enable_tracking)
 
 
 def test_transpose_by_key_with_str():

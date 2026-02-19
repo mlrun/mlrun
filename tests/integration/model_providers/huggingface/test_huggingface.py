@@ -435,7 +435,7 @@ class TestHuggingFaceProvider(TestBasicHuggingFaceProvider):
         assert 50 <= token_count <= 70
 
 
-class TestHuggingFaceModel(TestBasicHuggingFaceProvider):
+class TestHuggingFaceMRS(TestBasicHuggingFaceProvider):
     @pytest.mark.parametrize(
         "execution_mechanism",
         ["naive", "process_pool", "dedicated_process", "thread_pool"],

@@ -126,6 +126,14 @@ class BaseMockModelProviderTest:
         assert event["labels"] == {}
         assert event["metrics"] is None
 
+    def _verify_streaming_response(self, response):
+        """Verify that a streaming response is a generator with the expected mock text."""
+        assert inspect.isgenerator(
+            response
+        ), f"Expected generator, got {type(response)}"
+        text = "".join(response)
+        assert "mock model provider" in text.lower()
+
     def _verify_single_error_tracking(self, event, input_data):
         """Verify tracking data for single invocation with error"""
         assert event["effective_sample_count"] == 1
@@ -1037,14 +1045,6 @@ class TestMockModelProviderBatchStep(BaseMockModelProviderTest):
 
 class TestMockModelProviderStreaming(BaseMockModelProviderTest):
     """Tests for streaming invocation with MockModelProvider through MRS."""
-
-    def _verify_streaming_response(self, response):
-        """Verify that a streaming response is a generator with the expected mock text."""
-        assert inspect.isgenerator(
-            response
-        ), f"Expected generator, got {type(response)}"
-        text = "".join(response)
-        assert "mock model provider" in text.lower()
 
     def test_llmodel_streaming(self, rundb_mock):
         """Test streaming invocation through MRS with MockModelProvider."""

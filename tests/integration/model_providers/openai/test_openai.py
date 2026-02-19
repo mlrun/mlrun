@@ -347,7 +347,7 @@ class TestOpenAIProvider(TestBasicOpenAIProvider):
         assert isinstance(embeddings, CreateEmbeddingResponse)
 
 
-class TestOpenAIModel(TestBasicOpenAIProvider):
+class TestOpenAIMRS(TestBasicOpenAIProvider):
     @pytest.mark.parametrize(
         "execution_mechanism",
         ["process_pool", "dedicated_process", "naive", "asyncio", "thread_pool"],

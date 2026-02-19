@@ -478,7 +478,9 @@ def _encode_jwt(payload: dict) -> str:
 @contextmanager
 def _mock_httpdb_connect(server_cfg):
     """Context manager to mock HTTPRunDB connect flow for iguazio v4 oauth tests."""
-    with patch.object(mlrun.auth.utils, "load_offline_token", return_value="offline"):
+    with patch.object(
+        mlrun.auth.utils, "load_offline_token", return_value=("offline", "default")
+    ):
         with patch.object(HTTPRunDB, "api_call") as api_call:
             with patch.object(mlrun.secrets, "sync_secret_tokens"):
                 api_response = MagicMock()
@@ -1556,6 +1558,30 @@ def test_enable_model_monitoring_passes_none_without_context():
         assert params["auth_token_name"] is None
 
 
+def test_enable_model_monitoring_falls_back_to_token_provider_token_name():
+    db = HTTPRunDB("http://fake-api:8080")
+    db.token_provider = MagicMock(token_name="provider-mm-token")
+
+    with (
+        patch.object(db, "api_call") as mock_api_call,
+        patch(
+            "mlrun.runtime_configuration_context.mlrun.get_run_db",
+            return_value=db,
+        ),
+    ):
+        db.enable_model_monitoring(
+            project="test-project",
+            base_period=10,
+            image="mlrun/mlrun",
+            deploy_histogram_data_drift_app=False,
+        )
+
+        mock_api_call.assert_called_once()
+        call_kwargs = mock_api_call.call_args
+        params = call_kwargs.kwargs.get("params") or call_kwargs[1].get("params")
+        assert params["auth_token_name"] == "provider-mm-token"
+
+
 def test_submit_workflow_passes_auth_token_from_context():
     """Test that submit_workflow passes auth_token_name from RuntimeConfigurationContext."""
     import mlrun.runtime_configuration_context
@@ -1617,6 +1643,42 @@ def test_submit_workflow_passes_none_without_context():
         call_kwargs = mock_api_call.call_args
         json_body = call_kwargs.kwargs.get("json")
         assert json_body["spec"]["auth_token_name"] is None
+
+
+def test_submit_workflow_set_token_name():
+    db = HTTPRunDB("http://fake-api:8080")
+    db.token_provider = MagicMock(token_name="provider-wf-token")
+
+    workflow_spec = {
+        "name": "test-workflow",
+        "image": "mlrun/mlrun",
+    }
+
+    with (
+        patch.object(db, "api_call") as mock_api_call,
+        patch(
+            "mlrun.runtime_configuration_context.mlrun.get_run_db",
+            return_value=db,
+        ),
+    ):
+        mock_api_call.return_value = MagicMock(
+            ok=True,
+            json=MagicMock(
+                return_value={
+                    "data": {"run_id": "test-run-id", "status": {}, "workflow": {}}
+                }
+            ),
+        )
+        db.submit_workflow(
+            project="test-project",
+            name="test-workflow",
+            workflow_spec=workflow_spec,
+        )
+
+        mock_api_call.assert_called_once()
+        call_kwargs = mock_api_call.call_args
+        json_body = call_kwargs.kwargs.get("json")
+        assert json_body["spec"]["auth_token_name"] == "provider-wf-token"
 
 
 def _assert_projects(expected_project, project):

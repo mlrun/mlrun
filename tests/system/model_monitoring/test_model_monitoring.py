@@ -1161,6 +1161,147 @@ class TestBasicModelMonitoring(TestMLRunSystemModelMonitoring):
         error_dict = error_df.head(1).to_dict(orient="records")[0]
         assert error_dict["error_count"] == 1
 
+    @pytest.mark.timeout(480)
+    def test_monitoring_with_streaming_model_runner(self):
+        """Test that model monitoring correctly captures outputs from MRS with
+        both streaming and non-streaming models.
+
+        This test verifies that:
+        1. A Collector step is inserted between the streaming MRS and MM steps
+        2. The MonitoringPreProcessor aggregates the collected streaming chunks
+        3. Model endpoints are created and record monitoring events
+        4. TSDB predictions and parquet data are written correctly
+        5. Streaming and non-streaming models coexist in the same MRS
+        """
+        function_name = "streaming-mm-test"
+        streaming_endpoint = "streaming-model"
+        inc_endpoint_1 = "inc-model-1"
+        inc_endpoint_2 = "inc-model-2"
+
+        function = mlrun.code_to_function(
+            name=function_name,
+            kind="serving",
+            tag="latest",
+            project=self.project_name,
+            filename=str(self.assets_path / "models.py"),
+            image=self.image,
+        )
+        function.spec.replicas = 1
+
+        self.set_mm_credentials()
+
+        # Set up ModelRunnerStep with streaming + non-streaming models.
+        # Use MyModelSelector to select models via a "models" key in the
+        # request body, so we can target the streaming model alone or both
+        # non-streaming models together.
+        graph = function.set_topology("flow", engine="async")
+        model_runner_step = mlrun.serving.states.ModelRunnerStep(
+            name="model-runner",
+            model_runner_selector="MyModelSelector",
+        )
+        model_runner_step.add_model(
+            model_class="StreamingModel",
+            endpoint_name=streaming_endpoint,
+            execution_mechanism="naive",
+            num_chunks=3,
+        )
+        model_runner_step.add_model(
+            model_class="IncModel",
+            endpoint_name=inc_endpoint_1,
+            execution_mechanism="naive",
+            inc=1,
+        )
+        model_runner_step.add_model(
+            model_class="IncModel",
+            endpoint_name=inc_endpoint_2,
+            execution_mechanism="naive",
+            inc=2,
+        )
+        graph.to(model_runner_step, "runner").respond()
+
+        # Enable streaming and monitoring
+        function.set_streaming(enabled=True)
+        function.set_tracking()
+        self.project.enable_model_monitoring(
+            deploy_histogram_data_drift_app=False,
+            **({} if self.image is None else {"image": self.image}),
+        )
+
+        function.deploy()
+
+        # Invoke streaming model alone (mixing streaming + non-streaming is not
+        # supported and would raise StreamingError)
+        function.invoke("/", body={"prompt": "test", "models": streaming_endpoint})
+
+        # Invoke both non-streaming models together
+        function.invoke(
+            "/",
+            body={"n": 1, "models": f"{inc_endpoint_1},{inc_endpoint_2}"},
+        )
+
+        # Wait for monitoring data to be processed
+        sleep(180)
+
+        # Verify all three model endpoints were created
+        model_endpoints = (
+            mlrun.get_run_db().list_model_endpoints(self.project_name).endpoints
+        )
+        endpoint_names_found = [ep.metadata.name for ep in model_endpoints]
+        for expected_name in [
+            streaming_endpoint,
+            inc_endpoint_1,
+            inc_endpoint_2,
+        ]:
+            assert expected_name in endpoint_names_found, (
+                f"Expected endpoint '{expected_name}' not found. "
+                f"Found: {endpoint_names_found}"
+            )
+
+        # Verify last_request is set for all endpoints
+        for ep_name in [streaming_endpoint, inc_endpoint_1, inc_endpoint_2]:
+            mep = mlrun.get_run_db().get_model_endpoint(
+                name=ep_name,
+                project=self.project_name,
+                function_name=function_name,
+                function_tag="latest",
+                feature_analysis=True,
+                tsdb_metrics=True,
+            )
+            assert (
+                mep.status.last_request is not None
+            ), f"Expected last_request to be set for endpoint '{ep_name}'"
+
+        # Verify TSDB predictions table has records for all 3 endpoints
+        tsdb_client = mlrun.model_monitoring.get_tsdb_connector(
+            project=self.project_name, profile=self.mm_tsdb_profile
+        )
+        predictions = tsdb_client._get_records(
+            table=mm_constants.V3IOTSDBTables.PREDICTIONS,
+            start="now-50m",
+            end="now",
+        )
+        assert len(predictions) == 3
+
+        # Verify parquet predictions for the streaming endpoint
+        streaming_mep = mlrun.get_run_db().get_model_endpoint(
+            name=streaming_endpoint,
+            project=self.project_name,
+            function_name=function_name,
+            function_tag="latest",
+        )
+        v3io_df = pd.read_parquet(
+            f"v3io:///projects/{self.project_name}/artifacts/"
+            f"model-endpoints/parquet/key={streaming_mep.metadata.uid}"
+        )
+        assert len(v3io_df) == 1
+        v3io_dict = v3io_df.head(1).to_dict(orient="records")[0]
+        assert v3io_dict["endpoint_name"] == streaming_endpoint
+        assert (
+            v3io_dict["effective_sample_count"]
+            == v3io_dict["estimated_prediction_count"]
+            == 1
+        )
+
     def _assert_model_endpoint_tags_and_labels(
         self,
         endpoint: mlrun.common.schemas.ModelEndpoint,

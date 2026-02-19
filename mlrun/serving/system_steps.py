@@ -58,6 +58,118 @@ class MonitoringPreProcessor(storey.MapClass):
             getattr(self.context, "server", None) if self.context else None
         )
 
+    def _aggregate_collected_chunks(self, chunks: list) -> Any:
+        """
+        Aggregate collected streaming chunks into a single result for model monitoring.
+
+        For string chunks (e.g., LLM tokens): concatenate into a single string.
+        For dict chunks: merge outputs and sum numeric metrics.
+        """
+        if not chunks:
+            return {}
+
+        # For string chunks (LLM tokens), concatenate
+        if all(isinstance(c, str) for c in chunks):
+            return "".join(chunks)
+
+        # For dict chunks, merge appropriately
+        if all(isinstance(c, dict) for c in chunks):
+            return self._merge_dict_chunks(chunks)
+
+        # Mixed types or other - return as-is (list)
+        return chunks
+
+    def _merge_dict_chunks(self, chunks: list[dict]) -> dict:
+        """
+        Merge a list of dict chunks into a single dict.
+
+        - Outputs/results: concatenate if strings, otherwise collect into list
+        - Metrics: sum numeric values
+        - Other fields: take from first chunk
+        """
+        if not chunks:
+            return {}
+
+        result = {}
+        first = chunks[0]
+        all_keys = set()
+        for c in chunks:
+            all_keys.update(c.keys())
+
+        for key in all_keys:
+            values = [c.get(key) for c in chunks if key in c]
+            if not values:
+                continue
+
+            if key == mm_schemas.StreamProcessingEvent.METRICS:
+                # Sum numeric metrics
+                result[key] = self._aggregate_metrics(values)
+            elif key in ("outputs", "result", "output"):
+                # Concatenate outputs if strings, otherwise keep as list
+                result[key] = self._aggregate_outputs(values)
+            elif key == mm_schemas.StreamProcessingEvent.ERROR:
+                # Keep first non-None error
+                result[key] = next((v for v in values if v is not None), None)
+            else:
+                # Take first value for other fields
+                result[key] = first.get(key)
+
+        return result
+
+    def _aggregate_metrics(self, metrics_list: list) -> Optional[dict]:
+        """
+        Aggregate metrics from multiple chunks by summing numeric values.
+        """
+        if not metrics_list or all(m is None for m in metrics_list):
+            return None
+
+        aggregated = {}
+        for metrics in metrics_list:
+            if metrics is None:
+                continue
+            if not isinstance(metrics, dict):
+                continue
+            for key, value in metrics.items():
+                if key not in aggregated:
+                    aggregated[key] = value
+                elif isinstance(value, int | float) and isinstance(
+                    aggregated[key], int | float
+                ):
+                    aggregated[key] += value
+                # For non-numeric, keep the first value
+
+        return aggregated if aggregated else None
+
+    def _aggregate_outputs(self, outputs_list: list) -> Any:
+        """
+        Aggregate outputs from multiple chunks.
+
+        For strings: concatenate.
+        For lists: flatten.
+        Otherwise: return as list.
+        """
+        if not outputs_list:
+            return None
+
+        # Filter out None values
+        outputs_list = [o for o in outputs_list if o is not None]
+        if not outputs_list:
+            return None
+
+        # If all are strings, concatenate
+        if all(isinstance(o, str) for o in outputs_list):
+            return "".join(outputs_list)
+
+        # If all are lists, flatten
+        if all(isinstance(o, list) for o in outputs_list):
+            flattened = []
+            for o in outputs_list:
+                flattened.extend(o)
+            return flattened
+
+        # Otherwise return as list
+        return outputs_list
+
     def _extract_event_body_for_model(
         self, event, model: str, multiple_models: bool
     ) -> tuple[Any, bool]:
@@ -344,6 +456,31 @@ class MonitoringPreProcessor(storey.MapClass):
                 f"ModelRunnerStep name {model_runner_name} is not found in the graph or does not have monitoring data"
             )
         monitoring_data = step.monitoring_data
+
+        # Check if this event was collected from a stream by the Collector step
+        is_stream_collected = getattr(event, "stream_collected", False)
+        if is_stream_collected:
+            logger.debug(
+                "Aggregating collected streaming chunks for monitoring",
+                num_chunks=len(event.body) if isinstance(event.body, list) else 1,
+                model_runner_name=model_runner_name,
+            )
+            event.body = self._aggregate_collected_chunks(
+                event.body if isinstance(event.body, list) else [event.body]
+            )
+
+        # When streaming chunks were collected from a multi-model MRS, only
+        # one model actually ran (streaming requires a single selected
+        # runnable). The body is the raw aggregated output, not keyed by
+        # model name, so narrow monitoring_data to the single selected model
+        # so the single-model path below is used.
+        if is_stream_collected and len(monitoring_data) > 1:
+            selected_models = event._metadata.get("selected_models", [])
+            if len(selected_models) == 1 and selected_models[0] in monitoring_data:
+                monitoring_data = {
+                    selected_models[0]: monitoring_data[selected_models[0]]
+                }
+
         logger.debug(
             "monitoring preprocessor started",
             event=event,

@@ -33,6 +33,7 @@ import framework.api.utils
 import framework.utils.auth.verifier
 import services.api.api.endpoints.model_endpoints
 import services.api.common.constants as api_constants
+import services.api.crud
 from framework.api import deps
 from framework.constants import MINIMUM_CLIENT_VERSION_FOR_MM
 from services.api.api.endpoints.nuclio import process_model_monitoring_secret
@@ -219,6 +220,26 @@ def update_model_monitoring_controller(
             f"{mm_constants.MonitoringFunctionNames.APPLICATION_CONTROLLER} does not exist. "
             f"Run `project.enable_model_monitoring()` first."
         )
+
+    # Preserve existing auth token when redeploying (ML-12021)
+    if not commons.auth_token_name:
+        try:
+            existing_fn = services.api.crud.Functions().get_function(
+                db_session=commons.db_session,
+                name=mm_constants.MonitoringFunctionNames.APPLICATION_CONTROLLER,
+                project=commons.project,
+            )
+            existing_token = (
+                existing_fn.get("spec", {}).get("auth", {}).get("token_name")
+            )
+            if existing_token:
+                commons.auth_token_name = existing_token
+        except Exception:
+            logger.debug(
+                "Could not read existing controller function from DB, "
+                "skipping auth token preservation",
+                project=commons.project,
+            )
 
     return commons.get_monitoring_deployment().deploy_model_monitoring_controller(
         controller_image=image,

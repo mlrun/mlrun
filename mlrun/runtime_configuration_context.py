@@ -15,6 +15,8 @@
 import contextvars
 from typing import Optional
 
+import mlrun
+
 # Context storage for RuntimeConfigurationContext
 runtime_configuration_context: contextvars.ContextVar[
     Optional["RuntimeConfigurationContext"]
@@ -63,4 +65,10 @@ class RuntimeConfigurationContext:
         ctx = runtime_configuration_context.get()
         if ctx and ctx.auth_token_name:
             return ctx.auth_token_name
+
+        rundb = mlrun.get_run_db()
+
+        # ensure that rundb of SQLDB wont get into here
+        if rundb and getattr(rundb, "token_provider", None):
+            return getattr(rundb.token_provider, "token_name", None)
         return None

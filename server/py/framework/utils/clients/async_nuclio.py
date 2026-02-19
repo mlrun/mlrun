@@ -23,6 +23,7 @@ import mlrun.common.constants as mlrun_constants
 import mlrun.common.schemas
 import mlrun.errors
 import mlrun.utils
+import mlrun.utils.thread
 from mlrun.common.helpers import generate_api_gateway_name
 from mlrun.utils import logger
 
@@ -42,7 +43,10 @@ class Client:
     def __init__(self, auth_info: mlrun.common.schemas.AuthInfo):
         self._logger = logger.get_child("nuclio-client")
         self._nuclio_dashboard_url = mlrun.mlconf.nuclio_dashboard_url
-        self._session = None
+        self._sessions = mlrun.utils.thread.ThreadLocalClient(
+            factory=self._get_new_async_session,
+            close_callback=lambda async_session: async_session.close(),
+        )
         self._auth_headers = None
         self._auth = None
 
@@ -53,7 +57,8 @@ class Client:
             self._auth = aiohttp.BasicAuth(login, auth_info.session) if login else None
 
     async def __aenter__(self):
-        await self._ensure_async_session()
+        # triggers session creation for current thread
+        self._sessions.get()
         return self
 
     async def __aexit__(self, exc_type, exc, tb):
@@ -206,30 +211,29 @@ class Client:
             "true"
         )
 
-    async def _ensure_async_session(self):
-        if not self._session:
-            self._session = mlrun.utils.AsyncClientWithRetry(
-                raise_for_status=False,
-                retry_on_exception=mlrun.mlconf.httpdb.projects.retry_leader_request_on_exception
-                == mlrun.common.schemas.HTTPSessionRetryMode.enabled.value,
-                logger=logger,
-            )
+    @staticmethod
+    def _get_new_async_session():
+        return mlrun.utils.AsyncClientWithRetry(
+            raise_for_status=False,
+            retry_on_exception=mlrun.mlconf.httpdb.projects.retry_leader_request_on_exception
+            == mlrun.common.schemas.HTTPSessionRetryMode.enabled.value,
+            logger=logger,
+        )
 
     async def _close_session(self):
-        if self._session:
-            await self._session.close()
-            self._session = None
+        """Close the thread-local session for the current thread."""
+        await self._sessions.async_close()
 
     async def _send_request_to_api(
         self, method, path="/", error_message: str = "", **kwargs
     ):
-        await self._ensure_async_session()
+        async_session = self._sessions.get()
         self._prepare_auth_kwargs(kwargs)
         kwargs["headers"] = framework.utils.clients.helpers.enrich_headers(
             headers=kwargs.get("headers"),
             path=path,
         )
-        response = await self._session.request(
+        response = await async_session.request(
             method=method,
             url=urllib.parse.urljoin(self._nuclio_dashboard_url, path),
             verify_ssl=False,

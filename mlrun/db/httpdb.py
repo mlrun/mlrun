@@ -5463,9 +5463,7 @@ class HTTPRunDB(RunDBInterface):
         :param username: Optional; the username of the token owner.
         """
         endpoint_path = f"user-secrets/tokens/{token_name}"
-        params = None
-        if username is not None:
-            params = {"username": username}
+        params = {"username": username} if username else None
         response = self.api_call(
             mlrun.common.types.HTTPMethod.DELETE,
             endpoint_path,
@@ -5482,6 +5480,49 @@ class HTTPRunDB(RunDBInterface):
         else:
             logger.info(
                 "Token could not be deleted", token_name=token_name, username=username
+            )
+        return result
+
+    @mlrun.utils.iguazio_v4_only
+    def delete_secret_tokens(
+        self, username: Optional[str] = None
+    ) -> mlrun.common.schemas.DeleteSecretTokensResponse:
+        """
+        Delete all secret tokens for a user. Only system-administrators can delete tokens for other users.
+
+        :param username: Optional; the username of the token owner. If None, deletes the caller's own tokens.
+        :return: A ``DeleteSecretTokensResponse`` with deleted_count and any failed_tokens.
+
+        Example::
+
+            # Delete all your own tokens
+            response = db.delete_secret_tokens()
+            print(f"Deleted {response.deleted_count} tokens")
+
+            # As a system admin, delete all tokens for a specific user
+            response = db.delete_secret_tokens(username="john_doe")
+        """
+        endpoint_path = "user-secrets/tokens"
+        params = {"username": username} if username else None
+        response = self.api_call(
+            mlrun.common.types.HTTPMethod.DELETE,
+            endpoint_path,
+            "delete user secret tokens",
+            params=params,
+        )
+        result = mlrun.common.schemas.DeleteSecretTokensResponse(**response.json())
+        if result.failed_tokens:
+            logger.warning(
+                "Tokens deletion completed with failures",
+                username=username,
+                deleted_count=result.deleted_count,
+                failed_count=len(result.failed_tokens),
+            )
+        else:
+            logger.debug(
+                "Tokens deletion completed",
+                username=username,
+                deleted_count=result.deleted_count,
             )
         return result
 

@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from collections.abc import Awaitable, Callable
+from collections.abc import AsyncGenerator, Awaitable, Callable, Generator
 from typing import Any, Optional, Union
 
 import mlrun.errors
@@ -65,6 +65,7 @@ class ModelProvider(BaseRemoteClient):
     """
 
     support_async = False
+    supports_streaming = False
 
     def __init__(
         self,
@@ -360,3 +361,40 @@ class ModelProvider(BaseRemoteClient):
 
         """
         raise NotImplementedError("async_invoke is not implemented")
+
+    def invoke_stream(
+        self,
+        messages: list[dict],
+        **invoke_kwargs,
+    ) -> Generator[str, None, None]:
+        """
+        Invokes a generative AI model in streaming mode, yielding text tokens as they are generated.
+
+        :param messages:        A list of dictionaries representing the conversation history.
+                                Must be a single conversation (not a batch).
+        :param invoke_kwargs:   Additional keyword arguments passed to the underlying model API call.
+        :return:                A generator yielding text tokens as strings.
+        """
+        raise NotImplementedError(
+            f"{self.__class__.__name__} does not support streaming"
+        )
+
+    async def async_invoke_stream(
+        self,
+        messages: list[dict],
+        **invoke_kwargs,
+    ) -> AsyncGenerator[str, None]:
+        """
+        Asynchronously invokes a generative AI model in streaming mode, yielding text tokens
+        as they are generated.
+
+        :param messages:        A list of dictionaries representing the conversation history.
+                                Must be a single conversation (not a batch).
+        :param invoke_kwargs:   Additional keyword arguments passed to the underlying model API call.
+        :return:                An async generator yielding text tokens as strings.
+        """
+        raise NotImplementedError(
+            f"{self.__class__.__name__} does not support async streaming"
+        )
+        # yield is needed to make this an async generator function
+        yield

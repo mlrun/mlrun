@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import inspect
 import os
 import time
 import unittest.mock
@@ -419,8 +420,22 @@ class TestHuggingFaceProvider(TestBasicHuggingFaceProvider):
                 operation=lambda *args, **kwargs: None, messages=[formatted_messages[0]]
             )
 
+    def test_invoke_stream(self):
+        """Streaming yields non-empty tokens that form a coherent answer."""
+        model_url = self.url_prefix + self.basic_llm_model
+        provider = mlrun.get_model_provider(
+            url=model_url, default_invoke_kwargs={"max_new_tokens": 60}
+        )
+        messages = [formatted_messages[0]]
+        tokens = list(provider.invoke_stream(messages=messages))
+        assert len(tokens) > 1, "Expected multiple streamed tokens"
+        full_text = "".join(tokens)
+        assert EXPECTED_RESULTS[0] in full_text.lower()
+        token_count = len(provider.client.tokenizer.encode(full_text))
+        assert 50 <= token_count <= 70
 
-class TestHuggingFaceAIModel(TestBasicHuggingFaceProvider):
+
+class TestHuggingFaceMRS(TestBasicHuggingFaceProvider):
     @pytest.mark.parametrize(
         "execution_mechanism",
         ["naive", "process_pool", "dedicated_process", "thread_pool"],
@@ -708,5 +723,39 @@ class TestHuggingFaceAIModel(TestBasicHuggingFaceProvider):
             assert sorted(list(results.keys())) == sorted([ep_name, second_ep_name])
             for model_result in results.values():
                 assert "paris" in model_result["output"]["answer"].lower()
+        finally:
+            server.wait_for_completion()
+
+    def test_hf_model_runner_streaming(self):
+        """Test streaming through MRS with HuggingFace provider."""
+        project = mlrun.new_project("test-hf-streaming", save=False)
+        model_url = self.url_prefix + self.basic_llm_model
+        model_artifact, llm_prompt_artifact, function = setup_remote_model_test(
+            project,
+            model_url,
+            default_config={"max_new_tokens": 60},
+            execution_mechanism="naive",
+            streaming=True,
+        )
+        mocked_get_store_artifact = create_mocked_get_store_artifact(
+            {
+                model_artifact.uri: model_artifact,
+                llm_prompt_artifact.uri: llm_prompt_artifact,
+            }
+        )
+        with unittest.mock.patch(
+            "mlrun.artifacts.llm_prompt.mlrun.datastore.store_manager.get_store_artifact",
+            side_effect=lambda *args, **kwargs: mocked_get_store_artifact(
+                *args, **kwargs
+            ),
+        ):
+            server = function.to_mock_server()
+        try:
+            response = server.test(body=BATCH_INPUT_DATA[0])
+            assert inspect.isgenerator(
+                response
+            ), f"Expected generator, got {type(response)}"
+            response = "".join(response)
+            assert EXPECTED_RESULTS[0] in response.lower()
         finally:
             server.wait_for_completion()

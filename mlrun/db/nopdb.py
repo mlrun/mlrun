@@ -32,6 +32,7 @@ from .base import RunDBInterface
 class NopDB(RunDBInterface):
     def __init__(self, url=None, *args, **kwargs):
         self.url = url
+        self.token_provider = None
 
     def __getattribute__(self, attr):
         def nop(*args, **kwargs):

@@ -173,7 +173,7 @@ class Client(BaseClient, project_follower.Member):
         """
 
         def _get_user_id():
-            return self._client.get_user(username).metadata
+            return self._client.get_user(username).metadata.id
 
         return self._try_callback_with_httpx_exceptions(
             _get_user_id,
@@ -333,6 +333,9 @@ class Client(BaseClient, project_follower.Member):
         deletion_strategy: mlrun.common.schemas.DeletionStrategy = mlrun.common.schemas.DeletionStrategy.default(),
         auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
     ):
+        if deletion_strategy == mlrun.common.schemas.DeletionStrategy.check:
+            return
+
         self._logger.debug("Deleting project policies in Iguazio")
 
         def _delete_project_policies():

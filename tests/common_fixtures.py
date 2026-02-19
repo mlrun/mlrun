@@ -338,6 +338,7 @@ class RunDBMock:
         self._api_gateways = {}
         self._get_model_endpoint_calls = 0
         self._get_background_task_calls = 1
+        self.token_provider = None
 
     def reset(self):
         self._functions = {}
@@ -347,6 +348,7 @@ class RunDBMock:
         self._artifacts = {}
         self._runs = {}
         self._api_gateways = {}
+        self.token_provider = None
 
     # Expected to return a hash-key
     def store_function(self, function, name, project="", tag=None, versioned=False):

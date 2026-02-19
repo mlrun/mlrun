@@ -28,6 +28,7 @@ from typing import Union, cast
 import numpy as np
 import pandas as pd
 import pytest
+import storey
 
 import mlrun
 import mlrun.common.schemas.model_monitoring.constants as mm_constants
@@ -390,7 +391,7 @@ def test_child_function_tracking_with_model_runner(rundb_mock):
     assert dummy_stream.event_list[0].get("resp", {}).get("outputs") == [2]
     assert dummy_stream.event_list[0].get("request", {}).get("inputs") == [1]
 
-    output_stream = graph.steps["out"].async_object
+    output_stream = server.graph.steps["out"].async_object
     assert len(output_stream.event_list) == 1
 
 
@@ -559,10 +560,18 @@ class SubDictOutputModel(Model):
 
 
 def _test_monitoring_system_steps_structure(
-    graph: RootFlowStep, model_runners_names: list[str]
+    server_graph: RootFlowStep,
+    spec_graph: RootFlowStep,
+    model_runners_names: list[str],
+    streaming_enabled: bool = False,
 ):
+    # When streaming is enabled, Collector steps are inserted between MRS and MM pipeline
+    if streaming_enabled:
+        source_names = [f"{name}_collector" for name in model_runners_names]
+    else:
+        source_names = model_runners_names
     system_steps = {
-        "background_task_status_step": model_runners_names,
+        "background_task_status_step": source_names,
         "filter_none": ["background_task_status_step"],
         "monitoring_pre_processor_step": ["filter_none"],
         "flatten_events": ["monitoring_pre_processor_step"],
@@ -572,21 +581,31 @@ def _test_monitoring_system_steps_structure(
             "filter_none_sampling"
         ],  # mock creates a dummy pusher and not target
     }
-    for step in graph.steps.values():
+    for step in server_graph.steps.values():
         if step.name in system_steps:
             assert step.after == system_steps[step.name]
+    for step in system_steps.keys():
+        assert (
+            step not in spec_graph.steps.keys()
+        ), f"spec graph should not contain system step {step}"
 
 
-def _test_graph_structure(graph: RootFlowStep, tracked: bool):
-    """Expects server graph contains system steps"""
+def _test_graph_structure(
+    server_graph: RootFlowStep, spec_graph: RootFlowStep, tracked: bool
+):
+    """Expects server graph contains system steps and function graph does not contain system steps."""
     model_runners = []
-    for step in graph.steps.values():
+    for step in server_graph.steps.values():
         if isinstance(step, ModelRunnerStep):
             model_runners.append(step.name)
         elif model_runners and step.name == f"{model_runners[-1]}_error_raise":
             assert model_runners[-1] in step.after or model_runners[-1] in step.after
+    for model_runner in model_runners:
+        assert (
+            f"{model_runner}_error_raise" not in spec_graph.steps.keys()
+        ), "spec graph should not contain error raise steps"
     if tracked:
-        _test_monitoring_system_steps_structure(graph, model_runners)
+        _test_monitoring_system_steps_structure(server_graph, spec_graph, model_runners)
 
 
 @pytest.mark.parametrize("enable_tracking", [True, False])
@@ -617,7 +636,7 @@ def test_tracked_model_runner(rundb_mock, enable_tracking: bool):
     else:
         assert len(dummy_stream.event_list) == 0, "expected stream to be empty"
 
-    _test_graph_structure(server.graph, enable_tracking)
+    _test_graph_structure(server.graph, function.spec.graph, enable_tracking)
 
 
 @pytest.mark.parametrize("enable_tracking", [True, False])
@@ -653,7 +672,7 @@ def test_tracked_model_runner_with_tools(rundb_mock, enable_tracking: bool):
     else:
         assert len(dummy_stream.event_list) == 0, "expected stream to be empty"
 
-    _test_graph_structure(server.graph, enable_tracking)
+    _test_graph_structure(server.graph, function.spec.graph, enable_tracking)
 
 
 @pytest.mark.parametrize("with_schema", [True, False])
@@ -1044,7 +1063,7 @@ def test_tracked_model_runner_multiple_models(rundb_mock):
     models.sort()
     output_models.sort()
     assert output_models == models, "expected models to be the same"
-    _test_graph_structure(server.graph, True)
+    _test_graph_structure(server.graph, function.spec.graph, True)
 
 
 def test_set_untracked_with_model_runner(rundb_mock):
@@ -1068,10 +1087,10 @@ def test_set_untracked_with_model_runner(rundb_mock):
     server.wait_for_completion()
 
     dummy_stream = server.context.stream.output_stream
-    _test_graph_structure(server.graph, True)
+    _test_graph_structure(server.graph, function.spec.graph, True)
     assert len(dummy_stream.event_list) == 1, "expected stream to get one message"
     function.set_tracking("dummy://", enable_tracking=False)
-    _test_graph_structure(graph, False)
+    _test_graph_structure(graph, function.spec.graph, False)
     server = function.to_mock_server()
     server.test("/", {"n": 1})
     server.wait_for_completion()
@@ -1167,7 +1186,7 @@ def test_sampling_model_runner(rundb_mock, sampling_percentage: float):
 
     dummy_stream = server.context.stream.output_stream
 
-    _test_graph_structure(server.graph, True)
+    _test_graph_structure(server.graph, function.spec.graph, True)
 
     if sampling_percentage == 100.0:
         assert len(dummy_stream.event_list) == 1, "expected stream to get one message"
@@ -1234,7 +1253,7 @@ def test_tracked_model_runner_shared(rundb_mock, enable_tracking: bool):
     else:
         assert len(dummy_stream.event_list) == 0, "expected stream to be empty"
 
-    _test_graph_structure(server.graph, enable_tracking)
+    _test_graph_structure(server.graph, function.spec.graph, enable_tracking)
 
 
 def test_shared_model_invalid_usage():
@@ -1390,7 +1409,7 @@ def test_tracked_model_runner_with_error_handler(
             "error": 'TypeError: can only concatenate str (not "int") to str'
         }
 
-    _test_graph_structure(server.graph, enable_tracking)
+    _test_graph_structure(server.graph, function.spec.graph, enable_tracking)
 
 
 def test_transpose_by_key_with_str():
@@ -2139,6 +2158,282 @@ def test_batch_step_with_mrs(rundb_mock, multiple_models):
             if not base_id:
                 base_id = request_id.split("-")[0]
             assert request_id == f"{base_id}-{i:04d}"
+
+
+class SimpleTestModel(Model):
+    """Simple model for testing that doesn't require external files."""
+
+    def predict(self, body, **kwargs):
+        return {"result": "ok"}
+
+
+class TestMonitoringPreProcessorStreamingAggregation:
+    """Tests for MonitoringPreProcessor streaming chunk aggregation."""
+
+    def test_aggregate_string_chunks(self):
+        preprocessor = MonitoringPreProcessor()
+
+        chunks = ["Hello", " ", "world", "!"]
+        result = preprocessor._aggregate_collected_chunks(chunks)
+        assert result == "Hello world!"
+
+    def test_aggregate_dict_chunks_with_string_outputs(self):
+        """Test aggregation of dict chunks with string outputs."""
+        preprocessor = MonitoringPreProcessor()
+
+        chunks = [
+            {"output": "Hello ", "metrics": {"tokens": 2}},
+            {"output": "world", "metrics": {"tokens": 1}},
+            {"output": "!", "metrics": {"tokens": 1}},
+        ]
+        result = preprocessor._aggregate_collected_chunks(chunks)
+
+        assert result["output"] == "Hello world!"
+        assert result["metrics"]["tokens"] == 4
+
+    def test_aggregate_flat_dict_chunks(self):
+        """Test aggregation of flat dict chunks (no nested metrics).
+
+        Matches the StreamingModel output format: {"output": "...", "token_count": 1}.
+        The "output" key is concatenated; other keys take first chunk's value.
+        """
+        preprocessor = MonitoringPreProcessor()
+
+        chunks = [
+            {"output": "test_chunk_0", "token_count": 1},
+            {"output": "test_chunk_1", "token_count": 1},
+            {"output": "test_chunk_2", "token_count": 1},
+        ]
+        result = preprocessor._aggregate_collected_chunks(chunks)
+
+        assert result["output"] == "test_chunk_0test_chunk_1test_chunk_2"
+        # Non-output, non-metrics keys take value from first chunk
+        assert result["token_count"] == 1
+
+    def test_aggregate_dict_chunks_with_list_outputs(self):
+        """Test aggregation of dict chunks with list outputs."""
+        preprocessor = MonitoringPreProcessor()
+
+        chunks = [
+            {"outputs": [1, 2]},
+            {"outputs": [3, 4]},
+        ]
+        result = preprocessor._aggregate_collected_chunks(chunks)
+
+        assert result["outputs"] == [1, 2, 3, 4]
+
+    def test_aggregate_metrics_sums_numeric_values(self):
+        """Test that numeric metrics are summed."""
+        preprocessor = MonitoringPreProcessor()
+
+        metrics_list = [
+            {"tokens": 10, "latency": 0.5},
+            {"tokens": 20, "latency": 0.3},
+            {"tokens": 5, "latency": 0.2},
+        ]
+        result = preprocessor._aggregate_metrics(metrics_list)
+
+        assert result["tokens"] == 35
+        assert result["latency"] == 1.0
+
+    def test_aggregate_metrics_with_none_values(self):
+        """Test metrics aggregation handles None values."""
+        preprocessor = MonitoringPreProcessor()
+
+        metrics_list = [None, {"tokens": 10}, None, {"tokens": 5}]
+        result = preprocessor._aggregate_metrics(metrics_list)
+
+        assert result["tokens"] == 15
+
+    def test_aggregate_metrics_all_none(self):
+        """Test metrics aggregation when all values are None."""
+        preprocessor = MonitoringPreProcessor()
+
+        result = preprocessor._aggregate_metrics([None, None])
+        assert result is None
+
+    def test_aggregate_outputs_concatenates_strings(self):
+        """Test output aggregation concatenates strings."""
+        preprocessor = MonitoringPreProcessor()
+
+        outputs = ["Hello", " ", "world"]
+        result = preprocessor._aggregate_outputs(outputs)
+        assert result == "Hello world"
+
+    def test_aggregate_outputs_flattens_lists(self):
+        """Test output aggregation flattens lists."""
+        preprocessor = MonitoringPreProcessor()
+
+        outputs = [[1, 2], [3, 4], [5]]
+        result = preprocessor._aggregate_outputs(outputs)
+        assert result == [1, 2, 3, 4, 5]
+
+    def test_aggregate_error_keeps_first_non_none(self):
+        """Test that error aggregation keeps the first non-None error."""
+        preprocessor = MonitoringPreProcessor()
+
+        chunks = [
+            {"output": "chunk1"},
+            {"output": "chunk2", "error": "Something went wrong"},
+            {"output": "chunk3"},
+        ]
+        result = preprocessor._merge_dict_chunks(chunks)
+
+        assert result["error"] == "Something went wrong"
+
+    def test_aggregate_empty_chunks(self):
+        """Test aggregation of empty chunk list."""
+        preprocessor = MonitoringPreProcessor()
+
+        result = preprocessor._aggregate_collected_chunks([])
+        assert result == {}
+
+    def test_aggregate_mixed_types_returns_list(self):
+        """Test that mixed types are returned as a list."""
+        preprocessor = MonitoringPreProcessor()
+
+        chunks = ["string", {"dict": "value"}, 123]
+        result = preprocessor._aggregate_collected_chunks(chunks)
+        assert result == chunks
+
+    def test_do_aggregates_when_stream_collected_marker_set(self, rundb_mock):
+        """Test that do() aggregates body when event has stream_collected=True."""
+        function = mlrun.new_function("test-stream-agg", kind="serving")
+        graph = function.set_topology("flow", engine="async")
+        model_runner_step = ModelRunnerStep(name="my_runner")
+        model_runner_step.add_model(
+            model_class="SimpleTestModel",
+            execution_mechanism="naive",
+            endpoint_name="my_model",
+        )
+        graph.to(model_runner_step).respond()
+        function.set_tracking()
+        server = function.to_mock_server()
+
+        try:
+            # Build a collected streaming event
+            event = storey.Event(
+                body=[
+                    {"output": "chunk_0", "token_count": 1},
+                    {"output": "chunk_1", "token_count": 1},
+                ],
+            )
+            event._metadata = {
+                "model_runner_name": "my_runner",
+                "when": "2026-01-01 00:00:00.000000+00:00",
+                "microsec": 1000,
+                "inputs": [[1.0, 2.0]],
+            }
+            event.stream_collected = True
+
+            preprocessor = server.graph.steps["monitoring_pre_processor_step"]._object
+            result = preprocessor.do(event)
+
+            # After aggregation, body should be a list of monitoring events (not the raw chunks)
+            assert isinstance(result.body, list)
+            assert len(result.body) == 1
+            monitoring_event = result.body[0]
+            # Outputs should contain the concatenated string
+            assert "chunk_0chunk_1" in str(monitoring_event["resp"]["outputs"])
+        finally:
+            server.wait_for_completion()
+
+    def test_do_does_not_aggregate_without_stream_collected_marker(self, rundb_mock):
+        """Test that do() does NOT aggregate body when stream_collected is absent."""
+        function = mlrun.new_function("test-no-agg", kind="serving")
+        graph = function.set_topology("flow", engine="async")
+        model_runner_step = ModelRunnerStep(name="my_runner")
+        model_runner_step.add_model(
+            model_class="SimpleTestModel",
+            execution_mechanism="naive",
+            endpoint_name="my_model",
+        )
+        graph.to(model_runner_step).respond()
+        function.set_tracking()
+        server = function.to_mock_server()
+
+        try:
+            # Build a regular (non-streaming) event with a dict body
+            event = storey.Event(
+                body={"output": "single_result"},
+            )
+            event._metadata = {
+                "model_runner_name": "my_runner",
+                "when": "2026-01-01 00:00:00.000000+00:00",
+                "microsec": 1000,
+                "inputs": [[1.0, 2.0]],
+            }
+            # No stream_collected marker
+
+            preprocessor = server.graph.steps["monitoring_pre_processor_step"]._object
+            result = preprocessor.do(event)
+
+            assert isinstance(result.body, list)
+            assert len(result.body) == 1
+            monitoring_event = result.body[0]
+            # Should have processed the original dict body directly
+            assert "single_result" in str(monitoring_event["resp"]["outputs"])
+        finally:
+            server.wait_for_completion()
+
+
+def test_collector_step_added_to_monitoring_graph(rundb_mock):
+    """Test that Collector steps are added between MRS and monitoring steps when streaming is enabled."""
+    function = mlrun.new_function("test-collector", kind="serving")
+    graph = function.set_topology("flow", engine="async")
+
+    model_runner_step = ModelRunnerStep(name="my_model_runner")
+    model_runner_step.add_model(
+        model_class="SimpleTestModel",
+        execution_mechanism="naive",
+        endpoint_name="my_model",
+    )
+    graph.to(model_runner_step).respond()
+
+    # Enable streaming - this triggers Collector insertion
+    function.set_streaming(enabled=True)
+    function.set_tracking()
+    server = function.to_mock_server()
+
+    try:
+        # Verify the Collector step was added
+        assert (
+            "my_model_runner_collector" in server.graph.steps
+        ), "Collector step should be added after the model runner step"
+
+        # Verify the Collector step is after the model runner
+        collector_step = server.graph.steps["my_model_runner_collector"]
+        collector_after = collector_step.after
+        if isinstance(collector_after, list):
+            assert (
+                "my_model_runner" in collector_after
+            ), "Collector step should come after the model runner step"
+        else:
+            assert (
+                collector_after == "my_model_runner"
+            ), "Collector step should come after the model runner step"
+
+        # Verify that a monitoring step receives from the collector (directly or indirectly)
+        # The first monitoring step may be background_task_status_step or filter_none
+        first_mm_step_name = (
+            "background_task_status_step"
+            if "background_task_status_step" in server.graph.steps
+            else "filter_none"
+        )
+        if first_mm_step_name in server.graph.steps:
+            first_mm_step = server.graph.steps[first_mm_step_name]
+            after = first_mm_step.after
+            if isinstance(after, list):
+                assert (
+                    "my_model_runner_collector" in after
+                ), f"First MM step {first_mm_step_name} should receive from collector, got {after}"
+            else:
+                assert (
+                    after == "my_model_runner_collector"
+                ), f"First MM step {first_mm_step_name} should receive from collector, got {after}"
+    finally:
+        # Explicitly wait for and close the server to avoid hanging
+        server.wait_for_completion()
 
 
 @pytest.mark.parametrize("multiple_models", (True, False))

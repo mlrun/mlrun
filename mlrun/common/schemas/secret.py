@@ -71,5 +71,22 @@ class ListSecretTokensResponse(BaseModel):
 
 
 class DeleteSecretTokenResponse(BaseModel):
-    # False if token deletion fails
-    deleted: bool = True
+    """Response for single token deletion."""
+
+    deleted: bool = Field(
+        default=True,
+        description="True if token was deleted, False if token was not found",
+    )
+
+
+class DeleteSecretTokensResponse(BaseModel):
+    """Response for bulk token deletion."""
+
+    deleted_count: int = Field(
+        default=0,
+        description="Number of tokens successfully deleted",
+    )
+    failed_tokens: list[str] = Field(
+        default_factory=list,
+        description="List of token names that failed to delete",
+    )

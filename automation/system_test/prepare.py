@@ -461,7 +461,7 @@ class SystemTestPreparer:
         )
 
     def _enrich_oss_env(self):
-        """Add model monitoring profiles for OSS/CE deployments using TimescaleDB and Kafka."""
+        """Add model monitoring profiles and S3 credentials for OSS/CE deployments."""
         self._env_config["mlrun_model_monitoring_tsdb_profile"] = json.dumps(
             {
                 "type": "postgresql",
@@ -481,6 +481,13 @@ class SystemTestPreparer:
                 "topics": [],
             }
         )
+
+        # S3 credentials for the test client to access SeaweedFS.
+        # The endpoint URL (AWS_ENDPOINT_URL_S3) is resolved dynamically
+        # in the workflow after helm install, since it depends on the
+        # SeaweedFS service ClusterIP.
+        self._env_config["AWS_ACCESS_KEY_ID"] = "minio"
+        self._env_config["AWS_SECRET_ACCESS_KEY"] = "minio123"
 
     def _install_dev_utilities(self):
         list_uninstall = [

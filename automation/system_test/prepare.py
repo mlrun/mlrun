@@ -478,7 +478,7 @@ class SystemTestPreparer:
                 "type": "kafka_stream",
                 "name": "mm-stream-profile",
                 "brokers": "kafka-stream:9092",
-                "topics": "placeholder",
+                "topics": [],
             }
         )
 

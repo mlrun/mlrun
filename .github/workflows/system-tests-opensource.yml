@@ -463,15 +463,11 @@ jobs:
         export MLRUN_VERSION="${{ needs.prepare-inputs.outputs.mlrun_version }}"
 
         # S3 credentials for client-side artifact uploads (SeaweedFS in CE).
-        # Read from the s3-credentials K8s secret created by the CE helm chart.
-        # The endpoint URL uses cluster-internal DNS, so we resolve the service
-        # ClusterIP to make it reachable from the host.
-        export AWS_ACCESS_KEY_ID=$(kubectl get secret s3-credentials -n ${NAMESPACE} -o jsonpath='{.data.AWS_ACCESS_KEY_ID}' | base64 -d)
-        export AWS_SECRET_ACCESS_KEY=$(kubectl get secret s3-credentials -n ${NAMESPACE} -o jsonpath='{.data.AWS_SECRET_ACCESS_KEY}' | base64 -d)
-        S3_INTERNAL_URL=$(kubectl get secret s3-credentials -n ${NAMESPACE} -o jsonpath='{.data.AWS_ENDPOINT_URL_S3}' | base64 -d)
-        S3_SVC_NAME=$(echo "$S3_INTERNAL_URL" | sed -E 's|https?://([^.]+)\..*|\1|')
-        S3_PORT=$(echo "$S3_INTERNAL_URL" | grep -oE ':[0-9]+' | tr -d ':')
-        S3_CLUSTER_IP=$(kubectl get svc "$S3_SVC_NAME" -n ${NAMESPACE} -o jsonpath='{.spec.clusterIP}')
+        # Service name: {helm-release}-seaweedfs-s3 (see deployer.py and SeaweedFS chart naming)
+        S3_CLUSTER_IP=$(kubectl get svc mlrun-ce-seaweedfs-s3 -n ${NAMESPACE} -o jsonpath='{.spec.clusterIP}')
+        S3_PORT=$(kubectl get svc mlrun-ce-seaweedfs-s3 -n ${NAMESPACE} -o jsonpath='{.spec.ports[0].port}')
+        export AWS_ACCESS_KEY_ID="minio"
+        export AWS_SECRET_ACCESS_KEY="minio123"
         export AWS_ENDPOINT_URL_S3="http://${S3_CLUSTER_IP}:${S3_PORT}"
         echo "S3 endpoint: $AWS_ENDPOINT_URL_S3"
 

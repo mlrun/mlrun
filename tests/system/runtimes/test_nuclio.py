@@ -674,6 +674,68 @@ class TestNuclioRuntime(TestMLRunSystemModelMonitoring):
         self._logger.info(f"ModelRunnerStep chunks: {chunks}")
         assert chunks == ["test_chunk_0", "test_chunk_1", "test_chunk_2"]
 
+    def test_stream_response_termination_on_error(self):
+        """
+        Test that a mid-stream error terminates the stream, and that subsequent requests are served normally.
+
+        Requires Nuclio 1.15.15 or later, which includes the fix for NUC-723 that caused hanging on mid-stream errors
+        and failure to serve subsequent requests.
+
+        Deploys a function with two routes:
+        - /error  -> ErrorStreamingStep (yields one chunk then raises)
+        - /healthy -> StreamingStep (normal streaming)
+
+        Verifies the error request completes (does not hang) and a subsequent
+        healthy request succeeds (worker still alive).
+        """
+        code_path = str(self.assets_path / "streaming_function.py")
+        function = mlrun.code_to_function(
+            name="streaming-error",
+            kind="serving",
+            project=self.project_name,
+            filename=code_path,
+            image=self.image,
+        )
+        function.spec.replicas = 1
+
+        graph = function.set_topology("flow", engine="async")
+        choice = graph.to(name="choice", class_name="StreamingChoice")
+        choice.to(name="error", class_name="ErrorStreamingStep")
+        choice.to(name="step", class_name="StreamingStep", num_chunks=3)
+        graph.add_step(
+            name="responder",
+            class_name="Echo",
+            after=["error", "step"],
+        ).respond()
+
+        function.set_streaming(enabled=True)
+        function.deploy()
+
+        url = function.get_url()
+
+        # 1. Send a streaming request that triggers a mid-stream error.
+        #    Use a timeout to guard against hangs (the pre-NUC-723 failure mode).
+        self._logger.info("Sending error streaming request...")
+        resp = requests.post(f"{url}/error", data="test", stream=True, timeout=30)
+
+        try:
+            chunks = list(resp.iter_content(decode_unicode=True, chunk_size=1024))
+            self._logger.info(f"Error path chunks: {chunks}")
+        except requests.exceptions.ChunkedEncodingError:
+            self._logger.info(
+                "Got ChunkedEncodingError (expected — stream terminated by server)"
+            )
+
+        # 2. Verify the worker is still healthy by sending a normal request.
+        self._logger.info("Sending healthy streaming request...")
+        resp = requests.post(f"{url}/step", data="test", stream=True, timeout=30)
+        assert resp.ok, f"Healthy request failed: {resp.status_code} {resp.text}"
+        assert resp.headers.get("Transfer-Encoding") == "chunked"
+
+        chunks = list(resp.iter_content(decode_unicode=True, chunk_size=1024))
+        self._logger.info(f"Healthy path chunks: {chunks}")
+        assert chunks == ["test_chunk_0", "test_chunk_1", "test_chunk_2"]
+
     @pytest.mark.parametrize("with_object", [True, False])
     def test_mrs_with_tools_routing_sys(self, with_object):
         code_path = str(self.assets_path / "function_llm_with_tools.py")

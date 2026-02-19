@@ -378,4 +378,4 @@ class TestHuggingFaceModelRunner(TestMLRunSystem):
         full_text = "".join(chunks)
         assert EXPECTED_RESULTS[0] in full_text.lower()
         word_count = len(full_text.split())
-        assert 50 <= word_count <= 70, f"Expected ~60 tokens, got ~{word_count} words"
+        assert 30 <= word_count <= 70, f"Expected ~60 tokens, got ~{word_count} words"

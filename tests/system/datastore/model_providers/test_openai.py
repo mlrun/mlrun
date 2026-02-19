@@ -252,3 +252,6 @@ class TestOpenAIModelRunner(TestMLRunSystem):
         assert len(chunks) > 1, "Expected multiple streamed chunks"
         full_text = "".join(chunks)
         assert EXPECTED_RESULTS[0] in full_text.lower()
+        encoding = tiktoken.encoding_for_model(self.basic_llm_model)
+        token_count = len(encoding.encode(full_text))
+        assert 50 <= token_count <= 70

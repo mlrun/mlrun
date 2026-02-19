@@ -92,9 +92,6 @@ class TestHuggingFaceModelRunner(TestMLRunSystem):
             "limits": {"cpu": "6", "memory": "20Gi"},
             "requests": {"cpu": "25m", "memory": "1Mi"},
         }
-        function.spec.max_replicas = (
-            1  # to avoid allocating extended resources to multiple pods
-        )
         # Set workers=None to avoid using the default value of 8 workers
         function.with_http(gateway_timeout=600, worker_timeout=500, workers=None)
         function.spec.readiness_timeout = 600
@@ -162,7 +159,6 @@ class TestHuggingFaceModelRunner(TestMLRunSystem):
             "limits": {"cpu": "6", "memory": "20Gi"},
             "requests": {"cpu": "25m", "memory": "1Mi"},
         }
-        function.spec.max_replicas = 1
         function.with_http(
             gateway_timeout=600,
             worker_timeout=500,
@@ -235,7 +231,6 @@ class TestHuggingFaceModelRunner(TestMLRunSystem):
             include_llm_artifact=False,
         )
 
-        function.spec.max_replicas = 1  # to avoid allocating resources to multiple pods
         function.deploy()
         results = function.invoke(
             f"v2/models/{mlrun_model_name}/infer",
@@ -308,7 +303,7 @@ class TestHuggingFaceModelRunner(TestMLRunSystem):
             "requests": {"cpu": "25m", "memory": "1Mi"},
         }
         function.spec.readiness_timeout = 600
-        function.spec.max_replicas = (
+        function.spec.replicas = (
             1  # to avoid allocating extended resources to multiple pods
         )
         # Set workers=None to avoid using the default value of 8 workers
@@ -364,7 +359,6 @@ class TestHuggingFaceModelRunner(TestMLRunSystem):
             "limits": {"cpu": "6", "memory": "20Gi"},
             "requests": {"cpu": "25m", "memory": "1Mi"},
         }
-        function.spec.max_replicas = 1
         function.with_http(gateway_timeout=600, worker_timeout=500, workers=None)
         function.spec.readiness_timeout = 600
 
@@ -383,3 +377,5 @@ class TestHuggingFaceModelRunner(TestMLRunSystem):
         assert len(chunks) > 1, "Expected multiple streamed chunks"
         full_text = "".join(chunks)
         assert EXPECTED_RESULTS[0] in full_text.lower()
+        word_count = len(full_text.split())
+        assert 50 <= word_count <= 70, f"Expected ~60 tokens, got ~{word_count} words"

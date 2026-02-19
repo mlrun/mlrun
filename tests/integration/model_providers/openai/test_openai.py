@@ -288,6 +288,9 @@ class TestOpenAIProvider(TestBasicOpenAIProvider):
         assert len(tokens) > 1, "Expected multiple streamed tokens"
         full_text = "".join(tokens)
         assert EXPECTED_RESULTS[0] in full_text.lower()
+        encoding = tiktoken.encoding_for_model(self.basic_llm_model)
+        token_count = len(encoding.encode(full_text))
+        assert 50 <= token_count <= 70
 
     @pytest.mark.asyncio
     async def test_async_invoke_stream(self):
@@ -303,6 +306,9 @@ class TestOpenAIProvider(TestBasicOpenAIProvider):
         assert len(tokens) > 1, "Expected multiple streamed tokens"
         full_text = "".join(tokens)
         assert EXPECTED_RESULTS[0] in full_text.lower()
+        encoding = tiktoken.encoding_for_model(self.basic_llm_model)
+        token_count = len(encoding.encode(full_text))
+        assert 50 <= token_count <= 70
 
     @pytest.mark.asyncio
     @pytest.mark.parametrize("run_async", [True, False])
@@ -578,11 +584,10 @@ class TestOpenAIModel(TestBasicOpenAIProvider):
             server = function.to_mock_server()
         try:
             response = server.test(body=BATCH_INPUT_DATA[0])
-            if inspect.isgenerator(response):
-                response = "".join(response)
-            assert isinstance(
-                response, str
-            ), f"Expected streamed string, got {type(response)}"
+            assert inspect.isgenerator(
+                response
+            ), f"Expected generator, got {type(response)}"
+            response = "".join(response)
             assert EXPECTED_RESULTS[0] in response.lower()
         finally:
             server.wait_for_completion()

@@ -431,6 +431,8 @@ class TestHuggingFaceProvider(TestBasicHuggingFaceProvider):
         assert len(tokens) > 1, "Expected multiple streamed tokens"
         full_text = "".join(tokens)
         assert EXPECTED_RESULTS[0] in full_text.lower()
+        token_count = len(provider.client.tokenizer.encode(full_text))
+        assert 50 <= token_count <= 70
 
 
 class TestHuggingFaceModel(TestBasicHuggingFaceProvider):
@@ -750,11 +752,10 @@ class TestHuggingFaceModel(TestBasicHuggingFaceProvider):
             server = function.to_mock_server()
         try:
             response = server.test(body=BATCH_INPUT_DATA[0])
-            if inspect.isgenerator(response):
-                response = "".join(response)
-            assert isinstance(
-                response, str
-            ), f"Expected streamed string, got {type(response)}"
+            assert inspect.isgenerator(
+                response
+            ), f"Expected generator, got {type(response)}"
+            response = "".join(response)
             assert EXPECTED_RESULTS[0] in response.lower()
         finally:
             server.wait_for_completion()

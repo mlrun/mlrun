@@ -1038,17 +1038,12 @@ class TestMockModelProviderBatchStep(BaseMockModelProviderTest):
 class TestMockModelProviderStreaming(BaseMockModelProviderTest):
     """Tests for streaming invocation with MockModelProvider through MRS."""
 
-    @staticmethod
-    def _consume_streaming_response(response):
-        """Consume a streaming response generator and return the joined text."""
-        if inspect.isgenerator(response):
-            return "".join(response)
-        return response
-
     def _verify_streaming_response(self, response):
-        """Verify that a streaming response contains the expected mock text."""
-        text = self._consume_streaming_response(response)
-        assert isinstance(text, str), f"Expected streamed string, got {type(text)}"
+        """Verify that a streaming response is a generator with the expected mock text."""
+        assert inspect.isgenerator(
+            response
+        ), f"Expected generator, got {type(response)}"
+        text = "".join(response)
         assert "mock model provider" in text.lower()
 
     def test_llmodel_streaming(self, rundb_mock):

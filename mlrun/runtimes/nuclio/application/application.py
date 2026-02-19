@@ -527,8 +527,13 @@ class ApplicationRuntime(nuclio_function.RemoteRuntime):
 
         :return: The default API gateway URL if created or True if the function is ready (deployed)
         """
-        # Upload local single-file source as artifact (if applicable)
+        # Upload local source as artifact. The server needs the store:// URI to configure the init container, but we
+        # restore the local path afterward, so subsequent deploys re-upload the file.
+        original_local_source = self.spec.build.source
         self._upload_source_as_artifact()
+        artifact_uri = getattr(self, "_artifact_source_uri", None)
+        if artifact_uri:
+            self.spec.build.source = artifact_uri
 
         # Check status.application_image because spec.image gets cleared after build to use
         # the reverse proxy image instead
@@ -564,8 +569,11 @@ class ApplicationRuntime(nuclio_function.RemoteRuntime):
             "Successfully deployed function.",
         )
 
+        # Restore the original local source path so subsequent deploys re-upload automatically
+        if artifact_uri and original_local_source:
+            self.spec.build.source = original_local_source
         # Restore the source in case it was removed to make nuclio not consider it when building
-        if not self.spec.build.source and self.status.application_source:
+        elif not self.spec.build.source and self.status.application_source:
             self.spec.build.source = self.status.application_source
         self.save(versioned=False)
 
@@ -1113,8 +1121,10 @@ class ApplicationRuntime(nuclio_function.RemoteRuntime):
         """
         Upload local single-file source as an MLRun artifact.
 
-        If spec.build.source is a local file path, upload it to the artifact store
-        and update spec.build.source with the artifact URI.
+        If spec.build.source is a local file path, upload it to the artifact store and update spec.build.source
+        with the artifact URI for the server.
+        The original local path is preserved so subsequent deploys re-upload the (potentially modified) file
+        without the user having to reset spec.build.source.
         """
         source = self.spec.build.source
         if not source:
@@ -1158,8 +1168,9 @@ class ApplicationRuntime(nuclio_function.RemoteRuntime):
                 f"Failed to upload source file '{source}' as artifact"
             ) from exc
 
-        # Update the source to point to the artifact URI
-        self.spec.build.source = artifact.uri
+        # Store the artifact URI for the server, but preserve the original local path so subsequent deploys re-upload
+        # the file without manual reset
+        self._artifact_source_uri = artifact.uri
 
     @staticmethod
     def _is_single_local_file(source: str) -> bool:

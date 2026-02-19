@@ -77,6 +77,7 @@ def test_load_artifact_success(tmp_path, project):
 
     mock_artifact = unittest.mock.MagicMock()
     mock_artifact.get_target_path.return_value = artifact_target_path
+    mock_artifact.spec.src_path = "handler.py"
     mock_dataitem = unittest.mock.MagicMock()
 
     with (

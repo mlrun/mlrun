@@ -1071,9 +1071,13 @@ def test_upload_source_as_artifact(tmp_path):
         },
     )
 
-    # Verify source was updated to the artifact URI
+    # Verify local path is preserved (deploy() handles the swap to artifact URI)
+    assert fn.spec.build.source == str(source_file)
+
+    # Verify artifact URI is stored for deploy() to use
     assert (
-        fn.spec.build.source == "store://artifacts/test-project/application-test-source"
+        fn._artifact_source_uri
+        == "store://artifacts/test-project/application-test-source"
     )
 
 

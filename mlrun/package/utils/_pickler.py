@@ -17,7 +17,6 @@ import importlib.metadata as importlib_metadata
 import os
 import sys
 import tempfile
-import warnings
 from types import ModuleType
 from typing import Any
 
@@ -187,32 +186,28 @@ class Pickler:
 
         :return: The module's version if found and None otherwise.
         """
-        # First we'll try to get the module version from `importlib`:
+        # normalize to top-level package name
+        top_level = module_name.split(".")[0]
+
+        # 1) direct dist lookup (works when module name == dist name)
         try:
-            return importlib_metadata.version(module_name)
-        except importlib.metadata.PackageNotFoundError:
-            # `PackageNotFoundError` is ignored this is raised when `version` could not find the package related to the
-            # module.
+            return importlib_metadata.version(top_level)
+        except importlib_metadata.PackageNotFoundError:
             pass
 
-        # Secondly, if importlib could not get the version, we'll try to use `pkg_resources` to get the version (the
-        # version will be found only if the package name is equal to the module name. For example, if the module name is
-        # 'x' then the way we installed the package must be 'pip install x'):
-        import pkg_resources
-
-        with warnings.catch_warnings():
-            # If a module's package is not found, a `PkgResourcesDeprecationWarning` warning will be raised and then
-            # `DistributionNotFound` exception will be raised, so we ignore them both:
-            warnings.filterwarnings(
-                "ignore", category=pkg_resources.PkgResourcesDeprecationWarning
-            )
+        # 2) module -> distribution(s) lookup
+        for dist_name in importlib_metadata.packages_distributions().get(top_level, []):
             try:
-                return pkg_resources.get_distribution(module_name).version
-            except pkg_resources.DistributionNotFound:
-                pass
+                return importlib_metadata.version(dist_name)
+            except importlib_metadata.PackageNotFoundError:
+                continue
 
-        # The version could not be found.
-        return None
+        # 3) runtime module fallback (__version__ is conventional, not guaranteed)
+        try:
+            module = importlib.import_module(top_level)
+        except Exception:
+            return None
+        return getattr(module, "__version__", None)
 
     @staticmethod
     def _get_python_version() -> str:

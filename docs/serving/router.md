@@ -68,7 +68,7 @@ enricher = graph.add_step(
     "*mlrun.serving.EnrichmentVotingEnsemble",
     name="enricher",
     feature_vector_uri="store://feature-vectors/user_features_v1",
-    vote_type="regression"  # or "classification"
+    vote_type="regression",  # or "classification"
 )
 ```
 

@@ -436,7 +436,7 @@ so the packager module can be imported on the remote worker:
     project.set_source(source="./", pull_at_runtime=True)
 
 The custom packager needs to be available during runtime. See how to do that
-in [Make the packager importable on the remote worker](./custom_packagers/custom-packagers-tutorial-overview.md#make-the-packager-importable-on-the-remote-worker).
+in {ref}`Make the packager importable on the remote worker <make-the-packager-importable-on-the-remote-worker>`.
 ```
 
 **See also**

@@ -18,28 +18,10 @@ Revision ID: 6d1d53f60e90
 Revises: 0da0066c77f5
 Create Date: 2025-11-18 09:44:39.663052
 
-This migration changes the unique constraint on background_task_labels from (task_id, name) to
-(project, name, value) and adds a new `project` column.
+Existing rows need backfilling (project is derived from the parent background_tasks table)
+and deduplication (the old constraint allowed rows that become duplicates under the new one).
 
-The original version of this migration added `project` as NOT NULL and applied the new constraint directly,
-which failed on upgrades from < 1.11.0 when the table already contained data.
-Two issues caused the failure:
-
-1. Under the old (task_id, name) constraint, near-simultaneous requests could create labels with the same
-   (name, value) under different task_ids in the same project.
-   After backfilling `project` from the parent table, these rows become duplicates under the new (project, name, value)
-   constraint, causing an IntegrityError.
-
-2. The column was added as NOT NULL without backfilling, so existing rows with NULL project would be rejected.
-
-The fix:
-  1. Add `project` as nullable
-  2. Backfill from the parent background_tasks table
-  3. Deduplicate (project, name, value) rows, keeping the latest entry
-  4. Alter the column to NOT NULL
-  5. Drop the old constraint and create the new one
-
-See: ML-11774 for more details.
+See ML-11774 for full context.
 """
 
 import sqlalchemy as sa
@@ -50,42 +32,6 @@ revision = "6d1d53f60e90"
 down_revision = "0da0066c77f5"
 branch_labels = None
 depends_on = None
-
-
-def _backfill_project_from_parent(connection):
-    """Populate the project column from the parent background_tasks table."""
-    connection.execute(
-        sa.text(
-            """
-            UPDATE background_task_labels btl
-            JOIN background_tasks bt ON bt.id = btl.task_id
-            SET btl.project = bt.project
-            """
-        )
-    )
-
-
-def _remove_duplicates(connection):
-    """Remove duplicate (project, name, value) rows, keeping the latest entry.
-
-    After backfilling the project column, there may be rows that share the same (project, name, value) tuple
-    for example, two labels created by near-simultaneous requests under the old (task_id, name) constraint.
-    We keep only one row per group so the new unique constraint can be applied.
-    """
-    connection.execute(
-        sa.text(
-            """
-            DELETE FROM background_task_labels
-            WHERE id NOT IN (
-                SELECT keep_id FROM (
-                    SELECT MAX(id) AS keep_id
-                    FROM background_task_labels
-                    GROUP BY project, name, value
-                ) AS keep_rows
-            )
-            """
-        )
-    )
 
 
 def upgrade():
@@ -137,3 +83,39 @@ def downgrade():
     )
     op.drop_column("background_task_labels", "project")
     # ### end Alembic commands ###
+
+
+def _backfill_project_from_parent(connection):
+    """Populate the project column from the parent background_tasks table."""
+    connection.execute(
+        sa.text(
+            """
+            UPDATE background_task_labels btl
+            JOIN background_tasks bt ON bt.id = btl.task_id
+            SET btl.project = bt.project
+            """
+        )
+    )
+
+
+def _remove_duplicates(connection):
+    """Remove duplicate (project, name, value) rows, keeping the latest entry.
+
+    After backfilling the project column, there may be rows that share the same (project, name, value) tuple
+    for example, two labels created by near-simultaneous requests under the old (task_id, name) constraint.
+    We keep only one row per group so the new unique constraint can be applied.
+    """
+    connection.execute(
+        sa.text(
+            """
+            DELETE FROM background_task_labels
+            WHERE id NOT IN (
+                SELECT keep_id FROM (
+                    SELECT MAX(id) AS keep_id
+                    FROM background_task_labels
+                    GROUP BY project, name, value
+                ) AS keep_rows
+            )
+            """
+        )
+    )

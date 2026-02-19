@@ -623,6 +623,10 @@ jobs:
         
         set +x
 
+    - name: Setup tmate session on failure
+      if: failure()
+      uses: mxschmitt/action-tmate@c0afd6f790e3a5564914980036ebf83216678101 # 3.23
+
     - name: Final clean up
       if: always()
       uses: ./.github/actions/cleanup-k3s

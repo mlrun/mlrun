@@ -45,7 +45,7 @@ The class variables you can set:
 | `BUNDLE_FROM_DICT` | `False` | When `True`, the type can be initialized from a `dict` to serve as a bundle container. |
 
 `DefaultPackager` **auto-discovers** supported artifact types by scanning for methods
-independently: `pack_*` methods define packing artifact types and `unpack_*` methods
+independently: `pack_<artifact_type>` methods define packing artifact types and `unpack_<artifact_type>` methods
 define unpacking artifact types. If your class has `pack_file` but no `unpack_file`,
 then `"file"` is available for packing only — `is_packable` accepts it but
 `is_unpackable` rejects it. The `"result"` type is always available for packing
@@ -69,10 +69,10 @@ Custom packagers follow one of four patterns, depending on what your type needs:
 
 | Pattern | When to use | What to implement |
 |---------|-------------|-------------------|
-| **Pack-only** | The type is produced as output but never consumed as a typed input. The framework automatically excludes pack-only artifact types from unpacking validation. | `pack_*` methods only. |
-| **Unpack-only** | Legacy/migration support — reading artifacts from an older format while new writes use a different artifact type. | `unpack_*` methods only. |
-| **Round-trip (pack + unpack)** | The type needs to be saved *and* loaded back in a later function. | Both `pack_*` and `unpack_*` methods. |
-| **Bundling & unbundling** | The type is a collection that should decompose into separate artifacts when unbundled. | `pack_*`/`unpack_*` plus `bundle`/`unbundle` methods and `BUNDLE_FROM_LIST`/`BUNDLE_FROM_DICT` flags. |
+| **Pack-only** | The type is produced as output but never consumed as a typed input. The framework automatically excludes pack-only artifact types from unpacking validation. | `pack_<artifact_type>` methods only. |
+| **Unpack-only** | Legacy/migration support — reading artifacts from an older format while new writes use a different artifact type. | `unpack_<artifact_type>` methods only. |
+| **Round-trip (pack + unpack)** | The type needs to be saved *and* loaded back in a later function. | Both `pack_<artifact_type>` and `unpack_<artifact_type>` methods. |
+| **Bundling & unbundling** | The type is a collection that should decompose into separate artifacts when unbundled. | `pack_<artifact_type>`/`unpack_<artifact_type>` plus `bundle`/`unbundle` methods and `BUNDLE_FROM_LIST`/`BUNDLE_FROM_DICT` flags. |
 
 ## Step-by-step guide
 
@@ -104,6 +104,8 @@ If your type has subclasses that should also be handled by this packager, set
 
 Each packing method serializes the object and returns a tuple of `(Artifact, instructions_dict)`.
 The `instructions_dict` carries metadata needed to reconstruct the object when unpacking.
+Returning an artifact means that you can return any of the common subclasses of `Artifact`, including:
+`ModelArtifact`, `DatasetArtifact` and `LLMPromptArtifact`.
 
 ```python
 from mlrun import Artifact
@@ -127,7 +129,7 @@ def pack_file(
 ```
 
 ```{note}
-Inside a `pack_*` method you create and **return** an `Artifact` object — you do not
+Inside a `pack_<artifact_type>` method you create and **return** an `Artifact` object — you do not
 call `context.log_artifact()` or `context.log_dataset()`. The packager manager handles
 the actual logging and uploading; the pack method's job is only to serialize the data and
 describe the artifact.
@@ -139,11 +141,21 @@ The method name determines the artifact type: `pack_file` handles `artifact_type
 **Important:** Extra parameters like `file_format` above become **packing kwargs** that
 users can pass via log hints:
 
+The class variables `DEFAULT_PACKING_ARTIFACT_TYPE` must be equal to one of the artifact types defined by your `pack_<artifact_type>` 
+methods, so that when users log without an explicit artifact type, the packager knows which method to call. 
+
 ```python
 returns = ['my_output : file[file_format="csv"]']
 ```
 
 All packing kwargs must have default values so users aren't forced to specify them.
+
+#### Artifact types
+
+Returning an artifact means that you can return any of the common subclasses of Artifact, including:
+ModelArtifact, DatasetArtifact and LLMPromptArtifact. The default packing and unpacking class variables 
+should always be set. They are by default set to "object". You can change it to any valid
+artifact type.
 
 #### Result artifact type
 
@@ -184,7 +196,11 @@ Each instruction parameter (e.g. `file_format`) must be **optional** (have a def
 value) so that the method can also handle objects that were logged manually rather than
 through this packager.
 
-For pack-only packagers, you can skip implementing `unpack_*` methods entirely —
+The class variables `DEFAULT_UNPACKING_ARTIFACT_TYPE` must be equal to one of the artifact types defined by your 
+`unpack_<artifact_type>` 
+methods, so that when users log without an explicit artifact type, the packager knows which method to call. 
+
+For pack-only packagers, you can skip implementing `unpack_<artifact_type>` methods entirely —
 the artifact type is automatically excluded from unpacking validation, so no extra
 configuration is needed. Real-world examples:
 
@@ -196,7 +212,7 @@ configuration is needed. Real-world examples:
 
 ### 5. Clean up temporary files
 
-If your `pack_*` or `unpack_*` methods write files to disk, call
+If your `pack_<artifact_type>` or `unpack_<artifact_type>` methods write files to disk, call
 `self.add_future_clearing_path(path)` so MLRun deletes them after the artifact is
 uploaded. This prevents temporary files from accumulating on the worker.
 

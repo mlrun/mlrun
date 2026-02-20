@@ -646,12 +646,33 @@ jobs:
         echo "=== DISK USAGE ==="
         echo "=================================="
         df -h
-        
-        set +x
 
-    - name: Setup tmate session on failure
-      if: failure()
-      uses: mxschmitt/action-tmate@c0afd6f790e3a5564914980036ebf83216678101 # 3.23
+        echo "=================================="
+        echo "=== TEST RESULTS ==="
+        echo "=================================="
+        cat test-data.xml 2>/dev/null || echo "No test-data.xml found"
+
+        echo "=================================="
+        echo "=== MLRUN API CONFIG ==="
+        echo "=================================="
+        kubectl exec -n ${NAMESPACE} deployment/mlrun-api -- env 2>/dev/null | grep -E "MLRUN_IMAGES|MLRUN_VERSION" || true
+
+        echo "=================================="
+        echo "=== KAFKA BROKER STATUS ==="
+        echo "=================================="
+        kubectl get pods -n ${NAMESPACE} -l strimzi.io/cluster=kafka-stream -o wide 2>/dev/null || echo "No kafka pods found"
+        for pod in $(kubectl get pods -n ${NAMESPACE} -l strimzi.io/name=kafka-stream-kafka -o jsonpath='{.items[*].metadata.name}' 2>/dev/null); do
+          echo "=== Kafka broker logs: $pod ==="
+          kubectl logs -n ${NAMESPACE} "$pod" --tail=50 2>/dev/null || true
+        done
+
+        echo "=================================="
+        echo "=== SEAWEEDFS S3 STATUS ==="
+        echo "=================================="
+        kubectl get svc seaweedfs-s3 -n ${NAMESPACE} -o wide 2>/dev/null || echo "seaweedfs-s3 service not found"
+        kubectl get secret s3-credentials -n ${NAMESPACE} 2>/dev/null || echo "s3-credentials secret not found"
+
+        set +x
 
     - name: Final clean up
       if: always()

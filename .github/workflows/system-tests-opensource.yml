@@ -461,6 +461,7 @@ jobs:
         export MLRUN_SYSTEM_TEST_MARKERS="$PYTEST_MARKERS"
         export MLRUN_SYSTEM_TESTS_CLEAN_RESOURCES="${{ needs.prepare-inputs.outputs.mlrun_system_tests_clean_resources }}"
         export MLRUN_VERSION="${{ needs.prepare-inputs.outputs.mlrun_version }}"
+        export MLRUN_IMAGES_TAG="${{ needs.prepare-inputs.outputs.mlrun_docker_tag }}"
 
         # S3 credentials for client-side artifact uploads (MinIO in CE rc8).
         # MinIO service uses fullnameOverride: minio, NodePort 30080 / port 9000.

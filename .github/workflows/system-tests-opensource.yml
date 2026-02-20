@@ -411,6 +411,7 @@ jobs:
               --override-mlrun-log-collector-image="${{ needs.prepare-inputs.outputs.mlrun_docker_registry }}${{ needs.prepare-inputs.outputs.mlrun_docker_repo }}/log-collector:${{ needs.prepare-inputs.outputs.mlrun_docker_tag }}" \
               --set 'mlrun.api.extraEnvKeyValue.MLRUN_HTTPDB__BUILDER__MLRUN_VERSION_SPECIFIER="mlrun[complete] @ git+https://github.com/mlrun/mlrun@${{ needs.prepare-inputs.outputs.mlrun_version_specifier }}"' \
               --set mlrun.api.extraEnvKeyValue.MLRUN_IMAGES_REGISTRY="${{ needs.prepare-inputs.outputs.mlrun_docker_registry }}" \
+              --set mlrun.api.extraEnvKeyValue.MLRUN_IMAGES_TAG="${{ needs.prepare-inputs.outputs.mlrun_docker_tag }}" \
               --set 'mlrun.api.extraEnvKeyValue.MLRUN_HTTPDB__SCHEDULING__MIN_ALLOWED_INTERVAL="0 seconds"' \
               --set mlrun.api.extraEnvKeyValue.MLRUN_MODEL_ENDPOINT_MONITORING__PARQUET_BATCHING_MAX_EVENTS="100" \
               --set jupyterNotebook.enabled=false \

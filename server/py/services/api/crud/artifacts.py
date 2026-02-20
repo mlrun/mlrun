@@ -324,7 +324,7 @@ class Artifacts(
         producer = artifact.get("spec", {}).get("producer", {})
 
         if not producer:
-            # if producer is not set, set the default producer with the auth_info.username as the owner
+            # Enforcing producer for use-cases where raw api request do not set an explicit producer
             artifact.setdefault("spec", {})["producer"] = (
                 self._generate_default_producer(auth_info)
             )

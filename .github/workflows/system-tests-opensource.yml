@@ -440,6 +440,29 @@ jobs:
               elapsed=$((elapsed + interval))
             done
 
+            # Wait for Kafka brokers to be ready (Strimzi creates broker pods
+            # asynchronously after the operator pod is Running).
+            echo "Waiting for Kafka broker pods to be created and ready..."
+            kafka_timeout=300
+            kafka_elapsed=0
+            kafka_interval=15
+            while true; do
+              # Check if at least one kafka broker pod exists and is Running
+              kafka_ready=$(kubectl get pods -n ${NAMESPACE} -l strimzi.io/name=kafka-stream-kafka --no-headers 2>/dev/null | grep -c 'Running' || true)
+              if [ "$kafka_ready" -ge 1 ]; then
+                echo "Kafka broker pods are ready ($kafka_ready running)."
+                break
+              fi
+              if [ "$kafka_elapsed" -ge "$kafka_timeout" ]; then
+                echo "Timeout waiting for Kafka broker pods."
+                kubectl get pods -n ${NAMESPACE} -l strimzi.io/cluster=kafka-stream 2>/dev/null || true
+                exit 1
+              fi
+              echo "Waiting for Kafka broker... (${kafka_elapsed}/${kafka_timeout}s)"
+              sleep $kafka_interval
+              kafka_elapsed=$((kafka_elapsed + kafka_interval))
+            done
+
     - name: Run system tests
       id: system-tests
       run: |

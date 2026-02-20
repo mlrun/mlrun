@@ -330,12 +330,13 @@ class Artifacts(
             )
             return
 
-        if producer and "owner" in producer:
-            if producer["owner"] != auth_info.username:
-                logger.warning(
-                    "Artifact producer owner is different than the authenticated user. Overriding the artifact producer owner with the authenticated user.",
-                    artifact_name=artifact.get("metadata", {}).get("name"),
-                )
+        owner = producer.get("owner")
+        if owner and owner != auth_info.username:
+            logger.warning(
+                "Artifact producer owner is different than the authenticated user. "
+                "Overriding the artifact producer owner with the authenticated user.",
+                artifact_name=artifact.get("metadata", {}).get("name"),
+            )
         producer["owner"] = auth_info.username
 
     @staticmethod

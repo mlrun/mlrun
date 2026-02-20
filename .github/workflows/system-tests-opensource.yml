@@ -462,10 +462,10 @@ jobs:
         export MLRUN_SYSTEM_TESTS_CLEAN_RESOURCES="${{ needs.prepare-inputs.outputs.mlrun_system_tests_clean_resources }}"
         export MLRUN_VERSION="${{ needs.prepare-inputs.outputs.mlrun_version }}"
 
-        # S3 credentials for client-side artifact uploads (SeaweedFS in CE).
-        # Service name: {helm-release}-seaweedfs-s3 (see deployer.py and SeaweedFS chart naming)
-        S3_CLUSTER_IP=$(kubectl get svc mlrun-ce-seaweedfs-s3 -n ${NAMESPACE} -o jsonpath='{.spec.clusterIP}')
-        S3_PORT=$(kubectl get svc mlrun-ce-seaweedfs-s3 -n ${NAMESPACE} -o jsonpath='{.spec.ports[0].port}')
+        # S3 credentials for client-side artifact uploads (MinIO in CE rc8).
+        # MinIO service uses fullnameOverride: minio, NodePort 30080 / port 9000.
+        S3_CLUSTER_IP=$(kubectl get svc minio -n ${NAMESPACE} -o jsonpath='{.spec.clusterIP}')
+        S3_PORT=$(kubectl get svc minio -n ${NAMESPACE} -o jsonpath='{.spec.ports[0].port}')
         export AWS_ACCESS_KEY_ID="minio"
         export AWS_SECRET_ACCESS_KEY="minio123"
         export AWS_ENDPOINT_URL_S3="http://${S3_CLUSTER_IP}:${S3_PORT}"

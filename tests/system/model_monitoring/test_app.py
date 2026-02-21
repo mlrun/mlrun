@@ -842,7 +842,7 @@ class TestMonitoringAppFlow(TestMLRunSystemModelMonitoring, _V3IORecordsChecker)
     @pytest.mark.parametrize(
         "with_training_set, with_model_runner",
         [
-            pytest.param(True, True),
+            pytest.param(True, True, marks=pytest.mark.smoke),
             pytest.param(True, False),
             pytest.param(False, True),
             pytest.param(False, False),

@@ -57,8 +57,7 @@ class Artifacts(
             )
         artifact["project"] = project
 
-        # calculate the size of the artifact
-        self._resolve_artifact_size(artifact, auth_info)
+        self._enrich_artifact(artifact, auth_info)
 
         return framework.utils.singletons.db.get_db().store_artifact(
             session=db_session,
@@ -92,8 +91,7 @@ class Artifacts(
 
         best_iteration = artifact.get("metadata", {}).get("best_iteration", False)
 
-        # calculate the size of the artifact
-        self._resolve_artifact_size(artifact, auth_info)
+        self._enrich_artifact(artifact, auth_info)
 
         return framework.utils.singletons.db.get_db().create_artifact(
             db_session,
@@ -286,6 +284,15 @@ class Artifacts(
             producer_id=producer_id,
         )
 
+    def _enrich_artifact(
+        self,
+        artifact: dict,
+        auth_info: typing.Optional[mlrun.common.schemas.AuthInfo],
+    ) -> None:
+        """Enrich artifact with size and producer before storing or creating."""
+        self._resolve_artifact_size(artifact, auth_info)
+        self._enrich_artifact_producer(artifact, auth_info)
+
     @staticmethod
     def _resolve_artifact_size(artifact, auth_info):
         if "spec" in artifact and "size" not in artifact["spec"]:
@@ -306,6 +313,38 @@ class Artifacts(
             mlrun.utils.helpers.validate_inline_artifact_body_size(
                 artifact["spec"]["inline"]
             )
+
+    def _enrich_artifact_producer(
+        self,
+        artifact: dict,
+        auth_info: typing.Optional[mlrun.common.schemas.AuthInfo],
+    ):
+        if not auth_info:
+            return
+        producer = artifact.get("spec", {}).get("producer", {})
+
+        if not producer:
+            # Enforcing producer for use-cases where raw api request do not set an explicit producer
+            artifact.setdefault("spec", {})["producer"] = (
+                self._generate_default_producer(auth_info)
+            )
+            return
+
+        owner = producer.get("owner")
+        if owner and owner != auth_info.username:
+            logger.warning(
+                "Artifact producer owner is different than the authenticated user. "
+                "Overriding the artifact producer owner with the authenticated user.",
+                artifact_name=artifact.get("metadata", {}).get("name"),
+            )
+        producer["owner"] = auth_info.username
+
+    @staticmethod
+    def _generate_default_producer(auth_info: mlrun.common.schemas.AuthInfo) -> dict:
+        return {
+            "owner": auth_info.username,
+            "kind": "api",
+        }
 
     def _delete_artifact_data(
         self,

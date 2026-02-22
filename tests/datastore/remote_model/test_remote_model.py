@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import inspect
 import json
 import time
 import unittest
@@ -124,6 +125,14 @@ class BaseMockModelProviderTest:
         assert event["model"] == model
         assert event["labels"] == {}
         assert event["metrics"] is None
+
+    def _verify_streaming_response(self, response):
+        """Verify that a streaming response is a generator with the expected mock text."""
+        assert inspect.isgenerator(
+            response
+        ), f"Expected generator, got {type(response)}"
+        text = "".join(response)
+        assert "mock model provider" in text.lower()
 
     def _verify_single_error_tracking(self, event, input_data):
         """Verify tracking data for single invocation with error"""
@@ -1032,3 +1041,39 @@ class TestMockModelProviderBatchStep(BaseMockModelProviderTest):
             # Single model
             error_event = dummy_stream.event_list[0]
             self._verify_batch_error_tracking(error_event, error_inputs)
+
+
+class TestMockModelProviderStreaming(BaseMockModelProviderTest):
+    """Tests for streaming invocation with MockModelProvider through MRS."""
+
+    def test_llmodel_streaming(self, rundb_mock):
+        """Test streaming invocation through MRS with MockModelProvider."""
+        project = mlrun.new_project("test-mock-streaming", save=False)
+        model_url = "mock://my-mock-model"
+
+        model_artifact, llm_prompt_artifact, function = setup_remote_model_test(
+            project,
+            model_url,
+            execution_mechanism="asyncio",
+            streaming=True,
+        )
+
+        mocked_get_store_artifact = create_mocked_get_store_artifact(
+            {
+                model_artifact.uri: model_artifact,
+                llm_prompt_artifact.uri: llm_prompt_artifact,
+            }
+        )
+        with unittest.mock.patch(
+            "mlrun.artifacts.llm_prompt.mlrun.datastore.store_manager.get_store_artifact",
+            side_effect=lambda *args, **kwargs: mocked_get_store_artifact(
+                *args, **kwargs
+            ),
+        ):
+            server = function.to_mock_server()
+
+        try:
+            response = server.test(body=BATCH_INPUT_DATA[0])
+            self._verify_streaming_response(response)
+        finally:
+            server.wait_for_completion()

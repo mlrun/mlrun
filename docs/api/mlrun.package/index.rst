@@ -3,14 +3,21 @@
 mlrun.package
 =============
 
-MLRun package enables fully-automated experiment and pipeline tracking and reproducibility, and easy
-passing of python objects between remote jobs, while not requiring any form of editing to the actual function original code.
-Simply set the function code in a project and run it, MLRun takes care of the rest.
+The ``mlrun.package`` module provides MLRun's packagers system — classes that
+automatically serialize and deserialize Python objects moving in and out of MLRun
+functions. Your function code stays pure Python; type hints and log hints are all
+that's needed.
 
-MLRun uses packagers: classes that perform 2 tasks:
+Packagers perform two tasks:
 
-#. **Parsing inputs** - automatically cast the runtime's inputs (user's input passed to the function via the ``inputs`` parameter of the ``run`` method) to the relevant hinted type.  (Does not require handling of data items.)
-#. **Logging outputs** - automatically save, log, and upload the function's returned objects by the provided log hints (user's input passed to the function via the ``returns`` parameter of the ``run`` method). (Does not require handling of files and artifacts.)
+#. **Parsing inputs** — cast ``inputs`` values to the type-hinted Python type
+   (e.g. ``pd.DataFrame``, ``dict``, ``np.ndarray``).
+#. **Logging outputs** — serialize returned objects and log them as artifacts or
+   results based on the provided log hints (``returns``).
+
+For a full introduction — including usage patterns, log hints, configuration, and
+built-in packagers — see :ref:`packagers`.
+To create a custom packager, see :ref:`custom-packagers-tutorials`.
 
 .. currentmodule:: mlrun.package
 
@@ -18,21 +25,22 @@ MLRun uses packagers: classes that perform 2 tasks:
    :toctree: ./generated_rsts
    :template: class_summary.rst
 
+   log_hint.LogHint
    packager.Packager
    packagers.default_packager.DefaultPackager
    packagers_manager.PackagersManager
-
 
 .. autosummary::
    :toctree: ./generated_rsts
 
    errors
 
-.. rubric:: Packagers
+**Built-in packager modules**
 
-MLRun comes with the following list of modules, out of the box. All of the packagers listed here
-use the implementation of :ref:`DefaultPackager <mlrun.package.packagers.default\_packager.DefaultPackager>` and are
-available by default at the start of each run.
+
+MLRun includes the following built-in packager modules. All built-in packagers
+subclass :py:class:`~mlrun.package.packagers.default_packager.DefaultPackager` and
+are registered automatically at the start of each run.
 
 .. autosummary::
    :toctree: ./generated_rsts
@@ -41,5 +49,3 @@ available by default at the start of each run.
    packagers.python_standard_library_packagers
    packagers.numpy_packagers
    packagers.pandas_packagers
-
-

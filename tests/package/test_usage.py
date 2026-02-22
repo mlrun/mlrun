@@ -30,7 +30,7 @@ from mlrun import DataItem, LogHint
 from mlrun.artifacts import Artifact
 from mlrun.datastore import get_store_resource
 from mlrun.package import DefaultPackager
-from tests.package.usage_assets import BaseClass, InheritingClass
+from tests.package.assets import BaseClass, InheritingClass
 
 RETURNS_LOG_HINTS = [
     "my_array",

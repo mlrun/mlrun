@@ -18,6 +18,7 @@ from concurrent.futures import ThreadPoolExecutor
 from time import sleep
 
 import pytest
+import requests
 
 import mlrun.serving.states
 from mlrun.datastore.datastore_profile import (
@@ -91,9 +92,6 @@ class TestHuggingFaceModelRunner(TestMLRunSystem):
             "limits": {"cpu": "6", "memory": "20Gi"},
             "requests": {"cpu": "25m", "memory": "1Mi"},
         }
-        function.spec.max_replicas = (
-            1  # to avoid allocating extended resources to multiple pods
-        )
         # Set workers=None to avoid using the default value of 8 workers
         function.with_http(gateway_timeout=600, worker_timeout=500, workers=None)
         function.spec.readiness_timeout = 600
@@ -161,7 +159,6 @@ class TestHuggingFaceModelRunner(TestMLRunSystem):
             "limits": {"cpu": "6", "memory": "20Gi"},
             "requests": {"cpu": "25m", "memory": "1Mi"},
         }
-        function.spec.max_replicas = 1
         function.with_http(
             gateway_timeout=600,
             worker_timeout=500,
@@ -234,7 +231,6 @@ class TestHuggingFaceModelRunner(TestMLRunSystem):
             include_llm_artifact=False,
         )
 
-        function.spec.max_replicas = 1  # to avoid allocating resources to multiple pods
         function.deploy()
         results = function.invoke(
             f"v2/models/{mlrun_model_name}/infer",
@@ -307,7 +303,7 @@ class TestHuggingFaceModelRunner(TestMLRunSystem):
             "requests": {"cpu": "25m", "memory": "1Mi"},
         }
         function.spec.readiness_timeout = 600
-        function.spec.max_replicas = (
+        function.spec.replicas = (
             1  # to avoid allocating extended resources to multiple pods
         )
         # Set workers=None to avoid using the default value of 8 workers
@@ -338,3 +334,48 @@ class TestHuggingFaceModelRunner(TestMLRunSystem):
         assert sorted(list(results.keys())) == sorted([ep_name, second_ep_name])
         for model_result in results.values():
             assert "paris" in model_result["output"]["answer"].lower()
+
+    def test_huggingface_model_runner_streaming(self):
+        self.setup_datastore_profile()
+        mlrun_model_name = "streaming_model"
+        model_artifact, llm_prompt_artifact, function = setup_remote_model_test(
+            self.project,
+            self.model_url,
+            mlrun_model_name=mlrun_model_name,
+            image=self.image,
+            requirements=[
+                "--extra-index-url",
+                "https://download.pytorch.org/whl/cpu",
+                "torch==2.8.0+cpu",
+                "transformers==4.56.2",
+                "pillow~=11.3",
+            ],
+            default_config={"max_new_tokens": 60},
+            execution_mechanism="naive",
+            streaming=True,
+        )
+
+        function.spec.resources = {
+            "limits": {"cpu": "6", "memory": "20Gi"},
+            "requests": {"cpu": "25m", "memory": "1Mi"},
+        }
+        function.with_http(gateway_timeout=600, worker_timeout=500, workers=None)
+        function.spec.readiness_timeout = 600
+
+        function.deploy()
+
+        url = function.get_url()
+        resp = requests.post(
+            f"{url}/v2/models/{mlrun_model_name}/infer",
+            data=json.dumps(BATCH_INPUT_DATA[0]),
+            stream=True,
+        )
+        assert resp.ok, f"Streaming request failed: {resp.status_code} {resp.text}"
+        assert resp.headers.get("Transfer-Encoding") == "chunked"
+
+        chunks = list(resp.iter_content(decode_unicode=True, chunk_size=1024))
+        assert len(chunks) > 1, "Expected multiple streamed chunks"
+        full_text = "".join(chunks)
+        assert EXPECTED_RESULTS[0] in full_text.lower()
+        word_count = len(full_text.split())
+        assert 30 <= word_count <= 70, f"Expected ~60 tokens, got ~{word_count} words"

@@ -233,16 +233,30 @@ class MonitoringPreProcessor(storey.MapClass):
 
         # For stream-collected events the aggregated body IS the raw output
         # (e.g. concatenated text tokens), not wrapped in the result_path dict.
-        if getattr(event, "stream_collected", False) and not isinstance(
-            event_body, dict | list
-        ):
+        # Also truncate the output schema to a single entry since streaming
+        # produces one aggregated value, not the full multi-field structure
+        # (e.g. LLModel normally returns {"answer": ..., "usage": ...} but
+        # streaming yields only the text tokens).  Without this, the
+        # downstream TSDB writes fail with a column-count mismatch because
+        # streaming events have fewer prediction columns than non-streaming.
+        is_stream_collected = getattr(event, "stream_collected", False)
+        if is_stream_collected and not isinstance(event_body, dict | list):
             result_path = None
+            if output_schema:
+                output_schema = output_schema[:1]
 
         # Only process outputs if no error
         if not is_error and event_body is not None:
             outputs, new_output_schema = self.get_listed_data(
                 event_body, result_path, output_schema
             )
+            # For stream-collected scalar bodies get_listed_data wraps the
+            # value in a list but does not propagate the schema.  Use the
+            # (already-truncated) output_schema so the downstream pipeline
+            # labels the prediction column consistently with non-streaming
+            # events from the same model.
+            if is_stream_collected and new_output_schema is None and output_schema:
+                new_output_schema = output_schema
 
         # Always process inputs
         inputs, new_input_schema = self.get_listed_data(
@@ -298,8 +312,7 @@ class MonitoringPreProcessor(storey.MapClass):
             new_schema = new_schema or schema
             if not schema:
                 logger.warn(
-                    f"No schema provided through add_model(); the order of {data_from_path} "
-                    "may not be preserved."
+                    "No schema provided through add_model(); order may not be preserved."
                 )
         elif not isinstance(data_from_path, list):
             listed_data = [data_from_path]

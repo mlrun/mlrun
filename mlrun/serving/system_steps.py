@@ -500,7 +500,6 @@ class MonitoringPreProcessor(storey.MapClass):
 
         logger.debug(
             "monitoring preprocessor started",
-            event=event,
             monitoring_data=monitoring_data,
             metadata=event._metadata,
         )

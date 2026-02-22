@@ -180,7 +180,7 @@ class _DummyStream(storey.MapClass):
         if not isinstance(data, list):
             data = [data]
         for item in data:
-            logger.info(f"dummy stream got event: {item}, kwargs={kwargs}")
+            logger.debug("dummy stream got event", kwargs=kwargs)
             self.event_list.append(item)
 
     def do(self, event):

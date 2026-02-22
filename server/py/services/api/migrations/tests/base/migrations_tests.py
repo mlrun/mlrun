@@ -28,6 +28,8 @@ from pytest_alembic.tests import (  # noqa
     test_upgrade,
 )
 
+import tests.conftest
+
 pytest_plugins = [
     "tests.common_fixtures",
     "tests.conftest",
@@ -135,6 +137,7 @@ def test_notification_params_to_secret_params(
 
 @pytest.mark.alembic
 def test_background_task_label_migration_handles_duplicates(
+    alembic_engine: sqlalchemy.engine.Engine,
     alembic_session: sqlalchemy.orm.Session,
     alembic_runner: MigrationContext,
 ):
@@ -145,6 +148,7 @@ def test_background_task_label_migration_handles_duplicates(
     tasks in the same project.
     The migration must backfill the project column and remove such duplicates before applying the new constraint.
     """
+    tests.conftest._wipe_database(alembic_engine)
     alembic_runner.migrate_up_to(Constants.bg_task_label_dedup_pre_revision)
 
     # Two tasks in the same project, one in a different project

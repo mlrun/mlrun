@@ -527,42 +527,50 @@ class ApplicationRuntime(nuclio_function.RemoteRuntime):
 
         :return: The default API gateway URL if created or True if the function is ready (deployed)
         """
-        # Upload local single-file source as artifact (if applicable)
-        self._upload_source_as_artifact()
+        # Upload local source as artifact. The server needs the store:// URI to configure the init container, but we
+        # restore the local path afterward, so subsequent deploys re-upload the file.
+        original_local_source, artifact_uri = self._upload_source_as_artifact()
 
-        # Check status.application_image because spec.image gets cleared after build to use
-        # the reverse proxy image instead
-        if (self.requires_build() and not self.status.application_image) or force_build:
-            self._fill_credentials()
-            self._build_application_image(
-                builder_env=builder_env,
-                force_build=force_build,
-                watch=True,
-                with_mlrun=with_mlrun,
-                skip_deployed=skip_deployed,
-                is_kfp=is_kfp,
-                mlrun_version_specifier=mlrun_version_specifier,
-                show_on_failure=show_on_failure,
+        try:
+            # Check status.application_image because spec.image gets cleared after build to use
+            # the reverse proxy image instead
+            if (
+                self.requires_build() and not self.status.application_image
+            ) or force_build:
+                self._fill_credentials()
+                self._build_application_image(
+                    builder_env=builder_env,
+                    force_build=force_build,
+                    watch=True,
+                    with_mlrun=with_mlrun,
+                    skip_deployed=skip_deployed,
+                    is_kfp=is_kfp,
+                    mlrun_version_specifier=mlrun_version_specifier,
+                    show_on_failure=show_on_failure,
+                )
+
+            self._ensure_reverse_proxy_configurations()
+            self._configure_application_sidecar()
+
+            # We only allow accessing the application via the API Gateway
+            self.spec.add_templated_ingress_host_mode = (
+                NuclioIngressAddTemplatedIngressModes.never
             )
+            self._enrich_sidecar_probe_ports()
 
-        self._ensure_reverse_proxy_configurations()
-        self._configure_application_sidecar()
-
-        # We only allow accessing the application via the API Gateway
-        self.spec.add_templated_ingress_host_mode = (
-            NuclioIngressAddTemplatedIngressModes.never
-        )
-        self._enrich_sidecar_probe_ports()
-
-        super().deploy(
-            project=project,
-            tag=tag,
-            verbose=verbose,
-            builder_env=builder_env,
-        )
-        logger.info(
-            "Successfully deployed function.",
-        )
+            super().deploy(
+                project=project,
+                tag=tag,
+                verbose=verbose,
+                builder_env=builder_env,
+            )
+            logger.info(
+                "Successfully deployed function.",
+            )
+        finally:
+            # Restore the original local source path so subsequent deploys re-upload automatically
+            if artifact_uri and original_local_source:
+                self.spec.build.source = original_local_source
 
         # Restore the source in case it was removed to make nuclio not consider it when building
         if not self.spec.build.source and self.status.application_source:
@@ -1109,20 +1117,19 @@ class ApplicationRuntime(nuclio_function.RemoteRuntime):
                 "Empty probe configuration: at least one parameter must be set"
             )
 
-    def _upload_source_as_artifact(self) -> None:
+    def _upload_source_as_artifact(self) -> tuple[str | None, str | None]:
         """
         Upload local single-file source as an MLRun artifact.
 
-        If spec.build.source is a local file path, upload it to the artifact store
-        and update spec.build.source with the artifact URI.
+        If spec.build.source is a local file path, upload it to the artifact store and update spec.build.source
+        with the artifact URI for the server.
+
+        :returns: (original_local_path, artifact_uri) if uploaded, (None, None) otherwise.
+                  deploy() uses these to restore the local path in a finally block.
         """
         source = self.spec.build.source
-        if not source:
-            return
-
-        # Only upload if it's a local single file
-        if not self._is_single_local_file(source):
-            return
+        if not source or not self._is_single_local_file(source):
+            return None, None
 
         project_name = self.metadata.project
         if not project_name:
@@ -1158,8 +1165,8 @@ class ApplicationRuntime(nuclio_function.RemoteRuntime):
                 f"Failed to upload source file '{source}' as artifact"
             ) from exc
 
-        # Update the source to point to the artifact URI
         self.spec.build.source = artifact.uri
+        return source, artifact.uri
 
     @staticmethod
     def _is_single_local_file(source: str) -> bool:

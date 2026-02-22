@@ -87,15 +87,27 @@ def downgrade():
 
 def _backfill_project_from_parent(connection):
     """Populate the project column from the parent background_tasks table."""
-    connection.execute(
-        sa.text(
-            """
-            UPDATE background_task_labels btl
-            JOIN background_tasks bt ON bt.id = btl.task_id
-            SET btl.project = bt.project
-            """
+    if connection.dialect.name == "mysql":
+        connection.execute(
+            sa.text(
+                """
+                UPDATE background_task_labels btl
+                JOIN background_tasks bt ON bt.id = btl.task_id
+                SET btl.project = bt.project
+                """
+            )
         )
-    )
+    else:
+        connection.execute(
+            sa.text(
+                """
+                UPDATE background_task_labels
+                SET project = bt.project
+                FROM background_tasks bt
+                WHERE bt.id = background_task_labels.task_id
+                """
+            )
+        )
 
 
 def _remove_duplicates(connection):
@@ -105,17 +117,32 @@ def _remove_duplicates(connection):
     for example, two labels created by near-simultaneous requests under the old (task_id, name) constraint.
     We keep only one row per group so the new unique constraint can be applied.
     """
-    connection.execute(
-        sa.text(
-            """
-            DELETE FROM background_task_labels
-            WHERE id NOT IN (
-                SELECT keep_id FROM (
-                    SELECT MAX(id) AS keep_id
+    if connection.dialect.name == "mysql":
+        connection.execute(
+            sa.text(
+                """
+                DELETE btl FROM background_task_labels btl
+                INNER JOIN (
+                    SELECT project, name, value, MAX(id) AS keep_id
                     FROM background_task_labels
                     GROUP BY project, name, value
-                ) AS keep_rows
+                ) keep ON btl.project = keep.project
+                    AND btl.name = keep.name
+                    AND btl.value = keep.value
+                    AND btl.id != keep.keep_id
+                """
             )
-            """
         )
-    )
+    else:
+        connection.execute(
+            sa.text(
+                """
+                DELETE FROM background_task_labels
+                WHERE id NOT IN (
+                    SELECT MAX(id)
+                    FROM background_task_labels
+                    GROUP BY project, name, value
+                )
+                """
+            )
+        )

@@ -487,6 +487,19 @@ class TestMockModelProviderTracking(
         assert prediction["effective_sample_count"] == 1
         assert prediction["estimated_prediction_count"] == 1
 
+        # Verify endpoint_features were written to the EVENTS table.
+        # Without the streaming output schema fix, write to TSDB silently fails due to
+        # a column count mismatch caused by TSDBTarget skipping None values.
+        events = tsdb_client._get_records(
+            table=mm_constants.V3IOTSDBTables.EVENTS,
+            start="now-50m",
+            end="now",
+            filter_query=(
+                f"record_type=='{mm_constants.EventKeyMetrics.ENDPOINT_FEATURES}'"
+            ),
+        )
+        assert len(events) >= 1, "Expected endpoint_features records in EVENTS table"
+
         v3io_df = pd.read_parquet(
             f"v3io:///projects/{self.project.name}/artifacts/model-endpoints/"
             f"parquet/key={mep.metadata.uid}"

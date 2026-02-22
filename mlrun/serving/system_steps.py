@@ -233,8 +233,9 @@ class MonitoringPreProcessor(storey.MapClass):
 
         # For stream-collected events the aggregated body IS the raw output
         # (e.g. concatenated text tokens), not wrapped in the result_path dict.
-        is_stream_collected = getattr(event, "stream_collected", False)
-        if is_stream_collected and not isinstance(event_body, dict | list):
+        if getattr(event, "stream_collected", False) and not isinstance(
+            event_body, dict | list
+        ):
             result_path = None
 
         # Only process outputs if no error
@@ -242,18 +243,6 @@ class MonitoringPreProcessor(storey.MapClass):
             outputs, new_output_schema = self.get_listed_data(
                 event_body, result_path, output_schema
             )
-            # Streaming yields a single aggregated value (e.g. concatenated
-            # text) but the model's schema may declare multiple output fields
-            # (e.g. ["answer", "usage"]).  Pad with NaN so the downstream
-            # monitoring pipeline keeps the same column count.  We must NOT
-            # pad with None because storey's TSDBTarget silently skips None
-            # values during data extraction while still counting the column
-            # in the header, causing a column/data count mismatch.
-            if is_stream_collected and output_schema:
-                if outputs is not None and len(outputs) < len(output_schema):
-                    outputs.extend([float("nan")] * (len(output_schema) - len(outputs)))
-                if new_output_schema is None:
-                    new_output_schema = output_schema
 
         # Always process inputs
         inputs, new_input_schema = self.get_listed_data(

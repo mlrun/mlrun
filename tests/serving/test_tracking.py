@@ -2418,14 +2418,9 @@ class TestMonitoringPreProcessorStreamingAggregation:
         finally:
             server.wait_for_completion()
 
-    def test_streaming_success_and_error_produce_consistent_columns(self, rundb_mock):
-        """Reproduce the 'N columns passed, passed data had M columns' error
-        from tsdb2.
-
-        When a streaming success event and a non-streaming event go through
-        ProcessBeforeTSDB, they should produce endpoint_features dicts with the
-        same set of columns. A mismatch causes the TSDB batch flush to fail.
-        """
+    def test_streaming_success_produces_single_output(self, rundb_mock):
+        """Verify that a stream-collected scalar body produces a single-element
+        outputs list without crashing on result_path extraction."""
         function = mlrun.new_function("test-stream-cols", kind="serving")
         graph = function.set_topology("flow", engine="async")
         model_runner_step = ModelRunnerStep(name="my_runner")
@@ -2443,19 +2438,6 @@ class TestMonitoringPreProcessorStreamingAggregation:
         try:
             preprocessor = server.graph.steps["monitoring_pre_processor_step"]._object
 
-            # 1. Non-streaming success event (produces output dict with result_path)
-            non_stream_event = storey.Event(
-                body={"output": {"answer": "Paris", "usage": {"tokens": 10}}},
-            )
-            non_stream_event._metadata = {
-                "model_runner_name": "my_runner",
-                "when": "2026-01-01 00:00:00.000000+00:00",
-                "microsec": 1000,
-                "inputs": {"question": "What is the capital of France?"},
-            }
-            non_stream_mon = preprocessor.do(non_stream_event).body[0]
-
-            # 2. Streaming success event (produces concatenated string)
             stream_event = storey.Event(
                 body=["Par", "is"],
             )
@@ -2466,20 +2448,9 @@ class TestMonitoringPreProcessorStreamingAggregation:
                 "inputs": {"question": "What is the capital of France?"},
             }
             stream_event.stream_collected = True
-            stream_result = preprocessor.do(stream_event)
-            stream_mon = stream_result.body[0]
+            stream_mon = preprocessor.do(stream_event).body[0]
 
-            # Streaming keeps the full output_schema and pads missing values
-            # with NaN so downstream TSDB writes have consistent column counts
-            # (storey skips None but not NaN).
-            stream_outputs = stream_mon["resp"]["outputs"]
-            assert len(stream_outputs) == 2
-            assert stream_outputs[0] == "Paris"
-            assert math.isnan(stream_outputs[1])
-            assert stream_mon["resp"]["output_schema"] == ["answer", "usage"]
-
-            # Non-streaming keeps the full schema as-is
-            assert non_stream_mon["resp"]["output_schema"] == ["answer", "usage"]
+            assert stream_mon["resp"]["outputs"] == ["Paris"]
         finally:
             server.wait_for_completion()
 

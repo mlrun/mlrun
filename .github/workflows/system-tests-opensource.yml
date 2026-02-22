@@ -480,7 +480,18 @@ jobs:
         # Get the host IP
         HOST_IP=$(get_host_ip)
         echo "Detected host IP: $HOST_IP"
-        
+
+        # The test client (running on the host) connects to in-cluster services using
+        # their k8s DNS names (timescaledb:5432, kafka-stream:9092) which don't resolve
+        # on the host. Port-forward them to localhost so the host can reach them, and
+        # add /etc/hosts entries so the DNS names resolve to 127.0.0.1.
+        echo "127.0.0.1 timescaledb kafka-stream" | sudo tee -a /etc/hosts
+        kubectl port-forward -n ${NAMESPACE} service/timescaledb 5432:5432 &
+        kubectl port-forward -n ${NAMESPACE} service/kafka-stream-kafka-bootstrap 9092:9092 &
+        # Give port-forwards a moment to establish
+        sleep 3
+        echo "✓ Port-forwards started for timescaledb:5432 and kafka-stream:9092"
+
         # Export environment variables for tests
         export MLRUN_DBPATH="http://${HOST_IP}:${MLRUN_API_NODE_PORT}"
         export MLRUN_SYSTEM_TEST_MARKERS="$PYTEST_MARKERS"

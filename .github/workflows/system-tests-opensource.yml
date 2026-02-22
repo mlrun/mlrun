@@ -277,7 +277,7 @@ jobs:
         mirrors:
           registry.localhost:
             endpoint:
-            - http://registry.localhost:80
+            - http://127.0.0.1:32000
           docker.io:
             endpoint:
             - https://registry-1.docker.io
@@ -290,13 +290,6 @@ jobs:
         
         echo "✓ Registries configuration created at /etc/rancher/k3s/registries.yaml"
 
-        # Ensure registry.localhost resolves to the host's main IP so containerd (which uses
-        # the host DNS, not CoreDNS) can reach Traefik on port 80.
-        # We cannot use 127.0.0.1 because Traefik binds to the host's primary interface, not loopback.
-        # We also cannot rely on system DNS since .localhost resolves to loopback per RFC 6761.
-        HOST_IP=$(hostname -I | awk '{print $1}')
-        echo "$HOST_IP registry.localhost" | sudo tee -a /etc/hosts
-        echo "✓ Added registry.localhost -> $HOST_IP to /etc/hosts"
 
         # Show the config (with credentials masked)
         echo "=== Configuration preview (credentials masked) ==="

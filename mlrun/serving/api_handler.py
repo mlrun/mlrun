@@ -321,22 +321,17 @@ class _APIHandlerStep(mlrun.serving.states.TaskStep):
             # Extract normalized path and query parameters (single parse)
             normalized_path, query_params = self._extract_query_params(event, path)
 
-            mlrun.utils.logger.debug(
-                "API handler processing request",
-                method=method.value,
-                path=normalized_path,
-                query_params=query_params,
-                endpoints_count=len(self.config._endpoints),
-            )
-
             # Find matching endpoint
             matching_endpoint_key, path_params = self._match_endpoint(
                 method, normalized_path
             )
 
             mlrun.utils.logger.debug(
-                "Endpoint matching result",
-                matching_endpoint_key=matching_endpoint_key,
+                "API handler processing request",
+                method=method.value,
+                path=normalized_path,
+                query_params=query_params,
+                matching_endpoint=matching_endpoint_key,
                 path_params=path_params,
             )
 

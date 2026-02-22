@@ -233,16 +233,9 @@ class MonitoringPreProcessor(storey.MapClass):
 
         # For stream-collected events the aggregated body IS the raw output
         # (e.g. concatenated text tokens), not wrapped in the result_path dict.
-        # Wrap the scalar into the full output schema so downstream monitoring
-        # sees the same shape as non-streaming responses (e.g. "Paris" becomes
-        # {"answer": "Paris", "usage": {}}).
         if getattr(event, "stream_collected", False) and not isinstance(
             event_body, dict | list
         ):
-            if output_schema:
-                event_body = {output_schema[0]: event_body}
-                for field in output_schema[1:]:
-                    event_body[field] = {}
             result_path = None
 
         # Only process outputs if no error

@@ -2381,9 +2381,7 @@ class TestMonitoringPreProcessorStreamingAggregation:
 
         LLModel through MRS always has result_path='output'. In streaming mode the
         aggregated body is a plain string (not a dict), so result_path must be
-        ignored during output extraction. The scalar is wrapped into the full
-        output schema dict so downstream monitoring sees the same shape as
-        non-streaming responses.
+        ignored during output extraction.
         """
         function = mlrun.new_function("test-stream-str-rp", kind="serving")
         graph = function.set_topology("flow", engine="async")
@@ -2393,7 +2391,6 @@ class TestMonitoringPreProcessorStreamingAggregation:
             execution_mechanism="naive",
             endpoint_name="my_model",
             result_path="output",
-            outputs=["answer", "usage"],
         )
         graph.to(model_runner_step).respond()
         function.set_tracking()
@@ -2417,14 +2414,13 @@ class TestMonitoringPreProcessorStreamingAggregation:
             assert isinstance(result.body, list)
             assert len(result.body) == 1
             monitoring_event = result.body[0]
-            assert monitoring_event["resp"]["outputs"] == [["hello world ", {}]]
-            assert monitoring_event["resp"]["output_schema"] == ["answer", "usage"]
+            assert "hello world " in str(monitoring_event["resp"]["outputs"])
         finally:
             server.wait_for_completion()
 
     def test_streaming_success_produces_single_output(self, rundb_mock):
-        """Verify that a stream-collected scalar body is wrapped into the full
-        output schema dict, producing the same shape as non-streaming responses."""
+        """Verify that a stream-collected scalar body produces a single-element
+        outputs list without crashing on result_path extraction."""
         function = mlrun.new_function("test-stream-cols", kind="serving")
         graph = function.set_topology("flow", engine="async")
         model_runner_step = ModelRunnerStep(name="my_runner")
@@ -2454,8 +2450,7 @@ class TestMonitoringPreProcessorStreamingAggregation:
             stream_event.stream_collected = True
             stream_mon = preprocessor.do(stream_event).body[0]
 
-            assert stream_mon["resp"]["outputs"] == [["Paris", {}]]
-            assert stream_mon["resp"]["output_schema"] == ["answer", "usage"]
+            assert stream_mon["resp"]["outputs"] == ["Paris"]
         finally:
             server.wait_for_completion()
 

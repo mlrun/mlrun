@@ -791,8 +791,6 @@ class MapFeatureNames(mlrun.feature_store.steps.MapClass):
 
         """
         event[mapping_dictionary] = {}
-        diff = len(named_iters) - len(values_iters)
-        values_iters += [None] * diff
         for name, value in zip(named_iters, values_iters):
             event[name] = value
             event[mapping_dictionary][name] = value

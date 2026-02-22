@@ -233,30 +233,27 @@ class MonitoringPreProcessor(storey.MapClass):
 
         # For stream-collected events the aggregated body IS the raw output
         # (e.g. concatenated text tokens), not wrapped in the result_path dict.
-        # Also truncate the output schema to a single entry since streaming
-        # produces one aggregated value, not the full multi-field structure
-        # (e.g. LLModel normally returns {"answer": ..., "usage": ...} but
-        # streaming yields only the text tokens).  Without this, the
-        # downstream TSDB writes fail with a column-count mismatch because
-        # streaming events have fewer prediction columns than non-streaming.
         is_stream_collected = getattr(event, "stream_collected", False)
         if is_stream_collected and not isinstance(event_body, dict | list):
             result_path = None
-            if output_schema:
-                output_schema = output_schema[:1]
 
         # Only process outputs if no error
         if not is_error and event_body is not None:
             outputs, new_output_schema = self.get_listed_data(
                 event_body, result_path, output_schema
             )
-            # For stream-collected scalar bodies get_listed_data wraps the
-            # value in a list but does not propagate the schema.  Use the
-            # (already-truncated) output_schema so the downstream pipeline
-            # labels the prediction column consistently with non-streaming
-            # events from the same model.
-            if is_stream_collected and new_output_schema is None and output_schema:
-                new_output_schema = output_schema
+            # Streaming yields a single aggregated value (e.g. concatenated
+            # text) but the model's schema may declare multiple output fields
+            # (e.g. ["answer", "usage"]).  Pad with NaN so the downstream
+            # monitoring pipeline keeps the same column count.  We must NOT
+            # pad with None because storey's TSDBTarget silently skips None
+            # values during data extraction while still counting the column
+            # in the header, causing a column/data count mismatch.
+            if is_stream_collected and output_schema:
+                if outputs is not None and len(outputs) < len(output_schema):
+                    outputs.extend([float("nan")] * (len(output_schema) - len(outputs)))
+                if new_output_schema is None:
+                    new_output_schema = output_schema
 
         # Always process inputs
         inputs, new_input_schema = self.get_listed_data(

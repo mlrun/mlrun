@@ -2586,17 +2586,16 @@ class TestMonitoringPreProcessorStreamingAggregation:
             stream_result = preprocessor.do(stream_event)
             stream_mon = stream_result.body[0]
 
-            # The streaming output is a single aggregated value (the
-            # concatenated text). Its schema should be truncated to the
-            # first element of the model's output schema so the downstream
-            # pipeline labels the prediction column consistently.
-            assert stream_mon["resp"]["outputs"] == ["Paris"]
-            assert stream_mon["resp"]["output_schema"] == ["answer"], (
-                f"Expected streaming output_schema=['answer'], "
-                f"got {stream_mon['resp']['output_schema']}"
-            )
+            # Streaming keeps the full output_schema and pads missing values
+            # with NaN so downstream TSDB writes have consistent column counts
+            # (storey skips None but not NaN).
+            stream_outputs = stream_mon["resp"]["outputs"]
+            assert len(stream_outputs) == 2
+            assert stream_outputs[0] == "Paris"
+            assert math.isnan(stream_outputs[1])
+            assert stream_mon["resp"]["output_schema"] == ["answer", "usage"]
 
-            # Non-streaming keeps the full schema
+            # Non-streaming keeps the full schema as-is
             assert non_stream_mon["resp"]["output_schema"] == ["answer", "usage"]
         finally:
             server.wait_for_completion()

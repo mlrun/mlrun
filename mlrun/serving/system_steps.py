@@ -309,7 +309,8 @@ class MonitoringPreProcessor(storey.MapClass):
             new_schema = new_schema or schema
             if not schema:
                 logger.warn(
-                    "No schema provided through add_model(); order may not be preserved."
+                    f"No schema provided through add_model(); the order of {data_from_path} "
+                    "may not be preserved."
                 )
         elif not isinstance(data_from_path, list):
             listed_data = [data_from_path]
@@ -500,6 +501,7 @@ class MonitoringPreProcessor(storey.MapClass):
 
         logger.debug(
             "monitoring preprocessor started",
+            event=event,
             monitoring_data=monitoring_data,
             metadata=event._metadata,
         )

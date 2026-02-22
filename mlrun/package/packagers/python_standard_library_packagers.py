@@ -45,15 +45,26 @@ class NonePackager(DefaultPackager):
 
     # `None` as pickle is possible since Python 3.10, but it cannot be imported from `builtins`, hence we have this
     # method to keep it unpickle-able by design.
-    def get_supported_artifact_types(self) -> list[str]:
-        """
-        Get all the supported artifact types on this packager. It will be the same as `DefaultPackager` but without the
-        'object' artifact type support (None cannot be pickled, only from Python 3.10, and it should not be pickled
-        anyway as it is simply None - a result will do).
 
-        :return: A list of all the supported artifact types.
+    def get_supported_packing_artifact_types(self) -> list[str]:
         """
-        supported_artifacts = super().get_supported_artifact_types()
+        Get the supported artifact types for packing, excluding 'object'. None cannot be pickled, only from Python 3.10,
+        and it should not be pickled anyway as it is simply None - a result will do.
+
+        :return: A list of artifact types this packager can pack objects as.
+        """
+        supported_artifacts = super().get_supported_packing_artifact_types()
+        supported_artifacts.remove("object")
+        return supported_artifacts
+
+    def get_supported_unpacking_artifact_types(self) -> list[str]:
+        """
+        Get the supported artifact types for unpacking, excluding 'object'. None cannot be pickled, only from Python
+        3.10, and it should not be pickled anyway as it is simply None - a result will do.
+
+        :return: A list of artifact types this packager can unpack data items as.
+        """
+        supported_artifacts = super().get_supported_unpacking_artifact_types()
         supported_artifacts.remove("object")
         return supported_artifacts
 

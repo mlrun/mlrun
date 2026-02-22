@@ -177,24 +177,40 @@ class TestPathTemplateRegex:
         assert match.groupdict() == {"user_id": "123"}
 
     def test_multiple_path_parameters(self) -> None:
-        """Test path template with multiple parameters"""
+        """Test path template with multiple parameters and multiple different patterns"""
         config = APIHandlerConfig()
         config.add_endpoint_handler(
             "/orgs/{org_id}/repos/{repo_id}/issues/{issue_id}",
             HTTPMethod.GET,
             APIHandlerAction.ALLOW,
         )
+        config.add_endpoint_handler(
+            "/api/users/{user_id}/posts/{post_id}",
+            HTTPMethod.POST,
+            APIHandlerAction.ALLOW,
+        )
 
         step = _APIHandlerStep(config=config)
-        _, pattern, _, _ = step._endpoint_patterns[0]
+        # Should have 2 different path patterns compiled
+        assert len(step._endpoint_patterns) == 2
 
-        match = pattern.match("/orgs/mlrun/repos/mlrun/issues/42")
-        assert match is not None
-        assert match.groupdict() == {
+        # Test first pattern with 3 parameters
+        match, params = step._match_endpoint(
+            HTTPMethod.GET, "/orgs/mlrun/repos/mlrun/issues/42"
+        )
+        assert match == "GET:/orgs/{org_id}/repos/{repo_id}/issues/{issue_id}"
+        assert params == {
             "org_id": "mlrun",
             "repo_id": "mlrun",
             "issue_id": "42",
         }
+
+        # Test second pattern with 2 parameters
+        match, params = step._match_endpoint(
+            HTTPMethod.POST, "/api/users/123/posts/456"
+        )
+        assert match == "POST:/api/users/{user_id}/posts/{post_id}"
+        assert params == {"user_id": "123", "post_id": "456"}
 
     def test_url_encoded_path_params(self) -> None:
         """Test that URL-encoded path segments are decoded"""
@@ -204,6 +220,7 @@ class TestPathTemplateRegex:
         )
 
         step = _APIHandlerStep(config=config)
+        assert len(step._endpoint_patterns) == 1
 
         # Test with URL-encoded filename
         match, params = step._match_endpoint(HTTPMethod.GET, "/files/my%20file.txt")
@@ -218,6 +235,7 @@ class TestPathTemplateRegex:
         )
 
         step = _APIHandlerStep(config=config)
+        assert len(step._endpoint_patterns) == 1
 
         # Test various special characters
         test_cases = [
@@ -240,6 +258,7 @@ class TestPathTemplateRegex:
         )
 
         step = _APIHandlerStep(config=config)
+        assert len(step._endpoint_patterns) == 1
 
         # Should NOT match - extra path segment
         match, params = step._match_endpoint(HTTPMethod.GET, "/api/v1/v2/users")
@@ -262,6 +281,7 @@ class TestPathTemplateRegex:
         )
 
         step = _APIHandlerStep(config=config)
+        assert len(step._endpoint_patterns) == 1  # Only /users/{user_id} has template
 
         # /users/me should match exact endpoint, not template
         match, params = step._match_endpoint(HTTPMethod.GET, "/users/me")
@@ -323,6 +343,7 @@ class TestPathTemplateRegex:
         )
 
         step = _APIHandlerStep(config=config)
+        assert len(step._endpoint_patterns) == 1
         _, pattern, _, _ = step._endpoint_patterns[0]
 
         # Should not match - extra prefix
@@ -350,6 +371,7 @@ class TestPathTemplateRegex:
         )
 
         step = _APIHandlerStep(config=config)
+        assert len(step._endpoint_patterns) == 2  # Two methods for same path template
 
         # GET not allowed for templated path → 404 (simplified logic, exact paths only)
         event = MockEvent(method=HTTPMethod.GET, path="/items/123", body={})
@@ -371,6 +393,7 @@ class TestPathTemplateRegex:
         }
 
         step = _APIHandlerStep(config=config)
+        assert len(step._endpoint_patterns) == 1
 
         # Should not crash, and pattern should not match
         match, params = step._match_endpoint(HTTPMethod.GET, "/api/test")

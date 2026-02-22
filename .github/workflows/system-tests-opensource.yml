@@ -289,7 +289,12 @@ jobs:
         EOF
         
         echo "✓ Registries configuration created at /etc/rancher/k3s/registries.yaml"
-        
+
+        # Ensure registry.localhost resolves to IPv4 loopback so containerd (which uses
+        # the host DNS, not CoreDNS) doesn't get ::1 (IPv6 loopback) for the .localhost TLD
+        echo "127.0.0.1 registry.localhost" | sudo tee -a /etc/hosts
+        echo "✓ Added registry.localhost -> 127.0.0.1 to /etc/hosts"
+
         # Show the config (with credentials masked)
         echo "=== Configuration preview (credentials masked) ==="
         sudo sed 's/username:.*/username: ***/' /etc/rancher/k3s/registries.yaml | \

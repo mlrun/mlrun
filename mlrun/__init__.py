@@ -269,6 +269,7 @@ def set_env_from_file(env_file: str, return_dict: bool = False) -> Optional[dict
     for key, value in env_vars.items():
         environ[key] = value
 
-    # reload mlrun configuration
-    mlconf.reload()
+    # reload mlrun configuration, skipping the default env file to prevent
+    # ~/.mlrun.env from overriding the env vars we just set explicitly
+    mlconf.reload(skip_env_file=True)
     return env_vars if return_dict else None

@@ -256,9 +256,6 @@ class TestApplicationRuntime(tests.system.base.TestMLRunSystem):
             with open(source_path, "w") as f:
                 f.write(source_v2)
 
-            # Reset source to local path (first deploy converted it to store:// URI)
-            function.spec.build.source = source_path
-
             # Redeploy - auto-uploads new source, init container loads it without image rebuild
             image_before = function.status.application_image
             self._logger.debug("Redeploying with version-2 source")
@@ -449,7 +446,7 @@ class TestApplicationRuntime(tests.system.base.TestMLRunSystem):
         function.spec.args = [
             "-m",
             "flask",
-            f"--app={name}-source",
+            "--app=simple_flask_app",
             "run",
             "--host=0.0.0.0",
             "--port=5000",

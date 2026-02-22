@@ -18,6 +18,7 @@ import uuid
 import pytest
 import sqlalchemy.orm
 
+import mlrun.common.schemas
 import mlrun.common.schemas.artifact
 
 import services.api.crud
@@ -104,6 +105,55 @@ class TestArtifacts:
         # list with missing project should raise error
         with pytest.raises(mlrun.errors.MLRunMissingProjectError):
             services.api.crud.Artifacts().list_artifacts(db, project=None, tag="*")
+
+    @pytest.mark.parametrize(
+        "artifact_initial,auth_username,expected_producer",
+        [
+            # No producer: set default producer with owner and kind "api"
+            (
+                {"spec": {"db_key": "my-key"}},
+                "user1",
+                {"owner": "user1", "kind": "api"},
+            ),
+            # Producer without owner: set owner to authenticated user, keep kind
+            (
+                {"spec": {"producer": {"kind": "job"}}},
+                "user3",
+                {"owner": "user3", "kind": "job"},
+            ),
+            # Same owner as authenticated user: leave producer unchanged
+            (
+                {"spec": {"producer": {"owner": "user4", "kind": "run"}}},
+                "user4",
+                {"owner": "user4", "kind": "run"},
+            ),
+            # Different owner: override with authenticated user
+            (
+                {"spec": {"producer": {"owner": "other-user", "kind": "run"}}},
+                "user5",
+                {"owner": "user5", "kind": "run"},
+            ),
+            # No auth_info: do not add or change producer
+            ({"spec": {"db_key": "my-key"}}, None, None),
+        ],
+    )
+    def test_enrich_artifact_producer(
+        self, artifact_initial, auth_username, expected_producer
+    ):
+        artifacts_crud = services.api.crud.Artifacts()
+        artifact = artifact_initial
+        auth_info = (
+            mlrun.common.schemas.AuthInfo(username=auth_username)
+            if auth_username is not None
+            else None
+        )
+
+        artifacts_crud._enrich_artifact_producer(artifact, auth_info)
+
+        if expected_producer is None:
+            assert "producer" not in artifact.get("spec", {})
+        else:
+            assert artifact["spec"]["producer"] == expected_producer
 
     @staticmethod
     def _generate_artifact(

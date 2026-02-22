@@ -1054,7 +1054,7 @@ def test_upload_source_as_artifact(tmp_path):
     with unittest.mock.patch(
         "mlrun.get_or_create_project", return_value=mock_project
     ) as mock_get_project:
-        fn._upload_source_as_artifact()
+        original_path, artifact_uri = fn._upload_source_as_artifact()
 
     # Verify project was retrieved
     mock_get_project.assert_called_once_with("test-project")
@@ -1071,10 +1071,12 @@ def test_upload_source_as_artifact(tmp_path):
         },
     )
 
-    # Verify source was updated to the artifact URI
+    # Verify source was swapped to artifact URI and original path is returned for restore
     assert (
         fn.spec.build.source == "store://artifacts/test-project/application-test-source"
     )
+    assert original_path == str(source_file)
+    assert artifact_uri == "store://artifacts/test-project/application-test-source"
 
 
 @pytest.mark.parametrize(

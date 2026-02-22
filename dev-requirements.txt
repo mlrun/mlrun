@@ -42,6 +42,8 @@ evidently~=0.7.6
 # code coverage
 coverage[toml]~=7.8
 diff-cover~=9.2
+# NOTE: requests currently expects chardet < 6 when chardet is present
+chardet<6
 openai~=1.88
 transformers~=4.56
 pillow~=11.3

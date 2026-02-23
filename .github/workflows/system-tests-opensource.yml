@@ -398,11 +398,7 @@ jobs:
           # Cleanup any existing helm release before retry
           helm uninstall mlrun-ce -n ${NAMESPACE} || true
 
-          # Delete PVCs so that stateful services (e.g. Kafka) start with a clean
-          # data directory. Helm uninstall does not delete PVCs by default, which
-          # causes Kafka to crash with "Invalid cluster.id" when retrying because
-          # the new Strimzi-generated cluster ID does not match the one persisted
-          # in the PVC from the previous install attempt.
+          # Delete PVCs so that stateful services (e.g. Kafka) start with a clean data directory
           kubectl delete pvc --all -n ${NAMESPACE} --wait=false 2>/dev/null || true
           kubectl wait --for=delete pvc --all -n ${NAMESPACE} --timeout=120s 2>/dev/null || true
 
@@ -431,22 +427,34 @@ jobs:
             echo "Waiting for all pods in namespace ${NAMESPACE} to be ready..."
 
             # Wait up to 30 minutes (1800 seconds) for all pods to be ready.
-            # Some images (e.g. ghcr.io/kubeflow/kfp-metadata-writer) are pulled
-            # fresh on every run (the cleanup-k3s action wipes the containerd
-            # image cache), so large images can take 20+ minutes on a cold runner.
             timeout=1800
             interval=60
             elapsed=0
 
             while true; do
               not_ready=$(kubectl get pods -n ${NAMESPACE} --no-headers | grep -v 'Running\|Completed' | wc -l)
-              crash_loop=$(kubectl get pods -n ${NAMESPACE} --no-headers | grep -c 'CrashLoopBackOff' || true)
-              if [ "$not_ready" -eq 0 ] && [ "$crash_loop" -eq 0 ]; then
-                echo "All pods in namespace ${NAMESPACE} are ready."
-                break
-              fi
-              if [ "$crash_loop" -gt 0 ]; then
-                echo "WARNING: $crash_loop pod(s) in CrashLoopBackOff"
+              if [ "$not_ready" -eq 0 ]; then
+                # All pods appear Running/Completed. However a pod in CrashLoopBackOff
+                # briefly shows Running between crashes, so we can't trust a single
+                # observation. If any pod has restarts > 0, wait 30s and re-check:
+                # if it's still Running it's genuinely stable; if it crashed it will
+                # show a non-Running status on the re-check.
+                num_restarts=$(kubectl get pods -n ${NAMESPACE} --no-headers | awk 'int($4) > 0' | wc -l)
+                if [ "$num_restarts" -gt 0 ]; then
+                  echo "WARNING: $num_restarts pod(s) with restarts > 0, waiting 30s to confirm stability..."
+                  kubectl get pods -n ${NAMESPACE}
+                  sleep 30
+                  elapsed=$((elapsed + 30))
+                  not_ready=$(kubectl get pods -n ${NAMESPACE} --no-headers | grep -v 'Running\|Completed' | wc -l)
+                  if [ "$not_ready" -eq 0 ]; then
+                    echo "All pods stable after confirmation check."
+                    break
+                  fi
+                  echo "Pod(s) crashed during confirmation window, continuing to wait..."
+                else
+                  echo "All pods in namespace ${NAMESPACE} are ready."
+                  break
+                fi
               fi
               if [ "$elapsed" -ge "$timeout" ]; then
                 echo "Timeout reached waiting for pods to be ready."

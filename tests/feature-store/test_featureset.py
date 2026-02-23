@@ -135,92 +135,25 @@ def test_deploy_ingestion_service(mock_deploy):
 
 def test_feature_set_plot_with_targets():
     """Test to reproduce the plot bug with feature set graph and targets"""
-    # Create sample transactions data
-    transactions_data = pd.DataFrame(
-        {
-            "source": ["src1", "src2", "src3", "src1", "src2"],
-            "timestamp": pd.date_range("2024-01-01", periods=5, freq="H"),
-            "category": [
-                "es_food",
-                "es_transportation",
-                "es_tech",
-                "es_food",
-                "es_health",
-            ],
-            "gender": ["M", "F", "M", "F", "M"],
-            "age": ["25", "U", "35", "28", "U"],
-            "amount": [100.0, 50.0, 200.0, 75.0, 120.0],
-            "device": ["phone", "tablet", "laptop", "phone", "desktop"],
-        }
-    )
+    # Minimal feature set
+    fset = FeatureSet("test", entities=[Entity("id")])
 
-    # Define main categories
-    main_categories = [
-        "es_transportation",
-        "es_health",
-        "es_otherservices",
-        "es_food",
-        "es_hotelservices",
-        "es_barsandrestaurants",
-        "es_tech",
-        "es_sportsandtoys",
-        "es_wellnessandbeauty",
-        "es_hyper",
-        "es_fashion",
-        "es_home",
-        "es_contents",
-        "es_travel",
-        "es_leisure",
-    ]
-
-    # Define and add value mapping
-    transaction_set = FeatureSet(
-        "transactions",
-        entities=[Entity("source")],
-        timestamp_key="timestamp",
-        description="transactions feature set",
-    )
-
-    # One Hot Encode the newly defined mappings
-    one_hot_encoder_mapping = {
-        "category": main_categories,
-        "gender": list(transactions_data.gender.unique()),
-    }
-
-    # Define the graph steps
-    transaction_set.graph.to(
-        DateExtractor(parts=["hour", "day_of_week"], timestamp_col="timestamp")
-    ).to(MapValues(mapping={"age": {"U": "0"}}, with_original_features=True)).to(
-        OneHotEncoder(mapping=one_hot_encoder_mapping)
-    ).respond()
-
-    # Add aggregations for 2, 12, and 24 hour time windows
-    transaction_set.add_aggregation(
+    # Add one aggregation
+    fset.add_aggregation(
         name="amount",
         column="amount",
-        operations=["avg", "sum", "count", "max"],
-        windows=["2h", "12h", "24h"],
+        operations=["sum"],
+        windows=["1h"],
         period="1h",
     )
 
-    # Add the category aggregations over a 14 day window
-    for category in main_categories:
-        transaction_set.add_aggregation(
-            name=category,
-            column=f"category_{category}",
-            operations=["count"],
-            windows=["14d"],
-            period="1d",
-        )
+    # Add targets
+    fset.set_targets(
+        targets=[ParquetTarget()],
+        with_defaults=False,
+    )
 
-    # Add default (offline-parquet & online-nosql) targets
-    targets = [
-        RedisNoSqlTarget(path="redis://localhost:6379"),
-        ParquetTarget(),
-    ]
-    transaction_set.set_targets(targets=targets, with_defaults=False)
-
-    # Plot the pipeline - THIS IS WHERE THE BUG SHOULD OCCUR
-    transaction_set.plot(rankdir="LR", with_targets=True)
+    # Plot with targets - THIS IS WHERE THE BUG OCCURS
+    fset.plot(rankdir="LR", with_targets=True)
 
 

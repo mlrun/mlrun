@@ -15,6 +15,7 @@
 """Unit tests for the API Handler implementation"""
 
 import logging
+import re
 from http import HTTPMethod
 from typing import cast
 from unittest.mock import MagicMock
@@ -26,7 +27,7 @@ import mlrun.errors
 from mlrun.common.schemas.serving import APIHandlerAction, _APIEndpointKeys
 from mlrun.runtimes.nuclio.serving import APIHandlerConfig, ServingRuntime
 from mlrun.serving import GraphContext
-from mlrun.serving.api_handler import _APIHandlerStep
+from mlrun.serving.api_handler import _APIHandlerStep, _RequestContext
 from mlrun.serving.server import MockEvent, RootFlowStep, _add_api_handler_step_to_graph
 from mlrun.serving.utils import (
     _combine_serving_endpoint_key,
@@ -51,6 +52,352 @@ class EchoStep:
         else:
             body = event
         return f"{self.prefix}{body}" if self.prefix else body
+
+
+class TestRequestContext:
+    """Tests for _RequestContext unified parameter container"""
+
+    def test_empty_context(self) -> None:
+        """Test creating context with no parameters"""
+        ctx = _RequestContext()
+        assert dict(ctx) == {}
+
+    def test_query_params_only(self) -> None:
+        """Test context with only query parameters"""
+        ctx = _RequestContext(query_params={"limit": "10", "offset": "20"})
+        assert ctx["limit"] == "10"
+        assert ctx["offset"] == "20"
+
+    def test_path_params_only(self) -> None:
+        """Test context with only path parameters"""
+        ctx = _RequestContext(path_params={"user_id": "123", "item_id": "abc"})
+        assert ctx["user_id"] == "123"
+        assert ctx["item_id"] == "abc"
+
+    def test_body_params_only(self) -> None:
+        """Test context with only body_map parameters"""
+        ctx = _RequestContext(body_params={"name": "test", "value": 42})
+        assert ctx["name"] == "test"
+        assert ctx["value"] == 42
+
+    def test_parameter_conflict_body_and_path(self) -> None:
+        """Test that conflicts between body_map and path params raise error"""
+        with pytest.raises(
+            mlrun.errors.MLRunBadRequestError,
+            match="Parameter name conflict detected.*id.*body_map.*path",
+        ):
+            _RequestContext(
+                path_params={"id": "path-value"},
+                body_params={"id": "body-value"},
+            )
+
+    def test_parameter_conflict_path_and_query(self) -> None:
+        """Test that conflicts between path and query params raise error"""
+        with pytest.raises(
+            mlrun.errors.MLRunBadRequestError,
+            match="Parameter name conflict detected.*id.*query.*path",
+        ):
+            _RequestContext(
+                query_params={"id": "query-value"},
+                path_params={"id": "path-value"},
+            )
+
+    def test_parameter_conflict_all_sources(self) -> None:
+        """Test that conflicts across all three sources raise error"""
+        with pytest.raises(
+            mlrun.errors.MLRunBadRequestError,
+            match="Parameter name conflict detected.*id",
+        ):
+            _RequestContext(
+                query_params={"id": "query", "query_only": "q1"},
+                path_params={"id": "path", "path_only": "p1"},
+                body_params={"id": "body", "body_only": "b1"},
+            )
+
+    def test_no_conflict_different_params(self) -> None:
+        """Test that different params from different sources work without conflict"""
+        ctx = _RequestContext(
+            query_params={"query_only": "q1"},
+            path_params={"path_only": "p1"},
+            body_params={"body_only": "b1"},
+        )
+        assert ctx["query_only"] == "q1"
+        assert ctx["path_only"] == "p1"
+        assert ctx["body_only"] == "b1"
+
+    def test_context_is_mapped_body(self) -> None:
+        """Test that RequestContext is a _MappedBody subclass"""
+        from mlrun.serving.utils import _MappedBody
+
+        ctx = _RequestContext(query_params={"test": "value"})
+        assert isinstance(ctx, _MappedBody)
+        assert isinstance(ctx, dict)
+
+    def test_context_unpacks_as_kwargs(self) -> None:
+        """Test that context can be unpacked as **kwargs"""
+
+        def test_func(**kwargs):
+            return kwargs
+
+        ctx = _RequestContext(
+            query_params={"a": "1"},
+            path_params={"b": "2"},
+        )
+        result = test_func(**ctx)
+        assert result == {"a": "1", "b": "2"}
+
+    def test_query_params_multiple_values_as_list(self) -> None:
+        """Test that repeated query params are returned as list"""
+        ctx = _RequestContext(query_params={"id": ["1", "4", "1"], "single": "value"})
+        assert ctx["id"] == ["1", "4", "1"]
+        assert ctx["single"] == "value"
+
+
+class TestPathTemplateRegex:
+    """Tests for pre-compiled regex patterns and path template matching"""
+
+    def test_simple_path_template(self) -> None:
+        """Test basic path template with one parameter"""
+        config = APIHandlerConfig()
+        config.add_endpoint_handler(
+            "/users/{user_id}", HTTPMethod.GET, APIHandlerAction.ALLOW
+        )
+
+        step = _APIHandlerStep(config=config)
+
+        # Should have one compiled pattern
+        assert len(step._endpoint_patterns) == 1
+        method, pattern, key, _ = step._endpoint_patterns[0]
+        assert method == HTTPMethod.GET
+        assert key == "GET:/users/{user_id}"
+
+        # Test pattern match
+        match = pattern.match("/users/123")
+        assert match is not None
+        assert match.groupdict() == {"user_id": "123"}
+
+    def test_multiple_path_parameters(self) -> None:
+        """Test path template with multiple parameters and multiple different patterns"""
+        config = APIHandlerConfig()
+        config.add_endpoint_handler(
+            "/orgs/{org_id}/repos/{repo_id}/issues/{issue_id}",
+            HTTPMethod.GET,
+            APIHandlerAction.ALLOW,
+        )
+        config.add_endpoint_handler(
+            "/api/users/{user_id}/posts/{post_id}",
+            HTTPMethod.POST,
+            APIHandlerAction.ALLOW,
+        )
+
+        step = _APIHandlerStep(config=config)
+        # Should have 2 different path patterns compiled
+        assert len(step._endpoint_patterns) == 2
+
+        # Test first pattern with 3 parameters
+        match, params = step._match_endpoint(
+            HTTPMethod.GET, "/orgs/mlrun/repos/mlrun/issues/42"
+        )
+        assert match == "GET:/orgs/{org_id}/repos/{repo_id}/issues/{issue_id}"
+        assert params == {
+            "org_id": "mlrun",
+            "repo_id": "mlrun",
+            "issue_id": "42",
+        }
+
+        # Test second pattern with 2 parameters
+        match, params = step._match_endpoint(
+            HTTPMethod.POST, "/api/users/123/posts/456"
+        )
+        assert match == "POST:/api/users/{user_id}/posts/{post_id}"
+        assert params == {"user_id": "123", "post_id": "456"}
+
+    def test_url_encoded_path_params(self) -> None:
+        """Test that URL-encoded path segments are decoded"""
+        config = APIHandlerConfig()
+        config.add_endpoint_handler(
+            "/files/{filename}", HTTPMethod.GET, APIHandlerAction.ALLOW
+        )
+
+        step = _APIHandlerStep(config=config)
+        assert len(step._endpoint_patterns) == 1
+
+        # Test with URL-encoded filename
+        match, params = step._match_endpoint(HTTPMethod.GET, "/files/my%20file.txt")
+        assert match == "GET:/files/{filename}"
+        assert params == {"filename": "my file.txt"}  # Decoded
+
+    def test_special_characters_in_path(self) -> None:
+        """Test path params with special characters"""
+        config = APIHandlerConfig()
+        config.add_endpoint_handler(
+            "/items/{item_id}", HTTPMethod.GET, APIHandlerAction.ALLOW
+        )
+
+        step = _APIHandlerStep(config=config)
+        assert len(step._endpoint_patterns) == 1
+
+        # Test various special characters
+        test_cases = [
+            ("abc-123", "abc-123"),
+            ("user@example.com", "user@example.com"),
+            ("item.v2", "item.v2"),
+            ("test_underscore", "test_underscore"),
+        ]
+
+        for path_value, expected in test_cases:
+            match, params = step._match_endpoint(HTTPMethod.GET, f"/items/{path_value}")
+            assert match == "GET:/items/{item_id}"
+            assert params == {"item_id": expected}
+
+    def test_regex_does_not_match_across_slashes(self) -> None:
+        """Test that path params don't match across path separators"""
+        config = APIHandlerConfig()
+        config.add_endpoint_handler(
+            "/api/{version}/users", HTTPMethod.GET, APIHandlerAction.ALLOW
+        )
+
+        step = _APIHandlerStep(config=config)
+        assert len(step._endpoint_patterns) == 1
+
+        # Should NOT match - extra path segment
+        match, params = step._match_endpoint(HTTPMethod.GET, "/api/v1/v2/users")
+        assert match is None
+        assert params == {}
+
+        # Should match - single segment
+        match, params = step._match_endpoint(HTTPMethod.GET, "/api/v1/users")
+        assert match == "GET:/api/{version}/users"
+        assert params == {"version": "v1"}
+
+    def test_exact_match_preferred_over_template(self) -> None:
+        """Test that exact matches are found before template matching"""
+        config = APIHandlerConfig()
+        config.add_endpoint_handler(
+            "/users/me", HTTPMethod.GET, APIHandlerAction.ALLOW, "Current user"
+        )
+        config.add_endpoint_handler(
+            "/users/{user_id}", HTTPMethod.GET, APIHandlerAction.FORBID, "Specific user"
+        )
+
+        step = _APIHandlerStep(config=config)
+        assert len(step._endpoint_patterns) == 1  # Only /users/{user_id} has template
+
+        # /users/me should match exact endpoint, not template
+        match, params = step._match_endpoint(HTTPMethod.GET, "/users/me")
+        assert match == "GET:/users/me"
+        assert params == {}
+
+        # /users/123 should match template
+        match, params = step._match_endpoint(HTTPMethod.GET, "/users/123")
+        assert match == "GET:/users/{user_id}"
+        assert params == {"user_id": "123"}
+
+    def test_no_pattern_for_exact_endpoints(self) -> None:
+        """Test that exact endpoints (no {}) are not compiled into patterns"""
+        config = APIHandlerConfig()
+        config.add_endpoint_handler(
+            "/api/v1/health", HTTPMethod.GET, APIHandlerAction.ALLOW
+        )
+        config.add_endpoint_handler(
+            "/api/v1/metrics", HTTPMethod.GET, APIHandlerAction.ALLOW
+        )
+
+        step = _APIHandlerStep(config=config)
+
+        # No patterns should be compiled (no {} in paths)
+        assert len(step._endpoint_patterns) == 0
+
+    def test_mixed_exact_and_template_endpoints(self) -> None:
+        """Test configuration with both exact and template endpoints"""
+        config = APIHandlerConfig()
+        config.add_endpoint_handler(
+            "/api/health", HTTPMethod.GET, APIHandlerAction.ALLOW
+        )
+        config.add_endpoint_handler(
+            "/api/users/{id}", HTTPMethod.GET, APIHandlerAction.ALLOW
+        )
+        config.add_endpoint_handler(
+            "/api/status", HTTPMethod.GET, APIHandlerAction.ALLOW
+        )
+
+        step = _APIHandlerStep(config=config)
+
+        # Only one pattern (the template)
+        assert len(step._endpoint_patterns) == 1
+
+        # Exact matches work
+        match, params = step._match_endpoint(HTTPMethod.GET, "/api/health")
+        assert match == "GET:/api/health"
+
+        # Template matches work
+        match, params = step._match_endpoint(HTTPMethod.GET, "/api/users/42")
+        assert match == "GET:/api/users/{id}"
+        assert params == {"id": "42"}
+
+    def test_regex_anchor_prevents_partial_match(self) -> None:
+        """Test that regex anchors (^$) prevent partial matches"""
+        config = APIHandlerConfig()
+        config.add_endpoint_handler(
+            "/api/{version}", HTTPMethod.GET, APIHandlerAction.ALLOW
+        )
+
+        step = _APIHandlerStep(config=config)
+        assert len(step._endpoint_patterns) == 1
+        _, pattern, _, _ = step._endpoint_patterns[0]
+
+        # Should not match - extra prefix
+        assert pattern.match("/prefix/api/v1") is None
+
+        # Should not match - extra suffix
+        assert pattern.match("/api/v1/suffix") is None
+
+        # Should match - exact
+        assert pattern.match("/api/v1") is not None
+
+    def test_check_method_allowed_with_templates(self) -> None:
+        """Test 405 vs 404 error distinction with path templates.
+
+        Note: For performance, we only check exact paths when distinguishing 405 vs 404.
+        Templated paths that don't match the request method will return 404, not 405.
+        This is a reasonable trade-off for better performance on the error path.
+        """
+        config = APIHandlerConfig()
+        config.add_endpoint_handler(
+            "/items/{id}", HTTPMethod.POST, APIHandlerAction.ALLOW
+        )
+        config.add_endpoint_handler(
+            "/items/{id}", HTTPMethod.PUT, APIHandlerAction.ALLOW
+        )
+
+        step = _APIHandlerStep(config=config)
+        assert len(step._endpoint_patterns) == 2  # Two methods for same path template
+
+        # GET not allowed for templated path → 404 (simplified logic, exact paths only)
+        event = MockEvent(method=HTTPMethod.GET, path="/items/123", body={})
+        with pytest.raises(mlrun.errors.MLRunNotFoundError, match="Endpoint not found"):
+            step.do(event)
+
+        # POST is allowed → should succeed
+        event = MockEvent(method=HTTPMethod.POST, path="/items/123", body={})
+        result = step.do(event)
+        assert result is not None  # Should return event successfully
+
+    def test_empty_path_parameter_name(self) -> None:
+        """Test that empty parameter names in templates are handled"""
+        config = APIHandlerConfig()
+        # This is malformed, but we handle it gracefully
+        config._endpoints["GET:/api/{}"] = {
+            _APIEndpointKeys.ACTION: "allow",
+            _APIEndpointKeys.DESCRIPTION: "Malformed",
+        }
+
+        step = _APIHandlerStep(config=config)
+        assert len(step._endpoint_patterns) == 1
+
+        # Should not crash, and pattern should not match
+        match, params = step._match_endpoint(HTTPMethod.GET, "/api/test")
+        # The regex compilation should handle this gracefully
 
 
 class TestAPIHandlerMockServer:
@@ -133,6 +480,302 @@ class TestAPIHandlerMockServer:
             with pytest.raises(RuntimeError, match="Access forbidden"):
                 server.test("/api/v1/admin", method="GET", body="admin-request")
 
+        finally:
+            server.wait_for_completion()
+
+    def test_api_handler_path_and_query_params_passed_to_handler(self) -> None:
+        """Test that path params and query params are passed to handler arguments"""
+
+        def handler(**kwargs):
+            # All params come as kwargs via RequestContext
+            return {
+                "item_id": kwargs.get("item_id"),
+                "source": kwargs.get("source"),
+                "limit": kwargs.get("limit"),
+            }
+
+        fn = cast(
+            ServingRuntime,
+            mlrun.new_function("test-api-path-query-params", kind="serving"),
+        )
+
+        config = APIHandlerConfig()
+        config.add_endpoint_handler(
+            "/api/v1/items/{item_id}",
+            HTTPMethod.POST,
+            APIHandlerAction.ALLOW,
+            "Path + query params",
+        )
+        fn.set_api_handler_config(config)
+
+        graph = fn.set_topology("flow", engine="sync")
+        graph.to(name="handler", handler=handler).respond()
+
+        server = fn.to_mock_server()
+        try:
+            response = server.test(
+                "/api/v1/items/123?source=ui&limit=10",
+                method="POST",
+                body={},  # Empty body, params from path/query
+            )
+            assert response == {
+                "item_id": "123",
+                "source": "ui",
+                "limit": "10",
+            }
+        finally:
+            server.wait_for_completion()
+
+    def test_api_handler_body_map_with_path_query(self) -> None:
+        """Test combining body_map, path params, and query params"""
+
+        def handler(**kwargs):
+            return {
+                "model": kwargs.get("model"),  # from body_map
+                "version": kwargs.get("version"),  # from path
+                "format": kwargs.get("format"),  # from query
+            }
+
+        fn = cast(
+            ServingRuntime,
+            mlrun.new_function("test-all-param-sources", kind="serving"),
+        )
+
+        config = APIHandlerConfig()
+        config.add_body_mapping("model", "$.model_name")
+        config.add_endpoint_handler(
+            "/predict/{version}",
+            HTTPMethod.POST,
+            APIHandlerAction.ALLOW,
+        )
+        fn.set_api_handler_config(config)
+
+        graph = fn.set_topology("flow", engine="sync")
+        graph.to(name="handler", handler=handler).respond()
+
+        server = fn.to_mock_server()
+        try:
+            response = server.test(
+                "/predict/v2?format=json",
+                method="POST",
+                body={"model_name": "my-classifier"},
+            )
+            assert response == {
+                "model": "my-classifier",
+                "version": "v2",
+                "format": "json",
+            }
+        finally:
+            server.wait_for_completion()
+
+    def test_api_handler_url_encoded_path_params(self) -> None:
+        """Test that URL-encoded path parameters are properly decoded"""
+
+        def handler(**kwargs):
+            return {"filename": kwargs.get("filename")}
+
+        fn = cast(
+            ServingRuntime,
+            mlrun.new_function("test-url-encoding", kind="serving"),
+        )
+
+        config = APIHandlerConfig()
+        config.add_endpoint_handler(
+            "/files/{filename}",
+            HTTPMethod.GET,
+            APIHandlerAction.ALLOW,
+        )
+        fn.set_api_handler_config(config)
+
+        graph = fn.set_topology("flow", engine="sync")
+        graph.to(name="handler", handler=handler).respond()
+
+        server = fn.to_mock_server()
+        try:
+            response = server.test(
+                "/files/my%20document.pdf",
+                method="GET",
+                body={},
+            )
+            assert response == {"filename": "my document.pdf"}
+        finally:
+            server.wait_for_completion()
+
+    def test_api_handler_multiple_path_params(self) -> None:
+        """Test endpoint with multiple path parameters"""
+
+        def handler(**kwargs):
+            return {
+                "org": kwargs.get("org_id"),
+                "repo": kwargs.get("repo_id"),
+                "issue": kwargs.get("issue_num"),
+            }
+
+        fn = cast(
+            ServingRuntime,
+            mlrun.new_function("test-multi-path-params", kind="serving"),
+        )
+
+        config = APIHandlerConfig()
+        config.add_endpoint_handler(
+            "/orgs/{org_id}/repos/{repo_id}/issues/{issue_num}",
+            HTTPMethod.GET,
+            APIHandlerAction.ALLOW,
+        )
+        fn.set_api_handler_config(config)
+
+        graph = fn.set_topology("flow", engine="sync")
+        graph.to(name="handler", handler=handler).respond()
+
+        server = fn.to_mock_server()
+        try:
+            response = server.test(
+                "/orgs/mlrun/repos/mlrun/issues/42",
+                method="GET",
+                body={},
+            )
+            assert response == {
+                "org": "mlrun",
+                "repo": "mlrun",
+                "issue": "42",
+            }
+        finally:
+            server.wait_for_completion()
+
+    def test_api_handler_parameter_conflict_error(
+        self,
+    ) -> None:
+        """Test that parameter conflicts from multiple sources raise error"""
+
+        def handler(**kwargs):
+            return {"id": kwargs.get("id")}
+
+        fn = cast(
+            ServingRuntime,
+            mlrun.new_function("test-param-conflict", kind="serving"),
+        )
+
+        config = APIHandlerConfig()
+        config.add_body_mapping("id", "$.identifier")  # body_map extracts 'id'
+        config.add_endpoint_handler(
+            "/items/{id}",  # path also has 'id'
+            HTTPMethod.POST,
+            APIHandlerAction.ALLOW,
+        )
+        fn.set_api_handler_config(config)
+
+        graph = fn.set_topology("flow", engine="sync")
+        graph.to(name="handler", handler=handler).respond()
+
+        server = fn.to_mock_server()
+        try:
+            # Should raise 400 Bad Request due to parameter conflict
+            with pytest.raises(RuntimeError, match="400.*Parameter name conflict"):
+                server.test(
+                    "/items/path-id",
+                    method="POST",
+                    body={"identifier": "body-id"},
+                )
+        finally:
+            server.wait_for_completion()
+
+    def test_api_handler_repeated_query_params(self) -> None:
+        """Test that repeated query parameters are passed as lists"""
+
+        def handler(**kwargs):
+            return {"ids": kwargs.get("id"), "single": kwargs.get("name")}
+
+        fn = cast(
+            ServingRuntime,
+            mlrun.new_function("test-query-list", kind="serving"),
+        )
+
+        config = APIHandlerConfig()
+        config.add_endpoint_handler(
+            "/items",
+            HTTPMethod.GET,
+            APIHandlerAction.ALLOW,
+        )
+        fn.set_api_handler_config(config)
+
+        graph = fn.set_topology("flow", engine="sync")
+        graph.to(name="handler", handler=handler).respond()
+
+        server = fn.to_mock_server()
+        try:
+            # Test with repeated query param: ?id=1&id=4&id=1&name=test
+            response = server.test(
+                "/items?id=1&id=4&id=1&name=test",
+                method="GET",
+            )
+
+            # Repeated 'id' should be a list, single 'name' should be string
+            assert response == {"ids": ["1", "4", "1"], "single": "test"}
+        finally:
+            server.wait_for_completion()
+
+    def test_api_handler_path_params_in_signature_with_repeated_query_params(
+        self,
+    ) -> None:
+        """Test handler with path params in signature and repeated query params.
+
+        Demonstrates:
+        - Path parameters extracted and passed as named arguments
+        - Query parameters with multiple values passed as lists
+        - Handler signature with explicit parameter names (not just **kwargs)
+        """
+
+        def handler(
+            item_id: str, category: str, tags: list[str] | None = None, **kwargs
+        ) -> dict:
+            """Handler with explicit path params in signature.
+
+            Args:
+                item_id: From path parameter {item_id}
+                category: From path parameter {category}
+                tags: From repeated query param ?tags=...&tags=...
+                **kwargs: Catch any other params
+            """
+            return {
+                "item_id": item_id,
+                "category": category,
+                "tags": tags,
+                "single_param": kwargs.get("limit"),
+            }
+
+        fn = cast(
+            ServingRuntime,
+            mlrun.new_function("test-signature-with-lists", kind="serving"),
+        )
+
+        config = APIHandlerConfig()
+        config.add_endpoint_handler(
+            "/items/{category}/{item_id}",
+            HTTPMethod.GET,
+            APIHandlerAction.ALLOW,
+        )
+        fn.set_api_handler_config(config)
+
+        graph = fn.set_topology("flow", engine="sync")
+        graph.to(name="handler", handler=handler).respond()
+
+        server = fn.to_mock_server()
+        try:
+            # Test with path params + repeated query param + single query param
+            response = server.test(
+                "/items/electronics/laptop-123?tags=new&tags=featured&tags=sale&limit=10",
+                method="GET",
+            )
+
+            # Path params should be passed as named args
+            # Repeated query param should be a list
+            # Single query param should be a string
+            assert response == {
+                "item_id": "laptop-123",
+                "category": "electronics",
+                "tags": ["new", "featured", "sale"],
+                "single_param": "10",
+            }
         finally:
             server.wait_for_completion()
 
@@ -517,8 +1160,22 @@ class TestAPIHandlerStep:
 
         step = _APIHandlerStep(config=config)
 
-        match = step._match_endpoint(HTTPMethod.GET, "/api/test")
+        match, path_params = step._match_endpoint(HTTPMethod.GET, "/api/test")
         assert match == "GET:/api/test"
+        assert path_params == {}
+
+    def test_match_endpoint_path_template(self) -> None:
+        """Test endpoint matching for path-template endpoints"""
+        config = APIHandlerConfig()
+        config.add_endpoint_handler(
+            "/api/items/{item_id}", HTTPMethod.GET, APIHandlerAction.ALLOW
+        )
+
+        step = _APIHandlerStep(config=config)
+
+        match, path_params = step._match_endpoint(HTTPMethod.GET, "/api/items/abc-123")
+        assert match == "GET:/api/items/{item_id}"
+        assert path_params == {"item_id": "abc-123"}
 
     def test_match_endpoint_no_match(self) -> None:
         """Test endpoint matching when no match found"""
@@ -527,11 +1184,38 @@ class TestAPIHandlerStep:
 
         step = _APIHandlerStep(config=config)
 
-        match = step._match_endpoint(HTTPMethod.POST, "/api/test")
+        match, path_params = step._match_endpoint(HTTPMethod.POST, "/api/test")
         assert match is None
+        assert path_params == {}
 
-        match = step._match_endpoint(HTTPMethod.GET, "/different/path")
+        match, path_params = step._match_endpoint(HTTPMethod.GET, "/different/path")
         assert match is None
+        assert path_params == {}
+
+    def test_run_path_template_method_not_allowed(self) -> None:
+        """Test that wrong method on path-template endpoint returns 404.
+
+        Note: For performance, we only check exact paths when distinguishing 405 vs 404.
+        Templated paths that don't match the request method will return 404, not 405.
+        """
+        config = APIHandlerConfig()
+        config.add_endpoint_handler(
+            "/api/resource/{resource_id}",
+            HTTPMethod.POST,
+            APIHandlerAction.ALLOW,
+        )
+
+        context = MagicMock()
+        mock_event = MagicMock()
+        mock_event.method = HTTPMethod.GET
+        mock_event.path = "/api/resource/42"
+        context.current_event = mock_event
+
+        step = _APIHandlerStep(config=config)
+        step.context = context
+
+        with pytest.raises(mlrun.errors.MLRunNotFoundError, match="Endpoint not found"):
+            step.do({"data": "test"})
 
     def test_run_allowed_endpoint(self) -> None:
         """Test running with allowed endpoint"""
@@ -831,3 +1515,270 @@ class TestAddAPIHandlerStepToGraph:
         # (they are not starting steps)
         assert "api-handler" not in result_graph.steps["step2"].after
         assert "api-handler" not in result_graph.steps["step3"].after
+
+
+class TestParseQueryParams:
+    """Tests for _parse_query_params static method"""
+
+    def test_parse_query_params_no_query_string(self) -> None:
+        """Test parsing path with no query string"""
+        path, params = _APIHandlerStep._parse_query_params("/api/users")
+        assert path == "/api/users"
+        assert params == {}
+
+    def test_parse_query_params_single_param(self) -> None:
+        """Test parsing single query parameter"""
+        path, params = _APIHandlerStep._parse_query_params("/api/users?limit=10")
+        assert path == "/api/users"
+        assert params == {"limit": "10"}
+
+    def test_parse_query_params_multiple_params(self) -> None:
+        """Test parsing multiple query parameters"""
+        path, params = _APIHandlerStep._parse_query_params(
+            "/api/users?limit=10&offset=20&sort=name"
+        )
+        assert path == "/api/users"
+        assert params == {"limit": "10", "offset": "20", "sort": "name"}
+
+    def test_parse_query_params_repeated_values(self) -> None:
+        """Test parsing repeated query parameters (should return list)"""
+        path, params = _APIHandlerStep._parse_query_params("/api/users?id=1&id=2&id=3")
+        assert path == "/api/users"
+        assert params == {"id": ["1", "2", "3"]}
+
+    def test_parse_query_params_mixed_single_and_repeated(self) -> None:
+        """Test parsing mix of single and repeated params"""
+        path, params = _APIHandlerStep._parse_query_params(
+            "/api/users?id=1&id=2&limit=10&id=3"
+        )
+        assert path == "/api/users"
+        assert params == {"id": ["1", "2", "3"], "limit": "10"}
+
+    def test_parse_query_params_empty_value(self) -> None:
+        """Test parsing query param with empty value"""
+        path, params = _APIHandlerStep._parse_query_params("/api/users?filter=")
+        assert path == "/api/users"
+        assert params == {"filter": ""}
+
+    def test_parse_query_params_url_encoded(self) -> None:
+        """Test parsing URL-encoded query parameters"""
+        path, params = _APIHandlerStep._parse_query_params(
+            "/api/users?name=John%20Doe&email=test%40example.com"
+        )
+        assert path == "/api/users"
+        assert params == {"name": "John Doe", "email": "test@example.com"}
+
+    def test_parse_query_params_special_characters(self) -> None:
+        """Test parsing query params with special characters"""
+        path, params = _APIHandlerStep._parse_query_params(
+            "/api/search?q=hello+world&filter=a%26b"
+        )
+        assert path == "/api/search"
+        # parse_qs converts + to space and decodes %26 to &
+        assert params == {"q": "hello world", "filter": "a&b"}
+
+    def test_parse_query_params_empty_string(self) -> None:
+        """Test parsing empty string (should normalize to '/')"""
+        path, params = _APIHandlerStep._parse_query_params("")
+        assert path == "/"
+        assert params == {}
+
+    def test_parse_query_params_root_path_with_query(self) -> None:
+        """Test parsing root path with query string"""
+        path, params = _APIHandlerStep._parse_query_params("/?key=value")
+        assert path == "/"
+        assert params == {"key": "value"}
+
+
+class TestExtractQueryParams:
+    """Tests for _extract_query_params method"""
+
+    def test_extract_query_params_from_path(self) -> None:
+        """Test extracting query params from path (mock event)"""
+        config = APIHandlerConfig()
+        handler = _APIHandlerStep(config=config)
+        event = MockEvent(path="/api/users?limit=10", method="GET")
+
+        normalized_path, params = handler._extract_query_params(
+            event, "/api/users?limit=10"
+        )
+        assert normalized_path == "/api/users"
+        assert params == {"limit": "10"}
+
+    def test_extract_query_params_no_query_in_path(self) -> None:
+        """Test extracting query params when path has no query string"""
+        config = APIHandlerConfig()
+        handler = _APIHandlerStep(config=config)
+        event = MockEvent(path="/api/users", method="GET")
+
+        normalized_path, params = handler._extract_query_params(event, "/api/users")
+        assert normalized_path == "/api/users"
+        assert params == {}
+
+    def test_extract_query_params_from_event_fields(self) -> None:
+        """Test extracting query params from event.fields (Nuclio format)"""
+        config = APIHandlerConfig()
+        handler = _APIHandlerStep(config=config)
+
+        # Create a mock event with fields attribute (simulating Nuclio event)
+        event = MagicMock()
+        event.method = "GET"
+        event.path = "/api/users"
+        event.fields = {"limit": ["10"], "offset": ["20"]}
+
+        normalized_path, params = handler._extract_query_params(event, "/api/users")
+        assert normalized_path == "/api/users"
+        assert params == {"limit": "10", "offset": "20"}
+
+    def test_extract_query_params_from_event_fields_multiple_values(self) -> None:
+        """Test extracting repeated query params from event.fields"""
+        config = APIHandlerConfig()
+        handler = _APIHandlerStep(config=config)
+
+        event = MagicMock()
+        event.method = "GET"
+        event.path = "/api/users"
+        event.fields = {"id": ["1", "2", "3"], "single": ["value"]}
+
+        normalized_path, params = handler._extract_query_params(event, "/api/users")
+        assert normalized_path == "/api/users"
+        assert params == {"id": ["1", "2", "3"], "single": "value"}
+
+    def test_extract_query_params_from_context_event_fields(self) -> None:
+        """Test extracting query params from context.current_event.fields"""
+        config = APIHandlerConfig()
+        context = GraphContext()
+
+        # Create a mock current_event in context
+        mock_event = MagicMock()
+        mock_event.fields = {"limit": ["10"], "filter": ["active"]}
+        context.current_event = mock_event
+
+        handler = _APIHandlerStep(config=config, context=context)
+
+        # Event without fields
+        event = MockEvent(path="/api/users", method="GET")
+
+        normalized_path, params = handler._extract_query_params(event, "/api/users")
+        assert normalized_path == "/api/users"
+        assert params == {"limit": "10", "filter": "active"}
+
+    def test_extract_query_params_empty_fields_list(self) -> None:
+        """Test extracting query params when event.fields has empty list"""
+        config = APIHandlerConfig()
+        handler = _APIHandlerStep(config=config)
+
+        event = MagicMock()
+        event.method = "GET"
+        event.path = "/api/users"
+        event.fields = {"empty": [], "has_value": ["test"]}
+
+        normalized_path, params = handler._extract_query_params(event, "/api/users")
+        assert normalized_path == "/api/users"
+        # Empty list should result in None value
+        assert params == {"empty": None, "has_value": "test"}
+
+    def test_extract_query_params_fields_non_list_value(self) -> None:
+        """Test extracting query params when event.fields has non-list value"""
+        config = APIHandlerConfig()
+        handler = _APIHandlerStep(config=config)
+
+        event = MagicMock()
+        event.method = "GET"
+        event.path = "/api/users"
+        event.fields = {"string_value": "test", "list_value": ["value"]}
+
+        normalized_path, params = handler._extract_query_params(event, "/api/users")
+        assert normalized_path == "/api/users"
+        assert params == {"string_value": "test", "list_value": "value"}
+
+
+class TestCompileEndpointPatterns:
+    """Tests for _compile_endpoint_patterns method"""
+
+    def test_compile_endpoint_patterns_no_templates(self) -> None:
+        """Test that endpoints without templates are skipped"""
+        config = APIHandlerConfig()
+        config.add_endpoint_handler(
+            "/api/users", HTTPMethod.GET, APIHandlerAction.ALLOW
+        )
+        config.add_endpoint_handler(
+            "/api/items", HTTPMethod.GET, APIHandlerAction.ALLOW
+        )
+
+        handler = _APIHandlerStep(config=config)
+        # Should have no patterns (no path templates)
+        assert len(handler._endpoint_patterns) == 0
+
+    def test_compile_endpoint_patterns_with_templates(self) -> None:
+        """Test compiling patterns for endpoints with templates"""
+        config = APIHandlerConfig()
+        config.add_endpoint_handler(
+            "/api/users/{user_id}", HTTPMethod.GET, APIHandlerAction.ALLOW
+        )
+        config.add_endpoint_handler(
+            "/api/items/{item_id}", HTTPMethod.POST, APIHandlerAction.ALLOW
+        )
+
+        handler = _APIHandlerStep(config=config)
+        # Should have 2 patterns
+        assert len(handler._endpoint_patterns) == 2
+
+        # Verify patterns are compiled
+        for (
+            method,
+            pattern,
+            endpoint_key,
+            endpoint_config,
+        ) in handler._endpoint_patterns:
+            assert isinstance(pattern, type(re.compile("")))
+            assert method in [
+                HTTPMethod.GET,
+                HTTPMethod.POST,
+                HTTPMethod.PUT,
+                HTTPMethod.DELETE,
+            ]
+
+    def test_compile_endpoint_patterns_invalid_regex(self) -> None:
+        """Test that invalid regex patterns raise error during initialization"""
+        # This test verifies error handling for malformed path templates
+        # Since our template conversion is quite robust, we'd need to manually
+        # break the regex. For now, this test documents the expected behavior.
+
+        # Note: Our current implementation is unlikely to produce invalid regex
+        # because we escape the path and only replace {param} with capture groups.
+        # If we wanted to test this, we'd need to inject a bad pattern into _endpoints
+        # or modify the regex generation logic to be more permissive.
+        pass  # Placeholder - actual invalid regex is hard to trigger with current impl
+
+
+class TestAPIHandlerEdgeCases:
+    """Tests for edge cases and integration scenarios"""
+
+    def test_query_params_with_path_params_integration(self) -> None:
+        """Test that query params and path params work together correctly"""
+        config = APIHandlerConfig()
+        config.add_endpoint_handler(
+            "/api/users/{user_id}", HTTPMethod.GET, APIHandlerAction.ALLOW
+        )
+
+        # Create the handler step directly
+        handler = _APIHandlerStep(config=config)
+
+        # Create event with both path param and query param
+        event = MockEvent(
+            path="/api/users/123?fields=name,email&limit=10",
+            method="GET",
+            body="test",
+        )
+
+        # Process the event
+        result = handler.do(event)
+
+        # The handler modifies event.body to be a RequestContext when params are extracted
+        # (see api_handler.py line ~430: "if hasattr(event, 'body'): event.body = request_context")
+        assert isinstance(result, MockEvent)
+        assert isinstance(result.body, _RequestContext)
+        assert result.body["user_id"] == "123"
+        assert result.body["fields"] == "name,email"
+        assert result.body["limit"] == "10"

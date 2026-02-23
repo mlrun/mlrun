@@ -283,8 +283,13 @@ def _load_store_artifact(
     # Create target directory if it doesn't exist
     os.makedirs(target_dir, exist_ok=True)
 
-    # Determine the filename from the artifact target path
-    filename = os.path.basename(artifact_target_path)
+    # Preserve the original filename uploaded
+    if artifact.spec.src_path:
+        filename = os.path.basename(artifact.spec.src_path)
+    else:
+        # src_path may be unset for artifacts created via API/DB directly or with inline body.
+        # Fall back to the artifact-store filename
+        filename = os.path.basename(artifact_target_path)
     local_file_path = os.path.join(target_dir, filename)
 
     # Download the artifact content to the target directory

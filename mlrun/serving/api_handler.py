@@ -14,8 +14,13 @@
 
 """API Handler implementation for serving graphs"""
 
+import re
 from http import HTTPMethod
+from re import Pattern
+from typing import Any, Union
+from urllib.parse import parse_qs, unquote, urlsplit
 
+import nuclio_sdk
 from jsonpath_ng import parse as jsonpath_parse
 from jsonpath_ng.exceptions import JsonPathLexerError, JsonPathParserError
 
@@ -28,6 +33,55 @@ import mlrun.serving.utils as serving_utils
 import mlrun.utils
 from mlrun.common.schemas.serving import _APIEndpointKeys
 from mlrun.serving.utils import _MappedBody
+
+
+class _RequestContext(_MappedBody):
+    """Unified container for request parameters from multiple sources.
+
+    Consolidates parameters from body_map (JSONPath extraction), path templates,
+    and query strings into a single dict-like object that unpacks as kwargs.
+
+    Priority order: path > query > body_map (path parameters have highest priority)
+    Conflicts are not allowed - request will fail if same parameter appears in multiple sources.
+    """
+
+    def __init__(
+        self,
+        path_params: dict[str, str] | None = None,
+        query_params: dict[str, str | list[str]] | None = None,
+        body_params: dict[str, Any] | None = None,
+    ):
+        merged = {}
+        sources = [
+            ("body_map", body_params or {}),
+            ("query", query_params or {}),
+            ("path", path_params or {}),
+        ]
+
+        # Track conflicts for better error messages
+        param_sources: dict[str, list[str]] = {}
+
+        for source_name, params in sources:
+            for key, value in params.items():
+                if key in merged:
+                    param_sources.setdefault(key, []).append(source_name)
+                else:
+                    param_sources[key] = [source_name]
+                merged[key] = value
+
+        # Check for conflicts (same param from multiple sources)
+        conflicts = {k: v for k, v in param_sources.items() if len(v) > 1}
+        if conflicts:
+            conflict_details = ", ".join(
+                f"{k} (from {' + '.join(sources)})" for k, sources in conflicts.items()
+            )
+            raise mlrun.errors.MLRunBadRequestError(
+                f"Parameter name conflict detected. Same parameter appears in multiple "
+                f"request sources: {conflict_details}. Parameters must be unique across "
+                f"path, query, and body_map."
+            )
+
+        super().__init__(merged)
 
 
 class _APIHandlerStep(mlrun.serving.states.TaskStep):
@@ -71,7 +125,64 @@ class _APIHandlerStep(mlrun.serving.states.TaskStep):
                         f"'{jsonpath_expr}'. Error: {exc}"
                     ) from exc
 
+        # Pre-compile regex patterns for path template matching (performance optimization)
+        # Pattern format: /api/{user_id}/items/{item_id} → /api/(?P<user_id>[^/]+)/items/(?P<item_id>[^/]+)
+        # This converts {param_name} placeholders to named capture groups
+        self._endpoint_patterns: list[tuple[HTTPMethod, Pattern, str, dict]] = (
+            self._compile_endpoint_patterns()
+        )
+
         mlrun.utils.logger.debug("The context in API handler", context=self.context)
+
+    def _compile_endpoint_patterns(
+        self,
+    ) -> list[tuple[HTTPMethod, Pattern, str, dict]]:
+        """Pre-compile regex patterns for all endpoint path templates.
+
+        This optimization builds regex patterns once during initialization rather than
+        doing string manipulation on every request.
+
+        Pattern explanation:
+            /api/{user_id}/items/{item_id}
+            ↓ becomes ↓
+            ^/api/(?P<user_id>[^/]+)/items/(?P<item_id>[^/]+)$
+
+        Regex components:
+            - ^ and $ → match entire path (anchors)
+            - (?P<name>...) → named capture group for extracted param
+            - [^/]+ → match one or more non-slash characters (greedy path segment)
+
+        :return: List of (method, compiled_pattern, endpoint_key, endpoint_config) tuples
+        """
+        patterns = []
+        for endpoint_key, endpoint_config in self.config._endpoints.items():
+            method, path_pattern = self.config._parse_endpoint_key(endpoint_key)
+
+            # Skip endpoints without path parameters (handled by exact match)
+            if "{" not in path_pattern:
+                continue
+
+            # Convert path template to regex pattern
+            # Example: /api/{user_id}/data → ^/api/(?P<user_id>[^/]+)/data$
+            regex_pattern = re.escape(path_pattern)  # Escape special chars first
+            # Replace escaped braces with capture groups
+            regex_pattern = re.sub(
+                r"\\\{([^}]+)\\\}",  # Match escaped {param_name}
+                r"(?P<\1>[^/]+)",  # Replace with named group (?P<param_name>[^/]+)
+                regex_pattern,
+            )
+            regex_pattern = f"^{regex_pattern}$"  # Add anchors
+
+            try:
+                compiled = re.compile(regex_pattern)
+                patterns.append((method, compiled, endpoint_key, endpoint_config))
+            except re.error as exc:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    f"Failed to compile regex for endpoint pattern '{path_pattern}' "
+                    f"(key: {endpoint_key}): {exc}"
+                ) from exc
+
+        return patterns
 
     def _apply_parsed_body_map(self, body: dict) -> "_MappedBody":
         """Apply pre-parsed JSONPath expressions to extract parameters from event body.
@@ -95,8 +206,80 @@ class _APIHandlerStep(mlrun.serving.states.TaskStep):
                 result[param_name] = [match.value for match in matches]
         return _MappedBody(result)
 
-    def do(self, event):
-        """Handle incoming request and validate against configured endpoints"""
+    @staticmethod
+    def _parse_query_params(path_query: str) -> tuple[str, dict[str, str | list[str]]]:
+        """Parse path and query parameters from a request path.
+
+        Query values are normalized to strings. For repeated query keys, returns a list.
+
+        :param path_query: Raw path, possibly with query string.
+        :return: Tuple of normalized path (without query) and query-params dict.
+                 Values are strings for single occurrences, lists for multiple.
+        """
+        parsed_url = urlsplit(path_query)
+        normalized_path = parsed_url.path or "/"
+
+        query_params: dict[str, str | list[str]] = {}
+        parsed_query = parse_qs(parsed_url.query, keep_blank_values=True)
+        for query_key, values in parsed_query.items():
+            if values:
+                # Single value: return as string; multiple values: return as list of strings
+                query_params[query_key] = values[0] if len(values) == 1 else values
+
+        return normalized_path, query_params
+
+    def _extract_query_params(
+        self,
+        event: Union[nuclio_sdk.Event, "mlrun.serving.server.MockEvent"],
+        path: str,
+    ) -> tuple[str, dict[str, str | list[str]]]:
+        """Extract query parameters from event or path.
+
+        First attempts to parse from path (for mock/test events with ?query in path),
+        then falls back to event.fields (for real Nuclio HTTP events).
+
+        :param event: Event object (Nuclio event or MockEvent, may have fields attribute)
+        :param path: Request path (may include query string)
+        :return: Tuple of (normalized_path, query_params dict)
+        """
+        # Try to parse query params from path first (mock/test events)
+        normalized_path, query_params = self._parse_query_params(path)
+
+        # If no query params in path, try event.fields (real Nuclio HTTP events)
+        if not query_params:
+            nuclio_fields = None
+            if hasattr(event, "fields") and event.fields:
+                nuclio_fields = event.fields
+            elif (
+                self.context
+                and hasattr(self.context, "current_event")
+                and hasattr(self.context.current_event, "fields")
+                and self.context.current_event.fields
+            ):
+                nuclio_fields = self.context.current_event.fields
+
+            if nuclio_fields:
+                # Nuclio fields are dict[str, list[str]]
+                # Convert to our format: single value → str, multiple values → list
+                query_params = {}
+                for key, values in nuclio_fields.items():
+                    if isinstance(values, list):
+                        query_params[key] = (
+                            values if len(values) > 1 else values[0] if values else None
+                        )
+                    else:
+                        query_params[key] = values
+
+        return normalized_path, query_params
+
+    def do(
+        self, event: Union[nuclio_sdk.Event, "mlrun.serving.server.MockEvent"]
+    ) -> Union[nuclio_sdk.Event, "mlrun.serving.server.MockEvent", _RequestContext]:
+        """Handle incoming request and validate against configured endpoints
+
+        :param event: Event object (Nuclio event or MockEvent)
+        :return: Original event or RequestContext with extracted parameters
+        """
         try:
             # In MLRun serving framework, the actual event metadata is available in the context
             # while the event parameter here is typically the body content
@@ -135,42 +318,51 @@ class _APIHandlerStep(mlrun.serving.states.TaskStep):
                         f"Unsupported HTTP method: {method}"
                     )
 
+            # Extract normalized path and query parameters (single parse)
+            normalized_path, query_params = self._extract_query_params(event, path)
+
             mlrun.utils.logger.debug(
                 "API handler processing request",
                 method=method.value,
-                path=path,
-                endpoints_count=len(self.config._endpoints),
+                path=normalized_path,
+                query_params=query_params,
             )
 
             # Find matching endpoint
-            matching_endpoint_key = self._match_endpoint(method, path)
+            matching_endpoint_key, path_params = self._match_endpoint(
+                method, normalized_path
+            )
 
             if not matching_endpoint_key:
-                # Check if path exists with different method (405 Method Not Allowed)
-                path_exists_with_other_method = any(
-                    self.config._parse_endpoint_key(key)[1] == path
-                    for key in self.config._endpoints.keys()
-                )
+                # Check if path exists with any method (for 405 vs 404 distinction)
+                # Note: Only checking exact paths for performance; templated paths will return 404
+                path_exists = False
+                for key in self.config._endpoints.keys():
+                    _, endpoint_path = self.config._parse_endpoint_key(key)
+                    if endpoint_path == normalized_path:
+                        path_exists = True
+                        break
 
-                if path_exists_with_other_method:
+                if path_exists:
+                    # Path exists but method not allowed (405)
                     mlrun.utils.logger.warning(
                         "Method not allowed for endpoint",
                         method=method.value,
-                        path=path,
+                        path=normalized_path,
                     )
                     raise mlrun.errors.MLRunMethodNotAllowedError(
-                        f"Method not allowed: {method.value} {path}"
+                        f"Method not allowed: {method.value} {normalized_path}"
                     )
-
-                # No matching endpoint found (404 Not Found)
-                mlrun.utils.logger.warning(
-                    "No matching endpoint found",
-                    method=method.value,
-                    path=path,
-                )
-                raise mlrun.errors.MLRunNotFoundError(
-                    f"Endpoint not found: {method.value} {path}"
-                )
+                else:
+                    # No matching endpoint found (404)
+                    mlrun.utils.logger.warning(
+                        "No matching endpoint found",
+                        method=method.value,
+                        path=normalized_path,
+                    )
+                    raise mlrun.errors.MLRunNotFoundError(
+                        f"Endpoint not found: {method.value} {normalized_path}"
+                    )
 
             # Get endpoint definition
             endpoint_def = self.config._endpoints[matching_endpoint_key]
@@ -184,47 +376,63 @@ class _APIHandlerStep(mlrun.serving.states.TaskStep):
             mlrun.utils.logger.debug(
                 "Found matching endpoint",
                 method=method.value,
-                path=path,
+                path=normalized_path,
                 matched_path=matched_path,
                 action=action,
             )
 
             # Handle the action
             if action == schemas.APIHandlerAction.ALLOW:
-                # Apply body_map transformation if configured at the config level
+                # Extract body_map parameters if configured
+                body_params = {}
                 if self._parsed_body_map:
                     body = event.body if hasattr(event, "body") else event
-                    if isinstance(body, dict):
-                        try:
-                            mapped_body = self._apply_parsed_body_map(body)
-                            mlrun.utils.logger.debug(
-                                "Applied body_map transformation",
-                                body_map=self.config.body_map,
-                                mapped_params=list(mapped_body.keys()),
-                            )
-                            if hasattr(event, "body"):
-                                event.body = mapped_body
-                            else:
-                                event = mapped_body
-                        except mlrun.errors.MLRunUnprocessableEntityError:
-                            # Re-raise validation errors as-is
-                            raise
-                        except Exception as exc:
-                            # Wrap other errors in BadRequest
-                            raise mlrun.errors.MLRunBadRequestError(
-                                f"Failed to process body_map transformation: {exc}"
-                            ) from exc
-                    else:
+                    if not isinstance(body, dict):
                         raise mlrun.errors.MLRunUnprocessableEntityError(
                             f"body_map configured but request body is not a dict (got {type(body).__name__}). "
                             f"A valid JSON body is required when body_map transformation is configured."
                         )
+                    try:
+                        body_params = dict(self._apply_parsed_body_map(body))
+                        mlrun.utils.logger.debug(
+                            "Applied body_map transformation",
+                            body_map=self.config.body_map,
+                            extracted_params=list(body_params.keys()),
+                        )
+                    except mlrun.errors.MLRunUnprocessableEntityError:
+                        raise
+                    except Exception as exc:
+                        raise mlrun.errors.MLRunBadRequestError(
+                            f"Failed to process body_map transformation: {exc}"
+                        ) from exc
+
+                # Only create RequestContext if we have extracted parameters
+                # Otherwise, preserve the original event body
+                if body_params or path_params or query_params:
+                    mlrun.utils.logger.debug(
+                        "Creating RequestContext",
+                        body_params=body_params,
+                        path_params=path_params,
+                        query_params=query_params,
+                    )
+                    request_context = _RequestContext(
+                        body_params=body_params,
+                        path_params=path_params,
+                        query_params=query_params,
+                    )
+
+                    # Replace event body with unified context
+                    if hasattr(event, "body"):
+                        event.body = request_context
+                    else:
+                        event = request_context
+
                 # Pass the event to the next step in the graph
                 return event
             elif action == schemas.APIHandlerAction.FORBID:
                 # Reject the request
                 raise mlrun.errors.MLRunAccessDeniedError(
-                    f"Access forbidden to {method.value} {path}"
+                    f"Access forbidden to {method.value} {normalized_path}"
                 )
             else:
                 raise mlrun.errors.MLRunInternalServerError(f"Unknown action: {action}")
@@ -239,11 +447,42 @@ class _APIHandlerStep(mlrun.serving.states.TaskStep):
             )
             raise
 
-    def _match_endpoint(self, method: HTTPMethod, path: str) -> str | None:
-        """Find matching endpoint key for the given method and path"""
-        # Only exact matches supported
+    def _match_endpoint(
+        self, method: HTTPMethod, path: str
+    ) -> tuple[str | None, dict[str, str]]:
+        """Find matching endpoint key for the given method and path.
+
+        Uses a two-phase search strategy:
+        1. Fast exact match lookup (O(1) dict lookup)
+        2. Pre-compiled regex pattern matching for path templates (O(n) but optimized)
+
+        :param method: HTTP method to match
+        :param path: Request path to match
+        :return: Tuple of (endpoint_key, extracted_path_params) or (None, {}) if no match.
+                 Path params are always strings (extracted from URL segments).
+        """
+        # Phase 1: Fast path for exact matches (no path parameters)
         endpoint_key = serving_utils._combine_serving_endpoint_key(method, path)
         if endpoint_key in self.config._endpoints:
-            return endpoint_key
+            return endpoint_key, {}
 
-        return None
+        # Phase 2: Try pre-compiled regex patterns for path templates
+        for (
+            pattern_method,
+            compiled_pattern,
+            pattern_endpoint_key,
+            _,
+        ) in self._endpoint_patterns:
+            if pattern_method != method:
+                continue
+
+            match = compiled_pattern.match(path)
+            if match:
+                # Extract path parameters from named groups
+                # Note: URL-decode path segments to handle encoded characters
+                path_params = {
+                    name: unquote(value) for name, value in match.groupdict().items()
+                }
+                return pattern_endpoint_key, path_params
+
+        return None, {}

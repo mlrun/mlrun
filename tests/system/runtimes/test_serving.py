@@ -200,3 +200,53 @@ class TestServingAPIHandler(tests.system.base.TestMLRunSystem):
         assert response["count"] == 3, "count should match number of books"
 
         self._logger.info("Body mapping API handler test passed")
+
+    def test_api_handler_with_path_and_query_params(self) -> None:
+        """Test API handler with path parameters and query parameters."""
+        self._logger.info("Testing API handler with path and query parameters")
+
+        # Create API handler config with path template
+        config = APIHandlerConfig()
+        config.add_endpoint_handler(
+            "/api/items/{category}/{item_id}",
+            HTTPMethod.GET,
+            APIHandlerAction.ALLOW,
+            "Path and query params endpoint",
+        )
+
+        # Create serving function with handler source file
+        function = self._create_serving_function(
+            name="path-query-handler",
+            api_config=config,
+            func=str(self.assets_path / "path_query_handler.py"),
+        )
+
+        # Set up topology with handler that receives path and query params
+        graph = function.set_topology("flow", engine="sync", exist_ok=True)
+        graph.to(name="processor", handler="process_path_and_query_params").respond()
+
+        # Deploy the function
+        self._logger.debug("Deploying serving function with path and query params")
+        function.deploy()
+
+        # Test with path params and repeated query params
+        self._logger.debug("Testing path params and repeated query params")
+        response = function.invoke(
+            path="/api/items/electronics/laptop-123?tags=new&tags=featured&tags=sale&limit=10",
+            method="GET",
+        )
+
+        # Verify the path and query params were extracted correctly
+        assert response is not None, "Handler should return a response"
+        assert (
+            response["category"] == "electronics"
+        ), "category path param should be extracted"
+        assert (
+            response["item_id"] == "laptop-123"
+        ), "item_id path param should be extracted"
+        assert response["limit"] == "10", "limit query param should be string"
+        # See NUC-7459 - multiple matches should be returned as list
+        # assert response["tags"] == ["new", "featured", "sale"], "tags query param should be list"
+        # assert response["tags_count"] == 3, "tags_count should match number of tags"
+
+        self._logger.info("Path and query params API handler test passed")

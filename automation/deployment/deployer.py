@@ -68,6 +68,7 @@ class ExecutionParams:
         sqlite: typing.Optional[str] = None,
         upgrade: bool = False,
         custom_values: typing.Optional[list[str]] = None,
+        helm_timeout: typing.Optional[str] = None,
     ):
         self.registry_url = registry_url
         self.registry_secret_name = registry_secret_name
@@ -88,6 +89,7 @@ class ExecutionParams:
         self.sqlite = sqlite
         self.upgrade = upgrade
         self.custom_values = custom_values
+        self.helm_timeout = helm_timeout
 
 
 class CommunityEditionDeployer:
@@ -166,6 +168,7 @@ class CommunityEditionDeployer:
         sqlite: typing.Optional[str] = None,
         upgrade: bool = False,
         custom_values: typing.Optional[list[str]] = None,
+        helm_timeout: typing.Optional[str] = None,
     ) -> None:
         """
         Deploy MLRun CE stack.
@@ -191,6 +194,7 @@ class CommunityEditionDeployer:
         :param sqlite:      Path to sqlite file to use as the mlrun database. If not supplied, will use MySQL deployment
         :param upgrade:         Upgrade an existing MLRun CE deployment
         :param custom_values:   List of custom values to pass to the helm chart
+        :param helm_timeout:    Helm timeout (e.g. "15m0s"). Overrides the default 5-minute helm timeout.
         """
         self._prepare_prerequisites(
             registry_url,
@@ -221,6 +225,7 @@ class CommunityEditionDeployer:
             sqlite=sqlite,
             upgrade=upgrade,
             custom_values=custom_values,
+            helm_timeout=helm_timeout,
         )
 
         helm_arguments = self._generate_helm_install_arguments(ep)
@@ -451,6 +456,9 @@ class CommunityEditionDeployer:
         if ep.devel:
             self._log("warning", "Installing development chart version")
             helm_arguments.append("--devel")
+
+        if ep.helm_timeout:
+            helm_arguments.extend(["--timeout", ep.helm_timeout])
 
         return helm_arguments
 

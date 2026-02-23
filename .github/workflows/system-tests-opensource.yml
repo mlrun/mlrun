@@ -397,7 +397,15 @@ jobs:
           
           # Cleanup any existing helm release before retry
           helm uninstall mlrun-ce -n ${NAMESPACE} || true
-          
+
+          # Delete PVCs so that stateful services (e.g. Kafka) start with a clean
+          # data directory. Helm uninstall does not delete PVCs by default, which
+          # causes Kafka to crash with "Invalid cluster.id" when retrying because
+          # the new Strimzi-generated cluster ID does not match the one persisted
+          # in the PVC from the previous install attempt.
+          kubectl delete pvc --all -n ${NAMESPACE} --wait=false 2>/dev/null || true
+          kubectl wait --for=delete pvc --all -n ${NAMESPACE} --timeout=120s 2>/dev/null || true
+
           # Wait a bit for cleanup to complete
           sleep 30
           
@@ -421,16 +429,23 @@ jobs:
             # Wait for all pods to be ready, on K3S the helm wait does not work because services will never get an IP
             echo "Waiting for all pods in namespace ${NAMESPACE} to be ready..."
 
-            # Wait up to 15 minutes (900 seconds) for all pods to be ready
-            timeout=900
+            # Wait up to 30 minutes (1800 seconds) for all pods to be ready.
+            # Some images (e.g. ghcr.io/kubeflow/kfp-metadata-writer) are pulled
+            # fresh on every run (the cleanup-k3s action wipes the containerd
+            # image cache), so large images can take 20+ minutes on a cold runner.
+            timeout=1800
             interval=60
             elapsed=0
 
             while true; do
               not_ready=$(kubectl get pods -n ${NAMESPACE} --no-headers | grep -v 'Running\|Completed' | wc -l)
-              if [ "$not_ready" -eq 0 ]; then
+              crash_loop=$(kubectl get pods -n ${NAMESPACE} --no-headers | grep -c 'CrashLoopBackOff' || true)
+              if [ "$not_ready" -eq 0 ] && [ "$crash_loop" -eq 0 ]; then
                 echo "All pods in namespace ${NAMESPACE} are ready."
                 break
+              fi
+              if [ "$crash_loop" -gt 0 ]; then
+                echo "WARNING: $crash_loop pod(s) in CrashLoopBackOff"
               fi
               if [ "$elapsed" -ge "$timeout" ]; then
                 echo "Timeout reached waiting for pods to be ready."
@@ -445,23 +460,32 @@ jobs:
 
             # Wait for Kafka brokers to be ready (Strimzi creates broker pods
             # asynchronously after the operator pod is Running).
-            echo "Waiting for Kafka broker pods to be created and ready..."
+            echo "Waiting for Kafka CR to become Ready..."
             kafka_timeout=300
             kafka_elapsed=0
             kafka_interval=15
             while true; do
-              # Check if at least one kafka broker pod exists and is Running
-              kafka_ready=$(kubectl get pods -n ${NAMESPACE} -l strimzi.io/name=kafka-stream-kafka --no-headers 2>/dev/null | grep -c 'Running' || true)
-              if [ "$kafka_ready" -ge 1 ]; then
-                echo "Kafka broker pods are ready ($kafka_ready running)."
+              # Check the Kafka CR status (set by Strimzi operator) - more reliable
+              # than checking pod state which can briefly show Running during CrashLoop
+              kafka_cr_ready=$(kubectl get kafka kafka-stream -n ${NAMESPACE} -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}' 2>/dev/null || echo "Unknown")
+              if [ "$kafka_cr_ready" = "True" ]; then
+                echo "Kafka CR is Ready."
                 break
               fi
-              if [ "$kafka_elapsed" -ge "$kafka_timeout" ]; then
-                echo "Timeout waiting for Kafka broker pods."
+              # Also fail fast if any Kafka pod is in CrashLoopBackOff
+              kafka_crash=$(kubectl get pods -n ${NAMESPACE} -l strimzi.io/name=kafka-stream-kafka --no-headers 2>/dev/null | grep -c 'CrashLoopBackOff' || true)
+              if [ "$kafka_crash" -gt 0 ]; then
+                echo "ERROR: Kafka pod(s) are in CrashLoopBackOff. Cannot proceed."
                 kubectl get pods -n ${NAMESPACE} -l strimzi.io/cluster=kafka-stream 2>/dev/null || true
                 exit 1
               fi
-              echo "Waiting for Kafka broker... (${kafka_elapsed}/${kafka_timeout}s)"
+              if [ "$kafka_elapsed" -ge "$kafka_timeout" ]; then
+                echo "Timeout waiting for Kafka to become Ready."
+                kubectl get pods -n ${NAMESPACE} -l strimzi.io/cluster=kafka-stream 2>/dev/null || true
+                kubectl get kafka kafka-stream -n ${NAMESPACE} -o yaml 2>/dev/null | tail -30 || true
+                exit 1
+              fi
+              echo "Waiting for Kafka... (${kafka_elapsed}/${kafka_timeout}s, status: ${kafka_cr_ready})"
               sleep $kafka_interval
               kafka_elapsed=$((kafka_elapsed + kafka_interval))
             done

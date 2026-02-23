@@ -358,7 +358,7 @@ def test_delete_secrets(
         "my-secret",
         k8s_helper.namespace,
         _request_timeout=framework.utils.singletons.k8s.K8sHelper._resolve_k8s_timeout(
-            "default"
+            framework.utils.singletons.k8s.K8S_TIMEOUT_DEFAULT
         ),
     )
 
@@ -792,7 +792,7 @@ def test_list_secrets_with_labels(k8s_helper):
         namespace="default",
         label_selector="mlrun/user-id=test-user-id",
         _request_timeout=framework.utils.singletons.k8s.K8sHelper._resolve_k8s_timeout(
-            "list"
+            framework.utils.singletons.k8s.K8S_TIMEOUT_LIST
         ),
     )
 
@@ -815,7 +815,7 @@ def test_list_secrets_no_labels(k8s_helper):
         namespace="default",
         label_selector=None,
         _request_timeout=framework.utils.singletons.k8s.K8sHelper._resolve_k8s_timeout(
-            "list"
+            framework.utils.singletons.k8s.K8S_TIMEOUT_LIST
         ),
     )
 
@@ -985,7 +985,7 @@ def test_delete_user_token_secret_success(k8s_helper):
         name=secret_name,
         namespace="default",
         _request_timeout=framework.utils.singletons.k8s.K8sHelper._resolve_k8s_timeout(
-            "default"
+            framework.utils.singletons.k8s.K8S_TIMEOUT_DEFAULT
         ),
     )
 
@@ -1011,7 +1011,7 @@ def test_delete_user_token_secret_not_found(k8s_helper):
         name=secret_name,
         namespace="default",
         _request_timeout=framework.utils.singletons.k8s.K8sHelper._resolve_k8s_timeout(
-            "default"
+            framework.utils.singletons.k8s.K8S_TIMEOUT_DEFAULT
         ),
     )
 
@@ -1037,7 +1037,7 @@ def test_delete_user_token_secret_api_error(k8s_helper):
         name=secret_name,
         namespace="default",
         _request_timeout=framework.utils.singletons.k8s.K8sHelper._resolve_k8s_timeout(
-            "default"
+            framework.utils.singletons.k8s.K8S_TIMEOUT_DEFAULT
         ),
     )
 
@@ -1063,7 +1063,7 @@ def test_delete_user_token_secret_unexpected_error(k8s_helper):
         name=secret_name,
         namespace="default",
         _request_timeout=framework.utils.singletons.k8s.K8sHelper._resolve_k8s_timeout(
-            "default"
+            framework.utils.singletons.k8s.K8S_TIMEOUT_DEFAULT
         ),
     )
 
@@ -1269,7 +1269,14 @@ def _make_k8s_secret(name, labels=None):
 class TestK8sTimeouts:
     """Tests for k8s API call timeout configuration."""
 
-    @pytest.mark.parametrize("timeout_type", ["default", "list", "logs"])
+    @pytest.mark.parametrize(
+        "timeout_type",
+        [
+            framework.utils.singletons.k8s.K8S_TIMEOUT_DEFAULT,
+            framework.utils.singletons.k8s.K8S_TIMEOUT_LIST,
+            framework.utils.singletons.k8s.K8S_TIMEOUT_LOGS,
+        ],
+    )
     def test_get_k8s_timeout_returns_configured_value(self, timeout_type):
         """Test that each timeout tier returns its configured value."""
         expected = int(getattr(mlrun.mlconf.kubernetes.timeouts, timeout_type))

@@ -137,12 +137,16 @@ def _remove_duplicates(connection):
         connection.execute(
             sa.text(
                 """
-                DELETE FROM background_task_labels
-                WHERE id NOT IN (
-                    SELECT MAX(id)
+                DELETE FROM background_task_labels btl
+                USING (
+                    SELECT project, name, value, MAX(id) AS keep_id
                     FROM background_task_labels
                     GROUP BY project, name, value
-                )
+                ) keep
+                WHERE btl.project = keep.project
+                    AND btl.name = keep.name
+                    AND btl.value = keep.value
+                    AND btl.id != keep.keep_id
                 """
             )
         )

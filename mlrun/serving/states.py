@@ -3827,7 +3827,12 @@ def _add_graphviz_flow(
             graph.node(target.fullname, label=label, shape=target.get_shape())
             last_step = target.after or default_final_step
             if last_step:
-                graph.edge(last_step, target.fullname)
+                # Handle last_step which can be a list or a string
+                if isinstance(last_step, list):
+                    for step in last_step:
+                        graph.edge(step, target.fullname)
+                else:
+                    graph.edge(last_step, target.fullname)
 
 
 def _add_edges(items, step, graph, child, after=True):

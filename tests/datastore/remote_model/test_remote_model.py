@@ -19,6 +19,7 @@ from concurrent.futures import ThreadPoolExecutor
 from typing import Optional
 
 import pytest
+from storey.dtypes import StreamingError
 
 import mlrun
 from mlrun.datastore.model_provider.model_provider import UsageResponseKeys
@@ -1077,3 +1078,44 @@ class TestMockModelProviderStreaming(BaseMockModelProviderTest):
             self._verify_streaming_response(response)
         finally:
             server.wait_for_completion()
+
+    def test_llmodel_streaming_error(self, rundb_mock):
+        """Test streaming error tracking through MRS with MockModelProvider."""
+        project = mlrun.new_project("test-mock-streaming-error", save=False)
+        model_url = "mock://my-mock-model"
+
+        model_artifact, llm_prompt_artifact, function = setup_remote_model_test(
+            project,
+            model_url,
+            execution_mechanism="asyncio",
+            streaming=True,
+        )
+        function.set_tracking("dummy://", enable_tracking=True)
+
+        mocked_get_store_artifact = create_mocked_get_store_artifact(
+            {
+                model_artifact.uri: model_artifact,
+                llm_prompt_artifact.uri: llm_prompt_artifact,
+            }
+        )
+        with unittest.mock.patch(
+            "mlrun.artifacts.llm_prompt.mlrun.datastore.store_manager.get_store_artifact",
+            side_effect=lambda *args, **kwargs: mocked_get_store_artifact(
+                *args, **kwargs
+            ),
+        ):
+            server = function.to_mock_server()
+
+        try:
+            response = server.test(body=self.ERROR_INPUT)
+            with pytest.raises(
+                StreamingError, match="Mock error triggered by ERROR keyword"
+            ):
+                list(response)
+        finally:
+            server.wait_for_completion()
+
+        dummy_stream = server.context.stream.output_stream
+        assert len(dummy_stream.event_list) == 1
+        event = dummy_stream.event_list[0]
+        self._verify_single_error_tracking(event, self.ERROR_INPUT)

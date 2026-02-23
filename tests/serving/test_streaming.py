@@ -18,6 +18,7 @@ import inspect
 import unittest.mock
 
 import pytest
+from storey.dtypes import StreamingError
 
 import mlrun
 import mlrun.errors
@@ -429,9 +430,9 @@ class TestStreamingErrors:
             # Result should be a generator
             assert inspect.isgenerator(result), "Expected generator result"
 
-            # Collect chunks until error
+            # Collect chunks until error - consumer gets StreamingError wrapping the message
             chunks = []
-            with pytest.raises(ValueError, match="Generator error mid-stream"):
+            with pytest.raises(StreamingError, match="Generator error mid-stream"):
                 for chunk in result:
                     chunks.append(chunk)
 
@@ -463,6 +464,35 @@ class TestStreamingErrors:
             # The error should propagate
             with pytest.raises(RuntimeError, match="Failed on chunk 1"):
                 server.test("/", body="test")
+        finally:
+            server.wait_for_completion()
+
+    def test_streaming_error_produces_error_event_through_collector(self):
+        """Test that a streaming generator error produces an error dict event via Collector.
+
+        When a streaming step errors mid-stream, the Collector should emit
+        an event with body={"error": "..."} matching non-streaming error format.
+        """
+        function = mlrun.new_function("test", kind="serving")
+        graph = function.set_topology("flow", engine="async")
+
+        graph.to(
+            name="error_streamer",
+            class_name="ErrorStreamingStep",
+        )
+        graph.add_step(
+            name="collector",
+            class_name="storey.Collector",
+            after="error_streamer",
+        ).respond()
+
+        server = function.to_mock_server()
+        try:
+            resp = server.test("/", body="test")
+            assert isinstance(resp, dict), f"Expected error dict, got {type(resp)}"
+            assert "error" in resp, f"Expected 'error' key in response: {resp}"
+            assert "ValueError" in resp["error"]
+            assert "Generator error mid-stream" in resp["error"]
         finally:
             server.wait_for_completion()
 

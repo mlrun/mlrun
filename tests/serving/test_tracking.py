@@ -2167,6 +2167,14 @@ class SimpleTestModel(Model):
         return {"result": "ok"}
 
 
+class FailingStreamingModel(Model):
+    """A streaming model that raises an error after yielding some chunks."""
+
+    def predict(self, body, **kwargs):
+        yield "chunk_0"
+        raise RuntimeError("stream failure mid-generation")
+
+
 class TestMonitoringPreProcessorStreamingAggregation:
     """Tests for MonitoringPreProcessor streaming chunk aggregation."""
 
@@ -2453,6 +2461,43 @@ class TestMonitoringPreProcessorStreamingAggregation:
             assert stream_mon["resp"]["outputs"] == ["Paris"]
         finally:
             server.wait_for_completion()
+
+    def test_streaming_error_reaches_monitoring_stream(self, rundb_mock):
+        """Verify that an error in a streaming model reaches the monitoring stream.
+
+        When a streaming generator raises mid-stream, the Collector should emit
+        an event with body={"error": "..."} which MonitoringPreProcessor records
+        to the monitoring stream, matching non-streaming error tracking behavior.
+        """
+        function = mlrun.new_function("test-stream-err-track", kind="serving")
+        graph = function.set_topology("flow", engine="async")
+        model_runner_step = ModelRunnerStep(name="my_runner")
+        model_runner_step.add_model(
+            model_class="FailingStreamingModel",
+            execution_mechanism="naive",
+            endpoint_name="my_model",
+        )
+        graph.to(model_runner_step).respond()
+
+        function.set_streaming(enabled=True)
+        function.set_tracking("dummy://")
+        server = function.to_mock_server()
+
+        try:
+            server.test("/", {"n": 1})
+        finally:
+            server.wait_for_completion()
+
+        dummy_stream = server.context.stream.output_stream
+        assert (
+            len(dummy_stream.event_list) == 1
+        ), "expected one tracking event for the streaming error"
+        event = dummy_stream.event_list[0]
+        assert (
+            event.get("error") is not None
+        ), "expected 'error' field in tracking event"
+        assert "RuntimeError" in event["error"]
+        assert "stream failure mid-generation" in event["error"]
 
 
 def test_collector_step_added_to_monitoring_graph(rundb_mock):

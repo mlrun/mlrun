@@ -11,6 +11,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import time
 from http import HTTPMethod
 
 import pytest
@@ -250,3 +251,53 @@ class TestServingAPIHandler(tests.system.base.TestMLRunSystem):
         # assert response["tags_count"] == 3, "tags_count should match number of tags"
 
         self._logger.info("Path and query params API handler test passed")
+
+    def test_api_handler_wildcard_path(self) -> None:
+        """Test API handler with a wildcard '*' path pattern."""
+        self._logger.info("Testing API handler with wildcard star path")
+
+        config = APIHandlerConfig(include_url_info=True)
+        config.add_endpoint_handler(
+            "/api/wildcard/*",
+            HTTPMethod.POST,
+            APIHandlerAction.ALLOW,
+            "Wildcard catch-all endpoint",
+        )
+
+        function = self._create_serving_function(
+            name="wildcard-handler",
+            api_config=config,
+            func=str(self.assets_path / "wildcard_path_handler.py"),
+        )
+
+        graph = function.set_topology("flow", engine="sync", exist_ok=True)
+        graph.to(name="handler", handler="handle_wildcard").respond()
+
+        self._logger.debug("Deploying serving function with wildcard path")
+        function.deploy()
+        time.sleep(5)  # Wait for deployment to complete
+
+        # Verify a nested path under the wildcard is routed correctly
+        self._logger.debug("Invoking /api/wildcard/v1/data")
+        response = function.invoke(
+            path="/api/wildcard/v1/data",
+            method="POST",
+            body={},
+        )
+        assert response is not None, "Handler should return a response"
+        assert (
+            response["matched_path"] == "/api/wildcard/v1/data"
+        ), "mlrun_request_path should reflect the exact request path"
+
+        # Verify a different nested path also routes correctly
+        self._logger.debug("Invoking /api/wildcard/users/42")
+        response2 = function.invoke(
+            path="/api/wildcard/users/42",
+            method="POST",
+            body={},
+        )
+        assert (
+            response2["matched_path"] == "/api/wildcard/users/42"
+        ), "mlrun_request_path should reflect the request path for a different sub-path"
+
+        self._logger.info("Wildcard path API handler test passed")

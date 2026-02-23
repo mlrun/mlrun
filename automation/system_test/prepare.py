@@ -461,7 +461,7 @@ class SystemTestPreparer:
         )
 
     def _enrich_oss_env(self):
-        """Add model monitoring profiles and S3 credentials for OSS/CE deployments."""
+        """Add model monitoring profiles for OSS/CE deployments."""
         self._env_config["mlrun_model_monitoring_tsdb_profile"] = json.dumps(
             {
                 "type": "postgresql",

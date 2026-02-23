@@ -138,9 +138,9 @@ class ProjectSummary(pydantic.v1.BaseModel):
     distinct_schedules_count: int = 0
     distinct_scheduled_jobs_pending_count: int = 0
     distinct_scheduled_pipelines_pending_count: int = 0
-    pipelines_completed_recent_count: typing.Optional[int] = None
-    pipelines_failed_recent_count: typing.Optional[int] = None
-    pipelines_running_count: typing.Optional[int] = None
+    pipelines_completed_recent_count: int = 0
+    pipelines_failed_recent_count: int = 0
+    pipelines_running_count: int = 0
     updated: typing.Optional[datetime.datetime] = None
     endpoint_alerts_count: int = 0
     job_alerts_count: int = 0

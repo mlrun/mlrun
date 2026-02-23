@@ -2462,6 +2462,7 @@ class TestMonitoringPreProcessorStreamingAggregation:
         finally:
             server.wait_for_completion()
 
+    @pytest.mark.skip(reason="TODO: Requires mlrun/storey#616")
     def test_streaming_error_reaches_monitoring_stream(self, rundb_mock):
         """Verify that an error in a streaming model reaches the monitoring stream.
 

@@ -282,7 +282,7 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
                 resp = self.v1api.create_namespaced_pod(
                     pod.metadata.namespace,
                     pod,
-                    _request_timeout=self._resolve_k8s_timeout(K8S_TIMEOUT_DEFAULT),
+                    _request_timeout=self._resolve_k8s_timeout(),
                 )
             except k8s_client_rest.ApiException as exc:
                 if retry_count > max_retry:
@@ -329,7 +329,7 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
                 self.resolve_namespace(namespace),
                 grace_period_seconds=grace_period_seconds,
                 propagation_policy="Background",
-                _request_timeout=self._resolve_k8s_timeout(K8S_TIMEOUT_DEFAULT),
+                _request_timeout=self._resolve_k8s_timeout(),
             )
             return api_response
         except k8s_client_rest.ApiException as exc:
@@ -367,7 +367,7 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
             name,
             self.resolve_namespace(namespace),
             grace_period_seconds=grace_period_seconds,
-            _request_timeout=self._resolve_k8s_timeout(K8S_TIMEOUT_DEFAULT),
+            _request_timeout=self._resolve_k8s_timeout(),
         )
 
     def get_pod(
@@ -380,7 +380,7 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
             api_response = self.v1api.read_namespaced_pod(
                 name=name,
                 namespace=self.resolve_namespace(namespace),
-                _request_timeout=self._resolve_k8s_timeout(K8S_TIMEOUT_DEFAULT),
+                _request_timeout=self._resolve_k8s_timeout(),
             )
             return api_response
         except k8s_client_rest.ApiException as exc:
@@ -430,7 +430,7 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
                 crd_plural,
                 name,
                 grace_period_seconds=grace_period_seconds,
-                _request_timeout=self._resolve_k8s_timeout(K8S_TIMEOUT_DEFAULT),
+                _request_timeout=self._resolve_k8s_timeout(),
             )
             logger.info(
                 "Deleted crd object",
@@ -488,7 +488,7 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
             namespace=namespace,
             plural=crd_plural,
             body=body,
-            _request_timeout=self._resolve_k8s_timeout(K8S_TIMEOUT_DEFAULT),
+            _request_timeout=self._resolve_k8s_timeout(),
         )
 
     @raise_for_status_code
@@ -507,7 +507,7 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
             namespace,
             crd_plural,
             name,
-            _request_timeout=self._resolve_k8s_timeout(K8S_TIMEOUT_DEFAULT),
+            _request_timeout=self._resolve_k8s_timeout(),
         )
 
     def logs(self, name, namespace=None):
@@ -569,7 +569,7 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
             service_account = self.v1api.read_namespaced_service_account(
                 service_account_name,
                 namespace,
-                _request_timeout=self._resolve_k8s_timeout(K8S_TIMEOUT_DEFAULT),
+                _request_timeout=self._resolve_k8s_timeout(),
             )
         except k8s_client_rest.ApiException as exc:
             # It's valid for the service account to not exist. Simply return None
@@ -619,7 +619,7 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
             secret_data = self.v1api.read_namespaced_secret(
                 secret_name,
                 namespace,
-                _request_timeout=self._resolve_k8s_timeout(K8S_TIMEOUT_DEFAULT),
+                _request_timeout=self._resolve_k8s_timeout(),
             ).data
         except k8s_client_rest.ApiException as exc:
             logger.error(
@@ -782,7 +782,7 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
             k8s_secret = self.v1api.read_namespaced_secret(
                 name=secret_name,
                 namespace=namespace,
-                _request_timeout=self._resolve_k8s_timeout(K8S_TIMEOUT_DEFAULT),
+                _request_timeout=self._resolve_k8s_timeout(),
             )
 
             if labels:
@@ -881,7 +881,7 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
             self.v1api.create_namespaced_secret(
                 namespace=namespace,
                 body=k8s_secret,
-                _request_timeout=self._resolve_k8s_timeout(K8S_TIMEOUT_DEFAULT),
+                _request_timeout=self._resolve_k8s_timeout(),
             )
         except k8s_client_rest.ApiException as exc:
             exc = k8s_dynamic_exceptions.api_exception(exc)
@@ -931,7 +931,7 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
                 secret_name,
                 namespace,
                 k8s_secret,
-                _request_timeout=self._resolve_k8s_timeout(K8S_TIMEOUT_DEFAULT),
+                _request_timeout=self._resolve_k8s_timeout(),
             )
         except k8s_client_rest.ApiException as exc:
             raise k8s_dynamic_exceptions.api_exception(exc)
@@ -970,7 +970,7 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
             k8s_secret = self.v1api.read_namespaced_secret(
                 secret_name,
                 namespace,
-                _request_timeout=self._resolve_k8s_timeout(K8S_TIMEOUT_DEFAULT),
+                _request_timeout=self._resolve_k8s_timeout(),
             )
         except k8s_client_rest.ApiException as exc:
             if exc.status == 404:
@@ -995,7 +995,7 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
             self.v1api.delete_namespaced_secret(
                 secret_name,
                 namespace,
-                _request_timeout=self._resolve_k8s_timeout(K8S_TIMEOUT_DEFAULT),
+                _request_timeout=self._resolve_k8s_timeout(),
             )
             return mlrun.common.schemas.SecretEventActions.deleted
 
@@ -1024,7 +1024,7 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
                 secret_name,
                 namespace,
                 k8s_secret,
-                _request_timeout=self._resolve_k8s_timeout(K8S_TIMEOUT_DEFAULT),
+                _request_timeout=self._resolve_k8s_timeout(),
             )
             return mlrun.common.schemas.SecretEventActions.updated
 
@@ -1032,7 +1032,7 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
         self.v1api.delete_namespaced_secret(
             secret_name,
             namespace,
-            _request_timeout=self._resolve_k8s_timeout(K8S_TIMEOUT_DEFAULT),
+            _request_timeout=self._resolve_k8s_timeout(),
         )
         return mlrun.common.schemas.SecretEventActions.deleted
 
@@ -1077,7 +1077,7 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
                     configmap_name,
                     namespace=namespace,
                     body=body,
-                    _request_timeout=self._resolve_k8s_timeout(K8S_TIMEOUT_DEFAULT),
+                    _request_timeout=self._resolve_k8s_timeout(),
                 )
             except k8s_client_rest.ApiException as exc:
                 logger.error(
@@ -1091,7 +1091,7 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
                 self.v1api.create_namespaced_config_map(
                     namespace=namespace,
                     body=body,
-                    _request_timeout=self._resolve_k8s_timeout(K8S_TIMEOUT_DEFAULT),
+                    _request_timeout=self._resolve_k8s_timeout(),
                 )
             except k8s_client_rest.ApiException as exc:
                 logger.error(
@@ -1137,7 +1137,7 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
                 name=name,
                 namespace=namespace,
                 grace_period_seconds=grace_period_seconds,
-                _request_timeout=self._resolve_k8s_timeout(K8S_TIMEOUT_DEFAULT),
+                _request_timeout=self._resolve_k8s_timeout(),
             )
         except k8s_client_rest.ApiException as exc:
             logger.error(
@@ -1157,7 +1157,7 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
         return self.v1api.create_namespaced_config_map(
             self.resolve_namespace(namespace),
             body,
-            _request_timeout=self._resolve_k8s_timeout(K8S_TIMEOUT_DEFAULT),
+            _request_timeout=self._resolve_k8s_timeout(),
         )
 
     @raise_for_status_code
@@ -1223,7 +1223,7 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
             k8s_secret = self.v1api.read_namespaced_secret(
                 secret_name,
                 namespace,
-                _request_timeout=self._resolve_k8s_timeout(K8S_TIMEOUT_DEFAULT),
+                _request_timeout=self._resolve_k8s_timeout(),
             )
         except k8s_client_rest.ApiException:
             return None
@@ -1316,7 +1316,7 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
             api_response = self.v1api.read_namespaced_pod_status(
                 name=name,
                 namespace=self.resolve_namespace(namespace),
-                _request_timeout=self._resolve_k8s_timeout(K8S_TIMEOUT_DEFAULT),
+                _request_timeout=self._resolve_k8s_timeout(),
             )
             return api_response
         except k8s_client_rest.ApiException as exc:
@@ -1813,7 +1813,7 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
             self.v1api.delete_namespaced_secret(
                 name=secret_name,
                 namespace=namespace,
-                _request_timeout=self._resolve_k8s_timeout(K8S_TIMEOUT_DEFAULT),
+                _request_timeout=self._resolve_k8s_timeout(),
             )
             logger.debug(
                 "Successfully deleted user token secret",

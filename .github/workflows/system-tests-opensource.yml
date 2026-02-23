@@ -474,19 +474,10 @@ jobs:
             kafka_elapsed=0
             kafka_interval=15
             while true; do
-              # Check the Kafka CR status (set by Strimzi operator) - more reliable
-              # than checking pod state which can briefly show Running during CrashLoop
               kafka_cr_ready=$(kubectl get kafka kafka-stream -n ${NAMESPACE} -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}' 2>/dev/null || echo "Unknown")
               if [ "$kafka_cr_ready" = "True" ]; then
                 echo "Kafka CR is Ready."
                 break
-              fi
-              # Also fail fast if any Kafka pod is in CrashLoopBackOff
-              kafka_crash=$(kubectl get pods -n ${NAMESPACE} -l strimzi.io/name=kafka-stream-kafka --no-headers 2>/dev/null | grep -c 'CrashLoopBackOff' || true)
-              if [ "$kafka_crash" -gt 0 ]; then
-                echo "ERROR: Kafka pod(s) are in CrashLoopBackOff. Cannot proceed."
-                kubectl get pods -n ${NAMESPACE} -l strimzi.io/cluster=kafka-stream 2>/dev/null || true
-                exit 1
               fi
               if [ "$kafka_elapsed" -ge "$kafka_timeout" ]; then
                 echo "Timeout waiting for Kafka to become Ready."

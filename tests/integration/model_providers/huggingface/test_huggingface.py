@@ -11,6 +11,11 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+#
+#
+# Note: Downloading HuggingFace models requires stable network connectivity and may fail or get stuck
+# on unreliable connections. Ensure adequate network bandwidth when running tests that download models.
+
 import inspect
 import os
 import time

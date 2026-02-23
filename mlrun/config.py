@@ -1332,8 +1332,8 @@ class Config:
         return copy.deepcopy(self._cfg)
 
     @staticmethod
-    def reload():
-        _populate()
+    def reload(skip_env_file=False):
+        _populate(skip_env_file=skip_env_file)
 
     @property
     def version(self):
@@ -1503,7 +1503,7 @@ class Config:
 config = Config.from_dict(default_config)
 
 
-def _populate(skip_errors=False):
+def _populate(skip_errors=False, skip_env_file=False):
     """Populate configuration from config file (if exists in environment) and
     from environment variables.
 
@@ -1512,13 +1512,15 @@ def _populate(skip_errors=False):
     global _loaded
 
     with _load_lock:
-        _do_populate(skip_errors=skip_errors)
+        _do_populate(skip_errors=skip_errors, skip_env_file=skip_env_file)
 
 
-def _do_populate(env=None, skip_errors=False):
+def _do_populate(env=None, skip_errors=False, skip_env_file=False):
     global config
 
-    if not os.environ.get("MLRUN_IGNORE_ENV_FILE"):
+    # we get into this block when we want to load the defaults from the env file.
+    # other use cases, like set_env_from_file / running api - skip this block.
+    if not skip_env_file and not os.environ.get("MLRUN_IGNORE_ENV_FILE"):
         if "MLRUN_ENV_FILE" in os.environ:
             env_file = os.path.expanduser(os.environ["MLRUN_ENV_FILE"])
             dotenv.load_dotenv(env_file, override=True)

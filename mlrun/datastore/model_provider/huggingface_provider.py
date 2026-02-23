@@ -111,6 +111,9 @@ class HuggingFaceProvider(ModelProvider):
         Uses snapshot_download with local_dir_use_symlinks=False to ensure proper
         file copying for safe concurrent access across multiple processes.
 
+        Note: Downloading HuggingFace models requires stable network connectivity and may fail
+        or get stuck on unreliable connections. Ensure adequate network bandwidth.
+
         :raises:
             ImportError: If huggingface_hub package is not installed.
         """

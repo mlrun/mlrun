@@ -83,7 +83,7 @@ class AgentsAtScaleDeployer:
         :return: MLRun serving function
         """
         default_reqs = [
-            "git+https://github.com/mlrun/mlrun@agentic-ai-declerative-team-drawing-2",
+            "git+https://github.com/mlrun/mlrun@agentic-ai-declerative-team-drawing-simplify",
             "langchain",
             "langchain-openai",
             "langgraph",
@@ -174,18 +174,12 @@ class AgentsAtScaleDeployer:
         # Create DeclarativeTeamRouter instance
         router = DeclarativeTeamRouter(name="team-router", team_config=team_config)
 
-        # Pre-compute graph structure for visualization
-        structure = router.get_internal_graph_structure()
-
         if with_session:
             session_loader = SessionLoader(name="session-loader")
             history_saver = HistorySaver(name="history-saver")
             router_step = root.to(session_loader).to(router)
         else:
             router_step = root.to(router)
-
-        # Inject pre-computed structure as step attribute (not class_arg)
-        router_step._graph_structure = structure
 
         # Add routes for each member agent (for visualization + initialization)
         for ref in member_refs:

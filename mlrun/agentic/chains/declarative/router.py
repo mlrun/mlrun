@@ -310,3 +310,90 @@ class DeclarativeTeamRouter(BaseModelRouter):
                  and 'layout' (str hint: sequential, hub, selector_hub, custom, flat)
         """
         return self.get_internal_graph_structure_static(self.team_config)
+
+    def render_graphviz_cluster_content(self, subgraph):
+        """Render team's internal structure inside the GraphViz cluster.
+
+        Creates an invisible node with ``self.fullname`` as the edge-connection
+        reference point used by ``_add_cluster_edges``, then renders the
+        internal nodes and edges from ``get_internal_graph_structure()``.
+
+        :param subgraph: GraphViz subgraph (cluster) to render into
+        """
+        structure = self.get_internal_graph_structure()
+        if not structure:
+            return
+
+        nodes = structure.get("nodes", [])
+        edges = structure.get("edges", [])
+
+        # Invisible node for external edge connections (referenced by _add_cluster_edges)
+        subgraph.node(
+            self.fullname, label="", shape="point", width="0", style="invis"
+        )
+
+        # Render internal nodes
+        for node in nodes:
+            node_name = node.get("name")
+            node_type = node.get("type", "agent")
+
+            # Use child route's fullname if it exists
+            child_step = None
+            if hasattr(self, "routes") and node_name in self.routes:
+                child_step = self.routes[node_name]
+
+            node_id = (
+                child_step.fullname
+                if child_step
+                else f"{self.fullname}_{node_name}"
+            )
+
+            # Different shapes for different node types
+            if node_type == "selector":
+                shape = "diamond"
+            elif node_type == "router":
+                shape = "doubleoctagon"
+            elif node_type == "agent":
+                shape = "box"
+            else:
+                shape = "ellipse"
+
+            subgraph.node(node_id, label=node_name, shape=shape)
+
+        # Render edges between internal nodes
+        for edge in edges:
+            if isinstance(edge, tuple) and len(edge) == 2:
+                from_node, to_node = edge
+                # Resolve node IDs
+                from_child = None
+                to_child = None
+                if hasattr(self, "routes"):
+                    if from_node in self.routes:
+                        from_child = self.routes[from_node]
+                    if to_node in self.routes:
+                        to_child = self.routes[to_node]
+                from_id = (
+                    from_child.fullname
+                    if from_child
+                    else f"{self.fullname}_{from_node}"
+                )
+                to_id = (
+                    to_child.fullname
+                    if to_child
+                    else f"{self.fullname}_{to_node}"
+                )
+                subgraph.edge(from_id, to_id)
+
+        # Position connection node near entry points using invisible edges
+        entry_points = structure.get("entry_points", [])
+        if entry_points:
+            first_entry = entry_points[0]
+            entry_child = None
+            if hasattr(self, "routes") and first_entry in self.routes:
+                entry_child = self.routes[first_entry]
+            entry_node_id = (
+                entry_child.fullname
+                if entry_child
+                else f"{self.fullname}_{first_entry}"
+            )
+            subgraph.edge(self.fullname, entry_node_id, style="invis")

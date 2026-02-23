@@ -112,8 +112,9 @@ class AlertConfig(ModelObj):
                                complex trigger which is based on a prometheus alert
         :param criteria:       When the alert will be triggered based on the specified number of events within the
                                defined time period.
-        :param reset_policy:   When to clear the alert. Either "manual" for manual reset of the alert, or
-                               "auto" if the criteria contains a time period
+        :param reset_policy:   When to clear the alert. "manual" means the alert stays active after triggering
+                               and must be reset explicitly. "auto" means the alert is reset immediately
+                               after triggering and sending notifications.
         :param notifications:  List of notifications to invoke once the alert is triggered
         :param entities:       Entities that the event relates to. The entity object will contain fields that
                                uniquely identify a given entity in the system

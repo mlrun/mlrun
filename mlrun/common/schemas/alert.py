@@ -132,7 +132,9 @@ class AlertNotification(pydantic.v1.BaseModel):
         pydantic.v1.Field(
             description="Period during which notifications "
             "will not be sent after initial send. The format of this would be in time."
-            " e.g. 1d, 3h, 5m, 15s"
+            " e.g. 1d, 3h, 5m, 15s. Note: this field is currently persisted but not "
+            "enforced - notifications are sent on every qualifying event regardless "
+            "of this value."
         ),
     ] = None
 

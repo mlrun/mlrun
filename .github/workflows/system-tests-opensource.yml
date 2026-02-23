@@ -409,6 +409,12 @@ jobs:
           # Wait a bit for cleanup to complete
           sleep 30
           
+          # The helm chart's post-install hook (mlrun-ce-s3-bucket-init) has a
+          # 5-minute timeout. SeaweedFS (the S3 backend) may not be ready within
+          # that window on a cold runner, causing helm to exit non-zero. We use
+          # || true because:
+          #   1. The bucket-init K8s Job continues running until SeaweedFS is available
+          #   2. Our custom pod/Kafka readiness loops below are the real gates
           python automation/deployment/ce.py deploy \
               --verbose \
               --registry-url="registry.localhost" \
@@ -424,7 +430,8 @@ jobs:
               --set 'mlrun.api.extraEnvKeyValue.MLRUN_HTTPDB__SCHEDULING__MIN_ALLOWED_INTERVAL="0 seconds"' \
               --set mlrun.api.extraEnvKeyValue.MLRUN_MODEL_ENDPOINT_MONITORING__PARQUET_BATCHING_MAX_EVENTS="100" \
               --set jupyterNotebook.enabled=false \
-              --set kube-prometheus-stack.enabled=false
+              --set kube-prometheus-stack.enabled=false \
+              || true
           
             # Wait for all pods to be ready, on K3S the helm wait does not work because services will never get an IP
             echo "Waiting for all pods in namespace ${NAMESPACE} to be ready..."
@@ -485,7 +492,7 @@ jobs:
                 kubectl get kafka kafka-stream -n ${NAMESPACE} -o yaml 2>/dev/null | tail -30 || true
                 exit 1
               fi
-              echo "Waiting for Kafka... (${kafka_elapsed}/${kafka_timeout}s, status: ${kafka_cr_ready})"
+              echo "Waiting for Kafka... (${kafka_elapsed}/${kafka_timeout}s, status: ${kafka_cr_ready:-Unknown})"
               sleep $kafka_interval
               kafka_elapsed=$((kafka_elapsed + kafka_interval))
             done

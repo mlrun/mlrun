@@ -148,12 +148,7 @@ def test_feature_set_plot_with_targets():
     )
 
     # Add targets
-    fset.set_targets(
-        targets=[ParquetTarget()],
-        with_defaults=False,
-    )
-
-    # Plot with targets - THIS IS WHERE THE BUG OCCURS
+    fset.set_targets(with_defaults=True)
     fset.plot(rankdir="LR", with_targets=True)
 
 

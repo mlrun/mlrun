@@ -14,14 +14,10 @@
 
 from unittest import mock
 
-import pandas as pd
-
 from mlrun.data_types import InferOptions
-from mlrun.datastore.targets import RedisNoSqlTarget, ParquetTarget
 from mlrun.feature_store import Entity
 from mlrun.feature_store.common import RunConfig
 from mlrun.feature_store.feature_set import FeatureSet
-from mlrun.feature_store.steps import OneHotEncoder, MapValues, DateExtractor
 from mlrun.model import DataSource, DataTargetBase
 
 
@@ -133,12 +129,10 @@ def test_deploy_ingestion_service(mock_deploy):
         fset, test_source, test_targets, test_name, test_run_config, test_verbose
     )
 
+
 def test_feature_set_plot_with_targets():
     """Test to reproduce the plot bug with feature set graph and targets"""
-    # Minimal feature set
     fset = FeatureSet("test", entities=[Entity("id")])
-
-    # Add one aggregation
     fset.add_aggregation(
         name="amount",
         column="amount",
@@ -146,9 +140,5 @@ def test_feature_set_plot_with_targets():
         windows=["1h"],
         period="1h",
     )
-
-    # Add targets
-    fset.set_targets(with_defaults=True)
+    fset.set_targets()
     fset.plot(rankdir="LR", with_targets=True)
-
-

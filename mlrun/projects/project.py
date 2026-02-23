@@ -6031,6 +6031,7 @@ def _init_function_from_dict(
         )
 
     elif kind == mlrun.runtimes.RuntimeKinds.application and path.isfile(url):
+        # For application runtime we set the source path directly, deploy will upload it as an artifact
         func = new_function(
             name,
             image=image,

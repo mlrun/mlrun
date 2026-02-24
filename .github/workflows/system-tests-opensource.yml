@@ -434,12 +434,8 @@ jobs:
             while true; do
               not_ready=$(kubectl get pods -n ${NAMESPACE} --no-headers | grep -v 'Running\|Completed' | wc -l)
               if [ "$not_ready" -eq 0 ]; then
-                # All pods appear Running/Completed. However a pod in CrashLoopBackOff
-                # briefly shows Running between crashes, so we can't trust a single
-                # observation. If any pod has restarts > 0, snapshot the total restart
-                # count, wait 30s, then re-check: a genuinely stable pod will still be
-                # Running with an unchanged restart count; a crashing pod will either
-                # be non-Running or will have an increased restart count.
+                # All pods appear Running/Completed, but on top of it, make sure pods state is stable by
+                # verifying that the pods restart count is not increasing across a 30 sec period
                 total_restarts=$(kubectl get pods -n ${NAMESPACE} --no-headers | awk '{sum += int($4)} END {print sum+0}')
                 if [ "$total_restarts" -gt 0 ]; then
                   echo "WARNING: pods have $total_restarts total restart(s), waiting 30s to confirm stability..."

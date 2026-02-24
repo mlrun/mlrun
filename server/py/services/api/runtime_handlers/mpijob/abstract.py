@@ -108,8 +108,8 @@ class AbstractMPIJobRuntimeHandler(KubeRuntimeHandler, abc.ABC):
             namespace
         )
         try:
-            resp = framework.utils.singletons.k8s.get_k8s_helper().crdapi.get_namespaced_custom_object(
-                mpi_group, mpi_version, namespace, mpi_plural, name
+            resp = framework.utils.singletons.k8s.get_k8s_helper().get_crd(
+                mpi_group, mpi_version, mpi_plural, namespace, name
             )
         except client.exceptions.ApiException as exc:
             logger.warning(
@@ -158,11 +158,11 @@ class AbstractMPIJobRuntimeHandler(KubeRuntimeHandler, abc.ABC):
             namespace
         )
         try:
-            resp = framework.utils.singletons.k8s.get_k8s_helper().crdapi.create_namespaced_custom_object(
+            resp = framework.utils.singletons.k8s.get_k8s_helper().create_crd(
                 mpi_group,
                 mpi_version,
+                mpi_plural,
                 namespace=namespace,
-                plural=mpi_plural,
                 body=job,
             )
             name = mlrun.utils.helpers.get_in(resp, "metadata.name", "unknown")

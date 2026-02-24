@@ -60,6 +60,13 @@ default_config = {
             "list_pods_limit": 200,
             "list_crd_objects_limit": 200,
         },
+        "timeouts": {
+            # per-request timeouts (in seconds) for k8s API calls
+            # 0 disables timeout for the given tier
+            "default": 30,  # single-resource ops (get, create, delete, update)
+            "list": 60,  # list operations (may return large result sets)
+            "logs": 120,  # pod log retrieval
+        },
     },
     "dbpath": "",  # db/api url
     # url to nuclio dashboard api (can be with user & token, e.g. https://username:password@dashboard-url.com)

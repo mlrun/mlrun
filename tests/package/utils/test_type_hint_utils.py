@@ -37,7 +37,7 @@ class AnotherClass(SomeClass):
 @pytest.mark.parametrize(
     "type_hint, expected_result",
     [
-        (typing.Optional[int], True),
+        (typing.Optional[int], True),  # noqa: UP045
         (typing.Union[str, int], True),
         (typing.List, True),  # noqa: UP006
         (typing.Tuple[int, str], True),  # noqa: UP006
@@ -110,7 +110,7 @@ def test_is_pure_hint(type_hint: type, expected_result: bool):
         (typing.Dict[str, int], (dict, (str, int))),  # noqa: UP006
         (typing.Tuple[int, str], (tuple, (int, str))),  # noqa: UP006
         # Typing special forms with args:
-        (typing.Optional[int], (typing.Union, (int, type(None)))),
+        (typing.Optional[int], (typing.Union, (int, type(None)))),  # noqa: UP045
         (typing.Union[int, str], (typing.Union, (int, str))),
         # Ellipsis in tuple (should be filtered out):
         (tuple[int, ...], (tuple, (int,))),
@@ -139,7 +139,7 @@ def test_deconstruct_type_hint(type_hint: type, expected_result: tuple):
         ("typing.Tuple[int, str]", typing.Tuple[int, str]),  # noqa: UP006
         ("tuple[int, str]", tuple[int, str]),
         ("dict[str, int]", dict[str, int]),
-        ("typing.Optional[float]", typing.Optional[float]),
+        ("typing.Optional[float]", typing.Optional[float]),  # noqa: UP045
         ("typing.Union[str, int]", typing.Union[str, int]),
         ("str | int", str | int),
         ("tests.package.utils.test_type_hint_utils.SomeClass", SomeClass),
@@ -276,8 +276,8 @@ def test_is_matching(
         ),
         (typing.Union, set()),
         # `typing.Optional` usages:
-        (typing.Optional[int], {type(None), int}),
-        (typing.Optional[typing.Union[str, list]], {type(None), str, list}),
+        (typing.Optional[int], {type(None), int}),  # noqa: UP045
+        (typing.Optional[typing.Union[str, list]], {type(None), str, list}),  # noqa: UP045
         (typing.Optional, set()),
         # `typing.Annotated` usages:
         (typing.Annotated[int, 3, 6], {int}),

@@ -15,7 +15,6 @@
 import unittest.mock
 import uuid
 from http import HTTPStatus
-from typing import Optional
 
 import httpx
 from fastapi.testclient import TestClient
@@ -82,7 +81,7 @@ def create_project(
     return resp
 
 
-def compile_schedule(schedule_name: Optional[str] = None, to_json: bool = True):
+def compile_schedule(schedule_name: str | None = None, to_json: bool = True):
     if not schedule_name:
         schedule_name = f"schedule-name-{str(uuid.uuid4())}"
     schedule = mlrun.common.schemas.ScheduleInput(
@@ -122,28 +121,28 @@ def assert_pagination_info(
     entity_name: str,
     entity_identifier_name: str,
 ):
-    assert (
-        response.status_code == HTTPStatus.OK.value
-    ), f"Unexpected status code: {response.status_code}, response: {response.text}"
+    assert response.status_code == HTTPStatus.OK.value, (
+        f"Unexpected status code: {response.status_code}, response: {response.text}"
+    )
 
     pagination = response.json().get("pagination")
-    assert (
-        pagination.get("page") == expected_page
-    ), f"Expected page {expected_page}, got {pagination.get('page')}"
-    assert (
-        pagination.get("page-size") == expected_page_size
-    ), f"Expected page size {expected_page_size}, got {pagination.get('page-size')}"
+    assert pagination.get("page") == expected_page, (
+        f"Expected page {expected_page}, got {pagination.get('page')}"
+    )
+    assert pagination.get("page-size") == expected_page_size, (
+        f"Expected page size {expected_page_size}, got {pagination.get('page-size')}"
+    )
 
     results = response.json().get(entity_name, [])
-    assert (
-        len(results) == expected_results_count
-    ), f"Expected {expected_results_count} results, got {len(results)}"
+    assert len(results) == expected_results_count, (
+        f"Expected {expected_results_count} results, got {len(results)}"
+    )
 
     if results:
         first_result_identifier = results[0]["metadata"].get(entity_identifier_name)
-        assert (
-            first_result_identifier == expected_first_result_name
-        ), f"Expected first result identifier '{expected_first_result_name}', got '{first_result_identifier}'"
+        assert first_result_identifier == expected_first_result_name, (
+            f"Expected first result identifier '{expected_first_result_name}', got '{first_result_identifier}'"
+        )
 
 
 def _create_project_obj(

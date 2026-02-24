@@ -14,7 +14,7 @@
 
 import os
 import pickle
-from typing import Optional, Union
+from typing import Union
 
 import cloudpickle
 
@@ -45,15 +45,11 @@ class XGBoostModelHandler(MLModelHandler):
     def __init__(
         self,
         model: XGBoostTypes.ModelType = None,
-        model_path: Optional[str] = None,
-        model_name: Optional[str] = None,
-        modules_map: Optional[
-            Union[dict[str, Union[None, str, list[str]]], str]
-        ] = None,
-        custom_objects_map: Optional[
-            Union[dict[str, Union[str, list[str]]], str]
-        ] = None,
-        custom_objects_directory: Optional[str] = None,
+        model_path: str | None = None,
+        model_name: str | None = None,
+        modules_map: Union[dict[str, Union[None, str, list[str]]], str] | None = None,
+        custom_objects_map: Union[dict[str, Union[str, list[str]]], str] | None = None,
+        custom_objects_directory: str | None = None,
         context: mlrun.MLClientCtx = None,
         model_format: str = ModelFormats.PKL,
         **kwargs,
@@ -156,7 +152,7 @@ class XGBoostModelHandler(MLModelHandler):
                 )
 
     @without_mlrun_interface(interface=XGBModelMLRunInterface)
-    def save(self, output_path: Optional[str] = None, **kwargs):
+    def save(self, output_path: str | None = None, **kwargs):
         """
         Save the handled model at the given output path. If a MLRun context is available, the saved model files will be
         logged and returned as artifacts.
@@ -190,10 +186,10 @@ class XGBoostModelHandler(MLModelHandler):
 
     def to_onnx(
         self,
-        model_name: Optional[str] = None,
+        model_name: str | None = None,
         optimize: bool = True,
         input_sample: XGBoostTypes = None,
-        log: Optional[bool] = None,
+        log: bool | None = None,
     ):
         """
         Convert the model in this handler to an ONNX model. The inputs names are optional, they do not change the

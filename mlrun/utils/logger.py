@@ -22,7 +22,7 @@ from enum import Enum
 from functools import cached_property
 from sys import stdout
 from traceback import format_exception
-from typing import IO, Optional, Union
+from typing import IO, Union
 
 import orjson
 import pydantic.v1
@@ -142,9 +142,9 @@ class CustomFormatter(HumanReadableFormatter):
                     and not CustomFormatter.fail_on_missing_default_keys_key
                 ):
                     print(
-                        f'> {formatted_time} [warning] Custom loggers must '
-                        f'include those keys within the logger format, {", ".join(default_keys)} '
-                        f'your format is missing: {", ".join(missing_default_flags)}',
+                        f"> {formatted_time} [warning] Custom loggers must "
+                        f"include those keys within the logger format, {', '.join(default_keys)} "
+                        f"your format is missing: {', '.join(missing_default_flags)}",
                         file=sys.stderr,
                     )
                     CustomFormatter.fail_on_missing_default_keys_key = True
@@ -158,7 +158,7 @@ class CustomFormatter(HumanReadableFormatter):
                     if not CustomFormatter.fail_on_format_configuration:
                         print(
                             f"> {formatted_time} [warning] Failed to create custom logger due "
-                            f'to missing format key in the log record: {", ".join(missing_format_configuraiton_keys)}',
+                            f"to missing format key in the log record: {', '.join(missing_format_configuraiton_keys)}",
                             file=sys.stderr,
                         )
                         CustomFormatter.fail_on_format_configuration = True
@@ -260,7 +260,7 @@ class Logger:
         level,
         name="mlrun",
         propagate=True,
-        logger: Optional[logging.Logger] = None,
+        logger: logging.Logger | None = None,
     ):
         self._logger = logger or logging.getLogger(name)
         self._logger.propagate = propagate
@@ -404,7 +404,7 @@ def create_test_logger(name: str = "mlrun", stream: IO[str] = stdout) -> Logger:
 
 
 def create_logger(
-    level: Optional[str] = None,
+    level: str | None = None,
     formatter_kind: str = FormatterKinds.HUMAN.name,
     name: str = "mlrun",
     stream: IO[str] = stdout,

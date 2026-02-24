@@ -196,9 +196,9 @@ class TestAggregationQueries:
         can_use_pre_agg = handler._pre_aggregate_manager.can_use_pre_aggregates(
             interval=optimal_interval, agg_funcs=["avg"]
         )
-        assert (
-            can_use_pre_agg
-        ), f"Pre-aggregates should be available for interval {optimal_interval}"
+        assert can_use_pre_agg, (
+            f"Pre-aggregates should be available for interval {optimal_interval}"
+        )
 
         # Test the method
         result = handler.get_avg_latency(
@@ -263,9 +263,9 @@ class TestAggregationQueries:
             query=f"SELECT COUNT(*) FROM {cagg_name} WHERE endpoint_id = 'test_endpoint'"
         )
         row_count = check_result.data[0][0] if check_result and check_result.data else 0
-        assert (
-            row_count > 0
-        ), f"Continuous aggregate {cagg_name} has no data for test_endpoint"
+        assert row_count > 0, (
+            f"Continuous aggregate {cagg_name} has no data for test_endpoint"
+        )
 
         # Test the method
         handler = query_test_helper_with_aggregates.create_results_handler()
@@ -291,9 +291,9 @@ class TestAggregationQueries:
         # Verify the aggregated result status (should be MAX of our test data)
         # MAX(detected=2, potential_detection=1) should be 2 (detected)
         status_value = test_data_results["result_status"].iloc[0]
-        assert (
-            status_value == mm_schemas.ResultStatusApp.detected.value
-        ), f"Expected detected (MAX status), got {status_value}"
+        assert status_value == mm_schemas.ResultStatusApp.detected.value, (
+            f"Expected detected (MAX status), got {status_value}"
+        )
 
     def test_get_drift_status_raw_query(self, query_test_helper_with_aggregates):
         """Test get_drift_status without interval (raw query path)."""

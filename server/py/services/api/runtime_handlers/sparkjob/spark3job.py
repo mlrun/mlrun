@@ -13,10 +13,8 @@
 # limitations under the License.
 import abc
 import os
-import typing
 from copy import deepcopy
 from datetime import datetime
-from typing import Optional
 
 from kubernetes import client as k8s_client
 from kubernetes.client.rest import ApiException
@@ -356,7 +354,7 @@ with ctx:
         runtime: mlrun.runtimes.sparkjob.Spark3Runtime,
         job: dict,
         meta: k8s_client.V1ObjectMeta,
-        code: Optional[str] = None,
+        code: str | None = None,
     ):
         namespace = meta.namespace
         k8s = framework.utils.singletons.k8s.get_k8s_helper()
@@ -456,7 +454,7 @@ with ctx:
 
     def _resolve_crd_object_status_info(
         self, crd_object: dict
-    ) -> tuple[bool, Optional[datetime], Optional[str]]:
+    ) -> tuple[bool, datetime | None, str | None]:
         state = crd_object.get("status", {}).get("applicationState", {}).get("state")
         if not state:
             return False, None, None
@@ -568,10 +566,10 @@ with ctx:
         db_session: Session,
         namespace: str,
         deleted_resources: list[dict],
-        label_selector: Optional[str] = None,
+        label_selector: str | None = None,
         force: bool = False,
-        grace_period: Optional[int] = None,
-        resource_deletion_grace_period: typing.Optional[int] = None,
+        grace_period: int | None = None,
+        resource_deletion_grace_period: int | None = None,
     ):
         """
         Handling config maps deletion

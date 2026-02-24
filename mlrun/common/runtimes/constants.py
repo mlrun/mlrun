@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import typing
 
 import mlrun.common.constants as mlrun_constants
 import mlrun_pipelines.common.models
@@ -78,7 +77,7 @@ class ThresholdStates:
         ]
 
     @staticmethod
-    def from_pod_phase(pod_phase: str, pod: dict) -> typing.Optional[str]:
+    def from_pod_phase(pod_phase: str, pod: dict) -> str | None:
         if pod_phase == PodPhases.pending:
             if ThresholdStates.is_pod_in_image_pull_backoff(pod):
                 return ThresholdStates.image_pull_backoff

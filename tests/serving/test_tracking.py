@@ -464,9 +464,9 @@ def test_tracking_datastore_profile(
     )
 
     output_stream = server.context.stream.output_stream
-    assert isinstance(
-        output_stream, serving_output_stream
-    ), f"The output stream is of unexpected type {type(output_stream)}"
+    assert isinstance(output_stream, serving_output_stream), (
+        f"The output stream is of unexpected type {type(output_stream)}"
+    )
     mocked_stream = output_stream._mock_queue
     assert len(mocked_stream) == 2
 
@@ -585,9 +585,9 @@ def _test_monitoring_system_steps_structure(
         if step.name in system_steps:
             assert step.after == system_steps[step.name]
     for step in system_steps.keys():
-        assert (
-            step not in spec_graph.steps.keys()
-        ), f"spec graph should not contain system step {step}"
+        assert step not in spec_graph.steps.keys(), (
+            f"spec graph should not contain system step {step}"
+        )
 
 
 def _test_graph_structure(
@@ -601,9 +601,9 @@ def _test_graph_structure(
         elif model_runners and step.name == f"{model_runners[-1]}_error_raise":
             assert model_runners[-1] in step.after or model_runners[-1] in step.after
     for model_runner in model_runners:
-        assert (
-            f"{model_runner}_error_raise" not in spec_graph.steps.keys()
-        ), "spec graph should not contain error raise steps"
+        assert f"{model_runner}_error_raise" not in spec_graph.steps.keys(), (
+            "spec graph should not contain error raise steps"
+        )
     if tracked:
         _test_monitoring_system_steps_structure(server_graph, spec_graph, model_runners)
 
@@ -1094,9 +1094,9 @@ def test_set_untracked_with_model_runner(rundb_mock):
     server = function.to_mock_server()
     server.test("/", {"n": 1})
     server.wait_for_completion()
-    assert (
-        len(dummy_stream.event_list) == 1
-    ), "expected stream to still have single message"
+    assert len(dummy_stream.event_list) == 1, (
+        "expected stream to still have single message"
+    )
 
 
 def test_tracked_multiple_to_mock_with_model_runner(rundb_mock):
@@ -1237,9 +1237,9 @@ def test_tracked_model_runner_shared(rundb_mock, enable_tracking: bool):
 
     assert "my_model" in res, "expected response to contain model name 'my_model'"
     assert "my_model-2" in res, "expected response to contain model name 'my_model-2'"
-    assert (
-        "shared-model" not in res
-    ), "expected response to not contain model name 'shared_model'"
+    assert "shared-model" not in res, (
+        "expected response to not contain model name 'shared_model'"
+    )
 
     dummy_stream = server.context.stream.output_stream
     if enable_tracking:
@@ -1593,9 +1593,9 @@ def verify_batch_step_tracking_events(
     num_batches = math.ceil(len(events) / batch_size)
     expected_tracking_events = num_batches * num_models
 
-    assert (
-        len(dummy_stream.event_list) == expected_tracking_events
-    ), f"Expected {expected_tracking_events} tracking events, got {len(dummy_stream.event_list)}"
+    assert len(dummy_stream.event_list) == expected_tracking_events, (
+        f"Expected {expected_tracking_events} tracking events, got {len(dummy_stream.event_list)}"
+    )
 
     # Group events by model
     model_events = {name: [] for name in model_names}
@@ -1672,9 +1672,9 @@ def _verify_error_in_response_body(
         if multiple_models:
             # Multiple models: {"model1": {"error": "..."}, "model2": {"error": "..."}}
             assert isinstance(response, dict)
-            assert all(
-                "error" in response.get(model, {}) for model in model_names
-            ), f"Expected error field for each model in response, got {response}"
+            assert all("error" in response.get(model, {}) for model in model_names), (
+                f"Expected error field for each model in response, got {response}"
+            )
             # Verify error message content
             for model in model_names:
                 assert (
@@ -2046,9 +2046,9 @@ def test_batch_step_with_mrs(rundb_mock, multiple_models):
         server.wait_for_completion()
 
     # Verify we got all responses
-    assert (
-        len(responses) == number_of_events
-    ), f"Expected {number_of_events} responses, got {len(responses)}"
+    assert len(responses) == number_of_events, (
+        f"Expected {number_of_events} responses, got {len(responses)}"
+    )
     assert all(r is not None for r in responses)
 
     # Verify each response has correct input/output
@@ -2103,9 +2103,9 @@ def test_batch_step_with_mrs(rundb_mock, multiple_models):
     num_batches = math.ceil(number_of_events / batch_size)
     expected_tracking_events = num_batches * num_models
 
-    assert (
-        len(dummy_stream.event_list) == expected_tracking_events
-    ), f"Expected {expected_tracking_events} tracking events, got {len(dummy_stream.event_list)}"
+    assert len(dummy_stream.event_list) == expected_tracking_events, (
+        f"Expected {expected_tracking_events} tracking events, got {len(dummy_stream.event_list)}"
+    )
 
     # Group events by model
     model_events = {"my_model": [], "my_model_2": []}
@@ -2397,21 +2397,21 @@ def test_collector_step_added_to_monitoring_graph(rundb_mock):
 
     try:
         # Verify the Collector step was added
-        assert (
-            "my_model_runner_collector" in server.graph.steps
-        ), "Collector step should be added after the model runner step"
+        assert "my_model_runner_collector" in server.graph.steps, (
+            "Collector step should be added after the model runner step"
+        )
 
         # Verify the Collector step is after the model runner
         collector_step = server.graph.steps["my_model_runner_collector"]
         collector_after = collector_step.after
         if isinstance(collector_after, list):
-            assert (
-                "my_model_runner" in collector_after
-            ), "Collector step should come after the model runner step"
+            assert "my_model_runner" in collector_after, (
+                "Collector step should come after the model runner step"
+            )
         else:
-            assert (
-                collector_after == "my_model_runner"
-            ), "Collector step should come after the model runner step"
+            assert collector_after == "my_model_runner", (
+                "Collector step should come after the model runner step"
+            )
 
         # Verify that a monitoring step receives from the collector (directly or indirectly)
         # The first monitoring step may be background_task_status_step or filter_none
@@ -2424,13 +2424,13 @@ def test_collector_step_added_to_monitoring_graph(rundb_mock):
             first_mm_step = server.graph.steps[first_mm_step_name]
             after = first_mm_step.after
             if isinstance(after, list):
-                assert (
-                    "my_model_runner_collector" in after
-                ), f"First MM step {first_mm_step_name} should receive from collector, got {after}"
+                assert "my_model_runner_collector" in after, (
+                    f"First MM step {first_mm_step_name} should receive from collector, got {after}"
+                )
             else:
-                assert (
-                    after == "my_model_runner_collector"
-                ), f"First MM step {first_mm_step_name} should receive from collector, got {after}"
+                assert after == "my_model_runner_collector", (
+                    f"First MM step {first_mm_step_name} should receive from collector, got {after}"
+                )
     finally:
         # Explicitly wait for and close the server to avoid hanging
         server.wait_for_completion()
@@ -2538,9 +2538,9 @@ def test_batch_step_with_mrs_list(
                         else:
                             raise
                 # Both events in the batch should fail together
-                assert error_count == len(
-                    events
-                ), f"Expected {len(events)} errors, got {error_count}"
+                assert error_count == len(events), (
+                    f"Expected {len(events)} errors, got {error_count}"
+                )
             else:
                 responses = [future.result() for future in futures]
     finally:

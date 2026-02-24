@@ -187,11 +187,11 @@ class GraphServer(ModelObj):
         self,
         context,
         namespace,
-        resource_cache: Optional[ResourceCache] = None,
+        resource_cache: ResourceCache | None = None,
         logger=None,
         is_mock=False,
         monitoring_mock=False,
-        stream_profile: Optional[ds_profile.DatastoreProfile] = None,
+        stream_profile: ds_profile.DatastoreProfile | None = None,
     ) -> None:
         """for internal use, initialize all steps (recursively)"""
 
@@ -247,13 +247,13 @@ class GraphServer(ModelObj):
     def test(
         self,
         path: str = "/",
-        body: Optional[Union[str, bytes, dict]] = None,
+        body: Union[str, bytes, dict] | None = None,
         method: str = "",
-        headers: Optional[str] = None,
-        content_type: Optional[str] = None,
+        headers: str | None = None,
+        content_type: str | None = None,
         silent: bool = False,
         get_body: bool = True,
-        event_id: Optional[str] = None,
+        event_id: str | None = None,
         trigger: "MockTrigger" = None,
         offset=None,
         time=None,
@@ -682,9 +682,9 @@ def v2_serving_init(context, namespace=None):
 async def async_execute_graph(
     context: MLClientCtx,
     data: DataItem,
-    timestamp_column: Optional[str],
+    timestamp_column: str | None,
     batching: bool,
-    batch_size: Optional[int],
+    batch_size: int | None,
     read_as_lists: bool,
     nest_under_inputs: bool,
 ) -> None:
@@ -955,9 +955,9 @@ def _workaround_asyncio_nesting():
 def execute_graph(
     context: MLClientCtx,
     data: DataItem,
-    timestamp_column: Optional[str] = None,
+    timestamp_column: str | None = None,
     batching: bool = False,
-    batch_size: Optional[int] = None,
+    batch_size: int | None = None,
     read_as_lists: bool = False,
     nest_under_inputs: bool = False,
 ) -> tuple[list[Any], Any]:
@@ -1129,7 +1129,9 @@ def create_graph_server(
 
         server = create_graph_server(graph=RouterStep(), parameters={})
         server.init(None, globals())
-        server.graph.add_route("my", class_name=MyModelClass, model_path="{path}", z=100)
+        server.graph.add_route(
+            "my", class_name=MyModelClass, model_path="{path}", z=100
+        )
         print(server.test("/v2/models/my/infer", testdata))
     """
     parameters = parameters or {}
@@ -1204,7 +1206,7 @@ class GraphContext:
         level="info",  # Unused argument
         logger=None,
         server=None,
-        nuclio_context: Optional[NuclioContext] = None,
+        nuclio_context: NuclioContext | None = None,
     ) -> None:
         self.state = None
         self.logger = logger
@@ -1213,7 +1215,7 @@ class GraphContext:
         self.verbose = False
         self.stream = None
         self.root = None
-        self.executor: Optional[storey.flow.RunnableExecutor] = None
+        self.executor: storey.flow.RunnableExecutor | None = None
 
         if nuclio_context:
             self.logger: NuclioLogger = nuclio_context.logger

@@ -165,9 +165,9 @@ def test_requirement_specifiers_convention():
         else:
             missing_requirements.append(ignored_requirement_name)
 
-    assert (
-        missing_requirements == []
-    ), f"The following requirements are needlessly ignored: {missing_requirements}"
+    assert missing_requirements == [], (
+        f"The following requirements are needlessly ignored: {missing_requirements}"
+    )
 
     assert invalid_requirement_specifiers_map == {}
 
@@ -207,9 +207,9 @@ def test_requirement_specifiers_inconsistencies():
             all_keys_verified.remove(inconsistent_requirement_name)
 
     assert inconsistent_specifiers_map == {}
-    assert (
-        len(all_keys_verified) == 0
-    ), f"Keys not verified: {all_keys_verified}, remove them from dictionary"
+    assert len(all_keys_verified) == 0, (
+        f"Keys not verified: {all_keys_verified}, remove them from dictionary"
+    )
 
 
 def test_requirement_from_remote():
@@ -323,9 +323,9 @@ def _parse_requirement_specifiers_list(
             else specific_module_regex
         )
         match = re.fullmatch(regex, requirement_specifier)
-        assert (
-            match is not None
-        ), f"Requirement specifier did not matched regex. {requirement_specifier}"
+        assert match is not None, (
+            f"Requirement specifier did not matched regex. {requirement_specifier}"
+        )
         gd = match.groupdict()
         extras = gd.get("requirementExtra")
         if extras:

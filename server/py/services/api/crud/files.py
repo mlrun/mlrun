@@ -14,7 +14,6 @@
 
 import mimetypes
 from http import HTTPStatus
-from typing import Optional
 
 import mlrun.common.schemas
 import mlrun.utils.singleton
@@ -35,9 +34,9 @@ class Files(
         self,
         auth_info: mlrun.common.schemas.AuthInfo,
         path: str = "",
-        schema: Optional[str] = None,
-        user: Optional[str] = None,
-        secrets: Optional[dict] = None,
+        schema: str | None = None,
+        user: str | None = None,
+        secrets: dict | None = None,
     ):
         return self._get_filestat(schema, path, user, auth_info, secrets=secrets)
 
@@ -46,9 +45,9 @@ class Files(
         auth_info: mlrun.common.schemas.AuthInfo,
         project: str,
         path: str = "",
-        schema: Optional[str] = None,
+        schema: str | None = None,
         user: str = "",
-        secrets: Optional[dict] = None,
+        secrets: dict | None = None,
     ):
         secrets = secrets or {}
 
@@ -74,7 +73,7 @@ class Files(
         path: str,
         user: str,
         auth_info: mlrun.common.schemas.AuthInfo,
-        secrets: Optional[dict] = None,
+        secrets: dict | None = None,
     ):
         path = self._resolve_obj_path(schema, path, user)
 
@@ -105,7 +104,7 @@ class Files(
         path: str,
         user: str,
         auth_info: mlrun.common.schemas.AuthInfo,
-        secrets: Optional[dict] = None,
+        secrets: dict | None = None,
         project: str = "",
     ):
         path = self._resolve_obj_path(schema, path, user)
@@ -116,7 +115,7 @@ class Files(
 
     @staticmethod
     def _enrich_secrets_with_auth_info(
-        auth_info: mlrun.common.schemas.AuthInfo, secrets: Optional[dict] = None
+        auth_info: mlrun.common.schemas.AuthInfo, secrets: dict | None = None
     ):
         """
         Update user-provided secrets with auth_info (user-provided secrets take precedence)

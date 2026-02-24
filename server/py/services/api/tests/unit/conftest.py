@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import pathlib
-import typing
 import unittest.mock
 from collections.abc import Generator, Iterator
 from datetime import datetime
@@ -370,8 +369,8 @@ class MockedProjectFollowerIguazioClient(
         self,
         session: str,
         auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
-        updated_after: typing.Optional[datetime] = None,
-    ) -> tuple[list[mlrun.common.schemas.Project], typing.Optional[datetime]]:
+        updated_after: datetime | None = None,
+    ) -> tuple[list[mlrun.common.schemas.Project], datetime | None]:
         return [], None
 
     def get_project(

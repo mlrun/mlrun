@@ -230,9 +230,9 @@ def test_sessions_are_different_per_thread():
 
     # Ensure all session IDs are unique per thread
     assert None not in session_ids, f"Some sessions were not initialized: {session_ids}"
-    assert (
-        len(set(session_ids)) == num_threads
-    ), f"Sessions should be unique per thread, got: {session_ids}"
+    assert len(set(session_ids)) == num_threads, (
+        f"Sessions should be unique per thread, got: {session_ids}"
+    )
 
 
 @pytest.mark.asyncio

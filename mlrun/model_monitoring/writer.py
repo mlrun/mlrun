@@ -17,7 +17,7 @@ import time
 import typing
 from collections.abc import Callable
 from datetime import UTC, datetime
-from typing import Any, NewType, Optional
+from typing import Any, NewType
 
 import storey
 
@@ -72,7 +72,7 @@ class ModelMonitoringWriter(StepToDict):
     def __init__(
         self,
         project: str,
-        secret_provider: Optional[Callable] = None,
+        secret_provider: Callable | None = None,
     ) -> None:
         self.project = project
         self.name = project  # required for the deployment process
@@ -393,7 +393,7 @@ class AlertGenerator(storey.MapClass):
         self.project = project
         super().__init__(**kwargs)
 
-    def do(self, event: dict) -> Optional[dict[str, Any]]:
+    def do(self, event: dict) -> dict[str, Any] | None:
         kind = event.pop(WriterEvent.EVENT_KIND, WriterEventKind.RESULT)
         if (
             mlrun.mlconf.alerts.mode == mlrun.common.schemas.alert.AlertsModes.enabled

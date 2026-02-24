@@ -238,12 +238,10 @@ def test_list_pipelines_time_fields_default(
 
     assert response["created_at"] == str(created_at)
     assert not response["finished_at"], (
-        "Expected value to be None after format,"
-        " since field has not been specified yet"
+        "Expected value to be None after format, since field has not been specified yet"
     )
     assert not response["scheduled_at"], (
-        "Expected value to be None after format,"
-        " since field has not been specified yet"
+        "Expected value to be None after format, since field has not been specified yet"
     )
 
 

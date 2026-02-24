@@ -74,9 +74,9 @@ async def test_verify_request_session_failure(
     with pytest.raises(mlrun.errors.MLRunUnauthorizedError) as exc:
         await maybe_coroutine(iguazio_client.verify_request_session(mock_request))
 
-    assert (
-        exc.value.error_status_code == http.HTTPStatus.UNAUTHORIZED.value
-    ), "Expected 401 Unauthorized"
+    assert exc.value.error_status_code == http.HTTPStatus.UNAUTHORIZED.value, (
+        "Expected 401 Unauthorized"
+    )
 
 
 @pytest.mark.parametrize("iguazio_client", [("v4", "async")], indirect=True)
@@ -216,9 +216,9 @@ async def test_verify_request_session_malformed_response(
     with pytest.raises(mlrun.errors.MLRunUnauthorizedError) as exc:
         await maybe_coroutine(iguazio_client.verify_request_session(mock_request))
 
-    assert (
-        exc.value.error_status_code == http.HTTPStatus.UNAUTHORIZED.value
-    ), "Expected 401 Unauthorized"
+    assert exc.value.error_status_code == http.HTTPStatus.UNAUTHORIZED.value, (
+        "Expected 401 Unauthorized"
+    )
 
 
 @pytest.mark.parametrize("iguazio_client", [("v4", "async")], indirect=True)

@@ -551,7 +551,7 @@ def _generate_project(
     description="some description",
     desired_state=mlrun.common.schemas.ProjectDesiredState.online,
     state=mlrun.common.schemas.ProjectState.online,
-    labels: typing.Optional[dict] = None,
+    labels: dict | None = None,
     owner="some-owner",
 ):
     return mlrun.common.schemas.Project(

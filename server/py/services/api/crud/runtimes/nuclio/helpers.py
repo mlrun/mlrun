@@ -13,7 +13,6 @@
 # limitations under the License.
 
 import urllib.parse
-from typing import Optional
 
 import semver
 
@@ -57,7 +56,7 @@ def resolve_function_http_trigger(function_spec):
 
 
 def resolve_nuclio_runtime_python_image(
-    mlrun_client_version: Optional[str] = None, python_version: Optional[str] = None
+    mlrun_client_version: str | None = None, python_version: str | None = None
 ):
     if not python_version or not mlrun_client_version:
         return mlrun.mlconf.default_nuclio_runtime
@@ -297,7 +296,7 @@ def compile_nuclio_archive_config(
             if not parsed_url.netloc:
                 source = mlrun.mlconf.v3io_api + parsed_url.path
             else:
-                source = f"http{source[len('v3io'):]}"
+                source = f"http{source[len('v3io') :]}"
             if auth_info and not v3io_access_key:
                 v3io_access_key = auth_info.data_session or auth_info.access_key
 

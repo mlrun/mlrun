@@ -15,7 +15,7 @@
 import http
 from dataclasses import dataclass
 from datetime import datetime, timedelta
-from typing import Annotated, Literal, Optional
+from typing import Annotated, Literal
 
 import fastapi
 import semver
@@ -52,8 +52,8 @@ class _CommonParams:
     project: str
     auth_info: mlrun.common.schemas.AuthInfo
     db_session: Session
-    model_monitoring_access_key: Optional[str] = None
-    auth_token_name: Optional[str] = None
+    model_monitoring_access_key: str | None = None
+    auth_token_name: str | None = None
 
     def __post_init__(self) -> None:
         if mlrun.mlconf.is_using_v3io():
@@ -110,10 +110,10 @@ async def _common_parameters(
         mlrun.common.schemas.AuthInfo, Depends(deps.authenticate_request)
     ],
     db_session: Annotated[Session, Depends(deps.get_db_session)],
-    client_version: Optional[str] = Header(
+    client_version: str | None = Header(
         None, alias=mlrun.common.schemas.HeaderNames.client_version
     ),
-    auth_token_name: Optional[str] = Query(
+    auth_token_name: str | None = Query(
         None, description="Auth token name (set by mlrun.RuntimeConfigurationContext)"
     ),
 ) -> _CommonParams:
@@ -264,7 +264,7 @@ async def disable_model_monitoring(
     delete_stream_function: bool = False,
     delete_histogram_data_drift_app: bool = True,
     delete_user_applications: bool = False,
-    user_application_list: Optional[list[str]] = None,
+    user_application_list: list[str] | None = None,
 ):
     """
     Disable model monitoring application controller, writer, stream, histogram data drift application
@@ -375,11 +375,11 @@ async def _common_function_parameters(
         mlrun.common.schemas.AuthInfo, Depends(deps.authenticate_request)
     ],
     db_session: Annotated[Session, Depends(deps.get_db_session)],
-    client_version: Optional[str] = Header(
+    client_version: str | None = Header(
         None, alias=mlrun.common.schemas.HeaderNames.client_version
     ),
-    start: Optional[datetime] = None,
-    end: Optional[datetime] = None,
+    start: datetime | None = None,
+    end: datetime | None = None,
 ) -> _FunctionSummariesParams:
     """
     Verify authorization and return common parameters.
@@ -421,7 +421,7 @@ async def _common_function_parameters(
 @router.get("/function-summaries")
 async def get_model_monitoring_function_summaries(
     commons: Annotated[_FunctionSummariesParams, Depends(_common_function_parameters)],
-    names: Optional[list[str]] = Query(None, alias="name"),
+    names: list[str] | None = Query(None, alias="name"),
     labels: list[str] = Query([], alias="label"),
     include_stats: bool = Query(True, alias="include-stats"),
     include_infra: bool = Query(True, alias="include-infra"),
@@ -520,7 +520,7 @@ async def delete_model_endpoints_metrics_values(
         Query(pattern=mm_constants.APP_NAME_REGEX.pattern, alias="application-name"),
     ],
     endpoint_id: Annotated[
-        Optional[list[str]],
+        list[str] | None,
         Query(
             pattern=mm_constants.MODEL_ENDPOINT_ID_PATTERN,
             alias="endpoint-id",
@@ -561,8 +561,8 @@ async def delete_model_endpoints_metrics_values(
 )
 async def get_model_endpoint_drift_over_time(
     project: ProjectAnnotation,
-    start: Optional[datetime] = None,
-    end: Optional[datetime] = None,
+    start: datetime | None = None,
+    end: datetime | None = None,
     auth_info: mlrun.common.schemas.AuthInfo = Depends(
         framework.api.deps.authenticate_request
     ),

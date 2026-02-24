@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import copy
-import typing
 from datetime import datetime
 
 from kubernetes import client
@@ -229,7 +228,7 @@ class MpiV1RuntimeHandler(AbstractMPIJobRuntimeHandler):
 
     def _resolve_crd_object_status_info(
         self, crd_object: dict
-    ) -> tuple[bool, typing.Optional[datetime], typing.Optional[str]]:
+    ) -> tuple[bool, datetime | None, str | None]:
         """
         reference for MPIJob Status:
         https://github.com/kubeflow/mpi-operator/blob/v0.3.0/pkg/apis/kubeflow/v1/types.go#L29

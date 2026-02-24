@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Any, Optional, Union
+from typing import Any, Union
 
 import mlrun
 from mlrun.datastore.model_provider.model_provider import (
@@ -32,8 +32,8 @@ class MockModelProvider(ModelProvider):
         kind,
         name,
         endpoint="",
-        secrets: Optional[dict] = None,
-        default_invoke_kwargs: Optional[dict] = None,
+        secrets: dict | None = None,
+        default_invoke_kwargs: dict | None = None,
     ):
         super().__init__(
             parent=parent, name=name, kind=kind, endpoint=endpoint, secrets=secrets
@@ -65,7 +65,7 @@ class MockModelProvider(ModelProvider):
         self,
         messages: list[dict],
         invoke_response_format: InvokeResponseFormat,
-        counter: Optional[int] = None,
+        counter: int | None = None,
     ) -> Union[dict[str, Any], str]:
         """
         Handle a single invocation. Raises error if message contains ERROR keyword.

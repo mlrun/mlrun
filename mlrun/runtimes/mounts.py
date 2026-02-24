@@ -71,8 +71,8 @@ def mount_v3io(
     remote: str = "",
     access_key: str = "",
     user: str = "",
-    secret: typing.Optional[str] = None,
-    volume_mounts: typing.Optional[list[VolumeMount]] = None,
+    secret: str | None = None,
+    volume_mounts: list[VolumeMount] | None = None,
 ) -> typing.Callable[["KubeResource"], "KubeResource"]:
     """Modifier function to apply to a Container Op to volume mount a v3io path
 
@@ -210,12 +210,12 @@ def mount_v3iod(
 
 
 def mount_s3(
-    secret_name: typing.Optional[str] = None,
+    secret_name: str | None = None,
     aws_access_key: str = "",
     aws_secret_key: str = "",
-    endpoint_url: typing.Optional[str] = None,
+    endpoint_url: str | None = None,
     prefix: str = "",
-    aws_region: typing.Optional[str] = None,
+    aws_region: str | None = None,
     non_anonymous: bool = False,
 ) -> typing.Callable[["KubeResource"], "KubeResource"]:
     """Modifier function to add s3 env vars or secrets to container
@@ -306,7 +306,7 @@ def mount_s3(
 
 
 def mount_pvc(
-    pvc_name: typing.Optional[str] = None,
+    pvc_name: str | None = None,
     volume_name: str = "pipeline",
     volume_mount_path: str = "/mnt/pipeline",
 ) -> typing.Callable[["KubeResource"], "KubeResource"]:
@@ -362,7 +362,7 @@ def mount_pvc(
 def auto_mount(
     pvc_name: str = "",
     volume_mount_path: str = "",
-    volume_name: typing.Optional[str] = None,
+    volume_name: str | None = None,
 ) -> typing.Callable[["KubeResource"], "KubeResource"]:
     """Choose the mount based on env variables and params
 
@@ -398,7 +398,7 @@ def mount_secret(
     secret_name: str,
     mount_path: str,
     volume_name: str = "secret",
-    items: typing.Optional[list[dict]] = None,
+    items: list[dict] | None = None,
 ) -> typing.Callable[["KubeResource"], "KubeResource"]:
     """
     Modifier function to mount a Kubernetes secret as file(s).
@@ -449,7 +449,7 @@ def mount_configmap(
     configmap_name: str,
     mount_path: str,
     volume_name: str = "configmap",
-    items: typing.Optional[list[dict]] = None,
+    items: list[dict] | None = None,
 ) -> typing.Callable[["KubeResource"], "KubeResource"]:
     """
     Modifier function to mount a Kubernetes ConfigMap as file(s).
@@ -527,7 +527,7 @@ def mount_hostpath(
 
 
 def set_env_variables(
-    env_vars_dict: typing.Optional[dict[str, str]] = None, **kwargs
+    env_vars_dict: dict[str, str] | None = None, **kwargs
 ) -> typing.Callable[["KubeResource"], "KubeResource"]:
     """
     Modifier function to apply a set of environment variables to a runtime. Variables may be passed
@@ -558,7 +558,7 @@ def set_env_variables(
 
 def _enrich_and_validate_v3io_mounts(
     remote: str = "",
-    volume_mounts: typing.Optional[list[VolumeMount]] = None,
+    volume_mounts: list[VolumeMount] | None = None,
     user: str = "",
 ) -> tuple[list[VolumeMount], str]:
     if volume_mounts is None:
@@ -588,5 +588,5 @@ def _enrich_and_validate_v3io_mounts(
     return volume_mounts, user
 
 
-def _resolve_mount_user(user: typing.Optional[str] = None):
+def _resolve_mount_user(user: str | None = None):
     return user or os.environ.get("V3IO_USERNAME")

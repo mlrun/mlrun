@@ -17,7 +17,6 @@ import json
 import random
 import string
 import time
-import typing
 from datetime import UTC, datetime
 
 import kubernetes.client.rest as k8s_client_rest
@@ -104,7 +103,7 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
         namespace=None,
         silent=False,
         log=True,
-        kube_config_path: typing.Optional[str] = None,
+        kube_config_path: str | None = None,
     ):
         self.namespace = namespace or mlrun.mlconf.namespace
         self.config_file = (
@@ -163,9 +162,9 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
     @raise_for_status_code
     def list_pods_paginated(
         self,
-        namespace: typing.Optional[str] = None,
+        namespace: str | None = None,
         selector: str = "",
-        states: typing.Optional[list[str]] = None,
+        states: list[str] | None = None,
         max_retry: int = 3,
     ):
         """
@@ -213,7 +212,7 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
         crd_group: str,
         crd_version: str,
         crd_plural: str,
-        namespace: typing.Optional[str] = None,
+        namespace: str | None = None,
         selector: str = "",
         max_retry: int = 3,
     ):
@@ -348,7 +347,7 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
     def list_services(
         self,
         namespace: str = "",
-        label_selector: typing.Optional[str] = None,
+        label_selector: str | None = None,
     ):
         return self.v1api.list_namespaced_service(
             self.resolve_namespace(namespace),
@@ -361,7 +360,7 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
         self,
         name: str,
         namespace: str = "",
-        grace_period_seconds: typing.Optional[int] = None,
+        grace_period_seconds: int | None = None,
     ):
         return self.v1api.delete_namespaced_service(
             name,
@@ -459,7 +458,7 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
         crd_version: str,
         crd_plural: str,
         namespace: str = "",
-        label_selector: typing.Optional[str] = None,
+        label_selector: str | None = None,
     ) -> list[dict]:
         namespace = self.resolve_namespace(namespace)
         crd_objects = self.crdapi.list_namespaced_custom_object(
@@ -479,7 +478,7 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
         crd_version: str,
         crd_plural: str,
         namespace: str = "",
-        body: typing.Optional[dict] = None,
+        body: dict | None = None,
     ) -> dict:
         namespace = self.resolve_namespace(namespace)
         return self.crdapi.create_namespaced_custom_object(
@@ -607,7 +606,7 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
         project,
         secrets,
         namespace="",
-    ) -> (str, typing.Optional[mlrun.common.schemas.SecretEventActions]):
+    ) -> (str, mlrun.common.schemas.SecretEventActions | None):
         secret_name = self.get_project_secret_name(project)
         action = self.store_secrets_with_retry(secret_name, secrets, namespace)
         return secret_name, action
@@ -657,7 +656,7 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
         username: str,
         access_key: str,
         namespace="",
-    ) -> (str, typing.Optional[mlrun.common.schemas.SecretEventActions]):
+    ) -> (str, mlrun.common.schemas.SecretEventActions | None):
         """
         Store the given access key as a secret in the cluster. The secret name is generated from the access key
         :return: returns the secret name and the action taken against the secret
@@ -686,7 +685,7 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
         secrets: dict[str, str],
         namespace: str = "",
         type_: str = SecretTypes.opaque,
-        labels: typing.Optional[dict] = None,
+        labels: dict | None = None,
         retry_on_conflict_count: int = 5,
     ):
         """
@@ -721,8 +720,8 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
         secrets: dict[str, str],
         namespace: str = "",
         type_: str = SecretTypes.opaque,
-        labels: typing.Optional[dict] = None,
-    ) -> typing.Optional[mlrun.common.schemas.SecretEventActions]:
+        labels: dict | None = None,
+    ) -> mlrun.common.schemas.SecretEventActions | None:
         """
         Store secrets in a kubernetes secret object
         :param secret_name: the project secret name
@@ -766,10 +765,10 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
     def read_secret(
         self,
         secret_name: str,
-        namespace: typing.Optional[str] = None,
-        labels: typing.Optional[dict[str, str]] = None,
+        namespace: str | None = None,
+        labels: dict[str, str] | None = None,
         silent=False,
-    ) -> typing.Optional[client.V1Secret]:
+    ) -> client.V1Secret | None:
         namespace = self.resolve_namespace(namespace)
         if not silent:
             logger.debug(
@@ -823,7 +822,7 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
         namespace: str = "",
         load_as_json=False,
         silent=False,
-    ) -> typing.Optional[dict[str, str]]:
+    ) -> dict[str, str] | None:
         k8s_secret = self.read_secret(
             secret_name=secret_name, namespace=namespace, silent=silent
         )
@@ -837,8 +836,8 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
         secrets: dict[str, str],
         namespace: str = "",
         type_: str = SecretTypes.opaque,
-        labels: typing.Optional[dict] = None,
-        annotations: typing.Optional[dict] = None,
+        labels: dict | None = None,
+        annotations: dict | None = None,
         encoded: bool = False,
     ):
         """
@@ -938,7 +937,7 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
 
     def delete_project_secrets(
         self, project, secrets, namespace=""
-    ) -> (str, typing.Optional[mlrun.common.schemas.SecretEventActions]):
+    ) -> (str, mlrun.common.schemas.SecretEventActions | None):
         """
         Delete secrets from a kubernetes secret object
         :return: returns the secret name and the action taken against the secret
@@ -956,7 +955,7 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
         secret_name,
         secrets,
         namespace="",
-    ) -> typing.Optional[mlrun.common.schemas.SecretEventActions]:
+    ) -> mlrun.common.schemas.SecretEventActions | None:
         """
         Delete secrets from a kubernetes secret object
         :param secret_name: the project secret name
@@ -1043,8 +1042,8 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
         resource_name: str,
         data: dict,
         namespace: str = "",
-        labels: typing.Optional[dict] = None,
-        project: typing.Optional[str] = None,
+        labels: dict | None = None,
+        project: str | None = None,
     ):
         namespace = self.resolve_namespace(namespace)
         have_confmap = False
@@ -1128,7 +1127,7 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
         name: str,
         namespace: str = "",
         raise_on_error=True,
-        grace_period_seconds: typing.Optional[int] = None,
+        grace_period_seconds: int | None = None,
     ):
         namespace = self.resolve_namespace(namespace)
 
@@ -1152,7 +1151,7 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
     def create_configmap(
         self,
         namespace: str = "",
-        body: typing.Optional[client.V1ConfigMap] = None,
+        body: client.V1ConfigMap | None = None,
     ):
         return self.v1api.create_namespaced_config_map(
             self.resolve_namespace(namespace),
@@ -1164,7 +1163,7 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
     def list_configmaps(
         self,
         namespace: str = "",
-        label_selector: typing.Optional[str] = None,
+        label_selector: str | None = None,
     ):
         return self.v1api.list_namespaced_config_map(
             namespace=self.resolve_namespace(namespace),
@@ -1251,7 +1250,7 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
         return self._decode_secret_data(secrets_data)
 
     def list_object_events(
-        self, object_name: str, namespace: typing.Optional[str] = None
+        self, object_name: str, namespace: str | None = None
     ) -> list[client.CoreV1Event]:
         return self._list_events(
             namespace=namespace, field_selector=f"involvedObject.name={object_name}"
@@ -1311,7 +1310,7 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
 
     def _get_pod_status(
         self, name, namespace=None, raise_on_not_found=False
-    ) -> typing.Optional[client.V1Pod]:
+    ) -> client.V1Pod | None:
         try:
             api_response = self.v1api.read_namespaced_pod_status(
                 name=name,
@@ -1373,8 +1372,8 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
         token: str,
         expiration: int,
         force: bool = False,
-        namespace: typing.Optional[str] = None,
-    ) -> typing.Optional[mlrun.common.schemas.SecretEventActions]:
+        namespace: str | None = None,
+    ) -> mlrun.common.schemas.SecretEventActions | None:
         """
         Creates or updates a Kubernetes secret for a user's offline token.
 
@@ -1485,7 +1484,7 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
     def list_user_token_secrets(
         self,
         user_id: str,
-        namespace: typing.Optional[str] = None,
+        namespace: str | None = None,
     ) -> list[mlrun.common.schemas.SecretTokenInfo]:
         """
         List all offline token secrets for a given user.
@@ -1515,8 +1514,8 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
 
     def list_secrets(
         self,
-        namespace: typing.Optional[str] = None,
-        labels: typing.Optional[dict[str, typing.Optional[str]]] = None,
+        namespace: str | None = None,
+        labels: dict[str, str | None] | None = None,
     ) -> list[client.V1Secret]:
         """
         List Kubernetes secrets in the given namespace, optionally filtered by labels.
@@ -1564,7 +1563,7 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
     def _convert_secret_to_token_info(
         self,
         k8s_secret: client.V1Secret,
-    ) -> typing.Optional[mlrun.common.schemas.SecretTokenInfo]:
+    ) -> mlrun.common.schemas.SecretTokenInfo | None:
         """
         Convert a Kubernetes secret to a SecretTokenInfo object if valid.
 
@@ -1592,7 +1591,7 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
             user_id=user_id,
         )
 
-    def _decode_secret_expiration(self, k8s_secret) -> typing.Optional[datetime]:
+    def _decode_secret_expiration(self, k8s_secret) -> datetime | None:
         """Decode the expiration timestamp from a Kubernetes secret.
 
         :param k8s_secret: Kubernetes secret object containing tokenExpiration.
@@ -1628,7 +1627,7 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
         self,
         user_id: str,
         token_name: str,
-        namespace: typing.Optional[str] = None,
+        namespace: str | None = None,
     ) -> str:
         """
         Retrieve the offline token string for a specific user and token name.
@@ -1658,7 +1657,7 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
     def list_user_token_secret_values(
         self,
         user_id: str,
-        namespace: typing.Optional[str] = None,
+        namespace: str | None = None,
     ) -> list[mlrun.common.schemas.SecretToken]:
         """
         List all token values for a user in a single K8s API call.
@@ -1696,7 +1695,7 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
     def get_user_secret_tokens_as_igz_yml_data(
         self,
         user_id: str,
-        token_name: typing.Optional[str] = None,
+        token_name: str | None = None,
     ) -> list[dict[str, str]]:
         """
         Fetch user token(s) from k8s secrets in igz.yml format.
@@ -1787,7 +1786,7 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
         self,
         user_id: str,
         token_name: str,
-        namespace: typing.Optional[str] = None,
+        namespace: str | None = None,
     ) -> None:
         """
         Delete a Kubernetes secret corresponding to a user's offline token.
@@ -1838,7 +1837,7 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
         self,
         user_id: str,
         token_name: str,
-        namespace: typing.Optional[str] = None,
+        namespace: str | None = None,
     ):
         namespace = self.resolve_namespace(namespace)
         labels = {
@@ -1985,7 +1984,7 @@ class BasePod:
             sub_path=sub_path,
         )
 
-    def set_node_selector(self, node_selector: typing.Optional[dict[str, str]]):
+    def set_node_selector(self, node_selector: dict[str, str] | None):
         self.node_selector = node_selector
 
     def _get_spec(self, template=False):
@@ -2036,9 +2035,9 @@ class BasePod:
 def kube_resource_spec_to_pod_spec(
     kube_resource_spec: mlrun.runtimes.pod.KubeResourceSpec,
     container: client.V1Container,
-    node_selector: typing.Optional[dict] = None,
-    tolerations: typing.Optional[dict] = None,
-    affinity: typing.Optional[dict] = None,
+    node_selector: dict | None = None,
+    tolerations: dict | None = None,
+    affinity: dict | None = None,
 ):
     return client.V1PodSpec(
         containers=[container],

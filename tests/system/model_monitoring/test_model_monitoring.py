@@ -20,7 +20,7 @@ import uuid
 from datetime import UTC, datetime, timedelta
 from random import choice, randint, uniform
 from time import monotonic, sleep
-from typing import Optional, Union
+from typing import Union
 from uuid import uuid4
 
 import fsspec
@@ -63,12 +63,12 @@ from . import TestMLRunSystemModelMonitoring
 def mock_random_endpoint(
     project_name: str,
     name: str,
-    function_name: Optional[str] = "function-1",
-    function_tag: Optional[str] = "v1",
-    model_path: Optional[str] = None,
+    function_name: str | None = "function-1",
+    function_tag: str | None = "v1",
+    model_path: str | None = None,
     add_labels=True,
     endpoint_type: EndpointType = EndpointType.NODE_EP,
-    mode: Optional[EndpointMode] = None,
+    mode: EndpointMode | None = None,
 ) -> mlrun.common.schemas.model_monitoring.ModelEndpoint:
     def random_labels():
         return {f"{choice(string.ascii_letters)}": randint(0, 100) for _ in range(1, 5)}
@@ -358,8 +358,8 @@ class TestModelEndpointsOperations(TestMLRunSystemModelMonitoring):
 
         endpoints_out = self.project.list_model_endpoints(latest_only=False).endpoints
         assert len(endpoints_out) == number_of_endpoints
-        created: Optional[datetime] = None
-        uid: Optional[str] = None
+        created: datetime | None = None
+        uid: str | None = None
         for mep in endpoints_out:
             if not created or mep.metadata.created < created:
                 created = mep.metadata.created
@@ -696,9 +696,9 @@ class TestModelEndpointsOperations(TestMLRunSystemModelMonitoring):
             .endpoints
         )
 
-        assert (
-            len(model_endpoints) == 2
-        ), f"Expected 2 endpoints, got {len(model_endpoints)}"
+        assert len(model_endpoints) == 2, (
+            f"Expected 2 endpoints, got {len(model_endpoints)}"
+        )
         assert (
             model_endpoints[0].metadata.name == "my-model-1"
             and model_endpoints[1].metadata.name == "my-model-2"
@@ -792,7 +792,7 @@ class TestBasicModelMonitoring(TestMLRunSystemModelMonitoring):
 
     project_name = "pr-basic-model-monitoring"
     # Set image to "<repo>/mlrun:<tag>" for local testing
-    image: Optional[str] = None
+    image: str | None = None
 
     @pytest.mark.timeout(540)
     def test_basic_model_monitoring(self) -> None:
@@ -1267,9 +1267,9 @@ class TestBasicModelMonitoring(TestMLRunSystemModelMonitoring):
                 feature_analysis=True,
                 tsdb_metrics=True,
             )
-            assert (
-                mep.status.last_request is not None
-            ), f"Expected last_request to be set for endpoint '{ep_name}'"
+            assert mep.status.last_request is not None, (
+                f"Expected last_request to be set for endpoint '{ep_name}'"
+            )
 
         # Verify TSDB predictions table has records for all 3 endpoints
         tsdb_client = mlrun.model_monitoring.get_tsdb_connector(
@@ -1758,7 +1758,7 @@ class TestBatchDrift(TestMLRunSystemModelMonitoring):
 
     project_name = "pr-batch-drift"
     # Set image to "<repo>/mlrun:<tag>" for local testing
-    image: Optional[str] = None
+    image: str | None = None
 
     def custom_setup(self):
         mlrun.runtimes.utils.global_context.set(None)
@@ -1915,7 +1915,7 @@ class TestModelMonitoringKafka(TestMLRunSystemModelMonitoring):
 
     project_name = "pr-kafka-model-monitoring"
     # Set image to "<repo>/mlrun:<tag>" for local testing
-    image: Optional[str] = None
+    image: str | None = None
 
     @pytest.mark.timeout(300)
     @pytest.mark.skipif(
@@ -2020,7 +2020,7 @@ class TestInferenceWithSpecialChars(TestMLRunSystemModelMonitoring):
     project_name = "pr-infer-special-chars"
     name_prefix = "infer-monitoring"
     # Set image to "<repo>/mlrun:<tag>" for local testing
-    image: Optional[str] = None
+    image: str | None = None
 
     @classmethod
     def custom_setup_class(cls) -> None:
@@ -2124,7 +2124,7 @@ class TestModelInferenceTSDBRecord(TestMLRunSystemModelMonitoring):
     project_name = "infer-model-tsdb"
     name_prefix = "infer-model-only"
     # Set image to "<repo>/mlrun:<tag>" for local testing
-    image: Optional[str] = None
+    image: str | None = None
 
     @classmethod
     def custom_setup_class(cls) -> None:
@@ -2169,12 +2169,12 @@ class TestModelInferenceTSDBRecord(TestMLRunSystemModelMonitoring):
         )
 
         assert not df.empty, "No TSDB data"
-        assert (
-            len(df) == 1
-        ), "Expects a single result from the histogram data drift app in the TSDB"
-        assert set(df.application_name) == {
-            "histogram-data-drift"
-        }, "The application name is different than expected"
+        assert len(df) == 1, (
+            "Expects a single result from the histogram data drift app in the TSDB"
+        )
+        assert set(df.application_name) == {"histogram-data-drift"}, (
+            "The application name is different than expected"
+        )
         assert df.endpoint_id.nunique() == 1, "Expects a single model endpoint"
         assert set(df.result_name) == {
             "general_drift",
@@ -2264,7 +2264,7 @@ class TestModelEndpointGetMetrics(TestMLRunSystemModelMonitoring):
     """Test get_model_endpoint_monitoring_metrics functionality."""
 
     project_name = "model-endpoint-get-metrics"
-    image: Optional[str] = None
+    image: str | None = None
 
     @staticmethod
     def _generate_event(
@@ -2511,9 +2511,9 @@ class TestModelMonitoringOverJob(TestMLRunSystemModelMonitoring):
             read_back_df = pd.read_parquet(
                 f"v3io:///projects/{self.project_name}/out.parquet"
             )
-            assert (
-                "extra" in read_back_df.columns
-            ), "Extra column was not added by model"
+            assert "extra" in read_back_df.columns, (
+                "Extra column was not added by model"
+            )
 
             model_endpoints = (
                 mlrun.get_run_db().list_model_endpoints(self.project_name).endpoints
@@ -2620,7 +2620,7 @@ class TestLLModelWithMonitoring(TestMLRunSystemModelMonitoring):
     """Test LLModel serving with model monitoring enabled."""
 
     project_name = "llmodel-monitoring-5"
-    image: Optional[str] = "mlrun/mlrun"
+    image: str | None = "mlrun/mlrun"
 
     def test_mep_with_remote_model(self):
         self.set_mm_credentials()
@@ -2715,9 +2715,9 @@ class TestLLModelWithMonitoring(TestMLRunSystemModelMonitoring):
 
         sleep(45)
         meps = self.project.list_model_endpoints(tsdb_metrics=True)
-        assert (
-            len(meps.endpoints) == 3
-        ), f"Expected 3 endpoints, got {len(meps.endpoints)}"
+        assert len(meps.endpoints) == 3, (
+            f"Expected 3 endpoints, got {len(meps.endpoints)}"
+        )
         mep_2: ModelEndpoint = self.project.list_model_endpoints(
             names="my-model-2"
         ).endpoints[0]

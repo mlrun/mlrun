@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import abc
-from typing import Optional
 
 import IPython.display
 
@@ -36,7 +35,7 @@ class ClientBaseLauncher(launcher.BaseLauncher, abc.ABC):
     def enrich_runtime(
         self,
         runtime: "mlrun.runtimes.base.BaseRuntime",
-        project_name: Optional[str] = "",
+        project_name: str | None = "",
         full: bool = True,
         client_version: str = "",
     ):

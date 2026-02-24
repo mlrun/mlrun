@@ -219,9 +219,9 @@ async def test_async_request_includes_context_id_header(
 
     def verify_context_header(url, **kwargs):
         headers = kwargs.get("headers", {})
-        assert (
-            mlrun.common.schemas.HeaderNames.igz_ctx in headers
-        ), f"Expected {mlrun.common.schemas.HeaderNames.igz_ctx} header in async request"
+        assert mlrun.common.schemas.HeaderNames.igz_ctx in headers, (
+            f"Expected {mlrun.common.schemas.HeaderNames.igz_ctx} header in async request"
+        )
         assert headers[mlrun.common.schemas.HeaderNames.igz_ctx] == context_id
         return CallbackResult(
             status=http.HTTPStatus.OK,
@@ -287,9 +287,9 @@ async def test_async_request_without_context_id_when_not_set(
     def verify_no_context_header(url, **kwargs):
         headers = kwargs.get("headers", {})
         # Header should not be present when context is None
-        assert (
-            mlrun.common.schemas.HeaderNames.igz_ctx not in headers
-        ), f"Did not expect {mlrun.common.schemas.HeaderNames.igz_ctx} header when context is not set"
+        assert mlrun.common.schemas.HeaderNames.igz_ctx not in headers, (
+            f"Did not expect {mlrun.common.schemas.HeaderNames.igz_ctx} header when context is not set"
+        )
         return CallbackResult(
             status=http.HTTPStatus.OK,
             payload={

@@ -272,7 +272,7 @@ def mlrun_op(
     if name:
         cmd += ["--name", name]
     if auth_token_name:
-        cmd += ["--run-config", f"auth_token_name={auth_token_name}"]
+        cmd += ["--runtime-config", f"auth_token_name={auth_token_name}"]
     if func_url:
         cmd += ["-f", func_url]
     for secret in secrets:

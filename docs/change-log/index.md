@@ -30,14 +30,14 @@ See a full description of KFP, Python, and the workflow engines in {ref}`local-r
 ### Runtimes
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
-|ML-9209|MLRun supports the Kubernetes readinessProbe and livenessProbe for application runtimes. See [Configure sidecar Kubernetes proble](../runtimes/application.html#configure-sidecar-kubernetes-probes), {py:meth}`~mlrun.runtimes.ApplicationRuntime.set_probe`, and {py:meth}`~mlrun.runtimes.ApplicationRuntime.delete_probe`.|
+|ML-9209|MLRun supports the Kubernetes readinessProbe and livenessProbe for application runtimes. See [Configure sidecar Kubernetes proble](../runtimes/application.ipynb#configure-sidecar-kubernetes-probes), {py:meth}`~mlrun.runtimes.ApplicationRuntime.set_probe`, and {py:meth}`~mlrun.runtimes.ApplicationRuntime.delete_probe`.|
 |ML-9695|Application runtimes now support deploying from a single Python file without packaging into directories/archives; and pull-at-runtime for Git repositories or source archives. See [Application runtimes examples](../runtimes/application.ipynb#usage-examples).
 
 ### Serving Graph
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
 |ML-7879|Serving graphs now support consuming messages from RabbitMQ queues and topic-based routing. See {py:meth}`~mlrun.runtimes.RemoteRuntime.add_rabbitmq_trigger`, {ref}`graph-ha-cfg`. |
-|ML-10753|MLRun supports cyclic serving graphs. See [Cyclic graph example](../serving/use-cases.html#exanple-of-a-cyclic-graph), {py:meth}`BaseStep to() <~mlrun.serving.states.BaseStep.to>`, {py:meth}`QueueStep to()<~mlrun.serving.QueueStep.to>`, and {py:meth}`~mlrun.serving.states.BaseStep.cycle_to`.|
+|ML-10753|MLRun supports cyclic serving graphs. See [Cyclic graph example](../serving/use-cases.md#exanple-of-a-cyclic-graph), {py:meth}`BaseStep to() <~mlrun.serving.states.BaseStep.to>`, {py:meth}`QueueStep to()<~mlrun.serving.QueueStep.to>`, and {py:meth}`~mlrun.serving.states.BaseStep.cycle_to`.|
 
 ### Model monitoring
 | ID    |Description                                                                 |
@@ -47,7 +47,7 @@ See a full description of KFP, Python, and the workflow engines in {ref}`local-r
 ### UI
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
-|ML-11445| In the **Model endpoints > Metrics** tab, you can now select aggregation functions, which appear as multiple lines in the values graphs. Also, you can select a period of time greater than 1 month. See [Model endpoints metrics](../model-monitoring/monitoring-models.html#model-endpoints-metrics)This is not supported for V3IO.|
+|ML-11445| In the **Model endpoints > Metrics** tab, you can now select aggregation functions, which appear as multiple lines in the values graphs. Also, you can select a period of time greater than 1 month. See [Model endpoints metrics](../model-monitoring/monitoring-models.ipynb#model-endpoints-metrics)This is not supported for V3IO.|
 
 (1.11.0-breaking)=
 ### Breaking Changes

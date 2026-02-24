@@ -436,21 +436,27 @@ jobs:
               if [ "$not_ready" -eq 0 ]; then
                 # All pods appear Running/Completed. However a pod in CrashLoopBackOff
                 # briefly shows Running between crashes, so we can't trust a single
-                # observation. If any pod has restarts > 0, wait 30s and re-check:
-                # if it's still Running it's genuinely stable; if it crashed it will
-                # show a non-Running status on the re-check.
-                num_restarts=$(kubectl get pods -n ${NAMESPACE} --no-headers | awk 'int($4) > 0' | wc -l)
-                if [ "$num_restarts" -gt 0 ]; then
-                  echo "WARNING: $num_restarts pod(s) with restarts > 0, waiting 30s to confirm stability..."
+                # observation. If any pod has restarts > 0, snapshot the total restart
+                # count, wait 30s, then re-check: a genuinely stable pod will still be
+                # Running with an unchanged restart count; a crashing pod will either
+                # be non-Running or will have an increased restart count.
+                total_restarts=$(kubectl get pods -n ${NAMESPACE} --no-headers | awk '{sum += int($4)} END {print sum+0}')
+                if [ "$total_restarts" -gt 0 ]; then
+                  echo "WARNING: pods have $total_restarts total restart(s), waiting 30s to confirm stability..."
                   kubectl get pods -n ${NAMESPACE}
                   sleep 30
                   elapsed=$((elapsed + 30))
                   not_ready=$(kubectl get pods -n ${NAMESPACE} --no-headers | grep -v 'Running\|Completed' | wc -l)
-                  if [ "$not_ready" -eq 0 ]; then
-                    echo "All pods stable after confirmation check."
+                  total_restarts_after=$(kubectl get pods -n ${NAMESPACE} --no-headers | awk '{sum += int($4)} END {print sum+0}')
+                  if [ "$not_ready" -eq 0 ] && [ "$total_restarts_after" -eq "$total_restarts" ]; then
+                    echo "All pods stable after confirmation check (restarts unchanged at $total_restarts)."
                     break
                   fi
-                  echo "Pod(s) crashed during confirmation window, continuing to wait..."
+                  if [ "$total_restarts_after" -gt "$total_restarts" ]; then
+                    echo "Restart count increased ($total_restarts -> $total_restarts_after), pod(s) still crashing, continuing to wait..."
+                  else
+                    echo "Pod(s) not ready after confirmation window, continuing to wait..."
+                  fi
                 else
                   echo "All pods in namespace ${NAMESPACE} are ready."
                   break

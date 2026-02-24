@@ -317,7 +317,7 @@ class TestRuntimeBase(services.api.tests.unit.conftest.MockedK8sHelper):
         )
 
     def _mock_create_namespaced_pod(self):
-        def _generate_pod(namespace, pod):
+        def _generate_pod(namespace, pod, **kwargs):
             terminated_container_state = client.V1ContainerStateTerminated(
                 finished_at=datetime.now(UTC), exit_code=0
             )

@@ -223,6 +223,7 @@ class TestRuntimeHandlerBase:
         get_k8s_helper().v1api.list_namespaced_pod.assert_called_once_with(
             get_k8s_helper().resolve_namespace(),
             label_selector=label_selector,
+            _request_timeout=unittest.mock.ANY,
         )
         if expected_crds:
             get_k8s_helper().crdapi.list_namespaced_custom_object.assert_called_once_with(
@@ -231,11 +232,13 @@ class TestRuntimeHandlerBase:
                 get_k8s_helper().resolve_namespace(),
                 crd_plural,
                 label_selector=label_selector,
+                _request_timeout=unittest.mock.ANY,
             )
         if expected_services:
             get_k8s_helper().v1api.list_namespaced_service.assert_called_once_with(
                 get_k8s_helper().resolve_namespace(),
                 label_selector=label_selector,
+                _request_timeout=unittest.mock.ANY,
             )
         assertion_func(
             self,
@@ -416,6 +419,7 @@ class TestRuntimeHandlerBase:
                 expected_pod_namespace,
                 grace_period_seconds=None,
                 propagation_policy="Background",
+                _request_timeout=unittest.mock.ANY,
             )
             for expected_pod_name in expected_pod_names
         ]
@@ -434,6 +438,7 @@ class TestRuntimeHandlerBase:
                 expected_service_name,
                 expected_service_namespace,
                 grace_period_seconds=None,
+                _request_timeout=unittest.mock.ANY,
             )
             for expected_service_name in expected_service_names
         ]
@@ -457,6 +462,7 @@ class TestRuntimeHandlerBase:
                 crd_plural,
                 expected_custom_object_name,
                 grace_period_seconds=None,
+                _request_timeout=unittest.mock.ANY,
             )
             for expected_custom_object_name in expected_custom_object_names
         ]
@@ -534,13 +540,17 @@ class TestRuntimeHandlerBase:
         expected_label_selector = (
             expected_label_selector or runtime_handler._get_default_label_selector()
         )
-        kwargs = {}
+        kwargs = {
+            "_request_timeout": unittest.mock.ANY,
+        }
         if paginated:
-            kwargs = {
-                "watch": False,
-                "limit": int(mlrun.mlconf.kubernetes.pagination.list_pods_limit),
-                "_continue": None,
-            }
+            kwargs.update(
+                {
+                    "watch": False,
+                    "limit": int(mlrun.mlconf.kubernetes.pagination.list_pods_limit),
+                    "_continue": None,
+                }
+            )
         get_k8s_helper().v1api.list_namespaced_pod.assert_any_call(
             get_k8s_helper().resolve_namespace(),
             label_selector=expected_label_selector,
@@ -556,13 +566,19 @@ class TestRuntimeHandlerBase:
             get_k8s_helper().crdapi.list_namespaced_custom_object.call_count
             == expected_number_of_calls
         )
-        kwargs = {}
+        kwargs = {
+            "_request_timeout": unittest.mock.ANY,
+        }
         if paginated:
-            kwargs = {
-                "watch": False,
-                "limit": int(mlrun.mlconf.kubernetes.pagination.list_crd_objects_limit),
-                "_continue": None,
-            }
+            kwargs.update(
+                {
+                    "watch": False,
+                    "limit": int(
+                        mlrun.mlconf.kubernetes.pagination.list_crd_objects_limit
+                    ),
+                    "_continue": None,
+                }
+            )
         get_k8s_helper().crdapi.list_namespaced_custom_object.assert_any_call(
             crd_group,
             crd_version,
@@ -584,6 +600,7 @@ class TestRuntimeHandlerBase:
             get_k8s_helper().v1api.read_namespaced_pod_log.assert_called_once_with(
                 name=logger_pod_name,
                 namespace=get_k8s_helper().resolve_namespace(),
+                _request_timeout=unittest.mock.ANY,
             )
         _, logs = await services.api.crud.Logs().get_logs(
             db, project, uid, source=LogSources.PERSISTENCY

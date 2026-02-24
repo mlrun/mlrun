@@ -933,19 +933,17 @@ class BaseRuntimeHandler(ABC):
         crd_objects = []
         if crd_group and crd_version and crd_plural:
             try:
-                crd_objects = framework.utils.singletons.k8s.get_k8s_helper().crdapi.list_namespaced_custom_object(
+                crd_objects = framework.utils.singletons.k8s.get_k8s_helper().list_crds(
                     crd_group,
                     crd_version,
-                    namespace,
                     crd_plural,
+                    namespace,
                     label_selector=label_selector,
                 )
             except ApiException as exc:
                 # ignore error if crd is not defined
                 if exc.status != 404:
                     raise
-            else:
-                crd_objects = crd_objects["items"]
         return crd_objects
 
     def _list_crd_objects_paginated(
@@ -1178,11 +1176,11 @@ class BaseRuntimeHandler(ABC):
         crd_group, crd_version, crd_plural = self._get_crd_info()
         deleted_crds = []
         try:
-            crd_objects = framework.utils.singletons.k8s.get_k8s_helper().crdapi.list_namespaced_custom_object(
+            crd_objects = framework.utils.singletons.k8s.get_k8s_helper().list_crds(
                 crd_group,
                 crd_version,
-                namespace,
                 crd_plural,
+                namespace,
                 label_selector=label_selector,
             )
         except ApiException as exc:
@@ -1190,7 +1188,7 @@ class BaseRuntimeHandler(ABC):
             if exc.status != 404:
                 raise
         else:
-            for crd_object in crd_objects["items"]:
+            for crd_object in crd_objects:
                 # best effort - don't let one failure in pod deletion to cut the whole operation
                 try:
                     (

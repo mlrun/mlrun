@@ -14,7 +14,10 @@
 
 from unittest import mock
 
+import pytest
+
 from mlrun.data_types import InferOptions
+from mlrun.datastore.targets import ParquetTarget
 from mlrun.feature_store import Entity
 from mlrun.feature_store.common import RunConfig
 from mlrun.feature_store.feature_set import FeatureSet
@@ -130,8 +133,18 @@ def test_deploy_ingestion_service(mock_deploy):
     )
 
 
-def test_feature_set_plot_with_targets():
-    """Test to reproduce the plot bug with feature set graph and targets"""
+@pytest.mark.parametrize(
+    "targets,description,expected_target_count",
+    [
+        (
+            None,
+            "multiple default targets",
+            2,
+        ),  # set_targets() creates multiple defaults (parquet + nosql)
+        ([ParquetTarget()], "single target", 1),
+    ],
+)
+def test_feature_set_plot_with_targets(targets, description, expected_target_count):
     fset = FeatureSet("test", entities=[Entity("id")])
     fset.add_aggregation(
         name="amount",
@@ -140,5 +153,22 @@ def test_feature_set_plot_with_targets():
         windows=["1h"],
         period="1h",
     )
-    fset.set_targets()
-    fset.plot(rankdir="LR", with_targets=True)
+
+    if targets is None:
+        fset.set_targets()
+    else:
+        fset.set_targets(targets, with_defaults=False)
+
+    graph = fset.plot(rankdir="LR", with_targets=True)
+    assert graph is not None
+    assert hasattr(graph, "source")
+    graph_source = graph.source
+    assert graph_source is not None
+
+    target_count = 0
+    if "parquet" in graph_source.lower():
+        target_count += 1
+    if "nosql" in graph_source.lower():
+        target_count += 1
+
+    assert target_count == expected_target_count

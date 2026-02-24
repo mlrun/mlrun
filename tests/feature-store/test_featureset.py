@@ -133,27 +133,46 @@ def test_deploy_ingestion_service(mock_deploy):
     )
 
 
+
 @pytest.mark.parametrize(
-    "targets,description,expected_target_count",
+    "targets,expected_target_count",
     [
-        (
-            None,
-            "multiple default targets",
-            2,
-        ),  # set_targets() creates multiple defaults (parquet + nosql)
-        ([ParquetTarget()], "single target", 1),
+        (None, 2),  # Multiple default targets (parquet + nosql)
+        ([ParquetTarget()], 1),  # Single target
     ],
 )
-def test_feature_set_plot_with_targets(targets, description, expected_target_count):
+@pytest.mark.parametrize(
+    "aggregations,description",
+    [
+        (
+            [("amount", "amount_agg1", ["sum"], ["1h"])],
+            "single aggregation",
+        ),
+        (
+            [
+                ("amount", "amount_agg1", ["sum"], ["1h"]),
+                ("amount", "amount_agg2", ["avg"], ["2h"]),
+            ],
+            "multiple aggregations",
+        ),
+    ],
+)
+def test_feature_set_plot_with_targets(
+    targets, expected_target_count, aggregations, description
+):
     fset = FeatureSet("test", entities=[Entity("id")])
-    fset.add_aggregation(
-        name="amount",
-        column="amount",
-        operations=["sum"],
-        windows=["1h"],
-        period="1h",
-    )
 
+    # Add aggregations based on parametrized input
+    for column, agg_name, operations, windows in aggregations:
+        fset.add_aggregation(
+            name=agg_name,
+            column=column,
+            operations=operations,
+            windows=windows,
+            period="1h",
+        )
+
+    # Set targets based on parametrized input
     if targets is None:
         fset.set_targets()
     else:

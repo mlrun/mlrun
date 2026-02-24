@@ -2438,9 +2438,7 @@ class TestBatchServingWithSampling(TestMLRunSystemModelMonitoring):
         serving_fn.deploy()
         return serving_fn
 
-    def _setup_resources(
-        self, with_model_runner: bool | None = False
-    ) -> None:
+    def _setup_resources(self, with_model_runner: bool | None = False) -> None:
         self.set_mm_credentials()
         model_uri = self._log_model()
         with concurrent.futures.ThreadPoolExecutor() as executor:

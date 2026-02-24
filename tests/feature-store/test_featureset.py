@@ -133,92 +133,61 @@ def test_deploy_ingestion_service(mock_deploy):
     )
 
 
-
 @pytest.mark.parametrize(
-    "targets,expected_target_count",
+    "num_targets",
     [
-        (None, 2),  # Multiple default targets (parquet + nosql)
-        ([ParquetTarget()], 1),  # Single target
+        1,  # Single target
+        2,  # Multiple targets
     ],
 )
 @pytest.mark.parametrize(
-    "aggregations,description",
+    "after_step_value",
     [
-        # (
-        #     [("amount", "amount_agg1", ["sum"], ["1h"])],
-        #     "single aggregation",
-        # ),
-        (
-            [
-                ("amount", "amount_agg1", ["sum"], ["1h"]),
-                ("amount", "amount_agg2", ["avg"], ["2h"]),
-            ],
-            "multiple aggregations",
-        ),
+        ["step2"],               # Single final step (list with 1 item)
+        ["step2", "step3"],      # Multiple final steps (list with 2 items)
     ],
 )
-def test_feature_set_plot_with_targets(
-    targets, expected_target_count, aggregations, description
-):
-    """Test plot with targets - regression test for list handling bug.
-
-    This test creates a scenario where target.after contains multiple steps,
-    ensuring our fix properly handles iterating over the list.
-    """
+def test_feature_set_plot_with_targets(num_targets, after_step_value):
     fset = FeatureSet("test", entities=[Entity("id")])
 
-    # Add aggregations based on parametrized input
-    for column, agg_name, operations, windows in aggregations:
-        fset.add_aggregation(
-            name=agg_name,
-            column=column,
-            operations=operations,
-            windows=windows,
-            period="1h",
-        )
-
-    # Set targets based on parametrized input
-    if targets is None:
-        fset.set_targets()
-    else:
-        fset.set_targets(targets, with_defaults=False)
-
-
-    # Should not crash with AttributeError
-    graph = fset.plot(rankdir="LR", with_targets=True)
-    assert graph is not None
-    assert hasattr(graph, "source")
-    graph_source = graph.source
-    assert graph_source is not None
-
-    # Verify edges were created
-    assert "->" in graph_source
-
-    # Verify expected number of targets in graph
-    target_count = 0
-    if "parquet" in graph_source.lower():
-        target_count += 1
-    if "nosql" in graph_source.lower():
-        target_count += 1
-
-    assert target_count == expected_target_count
-
-
-def test_feature_set_plot_with_multiple_after_steps_manual():
-    fset = FeatureSet("test", entities=[Entity("id")])
+    # Always create the branching graph
     fset.graph.add_step(name="step1", class_name="storey.Map", _fn="(event)")
     fset.graph.add_step(name="step2", class_name="storey.Map", _fn="(event)", after="step1")
-    fset.graph.add_step(name="step3", class_name="storey.Map", _fn="(event)", after="step1")
-    fset.set_targets(
-        targets=[ParquetTarget(name="test-target", after_step=["step2", "step3"])],
-        with_defaults=False
-    )
 
+    include_step_3 = "step3" in after_step_value
+    if include_step_3:
+        fset.graph.add_step(name="step3", class_name="storey.Map", _fn="(event)", after="step1")
+
+    # Set targets based on num_targets
+    if num_targets == 1:
+        # Single target
+        fset.set_targets(
+            targets=[ParquetTarget(name="test-target", after_step=after_step_value)],
+            with_defaults=False
+        )
+    else:
+        # Multiple targets (use defaults and set after_step)
+        fset.set_targets()
+        for target in fset.spec.targets:
+            target.after_step = after_step_value
+
+    # Should not crash with AttributeError
     graph = fset.plot(rankdir="LR", with_targets=True)
 
     assert graph is not None
     graph_source = graph.source
 
     assert "step2" in graph_source
-    assert "step3" in graph_source
-    assert "test-target" in graph_source
+    if include_step_3:
+        assert "step3" in graph_source
+    else:
+        assert "step3" not in graph_source
+    assert "->" in graph_source
+
+    target_count = 0
+    if "parquet" in graph_source.lower():
+        target_count += 1
+    if "nosql" in graph_source.lower():
+        target_count += 1
+
+    assert target_count == num_targets

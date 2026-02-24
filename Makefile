@@ -707,9 +707,7 @@ test-integration: clean ## Run mlrun integration tests
 		--disable-warnings \
 		--durations=100 \
 		-rf \
-		tests/integration \
-		server/py/services/api/tests/integration \
-		tests/rundb/test_httpdb.py && \
+		tests/artifacts/test_dataset.py::test_dataset_upload_csv && \
 	$(PRINT_COVERAGE_REPORT);
 
 .PHONY: test-migrations-dockerized

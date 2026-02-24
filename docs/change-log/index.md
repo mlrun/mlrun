@@ -49,9 +49,6 @@ See a full description of KFP, Python, and the workflow engines in {ref}`local-r
 |-------|----------------------------------------------------------------------------|
 |ML-11445| In the **Model endpoints > Metrics** tab, you can now select aggregation functions, which appear as multiple lines in the values graphs. Also, you can select a period of time greater than 1 month. See [Model endpoints metrics](../model-monitoring/monitoring-models.html#model-endpoints-metrics)This is not supported for V3IO.|
 
-|
-
-
 (1.11.0-breaking)=
 ### Breaking Changes
 | ID    |Description                                                                 |
@@ -63,6 +60,12 @@ See a full description of KFP, Python, and the workflow engines in {ref}`local-r
 ### Deprecations
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
+
+### Closed issues
+| ID    |Description                                                                 |
+|-------|----------------------------------------------------------------------------|
+|ML-7955|The **Owner** field is no longer blank for artifacts that are registered in the UI.|
+
 
 
 (v1101)=
@@ -87,10 +90,6 @@ See a full description of KFP, Python, and the workflow engines in {ref}`local-r
 (v1100)=
 ## v1.10.0 (November 2025)
 
-```{admonition} Important
-**v1.10.x are the last versions that support Python 3.9 and TDEngine. They will not be supported in MLRun v1.11.0.<br>
-TDEngine will be replaced with TimescaleDB. Model monitoring data in TDEngine will not be migrated.**
-```
 
 ### MLRun hub
 
@@ -1471,7 +1470,6 @@ with a drill-down to view the steps and their details. [Tech Preview]
 |ML-7723|Spark job might remain stuck in running state upon k8s node reboot.| NA   | v1.7.0|  
 |ML-7746|In some cases, when the pipeline is extremely large it is not displayed in the graph.| NA | v1.7.0|      
 |ML-7820|`sync_functions` should only sync the functions in the workflow, and not all of the functions within the `project.yaml`.| NA | v1.7.0|        
-|ML-7955|The **Owner** field is blank for artifacts that are registered in the UI.| NA| v1.7.0| 
 |ML-8419|When the MySQL server is unavailable, a project with non-V3IO model monitoring cannot be deleted.|Run `project.set_model_monitoring_credentials(endpoint_store_connection="v3io", stream_path="v3io", tsdb_connection="v3io", replace_creds=True)` before deleting the project.|v1.7.1|
 |ML-8427|Missing FK constraints in DB causes migration to fail after upgrade. | Delete old runs before upgrading. |v1.7.0|
 |ML-8528|In rare circumstances, KF pipelines fail.|Retry the workflow.|v1.6.3|

@@ -32,6 +32,7 @@ from .base import RunDBInterface
 class NopDB(RunDBInterface):
     def __init__(self, url=None, *args, **kwargs):
         self.url = url
+        self.token_provider = None
 
     def __getattribute__(self, attr):
         def nop(*args, **kwargs):
@@ -866,6 +867,8 @@ class NopDB(RunDBInterface):
         image: str = "mlrun/mlrun",
         deploy_histogram_data_drift_app: bool = True,
         fetch_credentials_from_sys_config: bool = False,
+        lag_threshold: int | None = None,
+        lag_event_cooldown: int | None = None,
     ) -> None:
         pass
 

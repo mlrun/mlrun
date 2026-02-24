@@ -128,7 +128,7 @@ def test_requirement_specifiers_convention():
 
     ignored_invalid_map = {
         # See comment near requirement for why we're limiting to patch changes only for all of these
-        "storey": {"~=1.11.12"},
+        "storey": {"~=1.11.16"},
         "pydantic": {">=1.10.15", ">=1,<2"},
         "nuclio-sdk": {">=0.5"},
         "scipy": {"~=1.16.3"},
@@ -136,6 +136,8 @@ def test_requirement_specifiers_convention():
         "gitpython": {"~=3.1, >=3.1.41"},
         "jinja2": {"~=3.1, >=3.1.6"},
         "pyopenssl": {">=23"},
+        # requests currently expects chardet < 6 when chardet is present
+        "chardet": {"<6"},
         # used in tests
         "aioresponses": {"~=0.7"},
         "testcontainers[k3s]": {"~=4.10.0"},

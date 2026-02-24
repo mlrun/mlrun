@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import contextlib
 import datetime
 import getpass
 import glob
@@ -45,6 +46,7 @@ import mlrun.common.runtimes.constants
 import mlrun.common.schemas.alert
 import mlrun.common.schemas.artifact
 import mlrun.common.schemas.model_monitoring.constants as mm_constants
+import mlrun.common.schemas.notification
 import mlrun.common.secrets
 import mlrun.datastore.datastore_profile
 import mlrun.db
@@ -2306,8 +2308,9 @@ class MlrunProject(ModelObj):
         :param severity:               Severity of the alert.
         :param criteria:               The threshold for triggering the alert based on the
                                        specified number of events within the defined time period.
-        :param reset_policy:           When to clear the alert. Either "manual" for manual reset of the alert,
-                                       or "auto" if the criteria contains a time period.
+        :param reset_policy:           When to clear the alert. "manual" means the alert stays active after
+                                       triggering and must be reset explicitly. "auto" means the alert is reset
+                                       immediately after triggering and sending notifications.
 
         :returns:                      List of AlertConfig according to endpoints results,
                                        filtered by result_names.
@@ -2585,6 +2588,8 @@ class MlrunProject(ModelObj):
         deploy_histogram_data_drift_app: bool = True,
         wait_for_deployment: bool = False,
         fetch_credentials_from_sys_config: bool = False,  # deprecated
+        lag_threshold: int | None = None,
+        lag_event_cooldown: int | None = None,
     ) -> None:
         """
         Deploy model monitoring application controller, writer and stream functions.
@@ -2621,6 +2626,11 @@ class MlrunProject(ModelObj):
                                                   background, including the histogram data drift app if selected.
         :param fetch_credentials_from_sys_config: Deprecated. If true, fetch the credentials from the project
                                                   configuration.
+        :param lag_threshold:                     Duration in minutes that will be considered as lag in the writer.
+                                                  Must be at least ``min_lag_threshold_minutes`` from config.
+                                                  Default computed server-side from config and ``base_period``.
+        :param lag_event_cooldown:                Duration in minutes between consecutive lag events per worker.
+                                                  Default computed server-side from config and ``base_period``.
         """
         if fetch_credentials_from_sys_config:
             warnings.warn(
@@ -2640,6 +2650,8 @@ class MlrunProject(ModelObj):
             base_period=base_period,
             deploy_histogram_data_drift_app=deploy_histogram_data_drift_app,
             fetch_credentials_from_sys_config=fetch_credentials_from_sys_config,
+            lag_threshold=lag_threshold,
+            lag_event_cooldown=lag_event_cooldown,
         )
 
         if wait_for_deployment:
@@ -2668,6 +2680,12 @@ class MlrunProject(ModelObj):
         :param wait_for_deployment: If true, return only after the deployment is done on the backend.
                                     Otherwise, deploy the controller on the background.
         """
+        warnings.warn(
+            "The base_period has been updated. The lag_threshold and lag_event_cooldown "
+            "may no longer be aligned. Consider disabling and re-enabling model monitoring.",
+            UserWarning,
+            stacklevel=2,
+        )
         db = mlrun.db.get_run_db(secrets=self._secrets)
         db.update_model_monitoring_controller(
             project=self.name,
@@ -2724,8 +2742,15 @@ class MlrunProject(ModelObj):
             user_application_list=user_application_list,
         )
         if succeed and delete_resources:
-            if delete_resources:
-                logger.info("Model Monitoring disabled", project=self.name)
+            try:
+                self.delete_model_monitoring_lag_alert()
+            except Exception as exc:
+                logger.warning(
+                    "Failed to delete lag detection alerts during disable",
+                    project=self.name,
+                    error=mlrun.errors.err_to_str(exc),
+                )
+            logger.info("Model Monitoring disabled", project=self.name)
             if delete_user_applications:
                 logger.info(
                     "All the desired monitoring application were deleted",
@@ -2741,6 +2766,74 @@ class MlrunProject(ModelObj):
                     "Some of the desired monitoring application were not deleted",
                     project=self.name,
                 )
+
+    def set_model_monitoring_lag_alert(
+        self,
+        notifications: typing.Union[
+            list[mlrun.common.schemas.notification.Notification],
+            mlrun.common.schemas.notification.Notification,
+        ],
+        *,
+        period: Optional[str] = None,
+        count: Optional[int] = None,
+    ) -> None:
+        """Configure an alert for model monitoring lag detection.
+
+        When the monitoring infrastructure detects that it is processing events
+        whose inference timestamp is significantly in the past, it emits a
+        ``MODEL_MONITORING_LAG_DETECTED`` event.  This method creates a single
+        alert configuration (using a wildcard entity) that matches lag events
+        from any monitoring component.
+
+        :param notifications: One or more notification objects to attach to the
+            alert (e.g. Slack webhook, email).
+        :param period:        Optional sliding-window period for the alert
+            criteria (e.g. ``"10m"``).
+        :param count:         Number of events within *period* before the alert
+            fires.  Defaults to ``1``.
+        """
+        alert_constants = mlrun.common.schemas.alert
+
+        if isinstance(notifications, mlrun.common.schemas.notification.Notification):
+            notifications = [notifications]
+
+        alert_notifications = [
+            alert_constants.AlertNotification(notification=n) for n in notifications
+        ]
+
+        alert_name = mm_constants.MonitoringAlertNames.LAG_DETECTED
+        alert_data = mlrun.alerts.alert.AlertConfig(
+            project=self.name,
+            name=alert_name,
+            summary="Model monitoring lag detected in project {{project}}.",
+            severity=alert_constants.AlertSeverity.MEDIUM,
+            entities=alert_constants.EventEntities(
+                kind=alert_constants.EventEntityKind.MODEL_MONITORING_INFRA,
+                project=self.name,
+                # Wildcard matches lag events from any monitoring entity
+                ids=["*"],
+            ),
+            trigger=alert_constants.AlertTrigger(
+                events=[alert_constants.EventKind.MODEL_MONITORING_LAG_DETECTED]
+            ),
+            criteria=alert_constants.AlertCriteria(
+                count=count or 1,
+                **({"period": period} if period else {}),
+            ),
+            notifications=alert_notifications,
+            reset_policy=alert_constants.ResetPolicy.AUTO,
+        )
+        db = mlrun.db.get_run_db(secrets=self._secrets)
+        db.store_alert_config(alert_name, alert_data, project=self.name)
+
+    def delete_model_monitoring_lag_alert(self) -> None:
+        """Delete the lag detection alert for this project."""
+        db = mlrun.db.get_run_db(secrets=self._secrets)
+        with contextlib.suppress(mlrun.errors.MLRunNotFoundError):
+            db.delete_alert_config(
+                mm_constants.MonitoringAlertNames.LAG_DETECTED,
+                project_name=self.name,
+            )
 
     def set_function(
         self,
@@ -4065,7 +4158,7 @@ class MlrunProject(ModelObj):
         schedule: typing.Union[str, mlrun.common.schemas.ScheduleCronTrigger] = None,
         artifact_path: Optional[str] = None,
         notifications: Optional[list[mlrun.model.Notification]] = None,
-        returns: Optional[list[Union[str, dict[str, str]]]] = None,
+        returns: "list[str | mlrun.LogHint] | None" = None,
         builder_env: Optional[dict] = None,
         reset_on_run: Optional[bool] = None,
         output_path: Optional[str] = None,
@@ -4119,13 +4212,17 @@ class MlrunProject(ModelObj):
                                 handler's run (as artifacts or results). The list's length must be equal to the amount
                                 of returning objects. A log hint may be given as:
 
-                                * A string of the key to use to log the returning value as result or as an artifact. To
-                                  specify The artifact type, it is possible to pass a string in the following structure:
-                                  "<key> : <type>". Available artifact types can be seen in `mlrun.ArtifactType`. If no
-                                  artifact type is specified, the object's default artifact type will be used.
-                                * A dictionary of configurations to use when logging. Further info per object type and
-                                  artifact type can be given there. The artifact key must appear in the dictionary as
-                                  "key": "the_key".
+                                * A ``LogHint`` object with the key and extra configurations.
+                                * A "shortcut" string of the key to use to log the returning value as result or as an
+                                  artifact. To specify The artifact type, it is possible to pass a string in the
+                                  following structure: "<key> : <type>". Available artifact types can be seen in
+                                  `mlrun.ArtifactType`. If no artifact type is specified, the object's default artifact
+                                  type will be used. Packing kwargs can be passed alongside the artifact type using
+                                  square brackets:
+                                  ``"<key> : <type>[<kwarg1>=<value1>, <kwarg2>=<value2>]"``.
+                                  Itemization can also be specified before the key using the
+                                  following structure: "<unbundle-level> * <key>". If unbundle level is not specified,
+                                  the default is full unbundling.
         :param builder_env:     env vars dict for source archive config/credentials e.g. builder_env={"GIT_TOKEN":
                                 token}
         :param reset_on_run:    When True, function python modules would reload prior to code execution.
@@ -5933,18 +6030,19 @@ def _init_function_from_dict(
             name, filename=url, image=image, kind=kind, handler=handler, tag=tag
         )
 
-    elif url.endswith(".py"):
+    elif kind == mlrun.runtimes.RuntimeKinds.application and path.isfile(url):
         # For application runtime we set the source path directly, deploy will upload it as an artifact
-        if kind == mlrun.runtimes.RuntimeKinds.application:
-            func = new_function(
-                name,
-                image=image,
-                kind=kind,
-                handler=handler,
-                tag=tag,
-            )
-            func.spec.build.source = url
-        elif in_context and with_repo:
+        func = new_function(
+            name,
+            image=image,
+            kind=kind,
+            handler=handler,
+            tag=tag,
+        )
+        func.spec.build.source = url
+
+    elif url.endswith(".py"):
+        if in_context and with_repo:
             # when load_source_on_run is used we allow not providing image as code will be loaded pre-run. ML-4994
             if (
                 not image

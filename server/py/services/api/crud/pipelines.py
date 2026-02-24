@@ -23,6 +23,7 @@ from collections.abc import Iterable
 
 import kfp_server_api
 import sqlalchemy.orm
+import yaml
 
 import mlrun
 import mlrun.auth.utils
@@ -607,7 +608,16 @@ class Pipelines(
     ):
         if arguments is None:
             arguments = {}
+
+        # Extract auth token name from YAML manifest before normalizing content_type
+        token_name = None
         if "/yaml" in content_type:
+            try:
+                token_name = self.resolve_auth_token_name_from_workflow_manifest(data)
+            except yaml.YAMLError as exc:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    f"Failed to parse workflow manifest YAML: {mlrun.errors.err_to_str(exc)}"
+                ) from exc
             content_type = ".yaml"
         elif " /zip" in content_type:
             content_type = ".zip"
@@ -620,12 +630,10 @@ class Pipelines(
             "Writing pipeline to temp file", content_type=content_type
         )
 
-        # TODO In ML-11600, pass the token name from the request
-        provided_token_name = None
         # Workflows do not go through launcher/runtime handler
         # So enrichment, validation and secret retrieval need to be done here
         auth_secret_name = services.api.utils.helpers.resolve_auth_token_secret_name(
-            provided_token_name=provided_token_name, user_id=auth_info.user_id
+            provided_token_name=token_name, user_id=auth_info.user_id
         )
 
         data = mlrun_pipelines.common.ops.process_kfp_workflow_secret_references(

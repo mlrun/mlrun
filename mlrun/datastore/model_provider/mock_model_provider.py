@@ -24,6 +24,7 @@ from mlrun.datastore.model_provider.model_provider import (
 
 class MockModelProvider(ModelProvider):
     support_async = True
+    supports_streaming = True
 
     def __init__(
         self,
@@ -127,3 +128,27 @@ class MockModelProvider(ModelProvider):
         **invoke_kwargs,
     ) -> Union[str, dict[str, Any], list[dict[str, Any]], Any]:
         return self.invoke(messages, invoke_response_format, **invoke_kwargs)
+
+    def _stream_text(self, messages: list[dict]) -> str:
+        """Generate the text response for streaming, with error checking."""
+        if any("ERROR" in msg.get("content", "") for msg in messages):
+            raise RuntimeError("Mock error triggered by ERROR keyword in message")
+        return "You are using a mock model provider, no actual inference is performed."
+
+    def invoke_stream(self, messages, **invoke_kwargs):
+        if self._validate_and_detect_batch_invocation(messages):
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Batch invocation is not supported in streaming mode"
+            )
+        text = self._stream_text(messages)
+        for word in text.split():
+            yield word + " "
+
+    async def async_invoke_stream(self, messages, **invoke_kwargs):
+        if self._validate_and_detect_batch_invocation(messages):
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Batch invocation is not supported in streaming mode"
+            )
+        text = self._stream_text(messages)
+        for word in text.split():
+            yield word + " "

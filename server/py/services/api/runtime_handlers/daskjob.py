@@ -116,7 +116,7 @@ class DaskRuntimeHandler(BaseRuntimeHandler):
         enrich_needed = self._validate_if_enrich_is_needed_by_group_by(group_by)
         if not enrich_needed:
             return response
-        _services = framework.utils.singletons.k8s.get_k8s_helper().v1api.list_namespaced_service(
+        _services = framework.utils.singletons.k8s.get_k8s_helper().list_services(
             namespace, label_selector=label_selector
         )
         service_resources = []
@@ -221,13 +221,13 @@ class DaskRuntimeHandler(BaseRuntimeHandler):
             if dask_component == "scheduler" and cluster_name:
                 service_names.append(cluster_name)
 
-        _services = framework.utils.singletons.k8s.get_k8s_helper().v1api.list_namespaced_service(
+        _services = framework.utils.singletons.k8s.get_k8s_helper().list_services(
             namespace, label_selector=label_selector
         )
         for service in _services.items:
             try:
                 if force or service.metadata.name in service_names:
-                    framework.utils.singletons.k8s.get_k8s_helper().v1api.delete_namespaced_service(
+                    framework.utils.singletons.k8s.get_k8s_helper().delete_service(
                         service.metadata.name,
                         namespace,
                         grace_period_seconds=resource_deletion_grace_period,

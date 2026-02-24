@@ -68,6 +68,13 @@ See a full description of KFP, Python, and the workflow engines in {ref}`local-r
 
 
 
+(v1102)=
+## v1.10.2 (February 2025)
+### Closed issues
+| ID    |Description                                                                 |
+|-------|----------------------------------------------------------------------------|
+|ML-11771|Resolved issue of Users temporarily unable to access projects by improving all the async clients to use per-thread session instances and all http clients to use a dummy cookie jar.|
+
 (v1101)=
 ## v1.10.1 (January 2026)
 

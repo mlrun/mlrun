@@ -1,0 +1,34 @@
+# Copyright 2023 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+
+class DummyDataItem:
+    def __init__(self, key: str, is_artifact: bool = False):
+        self.key = key
+        self.artifact_url = ""
+        self._is_artifact = is_artifact
+
+    def get_artifact_type(self) -> bool:
+        return self._is_artifact
+
+
+class BaseClass:
+    def __init__(self, a: int):
+        self.a = a
+
+
+class InheritingClass(BaseClass):
+    def __init__(self, a: int, b: str):
+        super().__init__(a=a)
+        self.b = b

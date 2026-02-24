@@ -186,11 +186,15 @@ class Spark3RuntimeHandler(KubeRuntimeHandler, abc.ABC):
             ),
         )
 
-        update_in(job, "spec.volumes", runtime.spec.volumes)
-
         self.add_secrets_to_spec_before_running(
-            runtime, project_name=run.metadata.project
+            runtime,
+            project_name=run.metadata.project,
+            token_name=(run.spec.auth or {}).get("token_name"),
+            auth_info=auth_info,
         )
+
+        # Update volumes after secrets are added to ensure secret volumes are included
+        update_in(job, "spec.volumes", runtime.spec.volumes)
 
         command, args, extra_env = self._get_cmd_args(runtime, run, auth_info=auth_info)
         code = None
@@ -362,9 +366,7 @@ with ctx:
             k8s_config_map.metadata = meta
             k8s_config_map.metadata.name += "-script"
             k8s_config_map.data = {runtime.code_script: code}
-            config_map = k8s.v1api.create_namespaced_config_map(
-                namespace, k8s_config_map
-            )
+            config_map = k8s.create_configmap(namespace, k8s_config_map)
             config_map_name = config_map.metadata.name
 
             vol_src = k8s_client.V1ConfigMapVolumeSource(name=config_map_name)
@@ -383,11 +385,11 @@ with ctx:
             )
 
         try:
-            resp = k8s.crdapi.create_namespaced_custom_object(
+            resp = k8s.create_crd(
                 Spark3Runtime.group,
                 Spark3Runtime.version,
+                Spark3Runtime.plural,
                 namespace=namespace,
-                plural=Spark3Runtime.plural,
                 body=job,
             )
             name = get_in(resp, "metadata.name", "unknown")
@@ -583,7 +585,7 @@ with ctx:
             )
             uids.append(uid)
 
-        config_maps = framework.utils.singletons.k8s.get_k8s_helper().v1api.list_namespaced_config_map(
+        config_maps = framework.utils.singletons.k8s.get_k8s_helper().list_configmaps(
             namespace, label_selector=label_selector
         )
         for config_map in config_maps.items:
@@ -592,7 +594,7 @@ with ctx:
                     mlrun_constants.MLRunInternalLabels.uid, None
                 )
                 if force or uid in uids:
-                    framework.utils.singletons.k8s.get_k8s_helper().v1api.delete_namespaced_config_map(
+                    framework.utils.singletons.k8s.get_k8s_helper().delete_configmap(
                         config_map.metadata.name,
                         namespace,
                         grace_period_seconds=resource_deletion_grace_period,

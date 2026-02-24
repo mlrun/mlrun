@@ -12,18 +12,21 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import json
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from time import sleep
 
 import pandas as pd
 import pytest
-from datastore.remote_model.remote_model_utils import BATCH_INPUT_DATA
+import requests
 
 import mlrun
 import mlrun.common.schemas.model_monitoring.constants as mm_constants
 from mlrun.datastore.model_provider.model_provider import UsageResponseKeys
 from mlrun.runtimes.nuclio.function import AsyncSpec
 from tests.datastore.remote_model.remote_model_utils import (
+    BATCH_INPUT_DATA,
+    FLUSH_AFTER_SECONDS,
     setup_remote_model_test,
 )
 from tests.datastore.remote_model.test_remote_model import BaseMockModelProviderTest
@@ -293,6 +296,8 @@ class TestMockModelProviderTracking(
         ["process_pool", "dedicated_process", "naive", "asyncio", "thread_pool"],
     )
     def test_llmodel_batch_step_with_graph(self, execution_mechanism):
+        """Test batch step with graph topology using MockModelProvider with model monitoring
+        Tests both success and error scenarios in a single deployment to minimize setup overhead"""
         mlrun_model_name = "mock_model"
         model_url = "mock://my-mock-model"
 
@@ -318,17 +323,45 @@ class TestMockModelProviderTracking(
             sleep(delay)
             return function.invoke(f"v2/models/{mlrun_model_name}/infer", event)
 
+        # Send success events concurrently
         with ThreadPoolExecutor(max_workers=len(BATCH_INPUT_DATA)) as executor:
-            # MockProvider requires a larger delay (0.3s) because batching output depends on the order of requests,
-            # which can introduce race conditions, unlike real providers where batching output depends on input.
+            # MockProvider requires a larger delay because batching output depends on the order of requests
             futures = [
-                executor.submit(send_event, input_event, i * 0.3)
+                executor.submit(send_event, input_event, i * 0.6)
                 for i, input_event in enumerate(BATCH_INPUT_DATA)
             ]
-            responses = [future.result() for future in futures]
+            success_responses = [future.result() for future in futures]
 
-        self._verify_batch_response(responses)
-        for i, response in enumerate(responses):
+        # Verify success response structure
+        self._verify_batch_response(success_responses)
+        for i, response in enumerate(success_responses):
+            output = response["output"]
+            # in order to check batches of 2:
+            expected_counter = i % 2
+            assert f"(Item {expected_counter})" in output[UsageResponseKeys.ANSWER]
+
+        # Sleep to ensure batch is flushed before sending error events
+        sleep(FLUSH_AFTER_SECONDS + 1)
+
+        # Send error events - both should fail together in the batch
+        good_input = BATCH_INPUT_DATA[0]
+        error_inputs = [good_input, self.ERROR_INPUT]  # 2 events -> 1 error batch
+
+        with ThreadPoolExecutor(max_workers=len(error_inputs)) as executor:
+            futures = [
+                executor.submit(send_event, input_event, i * 0.6)
+                for i, input_event in enumerate(error_inputs)
+            ]
+            # Both should fail when the batch encounters the error
+            for future in futures:
+                with pytest.raises(
+                    RuntimeError, match="Mock error triggered by ERROR keyword"
+                ):
+                    future.result()
+
+        # Verify success response structure
+        self._verify_batch_response(success_responses)
+        for i, response in enumerate(success_responses):
             output = response["output"]
             # in order to check batches of 2:
             expected_counter = i % 2
@@ -359,7 +392,7 @@ class TestMockModelProviderTracking(
             table=mm_constants.V3IOTSDBTables.PREDICTIONS, start="now-50m", end="now"
         )
 
-        # Verify batch sizes (2+2+1)
+        # Verify batch sizes (2+2+1) - error batch not included
         assert len(predictions) == 3
         batch_sizes = predictions["estimated_prediction_count"].tolist()
         assert batch_sizes == [2, 2, 1]
@@ -367,7 +400,121 @@ class TestMockModelProviderTracking(
         v3io_df = pd.read_parquet(
             f"v3io:///projects/{self.project.name}/artifacts/model-endpoints/parquet/key={mep.metadata.uid}"
         )
+        # Only success events are in parquet (5 events), error events are not stored
         assert len(v3io_df) == len(BATCH_INPUT_DATA)
 
-        # Verify batch step structure - still 3 request groups (2+2+1, error batch not included)
+        # Verify batch step structure - 3 request groups (2+2+1, error batch not included)
         self._verify_batch_step_parquet_contents(v3io_df, endpoint_name)
+
+        # Verify error tracking - should have 1 error batch (containing 2 events)
+        error_df = tsdb_client.get_error_count(endpoint_ids=mep.metadata.uid)
+        assert len(error_df) == 1
+        error_dict = error_df.head(1).to_dict(orient="records")[0]
+        assert error_dict["error_count"] == 1
+
+    @pytest.mark.parametrize(
+        "execution_mechanism",
+        ["process_pool", "dedicated_process", "naive", "asyncio", "thread_pool"],
+    )
+    def test_llmodel_streaming_tracking(self, execution_mechanism):
+        """Test streaming invocation with MockModelProvider and model monitoring.
+
+        Verifies that the streaming response is delivered as chunked HTTP and that
+        the monitoring pipeline correctly records the aggregated result (the Collector
+        step gathers streamed tokens and the MonitoringPreProcessor aggregates them).
+        """
+        mlrun_model_name = "mock_model"
+        endpoint_name = "my_endpoint"
+        model_url = "mock://my-mock-model"
+
+        model_artifact, llm_prompt_artifact, function = setup_remote_model_test(
+            self.project,
+            model_url,
+            mlrun_model_name=mlrun_model_name,
+            image=self.image,
+            execution_mechanism=execution_mechanism,
+            streaming=True,
+        )
+
+        self.set_mm_credentials()
+        function.set_tracking()
+        self.project.enable_model_monitoring(
+            deploy_histogram_data_drift_app=False,
+            image=self.image,
+        )
+
+        function.deploy()
+
+        # Send a streaming request using raw HTTP so we get chunked transfer
+        url = function.get_url()
+        resp = requests.post(
+            f"{url}/v2/models/{mlrun_model_name}/infer",
+            data=json.dumps(BATCH_INPUT_DATA[0]),
+            stream=True,
+        )
+        assert resp.ok, f"Streaming request failed: {resp.status_code} {resp.text}"
+        assert resp.headers.get("Transfer-Encoding") == "chunked"
+
+        self._verify_streaming_response(
+            resp.iter_content(decode_unicode=True, chunk_size=1024)
+        )
+
+        # Send a streaming request with error input
+        self._check_single_invocation_with_error(function.invoke, mlrun_model_name)
+
+        # Wait for monitoring pipeline to process the streamed prediction
+        sleep(180)
+
+        function_name = function.metadata.name
+        mep = mlrun.db.get_run_db().get_model_endpoint(
+            name=endpoint_name,
+            project=self.project.name,
+            function_name=function_name,
+            function_tag="latest",
+            feature_analysis=True,
+            tsdb_metrics=True,
+        )
+        assert mep is not None
+
+        tsdb_client = mlrun.model_monitoring.get_tsdb_connector(
+            project=self.project.name, profile=self.mm_tsdb_profile
+        )
+        predictions = tsdb_client._get_records(
+            table=mm_constants.V3IOTSDBTables.PREDICTIONS,
+            start="now-50m",
+            end="now",
+        )
+
+        assert len(predictions) == 1
+        prediction = predictions.iloc[0].to_dict()
+        assert prediction["effective_sample_count"] == 1
+        assert prediction["estimated_prediction_count"] == 1
+
+        # Verify endpoint_features were written to the EVENTS table.
+        # Without the streaming output schema fix, write to TSDB silently fails due to
+        # a column count mismatch caused by TSDBTarget skipping None values.
+        events = tsdb_client._get_records(
+            table=mm_constants.V3IOTSDBTables.EVENTS,
+            start="now-50m",
+            end="now",
+            filter_query=(
+                f"record_type=='{mm_constants.EventKeyMetrics.ENDPOINT_FEATURES}'"
+            ),
+        )
+        assert len(events) >= 1, "Expected endpoint_features records in EVENTS table"
+
+        v3io_df = pd.read_parquet(
+            f"v3io:///projects/{self.project.name}/artifacts/model-endpoints/"
+            f"parquet/key={mep.metadata.uid}"
+        )
+        assert len(v3io_df) == 1
+
+        row = v3io_df.iloc[0]
+        assert row["endpoint_name"] == endpoint_name
+        assert row["model_class"] == "LLModel"
+        assert "mock model provider" in str(row).lower()
+
+        error_df = tsdb_client.get_error_count(endpoint_ids=mep.metadata.uid)
+        assert len(error_df) == 1
+        error_dict = error_df.head(1).to_dict(orient="records")[0]
+        assert error_dict["error_count"] == 1

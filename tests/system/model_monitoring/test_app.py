@@ -1538,6 +1538,55 @@ class TestModelMonitoringInitialize(TestMLRunSystemModelMonitoring):
 
 @TestMLRunSystemModelMonitoring.skip_test_if_env_not_configured
 @pytest.mark.enterprise
+class TestUpdateControllerPreservesAuthToken(TestMLRunSystemModelMonitoring):
+    """ML-12021: Verify that update_model_monitoring_controller preserves
+    the auth token that was set during enable_model_monitoring."""
+
+    project_name = "test-mm-auth-token"
+    image: typing.Optional[str] = None
+
+    @pytest.mark.timeout(600)
+    def test_auth_token_preserved_after_controller_update(self) -> None:
+        self.set_mm_credentials()
+
+        # Clean up any leftover monitoring from a previous run
+        try:
+            self.project.disable_model_monitoring()
+        except Exception:
+            pass
+
+        token_name = "test-auth-token"
+        with mlrun.RuntimeConfigurationContext(auth_token_name=token_name):
+            self.project.enable_model_monitoring(
+                image=self.image or "mlrun/mlrun",
+                deploy_histogram_data_drift_app=False,
+                wait_for_deployment=True,
+            )
+
+        # Verify the controller has the auth token after initial deploy
+        controller = self.project.get_function(
+            key=mm_constants.MonitoringFunctionNames.APPLICATION_CONTROLLER,
+            ignore_cache=True,
+        )
+        assert controller.spec.auth.get("token_name") == token_name
+
+        # Update controller (no RuntimeConfigurationContext active)
+        self.project.update_model_monitoring_controller(
+            image=self.image or "mlrun/mlrun",
+            base_period=1,
+            wait_for_deployment=True,
+        )
+
+        # Verify the auth token is still preserved after update
+        controller = self.project.get_function(
+            key=mm_constants.MonitoringFunctionNames.APPLICATION_CONTROLLER,
+            ignore_cache=True,
+        )
+        assert controller.spec.auth.get("token_name") == token_name
+
+
+@TestMLRunSystemModelMonitoring.skip_test_if_env_not_configured
+@pytest.mark.enterprise
 class TestMonitoredServings(TestMLRunSystemModelMonitoring):
     project_name = "test-mm-serving"
     # Set image to "<repo>/mlrun:<tag>" for local testing

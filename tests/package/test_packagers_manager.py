@@ -31,6 +31,7 @@ from mlrun.package import (
     Packager,
     PackagersManager,
 )
+from tests.package.assets import DummyDataItem
 
 
 class PackagerA(Packager):
@@ -446,16 +447,6 @@ def test_unbundling_log_hint(
     )
 
 
-class _DummyDataItem:
-    def __init__(self, key: str, is_artifact: bool = False):
-        self.key = key
-        self.artifact_url = ""
-        self._is_artifact = is_artifact
-
-    def get_artifact_type(self) -> bool:
-        return self._is_artifact
-
-
 @pytest.mark.parametrize(
     "data, type_hint, expected_results",
     [
@@ -490,7 +481,7 @@ def test_plural_type_hint_unpacking(
     # Pack an arbitrary amount of objects:
     try:
         value = packagers_manager.unpack(
-            data_item=_DummyDataItem(key=data), type_hint=type_hint
+            data_item=DummyDataItem(key=data), type_hint=type_hint
         )
     except MLRunPackageUnpackingError as error:
         # Catch only if the expected results is a string, otherwise it is a legitimate exception:

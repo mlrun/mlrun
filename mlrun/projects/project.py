@@ -2308,8 +2308,9 @@ class MlrunProject(ModelObj):
         :param severity:               Severity of the alert.
         :param criteria:               The threshold for triggering the alert based on the
                                        specified number of events within the defined time period.
-        :param reset_policy:           When to clear the alert. Either "manual" for manual reset of the alert,
-                                       or "auto" if the criteria contains a time period.
+        :param reset_policy:           When to clear the alert. "manual" means the alert stays active after
+                                       triggering and must be reset explicitly. "auto" means the alert is reset
+                                       immediately after triggering and sending notifications.
 
         :returns:                      List of AlertConfig according to endpoints results,
                                        filtered by result_names.
@@ -6029,18 +6030,19 @@ def _init_function_from_dict(
             name, filename=url, image=image, kind=kind, handler=handler, tag=tag
         )
 
-    elif url.endswith(".py"):
+    elif kind == mlrun.runtimes.RuntimeKinds.application and path.isfile(url):
         # For application runtime we set the source path directly, deploy will upload it as an artifact
-        if kind == mlrun.runtimes.RuntimeKinds.application:
-            func = new_function(
-                name,
-                image=image,
-                kind=kind,
-                handler=handler,
-                tag=tag,
-            )
-            func.spec.build.source = url
-        elif in_context and with_repo:
+        func = new_function(
+            name,
+            image=image,
+            kind=kind,
+            handler=handler,
+            tag=tag,
+        )
+        func.spec.build.source = url
+
+    elif url.endswith(".py"):
+        if in_context and with_repo:
             # when load_source_on_run is used we allow not providing image as code will be loaded pre-run. ML-4994
             if (
                 not image

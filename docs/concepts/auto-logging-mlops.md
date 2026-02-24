@@ -35,3 +35,6 @@ configurations. Reading the docs of your favorite framework to get the most out 
 - [PyTorch](../api/mlrun.frameworks/mlrun.frameworks.pytorch.rst) 
 - [XGBoost](../api/mlrun.frameworks/mlrun.frameworks.xgboost.rst) 
 - [LightGBM](../api/mlrun.frameworks/mlrun.frameworks.lgbm.rst)
+
+**See also**
+- {ref}`packagers` — the packager system that powers automatic input/output handling for any MLRun function

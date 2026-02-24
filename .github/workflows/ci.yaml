@@ -409,7 +409,23 @@ jobs:
           diff-cover tests/coverage_reports/combined.xml \
           --compare-branch origin/development \
           --show-uncovered \
-          --html-report tests/coverage_reports/combined_diff.html
+          --html-report tests/coverage_reports/combined_diff.html \
+          --markdown-report tests/coverage_reports/diff_coverage.md
+
+      - name: Add coverage to job summary
+        if: github.event_name == 'pull_request'
+        run: |
+          echo "## 📊 Diff Coverage Report" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          cat tests/coverage_reports/diff_coverage.md >> $GITHUB_STEP_SUMMARY
+
+      - name: Comment PR with coverage
+        uses: marocchino/sticky-pull-request-comment@v2
+        if: github.event_name == 'pull_request'
+        with:
+          header: coverage
+          path: tests/coverage_reports/diff_coverage.md
+
       - name: Upload coverage diff report
         uses: actions/upload-artifact@v6
         with:

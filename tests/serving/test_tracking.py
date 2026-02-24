@@ -2489,13 +2489,13 @@ class TestMonitoringPreProcessorStreamingAggregation:
             server.wait_for_completion()
 
         dummy_stream = server.context.stream.output_stream
-        assert (
-            len(dummy_stream.event_list) == 1
-        ), "expected one tracking event for the streaming error"
+        assert len(dummy_stream.event_list) == 1, (
+            "expected one tracking event for the streaming error"
+        )
         event = dummy_stream.event_list[0]
-        assert (
-            event.get("error") is not None
-        ), "expected 'error' field in tracking event"
+        assert event.get("error") is not None, (
+            "expected 'error' field in tracking event"
+        )
         assert "RuntimeError" in event["error"]
         assert "stream failure mid-generation" in event["error"]
 

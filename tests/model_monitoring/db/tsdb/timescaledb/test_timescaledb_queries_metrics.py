@@ -362,9 +362,9 @@ class TestMetadataMethods:
         assert not result.empty, "Should have returned data for monitoring-app1"
 
         # Check that we only have data for monitoring-app1
-        assert (
-            len(result) == 1
-        ), f"Should have exactly 1 row for monitoring-app1, got {len(result)}"
+        assert len(result) == 1, (
+            f"Should have exactly 1 row for monitoring-app1, got {len(result)}"
+        )
 
         # Verify it's the correct application and metric
         assert (
@@ -405,9 +405,9 @@ class TestMetadataMethods:
 
         # Verify we ONLY get monitoring-app2's data
         assert not result_app2.empty, "Should have returned data for monitoring-app2"
-        assert (
-            len(result_app2) == 1
-        ), f"Should have exactly 1 row for monitoring-app2, got {len(result_app2)}"
+        assert len(result_app2) == 1, (
+            f"Should have exactly 1 row for monitoring-app2, got {len(result_app2)}"
+        )
         assert (
             result_app2[mm_schemas.WriterEvent.APPLICATION_NAME].iloc[0]
             == test_data[1]["application_name"]

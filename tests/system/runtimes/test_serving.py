@@ -11,6 +11,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import time
 from http import HTTPMethod
 
 import pytest
@@ -72,14 +73,14 @@ class TestServingAPIHandler(tests.system.base.TestMLRunSystem):
         )
 
         # Check that the API handler config is set correctly in the function spec
-        assert (
-            function.spec.api_handler_config is not None
-        ), "API handler config should be set in function spec"
+        assert function.spec.api_handler_config is not None, (
+            "API handler config should be set in function spec"
+        )
         # Convert back to APIHandlerConfig for comparison
         spec_config = APIHandlerConfig.from_dict(function.spec.api_handler_config)
-        assert (
-            spec_config.endpoints == config.endpoints
-        ), "API handler endpoints should match the config set"
+        assert spec_config.endpoints == config.endpoints, (
+            "API handler endpoints should match the config set"
+        )
         self._logger.debug(
             "API handler config correctly set in function spec",
             endpoints=spec_config.endpoints,
@@ -189,9 +190,9 @@ class TestServingAPIHandler(tests.system.base.TestMLRunSystem):
         # Verify the mapped values were extracted correctly
         assert response is not None, "Handler should return a response"
         assert response["name"] == "Alice Smith", "user_name should be extracted"
-        assert (
-            response["email"] == "alice@example.com"
-        ), "user_email should be extracted from nested path"
+        assert response["email"] == "alice@example.com", (
+            "user_email should be extracted from nested path"
+        )
         assert response["titles"] == [
             "MLOps Handbook",
             "Python Guide",
@@ -238,15 +239,65 @@ class TestServingAPIHandler(tests.system.base.TestMLRunSystem):
 
         # Verify the path and query params were extracted correctly
         assert response is not None, "Handler should return a response"
-        assert (
-            response["category"] == "electronics"
-        ), "category path param should be extracted"
-        assert (
-            response["item_id"] == "laptop-123"
-        ), "item_id path param should be extracted"
+        assert response["category"] == "electronics", (
+            "category path param should be extracted"
+        )
+        assert response["item_id"] == "laptop-123", (
+            "item_id path param should be extracted"
+        )
         assert response["limit"] == "10", "limit query param should be string"
         # See NUC-7459 - multiple matches should be returned as list
         # assert response["tags"] == ["new", "featured", "sale"], "tags query param should be list"
         # assert response["tags_count"] == 3, "tags_count should match number of tags"
 
         self._logger.info("Path and query params API handler test passed")
+
+    def test_api_handler_wildcard_path(self) -> None:
+        """Test API handler with a wildcard '*' path pattern."""
+        self._logger.info("Testing API handler with wildcard star path")
+
+        config = APIHandlerConfig(include_url_info=True)
+        config.add_endpoint_handler(
+            "/api/wildcard/*",
+            HTTPMethod.POST,
+            APIHandlerAction.ALLOW,
+            "Wildcard catch-all endpoint",
+        )
+
+        function = self._create_serving_function(
+            name="wildcard-handler",
+            api_config=config,
+            func=str(self.assets_path / "wildcard_path_handler.py"),
+        )
+
+        graph = function.set_topology("flow", engine="sync", exist_ok=True)
+        graph.to(name="handler", handler="handle_wildcard").respond()
+
+        self._logger.debug("Deploying serving function with wildcard path")
+        function.deploy()
+        time.sleep(5)  # Wait for deployment to complete
+
+        # Verify a nested path under the wildcard is routed correctly
+        self._logger.debug("Invoking /api/wildcard/v1/data")
+        response = function.invoke(
+            path="/api/wildcard/v1/data",
+            method="POST",
+            body={},
+        )
+        assert response is not None, "Handler should return a response"
+        assert (
+            response["matched_path"] == "/api/wildcard/v1/data"
+        ), "mlrun_request_path should reflect the exact request path"
+
+        # Verify a different nested path also routes correctly
+        self._logger.debug("Invoking /api/wildcard/users/42")
+        response2 = function.invoke(
+            path="/api/wildcard/users/42",
+            method="POST",
+            body={},
+        )
+        assert (
+            response2["matched_path"] == "/api/wildcard/users/42"
+        ), "mlrun_request_path should reflect the request path for a different sub-path"
+
+        self._logger.info("Wildcard path API handler test passed")

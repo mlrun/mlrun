@@ -201,9 +201,9 @@ class TestFeatureStore(TestMLRunSystem):
         stocks_set["name"].description = "some name"
 
         self._logger.info(f"stocks spec: {stocks_set.to_yaml()}")
-        assert (
-            stocks_set.spec.features["name"].description == "some name"
-        ), "description was not set"
+        assert stocks_set.spec.features["name"].description == "some name", (
+            "description was not set"
+        )
         assert len(df) == len(stocks), "dataframe size doesnt match"
         assert stocks_set.status.stats["exchange"], "stats not created"
 
@@ -273,15 +273,15 @@ class TestFeatureStore(TestMLRunSystem):
             entity_timestamp_column=entity_timestamp_column,
             engine=engine,
         )
-        assert len(vector.spec.features) == len(
-            features
-        ), "unexpected num of requested features"
-        assert (
-            len(vector.status.features) == features_size
-        ), "unexpected num of returned features"
-        assert (
-            len(vector.status.stats) == features_size
-        ), "unexpected num of feature stats"
+        assert len(vector.spec.features) == len(features), (
+            "unexpected num of requested features"
+        )
+        assert len(vector.status.features) == features_size, (
+            "unexpected num of returned features"
+        )
+        assert len(vector.status.stats) == features_size, (
+            "unexpected num of feature stats"
+        )
         assert vector.status.label_column == "xx", "unexpected label_column name"
 
         df = resp.to_dataframe()
@@ -331,13 +331,13 @@ class TestFeatureStore(TestMLRunSystem):
             assert resp[0] is None
             resp = svc.get([{"ticker": "GOOG"}, {"ticker": "MSFT"}])
             resp = svc.get([{"ticker": "AAPL"}])
-            assert (
-                resp[0]["name"] == "Apple Inc" and resp[0]["exchange"] == "NASDAQ"
-            ), "unexpected online result"
+            assert resp[0]["name"] == "Apple Inc" and resp[0]["exchange"] == "NASDAQ", (
+                "unexpected online result"
+            )
             resp2 = svc.get([{"ticker": "AAPL"}], as_list=True)
-            assert (
-                len(resp2[0]) == features_size - 1
-            ), "unexpected online vector size"  # -1 label
+            assert len(resp2[0]) == features_size - 1, (
+                "unexpected online vector size"
+            )  # -1 label
 
     @TestMLRunSystem.skip_test_if_env_not_configured
     @pytest.mark.parametrize("entity_timestamp_column", [None, "time"])
@@ -460,9 +460,9 @@ class TestFeatureStore(TestMLRunSystem):
 
         vector.spec.with_indexes = True
         df_with_index = vector.get_offline_features().to_dataframe()
-        assert not isinstance(
-            df_with_index.index, pd.core.indexes.range.RangeIndex
-        ), "index column is of default type"
+        assert not isinstance(df_with_index.index, pd.core.indexes.range.RangeIndex), (
+            "index column is of default type"
+        )
         assert df_with_index.index.name == "ticker"
         assert "time" in df_with_index.columns, "'time' column should be present"
 
@@ -3063,9 +3063,9 @@ class TestFeatureStore(TestMLRunSystem):
                 raise_for_status=v3io.dataplane.RaiseForStatus.never,
             )
         except RuntimeError as err:
-            assert err.__str__().__contains__(
-                "404"
-            ), "only acceptable error is with status 404"
+            assert err.__str__().__contains__("404"), (
+                "only acceptable error is with status 404"
+            )
         finally:
             v3io_client.stream.create(
                 container="projects", stream_path=stream_path, shard_count=1
@@ -3732,9 +3732,9 @@ class TestFeatureStore(TestMLRunSystem):
             headers=headers,
             verify=config.httpdb.http.verify,
         )
-        assert (
-            response.status_code == 200
-        ), f"Failed to patch feature vector: {response}"
+        assert response.status_code == 200, (
+            f"Failed to patch feature vector: {response}"
+        )
         vector.reload()
         service = vector.get_online_feature_service()
         try:

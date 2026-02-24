@@ -30,7 +30,7 @@ import zipfile
 from collections.abc import Callable
 from copy import deepcopy
 from os import environ, makedirs, path
-from typing import Optional, Union, cast
+from typing import Union, cast
 
 import dotenv
 import git
@@ -152,15 +152,15 @@ def new_project(
     context: str = "./",
     init_git: bool = False,
     user_project: bool = False,
-    remote: Optional[str] = None,
-    from_template: Optional[str] = None,
-    secrets: Optional[dict] = None,
-    description: Optional[str] = None,
-    subpath: Optional[str] = None,
+    remote: str | None = None,
+    from_template: str | None = None,
+    secrets: dict | None = None,
+    description: str | None = None,
+    subpath: str | None = None,
     save: bool = True,
     overwrite: bool = False,
-    parameters: Optional[dict] = None,
-    default_function_node_selector: Optional[dict] = None,
+    parameters: dict | None = None,
+    default_function_node_selector: dict | None = None,
 ) -> "MlrunProject":
     """Create a new MLRun project, optionally load it from a yaml/zip/git template.
     The project will become the active project for the current session.
@@ -204,7 +204,10 @@ def new_project(
 
             def setup(project):
                 project.set_function(
-                    "prep_data.py", "prep-data", image="mlrun/mlrun", handler="prep_data"
+                    "prep_data.py",
+                    "prep-data",
+                    image="mlrun/mlrun",
+                    handler="prep_data",
                 )
                 project.set_function("hub://auto-trainer", "train")
                 project.set_artifact("data", Artifact(target_path=data_url))
@@ -318,17 +321,17 @@ def new_project(
 
 def load_project(
     context: str = "./",
-    url: Optional[str] = None,
-    name: Optional[str] = None,
-    secrets: Optional[dict] = None,
+    url: str | None = None,
+    name: str | None = None,
+    secrets: dict | None = None,
     init_git: bool = False,
-    subpath: Optional[str] = None,
+    subpath: str | None = None,
     clone: bool = False,
     user_project: bool = False,
     save: bool = True,
     sync_functions: bool = False,
-    parameters: Optional[dict] = None,
-    allow_cross_project: Optional[bool] = None,
+    parameters: dict | None = None,
+    allow_cross_project: bool | None = None,
 ) -> "MlrunProject":
     """Load an MLRun project from git or tar or dir. The project will become the active project for
     the current session.
@@ -465,16 +468,16 @@ def load_project(
 def get_or_create_project(
     name: str,
     context: str = "./",
-    url: Optional[str] = None,
-    secrets: Optional[dict] = None,
+    url: str | None = None,
+    secrets: dict | None = None,
     init_git=False,
-    subpath: Optional[str] = None,
+    subpath: str | None = None,
     clone: bool = False,
     user_project: bool = False,
-    from_template: Optional[str] = None,
+    from_template: str | None = None,
     save: bool = True,
-    parameters: Optional[dict] = None,
-    allow_cross_project: Optional[bool] = None,
+    parameters: dict | None = None,
+    allow_cross_project: bool | None = None,
 ) -> "MlrunProject":
     """Load a project from MLRun DB, or create/import if it does not exist.
     The project will become the active project for the current session.
@@ -845,14 +848,14 @@ class ProjectSpec(ModelObj):
         origin_url=None,
         goals=None,
         load_source_on_run=None,
-        default_requirements: Optional[typing.Union[str, list[str]]] = None,
+        default_requirements: typing.Union[str, list[str]] | None = None,
         desired_state=mlrun.common.schemas.ProjectState.online.value,
         owner=None,
         disable_auto_mount=None,
         workdir=None,
         default_image=None,
         build=None,
-        custom_packagers: Optional[list[tuple[str, bool]]] = None,
+        custom_packagers: list[tuple[str, bool]] | None = None,
         default_function_node_selector=None,
         notifications=None,
     ):
@@ -1160,8 +1163,8 @@ class MlrunProject(ModelObj):
 
     def __init__(
         self,
-        metadata: Optional[Union[ProjectMetadata, dict]] = None,
-        spec: Optional[Union[ProjectSpec, dict]] = None,
+        metadata: Union[ProjectMetadata, dict] | None = None,
+        spec: Union[ProjectSpec, dict] | None = None,
     ):
         self.metadata: ProjectMetadata = metadata
         self.spec: ProjectSpec = spec
@@ -1234,7 +1237,7 @@ class MlrunProject(ModelObj):
         self,
         source: str = "",
         pull_at_runtime: bool = False,
-        workdir: Optional[str] = None,
+        workdir: str | None = None,
     ):
         """set the project source code path(can be git/tar/zip archive)
 
@@ -1279,14 +1282,16 @@ class MlrunProject(ModelObj):
         self,
         key: str,
         category: str = "artifact",
-        tag: Optional[str] = None,
-        iter: Optional[int] = None,
+        tag: str | None = None,
+        iter: int | None = None,
     ) -> str:
         """return the project artifact uri (store://..) from the artifact key
 
         Example::
 
-            uri = project.get_artifact_uri("my_model", category="model", tag="prod", iter=0)
+            uri = project.get_artifact_uri(
+                "my_model", category="model", tag="prod", iter=0
+            )
 
         :param key:  artifact key/name
         :param category:  artifact category (artifact, model, feature-vector, ..)
@@ -1379,12 +1384,12 @@ class MlrunProject(ModelObj):
         name,
         workflow_path: str,
         embed: bool = False,
-        engine: Optional[str] = None,
-        args_schema: Optional[list[EntrypointParam]] = None,
-        handler: Optional[str] = None,
+        engine: str | None = None,
+        args_schema: list[EntrypointParam] | None = None,
+        handler: str | None = None,
         schedule: typing.Union[str, mlrun.common.schemas.ScheduleCronTrigger] = None,
-        ttl: Optional[int] = None,
-        image: Optional[str] = None,
+        ttl: int | None = None,
+        image: str | None = None,
         **args,
     ):
         """Add or update a workflow, specify a name and the code path
@@ -1457,8 +1462,8 @@ class MlrunProject(ModelObj):
         self,
         key,
         artifact: typing.Union[str, dict, Artifact] = None,
-        target_path: Optional[str] = None,
-        tag: Optional[str] = None,
+        target_path: str | None = None,
+        tag: str | None = None,
     ):
         """add/set an artifact in the project spec (will be registered on load)
 
@@ -1468,7 +1473,9 @@ class MlrunProject(ModelObj):
             project.set_artifact("data", target_path=data_url)
             # register a model artifact
             project.set_artifact(
-                "model", ModelArtifact(model_file="model.pkl"), target_path=model_dir_url
+                "model",
+                ModelArtifact(model_file="model.pkl"),
+                target_path=model_dir_url,
             )
 
             # register a path to artifact package (will be imported on project load)
@@ -1602,11 +1609,11 @@ class MlrunProject(ModelObj):
         body=None,
         tag: str = "",
         local_path: str = "",
-        artifact_path: Optional[str] = None,
-        format: Optional[str] = None,
-        upload: Optional[bool] = None,
-        labels: Optional[dict[str, str]] = None,
-        target_path: Optional[str] = None,
+        artifact_path: str | None = None,
+        format: str | None = None,
+        upload: bool | None = None,
+        labels: dict[str, str] | None = None,
+        target_path: str | None = None,
         **kwargs,
     ) -> Artifact:
         """Log an output artifact and optionally upload it to datastore
@@ -1684,7 +1691,7 @@ class MlrunProject(ModelObj):
         deletion_strategy: mlrun.common.schemas.artifact.ArtifactsDeletionStrategies = (
             mlrun.common.schemas.artifact.ArtifactsDeletionStrategies.metadata_only
         ),
-        secrets: Optional[dict] = None,
+        secrets: dict | None = None,
     ):
         """Delete an artifact object in the DB and optionally delete the artifact data
 
@@ -1709,7 +1716,7 @@ class MlrunProject(ModelObj):
         stats=None,
         target_path="",
         extra_data=None,
-        label_column: Optional[str] = None,
+        label_column: str | None = None,
         **kwargs,
     ) -> DatasetArtifact:
         """
@@ -1789,14 +1796,14 @@ class MlrunProject(ModelObj):
         artifact_path=None,
         upload=None,
         labels=None,
-        inputs: Optional[list[Feature]] = None,
-        outputs: Optional[list[Feature]] = None,
-        feature_vector: Optional[str] = None,
-        feature_weights: Optional[list] = None,
+        inputs: list[Feature] | None = None,
+        outputs: list[Feature] | None = None,
+        feature_vector: str | None = None,
+        feature_weights: list | None = None,
         training_set=None,
         label_column=None,
         extra_data=None,
-        model_url: Optional[str] = None,
+        model_url: str | None = None,
         default_config=None,
         **kwargs,
     ) -> ModelArtifact:
@@ -1887,17 +1894,17 @@ class MlrunProject(ModelObj):
     def log_llm_prompt(
         self,
         key,
-        prompt_template: Optional[list[dict]] = None,
-        prompt_path: Optional[str] = None,
-        prompt_legend: Optional[dict] = None,
+        prompt_template: list[dict] | None = None,
+        prompt_path: str | None = None,
+        prompt_legend: dict | None = None,
         model_artifact: Union[ModelArtifact, str] = None,
-        invocation_config: Optional[dict] = None,
-        description: Optional[str] = None,
-        target_path: Optional[str] = None,
-        artifact_path: Optional[str] = None,
-        tag: Optional[str] = None,
-        labels: Optional[Union[list[str], str]] = None,
-        upload: Optional[bool] = None,
+        invocation_config: dict | None = None,
+        description: str | None = None,
+        target_path: str | None = None,
+        artifact_path: str | None = None,
+        tag: str | None = None,
+        labels: Union[list[str], str] | None = None,
+        upload: bool | None = None,
         **kwargs,
     ) -> LLMPromptArtifact:
         """
@@ -2022,7 +2029,7 @@ class MlrunProject(ModelObj):
     def get_vector_store_collection(
         self,
         vector_store: "VectorStore",  # noqa: F821
-        collection_name: Optional[str] = None,
+        collection_name: str | None = None,
     ) -> VectorStoreCollection:
         """
         Create a VectorStoreCollection wrapper for a given vector store instance.
@@ -2064,11 +2071,11 @@ class MlrunProject(ModelObj):
         key: str = "",
         tag: str = "",
         local_path: str = "",
-        artifact_path: Optional[str] = None,
-        document_loader_spec: Optional[DocumentLoaderSpec] = None,
-        upload: Optional[bool] = False,
-        labels: Optional[dict[str, str]] = None,
-        target_path: Optional[str] = None,
+        artifact_path: str | None = None,
+        document_loader_spec: DocumentLoaderSpec | None = None,
+        upload: bool | None = False,
+        labels: dict[str, str] | None = None,
+        target_path: str | None = None,
         **kwargs,
     ) -> DocumentArtifact:
         """
@@ -2275,9 +2282,8 @@ class MlrunProject(ModelObj):
         endpoints: mlrun.common.schemas.ModelEndpointList,
         events: Union[list[alert_constants.EventKind], alert_constants.EventKind],
         notifications: list[alert_constants.AlertNotification],
-        result_names: Optional[
-            list[str]
-        ] = None,  # can use wildcards - see below for explanation.
+        result_names: list[str]
+        | None = None,  # can use wildcards - see below for explanation.
         severity: alert_constants.AlertSeverity = alert_constants.AlertSeverity.MEDIUM,
         criteria: alert_constants.AlertCriteria = alert_constants.AlertCriteria(
             count=1, period="10m"
@@ -2388,13 +2394,13 @@ class MlrunProject(ModelObj):
         application_class: typing.Union[
             str, mm_app.ModelMonitoringApplicationBase, None
         ] = None,
-        image: Optional[str] = None,
-        handler: Optional[str] = None,
-        with_repo: Optional[bool] = None,
-        tag: Optional[str] = None,
-        requirements: Optional[list[str]] = None,
+        image: str | None = None,
+        handler: str | None = None,
+        with_repo: bool | None = None,
+        tag: str | None = None,
+        requirements: list[str] | None = None,
         requirements_file: str = "",
-        local_path: Optional[str] = None,
+        local_path: str | None = None,
         **application_kwargs,
     ) -> mlrun.runtimes.RemoteRuntime:
         """
@@ -2454,17 +2460,17 @@ class MlrunProject(ModelObj):
     def create_model_monitoring_function(
         self,
         name: str,
-        func: Optional[str] = None,
+        func: str | None = None,
         application_class: typing.Union[
             str,
             mm_app.ModelMonitoringApplicationBase,
             None,
         ] = None,
-        image: Optional[str] = None,
-        handler: Optional[str] = None,
-        with_repo: Optional[bool] = None,
-        tag: Optional[str] = None,
-        requirements: Optional[typing.Union[str, list[str]]] = None,
+        image: str | None = None,
+        handler: str | None = None,
+        with_repo: bool | None = None,
+        tag: str | None = None,
+        requirements: typing.Union[str, list[str]] | None = None,
         requirements_file: str = "",
         **application_kwargs,
     ) -> mlrun.runtimes.RemoteRuntime:
@@ -2517,14 +2523,14 @@ class MlrunProject(ModelObj):
             mm_app.ModelMonitoringApplicationBase,
             None,
         ] = None,
-        name: typing.Optional[str] = None,
-        image: typing.Optional[str] = None,
-        handler: typing.Optional[str] = None,
-        with_repo: typing.Optional[bool] = None,
-        tag: typing.Optional[str] = None,
+        name: str | None = None,
+        image: str | None = None,
+        handler: str | None = None,
+        with_repo: bool | None = None,
+        tag: str | None = None,
         requirements: typing.Union[list[str], None] = None,
         requirements_file: str = "",
-        local_path: typing.Optional[str] = None,
+        local_path: str | None = None,
         **application_kwargs,
     ) -> tuple[str, mlrun.runtimes.RemoteRuntime, dict]:
         import mlrun.model_monitoring.api
@@ -2705,7 +2711,7 @@ class MlrunProject(ModelObj):
         delete_stream_function: bool = False,
         delete_histogram_data_drift_app: bool = True,
         delete_user_applications: bool = False,
-        user_application_list: Optional[list[str]] = None,
+        user_application_list: list[str] | None = None,
     ) -> None:
         """
         Disable model monitoring application controller, writer, stream, histogram data drift application
@@ -2774,8 +2780,8 @@ class MlrunProject(ModelObj):
             mlrun.common.schemas.notification.Notification,
         ],
         *,
-        period: Optional[str] = None,
-        count: Optional[int] = None,
+        period: str | None = None,
+        count: int | None = None,
     ) -> None:
         """Configure an alert for model monitoring lag detection.
 
@@ -2840,11 +2846,11 @@ class MlrunProject(ModelObj):
         func: typing.Union[str, mlrun.runtimes.BaseRuntime, None] = None,
         name: str = "",
         kind: str = "job",
-        image: Optional[str] = None,
-        handler: Optional[str] = None,
-        with_repo: Optional[bool] = None,
-        tag: Optional[str] = None,
-        requirements: Optional[typing.Union[str, list[str]]] = None,
+        image: str | None = None,
+        handler: str | None = None,
+        with_repo: bool | None = None,
+        tag: str | None = None,
+        requirements: typing.Union[str, list[str]] | None = None,
         requirements_file: str = "",
     ) -> mlrun.runtimes.BaseRuntime:
         """
@@ -2972,7 +2978,7 @@ class MlrunProject(ModelObj):
         pipeline_id: str,
         current_run_state: mlrun_pipelines.common.models.RunStatuses,
         message: str,
-        notifications: Optional[list] = None,
+        notifications: list | None = None,
     ):
         """
         Push notifications for a pipeline run(KFP).
@@ -3002,11 +3008,11 @@ class MlrunProject(ModelObj):
         func: typing.Union[str, mlrun.runtimes.BaseRuntime] = None,
         name: str = "",
         kind: str = "",
-        image: Optional[str] = None,
-        handler: Optional[str] = None,
-        with_repo: Optional[bool] = None,
-        tag: Optional[str] = None,
-        requirements: Optional[typing.Union[str, list[str]]] = None,
+        image: str | None = None,
+        handler: str | None = None,
+        with_repo: bool | None = None,
+        tag: str | None = None,
+        requirements: typing.Union[str, list[str]] | None = None,
         requirements_file: str = "",
     ) -> tuple[str, str, mlrun.runtimes.BaseRuntime, dict]:
         if (
@@ -3221,8 +3227,8 @@ class MlrunProject(ModelObj):
 
     def pull(
         self,
-        branch: Optional[str] = None,
-        remote: Optional[str] = None,
+        branch: str | None = None,
+        remote: str | None = None,
         secrets: Union[SecretsStore, dict] = None,
     ):
         """pull/update sources from git or tar into the context dir
@@ -3335,10 +3341,10 @@ class MlrunProject(ModelObj):
         branch,
         message=None,
         update=True,
-        remote: Optional[str] = None,
-        add: Optional[list] = None,
-        author_name: Optional[str] = None,
-        author_email: Optional[str] = None,
+        remote: str | None = None,
+        add: list | None = None,
+        author_name: str | None = None,
+        author_email: str | None = None,
         secrets: Union[SecretsStore, dict] = None,
     ):
         """update spec and push updates to remote git repo
@@ -3401,7 +3407,7 @@ class MlrunProject(ModelObj):
 
     def sync_functions(
         self,
-        names: Optional[list] = None,
+        names: list | None = None,
         always: bool = True,
         save: bool = False,
         silent: bool = False,
@@ -3566,8 +3572,8 @@ class MlrunProject(ModelObj):
 
     def set_secrets(
         self,
-        secrets: Optional[dict] = None,
-        file_path: Optional[str] = None,
+        secrets: dict | None = None,
+        file_path: str | None = None,
         provider: typing.Union[str, mlrun.common.schemas.SecretProviderName] = None,
     ):
         """
@@ -3644,26 +3650,26 @@ class MlrunProject(ModelObj):
 
     def run(
         self,
-        name: Optional[str] = None,
-        workflow_path: Optional[str] = None,
-        arguments: Optional[dict[str, typing.Any]] = None,
-        artifact_path: Optional[str] = None,
-        workflow_handler: Optional[typing.Union[str, typing.Callable]] = None,
-        namespace: Optional[str] = None,
+        name: str | None = None,
+        workflow_path: str | None = None,
+        arguments: dict[str, typing.Any] | None = None,
+        artifact_path: str | None = None,
+        workflow_handler: typing.Union[str, typing.Callable] | None = None,
+        namespace: str | None = None,
         sync: bool = False,
         watch: bool = False,
         dirty: bool = False,
-        engine: Optional[str] = None,
-        local: Optional[bool] = None,
+        engine: str | None = None,
+        local: bool | None = None,
         schedule: typing.Union[
             str, mlrun.common.schemas.ScheduleCronTrigger, bool
         ] = None,
-        timeout: Optional[int] = None,
-        source: Optional[str] = None,
-        cleanup_ttl: Optional[int] = None,
-        notifications: Optional[list[mlrun.model.Notification]] = None,
-        workflow_runner_node_selector: typing.Optional[dict[str, str]] = None,
-        context: typing.Optional[mlrun.execution.MLClientCtx] = None,
+        timeout: int | None = None,
+        source: str | None = None,
+        cleanup_ttl: int | None = None,
+        notifications: list[mlrun.model.Notification] | None = None,
+        workflow_runner_node_selector: dict[str, str] | None = None,
+        context: mlrun.execution.MLClientCtx | None = None,
     ) -> _PipelineRunStatus:
         """Run a workflow using kubeflow pipelines
 
@@ -3876,7 +3882,7 @@ class MlrunProject(ModelObj):
 
         return db.create_project(self.to_dict())
 
-    def export(self, filepath=None, include_files: Optional[str] = None):
+    def export(self, filepath=None, include_files: str | None = None):
         """save the project object into a yaml file or zip archive (default to project.yaml)
 
         By default, the project object is exported to a yaml file, when the filepath suffix is '.zip'
@@ -4058,22 +4064,21 @@ class MlrunProject(ModelObj):
 
     def list_model_endpoints(
         self,
-        names: Optional[Union[str, list[str]]] = None,
-        model_name: Optional[str] = None,
-        model_tag: Optional[str] = None,
-        function_name: Optional[str] = None,
-        function_tag: Optional[str] = None,
-        labels: Optional[list[str]] = None,
-        start: Optional[datetime.datetime] = None,
-        end: Optional[datetime.datetime] = None,
+        names: Union[str, list[str]] | None = None,
+        model_name: str | None = None,
+        model_tag: str | None = None,
+        function_name: str | None = None,
+        function_tag: str | None = None,
+        labels: list[str] | None = None,
+        start: datetime.datetime | None = None,
+        end: datetime.datetime | None = None,
         top_level: bool = False,
-        modes: Optional[
-            Union[mm_constants.EndpointMode, list[mm_constants.EndpointMode]]
-        ] = None,
-        uids: Optional[list[str]] = None,
+        modes: Union[mm_constants.EndpointMode, list[mm_constants.EndpointMode]]
+        | None = None,
+        uids: list[str] | None = None,
         latest_only: bool = False,
         tsdb_metrics: bool = False,
-        metric_list: Optional[list[str]] = None,
+        metric_list: list[str] | None = None,
     ) -> mlrun.common.schemas.ModelEndpointList:
         """
         Returns a list of `ModelEndpoint` objects. Each `ModelEndpoint` object represents the current state of a
@@ -4140,29 +4145,29 @@ class MlrunProject(ModelObj):
     def run_function(
         self,
         function: typing.Union[str, mlrun.runtimes.BaseRuntime],
-        handler: Optional[str] = None,
+        handler: str | None = None,
         name: str = "",
-        params: Optional[dict] = None,
-        hyperparams: Optional[dict] = None,
+        params: dict | None = None,
+        hyperparams: dict | None = None,
         hyper_param_options: mlrun.model.HyperParamOptions = None,
-        inputs: Optional[dict] = None,
-        outputs: Optional[list[str]] = None,
+        inputs: dict | None = None,
+        outputs: list[str] | None = None,
         workdir: str = "",
-        labels: Optional[dict] = None,
+        labels: dict | None = None,
         base_task: mlrun.model.RunTemplate = None,
         watch: bool = True,
-        local: Optional[bool] = None,
-        verbose: Optional[bool] = None,
-        selector: Optional[str] = None,
-        auto_build: Optional[bool] = None,
+        local: bool | None = None,
+        verbose: bool | None = None,
+        selector: str | None = None,
+        auto_build: bool | None = None,
         schedule: typing.Union[str, mlrun.common.schemas.ScheduleCronTrigger] = None,
-        artifact_path: Optional[str] = None,
-        notifications: Optional[list[mlrun.model.Notification]] = None,
+        artifact_path: str | None = None,
+        notifications: list[mlrun.model.Notification] | None = None,
         returns: "list[str | mlrun.LogHint] | None" = None,
-        builder_env: Optional[dict] = None,
-        reset_on_run: Optional[bool] = None,
-        output_path: Optional[str] = None,
-        retry: Optional[Union[mlrun.model.Retry, dict]] = None,
+        builder_env: dict | None = None,
+        reset_on_run: bool | None = None,
+        output_path: str | None = None,
+        retry: Union[mlrun.model.Retry, dict] | None = None,
     ) -> typing.Union[mlrun.model.RunObject, PipelineNodeWrapper]:
         """Run a local or remote task as part of a local/kubeflow pipeline
 
@@ -4279,18 +4284,18 @@ class MlrunProject(ModelObj):
     def build_function(
         self,
         function: typing.Union[str, mlrun.runtimes.BaseRuntime],
-        with_mlrun: Optional[bool] = None,
+        with_mlrun: bool | None = None,
         skip_deployed: bool = False,
-        image: Optional[str] = None,
-        base_image: Optional[str] = None,
-        commands: Optional[list] = None,
-        secret_name: Optional[str] = None,
-        requirements: Optional[typing.Union[str, list[str]]] = None,
-        mlrun_version_specifier: Optional[str] = None,
-        builder_env: Optional[dict] = None,
+        image: str | None = None,
+        base_image: str | None = None,
+        commands: list | None = None,
+        secret_name: str | None = None,
+        requirements: typing.Union[str, list[str]] | None = None,
+        mlrun_version_specifier: str | None = None,
+        builder_env: dict | None = None,
         overwrite_build_params: bool = True,
-        requirements_file: Optional[str] = None,
-        extra_args: Optional[str] = None,
+        requirements_file: str | None = None,
+        extra_args: str | None = None,
         force_build: bool = False,
     ) -> typing.Union[BuildStatus, PipelineNodeWrapper]:
         """deploy ML function, build container with its dependencies
@@ -4337,18 +4342,18 @@ class MlrunProject(ModelObj):
 
     def build_config(
         self,
-        image: Optional[str] = None,
+        image: str | None = None,
         set_as_default: bool = False,
-        with_mlrun: Optional[bool] = None,
-        base_image: Optional[str] = None,
-        commands: Optional[list] = None,
-        secret_name: Optional[str] = None,
-        requirements: Optional[typing.Union[str, list[str]]] = None,
+        with_mlrun: bool | None = None,
+        base_image: str | None = None,
+        commands: list | None = None,
+        secret_name: str | None = None,
+        requirements: typing.Union[str, list[str]] | None = None,
         overwrite_build_params: bool = True,
-        requirements_file: Optional[str] = None,
-        builder_env: Optional[dict] = None,
-        extra_args: Optional[str] = None,
-        source_code_target_dir: Optional[str] = None,
+        requirements_file: str | None = None,
+        builder_env: dict | None = None,
+        extra_args: str | None = None,
+        source_code_target_dir: str | None = None,
     ):
         """specify builder configuration for the project
 
@@ -4398,19 +4403,19 @@ class MlrunProject(ModelObj):
 
     def build_image(
         self,
-        image: Optional[str] = None,
+        image: str | None = None,
         set_as_default: bool = True,
-        with_mlrun: Optional[bool] = None,
-        base_image: Optional[str] = None,
-        commands: Optional[list] = None,
-        secret_name: Optional[str] = None,
-        requirements: Optional[typing.Union[str, list[str]]] = None,
-        mlrun_version_specifier: Optional[str] = None,
-        builder_env: Optional[dict] = None,
+        with_mlrun: bool | None = None,
+        base_image: str | None = None,
+        commands: list | None = None,
+        secret_name: str | None = None,
+        requirements: typing.Union[str, list[str]] | None = None,
+        mlrun_version_specifier: str | None = None,
+        builder_env: dict | None = None,
         overwrite_build_params: bool = True,
-        requirements_file: Optional[str] = None,
-        extra_args: Optional[str] = None,
-        target_dir: Optional[str] = None,
+        requirements_file: str | None = None,
+        extra_args: str | None = None,
+        target_dir: str | None = None,
     ) -> typing.Union[BuildStatus, PipelineNodeWrapper]:
         """Builder docker image for the project, based on the project's build config. Parameters allow to override
         the build config.
@@ -4511,12 +4516,12 @@ class MlrunProject(ModelObj):
     def deploy_function(
         self,
         function: typing.Union[str, mlrun.runtimes.BaseRuntime],
-        models: Optional[list] = None,
-        env: Optional[dict] = None,
-        tag: Optional[str] = None,
-        verbose: Optional[bool] = None,
-        builder_env: Optional[dict] = None,
-        mock: Optional[bool] = None,
+        models: list | None = None,
+        env: dict | None = None,
+        tag: str | None = None,
+        verbose: bool | None = None,
+        builder_env: dict | None = None,
+        mock: bool | None = None,
     ) -> typing.Union[DeployStatus, PipelineNodeWrapper]:
         """deploy real-time (nuclio based) functions
 
@@ -4541,7 +4546,7 @@ class MlrunProject(ModelObj):
 
     def get_artifact(
         self, key, tag=None, iter=None, tree=None, uid=None
-    ) -> typing.Optional[Artifact]:
+    ) -> Artifact | None:
         """Return an artifact object
 
         :param key: Artifact key
@@ -4566,24 +4571,21 @@ class MlrunProject(ModelObj):
         self,
         name=None,
         tag=None,
-        labels: Optional[Union[str, dict[str, Optional[str]], list[str]]] = None,
+        labels: Union[str, dict[str, str | None], list[str]] | None = None,
         since=None,
         until=None,
-        iter: Optional[int] = None,
+        iter: int | None = None,
         best_iteration: bool = False,
-        kind: Optional[str] = None,
+        kind: str | None = None,
         category: typing.Union[str, mlrun.common.schemas.ArtifactCategories] = None,
-        tree: Optional[str] = None,
-        format_: Optional[
-            mlrun.common.formatters.ArtifactFormat
-        ] = mlrun.common.formatters.ArtifactFormat.full,
-        partition_by: Optional[
-            Union[mlrun.common.schemas.ArtifactPartitionByField, str]
-        ] = None,
+        tree: str | None = None,
+        format_: mlrun.common.formatters.ArtifactFormat
+        | None = mlrun.common.formatters.ArtifactFormat.full,
+        partition_by: Union[mlrun.common.schemas.ArtifactPartitionByField, str]
+        | None = None,
         rows_per_partition: int = 1,
-        partition_sort_by: Optional[
-            Union[mlrun.common.schemas.SortField, str]
-        ] = mlrun.common.schemas.SortField.updated,
+        partition_sort_by: Union[mlrun.common.schemas.SortField, str]
+        | None = mlrun.common.schemas.SortField.updated,
         partition_order: Union[
             mlrun.common.schemas.OrderType, str
         ] = mlrun.common.schemas.OrderType.desc,
@@ -4656,11 +4658,11 @@ class MlrunProject(ModelObj):
     def paginated_list_artifacts(
         self,
         *args,
-        page: Optional[int] = None,
-        page_size: Optional[int] = None,
-        page_token: Optional[str] = None,
+        page: int | None = None,
+        page_size: int | None = None,
+        page_token: str | None = None,
         **kwargs,
-    ) -> tuple[mlrun.lists.ArtifactList, Optional[str]]:
+    ) -> tuple[mlrun.lists.ArtifactList, str | None]:
         """List artifacts with support for pagination and various filtering options.
 
         This method retrieves a paginated list of artifacts based on the specified filter parameters.
@@ -4678,7 +4680,9 @@ class MlrunProject(ModelObj):
             # Fetch first page of artifacts with page size of 5
             artifacts, token = project.paginated_list_artifacts("results", page_size=5)
             # Fetch next page using the pagination token from the previous response
-            artifacts, token = project.paginated_list_artifacts("results", page_token=token)
+            artifacts, token = project.paginated_list_artifacts(
+                "results", page_token=token
+            )
             # Fetch artifacts for a specific page (e.g., page 3)
             artifacts, token = project.paginated_list_artifacts(
                 "results", page=3, page_size=5
@@ -4719,17 +4723,16 @@ class MlrunProject(ModelObj):
 
     def list_models(
         self,
-        name: Optional[str] = None,
-        tag: Optional[str] = None,
-        labels: Optional[Union[str, dict[str, Optional[str]], list[str]]] = None,
+        name: str | None = None,
+        tag: str | None = None,
+        labels: Union[str, dict[str, str | None], list[str]] | None = None,
         since=None,
         until=None,
-        iter: Optional[int] = None,
+        iter: int | None = None,
         best_iteration: bool = False,
-        tree: Optional[str] = None,
-        format_: Optional[
-            mlrun.common.formatters.ArtifactFormat
-        ] = mlrun.common.formatters.ArtifactFormat.full,
+        tree: str | None = None,
+        format_: mlrun.common.formatters.ArtifactFormat
+        | None = mlrun.common.formatters.ArtifactFormat.full,
     ) -> list[ModelArtifact]:
         """List models in project, filtered by various parameters.
 
@@ -4780,11 +4783,11 @@ class MlrunProject(ModelObj):
     def paginated_list_models(
         self,
         *args,
-        page: Optional[int] = None,
-        page_size: Optional[int] = None,
-        page_token: Optional[str] = None,
+        page: int | None = None,
+        page_size: int | None = None,
+        page_token: str | None = None,
         **kwargs,
-    ) -> tuple[mlrun.lists.ArtifactList, Optional[str]]:
+    ) -> tuple[mlrun.lists.ArtifactList, str | None]:
         """List models in project with support for pagination and various filtering options.
 
         This method retrieves a paginated list of artifacts based on the specified filter parameters.
@@ -4799,9 +4802,13 @@ class MlrunProject(ModelObj):
             # Fetch first page of artifacts with page size of 5
             artifacts, token = project.paginated_list_models("results", page_size=5)
             # Fetch next page using the pagination token from the previous response
-            artifacts, token = project.paginated_list_models("results", page_token=token)
+            artifacts, token = project.paginated_list_models(
+                "results", page_token=token
+            )
             # Fetch artifacts for a specific page (e.g., page 3)
-            artifacts, token = project.paginated_list_models("results", page=3, page_size=5)
+            artifacts, token = project.paginated_list_models(
+                "results", page=3, page_size=5
+            )
 
             # Automatically iterate over all pages without explicitly specifying the page number
             artifacts = []
@@ -4839,25 +4846,22 @@ class MlrunProject(ModelObj):
 
     def list_llm_prompts(
         self,
-        name: Optional[str] = None,
-        tag: Optional[str] = None,
-        labels: Optional[Union[str, dict[str, Optional[str]], list[str]]] = None,
-        since: Optional[datetime.datetime] = None,
-        until: Optional[datetime.datetime] = None,
-        iter: Optional[int] = None,
+        name: str | None = None,
+        tag: str | None = None,
+        labels: Union[str, dict[str, str | None], list[str]] | None = None,
+        since: datetime.datetime | None = None,
+        until: datetime.datetime | None = None,
+        iter: int | None = None,
         best_iteration: bool = False,
-        tree: Optional[str] = None,
-        model: Optional[Union[str, Artifact]] = None,
-        format_: Optional[
-            mlrun.common.formatters.ArtifactFormat
-        ] = mlrun.common.formatters.ArtifactFormat.full,
-        partition_by: Optional[
-            Union[mlrun.common.schemas.ArtifactPartitionByField, str]
-        ] = None,
+        tree: str | None = None,
+        model: Union[str, Artifact] | None = None,
+        format_: mlrun.common.formatters.ArtifactFormat
+        | None = mlrun.common.formatters.ArtifactFormat.full,
+        partition_by: Union[mlrun.common.schemas.ArtifactPartitionByField, str]
+        | None = None,
         rows_per_partition: int = 1,
-        partition_sort_by: Optional[
-            Union[mlrun.common.schemas.SortField, str]
-        ] = mlrun.common.schemas.SortField.updated,
+        partition_sort_by: Union[mlrun.common.schemas.SortField, str]
+        | None = mlrun.common.schemas.SortField.updated,
         partition_order: Union[
             mlrun.common.schemas.OrderType, str
         ] = mlrun.common.schemas.OrderType.desc,
@@ -4935,11 +4939,11 @@ class MlrunProject(ModelObj):
     def paginated_list_llm_prompts(
         self,
         *args,
-        page: Optional[int] = None,
-        page_size: Optional[int] = None,
-        page_token: Optional[str] = None,
+        page: int | None = None,
+        page_size: int | None = None,
+        page_token: str | None = None,
         **kwargs,
-    ) -> tuple[mlrun.lists.ArtifactList, Optional[str]]:
+    ) -> tuple[mlrun.lists.ArtifactList, str | None]:
         """Retrieve a paginated list of LLM prompt artifacts for the current project.
 
         This method returns a list of LLM prompt artifacts, supporting both token-based and page-number-based
@@ -4988,11 +4992,11 @@ class MlrunProject(ModelObj):
 
     def list_functions(
         self,
-        name: Optional[str] = None,
-        tag: Optional[str] = None,
-        labels: Optional[Union[str, dict[str, Optional[str]], list[str]]] = None,
-        kind: Optional[str] = None,
-        format_: Optional[str] = None,
+        name: str | None = None,
+        tag: str | None = None,
+        labels: Union[str, dict[str, str | None], list[str]] | None = None,
+        kind: str | None = None,
+        format_: str | None = None,
     ):
         """Retrieve a list of functions, filtered by specific criteria.
 
@@ -5032,11 +5036,11 @@ class MlrunProject(ModelObj):
     def paginated_list_functions(
         self,
         *args,
-        page: Optional[int] = None,
-        page_size: Optional[int] = None,
-        page_token: Optional[str] = None,
+        page: int | None = None,
+        page_size: int | None = None,
+        page_token: str | None = None,
         **kwargs,
-    ) -> tuple[list, Optional[str]]:
+    ) -> tuple[list, str | None]:
         """List functions with support for pagination and various filtering options.
 
         This method retrieves a paginated list of functions based on the specified filter parameters.
@@ -5092,10 +5096,10 @@ class MlrunProject(ModelObj):
 
     def list_model_monitoring_functions(
         self,
-        name: Optional[str] = None,
-        tag: Optional[str] = None,
-        labels: Optional[Union[str, dict[str, Optional[str]], list[str]]] = None,
-    ) -> Optional[list]:
+        name: str | None = None,
+        tag: str | None = None,
+        labels: Union[str, dict[str, str | None], list[str]] | None = None,
+    ) -> list | None:
         """
         Retrieve a list of all the model monitoring functions.
         Example::
@@ -5127,10 +5131,10 @@ class MlrunProject(ModelObj):
 
     def get_monitoring_function_summaries(
         self,
-        start: Optional[datetime.datetime] = None,
-        end: Optional[datetime.datetime] = None,
-        names: Optional[Union[list[str], str]] = None,
-        labels: Optional[Union[str, dict[str, Optional[str]], list[str]]] = None,
+        start: datetime.datetime | None = None,
+        end: datetime.datetime | None = None,
+        names: Union[list[str], str] | None = None,
+        labels: Union[str, dict[str, str | None], list[str]] | None = None,
         include_stats: bool = False,
         include_infra: bool = True,
     ) -> list[mlrun.common.schemas.model_monitoring.FunctionSummary]:
@@ -5170,8 +5174,8 @@ class MlrunProject(ModelObj):
     def get_monitoring_function_summary(
         self,
         name: str,
-        start: Optional[datetime.datetime] = None,
-        end: Optional[datetime.datetime] = None,
+        start: datetime.datetime | None = None,
+        end: datetime.datetime | None = None,
         include_latest_metrics: bool = False,
     ) -> mlrun.common.schemas.model_monitoring.FunctionSummary:
         """
@@ -5203,18 +5207,18 @@ class MlrunProject(ModelObj):
 
     def list_runs(
         self,
-        name: Optional[str] = None,
-        uid: Optional[Union[str, list[str]]] = None,
-        labels: Optional[Union[str, dict[str, Optional[str]], list[str]]] = None,
-        states: typing.Optional[list[mlrun.common.runtimes.constants.RunStates]] = None,
+        name: str | None = None,
+        uid: Union[str, list[str]] | None = None,
+        labels: Union[str, dict[str, str | None], list[str]] | None = None,
+        states: list[mlrun.common.runtimes.constants.RunStates] | None = None,
         sort: bool = True,
         iter: bool = False,
-        start_time_from: Optional[datetime.datetime] = None,
-        start_time_to: Optional[datetime.datetime] = None,
-        last_update_time_from: Optional[datetime.datetime] = None,
-        last_update_time_to: Optional[datetime.datetime] = None,
-        end_time_from: Optional[datetime.datetime] = None,
-        end_time_to: Optional[datetime.datetime] = None,
+        start_time_from: datetime.datetime | None = None,
+        start_time_to: datetime.datetime | None = None,
+        last_update_time_from: datetime.datetime | None = None,
+        last_update_time_to: datetime.datetime | None = None,
+        end_time_from: datetime.datetime | None = None,
+        end_time_to: datetime.datetime | None = None,
         **kwargs,
     ) -> mlrun.lists.RunList:
         """Retrieve a list of runs.
@@ -5232,7 +5236,9 @@ class MlrunProject(ModelObj):
             runs.compare()
 
             # multi-label filter can also be provided
-            runs = project.list_runs(name="download", labels=["kind=job", "owner=admin"])
+            runs = project.list_runs(
+                name="download", labels=["kind=job", "owner=admin"]
+            )
 
             # If running in Jupyter, can use the .show() function to display the results
             project.list_runs(name="").show()
@@ -5282,11 +5288,11 @@ class MlrunProject(ModelObj):
     def paginated_list_runs(
         self,
         *args,
-        page: Optional[int] = None,
-        page_size: Optional[int] = None,
-        page_token: Optional[str] = None,
+        page: int | None = None,
+        page_size: int | None = None,
+        page_token: str | None = None,
         **kwargs,
-    ) -> tuple[mlrun.lists.RunList, Optional[str]]:
+    ) -> tuple[mlrun.lists.RunList, str | None]:
         """List runs with support for pagination and various filtering options.
 
         This method retrieves a paginated list of runs based on the specified filter parameters.
@@ -5515,7 +5521,7 @@ class MlrunProject(ModelObj):
     def store_alert_config(
         self,
         alert_data: AlertConfig,
-        alert_name: typing.Optional[str] = None,
+        alert_name: str | None = None,
         force_reset: bool = False,
     ) -> AlertConfig:
         """
@@ -5552,7 +5558,7 @@ class MlrunProject(ModelObj):
         return db.get_alert_config(alert_name, self.metadata.name)
 
     def list_alerts_configs(
-        self, limit: Optional[int] = None, offset: Optional[int] = None
+        self, limit: int | None = None, offset: int | None = None
     ) -> list[AlertConfig]:
         """
         Retrieve list of alerts of a project.
@@ -5567,7 +5573,7 @@ class MlrunProject(ModelObj):
         return db.list_alerts_configs(self.metadata.name, limit=limit, offset=offset)
 
     def delete_alert_config(
-        self, alert_data: AlertConfig = None, alert_name: Optional[str] = None
+        self, alert_data: AlertConfig = None, alert_name: str | None = None
     ):
         """
         Delete an alert.
@@ -5587,7 +5593,7 @@ class MlrunProject(ModelObj):
         db.delete_alert_config(alert_name, self.metadata.name)
 
     def reset_alert_config(
-        self, alert_data: AlertConfig = None, alert_name: Optional[str] = None
+        self, alert_data: AlertConfig = None, alert_name: str | None = None
     ):
         """
         Reset an alert.
@@ -5629,17 +5635,15 @@ class MlrunProject(ModelObj):
 
     def list_alert_activations(
         self,
-        name: Optional[str] = None,
-        since: Optional[datetime.datetime] = None,
-        until: Optional[datetime.datetime] = None,
-        entity: Optional[str] = None,
-        severity: Optional[
-            list[Union[mlrun.common.schemas.alert.AlertSeverity, str]]
-        ] = None,
-        entity_kind: Optional[
-            Union[mlrun.common.schemas.alert.EventEntityKind, str]
-        ] = None,
-        event_kind: Optional[Union[mlrun.common.schemas.alert.EventKind, str]] = None,
+        name: str | None = None,
+        since: datetime.datetime | None = None,
+        until: datetime.datetime | None = None,
+        entity: str | None = None,
+        severity: list[Union[mlrun.common.schemas.alert.AlertSeverity, str]]
+        | None = None,
+        entity_kind: Union[mlrun.common.schemas.alert.EventEntityKind, str]
+        | None = None,
+        event_kind: Union[mlrun.common.schemas.alert.EventKind, str] | None = None,
     ) -> list[mlrun.common.schemas.alert.AlertActivation]:
         """
         Retrieve a list of alert activations for a project.
@@ -5669,11 +5673,11 @@ class MlrunProject(ModelObj):
     def paginated_list_alert_activations(
         self,
         *args,
-        page: Optional[int] = None,
-        page_size: Optional[int] = None,
-        page_token: Optional[str] = None,
+        page: int | None = None,
+        page_size: int | None = None,
+        page_token: str | None = None,
         **kwargs,
-    ) -> tuple[mlrun.common.schemas.alert.AlertActivation, Optional[str]]:
+    ) -> tuple[mlrun.common.schemas.alert.AlertActivation, str | None]:
         """
         List alerts activations with support for pagination and various filtering options.
 
@@ -5687,7 +5691,9 @@ class MlrunProject(ModelObj):
         Examples::
 
             # Fetch first page of alert activations with page size of 5
-            alert_activations, token = project.paginated_list_alert_activations(page_size=5)
+            alert_activations, token = project.paginated_list_alert_activations(
+                page_size=5
+            )
             # Fetch next page using the pagination token from the previous response
             alert_activations, token = project.paginated_list_alert_activations(
                 page_token=token
@@ -5701,8 +5707,10 @@ class MlrunProject(ModelObj):
             alert_activations = []
             token = None
             while True:
-                page_alert_activations, token = project.paginated_list_alert_activations(
-                    page_token=token, page_size=5
+                page_alert_activations, token = (
+                    project.paginated_list_alert_activations(
+                        page_token=token, page_size=5
+                    )
                 )
                 alert_activations.extend(page_alert_activations)
 
@@ -5732,8 +5740,8 @@ class MlrunProject(ModelObj):
 
     def get_drift_over_time(
         self,
-        start: Optional[datetime.datetime] = None,
-        end: Optional[datetime.datetime] = None,
+        start: datetime.datetime | None = None,
+        end: datetime.datetime | None = None,
     ) -> mlrun.common.schemas.model_monitoring.ModelEndpointDriftValues:
         """
         Get drift counts over time for the project.
@@ -5759,8 +5767,8 @@ class MlrunProject(ModelObj):
         self,
         action: Callable,
         remote: str,
-        args: Optional[list] = None,
-        kwargs: Optional[dict] = None,
+        args: list | None = None,
+        kwargs: dict | None = None,
         secrets: Union[SecretsStore, dict] = None,
     ):
         """Run an arbitrary Git routine while the remote is enriched with secrets
@@ -5841,7 +5849,7 @@ class MlrunProject(ModelObj):
     def _resolve_artifact_producer(
         self,
         artifact: typing.Union[str, Artifact],
-        project_producer_tag: Optional[str] = None,
+        project_producer_tag: str | None = None,
     ) -> tuple[ArtifactProducer, bool]:
         """
         Resolve the artifact producer of the given artifact.
@@ -5898,8 +5906,8 @@ class MlrunProject(ModelObj):
     def _resolve_existing_artifact(
         self,
         item: typing.Union[str, Artifact],
-        tag: Optional[str] = None,
-    ) -> typing.Optional[Artifact]:
+        tag: str | None = None,
+    ) -> Artifact | None:
         """
         Check if there is and existing artifact with the given item and tag.
         If there is, return the existing artifact. Otherwise, return None.
@@ -5989,7 +5997,7 @@ def _set_as_current_active_project(project: MlrunProject):
 def _init_function_from_dict(
     f: dict,
     project: MlrunProject,
-    name: typing.Optional[str] = None,
+    name: str | None = None,
 ) -> tuple[str, mlrun.runtimes.BaseRuntime]:
     name = name or f.get("name", "")
     url = f.get("url", "")
@@ -6101,7 +6109,7 @@ def _init_function_from_dict(
 def _init_function_from_obj(
     func: mlrun.runtimes.BaseRuntime,
     project: MlrunProject,
-    name: typing.Optional[str] = None,
+    name: str | None = None,
 ) -> tuple[str, mlrun.runtimes.BaseRuntime]:
     build = func.spec.build
     if project.spec.origin_url:

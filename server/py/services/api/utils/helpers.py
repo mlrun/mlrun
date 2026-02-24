@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import typing
 
 import semver
 import yaml
@@ -30,8 +29,8 @@ import framework.utils.singletons.k8s
 
 def resolve_client_default_kfp_image(
     project: ProjectOut,
-    workflow_spec: typing.Optional[WorkflowSpec] = None,
-    client_version: typing.Optional[str] = None,
+    workflow_spec: WorkflowSpec | None = None,
+    client_version: str | None = None,
 ) -> str:
     if workflow_spec and workflow_spec.image:
         image = workflow_spec.image
@@ -79,7 +78,7 @@ def resolve_client_default_kfp_image(
 
 def resolve_auth_token_name(
     user_id: str,
-    provided_token_name: typing.Optional[str],
+    provided_token_name: str | None,
 ) -> str:
     """
     Resolve the token name for a user using the Iguazio SDK.
@@ -103,8 +102,8 @@ def resolve_auth_token_name(
 
 
 def resolve_auth_token_secret_name(
-    provided_token_name: typing.Optional[str], user_id: typing.Optional[str]
-) -> typing.Optional[str]:
+    provided_token_name: str | None, user_id: str | None
+) -> str | None:
     """
     Resolve the name of the secret that holds the user's auth token. Performs enrichment and validation of the
     token name using the iguazio SDK's token resolution logic.

@@ -12,8 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import typing
-from typing import Optional, Union
+from typing import Union
 
 import semver
 from kubernetes.client.rest import ApiException
@@ -65,7 +64,7 @@ class DaskRuntimeHandler(BaseRuntimeHandler):
     # It means that monitoring runtime resources state doesn't say anything about the run state.
     # Therefore, dask run monitoring is done completely by the SDK, so overriding the monitoring method with no logic
     def monitor_runs(
-        self, db: DBInterface, db_session: Session, leader_session: Optional[str] = None
+        self, db: DBInterface, db_session: Session, leader_session: str | None = None
     ) -> list[dict]:
         return []
 
@@ -76,7 +75,7 @@ class DaskRuntimeHandler(BaseRuntimeHandler):
     @staticmethod
     def resolve_object_id(
         run: dict,
-    ) -> typing.Optional[str]:
+    ) -> str | None:
         """
         Resolves the object ID from the run object.
         In dask runtime, the object ID is the function name.
@@ -101,10 +100,8 @@ class DaskRuntimeHandler(BaseRuntimeHandler):
             mlrun.common.schemas.GroupedByProjectRuntimeResourcesOutput,
         ],
         namespace: str,
-        label_selector: Optional[str] = None,
-        group_by: Optional[
-            mlrun.common.schemas.ListRuntimeResourcesGroupByField
-        ] = None,
+        label_selector: str | None = None,
+        group_by: mlrun.common.schemas.ListRuntimeResourcesGroupByField | None = None,
     ) -> Union[
         mlrun.common.schemas.RuntimeResources,
         mlrun.common.schemas.GroupedByJobRuntimeResourcesOutput,
@@ -138,9 +135,7 @@ class DaskRuntimeHandler(BaseRuntimeHandler):
             mlrun.common.schemas.GroupedByProjectRuntimeResourcesOutput,
         ],
         runtime_resources_list: list[mlrun.common.schemas.RuntimeResources],
-        group_by: Optional[
-            mlrun.common.schemas.ListRuntimeResourcesGroupByField
-        ] = None,
+        group_by: mlrun.common.schemas.ListRuntimeResourcesGroupByField | None = None,
     ):
         enrich_needed = self._validate_if_enrich_is_needed_by_group_by(group_by)
         if not enrich_needed:
@@ -155,9 +150,7 @@ class DaskRuntimeHandler(BaseRuntimeHandler):
 
     def _validate_if_enrich_is_needed_by_group_by(
         self,
-        group_by: Optional[
-            mlrun.common.schemas.ListRuntimeResourcesGroupByField
-        ] = None,
+        group_by: mlrun.common.schemas.ListRuntimeResourcesGroupByField | None = None,
     ) -> bool:
         # Dask runtime resources are per function (and not per job) therefore, when grouping by job we're simply
         # omitting the dask runtime resources
@@ -179,9 +172,7 @@ class DaskRuntimeHandler(BaseRuntimeHandler):
             mlrun.common.schemas.GroupedByProjectRuntimeResourcesOutput,
         ],
         service_resources: list[mlrun.common.schemas.RuntimeResource],
-        group_by: Optional[
-            mlrun.common.schemas.ListRuntimeResourcesGroupByField
-        ] = None,
+        group_by: mlrun.common.schemas.ListRuntimeResourcesGroupByField | None = None,
     ):
         if group_by == mlrun.common.schemas.ListRuntimeResourcesGroupByField.project:
             for service_resource in service_resources:
@@ -198,10 +189,10 @@ class DaskRuntimeHandler(BaseRuntimeHandler):
         db_session: Session,
         namespace: str,
         deleted_resources: list[dict],
-        label_selector: Optional[str] = None,
+        label_selector: str | None = None,
         force: bool = False,
-        grace_period: Optional[int] = None,
-        resource_deletion_grace_period: typing.Optional[int] = None,
+        grace_period: int | None = None,
+        resource_deletion_grace_period: int | None = None,
     ):
         """
         Handling services deletion
@@ -242,8 +233,8 @@ class DaskRuntimeHandler(BaseRuntimeHandler):
 def deploy_function(
     function: mlrun.runtimes.DaskCluster,
     secrets=None,
-    client_version: Optional[str] = None,
-    client_python_version: Optional[str] = None,
+    client_version: str | None = None,
+    client_python_version: str | None = None,
 ):
     _validate_dask_related_libraries_installed()
 
@@ -307,8 +298,8 @@ def initialize_dask_cluster(scheduler_pod, worker_pod, function, namespace):
 def enrich_dask_cluster(
     function,
     secrets,
-    client_version: Optional[str] = None,
-    client_python_version: Optional[str] = None,
+    client_version: str | None = None,
+    client_python_version: str | None = None,
 ):
     from dask.distributed import Client, default_client  # noqa: F401
     from dask_kubernetes import KubeCluster, make_pod_spec  # noqa: F401
@@ -341,14 +332,16 @@ def enrich_dask_cluster(
 
     env.extend(
         filter(
-            lambda spec_env: not any(
-                [
-                    True
-                    for _env in env
-                    # spec_env might be V1EnvVar or a dict
-                    # _env is just a dict
-                    if get_env_name(spec_env) == get_env_name(_env)
-                ]
+            lambda spec_env: (
+                not any(
+                    [
+                        True
+                        for _env in env
+                        # spec_env might be V1EnvVar or a dict
+                        # _env is just a dict
+                        if get_env_name(spec_env) == get_env_name(_env)
+                    ]
+                )
             ),
             spec.env,
         )

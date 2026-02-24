@@ -19,8 +19,7 @@ import time
 import typing
 import warnings
 from collections.abc import Iterable
-from enum import Enum
-from typing import Optional
+from enum import StrEnum
 
 import dotenv
 import kubernetes.client as k8s_client
@@ -315,7 +314,7 @@ class KubeResourceSpec(FunctionSpec):
         )
 
     @property
-    def termination_grace_period_seconds(self) -> typing.Optional[int]:
+    def termination_grace_period_seconds(self) -> int | None:
         return self._termination_grace_period_seconds
 
     @property
@@ -330,7 +329,7 @@ class KubeResourceSpec(FunctionSpec):
         graph_root_setter(self, graph)
 
     def _serialize_field(
-        self, struct: dict, field_name: typing.Optional[str] = None, strip: bool = False
+        self, struct: dict, field_name: str | None = None, strip: bool = False
     ) -> typing.Any:
         """
         Serialize a field to a dict, list, or primitive type.
@@ -342,7 +341,7 @@ class KubeResourceSpec(FunctionSpec):
         return super()._serialize_field(struct, field_name, strip)
 
     def _enrich_field(
-        self, struct: dict, field_name: typing.Optional[str] = None, strip: bool = False
+        self, struct: dict, field_name: str | None = None, strip: bool = False
     ) -> typing.Any:
         k8s_api = k8s_client.ApiClient()
         if strip:
@@ -440,9 +439,9 @@ class KubeResourceSpec(FunctionSpec):
     def _verify_and_set_limits(
         self,
         resources_field_name,
-        mem: typing.Optional[str] = None,
-        cpu: typing.Optional[str] = None,
-        gpus: typing.Optional[int] = None,
+        mem: str | None = None,
+        cpu: str | None = None,
+        gpus: int | None = None,
         gpu_type: str = "nvidia.com/gpu",
         patch: bool = False,
     ):
@@ -490,8 +489,8 @@ class KubeResourceSpec(FunctionSpec):
     def _verify_and_set_requests(
         self,
         resources_field_name,
-        mem: typing.Optional[str] = None,
-        cpu: typing.Optional[str] = None,
+        mem: str | None = None,
+        cpu: str | None = None,
         patch: bool = False,
     ):
         resources = verify_requests(resources_field_name, mem=mem, cpu=cpu)
@@ -516,9 +515,9 @@ class KubeResourceSpec(FunctionSpec):
 
     def with_limits(
         self,
-        mem: typing.Optional[str] = None,
-        cpu: typing.Optional[str] = None,
-        gpus: typing.Optional[int] = None,
+        mem: str | None = None,
+        cpu: str | None = None,
+        gpus: int | None = None,
         gpu_type: str = "nvidia.com/gpu",
         patch: bool = False,
     ):
@@ -536,8 +535,8 @@ class KubeResourceSpec(FunctionSpec):
 
     def with_requests(
         self,
-        mem: typing.Optional[str] = None,
-        cpu: typing.Optional[str] = None,
+        mem: str | None = None,
+        cpu: str | None = None,
         patch: bool = False,
     ):
         """
@@ -632,7 +631,7 @@ class KubeResourceSpec(FunctionSpec):
         return new_node_selector_terms
 
 
-class AutoMountType(str, Enum):
+class AutoMountType(StrEnum):
     none = "none"
     auto = "auto"
     v3io_credentials = "v3io_credentials"
@@ -723,8 +722,8 @@ class KubeResource(BaseRuntime):
     def set_env_from_secret(
         self,
         name: str,
-        secret: Optional[str] = None,
-        secret_key: Optional[str] = None,
+        secret: str | None = None,
+        secret_key: str | None = None,
     ):
         """
         Set an environment variable from a Kubernetes Secret.
@@ -740,8 +739,8 @@ class KubeResource(BaseRuntime):
     def set_env(
         self,
         name: str,
-        value: Optional[str] = None,
-        value_from: Optional[typing.Any] = None,
+        value: str | None = None,
+        value_from: typing.Any | None = None,
     ):
         """
         Set an environment variable.
@@ -801,8 +800,8 @@ class KubeResource(BaseRuntime):
 
     def set_envs(
         self,
-        env_vars: typing.Optional[dict] = None,
-        file_path: typing.Optional[str] = None,
+        env_vars: dict | None = None,
+        file_path: str | None = None,
     ):
         """set pod environment var from key/value dict or .env file
 
@@ -831,8 +830,8 @@ class KubeResource(BaseRuntime):
 
     def set_image_pull_configuration(
         self,
-        image_pull_policy: typing.Optional[str] = None,
-        image_pull_secret_name: typing.Optional[str] = None,
+        image_pull_policy: str | None = None,
+        image_pull_secret_name: str | None = None,
     ):
         """
         Configure the image pull parameters for the runtime.
@@ -881,9 +880,9 @@ class KubeResource(BaseRuntime):
 
     def with_limits(
         self,
-        mem: typing.Optional[str] = None,
-        cpu: typing.Optional[str] = None,
-        gpus: typing.Optional[int] = None,
+        mem: str | None = None,
+        cpu: str | None = None,
+        gpus: int | None = None,
         gpu_type: str = "nvidia.com/gpu",
         patch: bool = False,
     ):
@@ -901,8 +900,8 @@ class KubeResource(BaseRuntime):
 
     def with_requests(
         self,
-        mem: typing.Optional[str] = None,
-        cpu: typing.Optional[str] = None,
+        mem: str | None = None,
+        cpu: str | None = None,
         patch: bool = False,
     ):
         """
@@ -998,9 +997,9 @@ class KubeResource(BaseRuntime):
 
     def raise_preemptible_warning(
         self,
-        node_selector: typing.Optional[dict[str, str]],
-        tolerations: typing.Optional[list[k8s_client.V1Toleration]],
-        affinity: typing.Optional[k8s_client.V1Affinity],
+        node_selector: dict[str, str] | None,
+        tolerations: list[k8s_client.V1Toleration] | None,
+        affinity: k8s_client.V1Affinity | None,
     ) -> None:
         """
         Detect conflicts and emit a single consolidated warning if needed.
@@ -1044,10 +1043,10 @@ class KubeResource(BaseRuntime):
 
     def with_node_selection(
         self,
-        node_name: typing.Optional[str] = None,
-        node_selector: typing.Optional[dict[str, str]] = None,
-        affinity: typing.Optional[k8s_client.V1Affinity] = None,
-        tolerations: typing.Optional[list[k8s_client.V1Toleration]] = None,
+        node_name: str | None = None,
+        node_selector: dict[str, str] | None = None,
+        affinity: k8s_client.V1Affinity | None = None,
+        tolerations: list[k8s_client.V1Toleration] | None = None,
     ):
         """
         Configure Kubernetes node scheduling for this function.
@@ -1068,7 +1067,9 @@ class KubeResource(BaseRuntime):
 
                 job.with_node_selection(
                     node_selector={"nodepool": "gpu"},
-                    tolerations=[k8s_client.V1Toleration(key="spot", operator="Exists")],
+                    tolerations=[
+                        k8s_client.V1Toleration(key="spot", operator="Exists")
+                    ],
                 )
         """
         if node_name:
@@ -1086,7 +1087,7 @@ class KubeResource(BaseRuntime):
             affinity=self.spec.affinity,
         )
 
-    def with_priority_class(self, name: typing.Optional[str] = None):
+    def with_priority_class(self, name: str | None = None):
         """
         Enables to control the priority of the pod
         If not passed - will default to mlrun.mlconf.default_function_priority_class_name
@@ -1260,7 +1261,7 @@ class KubeResource(BaseRuntime):
             self.spec.build.base_image = self.spec.build.base_image or self.spec.image
             self.spec.image = ""
 
-    def _resolve_build_with_mlrun(self, with_mlrun: typing.Optional[bool] = None):
+    def _resolve_build_with_mlrun(self, with_mlrun: bool | None = None):
         build = self.spec.build
         if with_mlrun is None:
             if build.with_mlrun is not None:
@@ -1287,12 +1288,12 @@ class KubeResource(BaseRuntime):
         self,
         builder_env: dict,
         force_build: bool,
-        mlrun_version_specifier: typing.Optional[bool],
+        mlrun_version_specifier: bool | None,
         show_on_failure: bool,
         skip_deployed: bool,
         watch: bool,
         is_kfp: bool,
-        with_mlrun: typing.Optional[bool],
+        with_mlrun: bool | None,
     ):
         # When we're in pipelines context we must watch otherwise the pipelines pod will exit before the operation
         # is actually done. (when a pipelines pod exits, the pipeline step marked as done)
@@ -1412,7 +1413,7 @@ class KubeResource(BaseRuntime):
     @staticmethod
     def _extract_secret_name_from_value_from(
         value_from: typing.Any,
-    ) -> Optional[str]:
+    ) -> str | None:
         """Extract secret name from a V1EnvVarSource or dict representation."""
         if isinstance(value_from, k8s_client.V1EnvVarSource):
             if value_from.secret_key_ref:

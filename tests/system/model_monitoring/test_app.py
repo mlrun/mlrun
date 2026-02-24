@@ -133,9 +133,9 @@ class _V3IORecordsChecker:
         df: pd.DataFrame = cls._tsdb_storage.get_results_metadata(endpoint_id=ep_id)
 
         assert not df.empty, "No TSDB data"
-        assert (
-            df.endpoint_id == ep_id
-        ).all(), "The endpoint IDs are different than expected"
+        assert (df.endpoint_id == ep_id).all(), (
+            "The endpoint IDs are different than expected"
+        )
 
         assert set(df.application_name) == {
             app_data.class_.NAME for app_data in apps_data if app_data.results
@@ -146,9 +146,9 @@ class _V3IORecordsChecker:
             if app_metrics := app_data.results:
                 app_name = app_data.class_.NAME
                 cls._logger.debug("Checking the TSDB record of app", app_name=app_name)
-                assert (
-                    set(tsdb_metrics[app_name]) == app_metrics
-                ), "The TSDB saved metrics are different than expected"
+                assert set(tsdb_metrics[app_name]) == app_metrics, (
+                    "The TSDB saved metrics are different than expected"
+                )
 
         cls._logger.debug("Checking the MEP status")
         rs_tsdb = cls._tsdb_storage.get_drift_status(endpoint_ids=ep_id)
@@ -176,12 +176,12 @@ class _V3IORecordsChecker:
         cls, df: pd.DataFrame, ep_id: str, result_name: str, result_value: typing.Any
     ):
         assert not df.empty, "No TSDB data"
-        assert (
-            df.endpoint_id == ep_id
-        ).all(), "The endpoint IDs are different than expected"
-        assert (
-            df[df["endpoint_id"] == ep_id][result_name].item() == result_value
-        ), f"The {result_name} is different than expected for {ep_id}"
+        assert (df.endpoint_id == ep_id).all(), (
+            "The endpoint IDs are different than expected"
+        )
+        assert df[df["endpoint_id"] == ep_id][result_name].item() == result_value, (
+            f"The {result_name} is different than expected for {ep_id}"
+        )
 
     @classmethod
     def _check_last_request_dict(
@@ -192,12 +192,12 @@ class _V3IORecordsChecker:
         result_value: datetime,
     ):
         assert data, "No last request data"
-        assert (
-            list(data.keys())[0] == ep_id
-        ), "The endpoint IDs are different than expected"
-        assert (
-            data[ep_id] == result_value.timestamp()
-        ), f"The {result_name} is different than expected for {ep_id}"
+        assert list(data.keys())[0] == ep_id, (
+            "The endpoint IDs are different than expected"
+        )
+        assert data[ep_id] == result_value.timestamp(), (
+            f"The {result_name} is different than expected for {ep_id}"
+        )
 
     @classmethod
     def _test_predictions_table(cls, ep_id: str, should_be_empty: bool = False) -> None:
@@ -223,9 +223,9 @@ class _V3IORecordsChecker:
             assert predictions_df.empty, "Predictions should be empty"
         else:
             assert not predictions_df.empty, "No TSDB predictions data"
-            assert (
-                predictions_df.endpoint_id == ep_id
-            ).all(), "The endpoint IDs are different than expected"
+            assert (predictions_df.endpoint_id == ep_id).all(), (
+                "The endpoint IDs are different than expected"
+            )
 
     @classmethod
     def _test_v3io_records(
@@ -300,12 +300,12 @@ class _V3IORecordsChecker:
                 path=f"projects/{cls.project_name}/model-endpoints/{ep_id}/metrics-values{query}",
             )
             for result_values in json.loads(response.content.decode()):
-                assert result_values[
-                    "data"
-                ], f"No data for result {result_values['full_name']}"
-                assert result_values[
-                    "values"
-                ], f"The values list is empty for result {result_values['full_name']}"
+                assert result_values["data"], (
+                    f"No data for result {result_values['full_name']}"
+                )
+                assert result_values["values"], (
+                    f"The values list is empty for result {result_values['full_name']}"
+                )
 
     @classmethod
     def _test_api(cls, ep_id: str, apps_data: list[_AppData]) -> None:
@@ -575,9 +575,9 @@ class TestMonitoringAppFlow(TestMLRunSystemModelMonitoring, _V3IORecordsChecker)
         )
         assert isinstance(result, dict), "Unexpected result type"
         assert "outputs" in result, "Result should have 'outputs' key"
-        assert (
-            len(result["outputs"]) == num_events
-        ), "Outputs length does not match inputs"
+        assert len(result["outputs"]) == num_events, (
+            "Outputs length does not match inputs"
+        )
         return datetime.fromisoformat(result["timestamp"])
 
     @classmethod
@@ -621,24 +621,24 @@ class TestMonitoringAppFlow(TestMLRunSystemModelMonitoring, _V3IORecordsChecker)
         cls, mep: mlrun.common.schemas.ModelEndpoint
     ) -> None:
         cls._logger.debug("Checking model endpoint", ep_id=mep.metadata.uid)
-        assert mep.spec.feature_stats.keys() == set(
-            mep.spec.feature_names
-        ), "The endpoint's feature stats keys are not the same as the feature names"
+        assert mep.spec.feature_stats.keys() == set(mep.spec.feature_names), (
+            "The endpoint's feature stats keys are not the same as the feature names"
+        )
         ep_current_stats = mep.status.current_stats
 
         ep_drift_measures = mep.status.drift_measures
 
-        assert set(ep_current_stats.keys()) == set(
-            mep.spec.feature_stats.keys()
-        ), "The endpoint's current stats is different than expected"
+        assert set(ep_current_stats.keys()) == set(mep.spec.feature_stats.keys()), (
+            "The endpoint's current stats is different than expected"
+        )
 
         assert ep_drift_measures, "The general drift status is empty"
         assert ep_drift_measures, "The drift measures are empty"
 
         for measure in ["hellinger_mean", "kld_mean", "tvd_mean"]:
-            assert isinstance(
-                ep_drift_measures.pop(measure, None), float
-            ), f"Expected '{measure}' in drift measures"
+            assert isinstance(ep_drift_measures.pop(measure, None), float), (
+                f"Expected '{measure}' in drift measures"
+            )
 
         drift_table = pd.DataFrame.from_dict(ep_drift_measures, orient="index")
         assert set(drift_table.columns) == {
@@ -646,13 +646,13 @@ class TestMonitoringAppFlow(TestMLRunSystemModelMonitoring, _V3IORecordsChecker)
             "kld",
             "tvd",
         }, "The drift metrics are not as expected"
-        assert set(drift_table.index) == set(
-            mep.spec.feature_names
-        ), "The feature names are not as expected"
+        assert set(drift_table.index) == set(mep.spec.feature_names), (
+            "The feature names are not as expected"
+        )
 
-        assert (
-            ep_current_stats["sepal_length_cm"]["count"] == cls.num_events
-        ), "Different number of events than expected"
+        assert ep_current_stats["sepal_length_cm"]["count"] == cls.num_events, (
+            "Different number of events than expected"
+        )
 
     @classmethod
     def _test_error_alert(cls) -> None:
@@ -810,9 +810,9 @@ class TestMonitoringAppFlow(TestMLRunSystemModelMonitoring, _V3IORecordsChecker)
                 ]
                 # Verify that the lag is 0
                 assert hist_function_summary.stats["stream_stats"][shard]["lag"] == 0
-            assert (
-                actual_committed == expected_committed
-            ), f"Expected {expected_committed} committed events, but got {actual_committed}"
+            assert actual_committed == expected_committed, (
+                f"Expected {expected_committed} committed events, but got {actual_committed}"
+            )
 
     def _test_drift_over_time(self) -> None:
         self._logger.debug("Checking drift over time")
@@ -824,20 +824,20 @@ class TestMonitoringAppFlow(TestMLRunSystemModelMonitoring, _V3IORecordsChecker)
         )
         assert drift_over_time is not None
         assert len(drift_over_time.values) == 1, "Drift over time should have one value"
-        assert (
-            drift_over_time.values[0].count_detected == 1
-        ), "Drift over time should have one detected drift"
-        assert (
-            drift_over_time.values[0].count_suspected == 0
-        ), "Drift over time should not have potential drift"
+        assert drift_over_time.values[0].count_detected == 1, (
+            "Drift over time should have one detected drift"
+        )
+        assert drift_over_time.values[0].count_suspected == 0, (
+            "Drift over time should not have potential drift"
+        )
         end = datetime.now().astimezone() - timedelta(hours=1)
         drift_over_time: ModelEndpointDriftValues = self.project.get_drift_over_time(
             end=end
         )
         assert drift_over_time is not None
-        assert (
-            len(drift_over_time.values) == 0
-        ), "No drift over time should be detected in the past"
+        assert len(drift_over_time.values) == 0, (
+            "No drift over time should be detected in the past"
+        )
 
     @pytest.mark.parametrize(
         "with_training_set, with_model_runner",
@@ -915,9 +915,9 @@ class TestMonitoringAppFlow(TestMLRunSystemModelMonitoring, _V3IORecordsChecker)
         mep = mep_result["mep"]
 
         # Model predict timestamp is slightly differ than storey timestamp
-        assert (
-            (mep.status.last_request - last_request) < timedelta(milliseconds=1)
-        ), "The saved `last_request` in the model endpoint is different than the last result timestamp"
+        assert (mep.status.last_request - last_request) < timedelta(milliseconds=1), (
+            "The saved `last_request` in the model endpoint is different than the last result timestamp"
+        )
 
         self._test_v3io_records(
             ep_id=mep.metadata.uid,
@@ -1276,12 +1276,12 @@ class TestServingJobEndpoint(TestMLRunSystemModelMonitoring, _V3IORecordsChecker
         )
         response_content = json.loads(response.content.decode())
         for metric_values in response_content:
-            assert metric_values[
-                "data"
-            ], f"No data for metric {metric_values['full_name']}"
-            assert metric_values[
-                "values"
-            ], f"The values list is empty for metric {metric_values['full_name']}"
+            assert metric_values["data"], (
+                f"No data for metric {metric_values['full_name']}"
+            )
+            assert metric_values["values"], (
+                f"The values list is empty for metric {metric_values['full_name']}"
+            )
             assert len(metric_values["values"]) == 3
 
         first_metric = response_content[0]
@@ -1436,8 +1436,7 @@ class TestModelMonitoringInitialize(TestMLRunSystemModelMonitoring):
                 tag="latest"
             )
             assert len(monitoring_functions) == 1, (
-                "expected a single monitoring function after deletion of histogram "
-                "app"
+                "expected a single monitoring function after deletion of histogram app"
             )
             assert [fn.metadata.name for fn in monitoring_functions] == [
                 DemoMonitoringApp.NAME
@@ -1857,9 +1856,9 @@ class TestMonitoredServings(TestMLRunSystemModelMonitoring):
                     endpoint.spec.monitoring_feature_set_uri,
                     self.model_by_endpoint_name[endpoint.metadata.name],
                 )
-                assert res_dict[
-                    "is_schema_saved"
-                ], f"For {endpoint.metadata.name} the schema of parquet is missing columns"
+                assert res_dict["is_schema_saved"], (
+                    f"For {endpoint.metadata.name} the schema of parquet is missing columns"
+                )
 
         self.wait_for_condition(
             condition_check=check_all_endpoints_parquet,
@@ -1872,13 +1871,13 @@ class TestMonitoredServings(TestMLRunSystemModelMonitoring):
                 endpoint.spec.monitoring_feature_set_uri,
                 self.model_by_endpoint_name[endpoint.metadata.name],
             )
-            assert res_dict[
-                "is_schema_saved"
-            ], f"For {endpoint.metadata.name} the schema of parquet is missing columns"
+            assert res_dict["is_schema_saved"], (
+                f"For {endpoint.metadata.name} the schema of parquet is missing columns"
+            )
 
-            assert res_dict[
-                "has_all_the_events"
-            ], f"For {endpoint.metadata.name} Not all the events were saved"
+            assert res_dict["has_all_the_events"], (
+                f"For {endpoint.metadata.name} Not all the events were saved"
+            )
 
     def test_tracking(self) -> None:
         self.function_name = "serving-1"
@@ -1926,13 +1925,13 @@ class TestMonitoredServings(TestMLRunSystemModelMonitoring):
             feature_set_uri=endpoint.spec.monitoring_feature_set_uri,
             model_dict=self.test_models_tracking[endpoint.metadata.name],
         )
-        assert res_dict[
-            "is_schema_saved"
-        ], f"For {endpoint.metadata.name} the schema of parquet is missing columns"
+        assert res_dict["is_schema_saved"], (
+            f"For {endpoint.metadata.name} the schema of parquet is missing columns"
+        )
 
-        assert res_dict[
-            "has_all_the_events"
-        ], f"For {endpoint.metadata.name} Not all the events were saved"
+        assert res_dict["has_all_the_events"], (
+            f"For {endpoint.metadata.name} Not all the events were saved"
+        )
 
         for model_name, model_dict in self.test_models_tracking.items():
             self._deploy_model_serving(**model_dict, enable_tracking=False)
@@ -1954,9 +1953,9 @@ class TestMonitoredServings(TestMLRunSystemModelMonitoring):
             model_dict=self.test_models_tracking[endpoint.metadata.name],
         )
 
-        assert res_dict[
-            "has_all_the_events"
-        ], f"For {res_dict['model_name']}, Despite tracking being disabled, there is new data in the parquet."
+        assert res_dict["has_all_the_events"], (
+            f"For {res_dict['model_name']}, Despite tracking being disabled, there is new data in the parquet."
+        )
 
     def test_enable_model_monitoring_after_failure(self) -> None:
         self.function_name = "test-function"
@@ -2058,9 +2057,9 @@ class TestMonitoredServings(TestMLRunSystemModelMonitoring):
                 path=fstore.get_feature_set(feature_set_uri).spec.targets[0].path,
             ).as_df()
             assert len(offline_response_df) == 2, "Not all the events were saved"
-            assert offline_response_df["labels"].iloc[1] == {
-                "user": "test"
-            }, "Labels were not saved correctly"
+            assert offline_response_df["labels"].iloc[1] == {"user": "test"}, (
+                "Labels were not saved correctly"
+            )
 
         self.wait_for_condition(
             condition_check=check_parquet_with_labels,
@@ -2103,9 +2102,9 @@ class TestAppJob(TestMLRunSystem):
         )
 
         # Test the state
-        assert (
-            run_result.state() == "completed"
-        ), "The job did not complete successfully"
+        assert run_result.state() == "completed", (
+            "The job did not complete successfully"
+        )
         # Test the inputs
         assert run_result.spec.inputs.keys() == {
             "sample_data",
@@ -2126,14 +2125,14 @@ class TestAppJob(TestMLRunSystem):
                 "result_status": 2,
                 "result_extra_data": "{}",
             },
-        ] == [returned_results[0]] + returned_results[
-            2:4
-        ], "The returned metrics are different than the expected ones"
+        ] == [returned_results[0]] + returned_results[2:4], (
+            "The returned metrics are different than the expected ones"
+        )
         # Test the artifacts
         for artifact_name in {"features_drift_results", "drift_table_plot"}:
-            assert run_result.output(
-                artifact_name
-            ), f"The artifact '{artifact_name}' is not listed in the run's output"
+            assert run_result.output(artifact_name), (
+                f"The artifact '{artifact_name}' is not listed in the run's output"
+            )
             # The artifact is logged with the run's name
             artifact_key = f"{run_result.metadata.name}_{artifact_name}"
             artifact = self.project.get_artifact(artifact_key)
@@ -2286,21 +2285,21 @@ class TestAppJobModelEndpointData(TestMLRunSystemModelMonitoring):
             )
 
             # Test the state
-            assert (
-                run_result.state() == "completed"
-            ), "The job did not complete successfully"
+            assert run_result.state() == "completed", (
+                "The job did not complete successfully"
+            )
 
             # Test the passed base period
-            assert (
-                run_result.spec.parameters["base_period"] == 1
-            ), "The base period is different than the passed one"
+            assert run_result.spec.parameters["base_period"] == 1, (
+                "The base period is different than the passed one"
+            )
 
             # Test the results
             outputs = run_result.outputs
             assert outputs, "No returned results"
-            assert (
-                len(outputs) == 2
-            ), "The number of outputs is different than the number of windows"
+            assert len(outputs) == 2, (
+                "The number of outputs is different than the number of windows"
+            )
             assert list(outputs.values()) == [
                 {
                     "result_name": "count",
@@ -2345,9 +2344,9 @@ class TestAppJobModelEndpointData(TestMLRunSystemModelMonitoring):
                         project=self.project_name,
                         endpoint_id=model_endpoint.metadata.uid,
                     )
-                    assert (
-                        metrics == expected_metrics
-                    ), "The metrics from the database are different than expected"
+                    assert metrics == expected_metrics, (
+                        "The metrics from the database are different than expected"
+                    )
 
                 self.wait_for_condition(
                     condition_check=check_metrics_written,
@@ -2522,9 +2521,9 @@ class TestBatchServingWithSampling(TestMLRunSystemModelMonitoring):
                 )
             else:
                 raise ValueError(f"Unsupported TSDB type: {self._tsdb_storage.type}")
-            assert (
-                predictions_df.shape[0] == 20
-            ), "TSDB predictions data not yet available"
+            assert predictions_df.shape[0] == 20, (
+                "TSDB predictions data not yet available"
+            )
 
             # Store for later use (avoids duplicate fetch)
             endpoints["with_sample"] = ep_with

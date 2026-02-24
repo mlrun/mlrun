@@ -111,6 +111,6 @@ def test_find_service_correctness(client: fastapi.testclient.TestClient):
             service_name = (
                 service_instance.name if service_instance else service_instance
             )
-            assert (
-                service_name == expected_service
-            ), f"for route path {path} with {app_route_tags} tags, expected service is {expected_service}"
+            assert service_name == expected_service, (
+                f"for route path {path} with {app_route_tags} tags, expected service is {expected_service}"
+            )

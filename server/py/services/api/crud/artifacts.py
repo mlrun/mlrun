@@ -13,7 +13,6 @@
 # limitations under the License.
 
 import datetime
-import typing
 
 import sqlalchemy.exc
 import sqlalchemy.orm
@@ -42,11 +41,11 @@ class Artifacts(
         db_session: sqlalchemy.orm.Session,
         key: str,
         artifact: dict,
-        object_uid: typing.Optional[str] = None,
+        object_uid: str | None = None,
         tag: str = "latest",
-        iter: typing.Optional[int] = None,
-        project: typing.Optional[str] = None,
-        producer_id: typing.Optional[str] = None,
+        iter: int | None = None,
+        project: str | None = None,
+        producer_id: str | None = None,
         auth_info: mlrun.common.schemas.AuthInfo = None,
     ):
         artifact_project = artifact.get("project")
@@ -76,9 +75,9 @@ class Artifacts(
         key: str,
         artifact: dict,
         tag: str = "latest",
-        iter: typing.Optional[int] = None,
-        producer_id: typing.Optional[str] = None,
-        project: typing.Optional[str] = None,
+        iter: int | None = None,
+        producer_id: str | None = None,
+        project: str | None = None,
         auth_info: mlrun.common.schemas.AuthInfo = None,
     ):
         artifact_project = artifact.get("project")
@@ -109,11 +108,11 @@ class Artifacts(
         db_session: sqlalchemy.orm.Session,
         key: str,
         tag: str = "latest",
-        iter: typing.Optional[int] = None,
-        project: typing.Optional[str] = None,
+        iter: int | None = None,
+        project: str | None = None,
         format_: mlrun.common.formatters.ArtifactFormat = mlrun.common.formatters.ArtifactFormat.full,
-        producer_id: typing.Optional[str] = None,
-        object_uid: typing.Optional[str] = None,
+        producer_id: str | None = None,
+        object_uid: str | None = None,
         raise_on_not_found: bool = True,
     ) -> dict:
         artifact = framework.utils.singletons.db.get_db().read_artifact(
@@ -132,32 +131,28 @@ class Artifacts(
     def list_artifacts(
         self,
         db_session: sqlalchemy.orm.Session,
-        project: typing.Optional[str] = None,
-        name: typing.Optional[str] = None,
-        tag: typing.Optional[str] = None,
-        labels: typing.Optional[list[str]] = None,
-        since: typing.Optional[datetime.datetime] = None,
-        until: typing.Optional[datetime.datetime] = None,
-        kind: typing.Optional[str] = None,
-        category: typing.Optional[mlrun.common.schemas.ArtifactCategories] = None,
-        iter: typing.Optional[int] = None,
+        project: str | None = None,
+        name: str | None = None,
+        tag: str | None = None,
+        labels: list[str] | None = None,
+        since: datetime.datetime | None = None,
+        until: datetime.datetime | None = None,
+        kind: str | None = None,
+        category: mlrun.common.schemas.ArtifactCategories | None = None,
+        iter: int | None = None,
         best_iteration: bool = False,
         format_: mlrun.common.formatters.ArtifactFormat = mlrun.common.formatters.ArtifactFormat.full,
-        producer_id: typing.Optional[str] = None,
-        producer_uri: typing.Optional[str] = None,
-        parent: typing.Optional[str] = None,
-        offset: typing.Optional[int] = None,
-        limit: typing.Optional[int] = None,
-        partition_by: typing.Optional[
-            mlrun.common.schemas.ArtifactPartitionByField
-        ] = None,
-        rows_per_partition: typing.Optional[int] = 1,
-        partition_sort_by: typing.Optional[
-            mlrun.common.schemas.SortField
-        ] = mlrun.common.schemas.SortField.updated,
-        partition_order: typing.Optional[
-            mlrun.common.schemas.OrderType
-        ] = mlrun.common.schemas.OrderType.desc,
+        producer_id: str | None = None,
+        producer_uri: str | None = None,
+        parent: str | None = None,
+        offset: int | None = None,
+        limit: int | None = None,
+        partition_by: mlrun.common.schemas.ArtifactPartitionByField | None = None,
+        rows_per_partition: int | None = 1,
+        partition_sort_by: mlrun.common.schemas.SortField
+        | None = mlrun.common.schemas.SortField.updated,
+        partition_order: mlrun.common.schemas.OrderType
+        | None = mlrun.common.schemas.OrderType.desc,
     ) -> list:
         if labels is None:
             labels = []
@@ -203,7 +198,7 @@ class Artifacts(
     def list_artifact_tags(
         self,
         db_session: sqlalchemy.orm.Session,
-        project: typing.Optional[str] = None,
+        project: str | None = None,
         category: mlrun.common.schemas.ArtifactCategories = None,
     ):
         return framework.utils.singletons.db.get_db().list_artifact_tags(
@@ -215,14 +210,14 @@ class Artifacts(
         db_session: sqlalchemy.orm.Session,
         key: str,
         tag: str = "latest",
-        project: typing.Optional[str] = None,
-        object_uid: typing.Optional[str] = None,
-        producer_id: typing.Optional[str] = None,
-        iteration: typing.Optional[int] = None,
+        project: str | None = None,
+        object_uid: str | None = None,
+        producer_id: str | None = None,
+        iteration: int | None = None,
         deletion_strategy: mlrun.common.schemas.artifact.ArtifactsDeletionStrategies = (
             mlrun.common.schemas.artifact.ArtifactsDeletionStrategies.metadata_only
         ),
-        secrets: typing.Optional[dict] = None,
+        secrets: dict | None = None,
         auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
     ):
         artifact = framework.utils.singletons.db.get_db().validate_artifact_removal_preconditions(
@@ -264,12 +259,12 @@ class Artifacts(
     def delete_artifacts(
         self,
         db_session: sqlalchemy.orm.Session,
-        project: typing.Optional[str] = None,
+        project: str | None = None,
         name: str = "",
         tag: str = "latest",
-        labels: typing.Optional[list[str]] = None,
+        labels: list[str] | None = None,
         auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
-        producer_id: typing.Optional[str] = None,
+        producer_id: str | None = None,
     ):
         # TODO : If, in the future, this API is extended to delete the artifact data as well,
         #  we should include the validation we added in validate_artifact_removal_preconditions
@@ -287,7 +282,7 @@ class Artifacts(
     def _enrich_artifact(
         self,
         artifact: dict,
-        auth_info: typing.Optional[mlrun.common.schemas.AuthInfo],
+        auth_info: mlrun.common.schemas.AuthInfo | None,
     ) -> None:
         """Enrich artifact with size and producer before storing or creating."""
         self._resolve_artifact_size(artifact, auth_info)
@@ -317,7 +312,7 @@ class Artifacts(
     def _enrich_artifact_producer(
         self,
         artifact: dict,
-        auth_info: typing.Optional[mlrun.common.schemas.AuthInfo],
+        auth_info: mlrun.common.schemas.AuthInfo | None,
     ):
         if not auth_info:
             return
@@ -350,13 +345,13 @@ class Artifacts(
         self,
         key: str,
         tag: str = "latest",
-        project: typing.Optional[str] = None,
+        project: str | None = None,
         deletion_strategy: mlrun.common.schemas.artifact.ArtifactsDeletionStrategies = (
             mlrun.common.schemas.artifact.ArtifactsDeletionStrategies.metadata_only
         ),
-        secrets: typing.Optional[dict] = None,
+        secrets: dict | None = None,
         auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
-        artifact: typing.Optional[dict] = None,
+        artifact: dict | None = None,
     ):
         logger.debug("Deleting artifact data", project=project, key=key, tag=tag)
 

@@ -15,7 +15,7 @@
 from collections import defaultdict
 from collections.abc import Callable, Iterator
 from datetime import datetime
-from typing import Annotated, Any, Optional, Union
+from typing import Annotated, Any, Union
 
 import pydantic.v1
 
@@ -73,7 +73,7 @@ class Event(pydantic.v1.BaseModel):
     kind: EventKind
     timestamp: Union[str, datetime] = None  # occurrence time
     entity: EventEntities
-    value_dict: Optional[dict] = pydantic.v1.Field(default_factory=dict)
+    value_dict: dict | None = pydantic.v1.Field(default_factory=dict)
 
     def is_valid(self):
         return self.entity.kind in _event_kind_entity_map[self.kind]
@@ -143,7 +143,7 @@ class AlertConfig(pydantic.v1.BaseModel):
     project: str
     id: int = None
     name: str
-    description: Optional[str] = ""
+    description: str | None = ""
     summary: Annotated[
         str,
         pydantic.v1.Field(
@@ -158,11 +158,11 @@ class AlertConfig(pydantic.v1.BaseModel):
     severity: AlertSeverity
     entities: EventEntities
     trigger: AlertTrigger
-    criteria: Optional[AlertCriteria]
+    criteria: AlertCriteria | None
     reset_policy: ResetPolicy = ResetPolicy.AUTO
     notifications: pydantic.v1.conlist(AlertNotification, min_items=1)
     state: AlertActiveState = AlertActiveState.INACTIVE
-    count: Optional[int] = 0
+    count: int | None = 0
     updated: datetime = None
 
     class Config:
@@ -184,21 +184,19 @@ class AlertTemplate(
 ):  # Template fields that are not shared with created configs
     template_id: int = None
     template_name: str
-    template_description: Optional[str] = (
-        "String explaining the purpose of this template"
-    )
+    template_description: str | None = "String explaining the purpose of this template"
 
     # A property that identifies templates that were created by the system and cannot be modified/deleted by the user
     system_generated: bool = False
 
     # AlertConfig fields that are pre-defined
-    summary: Optional[str] = (
+    summary: str | None = (
         "String to be sent in the generated notifications e.g. 'Model {{project}}/{{entity}} is drifting.'"
         "See AlertConfig.summary description"
     )
     severity: AlertSeverity
     trigger: AlertTrigger
-    criteria: Optional[AlertCriteria]
+    criteria: AlertCriteria | None
     reset_policy: ResetPolicy = ResetPolicy.AUTO
 
     # This is slightly different than __eq__ as it doesn't compare everything
@@ -225,7 +223,7 @@ class AlertActivation(pydantic.v1.BaseModel):
     event_kind: EventKind
     number_of_events: int
     notifications: list[notification_objects.NotificationState]
-    reset_time: Optional[datetime] = None
+    reset_time: datetime | None = None
 
     def group_key(self, attributes: list[str]) -> Union[Any, tuple]:
         """
@@ -244,7 +242,7 @@ class AlertActivation(pydantic.v1.BaseModel):
 
 class AlertActivations(pydantic.v1.BaseModel):
     activations: list[AlertActivation]
-    pagination: Optional[dict]
+    pagination: dict | None
 
     def __iter__(self) -> Iterator[AlertActivation]:
         return iter(self.activations)

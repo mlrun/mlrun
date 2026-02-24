@@ -243,7 +243,7 @@ def test_load_and_prepare_secret_tokens_valid(
     tokens = []
     for idx, user_id in enumerate(token_user_ids):
         jwt_token = _create_jwt_token({"sub": user_id, "exp": 9999999999})
-        tokens.append({"name": f"token{idx+1}", "token": jwt_token})
+        tokens.append({"name": f"token{idx + 1}", "token": jwt_token})
 
     content = {"secretTokens": tokens}
     path = _write_file(tmp_path, "tokens.yml", content)

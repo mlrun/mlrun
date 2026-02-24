@@ -77,9 +77,9 @@ class TestMain(tests.integration.sdk_api.base.TestMLRunIntegration):
         end_time = datetime.datetime.now()
         print(out)
         assert out.find("state: completed") != -1, out
-        assert (
-            end_time - start_time
-        ).seconds >= time_to_sleep, "run did not wait for completion"
+        assert (end_time - start_time).seconds >= time_to_sleep, (
+            "run did not wait for completion"
+        )
 
     def test_main_run_hyper(self):
         out = self._exec_run(

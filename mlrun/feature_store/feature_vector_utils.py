@@ -28,11 +28,11 @@ from ..model import ModelObj, ObjectList
 class _JoinStep(ModelObj):
     def __init__(
         self,
-        name: typing.Optional[str] = None,
-        left_step_name: typing.Optional[str] = None,
-        right_step_name: typing.Optional[str] = None,
-        left_feature_set_names: typing.Optional[Union[str, list[str]]] = None,
-        right_feature_set_name: typing.Optional[str] = None,
+        name: str | None = None,
+        left_step_name: str | None = None,
+        right_step_name: str | None = None,
+        left_feature_set_names: Union[str, list[str]] | None = None,
+        right_feature_set_name: str | None = None,
         join_type: str = "inner",
         asof_join: bool = False,
     ):
@@ -56,7 +56,7 @@ class _JoinStep(ModelObj):
         self,
         feature_set_objects: ObjectList,
         vector,
-        entity_rows_keys: typing.Optional[list[str]] = None,
+        entity_rows_keys: list[str] | None = None,
     ):
         if feature_set_objects[self.right_feature_set_name].is_connectable_to_df(
             entity_rows_keys
@@ -114,7 +114,7 @@ class JoinGraph(ModelObj):
 
     def __init__(
         self,
-        name: typing.Optional[str] = None,
+        name: str | None = None,
         first_feature_set: Union[str, FeatureSet] = None,
     ):
         """
@@ -223,7 +223,7 @@ class JoinGraph(ModelObj):
         self,
         feature_set_objects,
         vector,
-        entity_rows_keys: typing.Optional[list[str]] = None,
+        entity_rows_keys: list[str] | None = None,
     ):
         for step in self.steps:
             step.init_join_keys(feature_set_objects, vector, entity_rows_keys)
@@ -281,8 +281,8 @@ class OnlineVectorService:
         vector,
         graph,
         index_columns,
-        impute_policy: typing.Optional[dict] = None,
-        requested_columns: typing.Optional[list[str]] = None,
+        impute_policy: dict | None = None,
+        requested_columns: list[str] | None = None,
     ):
         self.vector = vector
         self.impute_policy = impute_policy or {}

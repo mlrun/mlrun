@@ -412,7 +412,6 @@ class TestStreamingErrors:
         finally:
             server.wait_for_completion()
 
-    @pytest.mark.skip(reason="TODO: Requires mlrun/storey#616")
     def test_streaming_generator_raises_error(self):
         """Test that error in generator mid-stream propagates without hanging."""
         function = mlrun.new_function("test", kind="serving")
@@ -468,7 +467,6 @@ class TestStreamingErrors:
         finally:
             server.wait_for_completion()
 
-    @pytest.mark.skip(reason="TODO: Requires mlrun/storey#616")
     def test_streaming_error_produces_error_event_through_collector(self):
         """Test that a streaming generator error produces an error dict event via Collector.
 

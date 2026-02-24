@@ -3298,8 +3298,8 @@ stack-data==0.6.3 \
     --hash=sha256:836a778de4fec4dcd1dcd89ed8abff8a221f58308462e1c4aa2a3cf30148f0b9 \
     --hash=sha256:d5558e0c25a4cb0853cddad3d77da9891a08cb85dd9f9f91b9f8cd66e511e695
     # via ipython
-storey==1.11.15 \
-    --hash=sha256:d12e3b5fe061be62972c6f56ca9d6d4f9e13490b9e9db884c03e7e78a0ac329e
+storey==1.11.16 \
+    --hash=sha256:c68e3fd6877da7490a88b095af025b2e947d36eae0862c8f995810b249b49330
     # via -r requirements.txt
 tabulate==0.8.10 \
     --hash=sha256:0ba055423dbaa164b9e456abe7920c5e8ed33fcc16f6d1b2f2d152c8e1e8b4fc \

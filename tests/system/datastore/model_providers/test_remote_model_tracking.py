@@ -459,9 +459,8 @@ class TestMockModelProviderTracking(
             resp.iter_content(decode_unicode=True, chunk_size=1024)
         )
 
-        # TODO: Uncomment after mlrun/storey#616 is merged
-        # # Send a streaming request with error input
-        # self._check_single_invocation_with_error(function.invoke, mlrun_model_name)
+        # Send a streaming request with error input
+        self._check_single_invocation_with_error(function.invoke, mlrun_model_name)
 
         # Wait for monitoring pipeline to process the streamed prediction
         sleep(180)
@@ -515,8 +514,7 @@ class TestMockModelProviderTracking(
         assert row["model_class"] == "LLModel"
         assert "mock model provider" in str(row).lower()
 
-        # TODO: Uncomment after mlrun/storey#616 is merged
-        # error_df = tsdb_client.get_error_count(endpoint_ids=mep.metadata.uid)
-        # assert len(error_df) == 1
-        # error_dict = error_df.head(1).to_dict(orient="records")[0]
-        # assert error_dict["error_count"] == 1
+        error_df = tsdb_client.get_error_count(endpoint_ids=mep.metadata.uid)
+        assert len(error_df) == 1
+        error_dict = error_df.head(1).to_dict(orient="records")[0]
+        assert error_dict["error_count"] == 1

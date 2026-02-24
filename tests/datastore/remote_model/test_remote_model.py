@@ -1079,7 +1079,6 @@ class TestMockModelProviderStreaming(BaseMockModelProviderTest):
         finally:
             server.wait_for_completion()
 
-    @pytest.mark.skip(reason="TODO: Requires mlrun/storey#616")
     def test_llmodel_streaming_error(self, rundb_mock):
         """Test streaming error tracking through MRS with MockModelProvider."""
         project = mlrun.new_project("test-mock-streaming-error", save=False)

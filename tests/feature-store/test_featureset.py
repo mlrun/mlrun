@@ -15,7 +15,7 @@
 from unittest import mock
 
 import pytest
-
+from mlrun.serving.states import BaseStep, RootFlowStep
 from mlrun.data_types import InferOptions
 from mlrun.datastore.targets import ParquetTarget
 from mlrun.feature_store import Entity
@@ -205,32 +205,20 @@ def test_feature_set_plot_with_targets(
 
 
 def test_feature_set_plot_with_multiple_after_steps_manual():
-    from mlrun.serving.states import BaseStep, RootFlowStep
-
-    # Create a root flow with branching paths
-    flow = RootFlowStep()
-
-    # Add steps: step1 -> (step2, step3) both branch from step1
-    flow.add_step(name="step1", class_name="storey.Map", _fn="(event)")
-    flow.add_step(name="step2", class_name="storey.Map", _fn="(event)", after="step1")
-    flow.add_step(name="step3", class_name="storey.Map", _fn="(event)", after="step1")
-
-    # Create target that comes after BOTH step2 and step3
-    # target.after will be ['step2', 'step3'] (list with 2 items)
-    target = BaseStep(
-        "parquet/test-target",
-        after=["step2", "step3"],
-        shape="cylinder",
+    fset = FeatureSet("test", entities=[Entity("id")])
+    fset.graph.add_step(name="step1", class_name="storey.Map", _fn="(event)")
+    fset.graph.add_step(name="step2", class_name="storey.Map", _fn="(event)", after="step1")
+    fset.graph.add_step(name="step3", class_name="storey.Map", _fn="(event)", after="step1")
+    fset.set_targets(
+        targets=[ParquetTarget(name="test-target", after_step=["step2", "step3"])],
+        with_defaults=False
     )
 
-    # Should not crash - fix creates edge from step2->target AND step3->target
-    graph = flow.plot(targets=[target])
+    graph = fset.plot(rankdir="LR", with_targets=True)
 
     assert graph is not None
     graph_source = graph.source
 
-    # Verify both steps and target exist in graph
     assert "step2" in graph_source
     assert "step3" in graph_source
     assert "test-target" in graph_source
-

@@ -32,15 +32,17 @@ The `*` prefix indicates a router class (not a simple processing step).
 
 ### Examples
 ```python
-ensemble = graph.add_step("*mlrun.serving.VotingEnsemble", name="ensemble", vote_type="regression") # for numeric output
-
+ensemble = graph.add_step(
+    "*mlrun.serving.VotingEnsemble", name="ensemble", vote_type="regression"
+)  # for numeric output
 ```
 
 In classification mode:
 
 ```python
-ensemble = graph.add_step("*mlrun.serving.VotingEnsemble", name="ensemble", vote_type="classification") # for categorical output
-
+ensemble = graph.add_step(
+    "*mlrun.serving.VotingEnsemble", name="ensemble", vote_type="classification"
+)  # for categorical output
 ```
 
 A full flow example:
@@ -49,7 +51,9 @@ A full flow example:
 import mlrun
 
 project_name = "flow-with-routes"
-project = mlrun.get_or_create_project(project_name, context="./", allow_cross_project=True)
+project = mlrun.get_or_create_project(
+    project_name, context="./", allow_cross_project=True
+)
 
 fn = mlrun.code_to_function(
     name="routers_example",
@@ -106,7 +110,7 @@ Use {py:meth}`~mlrun.serving.routers.ParallelRun` to run multiple independent br
 
 ```python
 parallel = graph.add_step("*mlrun.serving.ParallelRun", name="parallel_models")
-parallel.add_route("model_a", class_name="M## Router Classes in MLRuמ
+parallel.add_route("model_a", class_name="Cls1")
 ```
 
 Downstream, you can add custom merger or processing steps.

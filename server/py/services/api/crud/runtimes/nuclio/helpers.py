@@ -19,6 +19,7 @@ import semver
 
 import mlrun
 import mlrun.runtimes
+from mlrun.runtimes.nuclio.function import validate_nuclio_version_compatibility
 from mlrun.utils import logger
 
 import framework.utils.clients.nuclio
@@ -134,6 +135,9 @@ def enrich_function_with_ingress(config, mode, service_type):
             "workerAvailabilityTimeoutMilliseconds": 10000,  # 10 seconds
             "attributes": {},
         }
+        # Provide trigger mode for nuclio 1.15.3 and above.
+        if validate_nuclio_version_compatibility("1.15.3"):
+            http_trigger["mode"] = "sync"
 
     def enrich():
         http_trigger.setdefault("attributes", {}).setdefault("ingresses", {})["0"] = {

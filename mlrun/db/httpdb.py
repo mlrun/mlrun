@@ -43,6 +43,7 @@ import mlrun.common.types
 import mlrun.k8s_utils
 import mlrun.platforms
 import mlrun.projects
+import mlrun.runtime_configuration_context
 import mlrun.runtimes.nuclio.api_gateway
 import mlrun.runtimes.nuclio.function
 import mlrun.utils
@@ -4050,6 +4051,8 @@ class HTTPRunDB(RunDBInterface):
         image: str = "mlrun/mlrun",
         deploy_histogram_data_drift_app: bool = True,
         fetch_credentials_from_sys_config: bool = False,
+        lag_threshold: int | None = None,
+        lag_event_cooldown: int | None = None,
     ) -> None:
         """
         Deploy model monitoring application controller, writer and stream functions.
@@ -4067,17 +4070,27 @@ class HTTPRunDB(RunDBInterface):
                                                   By default, the image is mlrun/mlrun.
         :param deploy_histogram_data_drift_app:   If true, deploy the default histogram-based data drift application.
         :param fetch_credentials_from_sys_config: If true, fetch the credentials from the system configuration.
+        :param lag_threshold:                     Lag threshold in minutes for writer lag detection.
+        :param lag_event_cooldown:                Cooldown in minutes between consecutive lag events per worker.
 
         """
+        auth_token_name = mlrun.runtime_configuration_context.RuntimeConfigurationContext.get_auth_token_name()
+
+        params = {
+            "base_period": base_period,
+            "image": image,
+            "deploy_histogram_data_drift_app": deploy_histogram_data_drift_app,
+            "fetch_credentials_from_sys_config": fetch_credentials_from_sys_config,
+            "auth_token_name": auth_token_name,
+        }
+        if lag_threshold is not None:
+            params["lag_threshold"] = lag_threshold
+        if lag_event_cooldown is not None:
+            params["lag_event_cooldown"] = lag_event_cooldown
         self.api_call(
             method=mlrun.common.types.HTTPMethod.PUT,
             path=f"projects/{project}/model-monitoring/",
-            params={
-                "base_period": base_period,
-                "image": image,
-                "deploy_histogram_data_drift_app": deploy_histogram_data_drift_app,
-                "fetch_credentials_from_sys_config": fetch_credentials_from_sys_config,
-            },
+            params=params,
             timeout=300,  # 5 minutes
         )
 
@@ -4765,6 +4778,8 @@ class HTTPRunDB(RunDBInterface):
 
         :returns:    :py:class:`~mlrun.common.schemas.WorkflowResponse`.
         """
+        auth_token_name = mlrun.runtime_configuration_context.RuntimeConfigurationContext.get_auth_token_name()
+
         image = (
             workflow_spec.image
             if hasattr(workflow_spec, "image")
@@ -4793,6 +4808,7 @@ class HTTPRunDB(RunDBInterface):
             req["spec"] = workflow_spec
         req["spec"]["image"] = image
         req["spec"]["name"] = workflow_name
+        req["spec"]["auth_token_name"] = auth_token_name
         if notifications:
             req["notifications"] = [
                 notification.to_dict() for notification in notifications
@@ -5447,9 +5463,7 @@ class HTTPRunDB(RunDBInterface):
         :param username: Optional; the username of the token owner.
         """
         endpoint_path = f"user-secrets/tokens/{token_name}"
-        params = None
-        if username is not None:
-            params = {"username": username}
+        params = {"username": username} if username else None
         response = self.api_call(
             mlrun.common.types.HTTPMethod.DELETE,
             endpoint_path,
@@ -5466,6 +5480,49 @@ class HTTPRunDB(RunDBInterface):
         else:
             logger.info(
                 "Token could not be deleted", token_name=token_name, username=username
+            )
+        return result
+
+    @mlrun.utils.iguazio_v4_only
+    def delete_secret_tokens(
+        self, username: Optional[str] = None
+    ) -> mlrun.common.schemas.DeleteSecretTokensResponse:
+        """
+        Delete all secret tokens for a user. Only system-administrators can delete tokens for other users.
+
+        :param username: Optional; the username of the token owner. If None, deletes the caller's own tokens.
+        :return: A ``DeleteSecretTokensResponse`` with deleted_count and any failed_tokens.
+
+        Example::
+
+            # Delete all your own tokens
+            response = db.delete_secret_tokens()
+            print(f"Deleted {response.deleted_count} tokens")
+
+            # As a system admin, delete all tokens for a specific user
+            response = db.delete_secret_tokens(username="john_doe")
+        """
+        endpoint_path = "user-secrets/tokens"
+        params = {"username": username} if username else None
+        response = self.api_call(
+            mlrun.common.types.HTTPMethod.DELETE,
+            endpoint_path,
+            "delete user secret tokens",
+            params=params,
+        )
+        result = mlrun.common.schemas.DeleteSecretTokensResponse(**response.json())
+        if result.failed_tokens:
+            logger.warning(
+                "Tokens deletion completed with failures",
+                username=username,
+                deleted_count=result.deleted_count,
+                failed_count=len(result.failed_tokens),
+            )
+        else:
+            logger.debug(
+                "Tokens deletion completed",
+                username=username,
+                deleted_count=result.deleted_count,
             )
         return result
 

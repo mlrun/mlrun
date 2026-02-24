@@ -48,9 +48,14 @@ class AsyncClientWithRetry(RetryClient):
         raise_for_status: bool = True,
         blacklisted_methods: typing.Optional[list[str]] = None,
         logger: Optional[logging.Logger] = None,
+        cookie_jar: Optional[aiohttp.abc.AbstractCookieJar] = None,
         *args,
         **kwargs,
     ):
+        # Use DummyCookieJar by default to prevent cookie storage and identity leakage
+        if cookie_jar is None:
+            cookie_jar = aiohttp.DummyCookieJar()
+
         super().__init__(
             *args,
             retry_options=ExponentialRetryOverride(
@@ -64,6 +69,7 @@ class AsyncClientWithRetry(RetryClient):
             ),
             logger=logger or mlrun_logger,
             raise_for_status=raise_for_status,
+            cookie_jar=cookie_jar,
             **kwargs,
         )
 

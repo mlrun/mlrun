@@ -15,17 +15,21 @@
 """Tests for streaming support in serving graphs."""
 
 import inspect
+import unittest.mock
 
 import pytest
 
 import mlrun
 import mlrun.errors
+from mlrun.datastore.model_provider.mock_model_provider import MockModelProvider
+from mlrun.datastore.model_provider.model_provider import ModelProvider
 from mlrun.runtimes.nuclio.serving import ServingSpec
 from mlrun.serving import Model
 from mlrun.serving.server import (
     v2_serving_handler,
     v2_serving_streaming_handler,
 )
+from mlrun.serving.states import LLModel
 
 
 class TestServingSpecStreaming:
@@ -559,3 +563,92 @@ class TestModelIsStreaming:
         result = model.predict("test")
         assert inspect.isgenerator(result)
         assert list(result) == ["test_chunk_0", "test_chunk_1", "test_chunk_2"]
+
+
+def _make_mock_streaming_provider():
+    """Create a MockModelProvider instance without a real parent."""
+    provider = MockModelProvider.__new__(MockModelProvider)
+    provider.default_invoke_kwargs = {}
+    return provider
+
+
+class _MockNonStreamingProvider(ModelProvider):
+    """A mock model provider that does NOT support streaming."""
+
+    supports_streaming = False
+
+    def __init__(self):
+        self.default_invoke_kwargs = {}
+
+
+class TestLLModelStreaming:
+    """Tests for LLModel streaming integration with model providers."""
+
+    _sentinel = object()
+
+    @classmethod
+    def _make_model(cls, streaming_server=True, provider=_sentinel):
+        model = LLModel(name="test")
+        model._streaming_enabled = streaming_server
+        model.model_provider = (
+            _make_mock_streaming_provider() if provider is cls._sentinel else provider
+        )
+        return model
+
+    def test_is_streaming_true(self):
+        """is_streaming returns True when server.streaming and provider both support it."""
+        assert self._make_model().is_streaming() is True
+
+    @pytest.mark.parametrize(
+        "streaming_server, provider",
+        [
+            (False, _make_mock_streaming_provider()),
+            (True, _MockNonStreamingProvider()),
+            (True, None),
+        ],
+        ids=["server-off", "provider-unsupported", "no-provider"],
+    )
+    def test_is_streaming_false(self, streaming_server, provider):
+        """is_streaming returns False when any precondition is missing."""
+        assert self._make_model(streaming_server, provider).is_streaming() is False
+
+    def test_predict_returns_generator_when_streaming(self):
+        """predict() returns a generator of tokens when streaming is active."""
+        model = self._make_model()
+        result = model.predict(
+            body={"input": "hello"},
+            messages=[{"role": "user", "content": "hello"}],
+            llm_prompt_artifact=unittest.mock.MagicMock(
+                spec=mlrun.artifacts.LLMPromptArtifact
+            ),
+        )
+        assert inspect.isgenerator(result)
+        tokens = list(result)
+        assert len(tokens) > 0
+        full_text = "".join(tokens)
+        assert "mock model provider" in full_text.lower()
+
+    def test_run_async_returns_async_generator_when_streaming(self):
+        """run_async() returns an async generator directly when streaming is active."""
+        model = self._make_model()
+        model.invocation_artifact = unittest.mock.MagicMock(
+            spec=mlrun.artifacts.LLMPromptArtifact
+        )
+        model._artifact_were_loaded = True
+        messages = [{"role": "user", "content": "hello"}]
+        model.enrich_prompt = lambda body, origin, llm_prompt_artifact: (
+            messages,
+            {},
+        )
+        result = model.run_async(body={"input": "hello"}, path="/")
+        assert inspect.isasyncgen(result)
+
+    def test_init_raises_when_provider_does_not_support_streaming(self):
+        """init() raises when streaming is enabled but provider doesn't support it."""
+        model = self._make_model(provider=_MockNonStreamingProvider())
+        model._execution_mechanism = "asyncio"
+        with pytest.raises(
+            mlrun.errors.MLRunInvalidArgumentError,
+            match="does not support streaming",
+        ):
+            model.init()

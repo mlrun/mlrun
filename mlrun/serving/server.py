@@ -334,13 +334,20 @@ class GraphServer(ModelObj):
 
             response = self.graph.run(event, **(extra_args or {}))
         except Exception as exc:
+            # Extract appropriate status code from MLRunHTTPStatusError exceptions
+            # For backwards compatibility, default to 400 for other exceptions
+            if isinstance(exc, mlrun.errors.MLRunHTTPStatusError):
+                status_code = exc.error_status_code
+            else:
+                status_code = 400
+
             message = f"{exc.__class__.__name__}: {err_to_str(exc)}"
             if server_context.verbose:
                 message += "\n" + str(traceback.format_exc())
             context.logger.error(f"run error, {traceback.format_exc()}")
             server_context.push_error(event, message, source="_handler")
             return context.Response(
-                body=message, content_type="text/plain", status_code=400
+                body=message, content_type="text/plain", status_code=status_code
             )
 
         # TODO: this is only relevant in certain flows (MockServer, sync...)
@@ -358,10 +365,21 @@ def add_error_raiser_step(
     graph: RootFlowStep, monitored_steps: dict[str, MonitoredStep]
 ) -> RootFlowStep:
     for monitored_step in monitored_steps.values():
+        unpack_step = f"{monitored_step.name}_unpacker"
+        graph.add_step(
+            class_name="storey.FlatMap",
+            name=unpack_step,
+            _fn="(event.body)",
+            after=monitored_step.name,
+            full_event=True,
+            model_endpoint_creation_strategy=mlrun.common.schemas.ModelEndpointCreationStrategy.SKIP,
+        )
+
+        # Add error raiser step after the unpacker
         error_step = graph.add_step(
             class_name="mlrun.serving.states.ModelRunnerErrorRaiser",
             name=f"{monitored_step.name}_error_raise",
-            after=monitored_step.name,
+            after=[monitored_step.name, unpack_step],
             full_event=True,
             raise_exception=monitored_step.raise_exception,
             models_names=list(monitored_step.class_args["models"].keys()),
@@ -519,6 +537,7 @@ def _add_api_handler_step_to_graph(
                 name="api-handler",
                 graph_shape="diamond",
                 config=api_handler_config,
+                context=context,
                 after=None,  # First step
                 full_event=True,
             )
@@ -561,17 +580,39 @@ def add_system_steps_to_graph(
         )
         if background_task_status_step:
             monitor_flow_step = background_task_status_step
-        # Connect each model runner to the monitoring step:
+
+        # Check if streaming is enabled for this function
+        streaming_enabled = (
+            serving_spec.get("streaming", False)
+            if isinstance(serving_spec, dict)
+            else getattr(serving_spec, "streaming", False)
+        )
+
+        # Connect each model runner to the monitoring step.
+        # For streaming functions, add a Collector step to aggregate streaming
+        # chunks into a single event for MM. For non-streaming, connect directly.
         for step_name, step in monitored_steps.items():
+            if streaming_enabled:
+                # Add a Collector step after each monitored step
+                collector_name = f"{step_name}_collector"
+                graph.add_step(
+                    "storey.Collector",
+                    collector_name,
+                    after=step_name,
+                    model_endpoint_creation_strategy=mlrun.common.schemas.ModelEndpointCreationStrategy.SKIP,
+                )
+                source_step = collector_name
+            else:
+                source_step = step_name
+
+            # Connect monitor_flow_step to receive from source
             if monitor_flow_step.after:
                 if isinstance(monitor_flow_step.after, list):
-                    monitor_flow_step.after.append(step_name)
+                    monitor_flow_step.after.append(source_step)
                 elif isinstance(monitor_flow_step.after, str):
-                    monitor_flow_step.after = [monitor_flow_step.after, step_name]
+                    monitor_flow_step.after = [monitor_flow_step.after, source_step]
             else:
-                monitor_flow_step.after = [
-                    step_name,
-                ]
+                monitor_flow_step.after = [source_step]
     return graph
 
 

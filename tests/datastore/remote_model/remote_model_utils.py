@@ -219,6 +219,8 @@ def setup_remote_model_test(
     default_config: Optional[dict] = None,
     include_llm_artifact=True,
     batch_step=False,
+    flush_after_seconds=FLUSH_AFTER_SECONDS,
+    streaming=False,
 ):
     model_artifact = project.log_model(
         mlrun_model_name,
@@ -244,6 +246,7 @@ def setup_remote_model_test(
         image=image,
         requirements=requirements,
     )
+    function.spec.replicas = 1
     graph = function.set_topology("flow", engine="async")
     if batch_step:
         # When deploying with batch_step in system tests, configure async HTTP via
@@ -252,7 +255,7 @@ def setup_remote_model_test(
             "storey.Batch",
             "my_batching",
             max_events=2,
-            flush_after_seconds=FLUSH_AFTER_SECONDS,
+            flush_after_seconds=flush_after_seconds,
             full_event=True,
         )
     model_runner_step = ModelRunnerStep(name="my_model_runner")
@@ -267,6 +270,9 @@ def setup_remote_model_test(
     if batch_step:
         step = step.to("storey.FlatMap", _fn="(event.body)", full_event=True)
     step.respond()
+
+    if streaming:
+        function.set_streaming(enabled=True)
 
     return model_artifact, llm_prompt_artifact, function
 

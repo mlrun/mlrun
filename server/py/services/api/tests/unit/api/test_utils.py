@@ -30,6 +30,7 @@ from kubernetes.client.models import V1ConfigMap, V1ObjectMeta
 from sqlalchemy.orm import Session
 
 import mlrun
+import mlrun.common.constants
 import mlrun.common.schemas
 import mlrun.errors
 import mlrun.k8s_utils
@@ -43,6 +44,7 @@ from server.py.framework.api.utils import (
 
 import framework.api.utils
 import framework.utils.clients.iguazio.v3
+import framework.utils.singletons.db
 import services.api.crud
 import services.api.crud.runtimes.nuclio
 import services.api.tests.unit.api.utils
@@ -1854,6 +1856,83 @@ async def test_update_functions_with_deletion_info(db: sqlalchemy.orm.Session):
         db, name=function_name, project=project, tag=function_tag
     )
     assert function["status"]["deletion_task_id"] == deletion_task_id
+
+
+@pytest.mark.asyncio
+async def test_delete_application_artifacts_handles_failure(
+    db: sqlalchemy.orm.Session,
+):
+    """Verify that deleting an application runtime function also deletes its source artifacts."""
+    project = "my_project"
+    function_name = "my-app"
+    function_tag = "latest"
+
+    function = {
+        "kind": "application",
+        "metadata": {"name": function_name, "tag": function_tag},
+        "status": {},
+    }
+    services.api.crud.Functions().store_function(
+        db, project=project, function=function, name=function_name, tag=function_tag
+    )
+
+    # Store a source artifact with the labels that _upload_source_as_artifact sets
+    source_artifact = {
+        "metadata": {
+            "labels": {
+                mlrun.common.constants.MLRunInternalLabels.function_name: function_name,
+                mlrun.common.constants.MLRunInternalLabels.system_generated: "true",
+            },
+            "tag": "latest",
+        },
+        "kind": "artifact",
+    }
+    framework.utils.singletons.db.get_db().store_artifact(
+        db,
+        key=f"{function_name}-source",
+        artifact=source_artifact,
+        tag="latest",
+        project=project,
+    )
+
+    # Verify the artifact exists
+    artifacts = services.api.crud.Artifacts().list_artifacts(
+        db,
+        project=project,
+        name=f"{function_name}-source",
+        tag="*",
+    )
+    assert len(artifacts) == 1
+
+    # Call the cleanup function
+    await framework.api.utils._delete_application_source_artifacts(
+        db, project, function_name, mlrun.common.schemas.AuthInfo()
+    )
+
+    # Verify the artifact was deleted
+    artifacts = services.api.crud.Artifacts().list_artifacts(
+        db,
+        project=project,
+        name=f"{function_name}-source",
+        tag="*",
+    )
+    assert len(artifacts) == 0
+
+
+@pytest.mark.asyncio
+async def test_delete_application_source_artifacts_tolerates_failure():
+    """Verify that artifact cleanup failure does not raise."""
+    with patch.object(
+        services.api.crud.Artifacts,
+        "delete_artifacts",
+        side_effect=Exception("db error"),
+    ):
+        await framework.api.utils._delete_application_source_artifacts(
+            MagicMock(),
+            "my_project",
+            "my-app",
+            mlrun.common.schemas.AuthInfo(),
+        )
 
 
 @pytest.mark.parametrize(

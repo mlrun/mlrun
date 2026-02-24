@@ -73,7 +73,7 @@ from ..utils import (
     is_explicit_ack_supported,
     lock_hub_uri_version,
 )
-from .utils import StepToDict, _extract_input_data, _update_result_body
+from .utils import StepToDict, _extract_input_data, _MappedBody, _update_result_body
 
 callable_prefix = "_"
 path_splitter = "/"
@@ -931,9 +931,13 @@ class TaskStep(BaseStep):
                     f"step {self.name} does not have a handler"
                 )
 
-            result = self._handler(
-                _extract_input_data(self.input_path, event.body), *args, **kwargs
-            )
+            body = _extract_input_data(self.input_path, event.body)
+            if isinstance(body, _MappedBody):
+                # body_map-transformed bodies are unpacked as **kwargs
+                # so handler signatures like def fun(book: str) work
+                result = self._handler(**body, **kwargs)
+            else:
+                result = self._handler(body, *args, **kwargs)
             event.body = _update_result_body(self.result_path, event.body, result)
         except Exception as exc:
             if self._on_error_handler:
@@ -1344,10 +1348,10 @@ class Model(storey.ParallelExecutionRunnable, ModelObj):
             body = self.format_batch(body)
         return self.predict(body)
 
-    async def run_async(
-        self, body: Any, path: str, origin_name: Optional[str] = None
-    ) -> Any:
-        return await self.predict_async(body)
+    def run_async(self, body: Any, path: str, origin_name: Optional[str] = None) -> Any:
+        if isinstance(body, list):
+            body = self.format_batch(body)
+        return self.predict_async(body)
 
     def get_local_model_path(self, suffix="") -> (str, dict):
         """
@@ -1454,6 +1458,39 @@ class LLModel(Model):
             result_path=result_path,
         )
 
+    def is_streaming(self) -> bool:
+        """
+        Returns True if this LLModel is in streaming mode.
+
+        Streaming is active when the serving graph has streaming enabled
+        (``server.streaming``) and the model provider supports streaming.
+        """
+        streaming_enabled = getattr(self, "_streaming_enabled", None)
+        if streaming_enabled is None:
+            context = getattr(self, "context", None)
+            streaming_enabled = getattr(
+                getattr(context, "server", None), "streaming", False
+            )
+        return (
+            streaming_enabled
+            and isinstance(self.model_provider, ModelProvider)
+            and self.model_provider.supports_streaming
+        )
+
+    def _can_invoke_provider(self, llm_prompt_artifact) -> bool:
+        """Check whether the model provider can be invoked for this prediction."""
+        if isinstance(
+            llm_prompt_artifact, mlrun.artifacts.LLMPromptArtifact
+        ) and isinstance(self.model_provider, ModelProvider):
+            return True
+        logger.warning(
+            "LLModel invocation artifact or model provider not set, skipping prediction",
+            model_name=self.name,
+            invocation_artifact_type=type(llm_prompt_artifact).__name__,
+            model_provider_type=type(self.model_provider).__name__,
+        )
+        return False
+
     def predict(
         self,
         body: Any,
@@ -1461,36 +1498,35 @@ class LLModel(Model):
         invocation_config: Optional[dict] = None,
         **kwargs,
     ) -> Any:
-        llm_prompt_artifact = kwargs.get("llm_prompt_artifact")
-        if isinstance(
-            llm_prompt_artifact, mlrun.artifacts.LLMPromptArtifact
-        ) and isinstance(self.model_provider, ModelProvider):
+        if not self._can_invoke_provider(kwargs.get("llm_prompt_artifact")):
+            return body
+        if self.is_streaming():
             logger.debug(
-                "Invoking model provider",
+                "Invoking model provider in streaming mode",
                 model_name=self.name,
                 messages=messages,
-                invocation_config=invocation_config,
             )
-            response_with_stats = self.model_provider.invoke(
+            return self.model_provider.invoke_stream(
                 messages=messages,
-                invoke_response_format=InvokeResponseFormat.USAGE,
                 **(invocation_config or {}),
             )
-            set_data_by_path(
-                path=self._result_path, data=body, value=response_with_stats
-            )
-            logger.debug(
-                "LLModel prediction completed",
-                model_name=self.name,
-                response=response_with_stats,
-            )
-        else:
-            logger.warning(
-                "LLModel invocation artifact or model provider not set, skipping prediction",
-                model_name=self.name,
-                invocation_artifact_type=type(llm_prompt_artifact).__name__,
-                model_provider_type=type(self.model_provider).__name__,
-            )
+        logger.debug(
+            "Invoking model provider",
+            model_name=self.name,
+            messages=messages,
+            invocation_config=invocation_config,
+        )
+        response_with_stats = self.model_provider.invoke(
+            messages=messages,
+            invoke_response_format=InvokeResponseFormat.USAGE,
+            **(invocation_config or {}),
+        )
+        set_data_by_path(path=self._result_path, data=body, value=response_with_stats)
+        logger.debug(
+            "LLModel prediction completed",
+            model_name=self.name,
+            response=response_with_stats,
+        )
         return body
 
     async def predict_async(
@@ -1500,36 +1536,25 @@ class LLModel(Model):
         invocation_config: Optional[dict] = None,
         **kwargs,
     ) -> Any:
-        llm_prompt_artifact = kwargs.get("llm_prompt_artifact")
-        if isinstance(
-            llm_prompt_artifact, mlrun.artifacts.LLMPromptArtifact
-        ) and isinstance(self.model_provider, ModelProvider):
-            logger.debug(
-                "Async invoking model provider",
-                model_name=self.name,
-                messages=messages,
-                invocation_config=invocation_config,
-            )
-            response_with_stats = await self.model_provider.async_invoke(
-                messages=messages,
-                invoke_response_format=InvokeResponseFormat.USAGE,
-                **(invocation_config or {}),
-            )
-            set_data_by_path(
-                path=self._result_path, data=body, value=response_with_stats
-            )
-            logger.debug(
-                "LLModel async prediction completed",
-                model_name=self.name,
-                response=response_with_stats,
-            )
-        else:
-            logger.warning(
-                "LLModel invocation artifact or model provider not set, skipping async prediction",
-                model_name=self.name,
-                invocation_artifact_type=type(llm_prompt_artifact).__name__,
-                model_provider_type=type(self.model_provider).__name__,
-            )
+        if not self._can_invoke_provider(kwargs.get("llm_prompt_artifact")):
+            return body
+        logger.debug(
+            "Invoking model provider",
+            model_name=self.name,
+            messages=messages,
+            invocation_config=invocation_config,
+        )
+        response_with_stats = await self.model_provider.async_invoke(
+            messages=messages,
+            invoke_response_format=InvokeResponseFormat.USAGE,
+            **(invocation_config or {}),
+        )
+        set_data_by_path(path=self._result_path, data=body, value=response_with_stats)
+        logger.debug(
+            "LLModel prediction completed",
+            model_name=self.name,
+            response=response_with_stats,
+        )
         return body
 
     def init(self):
@@ -1549,6 +1574,14 @@ class LLModel(Model):
                     f"Model provider could not be determined for model '{self.name}',"
                     f" and the {predict_function_name} function was not overridden."
                 )
+        elif (
+            getattr(self, "_streaming_enabled", False)
+            and not self.model_provider.supports_streaming
+        ):
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"Streaming is enabled but model provider"
+                f" '{type(self.model_provider).__name__}' does not support streaming"
+            )
 
     def run(self, body: Any, path: str, origin_name: Optional[str] = None) -> Any:
         llm_prompt_artifact = self._get_invocation_artifact(origin_name)
@@ -1568,9 +1601,7 @@ class LLModel(Model):
             llm_prompt_artifact=llm_prompt_artifact,
         )
 
-    async def run_async(
-        self, body: Any, path: str, origin_name: Optional[str] = None
-    ) -> Any:
+    def run_async(self, body: Any, path: str, origin_name: Optional[str] = None) -> Any:
         llm_prompt_artifact = self._get_invocation_artifact(origin_name)
         messages, invocation_config = self.enrich_prompt(
             body, origin_name, llm_prompt_artifact
@@ -1581,7 +1612,13 @@ class LLModel(Model):
             model_endpoint_name=origin_name,
             messages_len=len(messages) if messages else 0,
         )
-        return await self.predict_async(
+        if self.is_streaming() and self._can_invoke_provider(llm_prompt_artifact):
+            # Return an async generator
+            return self.model_provider.async_invoke_stream(
+                messages=messages,
+                **(invocation_config or {}),
+            )
+        return self.predict_async(
             body,
             messages=messages,
             invocation_config=invocation_config,
@@ -1826,10 +1863,22 @@ class ModelRunner(storey.ParallelExecution):
 
     def select_runnables(self, event):
         models = cast(list[Model], self.runnables)
-        return self.model_runner_selector.select_models(event, models)
+        selected = self.model_runner_selector.select_models(event, models)
+        if selected is not None and hasattr(event, "_metadata"):
+            event._metadata["selected_models"] = [
+                model if isinstance(model, str) else model.name for model in selected
+            ]
+        return selected
 
     def select_outlets(self, event) -> Optional[Collection[str]]:
-        sys_outlets = [f"{self.name}_error_raise"]
+        is_batched = False
+        if isinstance(event, list) and any(
+            hasattr(subevent, "body") for subevent in event
+        ):
+            is_batched = True
+            sys_outlets = [f"{self.name}_unpacker"]
+        else:
+            sys_outlets = [f"{self.name}_error_raise"]
         if "background_task_status_step" in self._name_to_outlet:
             sys_outlets.append("background_task_status_step")
         if self._raise_exception and self._is_error(event):
@@ -1839,7 +1888,14 @@ class ModelRunner(storey.ParallelExecution):
             return (
                 user_outlets if isinstance(user_outlets, list) else [user_outlets]
             ) + sys_outlets
-        return None
+
+        #  fall to default behavior of routing to all valid outlets
+        all_outlets = list(self._name_to_outlet.keys())
+        if is_batched:
+            all_outlets.remove(f"{self.name}_error_raise")
+        else:
+            all_outlets.remove(f"{self.name}_unpacker")
+        return all_outlets
 
     def _is_error(self, event: Union[dict, list]) -> bool:
         if isinstance(event, dict):
@@ -1851,9 +1907,12 @@ class ModelRunner(storey.ParallelExecution):
                     body_by_model = event.get(model)
                     if isinstance(body_by_model, dict) and "error" in body_by_model:
                         return True
-        elif storey.flow.is_batched_event(event):
-            #  batch case:
+        elif isinstance(event, list):
             for sub_event in event:
+                if not hasattr(sub_event, "body"):
+                    # a regular output, not a sub-event in a batch:
+                    return False
+                #  batch case, event is list of sub events:
                 if self._is_error(sub_event.body):
                     return True
         return False
@@ -2477,6 +2536,9 @@ class ModelRunnerStep(MonitoredStep):
             model._execution_mechanism = execution_mechanism_by_model_name.get(
                 model_name
             )
+            model._streaming_enabled = getattr(
+                getattr(context, "server", None), "streaming", False
+            )
             model_objects.append(model)
         self._async_object = ModelRunner(
             model_runner_selector=model_runner_selector,
@@ -2537,6 +2599,8 @@ class ModelRunnerErrorRaiser(storey.MapClass):
             else:
                 if storey.flow.is_batched_event(event):
                     # TODO fix error raiser for batch, ML-12068
+                    return event
+                if not isinstance(event.body, dict):
                     return event
                 for model in event.body:
                     body_by_model = event.body.get(model)

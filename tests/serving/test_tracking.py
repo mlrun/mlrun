@@ -28,6 +28,7 @@ from typing import Union, cast
 import numpy as np
 import pandas as pd
 import pytest
+import storey
 
 import mlrun
 import mlrun.common.schemas.model_monitoring.constants as mm_constants
@@ -77,7 +78,7 @@ class ModelTestingCustomTrack(ModelTestingClass):
 
 
 class BatchedModel(Model):
-    def __init__(self, model_path: str, return_as_dict: bool, **kwargs):
+    def __init__(self, model_path: str, return_as_dict: bool = False, **kwargs):
         super().__init__(**kwargs)
         self.model_path = model_path
         self.model = None
@@ -118,7 +119,7 @@ class BatchedModel(Model):
 
 
 class StringBatchedModel(Model):
-    def __init__(self, suffix: str, return_as_dict: bool, **kwargs):
+    def __init__(self, suffix: str, return_as_dict=False, **kwargs):
         super().__init__(**kwargs)
         self.suffix = suffix
         self.return_as_dict = return_as_dict
@@ -390,7 +391,7 @@ def test_child_function_tracking_with_model_runner(rundb_mock):
     assert dummy_stream.event_list[0].get("resp", {}).get("outputs") == [2]
     assert dummy_stream.event_list[0].get("request", {}).get("inputs") == [1]
 
-    output_stream = graph.steps["out"].async_object
+    output_stream = server.graph.steps["out"].async_object
     assert len(output_stream.event_list) == 1
 
 
@@ -559,10 +560,18 @@ class SubDictOutputModel(Model):
 
 
 def _test_monitoring_system_steps_structure(
-    graph: RootFlowStep, model_runners_names: list[str]
+    server_graph: RootFlowStep,
+    spec_graph: RootFlowStep,
+    model_runners_names: list[str],
+    streaming_enabled: bool = False,
 ):
+    # When streaming is enabled, Collector steps are inserted between MRS and MM pipeline
+    if streaming_enabled:
+        source_names = [f"{name}_collector" for name in model_runners_names]
+    else:
+        source_names = model_runners_names
     system_steps = {
-        "background_task_status_step": model_runners_names,
+        "background_task_status_step": source_names,
         "filter_none": ["background_task_status_step"],
         "monitoring_pre_processor_step": ["filter_none"],
         "flatten_events": ["monitoring_pre_processor_step"],
@@ -572,21 +581,31 @@ def _test_monitoring_system_steps_structure(
             "filter_none_sampling"
         ],  # mock creates a dummy pusher and not target
     }
-    for step in graph.steps.values():
+    for step in server_graph.steps.values():
         if step.name in system_steps:
             assert step.after == system_steps[step.name]
+    for step in system_steps.keys():
+        assert (
+            step not in spec_graph.steps.keys()
+        ), f"spec graph should not contain system step {step}"
 
 
-def _test_graph_structure(graph: RootFlowStep, tracked: bool):
-    """Expects server graph contains system steps"""
+def _test_graph_structure(
+    server_graph: RootFlowStep, spec_graph: RootFlowStep, tracked: bool
+):
+    """Expects server graph contains system steps and function graph does not contain system steps."""
     model_runners = []
-    for step in graph.steps.values():
+    for step in server_graph.steps.values():
         if isinstance(step, ModelRunnerStep):
             model_runners.append(step.name)
         elif model_runners and step.name == f"{model_runners[-1]}_error_raise":
             assert model_runners[-1] in step.after or model_runners[-1] in step.after
+    for model_runner in model_runners:
+        assert (
+            f"{model_runner}_error_raise" not in spec_graph.steps.keys()
+        ), "spec graph should not contain error raise steps"
     if tracked:
-        _test_monitoring_system_steps_structure(graph, model_runners)
+        _test_monitoring_system_steps_structure(server_graph, spec_graph, model_runners)
 
 
 @pytest.mark.parametrize("enable_tracking", [True, False])
@@ -617,7 +636,7 @@ def test_tracked_model_runner(rundb_mock, enable_tracking: bool):
     else:
         assert len(dummy_stream.event_list) == 0, "expected stream to be empty"
 
-    _test_graph_structure(server.graph, enable_tracking)
+    _test_graph_structure(server.graph, function.spec.graph, enable_tracking)
 
 
 @pytest.mark.parametrize("enable_tracking", [True, False])
@@ -653,7 +672,7 @@ def test_tracked_model_runner_with_tools(rundb_mock, enable_tracking: bool):
     else:
         assert len(dummy_stream.event_list) == 0, "expected stream to be empty"
 
-    _test_graph_structure(server.graph, enable_tracking)
+    _test_graph_structure(server.graph, function.spec.graph, enable_tracking)
 
 
 @pytest.mark.parametrize("with_schema", [True, False])
@@ -1044,7 +1063,7 @@ def test_tracked_model_runner_multiple_models(rundb_mock):
     models.sort()
     output_models.sort()
     assert output_models == models, "expected models to be the same"
-    _test_graph_structure(server.graph, True)
+    _test_graph_structure(server.graph, function.spec.graph, True)
 
 
 def test_set_untracked_with_model_runner(rundb_mock):
@@ -1068,10 +1087,10 @@ def test_set_untracked_with_model_runner(rundb_mock):
     server.wait_for_completion()
 
     dummy_stream = server.context.stream.output_stream
-    _test_graph_structure(server.graph, True)
+    _test_graph_structure(server.graph, function.spec.graph, True)
     assert len(dummy_stream.event_list) == 1, "expected stream to get one message"
     function.set_tracking("dummy://", enable_tracking=False)
-    _test_graph_structure(graph, False)
+    _test_graph_structure(graph, function.spec.graph, False)
     server = function.to_mock_server()
     server.test("/", {"n": 1})
     server.wait_for_completion()
@@ -1167,7 +1186,7 @@ def test_sampling_model_runner(rundb_mock, sampling_percentage: float):
 
     dummy_stream = server.context.stream.output_stream
 
-    _test_graph_structure(server.graph, True)
+    _test_graph_structure(server.graph, function.spec.graph, True)
 
     if sampling_percentage == 100.0:
         assert len(dummy_stream.event_list) == 1, "expected stream to get one message"
@@ -1234,7 +1253,7 @@ def test_tracked_model_runner_shared(rundb_mock, enable_tracking: bool):
     else:
         assert len(dummy_stream.event_list) == 0, "expected stream to be empty"
 
-    _test_graph_structure(server.graph, enable_tracking)
+    _test_graph_structure(server.graph, function.spec.graph, enable_tracking)
 
 
 def test_shared_model_invalid_usage():
@@ -1390,7 +1409,7 @@ def test_tracked_model_runner_with_error_handler(
             "error": 'TypeError: can only concatenate str (not "int") to str'
         }
 
-    _test_graph_structure(server.graph, enable_tracking)
+    _test_graph_structure(server.graph, function.spec.graph, enable_tracking)
 
 
 def test_transpose_by_key_with_str():
@@ -1541,6 +1560,160 @@ def test_serving_stream_profile(
         assert isinstance(server.context.stream.output_stream, output_stream_type)
         server.test("/", {"n": 1})
         server.wait_for_completion()
+
+
+#  test batch
+# Helper functions for batch step tests
+def verify_batch_step_tracking_events(
+    dummy_stream,
+    events,
+    expected_responses,
+    batch_size,
+    multiple_models,
+    model_names,
+    model_class,
+    input_schema=None,
+    output_schema=None,
+):
+    """
+    Verify tracking events for batch step tests.
+
+    Args:
+        dummy_stream: The dummy stream with event_list
+        events: Original input events
+        expected_responses: Expected responses for each event
+        batch_size: Batch size used
+        multiple_models: Whether multiple models are used
+        model_names: List of model names to check (e.g., ["my_model", "my_model_2"])
+        model_class: Expected model class name
+        input_schema: Expected input schema (None for lists/strings)
+        output_schema: Expected output schema (None for lists/strings)
+    """
+    num_models = len(model_names)
+    num_batches = math.ceil(len(events) / batch_size)
+    expected_tracking_events = num_batches * num_models
+
+    assert (
+        len(dummy_stream.event_list) == expected_tracking_events
+    ), f"Expected {expected_tracking_events} tracking events, got {len(dummy_stream.event_list)}"
+
+    # Group events by model
+    model_events = {name: [] for name in model_names}
+    for event in dummy_stream.event_list:
+        if event["model"] in model_events:
+            model_events[event["model"]].append(event)
+
+    # Verify events for each model
+    for model_name in model_names:
+        model_specific_events = model_events[model_name]
+        assert len(model_specific_events) == num_batches
+
+        for i, event in enumerate(model_specific_events):
+            # Iterate over batches
+            start_idx = i * batch_size
+            end_idx = min(start_idx + batch_size, len(events))
+            batch_events = events[start_idx:end_idx]
+            expected_count = len(batch_events)
+
+            # Extract expected inputs and outputs
+            expected_inputs = batch_events
+            if multiple_models:
+                expected_outputs = [
+                    expected_responses[j][model_name] for j in range(start_idx, end_idx)
+                ]
+            else:
+                expected_outputs = expected_responses[start_idx:end_idx]
+
+            assert event["effective_sample_count"] == expected_count
+            assert event["model"] == model_name
+            assert event["model_class"] == model_class
+            assert event["error"] is None
+            assert event["request"]["inputs"] == expected_inputs
+            assert event["request"]["input_schema"] == input_schema
+            assert event["resp"]["outputs"] == expected_outputs
+            assert event["resp"]["output_schema"] == output_schema
+
+
+def _verify_batch_step_error_tracking(
+    dummy_stream, events, multiple_models, error_substring
+):
+    """
+    Verify error tracking events for batch step tests when batch fails.
+
+    Args:
+        dummy_stream: The dummy stream with event_list
+        events: Original input events that caused the error
+        multiple_models: Whether multiple models are used
+        error_substring: Substring expected in error message
+    """
+    num_models = 2 if multiple_models else 1
+    assert len(dummy_stream.event_list) == num_models
+
+    for event in dummy_stream.event_list:
+        assert event["error"] is not None
+        assert error_substring in event["error"]
+        assert event["effective_sample_count"] == len(events)
+
+
+def _verify_error_in_response_body(
+    responses, events, multiple_models, error_substring, model_names=None
+):
+    """
+    Verify that error is returned in response body (not raised as exception).
+    """
+
+    assert len(responses) == len(events)
+
+    if model_names is None:
+        model_names = ["my_model", "my_model_2"]
+
+    # Verify response body contains error field
+    for response in responses:
+        if multiple_models:
+            # Multiple models: {"model1": {"error": "..."}, "model2": {"error": "..."}}
+            assert isinstance(response, dict)
+            assert all(
+                "error" in response.get(model, {}) for model in model_names
+            ), f"Expected error field for each model in response, got {response}"
+            # Verify error message content
+            for model in model_names:
+                assert (
+                    error_substring in response[model]["error"]
+                    or "can only concatenate str" in response[model]["error"]
+                )
+        else:
+            # Single model: {"error": "..."}
+            assert isinstance(response, dict)
+            assert "error" in response, f"Expected error field in body, got {response}"
+            assert (
+                error_substring in response["error"]
+                or "can only concatenate str" in response["error"]
+            )
+
+
+def _generate_batch_string_responses(strings, suffixes, model_names=None):
+    """
+    Generate expected string responses for multiple models.
+
+    Args:
+        strings: List of input strings
+        suffixes: List of suffixes for each model (or single suffix for single model)
+        model_names: List of model names (default: ["my_model_1", "my_model_2"])
+
+    Returns:
+        List of expected responses (dicts if multiple models, strings if single model)
+    """
+    if isinstance(suffixes, list):
+        # Multiple models - return list of dicts
+        if model_names is None:
+            model_names = ["my_model_1", "my_model_2"]
+        return [
+            {model_names[i]: s + suffix for i, suffix in enumerate(suffixes)}
+            for s in strings
+        ]
+    else:
+        # Single model - return list of strings
+        return [s + suffixes for s in strings]
 
 
 @pytest.mark.parametrize("multiple_models", (True, False))
@@ -1757,22 +1930,10 @@ def test_mrs_direct_batch_str(
                 server.test(body=inputs)
         else:
             resp = server.test(body=inputs)
-            expected_output_1 = [
-                "hello_model1",
-                "world_model1",
-                "test_model1",
-                "mlrun_model1",
-                "data_model1",
-                "science_model1",
-            ]
-            expected_output_2 = [
-                "hello_model2",
-                "world_model2",
-                "test_model2",
-                "mlrun_model2",
-                "data_model2",
-                "science_model2",
-            ]
+            # Generate expected outputs using helper function
+            strings = ["hello", "world", "test", "mlrun", "data", "science"]
+            expected_output_1 = _generate_batch_string_responses(strings, "_model1")
+            expected_output_2 = _generate_batch_string_responses(strings, "_model2")
 
             if multiple_models:
                 if return_as_dict:
@@ -1792,6 +1953,11 @@ def test_mrs_direct_batch_str(
     finally:
         server.wait_for_completion()
     if not raise_exception:
+        # Generate expected outputs using helper function
+        strings = ["hello", "world", "test", "mlrun", "data", "science"]
+        expected_output_1 = _generate_batch_string_responses(strings, "_model1")
+        expected_output_2 = _generate_batch_string_responses(strings, "_model2")
+
         expected_inputs = (
             [["hello", "world", "test"], ["mlrun", "data", "science"]]
             if batching_format == "list_of_lists"
@@ -1804,14 +1970,7 @@ def test_mrs_direct_batch_str(
         assert event["effective_sample_count"] == effective_sample_count
         assert event["labels"] == {}
         assert event["request"]["inputs"] == expected_inputs
-        assert event["resp"]["outputs"] == [
-            "hello_model1",
-            "world_model1",
-            "test_model1",
-            "mlrun_model1",
-            "data_model1",
-            "science_model1",
-        ]
+        assert event["resp"]["outputs"] == expected_output_1
         assert event["error"] is None
         assert event["model"] == endpoint_name
         assert event["metrics"] is None
@@ -1820,14 +1979,7 @@ def test_mrs_direct_batch_str(
             assert event["effective_sample_count"] == effective_sample_count
             assert event["labels"] == {}
             assert event["request"]["inputs"] == expected_inputs
-            assert event["resp"]["outputs"] == [
-                "hello_model2",
-                "world_model2",
-                "test_model2",
-                "mlrun_model2",
-                "data_model2",
-                "science_model2",
-            ]
+            assert event["resp"]["outputs"] == expected_output_2
             assert event["error"] is None
             assert event["model"] == endpoint_name2
             assert event["metrics"] is None
@@ -2006,3 +2158,612 @@ def test_batch_step_with_mrs(rundb_mock, multiple_models):
             if not base_id:
                 base_id = request_id.split("-")[0]
             assert request_id == f"{base_id}-{i:04d}"
+
+
+class SimpleTestModel(Model):
+    """Simple model for testing that doesn't require external files."""
+
+    def predict(self, body, **kwargs):
+        return {"result": "ok"}
+
+
+class TestMonitoringPreProcessorStreamingAggregation:
+    """Tests for MonitoringPreProcessor streaming chunk aggregation."""
+
+    def test_aggregate_string_chunks(self):
+        preprocessor = MonitoringPreProcessor()
+
+        chunks = ["Hello", " ", "world", "!"]
+        result = preprocessor._aggregate_collected_chunks(chunks)
+        assert result == "Hello world!"
+
+    def test_aggregate_dict_chunks_with_string_outputs(self):
+        """Test aggregation of dict chunks with string outputs."""
+        preprocessor = MonitoringPreProcessor()
+
+        chunks = [
+            {"output": "Hello ", "metrics": {"tokens": 2}},
+            {"output": "world", "metrics": {"tokens": 1}},
+            {"output": "!", "metrics": {"tokens": 1}},
+        ]
+        result = preprocessor._aggregate_collected_chunks(chunks)
+
+        assert result["output"] == "Hello world!"
+        assert result["metrics"]["tokens"] == 4
+
+    def test_aggregate_flat_dict_chunks(self):
+        """Test aggregation of flat dict chunks (no nested metrics).
+
+        Matches the StreamingModel output format: {"output": "...", "token_count": 1}.
+        The "output" key is concatenated; other keys take first chunk's value.
+        """
+        preprocessor = MonitoringPreProcessor()
+
+        chunks = [
+            {"output": "test_chunk_0", "token_count": 1},
+            {"output": "test_chunk_1", "token_count": 1},
+            {"output": "test_chunk_2", "token_count": 1},
+        ]
+        result = preprocessor._aggregate_collected_chunks(chunks)
+
+        assert result["output"] == "test_chunk_0test_chunk_1test_chunk_2"
+        # Non-output, non-metrics keys take value from first chunk
+        assert result["token_count"] == 1
+
+    def test_aggregate_dict_chunks_with_list_outputs(self):
+        """Test aggregation of dict chunks with list outputs."""
+        preprocessor = MonitoringPreProcessor()
+
+        chunks = [
+            {"outputs": [1, 2]},
+            {"outputs": [3, 4]},
+        ]
+        result = preprocessor._aggregate_collected_chunks(chunks)
+
+        assert result["outputs"] == [1, 2, 3, 4]
+
+    def test_aggregate_metrics_sums_numeric_values(self):
+        """Test that numeric metrics are summed."""
+        preprocessor = MonitoringPreProcessor()
+
+        metrics_list = [
+            {"tokens": 10, "latency": 0.5},
+            {"tokens": 20, "latency": 0.3},
+            {"tokens": 5, "latency": 0.2},
+        ]
+        result = preprocessor._aggregate_metrics(metrics_list)
+
+        assert result["tokens"] == 35
+        assert result["latency"] == 1.0
+
+    def test_aggregate_metrics_with_none_values(self):
+        """Test metrics aggregation handles None values."""
+        preprocessor = MonitoringPreProcessor()
+
+        metrics_list = [None, {"tokens": 10}, None, {"tokens": 5}]
+        result = preprocessor._aggregate_metrics(metrics_list)
+
+        assert result["tokens"] == 15
+
+    def test_aggregate_metrics_all_none(self):
+        """Test metrics aggregation when all values are None."""
+        preprocessor = MonitoringPreProcessor()
+
+        result = preprocessor._aggregate_metrics([None, None])
+        assert result is None
+
+    def test_aggregate_outputs_concatenates_strings(self):
+        """Test output aggregation concatenates strings."""
+        preprocessor = MonitoringPreProcessor()
+
+        outputs = ["Hello", " ", "world"]
+        result = preprocessor._aggregate_outputs(outputs)
+        assert result == "Hello world"
+
+    def test_aggregate_outputs_flattens_lists(self):
+        """Test output aggregation flattens lists."""
+        preprocessor = MonitoringPreProcessor()
+
+        outputs = [[1, 2], [3, 4], [5]]
+        result = preprocessor._aggregate_outputs(outputs)
+        assert result == [1, 2, 3, 4, 5]
+
+    def test_aggregate_error_keeps_first_non_none(self):
+        """Test that error aggregation keeps the first non-None error."""
+        preprocessor = MonitoringPreProcessor()
+
+        chunks = [
+            {"output": "chunk1"},
+            {"output": "chunk2", "error": "Something went wrong"},
+            {"output": "chunk3"},
+        ]
+        result = preprocessor._merge_dict_chunks(chunks)
+
+        assert result["error"] == "Something went wrong"
+
+    def test_aggregate_empty_chunks(self):
+        """Test aggregation of empty chunk list."""
+        preprocessor = MonitoringPreProcessor()
+
+        result = preprocessor._aggregate_collected_chunks([])
+        assert result == {}
+
+    def test_aggregate_mixed_types_returns_list(self):
+        """Test that mixed types are returned as a list."""
+        preprocessor = MonitoringPreProcessor()
+
+        chunks = ["string", {"dict": "value"}, 123]
+        result = preprocessor._aggregate_collected_chunks(chunks)
+        assert result == chunks
+
+    def test_do_aggregates_when_stream_collected_marker_set(self, rundb_mock):
+        """Test that do() aggregates body when event has stream_collected=True."""
+        function = mlrun.new_function("test-stream-agg", kind="serving")
+        graph = function.set_topology("flow", engine="async")
+        model_runner_step = ModelRunnerStep(name="my_runner")
+        model_runner_step.add_model(
+            model_class="SimpleTestModel",
+            execution_mechanism="naive",
+            endpoint_name="my_model",
+        )
+        graph.to(model_runner_step).respond()
+        function.set_tracking()
+        server = function.to_mock_server()
+
+        try:
+            # Build a collected streaming event
+            event = storey.Event(
+                body=[
+                    {"output": "chunk_0", "token_count": 1},
+                    {"output": "chunk_1", "token_count": 1},
+                ],
+            )
+            event._metadata = {
+                "model_runner_name": "my_runner",
+                "when": "2026-01-01 00:00:00.000000+00:00",
+                "microsec": 1000,
+                "inputs": [[1.0, 2.0]],
+            }
+            event.stream_collected = True
+
+            preprocessor = server.graph.steps["monitoring_pre_processor_step"]._object
+            result = preprocessor.do(event)
+
+            # After aggregation, body should be a list of monitoring events (not the raw chunks)
+            assert isinstance(result.body, list)
+            assert len(result.body) == 1
+            monitoring_event = result.body[0]
+            # Outputs should contain the concatenated string
+            assert "chunk_0chunk_1" in str(monitoring_event["resp"]["outputs"])
+        finally:
+            server.wait_for_completion()
+
+    def test_do_does_not_aggregate_without_stream_collected_marker(self, rundb_mock):
+        """Test that do() does NOT aggregate body when stream_collected is absent."""
+        function = mlrun.new_function("test-no-agg", kind="serving")
+        graph = function.set_topology("flow", engine="async")
+        model_runner_step = ModelRunnerStep(name="my_runner")
+        model_runner_step.add_model(
+            model_class="SimpleTestModel",
+            execution_mechanism="naive",
+            endpoint_name="my_model",
+        )
+        graph.to(model_runner_step).respond()
+        function.set_tracking()
+        server = function.to_mock_server()
+
+        try:
+            # Build a regular (non-streaming) event with a dict body
+            event = storey.Event(
+                body={"output": "single_result"},
+            )
+            event._metadata = {
+                "model_runner_name": "my_runner",
+                "when": "2026-01-01 00:00:00.000000+00:00",
+                "microsec": 1000,
+                "inputs": [[1.0, 2.0]],
+            }
+            # No stream_collected marker
+
+            preprocessor = server.graph.steps["monitoring_pre_processor_step"]._object
+            result = preprocessor.do(event)
+
+            assert isinstance(result.body, list)
+            assert len(result.body) == 1
+            monitoring_event = result.body[0]
+            # Should have processed the original dict body directly
+            assert "single_result" in str(monitoring_event["resp"]["outputs"])
+        finally:
+            server.wait_for_completion()
+
+
+def test_collector_step_added_to_monitoring_graph(rundb_mock):
+    """Test that Collector steps are added between MRS and monitoring steps when streaming is enabled."""
+    function = mlrun.new_function("test-collector", kind="serving")
+    graph = function.set_topology("flow", engine="async")
+
+    model_runner_step = ModelRunnerStep(name="my_model_runner")
+    model_runner_step.add_model(
+        model_class="SimpleTestModel",
+        execution_mechanism="naive",
+        endpoint_name="my_model",
+    )
+    graph.to(model_runner_step).respond()
+
+    # Enable streaming - this triggers Collector insertion
+    function.set_streaming(enabled=True)
+    function.set_tracking()
+    server = function.to_mock_server()
+
+    try:
+        # Verify the Collector step was added
+        assert (
+            "my_model_runner_collector" in server.graph.steps
+        ), "Collector step should be added after the model runner step"
+
+        # Verify the Collector step is after the model runner
+        collector_step = server.graph.steps["my_model_runner_collector"]
+        collector_after = collector_step.after
+        if isinstance(collector_after, list):
+            assert (
+                "my_model_runner" in collector_after
+            ), "Collector step should come after the model runner step"
+        else:
+            assert (
+                collector_after == "my_model_runner"
+            ), "Collector step should come after the model runner step"
+
+        # Verify that a monitoring step receives from the collector (directly or indirectly)
+        # The first monitoring step may be background_task_status_step or filter_none
+        first_mm_step_name = (
+            "background_task_status_step"
+            if "background_task_status_step" in server.graph.steps
+            else "filter_none"
+        )
+        if first_mm_step_name in server.graph.steps:
+            first_mm_step = server.graph.steps[first_mm_step_name]
+            after = first_mm_step.after
+            if isinstance(after, list):
+                assert (
+                    "my_model_runner_collector" in after
+                ), f"First MM step {first_mm_step_name} should receive from collector, got {after}"
+            else:
+                assert (
+                    after == "my_model_runner_collector"
+                ), f"First MM step {first_mm_step_name} should receive from collector, got {after}"
+    finally:
+        # Explicitly wait for and close the server to avoid hanging
+        server.wait_for_completion()
+
+
+@pytest.mark.parametrize("multiple_models", (True, False))
+@pytest.mark.parametrize(
+    "raise_exception, with_error",
+    [
+        (False, False),
+        (True, True),
+        (False, True),
+    ],
+)
+def test_batch_step_with_mrs_list(
+    multiple_models, raise_exception, with_error, rundb_mock
+):
+    """
+    Test batch step with MRS for:
+    - Single vs multiple models
+    - Error handling (valid inputs vs mixed valid/invalid)
+    - Proper tracking of batch events
+    - Error returned as dict when raise_exception=False
+    """
+
+    function = mlrun.new_function("tests", kind="serving")
+    function.set_tracking("dummy://", enable_tracking=True)
+    graph = function.set_topology("flow", engine="async")
+
+    # Batch step: groups events into batches
+    batch_size = 2
+    graph = graph.to(
+        "storey.Batch",
+        "batching",
+        max_events=batch_size,
+        flush_after_seconds=1,
+        full_event=True,
+    )
+
+    # ModelRunnerStep: process batches through the model(s)
+    model_runner_step = ModelRunnerStep(
+        name="model_runner", raise_exception=raise_exception
+    )
+
+    model_path = str(Path(__file__).parent / "assets" / "linear_model.pkl")
+    model_path2 = str(Path(__file__).parent / "assets" / "linear_model2.pkl")
+
+    model_runner_step.add_model(
+        model_class="BatchedModel",
+        execution_mechanism="naive",
+        endpoint_name="my_model",
+        model_path=model_path,
+    )
+
+    if multiple_models:
+        model_runner_step.add_model(
+            model_class="BatchedModel",
+            execution_mechanism="naive",
+            endpoint_name="my_model_2",
+            model_path=model_path2,
+        )
+
+    step = graph.to(model_runner_step)
+    step = step.to("storey.FlatMap", _fn="(event.body)", full_event=True)
+    step.respond()
+    server = function.to_mock_server()
+
+    try:
+        if with_error:
+            # Mix valid and invalid inputs - invalid list has wrong length
+            events = [
+                [1, 0],  # Valid
+                [],  # Invalid - empty list causes error
+            ]
+        else:
+            # All valid inputs as simple lists
+            events = [
+                [1, 0],
+                [2, 1],
+                [4, 3],
+                [5, 4],
+                [7, 6],
+            ]
+
+        def send_event(event, delay):
+            time.sleep(delay)
+            return server.test(body=event)
+
+        # Send events in thread pool with staggered delays
+        with ThreadPoolExecutor(max_workers=len(events)) as executor:
+            futures = [
+                executor.submit(send_event, event, i * 0.1)
+                for i, event in enumerate(events)
+            ]
+
+            if with_error and raise_exception:
+                # Expect error to be raised when batch processes
+                error_count = 0
+                for future in futures:
+                    try:
+                        future.result()
+                    except RuntimeError as e:
+                        if "list index out of range" in str(e):
+                            error_count += 1
+                        else:
+                            raise
+                # Both events in the batch should fail together
+                assert error_count == len(
+                    events
+                ), f"Expected {len(events)} errors, got {error_count}"
+            else:
+                responses = [future.result() for future in futures]
+    finally:
+        server.wait_for_completion()
+
+    if with_error and raise_exception:
+        # Error was raised - verify error tracking
+        dummy_stream = server.context.stream.output_stream
+        _verify_batch_step_error_tracking(
+            dummy_stream=dummy_stream,
+            events=events,
+            multiple_models=multiple_models,
+            error_substring="list index out of range",
+        )
+    elif with_error and not raise_exception:
+        # Error should be returned in response dict, not raised
+        _verify_error_in_response_body(
+            responses=responses,
+            events=events,
+            multiple_models=multiple_models,
+            error_substring="list index out of range",
+            model_names=["my_model", "my_model_2"],
+        )
+
+        # Verify error tracking in stream
+        dummy_stream = server.context.stream.output_stream
+        _verify_batch_step_error_tracking(
+            dummy_stream=dummy_stream,
+            events=events,
+            multiple_models=multiple_models,
+            error_substring="list index out of range",
+        )
+    else:
+        # No error - verify normal responses
+        assert len(responses) == len(events)
+        assert all(r is not None for r in responses)
+
+        # Expected responses based on linear model predictions
+        if multiple_models:
+            expected_responses = [
+                {"my_model": 3.0, "my_model_2": 7.0},
+                {"my_model": 8.0, "my_model_2": 12.0},
+                {"my_model": 18.0, "my_model_2": 22.0},
+                {"my_model": 23.0, "my_model_2": 27.0},
+                {"my_model": 33.0, "my_model_2": 37.0},
+            ]
+        else:
+            expected_responses = [3.0, 8.0, 18.0, 23.0, 33.0]
+        assert responses == expected_responses
+
+        # Verify tracking events
+        dummy_stream = server.context.stream.output_stream
+        model_names = ["my_model", "my_model_2"] if multiple_models else ["my_model"]
+        verify_batch_step_tracking_events(
+            dummy_stream=dummy_stream,
+            events=events,
+            expected_responses=expected_responses,
+            batch_size=batch_size,
+            multiple_models=multiple_models,
+            model_names=model_names,
+            model_class="BatchedModel",
+            input_schema=None,
+            output_schema=None,
+        )
+
+
+@pytest.mark.parametrize("multiple_models", (True, False))
+@pytest.mark.parametrize(
+    "raise_exception, with_error",
+    [
+        (False, False),
+        (True, True),
+        (False, True),
+    ],
+)
+def test_batch_step_with_mrs_string(
+    multiple_models, raise_exception, with_error, rundb_mock
+):
+    """
+    Test batch step with MRS for simple string inputs (e.g., "hello", "world").
+    - Single vs multiple models
+    - Error handling with invalid inputs
+    - Proper tracking of batch events
+    - Error returned as dict when raise_exception=False
+    """
+    function = mlrun.new_function("tests", kind="serving")
+    function.set_tracking("dummy://", enable_tracking=True)
+    graph = function.set_topology("flow", engine="async")
+
+    # Batch step: groups events into batches
+    batch_size = 2
+    graph = graph.to(
+        "storey.Batch",
+        "batching",
+        max_events=batch_size,
+        flush_after_seconds=1,
+        full_event=True,
+    )
+
+    # ModelRunnerStep: process batches through the string model
+    model_runner_step = ModelRunnerStep(
+        name="model_runner", raise_exception=raise_exception
+    )
+
+    suffix1 = "_model1"
+    suffix2 = "_model2"
+    endpoint_name = "my_model_1"
+    endpoint_name2 = "my_model_2"
+    model_runner_step.add_model(
+        model_class="StringBatchedModel",
+        execution_mechanism="naive",
+        endpoint_name=endpoint_name,
+        suffix=suffix1,
+    )
+
+    if multiple_models:
+        model_runner_step.add_model(
+            model_class="StringBatchedModel",
+            execution_mechanism="naive",
+            endpoint_name=endpoint_name2,
+            suffix=suffix2,
+        )
+
+    step = graph.to(model_runner_step)
+    step = step.to("storey.FlatMap", _fn="(event.body)", full_event=True)
+    step.respond()
+    server = function.to_mock_server()
+
+    try:
+        if with_error:
+            # Mix valid and invalid inputs - integers will cause error
+            events = [
+                "hello",  # Valid
+                123,  # Invalid - not a string
+            ]
+        else:
+            # All valid string inputs
+            events = [
+                "hello",
+                "world",
+                "test",
+                "mlrun",
+                "batch",
+            ]
+
+        def send_event(event, delay):
+            time.sleep(delay)
+            return server.test(body=event)
+
+        # Send events in thread pool with staggered delays
+        with ThreadPoolExecutor(max_workers=len(events)) as executor:
+            futures = [
+                executor.submit(send_event, event, i * 0.1)
+                for i, event in enumerate(events)
+            ]
+
+            if with_error and raise_exception:
+                # Expect error to be raised when batch processes
+                for future in futures:
+                    with pytest.raises(
+                        RuntimeError, match=r".*unsupported operand type"
+                    ):
+                        future.result()
+            else:
+                responses = [future.result() for future in futures]
+    finally:
+        server.wait_for_completion()
+
+    if with_error and raise_exception:
+        # Error was raised - verify error tracking
+        dummy_stream = server.context.stream.output_stream
+        _verify_batch_step_error_tracking(
+            dummy_stream=dummy_stream,
+            events=events,
+            multiple_models=multiple_models,
+            error_substring="unsupported operand type",
+        )
+    elif with_error and not raise_exception:
+        # Error should be returned in response dict, not raised
+        _verify_error_in_response_body(
+            responses=responses,
+            events=events,
+            multiple_models=multiple_models,
+            error_substring="unsupported operand type",
+            model_names=["my_model_1", "my_model_2"],
+        )
+
+        # Verify error tracking in stream
+        dummy_stream = server.context.stream.output_stream
+        _verify_batch_step_error_tracking(
+            dummy_stream=dummy_stream,
+            events=events,
+            multiple_models=multiple_models,
+            error_substring="unsupported operand type",
+        )
+    else:
+        # No error - verify normal responses
+        assert len(responses) == len(events)
+        assert all(r is not None for r in responses)
+
+        # Expected responses based on string concatenation using helper function
+        strings = ["hello", "world", "test", "mlrun", "batch"]
+        if multiple_models:
+            expected_responses = _generate_batch_string_responses(
+                strings, ["_model1", "_model2"], ["my_model_1", "my_model_2"]
+            )
+        else:
+            expected_responses = _generate_batch_string_responses(strings, "_model1")
+        assert responses == expected_responses
+
+        # Verify tracking events
+        dummy_stream = server.context.stream.output_stream
+        model_names = (
+            ["my_model_1", "my_model_2"] if multiple_models else ["my_model_1"]
+        )
+        verify_batch_step_tracking_events(
+            dummy_stream=dummy_stream,
+            events=events,
+            expected_responses=expected_responses,
+            batch_size=batch_size,
+            multiple_models=multiple_models,
+            model_names=model_names,
+            model_class="StringBatchedModel",
+            input_schema=None,
+            output_schema=None,
+        )

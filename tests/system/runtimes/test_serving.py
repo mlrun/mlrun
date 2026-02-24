@@ -13,6 +13,8 @@
 
 from http import HTTPMethod
 
+import pytest
+
 import mlrun
 import tests.system.base
 from mlrun.common.schemas.serving import APIHandlerAction
@@ -30,10 +32,12 @@ class TestServingAPIHandler(tests.system.base.TestMLRunSystem):
         self,
         name: str,
         api_config: APIHandlerConfig | None = None,
+        func: str | None = None,
     ) -> mlrun.runtimes.ServingRuntime:
         """Create a basic serving function for testing."""
         # Create serving function using project (no external file needed)
         function = self.project.set_function(
+            func=func,
             name=name,
             kind="serving",
             image=self.image,
@@ -119,23 +123,130 @@ class TestServingAPIHandler(tests.system.base.TestMLRunSystem):
 
         # Test the forbidden API endpoint - this should raise an error
         self._logger.debug("Testing forbidden API handler endpoint")
-        try:
-            response = function.invoke(
-                path="/api/v1/admin", body={"test": "restricted"}
+        with pytest.raises(
+            RuntimeError,
+            match=r"MLRunBadRequestError: Access forbidden to GET /api/v1/admin",
+        ):
+            function.invoke(
+                path="/api/v1/admin", method="GET", body={"test": "restricted"}
             )
-            # If we get here without an exception, check if the response indicates forbidden
-            assert (
-                "forbidden" in str(response).lower()
-                or "access denied" in str(response).lower()
-                or "not allowed" in str(response).lower()
-            ), f"Expected forbidden response, got: {response}"
-        except Exception as e:
-            # This is expected - the API handler should block the request
-            self._logger.debug(f"API handler correctly blocked request: {e}")
-            assert (
-                "forbidden" in str(e).lower()
-                or "access denied" in str(e).lower()
-                or "not allowed" in str(e).lower()
-            ), f"Exception should indicate forbidden access: {e}"
 
         self._logger.info("Forbidden API handler test passed")
+
+    def test_api_handler_with_body_mapping(self) -> None:
+        """Test API handler with body_map JSONPath extraction."""
+        self._logger.info("Testing API handler with body_map functionality")
+
+        # Create API handler config with body_map for JSONPath extraction
+        config = APIHandlerConfig()
+
+        config.add_body_mapping("user_name", "$.user.name")
+        config.add_body_mapping("user_email", "$.user.contact.email")
+        # Multiple matches return list
+        config.add_body_mapping("book_titles", "$.purchases[*].title")
+
+        config.add_endpoint_handler(
+            "/api/v1/process",
+            HTTPMethod.POST,
+            APIHandlerAction.ALLOW,
+            "Process endpoint with body mapping",
+        )
+
+        # Create serving function with handler source file using helper method
+        function = self._create_serving_function(
+            name="body-map-handler",
+            api_config=config,
+            func=str(self.assets_path / "body_map_handler.py"),
+        )
+
+        # Set up topology with handler that receives kwargs from body_map
+        graph = function.set_topology("flow", engine="sync", exist_ok=True)
+        graph.to(
+            name="processor", handler="process_mapped_data"
+        ).respond()  # Reference handler by name
+
+        # Deploy the function
+        self._logger.debug("Deploying serving function with body_map")
+        function.deploy()
+
+        # Test with request body that has nested structure
+        test_body = {
+            "user": {
+                "name": "Alice Smith",
+                "contact": {"email": "alice@example.com", "phone": "+1234567890"},
+            },
+            "purchases": [
+                {"title": "MLOps Handbook", "price": 29.99},
+                {"title": "Python Guide", "price": 19.99},
+                {"title": "Data Science Intro", "price": 39.99},
+            ],
+            "timestamp": "2026-02-11T10:00:00Z",
+        }
+
+        self._logger.debug("Testing body_map with nested JSONPath extraction")
+        response = function.invoke(path="/api/v1/process", body=test_body)
+
+        # Verify the mapped values were extracted correctly
+        assert response is not None, "Handler should return a response"
+        assert response["name"] == "Alice Smith", "user_name should be extracted"
+        assert (
+            response["email"] == "alice@example.com"
+        ), "user_email should be extracted from nested path"
+        assert response["titles"] == [
+            "MLOps Handbook",
+            "Python Guide",
+            "Data Science Intro",
+        ], "book_titles should extract multiple matches as list"
+        assert response["count"] == 3, "count should match number of books"
+
+        self._logger.info("Body mapping API handler test passed")
+
+    def test_api_handler_with_path_and_query_params(self) -> None:
+        """Test API handler with path parameters and query parameters."""
+        self._logger.info("Testing API handler with path and query parameters")
+
+        # Create API handler config with path template
+        config = APIHandlerConfig()
+        config.add_endpoint_handler(
+            "/api/items/{category}/{item_id}",
+            HTTPMethod.GET,
+            APIHandlerAction.ALLOW,
+            "Path and query params endpoint",
+        )
+
+        # Create serving function with handler source file
+        function = self._create_serving_function(
+            name="path-query-handler",
+            api_config=config,
+            func=str(self.assets_path / "path_query_handler.py"),
+        )
+
+        # Set up topology with handler that receives path and query params
+        graph = function.set_topology("flow", engine="sync", exist_ok=True)
+        graph.to(name="processor", handler="process_path_and_query_params").respond()
+
+        # Deploy the function
+        self._logger.debug("Deploying serving function with path and query params")
+        function.deploy()
+
+        # Test with path params and repeated query params
+        self._logger.debug("Testing path params and repeated query params")
+        response = function.invoke(
+            path="/api/items/electronics/laptop-123?tags=new&tags=featured&tags=sale&limit=10",
+            method="GET",
+        )
+
+        # Verify the path and query params were extracted correctly
+        assert response is not None, "Handler should return a response"
+        assert (
+            response["category"] == "electronics"
+        ), "category path param should be extracted"
+        assert (
+            response["item_id"] == "laptop-123"
+        ), "item_id path param should be extracted"
+        assert response["limit"] == "10", "limit query param should be string"
+        # See NUC-7459 - multiple matches should be returned as list
+        # assert response["tags"] == ["new", "featured", "sale"], "tags query param should be list"
+        # assert response["tags_count"] == 3, "tags_count should match number of tags"
+
+        self._logger.info("Path and query params API handler test passed")

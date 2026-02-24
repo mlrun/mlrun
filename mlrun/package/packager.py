@@ -14,12 +14,11 @@
 
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import Any, Optional, Union
+from typing import Any
 
 from mlrun.artifacts import Artifact
 from mlrun.datastore import DataItem
-
-from .utils import TypeHintUtils
+from mlrun.package.utils import TypeHintUtils
 
 
 class Packager(ABC):
@@ -46,27 +45,70 @@ class Packager(ABC):
     * :py:meth:`get_default_unpacking_artifact_type` - A class method to get the default artifact type for unpacking a
       data item when it is not representing a package, but a simple url or an old / manually logged artifact.
     * :py:meth:`get_supported_artifact_types` - A class method to get the supported artifact types this packager can
-      pack an object as. Used for the ``is_packable`` and `repr` methods.
+      pack an object as. Used for the ``is_packable`` and `repr` methods. If needed to declare different artifact types
+      for packing and unpacking, override the following two methods:
+
+      * :py:meth:`get_supported_packing_artifact_types` - Returns the artifact types available for packing. Defaults to
+        delegating to ``get_supported_artifact_types``. Override to declare pack-only artifact types.
+      * :py:meth:`get_supported_unpacking_artifact_types` - Returns the artifact types available for unpacking. Defaults
+        to delegating to ``get_supported_artifact_types``. Override to declare unpack-only artifact types.
     * :py:meth:`pack` - A class method to pack a returned object using the provided log hint configurations while noting
       itself instructions for how to unpack it once needed (only relevant for packed artifacts since results do not need
       unpacking).
     * :py:meth:`unpack` - A class method to unpack an MLRun ``DataItem``, parsing it to its desired hinted type using
       the instructions noted while originally packing it.
+    * :py:meth:`can_bundle` - A class method to check if the packager can be used as a bundle (a collection of
+      packages) of the required type hint with the provided collection type.
+    * :py:meth:`can_unbundle` - A class method to check if the packager can be used to unbundle itself into a
+      collection of objects for packing each one of them separately.
 
     The class methods ``is_packable`` and ``is_unpackable`` are implemented with the following basic logic:
 
     * :py:meth:`is_packable` - a class method to know whether to use this packager to pack an object by its
       type and artifact type. It compares the object's type with the ``PACKABLE_OBJECT_TYPE`` and checks that the
-      artifact type is in the returned supported artifacts list from ``get_supported_artifact_types``.
+      artifact type is in the returned supported artifacts list from ``get_supported_packing_artifact_types``.
     * :py:meth:`is_unpackable` - a class method to know whether to use this packager to unpack a data item by the user-
       noted type hint and optionally stored artifact type in the data item (in case it was packaged before). It matches
       the ``PACKABLE_OBJECT_TYPE`` to the type hint given (same logic as IDE matchups, meaning subclasses are
       considered as unpackable) and checks if the artifact type is in the returned supported artifacts list from
-      ``get_supported_artifact_types``.
+      ``get_supported_unpacking_artifact_types``.
 
     Preferably, each packager should handle a single type of object.
 
-    .. rubric:: Linking Artifacts (extra data)
+    .. rubric:: Bundles
+
+    A bundle means the type of object handled by this packager can be used to hold a collection of other objects - like
+    a ``list`` or a ``dict`` of packages. A bundle can be sent as a ``list`` or ``dict`` in a function's run input so
+    the packager manager will receive a list or dictionary of data items. A packager that support bundles means it can
+    initialize an object that will hold the unpacked data items later on - based on the type hint the user required.
+    For example::
+
+        def my_function(data: ExmapleDict[str, MyType]):
+            ...
+
+        >>> mlrun_function = mlrun.code_to_function("my_code.py", kind="job")
+        >>> run_object = mlrun_function.run(
+        ...     handler="my_function",
+        ...     inputs={
+        ...         "data": {
+        ...             "a": "store://my_item1_Artifact",
+        ...             "b": "store://my_item2_Artifact",
+        ...         }
+        ...     },
+        ... )
+
+    In the example above, after the packager manager used the packager of ``MyType`` to unpack all sent items, the
+    packager manager will choose the packager of ``ExmapleDict`` to initialize it on the dictionary of unpacked items to
+    create a bundle.
+
+    A packager can be a bundle if it implements the mandatory methods :py:meth:`can_bundle`, :py:meth:`can_unbundle`,
+    and the methods:
+
+    * :py:meth:`bundle` - Initialize a bundled object from a collection of objects.
+    * :py:meth:`unbundle` - Unbundle a bundled object into a simple collection of objects (either a ``list`` or a
+      ``dict``) for later packing them separately.
+
+    .. rubric:: Linking Artifacts (extra data and metrics (for models))
 
     To link between packages (using the extra data or metrics spec attributes of an artifact), use
     the key as if it exists and as value ellipses (...). The manager links all packages once it is done packing.
@@ -140,14 +182,36 @@ class Packager(ABC):
         """
         pass
 
+    def get_supported_packing_artifact_types(self) -> list[str]:
+        """
+        Get the supported artifact types for packing on this packager.
+
+        By default, delegates to ``get_supported_artifact_types``. Override this method to declare artifact types
+        that are only available for packing (not unpacking).
+
+        :return: A list of artifact types this packager can pack objects as.
+        """
+        return self.get_supported_artifact_types()
+
+    def get_supported_unpacking_artifact_types(self) -> list[str]:
+        """
+        Get the supported artifact types for unpacking on this packager.
+
+        By default, delegates to ``get_supported_artifact_types``. Override this method to declare artifact types
+        that are only available for unpacking (not packing).
+
+        :return: A list of artifact types this packager can unpack data items as.
+        """
+        return self.get_supported_artifact_types()
+
     @abstractmethod
     def pack(
         self,
         obj: Any,
-        key: Optional[str] = None,
-        artifact_type: Optional[str] = None,
-        configurations: Optional[dict] = None,
-    ) -> Union[tuple[Artifact, dict], dict]:
+        key: str | None = None,
+        artifact_type: str | None = None,
+        configurations: dict | None = None,
+    ) -> tuple[Artifact, dict] | dict:
         """
         Pack an object as the given artifact type using the provided configurations.
 
@@ -165,8 +229,8 @@ class Packager(ABC):
     def unpack(
         self,
         data_item: DataItem,
-        artifact_type: Optional[str] = None,
-        instructions: Optional[dict] = None,
+        artifact_type: str | None = None,
+        instructions: dict | None = None,
     ) -> Any:
         """
         Unpack the data item's artifact by the provided type using the given instructions.
@@ -179,18 +243,77 @@ class Packager(ABC):
         """
         pass
 
+    def bundle(
+        self,
+        collection: dict | list,
+    ) -> Any:
+        """
+        Initialize a bundle object with the collection given using this packager.
+
+        :param collection: The collection of objects to bundle.
+
+        :return: The bundled object.
+
+        :raise NotImplementedError: In case the packager does not support bundling.
+        """
+        raise NotImplementedError(
+            f"The packager - '{self.__class__.__name__}', does not support bundling."
+        )
+
+    def unbundle(
+        self,
+        bundled_object: Any,
+    ) -> dict | list:
+        """
+        Unbundle the given object into a collection of objects (for later pack them each separately).
+
+        :return: The unbundled collection of objects - a list or dict.
+
+        :raise NotImplementedError: In case the packager does not support bundling.
+        """
+        raise NotImplementedError(
+            f"The packager - '{self.__class__.__name__}', does not support bundling."
+        )
+
+    @abstractmethod
+    def can_bundle(
+        self, bundle_hint: type, collection_type: type[dict] | type[list]
+    ) -> bool:
+        """
+        Check if the packager can be used to initialize a bundle (a collection of packages) of the required type hint
+        with the provided collection type.
+
+        :param bundle_hint:     The bundle type hint to check if the `PACKABLE_OBJECT_TYPE` matches to.
+        :param collection_type: The collection type that will be used in the type hint's constructor.
+
+        :return: True if it can be used as a bundle and False otherwise.
+        """
+        pass
+
+    @abstractmethod
+    def can_unbundle(self, bundled_object: Any) -> bool:
+        """
+        Check if the packager can unbundle a bundled object to a collection of the required type hint.
+
+        :param bundled_object: The bundled object to check if the packager can unbundle it.
+
+        :return: True if it can be unbundled and False otherwise.
+        """
+        pass
+
+    # TODO: Rename to `can_pack` for consistency with bundle, also it makes more sense...
     def is_packable(
         self,
         obj: Any,
-        artifact_type: Optional[str] = None,
-        configurations: Optional[dict] = None,
+        artifact_type: str | None = None,
+        configurations: dict | None = None,
     ) -> bool:
         """
         Check if this packager can pack an object of the provided type as the provided artifact type.
 
         The default implementation checks if the packable object type of this packager is equal to the given object's
         type. If it matches, it looks for the artifact type in the list returned from
-        `get_supported_artifact_types`.
+        ``get_supported_packing_artifact_types``.
 
         :param obj:            The object to pack.
         :param artifact_type:  The artifact type to log the object as.
@@ -209,19 +332,23 @@ class Packager(ABC):
             return False
 
         # Validate the artifact type (if given):
-        if artifact_type and artifact_type not in self.get_supported_artifact_types():
+        if (
+            artifact_type
+            and artifact_type not in self.get_supported_packing_artifact_types()
+        ):
             return False
 
         return True
 
+    # TODO: Rename to `can_unpack` for consistency with bundle, also it makes more sense...
     def is_unpackable(
-        self, data_item: DataItem, type_hint: type, artifact_type: Optional[str] = None
+        self, data_item: DataItem, type_hint: type, artifact_type: str | None = None
     ) -> bool:
         """
         Check if this packager can unpack an input according to the user-given type hint and the provided artifact type.
 
         The default implementation tries to match the packable object type of this packager to the given type hint. If
-        it matches, it looks for the artifact type in the list returned from `get_supported_artifact_types`.
+        it matches, it looks for the artifact type in the list returned from ``get_supported_unpacking_artifact_types``.
 
         :param data_item:     The input data item to check if unpackable.
         :param type_hint:     The type hint of the input to unpack (the object type to be unpacked).
@@ -239,13 +366,16 @@ class Packager(ABC):
                 return False
 
         # Check the artifact type:
-        if artifact_type and artifact_type not in self.get_supported_artifact_types():
+        if (
+            artifact_type
+            and artifact_type not in self.get_supported_unpacking_artifact_types()
+        ):
             return False
 
         # Unpackable:
         return True
 
-    def add_future_clearing_path(self, path: Union[str, Path]):
+    def add_future_clearing_path(self, path: str | Path):
         """
         Mark a path to be cleared by this packager's manager after logging the packaged artifacts.
 
@@ -293,9 +423,10 @@ class Packager(ABC):
     def __repr__(self) -> str:
         """
         Get the string representation of a packager in the following format:
-        <packager name>(type=<handled type>, artifact_types=[<all supported artifact types>], priority=<priority>)
+        <packager name>(packable_type=<type>, packing_artifact_types=[...], unpacking_artifact_types=[...],
+        priority=<priority>)
 
-        :return: The string representation of e packager.
+        :return: The string representation of a packager.
         """
         # Get the packager info into variables:
         packager_name = self.__class__.__name__
@@ -309,16 +440,19 @@ class Packager(ABC):
             if self.PACKABLE_OBJECT_TYPE is not ...
             else "Any"
         )
-        supported_artifact_types = self.get_supported_artifact_types()
+        packing_artifact_types = self.get_supported_packing_artifact_types()
+        unpacking_artifact_types = self.get_supported_unpacking_artifact_types()
 
         # Return the string representation in the format noted above:
         return (
-            f"{packager_name}(packable_type={handled_type}, artifact_types={supported_artifact_types}, "
+            f"{packager_name}(packable_type={handled_type}, "
+            f"packing_artifact_types={packing_artifact_types}, "
+            f"unpacking_artifact_types={unpacking_artifact_types}, "
             f"priority={self.priority})"
         )
 
     def get_data_item_local_path(
-        self, data_item: DataItem, add_to_future_clearing_path: Optional[bool] = None
+        self, data_item: DataItem, add_to_future_clearing_path: bool | None = None
     ) -> str:
         """
         Get the local path to the item handled by the data item provided. The local path can be the same as the data

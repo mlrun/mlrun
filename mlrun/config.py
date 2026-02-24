@@ -60,6 +60,13 @@ default_config = {
             "list_pods_limit": 200,
             "list_crd_objects_limit": 200,
         },
+        "timeouts": {
+            # per-request timeouts (in seconds) for k8s API calls
+            # 0 disables timeout for the given tier
+            "default": 30,  # single-resource ops (get, create, delete, update)
+            "list": 60,  # list operations (may return large result sets)
+            "logs": 120,  # pod log retrieval
+        },
     },
     "dbpath": "",  # db/api url
     # url to nuclio dashboard api (can be with user & token, e.g. https://username:password@dashboard-url.com)
@@ -311,7 +318,7 @@ default_config = {
         "application": {
             "default_sidecar_internal_port": 8050,
             "default_authentication_mode": mlrun.common.schemas.APIGatewayAuthenticationMode.none,
-            "default_worker_number": 10000,
+            "default_worker_number": 100,
         },
     },
     # TODO: function defaults should be moved to the function spec config above
@@ -677,6 +684,11 @@ default_config = {
             "parquet_batching_max_events": 10,
             "parquet_batching_timeout_secs": 30,
         },
+        "lag_detection": {
+            "min_lag_threshold_minutes": 5,
+            "default_lag_threshold_minutes": 60,
+            "default_lag_event_cooldown_minutes": 30,
+        },
         # Store prefixes are used to handle model monitoring storing policies based on project and kind, such as events,
         # stream, and endpoints.
         "store_prefixes": {
@@ -729,6 +741,7 @@ default_config = {
             "auth_secret_name": "mlrun-auth-secrets.{hashed_access_key}",
             "env_variable_prefix": "",
             "global_function_env_secret_name": None,
+            "concurrent_token_deletions": 10,
         },
     },
     "feature_store": {
@@ -852,13 +865,23 @@ default_config = {
         # Whether to enable packagers. True will wrap each run in the `mlrun.package.handler` decorator to log and parse
         # using packagers.
         "enabled": True,
+        # Whether to automatically unpack inputs with no type hints instead of leaving them as `mlrun.DataItem` objects.
+        # If True, all inputs without type hints that were originally logged via `mlrun.package` will be unpacked
+        # automatically. Default is False.
+        "auto_unpack_inputs": False,
+        # Whether to automatically pack outputs, even if not log hints were provided by the user running the function.
+        # If True, returned objects will be packed with their default packager and their artifact key will be equal to
+        # the following name template: "<context_name>-<auto_pack_key>-<i>" where "i" is enumerated. If
+        # False, the returned objects will simply be ignored. Default is False.
+        "auto_pack_outputs": False,
+        "auto_pack_key": "artifact",
         # Whether to treat returned tuples from functions as a tuple and not as multiple returned items. If True, all
         # returned values will be packaged together as the tuple they are returned in. Default is False to enable
         # logging multiple returned items.
         "pack_tuples": False,
         # In multi-workers run, only the logging worker will pack the outputs and log the results and artifacts.
         # Otherwise, the workers will log the results and artifacts using the same keys, overriding them. It is common
-        # that only the main worker (usualy rank 0) will log, so this is the default value.
+        # that only the main worker (usually rank 0) will log, so this is the default value.
         "logging_worker": 0,
         # TODO: Consider adding support for logging from all workers (ignoring the `logging_worker`) and add the worker
         #       number to the artifact / result key (like "<key>-rank<#>". Results can have reduce operation in the
@@ -1316,8 +1339,8 @@ class Config:
         return copy.deepcopy(self._cfg)
 
     @staticmethod
-    def reload():
-        _populate()
+    def reload(skip_env_file=False):
+        _populate(skip_env_file=skip_env_file)
 
     @property
     def version(self):
@@ -1487,7 +1510,7 @@ class Config:
 config = Config.from_dict(default_config)
 
 
-def _populate(skip_errors=False):
+def _populate(skip_errors=False, skip_env_file=False):
     """Populate configuration from config file (if exists in environment) and
     from environment variables.
 
@@ -1496,13 +1519,15 @@ def _populate(skip_errors=False):
     global _loaded
 
     with _load_lock:
-        _do_populate(skip_errors=skip_errors)
+        _do_populate(skip_errors=skip_errors, skip_env_file=skip_env_file)
 
 
-def _do_populate(env=None, skip_errors=False):
+def _do_populate(env=None, skip_errors=False, skip_env_file=False):
     global config
 
-    if not os.environ.get("MLRUN_IGNORE_ENV_FILE"):
+    # we get into this block when we want to load the defaults from the env file.
+    # other use cases, like set_env_from_file / running api - skip this block.
+    if not skip_env_file and not os.environ.get("MLRUN_IGNORE_ENV_FILE"):
         if "MLRUN_ENV_FILE" in os.environ:
             env_file = os.path.expanduser(os.environ["MLRUN_ENV_FILE"])
             dotenv.load_dotenv(env_file, override=True)

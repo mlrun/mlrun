@@ -378,11 +378,13 @@ class ProcessEndpointEvent(mlrun.feature_store.steps.MapClass):
         # and use them for retrieving the endpoint_id
         function_uri = full_event.body.get(EventFieldType.FUNCTION_URI)
         if not is_not_none(function_uri, [EventFieldType.FUNCTION_URI]):
-            return None
+            full_event.body = None
+            return full_event
 
         model = full_event.body.get(EventFieldType.MODEL)
         if not is_not_none(model, [EventFieldType.MODEL]):
-            return None
+            full_event.body = None
+            return full_event
 
         endpoint_id = event[EventFieldType.ENDPOINT_ID]
 
@@ -409,7 +411,8 @@ class ProcessEndpointEvent(mlrun.feature_store.steps.MapClass):
             field=timestamp,
             dict_path=["when"],
         ):
-            return None
+            full_event.body = None
+            return full_event
 
         if endpoint_id not in self.first_request:
             # Set time for the first request of the current endpoint
@@ -420,25 +423,23 @@ class ProcessEndpointEvent(mlrun.feature_store.steps.MapClass):
             field=request_id,
             dict_path=["request", "id"],
         ):
-            return None
-        if not self.is_valid(
-            validation_function=is_not_none,
-            field=latency,
-            dict_path=["microsec"],
-        ):
-            return None
+            full_event.body = None
+            return full_event
+        # Note: latency (microsec) can be None for streaming responses
         if not self.is_valid(
             validation_function=is_not_none,
             field=features,
             dict_path=["request", "inputs"],
         ):
-            return None
+            full_event.body = None
+            return full_event
         if not self.is_valid(
             validation_function=is_not_none,
             field=predictions,
             dict_path=["resp", "outputs"],
         ):
-            return None
+            full_event.body = None
+            return full_event
 
         # Convert timestamp to a datetime object
         timestamp_obj = datetime.datetime.fromisoformat(timestamp)

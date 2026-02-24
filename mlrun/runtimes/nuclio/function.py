@@ -36,6 +36,7 @@ import mlrun.common.constants
 import mlrun.db
 import mlrun.errors
 import mlrun.k8s_utils
+import mlrun.runtime_configuration_context
 import mlrun.utils
 import mlrun.utils.helpers
 from mlrun.common.schemas import AuthInfo, BatchingSpec
@@ -207,6 +208,7 @@ class NuclioSpec(KubeResourceSpec):
             track_models=track_models,
         )
 
+        self.auth = auth or {}
         self.base_spec = base_spec or {}
         self.function_kind = function_kind
         self.source = source or ""
@@ -228,7 +230,6 @@ class NuclioSpec(KubeResourceSpec):
         # When True it will set Nuclio spec.noBaseImagesPull to False (negative logic)
         # indicate that the base image should be pulled from the container registry (not cached)
         self.base_image_pull = False
-        self.auth = auth or {}
 
     def generate_nuclio_volumes(self):
         nuclio_volumes = []
@@ -502,8 +503,9 @@ class RemoteRuntime(KubeResource):
         :param batching_spec: BatchingSpec object that defines batching configuration.
             By default, batching is disabled.
 
-        :param async_spec: AsyncSpec object defines async configuration. If number of max connections
-            won't be set, the default value will be set to 1000 according to nuclio default.
+        :param async_spec: AsyncSpec object defines async configuration. By default, mode will be sync.
+            If number of max connections won't be set, the default value will be set to 1000 according to nuclio
+            default.
 
         :return: function object (self)
         """
@@ -512,7 +514,14 @@ class RemoteRuntime(KubeResource):
                 "Adding HTTP trigger despite the default HTTP trigger creation being disabled"
             )
 
-        if async_spec and async_spec.enabled:
+        nuclio_version_support_async = validate_nuclio_version_compatibility("1.15.3")
+        if async_spec is not None and not nuclio_version_support_async:
+            raise mlrun.errors.MLRunValueError(
+                "Async spec is only supported from Nuclio 1.15.3"
+            )
+
+        async_enabled = getattr(async_spec, "enabled", False)
+        if async_enabled:
             workers = 1 if workers is None else workers
         else:
             workers = 8 if workers is None else workers
@@ -554,13 +563,9 @@ class RemoteRuntime(KubeResource):
                 )
             trigger._struct["batch"] = batching_config
 
-        if async_spec:
-            if not validate_nuclio_version_compatibility("1.15.3"):
-                raise mlrun.errors.MLRunValueError(
-                    "Async spec is only supported on Nuclio 1.15.3 and higher"
-                )
-            if async_spec.enabled:
-                trigger._struct["mode"] = "async"
+        if nuclio_version_support_async:
+            trigger._struct["mode"] = "async" if async_enabled else "sync"
+            if async_enabled:
                 trigger._struct["async"] = {
                     "maxConnectionsNumber": async_spec.max_connections,
                     "connectionAvailabilityTimeout": async_spec.connection_availability_timeout,
@@ -793,6 +798,11 @@ class RemoteRuntime(KubeResource):
         # Attempt auto-mounting, before sending to remote build
         self.try_auto_mount_based_on_config()
         self._fill_credentials()
+
+        # Set via context manager because nuclio does not go through the ClientRemoteLauncher
+        auth_token_name = mlrun.runtime_configuration_context.RuntimeConfigurationContext.get_auth_token_name()
+        mlrun.utils.helpers.set_auth_token_name(self.spec, auth_token_name)
+
         db = self._get_db()
         logger.info("Starting remote function deploy")
         data = db.deploy_nuclio_function(func=self, builder_env=builder_env)

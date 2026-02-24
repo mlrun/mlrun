@@ -138,14 +138,16 @@ class APIHandlerConfig(mlrun.model.ModelObj):
         :param path: Normalized path (with leading ``/``) to validate.
         :raises mlrun.errors.MLRunValueError: If the path contains an invalid ``*`` pattern.
         """
-        if "*" not in path:
+        star_count = path.count("*")
+        if star_count == 0:
             return
-        if not path.endswith("*"):
+        # We know there is a wildcard, validate its position and count
+        if path[-1] != "*":
             raise mlrun.errors.MLRunValueError(
                 f"Invalid endpoint path '{path}': "
                 f"wildcard '*' must be at the end of the path"
             )
-        if path.count("*") > 1:
+        if star_count > 1:
             raise mlrun.errors.MLRunValueError(
                 f"Invalid endpoint path '{path}': "
                 f"wildcard '*' must appear only once at the end of the path"

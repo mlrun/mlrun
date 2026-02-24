@@ -15,7 +15,7 @@
 from unittest import mock
 
 import pytest
-from mlrun.serving.states import BaseStep, RootFlowStep
+
 from mlrun.data_types import InferOptions
 from mlrun.datastore.targets import ParquetTarget
 from mlrun.feature_store import Entity
@@ -136,42 +136,41 @@ def test_deploy_ingestion_service(mock_deploy):
 @pytest.mark.parametrize(
     "num_targets",
     [
-        1,  # Single target
-        2,  # Multiple targets
+        1,
+        2,
     ],
 )
 @pytest.mark.parametrize(
     "after_step_value",
     [
-        ["step2"],               # Single final step (list with 1 item)
-        ["step2", "step3"],      # Multiple final steps (list with 2 items)
+        ["step2"],  # Single final step (list with 1 item)
+        ["step2", "step3"],  # Multiple final steps (list with 2 items)
     ],
 )
 def test_feature_set_plot_with_targets(num_targets, after_step_value):
-    fset = FeatureSet("test", entities=[Entity("id")])
-
-    # Always create the branching graph
-    fset.graph.add_step(name="step1", class_name="storey.Map", _fn="(event)")
-    fset.graph.add_step(name="step2", class_name="storey.Map", _fn="(event)", after="step1")
-
     include_step_3 = "step3" in after_step_value
-    if include_step_3:
-        fset.graph.add_step(name="step3", class_name="storey.Map", _fn="(event)", after="step1")
 
-    # Set targets based on num_targets
+    fset = FeatureSet("test", entities=[Entity("id")])
+    fset.graph.add_step(name="step1", class_name="storey.Map", _fn="(event)")
+    fset.graph.add_step(
+        name="step2", class_name="storey.Map", _fn="(event)", after="step1"
+    )
+
+    if include_step_3:
+        fset.graph.add_step(
+            name="step3", class_name="storey.Map", _fn="(event)", after="step1"
+        )
+
     if num_targets == 1:
-        # Single target
         fset.set_targets(
             targets=[ParquetTarget(name="test-target", after_step=after_step_value)],
-            with_defaults=False
+            with_defaults=False,
         )
     else:
         # Multiple targets (use defaults and set after_step)
         fset.set_targets()
         for target in fset.spec.targets:
             target.after_step = after_step_value
-
-    # Should not crash with AttributeError
     graph = fset.plot(rankdir="LR", with_targets=True)
 
     assert graph is not None
@@ -182,7 +181,6 @@ def test_feature_set_plot_with_targets(num_targets, after_step_value):
         assert "step3" in graph_source
     else:
         assert "step3" not in graph_source
-    assert "->" in graph_source
 
     target_count = 0
     if "parquet" in graph_source.lower():

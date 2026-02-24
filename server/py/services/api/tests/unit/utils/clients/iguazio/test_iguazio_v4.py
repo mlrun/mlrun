@@ -621,6 +621,32 @@ def test_patch_project(
 
 
 @pytest.mark.parametrize("iguazio_client", [("v4", "sync")], indirect=True)
+def test_patch_project_forbidden_raises_access_denied(
+    mock_session,
+    iguazio_client,
+    igv4_auth_info,
+    mock_service_account_auth_headers,
+):
+    """Reproducer: patching project owner with insufficient permissions must raise
+    MLRunAccessDeniedError (not MLRunInternalServerError)."""
+    iguazio_client._client.update_project_owner.side_effect = (
+        _generate_igv4_httpx_exception(
+            "Not allowed to update resource",
+            httpx.codes.FORBIDDEN,
+        )
+    )
+    project = _generate_igv4_project()
+
+    with pytest.raises(mlrun.errors.MLRunAccessDeniedError):
+        iguazio_client.patch_project(
+            mock_session,
+            TEST_PROJECT_NAME,
+            project.dict(),
+            auth_info=igv4_auth_info,
+        )
+
+
+@pytest.mark.parametrize("iguazio_client", [("v4", "sync")], indirect=True)
 @pytest.mark.parametrize("owner", [TEST_PROJECT_OWNER, None])
 @pytest.mark.parametrize("project_exists", [True, False])
 def test_store_project(
@@ -673,33 +699,81 @@ def test_delete_project(mock_session, iguazio_client, igv4_auth_info):
 
 
 @pytest.mark.parametrize("iguazio_client", [("v4", "sync")], indirect=True)
-@pytest.mark.parametrize("internal_exception", [Exception, httpx.HTTPStatusError])
-def test_try_callback_with_httpx_exceptions(internal_exception, iguazio_client):
-    final_exception_type = mlrun.errors.MLRunInternalServerError
-    final_failure_message = "Final failure message"
-    internal_error_message = "Internal error message"
+def test_try_callback_with_httpx_exceptions_generic_exception(
+    iguazio_client, mock_service_account_auth_headers
+):
+    """Generic (non-HTTP) exceptions use the fallback exception_type."""
+    fallback_exception_type = mlrun.errors.MLRunInternalServerError
+    failure_message = "Final failure message"
+
+    def callback():
+        raise Exception()
+
+    with pytest.raises(fallback_exception_type, match=failure_message):
+        iguazio_client._try_callback_with_httpx_exceptions(
+            callback, fallback_exception_type, failure_message
+        )
+
+
+@pytest.mark.parametrize("iguazio_client", [("v4", "sync")], indirect=True)
+@pytest.mark.parametrize(
+    "http_status_code, expected_exception_type",
+    [
+        (httpx.codes.BAD_REQUEST, mlrun.errors.MLRunBadRequestError),
+        (httpx.codes.UNAUTHORIZED, mlrun.errors.MLRunUnauthorizedError),
+        (httpx.codes.FORBIDDEN, mlrun.errors.MLRunAccessDeniedError),
+        (httpx.codes.NOT_FOUND, mlrun.errors.MLRunNotFoundError),
+        (httpx.codes.CONFLICT, mlrun.errors.MLRunConflictError),
+        (
+            httpx.codes.INTERNAL_SERVER_ERROR,
+            mlrun.errors.MLRunInternalServerError,
+        ),
+    ],
+)
+def test_try_callback_with_httpx_exceptions_maps_status_code(
+    iguazio_client,
+    http_status_code,
+    expected_exception_type,
+    mock_service_account_auth_headers,
+):
+    """HTTP errors are mapped to the correct MLRun error type based on status code,
+    regardless of the fallback exception_type."""
+    failure_message = "Operation failed"
+    error_message = "Upstream error"
     ctx = "test-ctx"
 
     def callback():
-        if internal_exception is Exception:
-            raise Exception()
+        raise _generate_igv4_httpx_exception(error_message, http_status_code, ctx)
 
-        raise _generate_igv4_httpx_exception(
-            internal_error_message, httpx.codes.INTERNAL_SERVER_ERROR, ctx
-        )
-
-    with pytest.raises(final_exception_type) as exc:
+    with pytest.raises(expected_exception_type) as exc_info:
         iguazio_client._try_callback_with_httpx_exceptions(
-            callback, final_exception_type, final_failure_message
+            callback,
+            mlrun.errors.MLRunInternalServerError,
+            failure_message,
         )
+    assert failure_message in str(exc_info.value)
+    assert error_message in str(exc_info.value)
 
-        if internal_exception is Exception:
-            assert final_failure_message == str(exc.value)
-        else:
-            assert (
-                f"{final_failure_message}: {internal_error_message}, ctx={ctx}"
-                == str(exc.value)
-            )
+
+@pytest.mark.parametrize("iguazio_client", [("v4", "sync")], indirect=True)
+def test_try_callback_with_httpx_exceptions_unmapped_status_falls_back_to_exception_type(
+    iguazio_client, mock_service_account_auth_headers
+):
+    """HTTP status codes not in STATUS_ERRORS fall back to the caller-supplied exception_type."""
+    failure_message = "Operation failed"
+    error_message = "Too many requests"
+    ctx = "test-ctx"
+    fallback_type = mlrun.errors.MLRunUnauthorizedError
+
+    def callback():
+        raise _generate_igv4_httpx_exception(error_message, 429, ctx)
+
+    with pytest.raises(fallback_type) as exc_info:
+        iguazio_client._try_callback_with_httpx_exceptions(
+            callback, fallback_type, failure_message
+        )
+    assert failure_message in str(exc_info.value)
+    assert error_message in str(exc_info.value)
 
 
 @pytest.mark.parametrize(

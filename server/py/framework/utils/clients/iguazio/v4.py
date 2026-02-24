@@ -509,9 +509,11 @@ class Client(BaseClient, project_follower.Member):
                 ctx=ctx,
                 exc=mlrun.errors.err_to_str(exc),
             )
-            raise exception_type(
-                f"{failure_message}: {error_message}, ctx={ctx}"
-            ) from exc
+            full_message = f"{failure_message}: {error_message}, ctx={ctx}"
+            error_cls = mlrun.errors.STATUS_ERRORS.get(
+                exc.response.status_code, exception_type
+            )
+            raise error_cls(full_message) from exc
         except Exception as exc:
             self._logger.warning(
                 f"{failure_message} (unexpected error)",

@@ -74,28 +74,28 @@ class SystemTestPreparer:
 
     def __init__(
         self,
-        mlrun_version: typing.Optional[str] = None,
-        override_image_registry: typing.Optional[str] = None,
-        mlrun_commit: typing.Optional[str] = None,
-        mlrun_ui_version: typing.Optional[str] = None,
-        data_cluster_ip: typing.Optional[str] = None,
-        data_cluster_ssh_username: typing.Optional[str] = None,
-        data_cluster_ssh_password: typing.Optional[str] = None,
-        github_access_token: typing.Optional[str] = None,
-        provctl_download_url: typing.Optional[str] = None,
-        username: typing.Optional[str] = None,
-        access_key: typing.Optional[str] = None,
-        aws_access_key_id: typing.Optional[str] = None,
-        aws_secret_access_key: typing.Optional[str] = None,
-        aws_oidc_access_token: typing.Optional[str] = None,
-        iguazio_version: typing.Optional[str] = None,
-        slack_webhook_url: typing.Optional[str] = None,
+        mlrun_version: str | None = None,
+        override_image_registry: str | None = None,
+        mlrun_commit: str | None = None,
+        mlrun_ui_version: str | None = None,
+        data_cluster_ip: str | None = None,
+        data_cluster_ssh_username: str | None = None,
+        data_cluster_ssh_password: str | None = None,
+        github_access_token: str | None = None,
+        provctl_download_url: str | None = None,
+        username: str | None = None,
+        access_key: str | None = None,
+        aws_access_key_id: str | None = None,
+        aws_secret_access_key: str | None = None,
+        aws_oidc_access_token: str | None = None,
+        iguazio_version: str | None = None,
+        slack_webhook_url: str | None = None,
         debug: bool = False,
-        branch: typing.Optional[str] = None,
-        mlrun_dbpath: typing.Optional[str] = None,
-        kubeconfig_content: typing.Optional[str] = None,
-        openai_base_url: typing.Optional[str] = None,
-        openai_api_key: typing.Optional[str] = None,
+        branch: str | None = None,
+        mlrun_dbpath: str | None = None,
+        kubeconfig_content: str | None = None,
+        openai_base_url: str | None = None,
+        openai_api_key: str | None = None,
     ):
         self._logger = logger
         self._debug = debug
@@ -115,7 +115,7 @@ class SystemTestPreparer:
         self._aws_access_key_id = aws_access_key_id
         self._aws_secret_access_key = aws_secret_access_key
         self._aws_oidc_access_token = aws_oidc_access_token
-        self._ssh_client: typing.Optional[paramiko.SSHClient] = None
+        self._ssh_client: paramiko.SSHClient | None = None
         self._mlrun_dbpath = mlrun_dbpath
 
         self._env_config: dict[str, Union[str, None, dict]] = {
@@ -186,15 +186,15 @@ class SystemTestPreparer:
     def _run_command(
         self,
         command: str,
-        args: typing.Optional[list] = None,
-        workdir: typing.Optional[str] = None,
-        stdin: typing.Optional[str] = None,
+        args: list | None = None,
+        workdir: str | None = None,
+        stdin: str | None = None,
         live: bool = True,
         suppress_errors: bool = False,
         local: bool = False,
         detach: bool = False,
         verbose: bool = True,
-        suppress_error_strings: typing.Optional[list] = None,
+        suppress_error_strings: list | None = None,
     ) -> (bytes, bytes):
         workdir = workdir or str(self.Constants.workdir)
         stdout, stderr, exit_status = "", "", 0
@@ -278,9 +278,9 @@ class SystemTestPreparer:
     def _run_command_remotely(
         self,
         command: str,
-        args: typing.Optional[list] = None,
-        workdir: typing.Optional[str] = None,
-        stdin: typing.Optional[str] = None,
+        args: list | None = None,
+        workdir: str | None = None,
+        stdin: str | None = None,
         live: bool = True,
         detach: bool = False,
         verbose: bool = True,
@@ -564,8 +564,8 @@ class SystemTestPreparer:
         command_name: str,
         max_retries: int = 60,
         interval: int = 10,
-        suppress_error_strings: typing.Optional[list] = None,
-        ps_verification: typing.Optional[str] = None,
+        suppress_error_strings: list | None = None,
+        ps_verification: str | None = None,
     ):
         def exec_ps_verification():
             if ps_verification:
@@ -980,11 +980,11 @@ def env(
 
 def run_command(
     command: str,
-    args: typing.Optional[list] = None,
-    workdir: typing.Optional[str] = None,
-    stdin: typing.Optional[str] = None,
+    args: list | None = None,
+    workdir: str | None = None,
+    stdin: str | None = None,
     live: bool = True,
-    log_file_handler: typing.Optional[typing.IO[str]] = None,
+    log_file_handler: typing.IO[str] | None = None,
 ) -> (str, str, int):
     if workdir:
         command = f"cd {workdir}; " + command
@@ -1012,7 +1012,7 @@ def run_command(
 
 def _handle_command_stdout(
     stdout_stream: typing.IO[bytes],
-    log_file_handler: typing.Optional[typing.IO[str]] = None,
+    log_file_handler: typing.IO[str] | None = None,
     live: bool = True,
 ) -> str:
     def _write_to_log_file(text: bytes):

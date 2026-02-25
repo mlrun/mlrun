@@ -246,9 +246,7 @@ class ApplicationStatus(nuclio_function.NuclioStatus):
         self.application_source = application_source or None
         self.sidecar_name = sidecar_name or None
         self.api_gateway_name = api_gateway_name or None
-        self.api_gateway: typing.Optional[nuclio_api_gateway.APIGateway] = (
-            api_gateway or None
-        )
+        self.api_gateway: nuclio_api_gateway.APIGateway | None = api_gateway or None
         self.url = url or None
 
 
@@ -405,11 +403,11 @@ class ApplicationRuntime(nuclio_function.RemoteRuntime):
 
     def with_sidecar(
         self,
-        name: typing.Optional[str] = None,
-        image: typing.Optional[str] = None,
-        ports: typing.Optional[typing.Union[int, list[int]]] = None,
-        command: typing.Optional[str] = None,
-        args: typing.Optional[list[str]] = None,
+        name: str | None = None,
+        image: str | None = None,
+        ports: typing.Union[int, list[int]] | None = None,
+        command: str | None = None,
+        args: list[str] | None = None,
     ):
         # wraps with_sidecar just to set the application ports
         super().with_sidecar(
@@ -466,20 +464,34 @@ class ApplicationRuntime(nuclio_function.RemoteRuntime):
                 )
 
     def prepare_image_for_deploy(self):
-        if self.spec.build.source and self.spec.build.load_source_on_run:
-            logger.warning(
-                "Application runtime requires loading the source into the application image. "
-                f"Even though {self.spec.build.load_source_on_run=}, loading on build will be forced."
-            )
-            self.spec.build.load_source_on_run = False
         super().prepare_image_for_deploy()
+
+    def requires_build(self) -> bool:
+        """
+        Check if the application image needs to be built.
+
+        For ApplicationRuntime, store:// URIs don't require a build because the init
+        container loads them at runtime. This allows redeploying with source code changes
+        without rebuilding the image.
+        """
+        build = self.spec.build
+        source = build.source
+
+        # store:// URIs are loaded by init container at runtime, not baked into image
+        if source and mlrun.datastore.is_store_uri(source):
+            source_requires_build = False
+        else:
+            # For other sources (git, archives), check load_source_on_run flag
+            source_requires_build = bool(source and not build.load_source_on_run)
+
+        return bool(build.commands or build.requirements or source_requires_build)
 
     def deploy(
         self,
         project="",
         tag="",
         verbose=False,
-        builder_env: typing.Optional[dict] = None,
+        builder_env: dict | None = None,
         force_build: bool = False,
         with_mlrun=None,
         skip_deployed=False,
@@ -497,7 +509,11 @@ class ApplicationRuntime(nuclio_function.RemoteRuntime):
         :param verbose:                     Set True for verbose logging
         :param builder_env:                 Env vars dict for source archive config/credentials
                                             e.g. builder_env={"GIT_TOKEN": token}
-        :param force_build:                 Set True for force building the application image
+        :param force_build:                 Set True to force rebuilding the application image.
+                                            Use this when changing requirements, commands, or base image
+                                            after the initial deployment.
+                                            Code-only changes don't require force_build as the init container
+                                            loads the new source at runtime.
         :param with_mlrun:                  Add the current mlrun package to the container build
         :param skip_deployed:               Skip the build if we already have an image for the function
         :param is_kfp:                      Deploy as part of a kfp pipeline
@@ -509,40 +525,50 @@ class ApplicationRuntime(nuclio_function.RemoteRuntime):
 
         :return: The default API gateway URL if created or True if the function is ready (deployed)
         """
-        # Upload local single-file source as artifact (if applicable)
-        self._upload_source_as_artifact()
+        # Upload local source as artifact. The server needs the store:// URI to configure the init container, but we
+        # restore the local path afterward, so subsequent deploys re-upload the file.
+        original_local_source, artifact_uri = self._upload_source_as_artifact()
 
-        if (self.requires_build() and not self.spec.image) or force_build:
-            self._fill_credentials()
-            self._build_application_image(
-                builder_env=builder_env,
-                force_build=force_build,
-                watch=True,
-                with_mlrun=with_mlrun,
-                skip_deployed=skip_deployed,
-                is_kfp=is_kfp,
-                mlrun_version_specifier=mlrun_version_specifier,
-                show_on_failure=show_on_failure,
+        try:
+            # Check status.application_image because spec.image gets cleared after build to use
+            # the reverse proxy image instead
+            if (
+                self.requires_build() and not self.status.application_image
+            ) or force_build:
+                self._fill_credentials()
+                self._build_application_image(
+                    builder_env=builder_env,
+                    force_build=force_build,
+                    watch=True,
+                    with_mlrun=with_mlrun,
+                    skip_deployed=skip_deployed,
+                    is_kfp=is_kfp,
+                    mlrun_version_specifier=mlrun_version_specifier,
+                    show_on_failure=show_on_failure,
+                )
+
+            self._ensure_reverse_proxy_configurations()
+            self._configure_application_sidecar()
+
+            # We only allow accessing the application via the API Gateway
+            self.spec.add_templated_ingress_host_mode = (
+                NuclioIngressAddTemplatedIngressModes.never
             )
+            self._enrich_sidecar_probe_ports()
 
-        self._ensure_reverse_proxy_configurations()
-        self._configure_application_sidecar()
-
-        # We only allow accessing the application via the API Gateway
-        self.spec.add_templated_ingress_host_mode = (
-            NuclioIngressAddTemplatedIngressModes.never
-        )
-        self._enrich_sidecar_probe_ports()
-
-        super().deploy(
-            project=project,
-            tag=tag,
-            verbose=verbose,
-            builder_env=builder_env,
-        )
-        logger.info(
-            "Successfully deployed function.",
-        )
+            super().deploy(
+                project=project,
+                tag=tag,
+                verbose=verbose,
+                builder_env=builder_env,
+            )
+            logger.info(
+                "Successfully deployed function.",
+            )
+        finally:
+            # Restore the original local source path so subsequent deploys re-upload automatically
+            if artifact_uri and original_local_source:
+                self.spec.build.source = original_local_source
 
         # Restore the source in case it was removed to make nuclio not consider it when building
         if not self.spec.build.source and self.status.application_source:
@@ -572,9 +598,9 @@ class ApplicationRuntime(nuclio_function.RemoteRuntime):
         source,
         workdir=None,
         pull_at_runtime: bool = False,
-        target_dir: typing.Optional[str] = None,
+        target_dir: str | None = None,
     ):
-        """load the code from git/tar/zip archive at build
+        """load the code from git/tar/zip archive at build or runtime
 
         :param source:          valid absolute path or URL to git, zip, or tar file, e.g.
                                 git://github.com/mlrun/something.git
@@ -582,20 +608,13 @@ class ApplicationRuntime(nuclio_function.RemoteRuntime):
                                 note path source must exist on the image or exist locally when run is local
                                 (it is recommended to use 'workdir' when source is a filepath instead)
         :param workdir:         working dir relative to the archive root (e.g. './subdir') or absolute to the image root
-        :param pull_at_runtime: currently not supported, source must be loaded into the image during the build process
-        :param target_dir:      target dir on runtime pod or repo clone / archive extraction
+        :param pull_at_runtime: load the archive into the container at runtime (via init container) vs on build
+        :param target_dir:      target dir on runtime pod for repo clone / archive extraction
         """
-        if pull_at_runtime:
-            logger.warning(
-                f"{pull_at_runtime=} is currently not supported for application runtime "
-                "and will be overridden to False",
-                pull_at_runtime=pull_at_runtime,
-            )
-
         self._configure_mlrun_build_with_source(
             source=source,
             workdir=workdir,
-            pull_at_runtime=False,
+            pull_at_runtime=pull_at_runtime,
             target_dir=target_dir,
         )
 
@@ -633,15 +652,15 @@ class ApplicationRuntime(nuclio_function.RemoteRuntime):
 
     def create_api_gateway(
         self,
-        name: typing.Optional[str] = None,
-        path: typing.Optional[str] = None,
+        name: str | None = None,
+        path: str | None = None,
         direct_port_access: bool = False,
         authentication_mode: schemas.APIGatewayAuthenticationMode = None,
-        authentication_creds: typing.Optional[tuple[str, str]] = None,
-        ssl_redirect: typing.Optional[bool] = None,
+        authentication_creds: tuple[str, str] | None = None,
+        ssl_redirect: bool | None = None,
         set_as_default: bool = False,
-        gateway_timeout: typing.Optional[int] = None,
-        port: typing.Optional[int] = None,
+        gateway_timeout: int | None = None,
+        port: int | None = None,
     ):
         """
         Create the application API gateway. Once the application is deployed, the API gateway can be created.
@@ -761,13 +780,13 @@ class ApplicationRuntime(nuclio_function.RemoteRuntime):
     def invoke(
         self,
         path: str = "",
-        body: typing.Optional[typing.Union[str, bytes, dict, list]] = None,
-        method: typing.Optional[str] = None,
-        headers: typing.Optional[dict] = None,
+        body: typing.Union[str, bytes, dict, list] | None = None,
+        method: str | None = None,
+        headers: dict | None = None,
         force_external_address: bool = False,
         auth_info: schemas.AuthInfo = None,
-        mock: typing.Optional[bool] = None,
-        credentials: typing.Optional[tuple[str, str]] = None,
+        mock: bool | None = None,
+        credentials: tuple[str, str] | None = None,
         **http_client_kwargs,
     ):
         self._sync_api_gateway()
@@ -879,7 +898,7 @@ class ApplicationRuntime(nuclio_function.RemoteRuntime):
 
     def _build_application_image(
         self,
-        builder_env: typing.Optional[dict] = None,
+        builder_env: dict | None = None,
         force_build: bool = False,
         watch=True,
         with_mlrun=None,
@@ -1096,20 +1115,19 @@ class ApplicationRuntime(nuclio_function.RemoteRuntime):
                 "Empty probe configuration: at least one parameter must be set"
             )
 
-    def _upload_source_as_artifact(self) -> None:
+    def _upload_source_as_artifact(self) -> tuple[str | None, str | None]:
         """
         Upload local single-file source as an MLRun artifact.
 
-        If spec.build.source is a local file path, upload it to the artifact store
-        and update spec.build.source with the artifact URI.
+        If spec.build.source is a local file path, upload it to the artifact store and update spec.build.source
+        with the artifact URI for the server.
+
+        :returns: (original_local_path, artifact_uri) if uploaded, (None, None) otherwise.
+                  deploy() uses these to restore the local path in a finally block.
         """
         source = self.spec.build.source
-        if not source:
-            return
-
-        # Only upload if it's a local single file
-        if not self._is_single_local_file(source):
-            return
+        if not source or not self._is_single_local_file(source):
+            return None, None
 
         project_name = self.metadata.project
         if not project_name:
@@ -1145,8 +1163,8 @@ class ApplicationRuntime(nuclio_function.RemoteRuntime):
                 f"Failed to upload source file '{source}' as artifact"
             ) from exc
 
-        # Update the source to point to the artifact URI
         self.spec.build.source = artifact.uri
+        return source, artifact.uri
 
     @staticmethod
     def _is_single_local_file(source: str) -> bool:

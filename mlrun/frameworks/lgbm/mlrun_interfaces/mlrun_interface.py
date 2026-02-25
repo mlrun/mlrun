@@ -15,7 +15,7 @@
 from abc import ABC
 from collections.abc import Callable
 from types import ModuleType
-from typing import Optional, Union
+from typing import Union
 
 import lightgbm as lgb
 
@@ -68,7 +68,7 @@ class LGBMMLRunInterface(MLRunInterface, ABC):
     @classmethod
     def add_interface(
         cls,
-        obj: Optional[ModuleType] = None,
+        obj: ModuleType | None = None,
         restoration: LGBMTypes.MLRunInterfaceRestorationType = None,
     ):
         """
@@ -168,10 +168,10 @@ class LGBMMLRunInterface(MLRunInterface, ABC):
     def configure_logging(
         context: mlrun.MLClientCtx = None,
         log_model: bool = True,
-        model_handler_kwargs: Optional[dict] = None,
-        log_model_kwargs: Optional[dict] = None,
+        model_handler_kwargs: dict | None = None,
+        log_model_kwargs: dict | None = None,
         log_training: bool = True,
-        mlrun_logging_callback_kwargs: Optional[dict] = None,
+        mlrun_logging_callback_kwargs: dict | None = None,
     ):
         """
         Configure the logging of the training API in LightGBM to log the training and model into MLRun. Each `train`

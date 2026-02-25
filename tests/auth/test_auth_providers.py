@@ -47,7 +47,9 @@ def test_ig_token_provider_successful_flow(encoded_jwt_token):
     encoded_jwt, iat, exp = encoded_jwt_token
 
     with patch.object(
-        mlrun.auth.utils, "load_offline_token", return_value="offline-token"
+        mlrun.auth.utils,
+        "load_offline_token",
+        return_value=("offline-token", "offline-token-name"),
     ):
         with patch("mlrun.utils.HTTPSessionWithRetry") as mock_session:
             mock_session_instance = mock_session.return_value
@@ -224,6 +226,33 @@ def test_authenticated_user_id():
     assert provider.authenticated_user_id == "test-user"
 
 
+def test_authenticated_username():
+    """Test that authenticated_username extracts preferred_username from JWT."""
+    provider = IGTokenProvider.__new__(IGTokenProvider)
+    provider._token = jwt.encode(
+        {"sub": "test-user", "preferred_username": "admin"},
+        key="test-secret",
+        algorithm="HS256",
+    )
+    assert provider.authenticated_username == "admin"
+
+
+def test_authenticated_username_missing_claim():
+    """Test that authenticated_username returns None when claim is missing."""
+    provider = IGTokenProvider.__new__(IGTokenProvider)
+    provider._token = jwt.encode(
+        {"sub": "test-user"}, key="test-secret", algorithm="HS256"
+    )
+    assert provider.authenticated_username is None
+
+
+def test_authenticated_username_no_token():
+    """Test that authenticated_username returns None when no token is set."""
+    provider = IGTokenProvider.__new__(IGTokenProvider)
+    provider._token = None
+    assert provider.authenticated_username is None
+
+
 @pytest.mark.parametrize(
     "runtime_kind,timeout,backoff,expect_timeout_retry",
     [
@@ -280,9 +309,12 @@ def test_runtime_retry_succeeds_after_initial_failures(encoded_jwt_token, monkey
 
     monkeypatch.setenv("MLRUN_RUNTIME_KIND", "job")
     monkeypatch.setattr("mlrun.mlconf.httpdb.http.verify", True)
-    # Use a timeout longer than backoff (10 seconds) to allow retries
+    # Keep runtime retry behavior but avoid real sleep in tests.
     monkeypatch.setattr(
-        "mlrun.mlconf.auth_with_oauth_token.runtime_token_refresh_timeout", 30
+        "mlrun.mlconf.auth_with_oauth_token.runtime_token_refresh_timeout", 1
+    )
+    monkeypatch.setattr(
+        "mlrun.mlconf.auth_with_oauth_token.runtime_token_refresh_backoff", 0
     )
 
     provider = IGTokenProvider.__new__(IGTokenProvider)
@@ -291,7 +323,7 @@ def test_runtime_retry_succeeds_after_initial_failures(encoded_jwt_token, monkey
     provider._token_expiry_time = None
     provider._max_retries = 2
     provider._token_endpoint = "http://example.com"
-    provider._timeout = 5
+    provider._timeout = 1
 
     # Track number of calls
     call_count = [0]
@@ -300,9 +332,9 @@ def test_runtime_retry_succeeds_after_initial_failures(encoded_jwt_token, monkey
         call_count[0] += 1
         if call_count[0] <= 2:
             # First 2 calls return old/invalid token
-            return "old-invalid-token"
+            return "old-invalid-token", "old-token"
         # Third call returns new valid token
-        return "new-valid-token"
+        return "new-valid-token", "new-token"
 
     monkeypatch.setattr("mlrun.auth.utils.load_offline_token", mock_load_offline_token)
 

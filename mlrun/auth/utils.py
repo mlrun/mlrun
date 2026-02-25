@@ -35,9 +35,12 @@ class Claims:
 
     SUBJECT = "sub"
     EXPIRATION = "exp"
+    PREFERRED_USERNAME = "preferred_username"
 
 
-def load_offline_token(raise_on_error=True) -> typing.Optional[str]:
+def load_offline_token(
+    raise_on_error: bool = True,
+) -> tuple[str | None, str | None]:
     """
     Load the offline token from the environment variable or YAML file.
 
@@ -47,14 +50,17 @@ def load_offline_token(raise_on_error=True) -> typing.Optional[str]:
 
     :param raise_on_error: If True, raises an error when the offline token cannot be resolved.
                            If False, logs a warning instead.
-    :return: The offline token if found, otherwise None.
+    :return: A tuple containing the offline token and its resolved token name.
+             Returns (None, None) when token resolution fails.
     """
     if token_env := get_offline_token_from_env():
-        return token_env
+        return token_env, mlconf.auth_with_oauth_token.token_name or "default"
     return get_offline_token_from_file(raise_on_error=raise_on_error)
 
 
-def get_offline_token_from_file(raise_on_error: bool = True) -> typing.Optional[str]:
+def get_offline_token_from_file(
+    raise_on_error: bool = True,
+) -> tuple[str | None, str | None]:
     """
     Retrieve the offline token from a configured file.
 
@@ -63,11 +69,12 @@ def get_offline_token_from_file(raise_on_error: bool = True) -> typing.Optional[
     raises an error or logs a warning based on the `raise_on_error` parameter.
 
     :param raise_on_error: Whether to raise an error or log a warning on failure.
-    :return: The offline token if found, otherwise None.
+    :return: A tuple containing the offline token and its resolved token name.
+             Returns (None, None) when token resolution fails.
     """
     tokens = load_secret_tokens_from_file(raise_on_error=raise_on_error)
     if not tokens:
-        return None
+        return None, None
     return parse_offline_token_data(tokens=tokens, raise_on_error=raise_on_error)
 
 
@@ -113,7 +120,7 @@ def load_secret_tokens_from_file(
 
 def read_secret_tokens_file(
     raise_on_error: bool = True,
-) -> typing.Optional[dict[str, typing.Any]]:
+) -> dict[str, typing.Any] | None:
     """
     Read and parse the secret tokens file.
 
@@ -160,7 +167,7 @@ def read_secret_tokens_file(
 
 def parse_offline_token_data(
     tokens: list[dict[str, typing.Any]], raise_on_error: bool = True
-) -> typing.Optional[str]:
+) -> tuple[str | None, str | None]:
     """
     Extract the correct offline token entry from the parsed tokens list.
 
@@ -181,26 +188,27 @@ def parse_offline_token_data(
 
     :param tokens: List of token dictionaries loaded from the YAML file.
     :param raise_on_error: Whether to raise an error or log a warning on failure.
-    :return: The resolved offline token, or None if resolution fails.
+    :return: A tuple of (resolved offline token, resolved token name),
+             or (None, None) if resolution fails.
     """
     if not isinstance(tokens, list) or not tokens:
         mlrun.utils.helpers.raise_or_log_error(
             "Invalid token file: 'secretTokens' must be a non-empty list",
             raise_on_error,
         )
-        return None
+        return None, None
 
-    name = mlconf.auth_with_oauth_token.token_name or "default"
-    matches = [t for t in tokens if t.get("name") == name] or (
+    default_token_name = mlconf.auth_with_oauth_token.token_name or "default"
+    matches = [t for t in tokens if t.get("name") == default_token_name] or (
         [tokens[0]] if not mlconf.auth_with_oauth_token.token_name else []
     )
 
     if len(matches) != 1:
         mlrun.utils.helpers.raise_or_log_error(
-            f"Failed to resolve a unique token. Found {len(matches)} entries for name '{name}'",
+            f"Failed to resolve a unique token. Found {len(matches)} entries for name '{default_token_name}'",
             raise_on_error,
         )
-        return None
+        return None, None
 
     token_value = matches[0].get("token")
     if not token_value:
@@ -208,12 +216,13 @@ def parse_offline_token_data(
             "Resolved token entry missing 'token' field",
             raise_on_error,
         )
-        return None
+        return None, None
 
-    return token_value
+    token_name = matches[0].get("name")
+    return token_value, token_name
 
 
-def get_offline_token_from_env() -> typing.Optional[str]:
+def get_offline_token_from_env() -> str | None:
     """
     Retrieve the offline token from the environment variable.
 
@@ -324,9 +333,7 @@ def extract_and_validate_tokens_info(
     return token_values
 
 
-def resolve_jwt_subject(
-    token: str, raise_on_error: bool = True
-) -> typing.Optional[str]:
+def resolve_jwt_subject(token: str, raise_on_error: bool = True) -> str | None:
     """
     Extract the 'sub' (subject/user ID) claim from a JWT token.
 
@@ -342,6 +349,28 @@ def resolve_jwt_subject(
         # ability to verify its signature here.
         return _decode_token_unverified(token).get(Claims.SUBJECT)
     except jwt.PyJWTError as exc:
+        mlrun.utils.helpers.raise_or_log_error(
+            f"Failed to decode JWT token: {exc}", raise_on_error
+        )
+        return None
+
+
+def resolve_jwt_username(token: str, raise_on_error: bool = False) -> str | None:
+    """
+    Extract the 'preferred_username' claim from a JWT token.
+
+    The token is decoded without signature verification since it has already
+    been verified earlier during the authentication process.
+
+    :param token: The JWT token string.
+    :param raise_on_error: Whether to raise an error or log a warning on failure.
+    :return: The 'preferred_username' claim value, or None if not present or extraction fails.
+    """
+    try:
+        # This method is used from the client side after receiving this token from the server, there's no need or
+        # ability to verify its signature here.
+        return _decode_token_unverified(token).get(Claims.PREFERRED_USERNAME)
+    except mlrun.errors.MLRunInvalidArgumentError as exc:
         mlrun.utils.helpers.raise_or_log_error(
             f"Failed to decode JWT token: {exc}", raise_on_error
         )

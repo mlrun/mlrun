@@ -15,6 +15,7 @@ __pycache__/
 
 # Test results and temporary test files
 tests/test_results/
+tests/render_test_outputs/
 tests/temp*
 tests/*.pkl
 tests/project.yaml

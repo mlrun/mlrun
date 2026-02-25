@@ -15,7 +15,6 @@
 import pathlib
 import tempfile
 from random import randint, random
-from typing import Optional
 
 import lightgbm as lgb
 import mlflow
@@ -544,7 +543,7 @@ def test_import_artifact(rundb_mock, handler):
     mlflow.environment_variables.MLFLOW_EXPERIMENT_NAME.unset()
 
 
-def _validate_run(run: mlrun.run, run_id: Optional[str] = None):
+def _validate_run(run: mlrun.run, run_id: str | None = None):
     # in order to tell mlflow where to look for logged run for comparison
     client = mlflow.MlflowClient()
     if run_id:

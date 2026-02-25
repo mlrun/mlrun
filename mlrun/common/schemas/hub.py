@@ -13,7 +13,6 @@
 # limitations under the License.
 
 from datetime import UTC, datetime
-from typing import Optional
 
 import deepdiff
 from pydantic.v1 import BaseModel, Extra, Field
@@ -29,9 +28,9 @@ from mlrun.common.schemas.object import ObjectKind, ObjectSpec, ObjectStatus
 class HubObjectMetadata(BaseModel):
     name: str
     description: str = ""
-    labels: Optional[dict] = {}
-    updated: Optional[datetime]
-    created: Optional[datetime]
+    labels: dict | None = {}
+    updated: datetime | None
+    created: datetime | None
 
     class Config:
         extra = Extra.allow
@@ -47,14 +46,14 @@ class HubSourceType(mlrun.common.types.StrEnum):
 class HubSourceSpec(ObjectSpec):
     path: str  # URL to base directory, should include schema (s3://, etc...)
     channel: str
-    credentials: Optional[dict] = {}
+    credentials: dict | None = {}
 
 
 class HubSource(BaseModel):
     kind: ObjectKind = Field(ObjectKind.hub_source, const=True)
     metadata: HubObjectMetadata
     spec: HubSourceSpec
-    status: Optional[ObjectStatus] = ObjectStatus(state="created")
+    status: ObjectStatus | None = ObjectStatus(state="created")
 
     def get_full_uri(self, relative_path, object_type):
         return f"{self.spec.path}/{object_type}/{self.spec.channel}/{relative_path}"
@@ -109,7 +108,7 @@ class IndexedHubSource(BaseModel):
 class HubItemMetadata(HubObjectMetadata):
     source: HubSourceType = HubSourceType.functions
     version: str
-    tag: Optional[str]
+    tag: str | None
 
     def get_relative_path(self) -> str:
         # This is needed since the hub deployment script modifies the paths to use _ instead of -.

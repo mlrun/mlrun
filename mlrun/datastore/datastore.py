@@ -14,7 +14,6 @@
 
 import warnings
 from functools import partial
-from typing import Optional
 
 from mergedeep import merge
 
@@ -211,7 +210,7 @@ class StoreManager:
         key="",
         project="",
         allow_empty_resources=None,
-        secrets: Optional[dict] = None,
+        secrets: dict | None = None,
         **kwargs,
     ) -> DataItem:
         meta = artifact_url = None
@@ -238,9 +237,9 @@ class StoreManager:
     def _get_or_create_remote_client(
         self,
         url,
-        secrets: Optional[dict] = None,
+        secrets: dict | None = None,
         project_name="",
-        cache: Optional[dict] = None,
+        cache: dict | None = None,
         schema_to_class: callable = schema_to_store,
         **kwargs,
     ) -> (BaseRemoteClient, str, str):
@@ -297,7 +296,7 @@ class StoreManager:
     def get_or_create_store(
         self,
         url,
-        secrets: Optional[dict] = None,
+        secrets: dict | None = None,
         project_name="",
     ) -> (DataStore, str, str):
         datastore, sub_path, url = self._get_or_create_remote_client(
@@ -316,9 +315,9 @@ class StoreManager:
     def get_or_create_model_provider(
         self,
         url,
-        secrets: Optional[dict] = None,
+        secrets: dict | None = None,
         project_name="",
-        default_invoke_kwargs: Optional[dict] = None,
+        default_invoke_kwargs: dict | None = None,
         raise_missing_schema_exception=True,
     ) -> ModelProvider:
         schema_to_provider_with_raise = partial(
@@ -346,8 +345,8 @@ class StoreManager:
         url,
         project="",
         allow_empty_resources=None,
-        secrets: Optional[dict] = None,
-        default_invoke_kwargs: Optional[dict] = None,
+        secrets: dict | None = None,
+        default_invoke_kwargs: dict | None = None,
         raise_missing_schema_exception=True,
     ) -> ModelProvider:
         if mlrun.datastore.is_store_uri(url):

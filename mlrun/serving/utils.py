@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import inspect
-from typing import Optional
+from http import HTTPMethod
 
 from mlrun.utils import get_in, update_in
 
@@ -44,6 +44,25 @@ def _update_result_body(result_path, event_body, result):
     return event_body
 
 
+class _MappedBody(dict):
+    """Marker dict subclass for body_map-transformed event bodies.
+
+    When a downstream :class:`TaskStep` receives a body that is an instance
+    of ``_MappedBody``, it unpacks the dict as ``**kwargs`` to the handler
+    instead of passing it as a single positional argument.  This allows
+    handler functions to declare named parameters that match the body_map
+    keys, e.g.::
+
+        body_map = {"book": "$.age"}
+
+
+        def handler(book):
+            return f"{book} - this is the book"
+    """
+
+    pass
+
+
 class StepToDict:
     """auto serialization of graph steps to a python dictionary"""
 
@@ -58,8 +77,8 @@ class StepToDict:
 
     def to_dict(
         self,
-        fields: Optional[list] = None,
-        exclude: Optional[list] = None,
+        fields: list | None = None,
+        exclude: list | None = None,
         strip: bool = False,
     ):
         """convert the step object to a python dictionary"""
@@ -113,8 +132,19 @@ class RouterToDict(StepToDict):
 
     def to_dict(
         self,
-        fields: Optional[list] = None,
-        exclude: Optional[list] = None,
+        fields: list | None = None,
+        exclude: list | None = None,
         strip: bool = False,
     ):
         return super().to_dict(exclude=["routes"], strip=strip)
+
+
+def _combine_serving_endpoint_key(method: HTTPMethod, path: str) -> str:
+    """Combine method and path to create a unique endpoint key"""
+    return f"{method.value}:{path}"
+
+
+def _split_serving_endpoint_key(endpoint_key: str) -> tuple[HTTPMethod, str]:
+    """Split the endpoint key into method and path"""
+    method_str, path = endpoint_key.split(":", 1)
+    return HTTPMethod(method_str), path

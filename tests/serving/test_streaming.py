@@ -15,15 +15,22 @@
 """Tests for streaming support in serving graphs."""
 
 import inspect
+import unittest.mock
 
 import pytest
+from storey.dtypes import StreamingError
 
 import mlrun
 import mlrun.errors
+from mlrun.datastore.model_provider.mock_model_provider import MockModelProvider
+from mlrun.datastore.model_provider.model_provider import ModelProvider
+from mlrun.runtimes.nuclio.serving import ServingSpec
+from mlrun.serving import Model
 from mlrun.serving.server import (
     v2_serving_handler,
     v2_serving_streaming_handler,
 )
+from mlrun.serving.states import LLModel
 
 
 class TestServingSpecStreaming:
@@ -36,8 +43,6 @@ class TestServingSpecStreaming:
 
     def test_streaming_in_dict_fields(self):
         """Test that streaming is included in _dict_fields for serialization."""
-        from mlrun.runtimes.nuclio.serving import ServingSpec
-
         assert "streaming" in ServingSpec._dict_fields
 
     def test_streaming_serialization(self):
@@ -425,9 +430,9 @@ class TestStreamingErrors:
             # Result should be a generator
             assert inspect.isgenerator(result), "Expected generator result"
 
-            # Collect chunks until error
+            # Collect chunks until error - consumer gets StreamingError wrapping the message
             chunks = []
-            with pytest.raises(ValueError, match="Generator error mid-stream"):
+            with pytest.raises(StreamingError, match="Generator error mid-stream"):
                 for chunk in result:
                     chunks.append(chunk)
 
@@ -462,6 +467,35 @@ class TestStreamingErrors:
         finally:
             server.wait_for_completion()
 
+    def test_streaming_error_produces_error_event_through_collector(self):
+        """Test that a streaming generator error produces an error dict event via Collector.
+
+        When a streaming step errors mid-stream, the Collector should emit
+        an event with body={"error": "..."} matching non-streaming error format.
+        """
+        function = mlrun.new_function("test", kind="serving")
+        graph = function.set_topology("flow", engine="async")
+
+        graph.to(
+            name="error_streamer",
+            class_name="ErrorStreamingStep",
+        )
+        graph.add_step(
+            name="collector",
+            class_name="storey.Collector",
+            after="error_streamer",
+        ).respond()
+
+        server = function.to_mock_server()
+        try:
+            resp = server.test("/", body="test")
+            assert isinstance(resp, dict), f"Expected error dict, got {type(resp)}"
+            assert "error" in resp, f"Expected 'error' key in response: {resp}"
+            assert "ValueError" in resp["error"]
+            assert "Generator error mid-stream" in resp["error"]
+        finally:
+            server.wait_for_completion()
+
 
 class TestStreamingGenerator:
     """Tests for test() returning a generator when streaming is enabled."""
@@ -477,9 +511,9 @@ class TestStreamingGenerator:
         server = function.to_mock_server()
         try:
             result = server.test("/", body="test")
-            assert inspect.isgenerator(
-                result
-            ), "test() should return a generator for streaming"
+            assert inspect.isgenerator(result), (
+                "test() should return a generator for streaming"
+            )
 
             chunks = list(result)
             assert chunks == ["test_chunk_0", "test_chunk_1", "test_chunk_2"]
@@ -492,7 +526,6 @@ class TestModelIsStreaming:
 
     def test_is_streaming_detects_generator_function(self):
         """Test that is_streaming() returns True for generator predict()."""
-        from mlrun.serving import Model
 
         class GeneratorModel(Model):
             def predict(self, body, **kwargs):
@@ -504,7 +537,6 @@ class TestModelIsStreaming:
 
     def test_is_streaming_detects_async_generator_function(self):
         """Test that is_streaming() returns True for async generator predict_async()."""
-        from mlrun.serving import Model
 
         class AsyncGeneratorModel(Model):
             def predict(self, body, **kwargs):
@@ -519,7 +551,6 @@ class TestModelIsStreaming:
 
     def test_is_streaming_returns_false_for_regular_predict(self):
         """Test that is_streaming() returns False for non-generator predict()."""
-        from mlrun.serving import Model
 
         class RegularModel(Model):
             def predict(self, body, **kwargs):
@@ -534,7 +565,6 @@ class TestModelIsStreaming:
         This tests the documented use case where predict() returns a generator
         from an external source without being a generator function itself.
         """
-        from mlrun.serving import Model
 
         def external_streaming_api(body):
             """Simulates an external API that returns a generator."""
@@ -563,3 +593,92 @@ class TestModelIsStreaming:
         result = model.predict("test")
         assert inspect.isgenerator(result)
         assert list(result) == ["test_chunk_0", "test_chunk_1", "test_chunk_2"]
+
+
+def _make_mock_streaming_provider():
+    """Create a MockModelProvider instance without a real parent."""
+    provider = MockModelProvider.__new__(MockModelProvider)
+    provider.default_invoke_kwargs = {}
+    return provider
+
+
+class _MockNonStreamingProvider(ModelProvider):
+    """A mock model provider that does NOT support streaming."""
+
+    supports_streaming = False
+
+    def __init__(self):
+        self.default_invoke_kwargs = {}
+
+
+class TestLLModelStreaming:
+    """Tests for LLModel streaming integration with model providers."""
+
+    _sentinel = object()
+
+    @classmethod
+    def _make_model(cls, streaming_server=True, provider=_sentinel):
+        model = LLModel(name="test")
+        model._streaming_enabled = streaming_server
+        model.model_provider = (
+            _make_mock_streaming_provider() if provider is cls._sentinel else provider
+        )
+        return model
+
+    def test_is_streaming_true(self):
+        """is_streaming returns True when server.streaming and provider both support it."""
+        assert self._make_model().is_streaming() is True
+
+    @pytest.mark.parametrize(
+        "streaming_server, provider",
+        [
+            (False, _make_mock_streaming_provider()),
+            (True, _MockNonStreamingProvider()),
+            (True, None),
+        ],
+        ids=["server-off", "provider-unsupported", "no-provider"],
+    )
+    def test_is_streaming_false(self, streaming_server, provider):
+        """is_streaming returns False when any precondition is missing."""
+        assert self._make_model(streaming_server, provider).is_streaming() is False
+
+    def test_predict_returns_generator_when_streaming(self):
+        """predict() returns a generator of tokens when streaming is active."""
+        model = self._make_model()
+        result = model.predict(
+            body={"input": "hello"},
+            messages=[{"role": "user", "content": "hello"}],
+            llm_prompt_artifact=unittest.mock.MagicMock(
+                spec=mlrun.artifacts.LLMPromptArtifact
+            ),
+        )
+        assert inspect.isgenerator(result)
+        tokens = list(result)
+        assert len(tokens) > 0
+        full_text = "".join(tokens)
+        assert "mock model provider" in full_text.lower()
+
+    def test_run_async_returns_async_generator_when_streaming(self):
+        """run_async() returns an async generator directly when streaming is active."""
+        model = self._make_model()
+        model.invocation_artifact = unittest.mock.MagicMock(
+            spec=mlrun.artifacts.LLMPromptArtifact
+        )
+        model._artifact_were_loaded = True
+        messages = [{"role": "user", "content": "hello"}]
+        model.enrich_prompt = lambda body, origin, llm_prompt_artifact: (
+            messages,
+            {},
+        )
+        result = model.run_async(body={"input": "hello"}, path="/")
+        assert inspect.isasyncgen(result)
+
+    def test_init_raises_when_provider_does_not_support_streaming(self):
+        """init() raises when streaming is enabled but provider doesn't support it."""
+        model = self._make_model(provider=_MockNonStreamingProvider())
+        model._execution_mechanism = "asyncio"
+        with pytest.raises(
+            mlrun.errors.MLRunInvalidArgumentError,
+            match="does not support streaming",
+        ):
+            model.init()

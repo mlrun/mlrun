@@ -14,7 +14,6 @@
 
 import tempfile
 from pathlib import Path
-from typing import Union
 
 import pytest
 
@@ -33,7 +32,7 @@ from mlrun.package.utils import StructFileSupportedFormat
     "file_format",
     StructFileSupportedFormat.get_all_formats(),
 )
-def test_formatter(obj: Union[list, dict], file_format: str):
+def test_formatter(obj: list | dict, file_format: str):
     """
     Test the formatters for writing and reading python objects.
 

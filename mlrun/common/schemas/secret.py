@@ -13,7 +13,6 @@
 # limitations under the License.
 
 from datetime import datetime
-from typing import Optional
 
 from pydantic.v1 import BaseModel, Field
 
@@ -29,7 +28,7 @@ class SecretProviderName(mlrun.common.types.StrEnum):
 
 class SecretsData(BaseModel):
     provider: SecretProviderName = Field(SecretProviderName.vault)
-    secrets: Optional[dict] = {}
+    secrets: dict | None = {}
 
 
 class AuthSecretData(BaseModel):
@@ -47,7 +46,7 @@ class AuthSecretData(BaseModel):
 
 class SecretKeysData(BaseModel):
     provider: SecretProviderName = Field(SecretProviderName.vault)
-    secret_keys: Optional[list] = []
+    secret_keys: list | None = []
 
 
 class SecretToken(BaseModel):
@@ -71,5 +70,22 @@ class ListSecretTokensResponse(BaseModel):
 
 
 class DeleteSecretTokenResponse(BaseModel):
-    # False if token deletion fails
-    deleted: bool = True
+    """Response for single token deletion."""
+
+    deleted: bool = Field(
+        default=True,
+        description="True if token was deleted, False if token was not found",
+    )
+
+
+class DeleteSecretTokensResponse(BaseModel):
+    """Response for bulk token deletion."""
+
+    deleted_count: int = Field(
+        default=0,
+        description="Number of tokens successfully deleted",
+    )
+    failed_tokens: list[str] = Field(
+        default_factory=list,
+        description="List of token names that failed to delete",
+    )

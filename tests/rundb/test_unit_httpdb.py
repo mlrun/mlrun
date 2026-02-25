@@ -29,7 +29,7 @@ import mlrun.db.httpdb
 from mlrun.common.types import AuthenticationMode
 
 
-class SomeEnumClass(str, enum.Enum):
+class SomeEnumClass(enum.StrEnum):
     value1 = "value1"
     value2 = "value2"
 
@@ -316,9 +316,9 @@ def test_watch_logs_continue():
         # the first log line is printed with a newline
         assert newprint.getvalue() == "Firstrow\nSecondrowThirdrowSmiley😆�LastRow"
 
-    assert (
-        adapter.call_count == len(log_lines) + 1
-    ), "should have called the adapter once per log line, and one more time at the end of log"
+    assert adapter.call_count == len(log_lines) + 1, (
+        "should have called the adapter once per log line, and one more time at the end of log"
+    )
 
 
 @pytest.mark.parametrize(

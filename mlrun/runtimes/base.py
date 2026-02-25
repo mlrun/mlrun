@@ -14,11 +14,10 @@
 import enum
 import http
 import re
-import typing
 import warnings
 from collections.abc import Callable
 from os import environ
-from typing import Optional, Union
+from typing import Union
 
 import requests.exceptions
 from nuclio.build import mlrun_footer
@@ -286,33 +285,32 @@ class BaseRuntime(ModelObj):
 
     def run(
         self,
-        runspec: Optional[
-            Union["mlrun.run.RunTemplate", "mlrun.run.RunObject", dict]
-        ] = None,
-        handler: Optional[Union[str, Callable]] = None,
-        name: Optional[str] = "",
-        project: Optional[str] = "",
-        params: Optional[dict] = None,
-        inputs: Optional[dict[str, str]] = None,
-        out_path: Optional[str] = "",
-        workdir: Optional[str] = "",
-        artifact_path: Optional[str] = "",
-        watch: Optional[bool] = True,
-        schedule: Optional[Union[str, mlrun.common.schemas.ScheduleCronTrigger]] = None,
-        hyperparams: Optional[dict[str, list]] = None,
-        hyper_param_options: Optional[HyperParamOptions] = None,
-        verbose: Optional[bool] = None,
-        scrape_metrics: Optional[bool] = None,
-        local: Optional[bool] = False,
-        local_code_path: Optional[str] = None,
-        auto_build: Optional[bool] = None,
-        param_file_secrets: Optional[dict[str, str]] = None,
-        notifications: Optional[list[mlrun.model.Notification]] = None,
-        returns: Optional[list[Union[str, dict[str, str]]]] = None,
-        state_thresholds: Optional[dict[str, int]] = None,
-        reset_on_run: Optional[bool] = None,
-        output_path: Optional[str] = "",
-        retry: Optional[Union[mlrun.model.Retry, dict]] = None,
+        runspec: Union["mlrun.run.RunTemplate", "mlrun.run.RunObject", dict]
+        | None = None,
+        handler: Union[str, Callable] | None = None,
+        name: str | None = "",
+        project: str | None = "",
+        params: dict | None = None,
+        inputs: dict[str, str | list | dict] | None = None,
+        out_path: str | None = "",
+        workdir: str | None = "",
+        artifact_path: str | None = "",
+        watch: bool | None = True,
+        schedule: Union[str, mlrun.common.schemas.ScheduleCronTrigger] | None = None,
+        hyperparams: dict[str, list] | None = None,
+        hyper_param_options: HyperParamOptions | None = None,
+        verbose: bool | None = None,
+        scrape_metrics: bool | None = None,
+        local: bool | None = False,
+        local_code_path: str | None = None,
+        auto_build: bool | None = None,
+        param_file_secrets: dict[str, str] | None = None,
+        notifications: list[mlrun.model.Notification] | None = None,
+        returns: "list[str | mlrun.LogHint] | None" = None,
+        state_thresholds: dict[str, int] | None = None,
+        reset_on_run: bool | None = None,
+        output_path: str | None = "",
+        retry: Union[mlrun.model.Retry, dict] | None = None,
         **launcher_kwargs,
     ) -> RunObject:
         """
@@ -325,7 +323,8 @@ class BaseRuntime(ModelObj):
         :param params:         Input parameters (dict).
         :param inputs:         Input objects to pass to the handler. Type hints can be given so the input will be parsed
                                during runtime from `mlrun.DataItem` to the given type hint. The type hint can be given
-                               in the key field of the dictionary after a colon, e.g: "<key> : <type_hint>".
+                               in the key field of the dictionary after a colon, e.g: "<key> : <type_hint>". An input
+                               can include a collection of inputs in a dict or list.
         :param out_path:       (deprecated) Default artifact output path.
         :param artifact_path:  (deprecated) Default artifact output path (will replace out_path).
         :param workdir:        Working directory of the executed job and the default path for artifact inputs
@@ -352,16 +351,21 @@ class BaseRuntime(ModelObj):
         :param param_file_secrets:  Dictionary of secrets to be used only for accessing the hyper-param parameter file.
                                     These secrets are only used locally and will not be stored anywhere
         :param notifications:       List of notifications to push when the run is completed
-        :param returns: List of log hints - configurations for how to log the returning values from the handler's run
-                        (as artifacts or results). The list's length must be equal to the amount of returning objects. A
-                        log hint may be given as:
+        :param returns:             List of log hints - configurations for how to log the returning values from the
+                                    handler's run (as artifacts or results). The list's length must be equal to the
+                                    amount of returning objects. A log hint may be given as:
 
-                        * A string of the key to use to log the returning value as result or as an artifact. To specify
-                          The artifact type, it is possible to pass a string in the following structure:
-                          "<key> : <type>". Available artifact types can be seen in `mlrun.ArtifactType`. If no
-                          artifact type is specified, the object's default artifact type will be used.
-                        * A dictionary of configurations to use when logging. Further info per object type and artifact
-                          type can be given there. The artifact key must appear in the dictionary as "key": "the_key".
+                                    * A ``LogHint`` object with the key and extra configurations.
+                                    * A "shortcut" string of the key to use to log the returning value as result or as
+                                      an artifact. To specify The artifact type, it is possible to pass a string in the
+                                      following structure: "<key> : <type>". Available artifact types can be seen in
+                                      `mlrun.ArtifactType`. If no artifact type is specified, the object's default
+                                      artifact type will be used. Packing kwargs can be passed alongside the artifact
+                                      type using square brackets:
+                                      ``"<key> : <type>[<kwarg1>=<value1>, <kwarg2>=<value2>]"``.
+                                      Itemization can also be specified before the key using
+                                      the following structure: "<unbundle-level> * <key>". If unbundle level is not
+                                      specified, the default is full unbundling.
         :param state_thresholds:    Dictionary of states to time thresholds. The state will be matched against the
                 k8s resource's status. The threshold should be a time string that conforms to timelength python package
                 standards and is at least 1 minute (-1 for infinite).
@@ -532,10 +536,10 @@ class BaseRuntime(ModelObj):
         mlrun.runtimes.utils.enrich_run_labels(
             meta.labels, [mlrun_constants.MLRunInternalLabels.owner]
         )
-        if runspec.spec.output_path:
-            runspec.spec.output_path = runspec.spec.output_path.replace(
-                "{{run.user}}", meta.labels[mlrun_constants.MLRunInternalLabels.owner]
-            )
+        runspec.spec.output_path = mlrun.runtimes.utils.resolve_run_user_template(
+            runspec.spec.output_path,
+            meta.labels.get(mlrun_constants.MLRunInternalLabels.owner),
+        )
 
         if db and self.kind != "handler":
             struct = self.to_dict()
@@ -601,11 +605,11 @@ class BaseRuntime(ModelObj):
 
     def _update_run_state(
         self,
-        resp: Optional[dict] = None,
+        resp: dict | None = None,
         task: RunObject = None,
-        err: Optional[Union[Exception, str]] = None,
+        err: Union[Exception, str] | None = None,
         run_format: mlrun.common.formatters.RunFormat = mlrun.common.formatters.RunFormat.full,
-    ) -> typing.Optional[dict]:
+    ) -> dict | None:
         """update the task state in the DB"""
         was_none = False
         if resp is None and task:
@@ -708,8 +712,8 @@ class BaseRuntime(ModelObj):
     def full_image_path(
         self,
         image=None,
-        client_version: Optional[str] = None,
-        client_python_version: Optional[str] = None,
+        client_version: str | None = None,
+        client_python_version: str | None = None,
     ):
         image = image or self.spec.image or ""
 
@@ -734,20 +738,20 @@ class BaseRuntime(ModelObj):
         handler=None,
         name: str = "",
         project: str = "",
-        params: Optional[dict] = None,
+        params: dict | None = None,
         hyperparams=None,
         selector="",
         hyper_param_options: HyperParamOptions = None,
-        inputs: Optional[dict] = None,
-        outputs: Optional[list] = None,
+        inputs: dict[str, str | list | dict] | None = None,
+        outputs: list | None = None,
         workdir: str = "",
         artifact_path: str = "",
         image: str = "",
-        labels: Optional[dict] = None,
+        labels: dict | None = None,
         use_db=True,
         verbose=None,
         scrape_metrics=False,
-        returns: Optional[list[Union[str, dict[str, str]]]] = None,
+        returns: "list[str | mlrun.LogHint] | None" = None,
         auto_build: bool = False,
     ):
         """Run a local or remote task.
@@ -763,7 +767,8 @@ class BaseRuntime(ModelObj):
                             see: :py:class:`~mlrun.model.HyperParamOptions`
         :param inputs:          Input objects to pass to the handler. Type hints can be given so the input will be
                                 parsed during runtime from `mlrun.DataItem` to the given type hint. The type hint can be
-                                given in the key field of the dictionary after a colon, e.g: "<key> : <type_hint>".
+                                given in the key field of the dictionary after a colon, e.g: "<key> : <type_hint>". An
+                                input can include a collection of inputs in a dict or list.
         :param outputs:         list of outputs which can pass in the workflow
         :param artifact_path:   default artifact output path (replace out_path)
         :param workdir:         working directory of the executed job and the default path for artifact inputs
@@ -772,18 +777,18 @@ class BaseRuntime(ModelObj):
         :param use_db:          save function spec in the db (vs the workflow file)
         :param verbose:         add verbose prints/logs
         :param scrape_metrics:  whether to add the `mlrun/scrape-metrics` label to this run's resources
-        :param returns:         List of configurations for how to log the returning values from the handler's run
-                                (as artifacts or results). The list's length must be equal to the amount of returning
-                                objects. A configuration may be given as:
+        :param returns:         List of log hints - configurations for how to log the returning values from the
+                                handler's run (as artifacts or results). The list's length must be equal to the
+                                amount of returning objects. A log hint may be given as:
 
-                                * A string of the key to use to log the returning value as result or as an artifact.
-                                  To specify The artifact type, it is possible to pass a string in the following
-                                  structure:
-                                  "<key> : <type>". Available artifact types can be seen in `mlrun.ArtifactType`. If no
-                                  artifact type is specified, the object's default artifact type will be used.
-                                * A dictionary of configurations to use when logging. Further info per object type and
-                                  artifact type can be given there. The artifact key must appear in the dictionary as
-                                  "key": "the_key".
+                                * A ``LogHint`` object with the key and extra configurations.
+                                * A "shortcut" string of the key to use to log the returning value as result or as
+                                  an artifact. To specify The artifact type, it is possible to pass a string in the
+                                  following structure: "<key> : <type>". Available artifact types can be seen in
+                                  `mlrun.ArtifactType`. If no artifact type is specified, the object's default
+                                  artifact type will be used. Itemization can also be specified before the key using
+                                  the following structure: "<unbundle-level> * <key>". If unbundle level is not
+                                  specified, the default is full unbundling.
         :param auto_build:      when set to True and the function require build it will be built on the first
                                 function run, use only if you dont plan on changing the build config between runs
         :return: mlrun_pipelines.models.PipelineNodeWrapper
@@ -863,10 +868,10 @@ class BaseRuntime(ModelObj):
 
     def with_requirements(
         self,
-        requirements: Optional[list[str]] = None,
+        requirements: list[str] | None = None,
         overwrite: bool = False,
         prepare_image_for_deploy: bool = True,
-        requirements_file: Optional[str] = "",
+        requirements_file: str | None = "",
     ):
         """add package requirements from file or list to build spec.
 

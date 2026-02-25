@@ -14,7 +14,7 @@
 
 import importlib
 import os
-from typing import Any, Optional, Union
+from typing import Any, Union
 
 import mlrun.common.db.dialects
 import mlrun.errors
@@ -62,7 +62,7 @@ class DBUtil:
 
     def set_configurations(
         self,
-        config_items: Optional[Union[list[str], dict[str, Any]]] = None,
+        config_items: Union[list[str], dict[str, Any]] | None = None,
     ) -> None:
         items = config_items or self._DEFAULT_DB_CONFIGURATIONS
         keys = _to_keyset(items)
@@ -324,8 +324,8 @@ class UtilSQLite(DBUtil):
 
 
 def _to_keyset(
-    items: Optional[Union[list[str], dict[str, Any]]],
-) -> Optional[set[str]]:
+    items: Union[list[str], dict[str, Any]] | None,
+) -> set[str] | None:
     if items is None:
         return set()
     if isinstance(items, dict):

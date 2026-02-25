@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Optional
 
 import lightgbm as lgb
 
@@ -56,7 +55,7 @@ class LightGBMHandlers:
     def training_api_train(
         context: mlrun.MLClientCtx,
         algorithm_functionality: str,
-        model_name: Optional[str] = None,
+        model_name: str | None = None,
     ):
         algorithm_functionality = AlgorithmFunctionality(algorithm_functionality)
         params = get_params(algorithm_functionality=algorithm_functionality)
@@ -92,7 +91,7 @@ class LightGBMHandlers:
     def sklearn_api_train(
         context: mlrun.MLClientCtx,
         algorithm_functionality: str,
-        model_name: Optional[str] = None,
+        model_name: str | None = None,
     ):
         algorithm_functionality = AlgorithmFunctionality(algorithm_functionality)
         model = get_model(algorithm_functionality=algorithm_functionality)

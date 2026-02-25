@@ -21,6 +21,7 @@ import pytest
 import mlrun
 import mlrun.common.constants
 import mlrun.common.schemas
+import mlrun.errors
 import mlrun.runtimes
 import mlrun.utils
 from mlrun.common.runtimes.constants import ProbeTimeConfig, ProbeType
@@ -1107,6 +1108,44 @@ def test_upload_source_as_artifact_skip_non_local(source):
 
     # Verify source remains unchanged
     assert fn.spec.build.source == source
+
+
+def test_set_probe_without_health_check_raises_error():
+    """Test that setting a probe via config with no health check param raises an error"""
+    fn: mlrun.runtimes.ApplicationRuntime = mlrun.new_function(
+        "application-test", kind="application", image="mlrun/mlrun"
+    )
+
+    with pytest.raises(
+        mlrun.errors.MLRunInvalidArgumentError,
+        match="must have exactly one of.*httpGet.*exec.*tcpSocket.*grpc",
+    ):
+        fn.set_probe(
+            type="liveness",
+            config={
+                "initialDelaySeconds": 10,
+                "periodSeconds": 5,
+            },
+        )
+
+
+def test_set_probe_with_multiple_health_check_params_raises_error():
+    """Test that setting a probe with multiple health check keys raises an error"""
+    fn: mlrun.runtimes.ApplicationRuntime = mlrun.new_function(
+        "application-test", kind="application", image="mlrun/mlrun"
+    )
+
+    with pytest.raises(
+        mlrun.errors.MLRunInvalidArgumentError,
+        match="must have exactly one of.*httpGet.*exec.*tcpSocket.*grpc",
+    ):
+        fn.set_probe(
+            type="liveness",
+            config={
+                "httpGet": {"path": "/health", "port": 8080},
+                "exec": {"command": ["/bin/sh", "-c", "echo test"]},
+            },
+        )
 
 
 def test_upload_source_as_artifact_no_project_error():

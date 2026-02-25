@@ -285,9 +285,9 @@ class TestServingAPIHandler(tests.system.base.TestMLRunSystem):
             body={},
         )
         assert response is not None, "Handler should return a response"
-        assert (
-            response["matched_path"] == "/api/wildcard/v1/data"
-        ), "mlrun_request_path should reflect the exact request path"
+        assert response["matched_path"] == "/api/wildcard/v1/data", (
+            "mlrun_request_path should reflect the exact request path"
+        )
 
         # Verify a different nested path also routes correctly
         self._logger.debug("Invoking /api/wildcard/users/42")
@@ -296,8 +296,8 @@ class TestServingAPIHandler(tests.system.base.TestMLRunSystem):
             method="POST",
             body={},
         )
-        assert (
-            response2["matched_path"] == "/api/wildcard/users/42"
-        ), "mlrun_request_path should reflect the request path for a different sub-path"
+        assert response2["matched_path"] == "/api/wildcard/users/42", (
+            "mlrun_request_path should reflect the request path for a different sub-path"
+        )
 
         self._logger.info("Wildcard path API handler test passed")

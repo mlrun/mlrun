@@ -26,7 +26,7 @@ import mlrun.datastore
 
 
 def parse_kafka_url(
-    url: str, brokers: typing.Optional[typing.Union[list, str]] = None
+    url: str, brokers: typing.Union[list, str] | None = None
 ) -> tuple[str, list]:
     """Generating Kafka topic and adjusting a list of bootstrap servers.
 
@@ -71,7 +71,7 @@ def upload_tarball(source_dir, target, secrets=None):
 
 def filter_df_start_end_time(
     df: typing.Union[pd.DataFrame, typing.Iterator[pd.DataFrame]],
-    time_column: typing.Optional[str] = None,
+    time_column: str | None = None,
     start_time: pd.Timestamp = None,
     end_time: pd.Timestamp = None,
 ) -> typing.Union[pd.DataFrame, typing.Iterator[pd.DataFrame]]:
@@ -167,7 +167,7 @@ def _generate_sql_query_with_time_filter(
     return query, parse_dates
 
 
-def get_kafka_brokers_from_dict(options: dict, pop=False) -> typing.Optional[str]:
+def get_kafka_brokers_from_dict(options: dict, pop=False) -> str | None:
     get_or_pop = options.pop if pop else options.get
     kafka_brokers = get_or_pop("kafka_brokers", None)
     return kafka_brokers
@@ -215,7 +215,7 @@ def validate_additional_filters(additional_filters):
 
 
 class KafkaParameters:
-    def __init__(self, kwargs: typing.Optional[dict] = None):
+    def __init__(self, kwargs: dict | None = None):
         import kafka
 
         if kwargs is None:
@@ -284,7 +284,7 @@ class KafkaParameters:
         return self._get_config("admin")
 
     def sasl(
-        self, *, usr: typing.Optional[str] = None, pwd: typing.Optional[str] = None
+        self, *, usr: str | None = None, pwd: str | None = None
     ) -> dict[str, typing.Union[str, bool]]:
         res = self._kwargs.get("sasl", {})
         usr = usr or self._kwargs.get("sasl_plain_username")
@@ -297,7 +297,7 @@ class KafkaParameters:
             res["handshake"] = self._kwargs.get("sasl_handshake", True)
         return res
 
-    def tls(self, *, tls_enable: typing.Optional[bool] = None) -> dict[str, bool]:
+    def tls(self, *, tls_enable: bool | None = None) -> dict[str, bool]:
         res = self._kwargs.get("tls", {})
         tls_enable = (
             tls_enable if tls_enable is not None else self._kwargs.get("tls_enable")

@@ -15,7 +15,7 @@
 import os
 import shutil
 import zipfile
-from typing import Optional, Union
+from typing import Union
 
 import numpy as np
 import tensorflow as tf
@@ -73,17 +73,13 @@ class TFKerasModelHandler(DLModelHandler):
     def __init__(
         self,
         model: keras.Model = None,
-        model_path: Optional[str] = None,
-        model_name: Optional[str] = None,
-        model_format: Optional[str] = None,
+        model_path: str | None = None,
+        model_name: str | None = None,
+        model_format: str | None = None,
         context: mlrun.MLClientCtx = None,
-        modules_map: Optional[
-            Union[dict[str, Union[None, str, list[str]]], str]
-        ] = None,
-        custom_objects_map: Optional[
-            Union[dict[str, Union[str, list[str]]], str]
-        ] = None,
-        custom_objects_directory: Optional[str] = None,
+        modules_map: Union[dict[str, Union[None, str, list[str]]], str] | None = None,
+        custom_objects_map: Union[dict[str, Union[str, list[str]]], str] | None = None,
+        custom_objects_directory: str | None = None,
         save_traces: bool = False,
         **kwargs,
     ):
@@ -223,8 +219,8 @@ class TFKerasModelHandler(DLModelHandler):
 
     def set_labels(
         self,
-        to_add: Optional[dict[str, Union[str, int, float]]] = None,
-        to_remove: Optional[list[str]] = None,
+        to_add: dict[str, Union[str, int, float]] | None = None,
+        to_remove: list[str] | None = None,
     ):
         """
         Update the labels dictionary of this model artifact. There are required labels that cannot be edited or removed.
@@ -243,7 +239,7 @@ class TFKerasModelHandler(DLModelHandler):
     # TODO: output_path won't work well with logging artifacts. Need to look into changing the logic of 'log_artifact'.
     @without_mlrun_interface(interface=TFKerasMLRunInterface)
     def save(
-        self, output_path: Optional[str] = None, **kwargs
+        self, output_path: str | None = None, **kwargs
     ) -> Union[dict[str, Artifact], None]:
         """
         Save the handled model at the given output path. If a MLRun context is available, the saved model files will be
@@ -315,7 +311,7 @@ class TFKerasModelHandler(DLModelHandler):
 
         return artifacts if self._context is not None else None
 
-    def load(self, checkpoint: Optional[str] = None, **kwargs):
+    def load(self, checkpoint: str | None = None, **kwargs):
         """
         Load the specified model in this handler. If a checkpoint is required to be loaded, it can be given here
         according to the provided model path in the initialization of this handler. Additional parameters for the class
@@ -365,13 +361,13 @@ class TFKerasModelHandler(DLModelHandler):
 
     def to_onnx(
         self,
-        model_name: Optional[str] = None,
+        model_name: str | None = None,
         optimize: bool = True,
         input_signature: Union[
             list[tf.TensorSpec], list[np.ndarray], tf.TensorSpec, np.ndarray
         ] = None,
-        output_path: Optional[str] = None,
-        log: Optional[bool] = None,
+        output_path: str | None = None,
+        log: bool | None = None,
     ):
         """
         Convert the model in this handler to an ONNX model.

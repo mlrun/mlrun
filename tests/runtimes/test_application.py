@@ -1054,7 +1054,7 @@ def test_upload_source_as_artifact(tmp_path):
     with unittest.mock.patch(
         "mlrun.get_or_create_project", return_value=mock_project
     ) as mock_get_project:
-        fn._upload_source_as_artifact()
+        original_path, artifact_uri = fn._upload_source_as_artifact()
 
     # Verify project was retrieved
     mock_get_project.assert_called_once_with("test-project")
@@ -1071,10 +1071,12 @@ def test_upload_source_as_artifact(tmp_path):
         },
     )
 
-    # Verify source was updated to the artifact URI
+    # Verify source was swapped to artifact URI and original path is returned for restore
     assert (
         fn.spec.build.source == "store://artifacts/test-project/application-test-source"
     )
+    assert original_path == str(source_file)
+    assert artifact_uri == "store://artifacts/test-project/application-test-source"
 
 
 @pytest.mark.parametrize(
@@ -1127,10 +1129,17 @@ def test_upload_source_as_artifact_no_project_error():
             fn._upload_source_as_artifact()
 
 
-def test_set_function_single_file_application(tmp_path):
-    # Test that set_function with single .py file works for application runtime
-    source_file = tmp_path / "handler.py"
-    source_file.write_text("def handler(): pass")
+@pytest.mark.parametrize(
+    "filename,content",
+    [
+        ("handler.py", "def handler(): pass"),
+        ("app.sh", "#!/bin/bash\necho hello"),
+        ("server.js", "console.log('hello')"),
+    ],
+)
+def test_set_function_single_file_application(tmp_path, filename, content):
+    source_file = tmp_path / filename
+    source_file.write_text(content)
 
     project = mlrun.get_or_create_project("test-proj", allow_cross_project=True)
     fn = project.set_function(

@@ -17,9 +17,8 @@ import concurrent.futures
 import copy
 import json
 import traceback
-import typing
 from datetime import timedelta
-from enum import Enum
+from enum import StrEnum
 from io import BytesIO
 from typing import Union
 
@@ -47,13 +46,13 @@ class BaseModelRouter(RouterToDict):
     def __init__(
         self,
         context=None,
-        name: typing.Optional[str] = None,
+        name: str | None = None,
         routes=None,
-        protocol: typing.Optional[str] = None,
-        url_prefix: typing.Optional[str] = None,
-        health_prefix: typing.Optional[str] = None,
-        input_path: typing.Optional[str] = None,
-        result_path: typing.Optional[str] = None,
+        protocol: str | None = None,
+        url_prefix: str | None = None,
+        health_prefix: str | None = None,
+        input_path: str | None = None,
+        result_path: str | None = None,
         **kwargs,
     ):
         """Model Serving Router, route between child models
@@ -256,7 +255,7 @@ class ModelRouter(BaseModelRouter):
         return event
 
 
-class ParallelRunnerModes(str, Enum):
+class ParallelRunnerModes(StrEnum):
     """Supported parallel running modes for VotingEnsemble"""
 
     array = "array"  # running one by one
@@ -272,14 +271,14 @@ class ParallelRunnerModes(str, Enum):
         ]
 
 
-class VotingTypes(str, Enum):
+class VotingTypes(StrEnum):
     """Supported voting types for VotingEnsemble"""
 
     classification = "classification"
     regression = "regression"
 
 
-class OperationTypes(str, Enum):
+class OperationTypes(StrEnum):
     """Supported opreations for VotingEnsemble"""
 
     infer = "infer"
@@ -294,11 +293,11 @@ class ParallelRun(BaseModelRouter):
     def __init__(
         self,
         context=None,
-        name: typing.Optional[str] = None,
+        name: str | None = None,
         routes=None,
-        protocol: typing.Optional[str] = None,
-        url_prefix: typing.Optional[str] = None,
-        health_prefix: typing.Optional[str] = None,
+        protocol: str | None = None,
+        url_prefix: str | None = None,
+        health_prefix: str | None = None,
         extend_event=None,
         executor_type: Union[ParallelRunnerModes, str] = ParallelRunnerModes.thread,
         **kwargs,
@@ -353,12 +352,13 @@ class ParallelRun(BaseModelRouter):
         self.name = name or "ParallelRun"
         self.extend_event = extend_event
         self.executor_type = ParallelRunnerModes(executor_type)
-        self._pool: typing.Optional[
+        self._pool: (
             Union[
                 concurrent.futures.ProcessPoolExecutor,
                 concurrent.futures.ThreadPoolExecutor,
             ]
-        ] = None
+            | None
+        ) = None
 
     def _apply_logic(self, results: dict, event=None):
         """
@@ -526,17 +526,17 @@ class VotingEnsemble(ParallelRun):
     def __init__(
         self,
         context=None,
-        name: typing.Optional[str] = None,
+        name: str | None = None,
         routes=None,
-        protocol: typing.Optional[str] = None,
-        url_prefix: typing.Optional[str] = None,
-        health_prefix: typing.Optional[str] = None,
-        vote_type: typing.Optional[str] = None,
-        weights: typing.Optional[dict[str, float]] = None,
+        protocol: str | None = None,
+        url_prefix: str | None = None,
+        health_prefix: str | None = None,
+        vote_type: str | None = None,
+        weights: dict[str, float] | None = None,
         executor_type: Union[ParallelRunnerModes, str] = ParallelRunnerModes.thread,
         format_response_with_col_name_flag: bool = False,
         prediction_col_name: str = "prediction",
-        shard_by_endpoint: typing.Optional[bool] = None,
+        shard_by_endpoint: bool | None = None,
         **kwargs,
     ):
         """Voting Ensemble
@@ -1057,13 +1057,13 @@ class EnrichmentModelRouter(ModelRouter):
     def __init__(
         self,
         context=None,
-        name: typing.Optional[str] = None,
+        name: str | None = None,
         routes=None,
-        protocol: typing.Optional[str] = None,
-        url_prefix: typing.Optional[str] = None,
-        health_prefix: typing.Optional[str] = None,
+        protocol: str | None = None,
+        url_prefix: str | None = None,
+        health_prefix: str | None = None,
         feature_vector_uri: str = "",
-        impute_policy: typing.Optional[dict] = None,
+        impute_policy: dict | None = None,
         **kwargs,
     ):
         """
@@ -1139,16 +1139,16 @@ class EnrichmentVotingEnsemble(VotingEnsemble):
     def __init__(
         self,
         context=None,
-        name: typing.Optional[str] = None,
+        name: str | None = None,
         routes=None,
         protocol=None,
-        url_prefix: typing.Optional[str] = None,
-        health_prefix: typing.Optional[str] = None,
-        vote_type: typing.Optional[str] = None,
+        url_prefix: str | None = None,
+        health_prefix: str | None = None,
+        vote_type: str | None = None,
         executor_type: Union[ParallelRunnerModes, str] = ParallelRunnerModes.thread,
-        prediction_col_name: typing.Optional[str] = None,
+        prediction_col_name: str | None = None,
         feature_vector_uri: str = "",
-        impute_policy: typing.Optional[dict] = None,
+        impute_policy: dict | None = None,
         **kwargs,
     ):
         """

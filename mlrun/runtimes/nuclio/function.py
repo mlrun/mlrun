@@ -103,8 +103,8 @@ def min_nuclio_versions(*versions):
 @dataclass
 class AsyncSpec:
     enabled: bool = True
-    max_connections: typing.Optional[int] = None
-    connection_availability_timeout: typing.Optional[int] = None
+    max_connections: int | None = None
+    connection_availability_timeout: int | None = None
 
 
 class NuclioSpec(KubeResourceSpec):
@@ -465,19 +465,19 @@ class RemoteRuntime(KubeResource):
 
     def with_http(
         self,
-        workers: typing.Optional[int] = None,
-        port: typing.Optional[int] = None,
-        host: typing.Optional[str] = None,
-        paths: typing.Optional[list[str]] = None,
-        canary: typing.Optional[float] = None,
-        secret: typing.Optional[str] = None,
-        worker_timeout: typing.Optional[int] = None,
-        gateway_timeout: typing.Optional[int] = None,
-        trigger_name: typing.Optional[str] = None,
-        annotations: typing.Optional[typing.Mapping[str, str]] = None,
-        extra_attributes: typing.Optional[typing.Mapping[str, str]] = None,
-        batching_spec: typing.Optional[BatchingSpec] = None,
-        async_spec: typing.Optional[AsyncSpec] = None,
+        workers: int | None = None,
+        port: int | None = None,
+        host: str | None = None,
+        paths: list[str] | None = None,
+        canary: float | None = None,
+        secret: str | None = None,
+        worker_timeout: int | None = None,
+        gateway_timeout: int | None = None,
+        trigger_name: str | None = None,
+        annotations: typing.Mapping[str, str] | None = None,
+        extra_attributes: typing.Mapping[str, str] | None = None,
+        batching_spec: BatchingSpec | None = None,
+        async_spec: AsyncSpec | None = None,
     ):
         """update/add nuclio HTTP trigger settings
 
@@ -503,8 +503,9 @@ class RemoteRuntime(KubeResource):
         :param batching_spec: BatchingSpec object that defines batching configuration.
             By default, batching is disabled.
 
-        :param async_spec: AsyncSpec object defines async configuration. If number of max connections
-            won't be set, the default value will be set to 1000 according to nuclio default.
+        :param async_spec: AsyncSpec object defines async configuration. By default, mode will be sync.
+            If number of max connections won't be set, the default value will be set to 1000 according to nuclio
+            default.
 
         :return: function object (self)
         """
@@ -513,7 +514,14 @@ class RemoteRuntime(KubeResource):
                 "Adding HTTP trigger despite the default HTTP trigger creation being disabled"
             )
 
-        if async_spec and async_spec.enabled:
+        nuclio_version_support_async = validate_nuclio_version_compatibility("1.15.3")
+        if async_spec is not None and not nuclio_version_support_async:
+            raise mlrun.errors.MLRunValueError(
+                "Async spec is only supported from Nuclio 1.15.3"
+            )
+
+        async_enabled = getattr(async_spec, "enabled", False)
+        if async_enabled:
             workers = 1 if workers is None else workers
         else:
             workers = 8 if workers is None else workers
@@ -555,13 +563,9 @@ class RemoteRuntime(KubeResource):
                 )
             trigger._struct["batch"] = batching_config
 
-        if async_spec:
-            if not validate_nuclio_version_compatibility("1.15.3"):
-                raise mlrun.errors.MLRunValueError(
-                    "Async spec is only supported on Nuclio 1.15.3 and higher"
-                )
-            if async_spec.enabled:
-                trigger._struct["mode"] = "async"
+        if nuclio_version_support_async:
+            trigger._struct["mode"] = "async" if async_enabled else "sync"
+            if async_enabled:
                 trigger._struct["async"] = {
                     "maxConnectionsNumber": async_spec.max_connections,
                     "connectionAvailabilityTimeout": async_spec.connection_availability_timeout,
@@ -662,21 +666,21 @@ class RemoteRuntime(KubeResource):
     def add_rabbitmq_trigger(
         self,
         url: str,
-        exchange_name: typing.Optional[str] = None,
+        exchange_name: str | None = None,
         name: str = "rabbitmq",
-        queue_name: typing.Optional[str] = None,
-        topics: typing.Optional[list[str]] = None,
-        username: typing.Optional[str] = None,
-        password: typing.Optional[str] = None,
-        prefetch_count: typing.Optional[int] = None,
-        durable_exchange: typing.Optional[bool] = None,
-        durable_queue: typing.Optional[bool] = None,
-        on_error: typing.Optional[str] = None,
-        requeue_on_error: typing.Optional[bool] = None,
-        reconnect_duration: typing.Optional[str] = None,
-        reconnect_interval: typing.Optional[str] = None,
-        num_workers: typing.Optional[int] = None,
-        worker_termination_timeout: typing.Optional[str] = None,
+        queue_name: str | None = None,
+        topics: list[str] | None = None,
+        username: str | None = None,
+        password: str | None = None,
+        prefetch_count: int | None = None,
+        durable_exchange: bool | None = None,
+        durable_queue: bool | None = None,
+        on_error: str | None = None,
+        requeue_on_error: bool | None = None,
+        reconnect_duration: str | None = None,
+        reconnect_interval: str | None = None,
+        num_workers: int | None = None,
+        worker_termination_timeout: str | None = None,
     ):
         """Add a RabbitMQ trigger to the function.
 
@@ -764,7 +768,7 @@ class RemoteRuntime(KubeResource):
         project="",
         tag="",
         verbose=False,
-        builder_env: typing.Optional[dict] = None,
+        builder_env: dict | None = None,
         force_build: bool = False,
     ):
         """Deploy the nuclio function to the cluster
@@ -880,10 +884,10 @@ class RemoteRuntime(KubeResource):
     @min_nuclio_versions("1.5.20", "1.6.10")
     def with_node_selection(
         self,
-        node_name: typing.Optional[str] = None,
-        node_selector: typing.Optional[dict[str, str]] = None,
-        affinity: typing.Optional[client.V1Affinity] = None,
-        tolerations: typing.Optional[list[client.V1Toleration]] = None,
+        node_name: str | None = None,
+        node_selector: dict[str, str] | None = None,
+        affinity: client.V1Affinity | None = None,
+        tolerations: list[client.V1Toleration] | None = None,
     ):
         """k8s node selection attributes"""
         if tolerations and not validate_nuclio_version_compatibility("1.7.5"):
@@ -913,14 +917,14 @@ class RemoteRuntime(KubeResource):
         super().with_preemption_mode(mode=mode)
 
     @min_nuclio_versions("1.6.18")
-    def with_priority_class(self, name: typing.Optional[str] = None):
+    def with_priority_class(self, name: str | None = None):
         """k8s priority class"""
         super().with_priority_class(name)
 
     def with_service_type(
         self,
         service_type: str,
-        add_templated_ingress_host_mode: typing.Optional[str] = None,
+        add_templated_ingress_host_mode: str | None = None,
     ):
         """
         Enables to control the service type of the pod and the addition of templated ingress host
@@ -971,7 +975,7 @@ class RemoteRuntime(KubeResource):
         last_log_timestamp=0,
         verbose=False,
         raise_on_exception=True,
-    ) -> tuple[str, str, typing.Optional[float]]:
+    ) -> tuple[str, str, float | None]:
         try:
             text, last_log_timestamp = self._get_db().get_nuclio_deploy_status(
                 self, last_log_timestamp=last_log_timestamp, verbose=verbose
@@ -1065,12 +1069,12 @@ class RemoteRuntime(KubeResource):
     def invoke(
         self,
         path: str,
-        body: typing.Optional[typing.Union[str, bytes, dict, list]] = None,
-        method: typing.Optional[str] = None,
-        headers: typing.Optional[dict] = None,
+        body: typing.Union[str, bytes, dict, list] | None = None,
+        method: str | None = None,
+        headers: dict | None = None,
         force_external_address: bool = False,
         auth_info: AuthInfo = None,
-        mock: typing.Optional[bool] = None,
+        mock: bool | None = None,
         **http_client_kwargs,
     ):
         """Invoke the remote (live) function and return the results
@@ -1145,11 +1149,11 @@ class RemoteRuntime(KubeResource):
 
     def with_sidecar(
         self,
-        name: typing.Optional[str] = None,
-        image: typing.Optional[str] = None,
-        ports: typing.Optional[typing.Union[int, list[int]]] = None,
-        command: typing.Optional[str] = None,
-        args: typing.Optional[list[str]] = None,
+        name: str | None = None,
+        image: str | None = None,
+        ports: typing.Union[int, list[int]] | None = None,
+        command: str | None = None,
+        args: list[str] | None = None,
     ):
         """
         Add a sidecar container to the function pod

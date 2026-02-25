@@ -14,7 +14,7 @@
 
 from collections.abc import Sequence
 from copy import copy
-from typing import Any, Optional
+from typing import Any
 
 from mlrun.serving import Model, ModelRunnerSelector, V2ModelServer
 
@@ -150,7 +150,7 @@ class MySelector(ModelRunnerSelector):
     def select_outlets(
         self,
         event: Any,
-    ) -> Optional[Sequence[str]]:
+    ) -> Sequence[str] | None:
         count = event.get("counter", 0)
         if count < 3:
             return ["tool_a"]

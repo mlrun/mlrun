@@ -14,7 +14,7 @@
 
 import json
 from collections import defaultdict
-from typing import Any, Optional
+from typing import Any
 
 import sqlalchemy.orm
 
@@ -68,8 +68,8 @@ class Hub(metaclass=mlrun.utils.singleton.Singleton):
     def get_source_catalog(
         self,
         source: mlrun.common.schemas.hub.HubSource,
-        version: Optional[str] = None,
-        tag: Optional[str] = None,
+        version: str | None = None,
+        tag: str | None = None,
         force_refresh: bool = False,
         object_type: HubSourceType = HubSourceType.functions,
     ) -> mlrun.common.schemas.hub.HubCatalog:
@@ -116,8 +116,8 @@ class Hub(metaclass=mlrun.utils.singleton.Singleton):
         self,
         source: mlrun.common.schemas.hub.HubSource,
         item_name: str,
-        version: Optional[str] = None,
-        tag: Optional[str] = None,
+        version: str | None = None,
+        tag: str | None = None,
         force_refresh: bool = False,
         item_type: HubSourceType = HubSourceType.functions,
     ) -> mlrun.common.schemas.hub.HubItem:
@@ -198,9 +198,9 @@ class Hub(metaclass=mlrun.utils.singleton.Singleton):
     def list_hub_sources(
         self,
         db_session: sqlalchemy.orm.Session,
-        item_name: Optional[str] = None,
-        tag: Optional[str] = None,
-        version: Optional[str] = None,
+        item_name: str | None = None,
+        tag: str | None = None,
+        version: str | None = None,
         item_type: HubSourceType = HubSourceType.functions,
     ) -> list[mlrun.common.schemas.IndexedHubSource]:
         hub_sources = framework.utils.singletons.db.get_db().list_hub_sources(
@@ -211,9 +211,9 @@ class Hub(metaclass=mlrun.utils.singleton.Singleton):
     def filter_hub_sources(
         self,
         sources: list[mlrun.common.schemas.IndexedHubSource],
-        item_name: Optional[str] = None,
-        tag: Optional[str] = None,
-        version: Optional[str] = None,
+        item_name: str | None = None,
+        tag: str | None = None,
+        version: str | None = None,
         item_type: HubSourceType = HubSourceType.functions,
     ) -> list[mlrun.common.schemas.IndexedHubSource]:
         """

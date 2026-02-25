@@ -856,14 +856,23 @@ class PandasSeriesPackager(PandasDataFramePackager):
     PACKABLE_OBJECT_TYPE = pd.Series
     DEFAULT_PACKING_ARTIFACT_TYPE = ArtifactType.FILE
 
-    def get_supported_artifact_types(self) -> list[str]:
+    def get_supported_packing_artifact_types(self) -> list[str]:
         """
-        Get all the supported artifact types on this packager. It will be the same as `PandasDataFramePackager` but
-        without the 'dataset' artifact type support.
+        Get the supported artifact types for packing, excluding 'dataset'.
 
-        :return: A list of all the supported artifact types.
+        :return: A list of artifact types this packager can pack objects as.
         """
-        supported_artifacts = super().get_supported_artifact_types()
+        supported_artifacts = super().get_supported_packing_artifact_types()
+        supported_artifacts.remove("dataset")
+        return supported_artifacts
+
+    def get_supported_unpacking_artifact_types(self) -> list[str]:
+        """
+        Get the supported artifact types for unpacking, excluding 'dataset'.
+
+        :return: A list of artifact types this packager can unpack data items as.
+        """
+        supported_artifacts = super().get_supported_unpacking_artifact_types()
         supported_artifacts.remove("dataset")
         return supported_artifacts
 

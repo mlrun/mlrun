@@ -17,7 +17,6 @@ import os
 import pathlib
 import shutil
 import subprocess
-import typing
 
 import mlrun
 import mlrun.common.db.dialects
@@ -37,7 +36,7 @@ class DBBackupUtil:
         self._backup_rotation = backup_rotation
         self._backup_rotation_limit = backup_rotation_limit
 
-    def backup_database(self, backup_file_name: typing.Optional[str] = None) -> None:
+    def backup_database(self, backup_file_name: str | None = None) -> None:
         backup_file_name = backup_file_name or self._generate_backup_file_name()
 
         # ensure the backup directory exists
@@ -62,7 +61,7 @@ class DBBackupUtil:
             self._rotate_backup()
 
     def load_database_from_backup(
-        self, backup_file_name: str, new_backup_file_name: typing.Optional[str] = None
+        self, backup_file_name: str, new_backup_file_name: str | None = None
     ) -> None:
         new_backup_file_name = new_backup_file_name or self._generate_backup_file_name()
 
@@ -174,15 +173,13 @@ class DBBackupUtil:
     def _generate_backup_file_name(self) -> str:
         return datetime.datetime.now(tz=datetime.UTC).strftime(self._backup_file_format)
 
-    def _get_backup_file_path(
-        self, backup_file_name: str
-    ) -> typing.Optional[pathlib.Path]:
+    def _get_backup_file_path(self, backup_file_name: str) -> pathlib.Path | None:
         if ":memory:" in mlrun.mlconf.httpdb.dsn:
             return
 
         return self._get_db_dir_path() / backup_file_name
 
-    def _get_db_dir_path(self) -> typing.Optional[pathlib.Path]:
+    def _get_db_dir_path(self) -> pathlib.Path | None:
         if ":memory:" in mlrun.mlconf.httpdb.dsn:
             return
         elif "mysql" in mlrun.mlconf.httpdb.dsn:

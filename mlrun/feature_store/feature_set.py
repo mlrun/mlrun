@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from datetime import datetime
-from typing import Optional, Union
+from typing import Union
 
 import pandas as pd
 from storey import EmitEveryEvent, EmitPolicy
@@ -149,16 +149,14 @@ class FeatureSetSpec(ModelObj):
                     entities[i] = Entity(entity)
                 elif isinstance(entity, Entity) and entity.name is None:
                     raise mlrun.errors.MLRunInvalidArgumentError(
-                        "You have to provide an "
-                        "Entity with valid name of string type"
+                        "You have to provide an Entity with valid name of string type"
                     )
                 elif isinstance(entity, dict) and (
                     "name" not in entity
                     or ("name" in entity and entity["name"] is None)
                 ):
                     raise mlrun.errors.MLRunInvalidArgumentError(
-                        "You have to provide an "
-                        "Entity with valid name of string type"
+                        "You have to provide an Entity with valid name of string type"
                     )
         self._entities = ObjectList.from_list(Entity, entities)
 
@@ -323,14 +321,14 @@ class FeatureSet(ModelObj):
 
     def __init__(
         self,
-        name: Optional[str] = None,
-        description: Optional[str] = None,
-        entities: Optional[list[Union[Entity, str]]] = None,
-        timestamp_key: Optional[str] = None,
-        engine: Optional[str] = None,
-        label_column: Optional[str] = None,
-        relations: Optional[dict[str, Union[Entity, str]]] = None,
-        passthrough: Optional[bool] = None,
+        name: str | None = None,
+        description: str | None = None,
+        entities: list[Union[Entity, str]] | None = None,
+        timestamp_key: str | None = None,
+        engine: str | None = None,
+        label_column: str | None = None,
+        relations: dict[str, Union[Entity, str]] | None = None,
+        passthrough: bool | None = None,
     ):
         """Feature set object, defines a set of features and their data pipeline
 
@@ -527,7 +525,7 @@ class FeatureSet(ModelObj):
                 )
 
     def purge_targets(
-        self, target_names: Optional[list[str]] = None, silent: bool = False
+        self, target_names: list[str] | None = None, silent: bool = False
     ):
         """Delete data of specific targets
         :param target_names: List of names of targets to delete (default: delete all ingested targets)
@@ -557,7 +555,7 @@ class FeatureSet(ModelObj):
     def update_targets_for_ingest(
         self,
         targets: list[DataTargetBase],
-        overwrite: Optional[bool] = None,
+        overwrite: bool | None = None,
     ):
         if not targets:
             return
@@ -577,7 +575,7 @@ class FeatureSet(ModelObj):
         update_targets_run_id_for_ingest(overwrite, targets, status_targets)
 
     def _reload_and_get_status_targets(
-        self, target_names: Optional[list[str]] = None, silent: bool = False
+        self, target_names: list[str] | None = None, silent: bool = False
     ):
         try:
             self.reload(update_spec=False)
@@ -614,8 +612,8 @@ class FeatureSet(ModelObj):
         self,
         name: str,
         value_type: mlrun.data_types.ValueType = None,
-        description: Optional[str] = None,
-        labels: Optional[dict[str, str]] = None,
+        description: str | None = None,
+        labels: dict[str, str] | None = None,
     ):
         """add/set an entity (dataset index)
 
@@ -627,7 +625,9 @@ class FeatureSet(ModelObj):
                 "ticks", entities=["stock"], timestamp_key="timestamp"
             )
             ticks.add_entity(
-                "country", mlrun.data_types.ValueType.STRING, description="stock country"
+                "country",
+                mlrun.data_types.ValueType.STRING,
+                description="stock country",
             )
             ticks.add_entity("year", mlrun.data_types.ValueType.INT16)
             ticks.save()
@@ -999,7 +999,7 @@ class FeatureSet(ModelObj):
     def ingest(
         self,
         source=None,
-        targets: Optional[list[DataTargetBase]] = None,
+        targets: list[DataTargetBase] | None = None,
         namespace=None,
         return_df: bool = True,
         infer_options: InferOptions = InferOptions.default(),
@@ -1007,7 +1007,7 @@ class FeatureSet(ModelObj):
         mlrun_context=None,
         spark_context=None,
         overwrite=None,
-    ) -> Optional[pd.DataFrame]:
+    ) -> pd.DataFrame | None:
         """Read local DataFrame, file, URL, or source into the feature store
         Ingest reads from the source, run the graph transformations, infers  metadata and stats
         and writes the results to the default of specified targets
@@ -1068,11 +1068,11 @@ class FeatureSet(ModelObj):
     def preview(
         self,
         source,
-        entity_columns: Optional[list] = None,
+        entity_columns: list | None = None,
         namespace=None,
         options: InferOptions = None,
         verbose: bool = False,
-        sample_size: Optional[int] = None,
+        sample_size: int | None = None,
     ) -> pd.DataFrame:
         """run the ingestion pipeline with local DataFrame/file data and infer features schema and stats
 
@@ -1101,8 +1101,8 @@ class FeatureSet(ModelObj):
     def deploy_ingestion_service(
         self,
         source: DataSource = None,
-        targets: Optional[list[DataTargetBase]] = None,
-        name: Optional[str] = None,
+        targets: list[DataTargetBase] | None = None,
+        name: str | None = None,
         run_config: RunConfig = None,
         verbose=False,
     ) -> tuple[str, BaseRuntime]:
@@ -1138,7 +1138,7 @@ class FeatureSet(ModelObj):
     def extract_relation_keys(
         self,
         other_feature_set,
-        relations: Optional[dict[str, Union[str, Entity]]] = None,
+        relations: dict[str, Union[str, Entity]] | None = None,
     ) -> list[str]:
         """
         Checks whether a feature set can be merged to the right of this feature set.

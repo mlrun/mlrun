@@ -13,7 +13,7 @@
 # limitations under the License.
 import asyncio
 import time
-from typing import Any, Optional
+from typing import Any
 
 import fsspec
 
@@ -71,15 +71,15 @@ def validate_llm_single_response(
         )
 
     token_count = len(encoding_or_tokenizer.encode(answer))
-    assert (
-        min_tokens <= token_count <= max_tokens
-    ), f"Token count {token_count} not in range [{min_tokens}, {max_tokens}]"
+    assert min_tokens <= token_count <= max_tokens, (
+        f"Token count {token_count} not in range [{min_tokens}, {max_tokens}]"
+    )
 
     stats = response[UsageResponseKeys.USAGE]
     assert isinstance(stats, dict)
-    assert (
-        min_tokens <= stats["completion_tokens"] <= max_tokens
-    ), f"Completion tokens {stats['completion_tokens']} not in range [{min_tokens}, {max_tokens}]"
+    assert min_tokens <= stats["completion_tokens"] <= max_tokens, (
+        f"Completion tokens {stats['completion_tokens']} not in range [{min_tokens}, {max_tokens}]"
+    )
     assert stats["prompt_tokens"] > 0
     assert stats["total_tokens"] == stats["completion_tokens"] + stats["prompt_tokens"]
 
@@ -91,12 +91,12 @@ def validate_llm_batch_response_system(
     min_tokens=95,
     max_tokens=105,
 ):
-    assert isinstance(
-        batch_response, list
-    ), f"Expected list response, got {type(batch_response)}"
-    assert len(batch_response) == len(
-        expected_results
-    ), f"Expected {len(expected_results)} responses, got {len(batch_response)}"
+    assert isinstance(batch_response, list), (
+        f"Expected list response, got {type(batch_response)}"
+    )
+    assert len(batch_response) == len(expected_results), (
+        f"Expected {len(expected_results)} responses, got {len(batch_response)}"
+    )
 
     for i, full_result in enumerate(batch_response):
         result = full_result["output"]
@@ -216,10 +216,11 @@ def setup_remote_model_test(
     image=None,
     requirements=None,
     model_class: str = "LLModel",
-    default_config: Optional[dict] = None,
+    default_config: dict | None = None,
     include_llm_artifact=True,
     batch_step=False,
     flush_after_seconds=FLUSH_AFTER_SECONDS,
+    streaming=False,
 ):
     model_artifact = project.log_model(
         mlrun_model_name,
@@ -245,6 +246,7 @@ def setup_remote_model_test(
         image=image,
         requirements=requirements,
     )
+    function.spec.replicas = 1
     graph = function.set_topology("flow", engine="async")
     if batch_step:
         # When deploying with batch_step in system tests, configure async HTTP via
@@ -268,6 +270,9 @@ def setup_remote_model_test(
     if batch_step:
         step = step.to("storey.FlatMap", _fn="(event.body)", full_event=True)
     step.respond()
+
+    if streaming:
+        function.set_streaming(enabled=True)
 
     return model_artifact, llm_prompt_artifact, function
 
@@ -325,7 +330,7 @@ class MyOpenAICustom(mlrun.serving.states.Model):
 
 class MyOpenAIAsyncEvents(mlrun.serving.states.LLModel):
     async def run_async(
-        self, body: Any, path: str, origin_name: Optional[str] = None
+        self, body: Any, path: str, origin_name: str | None = None
     ) -> Any:
         # Temporary workaround for testing purposes only, until events execution will be able to run in parallel
         invocation_config = {}
@@ -342,8 +347,8 @@ class MyOpenAIAsyncEvents(mlrun.serving.states.LLModel):
     async def predict_async(
         self,
         body: Any,
-        messages: Optional[list[dict]] = None,
-        invocation_config: Optional[dict] = None,
+        messages: list[dict] | None = None,
+        invocation_config: dict | None = None,
         **kwargs,
     ):
         if isinstance(
@@ -379,7 +384,7 @@ def assert_async_invocations(results_with_times, model_name, total_duration):
     for i in range(len(EXPECTED_RESULTS)):
         assert EXPECTED_RESULTS[i] in results[i].lower()
         number_of_tokens = len(encoding.encode(results[i]))
-        assert (
-            number_of_tokens == 100
-        ), f"Expected 100 tokens for input #{i}, but got {number_of_tokens}"
+        assert number_of_tokens == 100, (
+            f"Expected 100 tokens for input #{i}, but got {number_of_tokens}"
+        )
     assert total_duration < sum(invoke_times)

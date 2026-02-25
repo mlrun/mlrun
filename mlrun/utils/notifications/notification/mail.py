@@ -70,13 +70,12 @@ class MailNotification(base.NotificationBase):
     async def push(
         self,
         message: str,
-        severity: typing.Optional[
-            typing.Union[mlrun.common.schemas.NotificationSeverity, str]
-        ] = mlrun.common.schemas.NotificationSeverity.INFO,
-        runs: typing.Optional[typing.Union[mlrun.lists.RunList, list]] = None,
-        custom_html: typing.Optional[typing.Optional[str]] = None,
-        alert: typing.Optional[mlrun.common.schemas.AlertConfig] = None,
-        event_data: typing.Optional[mlrun.common.schemas.Event] = None,
+        severity: typing.Union[mlrun.common.schemas.NotificationSeverity, str]
+        | None = mlrun.common.schemas.NotificationSeverity.INFO,
+        runs: typing.Union[mlrun.lists.RunList, list] | None = None,
+        custom_html: str | None = None,
+        alert: mlrun.common.schemas.AlertConfig | None = None,
+        event_data: mlrun.common.schemas.Event | None = None,
     ):
         self.params["subject"] = f"[{severity}] {message}"
         message_body_override = self.params.get("message_body_override", None)
@@ -97,7 +96,7 @@ class MailNotification(base.NotificationBase):
 
     @classmethod
     def enrich_default_params(
-        cls, params: dict, default_params: typing.Optional[dict] = None
+        cls, params: dict, default_params: dict | None = None
     ) -> dict:
         params = super().enrich_default_params(params, default_params)
         params.setdefault("use_tls", True)
@@ -157,8 +156,8 @@ class MailNotification(base.NotificationBase):
         sender_address: str,
         server_host: str,
         server_port: int,
-        username: typing.Optional[str],
-        password: typing.Optional[str],
+        username: str | None,
+        password: str | None,
         use_tls: bool,
         start_tls: bool,
         validate_certs: bool,

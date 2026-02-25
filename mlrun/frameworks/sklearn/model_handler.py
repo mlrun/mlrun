@@ -14,7 +14,6 @@
 
 import os
 import pickle
-from typing import Optional
 
 import cloudpickle
 
@@ -50,7 +49,7 @@ class SKLearnModelHandler(MLModelHandler):
             )
 
     @without_mlrun_interface(interface=SKLearnMLRunInterface)
-    def save(self, output_path: Optional[str] = None, **kwargs):
+    def save(self, output_path: str | None = None, **kwargs):
         """
         Save the handled model at the given output path. If a MLRun context is available, the saved model files will be
         logged and returned as artifacts.
@@ -82,10 +81,10 @@ class SKLearnModelHandler(MLModelHandler):
 
     def to_onnx(
         self,
-        model_name: Optional[str] = None,
+        model_name: str | None = None,
         optimize: bool = True,
         input_sample: SKLearnTypes.DatasetType = None,
-        log: Optional[bool] = None,
+        log: bool | None = None,
     ):
         """
         Convert the model in this handler to an ONNX model. The inputs names are optional, they do not change the

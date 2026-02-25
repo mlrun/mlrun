@@ -346,7 +346,7 @@ def test_feature_set_delete(db: Session, client: TestClient) -> None:
 
     # Delete the last feature set
     response = client.delete(
-        f"projects/{project_name}/feature-sets/feature_set_{count-1}"
+        f"projects/{project_name}/feature-sets/feature_set_{count - 1}"
     )
     assert response.status_code == HTTPStatus.NO_CONTENT.value
     _list_and_assert_objects(client, "feature_sets", project_name, None, count - 1)
@@ -597,9 +597,9 @@ def test_feature_set_create_without_labels(db: Session, client: TestClient) -> N
     feature_set_response = _patch_object(
         client, project_name, name, feature_set_update, "feature-sets"
     )
-    assert (
-        len(feature_set_response["metadata"]["labels"]) == 2
-    ), "Labels didn't get updated"
+    assert len(feature_set_response["metadata"]["labels"]) == 2, (
+        "Labels didn't get updated"
+    )
 
 
 def test_feature_set_project_name_mismatch_failure(

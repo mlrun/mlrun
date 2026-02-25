@@ -23,8 +23,8 @@ from .step import get_hub_step
 def get_hub_item(
     source_name: str,
     item_name: str,
-    version: Optional[str] = None,
-    tag: Optional[str] = "latest",
+    version: str | None = None,
+    tag: str | None = "latest",
     force_refresh: bool = False,
     item_type: HubSourceType = HubSourceType.functions,
 ) -> mlrun.common.schemas.hub.HubItem:

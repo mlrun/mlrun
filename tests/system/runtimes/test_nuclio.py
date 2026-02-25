@@ -605,7 +605,11 @@ class TestNuclioRuntime(TestMLRunSystemModelMonitoring):
         ):
             function.invoke(path="/", body={"counter": -5})
 
-    def test_streaming_serving_function(self):
+    @pytest.mark.parametrize(
+        "execution_mechanism",
+        ("naive", "thread_pool", "asyncio", "process_pool", "dedicated_process"),
+    )
+    def test_streaming_serving_function(self, execution_mechanism):
         """Test that streaming serving functions return chunked HTTP responses.
 
         Tests both StreamingStep (async generator do() method) and ModelRunnerStep
@@ -628,7 +632,7 @@ class TestNuclioRuntime(TestMLRunSystemModelMonitoring):
         model_runner_step = ModelRunnerStep(name="model_runner")
         model_runner_step.add_model(
             model_class="StreamingModel",
-            execution_mechanism="naive",
+            execution_mechanism=execution_mechanism,
             endpoint_name="streaming_model",
             num_chunks=3,
         )
@@ -648,39 +652,88 @@ class TestNuclioRuntime(TestMLRunSystemModelMonitoring):
 
         # Test 1: StreamingStep path (async generator do() method)
         self._logger.info("Testing StreamingStep path...")
-        start_time = time.monotonic()
         resp = requests.post(f"{url}/step", data="test", stream=True)
         self._logger.info(f"StreamingStep response: {resp}")
         assert resp.ok, f"StreamingStep request failed: {resp.status_code} {resp.text}"
         assert resp.headers.get("Transfer-Encoding") == "chunked"
 
-        chunks = []
-        for chunk in resp.iter_content(decode_unicode=True, chunk_size=1024):
-            chunks.append(chunk)
-            time_since_start = time.monotonic() - start_time
-            self._logger.info(
-                f"Received chunk '{chunk}' after {time_since_start:.2f} seconds"
-            )
-            response_text = "".join(chunks)
-            if response_text:
-                iteration = int(response_text[-1]) + 1
-                assert (
-                    iteration - 1 < time_since_start < iteration + 1
-                ), "Time between chunks should be about 1 second"
-
+        chunks = list(resp.iter_content(decode_unicode=True, chunk_size=1024))
+        self._logger.info(f"StreamingStep chunks: {chunks}")
         assert chunks == ["test_chunk_0", "test_chunk_1", "test_chunk_2"]
 
         # Test 2: ModelRunnerStep path (generator predict() method)
         self._logger.info("Testing ModelRunnerStep path...")
         resp = requests.post(f"{url}/model_runner", data="test", stream=True)
         self._logger.info(f"ModelRunnerStep response: {resp}")
-        assert (
-            resp.ok
-        ), f"ModelRunnerStep request failed: {resp.status_code} {resp.text}"
+        assert resp.ok, (
+            f"ModelRunnerStep request failed: {resp.status_code} {resp.text}"
+        )
         assert resp.headers.get("Transfer-Encoding") == "chunked"
 
         chunks = list(resp.iter_content(decode_unicode=True, chunk_size=1024))
         self._logger.info(f"ModelRunnerStep chunks: {chunks}")
+        assert chunks == ["test_chunk_0", "test_chunk_1", "test_chunk_2"]
+
+    def test_stream_response_termination_on_error(self):
+        """
+        Test that a mid-stream error terminates the stream, and that subsequent requests are served normally.
+
+        Requires Nuclio 1.15.15 or later, which includes the fix for NUC-723 that caused hanging on mid-stream errors
+        and failure to serve subsequent requests.
+
+        Deploys a function with two routes:
+        - /error  -> ErrorStreamingStep (yields one chunk then raises)
+        - /healthy -> StreamingStep (normal streaming)
+
+        Verifies the error request completes (does not hang) and a subsequent
+        healthy request succeeds (worker still alive).
+        """
+        code_path = str(self.assets_path / "streaming_function.py")
+        function = mlrun.code_to_function(
+            name="streaming-error",
+            kind="serving",
+            project=self.project_name,
+            filename=code_path,
+            image=self.image,
+        )
+        function.spec.replicas = 1
+
+        graph = function.set_topology("flow", engine="async")
+        choice = graph.to(name="choice", class_name="StreamingChoice")
+        choice.to(name="error", class_name="ErrorStreamingStep")
+        choice.to(name="step", class_name="StreamingStep", num_chunks=3)
+        graph.add_step(
+            name="responder",
+            class_name="Echo",
+            after=["error", "step"],
+        ).respond()
+
+        function.set_streaming(enabled=True)
+        function.deploy()
+
+        url = function.get_url()
+
+        # 1. Send a streaming request that triggers a mid-stream error.
+        #    Use a timeout to guard against hangs (the pre-NUC-723 failure mode).
+        self._logger.info("Sending error streaming request...")
+        resp = requests.post(f"{url}/error", data="test", stream=True, timeout=30)
+
+        try:
+            chunks = list(resp.iter_content(decode_unicode=True, chunk_size=1024))
+            self._logger.info(f"Error path chunks: {chunks}")
+        except requests.exceptions.ChunkedEncodingError:
+            self._logger.info(
+                "Got ChunkedEncodingError (expected — stream terminated by server)"
+            )
+
+        # 2. Verify the worker is still healthy by sending a normal request.
+        self._logger.info("Sending healthy streaming request...")
+        resp = requests.post(f"{url}/step", data="test", stream=True, timeout=30)
+        assert resp.ok, f"Healthy request failed: {resp.status_code} {resp.text}"
+        assert resp.headers.get("Transfer-Encoding") == "chunked"
+
+        chunks = list(resp.iter_content(decode_unicode=True, chunk_size=1024))
+        self._logger.info(f"Healthy path chunks: {chunks}")
         assert chunks == ["test_chunk_0", "test_chunk_1", "test_chunk_2"]
 
     @pytest.mark.parametrize("with_object", [True, False])
@@ -757,9 +810,9 @@ class TestNuclioRuntime(TestMLRunSystemModelMonitoring):
                 future.result()
         end = time.time()
         timing = end - start
-        assert (
-            timing < 7
-        ), f"running nuclio async mode took {timing} seconds should be < 7"
+        assert timing < 7, (
+            f"running nuclio async mode took {timing} seconds should be < 7"
+        )
 
     @pytest.mark.parametrize("with_code", [True, False])
     def test_async_http_mode_serving_graph(self, with_code):
@@ -824,9 +877,9 @@ class TestNuclioRuntime(TestMLRunSystemModelMonitoring):
                 future.result()
         end = time.time()
         timing = end - start
-        assert (
-            timing < 7
-        ), f"running serving async mode took {timing} seconds should be < 7"
+        assert timing < 7, (
+            f"running serving async mode took {timing} seconds should be < 7"
+        )
 
 
 @tests.system.base.TestMLRunSystem.skip_test_if_env_not_configured

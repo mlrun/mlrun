@@ -13,7 +13,6 @@
 # limitations under the License.
 import re
 from subprocess import run
-from typing import Optional
 
 import kubernetes.client
 
@@ -192,7 +191,7 @@ class RemoteSparkRuntime(KubejobRuntime):
         skip_deployed=False,
         is_kfp=False,
         mlrun_version_specifier=None,
-        builder_env: Optional[dict] = None,
+        builder_env: dict | None = None,
         show_on_failure: bool = False,
         force_build: bool = False,
     ):

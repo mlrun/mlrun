@@ -15,8 +15,6 @@
 import asyncio
 import base64
 import shlex
-import typing
-from typing import Optional
 
 import nuclio
 import nuclio.utils
@@ -47,9 +45,9 @@ from services.api.crud.runtimes.nuclio.helpers import pure_nuclio_deployed_restr
 def deploy_nuclio_function(
     function: mlrun.runtimes.nuclio.function.RemoteRuntime,
     auth_info: mlrun.common.schemas.AuthInfo = None,
-    client_version: typing.Optional[str] = None,
-    builder_env: typing.Optional[dict] = None,
-    client_python_version: typing.Optional[str] = None,
+    client_version: str | None = None,
+    builder_env: dict | None = None,
+    client_python_version: str | None = None,
 ):
     """Deploys a nuclio function.
 
@@ -192,7 +190,7 @@ async def delete_nuclio_functions_in_batches(
         function: str,
         _semaphore: asyncio.Semaphore,
         k8s_helper_: framework.utils.singletons.k8s.K8sHelper,
-    ) -> typing.Optional[tuple[str, str]]:
+    ) -> tuple[str, str] | None:
         async with _semaphore:
             try:
                 await nuclio_client.delete_function(name=function, project_name=project)
@@ -234,8 +232,8 @@ async def delete_nuclio_functions_in_batches(
 
 def _compile_function_config(
     function: mlrun.runtimes.nuclio.function.RemoteRuntime,
-    client_version: typing.Optional[str] = None,
-    client_python_version: typing.Optional[str] = None,
+    client_version: str | None = None,
+    client_python_version: str | None = None,
     builder_env=None,
     auth_info=None,
 ):
@@ -381,7 +379,7 @@ def _apply_escaped_config(config, parent_key, items: dict):
 
 
 def _enrich_config_spec(
-    function, auth_info: Optional[mlrun.common.schemas.AuthInfo] = None
+    function, auth_info: mlrun.common.schemas.AuthInfo | None = None
 ):
     # Add secret configurations to function's pod spec, if secret sources were added.
     # Needs to be here, since it adds env params, which are handled in the next lines.
@@ -697,7 +695,7 @@ def _set_function_name(function, config, project, tag):
 def _add_secrets_config_to_function_spec(
     function: mlrun.runtimes.nuclio.function.RemoteRuntime,
     token_name: str,
-    auth_info: Optional[mlrun.common.schemas.AuthInfo] = None,
+    auth_info: mlrun.common.schemas.AuthInfo | None = None,
 ):
     handler = services.api.runtime_handlers.BaseRuntimeHandler
     if function.kind in [
@@ -785,8 +783,8 @@ def _should_fetch_source_code(
 def _configure_source_loader_init_container(
     function: mlrun.runtimes.nuclio.function.RemoteRuntime,
     sidecar: dict,
-    client_version: typing.Optional[str] = None,
-    client_python_version: typing.Optional[str] = None,
+    client_version: str | None = None,
+    client_python_version: str | None = None,
 ):
     """
     Configure an init container for Application runtime to load source code at runtime.
@@ -856,8 +854,8 @@ def _build_source_loader_init_container(
     source: str,
     target_dir: str,
     volume_mount: dict,
-    client_version: typing.Optional[str] = None,
-    client_python_version: typing.Optional[str] = None,
+    client_version: str | None = None,
+    client_python_version: str | None = None,
 ) -> dict:
     """
     Build the init container spec for loading source code.

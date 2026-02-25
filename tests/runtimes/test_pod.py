@@ -426,9 +426,9 @@ def test_with_node_selection_warnings(
 
     # Assert that each expected warning substring is found in the warnings.
     for expected in expected_warning_substrings:
-        assert any(
-            expected in message for message in warning_messages
-        ), f"Expected warning substring '{expected}' not found in warnings: {warning_messages}"
+        assert any(expected in message for message in warning_messages), (
+            f"Expected warning substring '{expected}' not found in warnings: {warning_messages}"
+        )
     # If no warnings are expected, assert that none were raised.
     if not expected_warning_substrings:
         assert len(warning_messages) == 0, (

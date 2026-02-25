@@ -13,7 +13,6 @@
 # limitations under the License.
 
 from datetime import UTC, datetime
-from typing import Optional
 
 import pytest
 
@@ -47,7 +46,7 @@ class TestTimescaleDBCrossQueries:
         result_status: int,
         result_kind: int,
         end_time: datetime,
-        start_time: Optional[datetime] = None,
+        start_time: datetime | None = None,
     ) -> dict:
         """Factory method for creating result event data."""
         if start_time is None:
@@ -87,7 +86,7 @@ class TestTimescaleDBCrossQueries:
         check_error_count: int = 0,
         check_last_request: bool = True,
         check_avg_latency: bool = True,
-        check_result_status: Optional[int] = None,
+        check_result_status: int | None = None,
     ):
         """Helper method for verifying basic metrics in endpoints."""
         assert len(endpoints) == expected_count

@@ -83,12 +83,12 @@ class MonitoringDeployment:
     def __init__(
         self,
         project: str,
-        auth_info: typing.Optional[mlrun.common.schemas.AuthInfo] = None,
-        db_session: typing.Optional[sqlalchemy.orm.Session] = None,
-        model_monitoring_access_key: typing.Optional[str] = None,
+        auth_info: mlrun.common.schemas.AuthInfo | None = None,
+        db_session: sqlalchemy.orm.Session | None = None,
+        model_monitoring_access_key: str | None = None,
         parquet_batching_max_events: int = mlrun.mlconf.model_endpoint_monitoring.parquet_batching_max_events,
         max_parquet_save_interval: int = mlrun.mlconf.model_endpoint_monitoring.parquet_batching_timeout_secs,
-        auth_token_name: typing.Optional[str] = None,
+        auth_token_name: str | None = None,
     ) -> None:
         """
         Initialize a MonitoringDeployment object, which handles the deployment & scheduling of:
@@ -493,7 +493,7 @@ class MonitoringDeployment:
         stream_path: str,
         shard_count: int,
         retention_period_hours: int,
-        access_key: typing.Optional[str] = None,
+        access_key: str | None = None,
     ):
         if stream_path.startswith("v3io://"):
             import v3io.dataplane
@@ -695,7 +695,7 @@ class MonitoringDeployment:
         function: typing.Union[
             mlrun.runtimes.KubejobRuntime, mlrun.runtimes.ServingRuntime
         ],
-        function_name: typing.Optional[str] = None,
+        function_name: str | None = None,
     ) -> typing.Union[mlrun.runtimes.KubejobRuntime, mlrun.runtimes.ServingRuntime]:
         """Applying model monitoring access key on the provided function when using V3IO path. In addition, this method
         mount the V3IO path for the provided function to configure the access to the system files.
@@ -828,7 +828,7 @@ class MonitoringDeployment:
 
         return function
 
-    def _get_function_state(self, function_name: str) -> typing.Optional[str]:
+    def _get_function_state(self, function_name: str) -> str | None:
         """
         :param function_name: The name of the function to check.
         :return:              Function state if deployed, else None.
@@ -932,7 +932,7 @@ class MonitoringDeployment:
 
     def list_model_monitoring_functions(
         self,
-        labels: typing.Optional[list[str]] = None,
+        labels: list[str] | None = None,
         format_: str = mlrun.common.formatters.FunctionFormat.full,
         function_type: mm_functions.FunctionsType = mm_functions.FunctionsType.APPLICATION,
     ) -> list[dict]:
@@ -964,10 +964,10 @@ class MonitoringDeployment:
 
     async def function_summaries(
         self,
-        start: typing.Optional[datetime] = None,
-        end: typing.Optional[datetime] = None,
-        names: typing.Optional[list[str]] = None,
-        labels: typing.Optional[list[str]] = None,
+        start: datetime | None = None,
+        end: datetime | None = None,
+        names: list[str] | None = None,
+        labels: list[str] | None = None,
         include_stats: bool = True,
         include_infra: bool = True,
         include_processed_model_endpoints: bool = False,
@@ -1036,8 +1036,8 @@ class MonitoringDeployment:
     async def function_summary(
         self,
         name: str,
-        start: typing.Optional[datetime] = None,
-        end: typing.Optional[datetime] = None,
+        start: datetime | None = None,
+        end: datetime | None = None,
         include_latest_metrics: bool = False,
     ) -> mlrun.common.schemas.model_monitoring.FunctionSummary:
         """
@@ -1142,9 +1142,8 @@ class MonitoringDeployment:
 
     async def _enrich_with_stream_stats(
         self,
-        function_summaries: typing.Optional[
-            list[mlrun.common.schemas.model_monitoring.FunctionSummary]
-        ],
+        function_summaries: list[mlrun.common.schemas.model_monitoring.FunctionSummary]
+        | None,
         agg_stats: bool = True,
     ) -> None:
         """
@@ -1283,11 +1282,11 @@ class MonitoringDeployment:
 
     async def _get_function_summary_applications(
         self,
-        base_period: typing.Optional[float] = None,
-        start: typing.Optional[datetime] = None,
-        end: typing.Optional[datetime] = None,
-        names: typing.Optional[list[str]] = None,
-        labels: typing.Optional[list[str]] = None,
+        base_period: float | None = None,
+        start: datetime | None = None,
+        end: datetime | None = None,
+        names: list[str] | None = None,
+        labels: list[str] | None = None,
         include_stats: bool = True,
         include_processed_model_endpoints: bool = False,
     ) -> list[mlrun.common.schemas.model_monitoring.FunctionSummary]:
@@ -1384,7 +1383,7 @@ class MonitoringDeployment:
         delete_stream_function: bool = False,
         delete_histogram_data_drift_app: bool = True,
         delete_user_applications: bool = False,
-        user_application_list: typing.Optional[list[str]] = None,
+        user_application_list: list[str] | None = None,
         background_tasks: fastapi.BackgroundTasks = None,
     ) -> mlrun.common.schemas.BackgroundTaskList:
         """
@@ -1442,7 +1441,7 @@ class MonitoringDeployment:
         self,
         delete_histogram_data_drift_app: bool = True,
         delete_user_applications: bool = False,
-        user_application_list: typing.Optional[list[str]] = None,
+        user_application_list: list[str] | None = None,
     ):
         application_to_delete = []
 
@@ -1565,9 +1564,8 @@ class MonitoringDeployment:
     def _delete_model_monitoring_stream_resources(
         self,
         function_names: list[str],
-        stream_profile: typing.Optional[
-            mlrun.datastore.datastore_profile.DatastoreProfile
-        ] = None,
+        stream_profile: mlrun.datastore.datastore_profile.DatastoreProfile
+        | None = None,
     ) -> None:
         """
         :param function_names: A list of functions that their resources should be deleted.
@@ -1869,8 +1867,8 @@ class MonitoringDeployment:
     def set_credentials(
         self,
         *,
-        tsdb_profile_name: typing.Optional[str] = None,
-        stream_profile_name: typing.Optional[str] = None,
+        tsdb_profile_name: str | None = None,
+        stream_profile_name: str | None = None,
         replace_creds: bool = False,
     ) -> None:
         """
@@ -1954,8 +1952,8 @@ class MonitoringDeployment:
 
     def _is_the_same_cred(
         self,
-        stream_profile_name: typing.Optional[str],
-        tsdb_profile_name: typing.Optional[str],
+        stream_profile_name: str | None,
+        tsdb_profile_name: str | None,
     ) -> bool:
         credentials_dict = {
             key: mlrun.get_secret_or_env(key, self._secret_provider)
@@ -2155,8 +2153,8 @@ class MonitoringDeployment:
         sampling_percentage: float,
         model_endpoints_dict: dict[str, str],
         project: str,
-        override_type: typing.Optional[mm_constants.EndpointType] = None,
-        user_function_name: typing.Optional[str] = None,
+        override_type: mm_constants.EndpointType | None = None,
+        user_function_name: str | None = None,
     ) -> tuple[
         list[
             tuple[
@@ -2207,8 +2205,8 @@ class MonitoringDeployment:
         sampling_percentage: float,
         model_endpoints_dict: dict[str, str],
         project: str,
-        override_type: typing.Optional[mm_constants.EndpointType] = None,
-        user_function_name: typing.Optional[str] = None,
+        override_type: mm_constants.EndpointType | None = None,
+        user_function_name: str | None = None,
     ) -> list[
         tuple[
             mlrun.common.schemas.ModelEndpoint,
@@ -2312,8 +2310,8 @@ class MonitoringDeployment:
         sampling_percentage: float,
         model_endpoints_dict: dict[str, str],
         project: str,
-        override_type: typing.Optional[mm_constants.EndpointType] = None,
-        user_function_name: typing.Optional[str] = None,
+        override_type: mm_constants.EndpointType | None = None,
+        user_function_name: str | None = None,
     ) -> list[
         tuple[
             mlrun.common.schemas.ModelEndpoint,
@@ -2419,13 +2417,13 @@ class MonitoringDeployment:
         function_name: str,
         function_tag: str,
         track_models: bool,
-        uid: typing.Optional[str] = None,
-        children_names: typing.Optional[list[str]] = None,
-        children_uids: typing.Optional[list[str]] = None,
-        sampling_percentage: typing.Optional[float] = None,
-        label_names: typing.Optional[list[str]] = None,
-        model_path: typing.Optional[str] = None,
-        feature_names: typing.Optional[list[str]] = None,
+        uid: str | None = None,
+        children_names: list[str] | None = None,
+        children_uids: list[str] | None = None,
+        sampling_percentage: float | None = None,
+        label_names: list[str] | None = None,
+        model_path: str | None = None,
+        feature_names: list[str] | None = None,
     ) -> mlrun.common.schemas.ModelEndpoint:
         function_tag = function_tag or "latest"
         feature_names = (
@@ -2520,8 +2518,8 @@ class MonitoringDeployment:
         sampling_percentage: float,
         model_endpoints_dict: dict[str, str],
         project: str,
-        override_type: typing.Optional[mm_constants.EndpointType] = None,
-        user_function_name: typing.Optional[str] = None,
+        override_type: mm_constants.EndpointType | None = None,
+        user_function_name: str | None = None,
     ) -> list[
         tuple[
             mlrun.common.schemas.ModelEndpoint,
@@ -2591,7 +2589,7 @@ class MonitoringDeployment:
         return model_endpoints_instructions
 
     def _delete_app_from_schedules_files(
-        self, application_name: str, endpoint_ids: typing.Optional[list[str]] = None
+        self, application_name: str, endpoint_ids: list[str] | None = None
     ) -> None:
         """
         Delete the application from the schedules file.
@@ -2625,7 +2623,7 @@ class MonitoringDeployment:
                 schedules_file.delete_application_time(application=application_name)
 
     def delete_application_records(
-        self, application_name: str, endpoint_ids: typing.Optional[list[str]] = None
+        self, application_name: str, endpoint_ids: list[str] | None = None
     ) -> None:
         """
         Deletes the application records from the model monitoring database.
@@ -2670,8 +2668,8 @@ class MonitoringDeployment:
 
 def get_endpoint_features(
     feature_names: list[str],
-    feature_stats: typing.Optional[dict] = None,
-    current_stats: typing.Optional[dict] = None,
+    feature_stats: dict | None = None,
+    current_stats: dict | None = None,
 ) -> list[mlrun.common.schemas.Features]:
     """
     Getting a new list of features that exist in feature_names along with their expected (feature_stats) and

@@ -13,7 +13,6 @@
 # limitations under the License.
 
 import os
-import typing
 from collections.abc import Iterator
 from unittest.mock import Mock, patch
 
@@ -46,7 +45,7 @@ class SecretTester(services.api.crud.secrets.Secrets):
         project: str,
         secrets: mlrun.common.schemas.SecretsData,
         allow_internal_secrets: bool = False,
-        key_map_secret_key: typing.Optional[str] = None,
+        key_map_secret_key: str | None = None,
         allow_storing_key_maps: bool = False,
     ):
         self._secrets[project] = secrets.secrets
@@ -56,11 +55,11 @@ class SecretTester(services.api.crud.secrets.Secrets):
         project: str,
         provider: mlrun.common.schemas.SecretProviderName,
         secret_key: str,
-        token: typing.Optional[str] = None,
+        token: str | None = None,
         allow_secrets_from_k8s: bool = False,
         allow_internal_secrets: bool = False,
-        key_map_secret_key: typing.Optional[str] = None,
-    ) -> typing.Optional[str]:
+        key_map_secret_key: str | None = None,
+    ) -> str | None:
         return self._secrets.get(project, {}).get(secret_key)
 
 
@@ -172,7 +171,7 @@ class TestAppDeployment:
 @patch("mlrun.datastore.sources.KafkaSource.create_topics")
 def test_apply_and_create_kafka_source(
     create_topics_mock: Mock,
-    nuclio_annotations: typing.Optional[dict[str, str]],
+    nuclio_annotations: dict[str, str] | None,
     monitoring_deployment: mm_dep.MonitoringDeployment,
 ) -> None:
     """Test that the Kafka trigger is set correctly"""
@@ -210,9 +209,9 @@ def test_apply_and_create_kafka_source(
 
     kafka_trigger_conf = fn.spec.config.get("spec.triggers.kafka")
     assert kafka_trigger_conf, "Expected a Kafka trigger"
-    assert (
-        kafka_trigger_conf.get("kind") == "kafka-cluster"
-    ), "Expected `kafka-cluster` kind"
+    assert kafka_trigger_conf.get("kind") == "kafka-cluster", (
+        "Expected `kafka-cluster` kind"
+    )
     assert (
         fn.spec.base_spec.get("metadata", {}).get("annotations") == nuclio_annotations
     ), "The set annotations are different than expected"

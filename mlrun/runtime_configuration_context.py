@@ -40,9 +40,9 @@ class RuntimeConfigurationContext:
 
     __slots__ = ("auth_token_name", "_token")
 
-    def __init__(self, auth_token_name: Optional[str] = None):
+    def __init__(self, auth_token_name: str | None = None):
         self.auth_token_name = auth_token_name
-        self._token: Optional[contextvars.Token] = None
+        self._token: contextvars.Token | None = None
 
     def __enter__(self):
         self._token = runtime_configuration_context.set(self)
@@ -56,7 +56,7 @@ class RuntimeConfigurationContext:
         return f"RuntimeConfigurationContext(auth_token_name={self.auth_token_name!r})"
 
     @staticmethod
-    def get_auth_token_name() -> Optional[str]:
+    def get_auth_token_name() -> str | None:
         """
         Get auth token name from context manager.
 

@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import typing
 
 import pydantic.v1
 
@@ -21,6 +20,6 @@ class PaginationInfo(pydantic.v1.BaseModel):
     class Config:
         allow_population_by_field_name = True
 
-    page: typing.Optional[int]
-    page_size: typing.Optional[int] = pydantic.v1.Field(alias="page-size")
-    page_token: typing.Optional[str] = pydantic.v1.Field(alias="page-token")
+    page: int | None
+    page_size: int | None = pydantic.v1.Field(alias="page-size")
+    page_token: str | None = pydantic.v1.Field(alias="page-token")

@@ -18,7 +18,6 @@ import re
 import unittest.mock
 from contextlib import nullcontext as does_not_raise
 from datetime import UTC, datetime, timedelta, timezone
-from typing import Optional
 
 import pytest
 from pandas import Timedelta, Timestamp
@@ -1796,10 +1795,10 @@ def test_format_datetime(dt, expected):
     ],
 )
 def test_get_kfp_list_runs_filter(
-    input_start_date: Optional[str],
-    input_end_date: Optional[str],
-    input_existing_filter_json: Optional[str],
-    input_experiment_id: Optional[str],
+    input_start_date: str | None,
+    input_end_date: str | None,
+    input_existing_filter_json: str | None,
+    input_experiment_id: str | None,
     expected_filter_object: dict,
 ):
     experiment_ids = []

@@ -15,7 +15,6 @@
 import base64
 import json
 import pathlib
-import typing
 import unittest.mock
 from contextlib import nullcontext as does_not_raise
 from http import HTTPStatus
@@ -111,9 +110,9 @@ def test_submit_run_sync(db: Session, client: TestClient):
             db, project, submit_job_body["task"]["metadata"]["name"]
         )
     )
-    assert (
-        updated_schedule.cron_trigger.to_crontab() == "0 1 * * *"
-    ), "schedule was not updated"
+    assert updated_schedule.cron_trigger.to_crontab() == "0 1 * * *", (
+        "schedule was not updated"
+    )
 
 
 def test_submit_run_sync_schedule_with_function_overrides(
@@ -2390,10 +2389,10 @@ def test_resolve_project_service_account_details(
         project: str,
         provider: mlrun.common.schemas.SecretProviderName,
         secret_key: str,
-        token: typing.Optional[str] = None,
+        token: str | None = None,
         allow_secrets_from_k8s: bool = False,
         allow_internal_secrets: bool = False,
-        key_map_secret_key: typing.Optional[str] = None,
+        key_map_secret_key: str | None = None,
     ):
         return {
             "allowed": allowed_secret,

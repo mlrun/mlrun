@@ -13,10 +13,8 @@
 # limitations under the License.
 import abc
 import os
-import typing
 from copy import deepcopy
 from datetime import datetime
-from typing import Optional
 
 from kubernetes import client as k8s_client
 from kubernetes.client.rest import ApiException
@@ -359,7 +357,7 @@ with ctx:
         runtime: mlrun.runtimes.sparkjob.Spark3Runtime,
         job: dict,
         meta: k8s_client.V1ObjectMeta,
-        code: Optional[str] = None,
+        code: str | None = None,
     ):
         namespace = meta.namespace
         k8s = framework.utils.singletons.k8s.get_k8s_helper()
@@ -369,9 +367,7 @@ with ctx:
             k8s_config_map.metadata = meta
             k8s_config_map.metadata.name += "-script"
             k8s_config_map.data = {runtime.code_script: code}
-            config_map = k8s.v1api.create_namespaced_config_map(
-                namespace, k8s_config_map
-            )
+            config_map = k8s.create_configmap(namespace, k8s_config_map)
             config_map_name = config_map.metadata.name
 
             vol_src = k8s_client.V1ConfigMapVolumeSource(name=config_map_name)
@@ -390,11 +386,11 @@ with ctx:
             )
 
         try:
-            resp = k8s.crdapi.create_namespaced_custom_object(
+            resp = k8s.create_crd(
                 Spark3Runtime.group,
                 Spark3Runtime.version,
+                Spark3Runtime.plural,
                 namespace=namespace,
-                plural=Spark3Runtime.plural,
                 body=job,
             )
             name = get_in(resp, "metadata.name", "unknown")
@@ -461,7 +457,7 @@ with ctx:
 
     def _resolve_crd_object_status_info(
         self, crd_object: dict
-    ) -> tuple[bool, Optional[datetime], Optional[str]]:
+    ) -> tuple[bool, datetime | None, str | None]:
         state = crd_object.get("status", {}).get("applicationState", {}).get("state")
         if not state:
             return False, None, None
@@ -573,10 +569,10 @@ with ctx:
         db_session: Session,
         namespace: str,
         deleted_resources: list[dict],
-        label_selector: Optional[str] = None,
+        label_selector: str | None = None,
         force: bool = False,
-        grace_period: Optional[int] = None,
-        resource_deletion_grace_period: typing.Optional[int] = None,
+        grace_period: int | None = None,
+        resource_deletion_grace_period: int | None = None,
     ):
         """
         Handling config maps deletion
@@ -590,7 +586,7 @@ with ctx:
             )
             uids.append(uid)
 
-        config_maps = framework.utils.singletons.k8s.get_k8s_helper().v1api.list_namespaced_config_map(
+        config_maps = framework.utils.singletons.k8s.get_k8s_helper().list_configmaps(
             namespace, label_selector=label_selector
         )
         for config_map in config_maps.items:
@@ -599,7 +595,7 @@ with ctx:
                     mlrun_constants.MLRunInternalLabels.uid, None
                 )
                 if force or uid in uids:
-                    framework.utils.singletons.k8s.get_k8s_helper().v1api.delete_namespaced_config_map(
+                    framework.utils.singletons.k8s.get_k8s_helper().delete_configmap(
                         config_map.metadata.name,
                         namespace,
                         grace_period_seconds=resource_deletion_grace_period,

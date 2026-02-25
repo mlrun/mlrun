@@ -23,45 +23,45 @@ from mlrun.common.types import StrEnum
 
 class WorkflowSpec(pydantic.v1.BaseModel):
     name: str
-    engine: typing.Optional[str] = None
-    code: typing.Optional[str] = None
-    path: typing.Optional[str] = None
-    args: typing.Optional[dict] = None
-    handler: typing.Optional[str] = None
-    ttl: typing.Optional[int] = None
-    args_schema: typing.Optional[list] = None
+    engine: str | None = None
+    code: str | None = None
+    path: str | None = None
+    args: dict | None = None
+    handler: str | None = None
+    ttl: int | None = None
+    args_schema: list | None = None
     schedule: typing.Union[str, ScheduleCronTrigger] = None
-    run_local: typing.Optional[bool] = None
-    image: typing.Optional[str] = None
-    workflow_runner_node_selector: typing.Optional[dict[str, str]] = None
-    auth_token_name: typing.Optional[str] = None
+    run_local: bool | None = None
+    image: str | None = None
+    workflow_runner_node_selector: dict[str, str] | None = None
+    auth_token_name: str | None = None
 
 
 class WorkflowRequest(pydantic.v1.BaseModel):
-    spec: typing.Optional[WorkflowSpec] = None
-    arguments: typing.Optional[dict] = None
-    artifact_path: typing.Optional[str] = None
-    source: typing.Optional[str] = None
-    run_name: typing.Optional[str] = None
-    namespace: typing.Optional[str] = None
-    notifications: typing.Optional[list[Notification]] = None
+    spec: WorkflowSpec | None = None
+    arguments: dict | None = None
+    artifact_path: str | None = None
+    source: str | None = None
+    run_name: str | None = None
+    namespace: str | None = None
+    notifications: list[Notification] | None = None
 
 
 class RerunWorkflowRequest(pydantic.v1.BaseModel):
-    run_name: typing.Optional[str] = None
-    run_id: typing.Optional[str] = None
-    notifications: typing.Optional[list[Notification]] = None
-    workflow_runner_node_selector: typing.Optional[dict[str, str]] = None
-    original_workflow_runner_uid: typing.Optional[str] = None
-    original_workflow_name: typing.Optional[str] = None
-    rerun_index: typing.Optional[int] = None
+    run_name: str | None = None
+    run_id: str | None = None
+    notifications: list[Notification] | None = None
+    workflow_runner_node_selector: dict[str, str] | None = None
+    original_workflow_runner_uid: str | None = None
+    original_workflow_name: str | None = None
+    rerun_index: int | None = None
 
 
 class WorkflowResponse(pydantic.v1.BaseModel):
     project: str = None
     name: str = None
     status: str = None
-    run_id: typing.Optional[str] = None
+    run_id: str | None = None
     schedule: typing.Union[str, ScheduleCronTrigger] = None
 
 

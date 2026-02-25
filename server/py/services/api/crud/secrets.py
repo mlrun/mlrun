@@ -41,7 +41,7 @@ import services.api
 import services.api.utils.events.events_factory as events_factory
 
 
-class SecretsClientType(str, enum.Enum):
+class SecretsClientType(enum.StrEnum):
     schedules = "schedules"
     model_monitoring = "model-monitoring"
     service_accounts = "service-accounts"
@@ -110,7 +110,7 @@ class Secrets(
         project: str,
         secrets: mlrun.common.schemas.SecretsData,
         allow_internal_secrets: bool = False,
-        key_map_secret_key: typing.Optional[str] = None,
+        key_map_secret_key: str | None = None,
         allow_storing_key_maps: bool = False,
     ):
         """
@@ -219,7 +219,7 @@ class Secrets(
         self,
         project: str,
         provider: mlrun.common.schemas.SecretProviderName,
-        secrets: typing.Optional[list[str]] = None,
+        secrets: list[str] | None = None,
         allow_internal_secrets: bool = False,
     ):
         if not allow_internal_secrets:
@@ -274,7 +274,7 @@ class Secrets(
         self,
         project: str,
         provider: mlrun.common.schemas.SecretProviderName,
-        token: typing.Optional[str] = None,
+        token: str | None = None,
         allow_internal_secrets: bool = False,
     ) -> mlrun.common.schemas.SecretKeysData:
         if provider == mlrun.common.schemas.SecretProviderName.vault:
@@ -320,8 +320,8 @@ class Secrets(
         self,
         project: str,
         provider: mlrun.common.schemas.SecretProviderName,
-        secrets: typing.Optional[list[str]] = None,
-        token: typing.Optional[str] = None,
+        secrets: list[str] | None = None,
+        token: str | None = None,
         allow_secrets_from_k8s: bool = False,
         allow_internal_secrets: bool = False,
     ) -> mlrun.common.schemas.SecretsData:
@@ -359,10 +359,10 @@ class Secrets(
         project: str,
         provider: mlrun.common.schemas.SecretProviderName,
         secret_key: str,
-        token: typing.Optional[str] = None,
+        token: str | None = None,
         allow_secrets_from_k8s: bool = False,
         allow_internal_secrets: bool = False,
-        key_map_secret_key: typing.Optional[str] = None,
+        key_map_secret_key: str | None = None,
     ):
         from_key_map, secret_key_to_remove = self._resolve_project_secret_key(
             project,
@@ -400,11 +400,11 @@ class Secrets(
         project: str,
         provider: mlrun.common.schemas.SecretProviderName,
         secret_key: str,
-        token: typing.Optional[str] = None,
+        token: str | None = None,
         allow_secrets_from_k8s: bool = False,
         allow_internal_secrets: bool = False,
-        key_map_secret_key: typing.Optional[str] = None,
-    ) -> typing.Optional[str]:
+        key_map_secret_key: str | None = None,
+    ) -> str | None:
         from_key_map, secret_key = self._resolve_project_secret_key(
             project,
             provider,
@@ -502,7 +502,7 @@ class Secrets(
     def list_secret_tokens(
         self,
         auth_info: mlrun.common.schemas.AuthInfo,
-        username: typing.Optional[str] = None,
+        username: str | None = None,
     ) -> mlrun.common.schemas.ListSecretTokensResponse:
         """
         List offline token secrets stored in Kubernetes.
@@ -532,7 +532,7 @@ class Secrets(
         target_username: str,
         token_name: str,
         iguazio_client: "framework.utils.clients.iguazio.v4.Client",
-        request_headers: typing.Optional[dict[str, str]],
+        request_headers: dict[str, str] | None,
         skip_revocation: bool = False,
     ) -> None:
         """
@@ -772,7 +772,7 @@ class Secrets(
     def _get_user_id(
         self,
         auth_info: mlrun.common.schemas.AuthInfo,
-        username: typing.Optional[str],
+        username: str | None,
     ) -> str:
         """
         Get the user_id for token operations.
@@ -806,10 +806,10 @@ class Secrets(
         project: str,
         provider: mlrun.common.schemas.SecretProviderName,
         secret_key: str,
-        token: typing.Optional[str] = None,
+        token: str | None = None,
         allow_secrets_from_k8s: bool = False,
         allow_internal_secrets: bool = False,
-        key_map_secret_key: typing.Optional[str] = None,
+        key_map_secret_key: str | None = None,
     ) -> tuple[bool, str]:
         if key_map_secret_key:
             if provider != mlrun.common.schemas.SecretProviderName.kubernetes:
@@ -836,7 +836,7 @@ class Secrets(
         project: str,
         secrets: mlrun.common.schemas.SecretsData,
         allow_internal_secrets: bool = False,
-        key_map_secret_key: typing.Optional[str] = None,
+        key_map_secret_key: str | None = None,
         allow_storing_key_maps: bool = False,
     ):
         secrets_to_store = secrets.secrets.copy()
@@ -905,7 +905,7 @@ class Secrets(
         self,
         project: str,
         key_map_secret_key: str,
-    ) -> typing.Optional[dict]:
+    ) -> dict | None:
         secrets_data = self.list_project_secrets(
             project,
             mlrun.common.schemas.SecretProviderName.kubernetes,

@@ -64,9 +64,7 @@ class BaseClient(ABC, metaclass=mlrun.utils.singleton.AbstractSingleton):
         pass
 
     @abstractmethod
-    def _prepare_request_kwargs(
-        self, session: typing.Optional[str], path: str, *, kwargs: dict
-    ):
+    def _prepare_request_kwargs(self, session: str | None, path: str, *, kwargs: dict):
         pass
 
     def _send_request_to_api(
@@ -124,11 +122,11 @@ class BaseClient(ABC, metaclass=mlrun.utils.singleton.AbstractSingleton):
         mlrun.errors.raise_for_status(response, error_message)
 
     @abstractmethod
-    def _extract_ctx(self, response_body: dict) -> typing.Optional[str]:
+    def _extract_ctx(self, response_body: dict) -> str | None:
         pass
 
     @abstractmethod
-    def _extract_error_message(self, response_body: dict) -> typing.Optional[str]:
+    def _extract_error_message(self, response_body: dict) -> str | None:
         pass
 
 
@@ -221,10 +219,9 @@ class BaseAsyncClient(BaseClient):
         method: str,
         path: str,
         error_message: str,
-        session: typing.Optional[str] = None,
-        retry_options_override: typing.Optional[
-            mlrun.utils.async_http.ExponentialRetryOverride
-        ] = None,
+        session: str | None = None,
+        retry_options_override: mlrun.utils.async_http.ExponentialRetryOverride
+        | None = None,
         **kwargs,
     ) -> typing.AsyncGenerator[aiohttp.ClientResponse, None]:
         url = f"{self._api_url}/api/{path}"

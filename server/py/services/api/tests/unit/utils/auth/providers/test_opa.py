@@ -55,9 +55,9 @@ def permission_filter_path() -> str:
 
 
 @pytest_asyncio.fixture()
-async def opa_provider() -> (
-    typing.AsyncIterator[framework.utils.auth.providers.opa.Provider]
-):
+async def opa_provider() -> typing.AsyncIterator[
+    framework.utils.auth.providers.opa.Provider
+]:
     mlrun.mlconf.httpdb.authorization.opa.log_level = 10
     mlrun.mlconf.httpdb.authorization.mode = "opa"
     provider = framework.utils.auth.providers.opa.Provider()

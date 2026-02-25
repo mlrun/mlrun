@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import typing
 
 import mlrun.runtimes.nuclio as nuclio_runtime
 import mlrun.runtimes.nuclio.application as nuclio_application
@@ -112,7 +111,7 @@ class RuntimeKinds:
         ]
 
     @staticmethod
-    def is_log_collectable_runtime(kind: typing.Optional[str]):
+    def is_log_collectable_runtime(kind: str | None):
         """
         whether log collector can collect logs for that runtime
         :param kind: kind name

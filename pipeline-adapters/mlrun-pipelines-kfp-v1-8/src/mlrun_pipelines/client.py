@@ -25,7 +25,6 @@ import time
 import typing
 import zipfile
 from collections.abc import Generator
-from typing import Optional
 
 import kfp_server_api
 import kubernetes as k8s
@@ -49,7 +48,7 @@ INPUT_NAME_REGEX = re.compile(r"[^-_0-9a-z]+")
 class ServiceAccountTokenVolumeCredentials:
     def __init__(
         self,
-        path: typing.Optional[str] = None,
+        path: str | None = None,
     ):
         self._token_path: str = (
             path or os.getenv(KF_PIPELINES_SA_TOKEN_ENV) or KF_PIPELINES_SA_TOKEN_PATH
@@ -57,7 +56,7 @@ class ServiceAccountTokenVolumeCredentials:
 
     def _read_token_from_file(
         self,
-    ) -> typing.Optional[str]:
+    ) -> str | None:
         """
         Retrieve the token from the configured file path.
 
@@ -113,7 +112,7 @@ class Client(
     def __init__(
         self,
         logger,
-        host: typing.Optional[str] = None,
+        host: str | None = None,
         namespace: str = "mlrun",
     ):
         self.logger = logger
@@ -209,7 +208,7 @@ class Client(
 
     def _load_config(
         self,
-        host: typing.Optional[str],
+        host: str | None,
         namespace: str,
     ) -> kfp_server_api.configuration.Configuration:
         """
@@ -249,7 +248,7 @@ class Client(
         self,
         max_attempts: int = 5,
         interval_seconds: int = 5,
-    ) -> typing.Optional[kfp_server_api.ApiGetHealthzResponse]:
+    ) -> kfp_server_api.ApiGetHealthzResponse | None:
         """
         Retrieve the healthz status of the KFP API.
 
@@ -277,8 +276,8 @@ class Client(
     def create_experiment(
         self,
         name: str,
-        description: typing.Optional[str] = None,
-        namespace: typing.Optional[str] = None,
+        description: str | None = None,
+        namespace: str | None = None,
     ) -> kfp_server_api.ApiExperiment:
         """
         Create a new experiment if it does not already exist.
@@ -292,7 +291,7 @@ class Client(
         :return: An ApiExperiment object representing the experiment.
         :raises ValueError:  If multiple experiments with the same name are found.
         """
-        experiment: typing.Optional[kfp_server_api.ApiExperiment] = None
+        experiment: kfp_server_api.ApiExperiment | None = None
         try:
             experiment = self.get_experiment(
                 experiment_name=name,
@@ -328,9 +327,9 @@ class Client(
 
     def get_experiment(
         self,
-        experiment_id: typing.Optional[str] = None,
-        experiment_name: typing.Optional[str] = None,
-        namespace: typing.Optional[str] = None,
+        experiment_id: str | None = None,
+        experiment_name: str | None = None,
+        namespace: str | None = None,
     ) -> kfp_server_api.ApiExperiment:
         """
         Retrieve an experiment by ID or name.
@@ -384,13 +383,13 @@ class Client(
         self,
         experiment_id: str,
         job_name: str,
-        pipeline_package_path: typing.Optional[str] = None,
-        params: typing.Optional[dict[str, typing.Any]] = None,
-        pipeline_id: typing.Optional[str] = None,
-        version_id: typing.Optional[str] = None,
-        pipeline_root: typing.Optional[str] = None,
-        enable_caching: typing.Optional[bool] = None,
-        service_account: typing.Optional[str] = None,
+        pipeline_package_path: str | None = None,
+        params: dict[str, typing.Any] | None = None,
+        pipeline_id: str | None = None,
+        version_id: str | None = None,
+        pipeline_root: str | None = None,
+        enable_caching: bool | None = None,
+        service_account: str | None = None,
     ) -> kfp_server_api.ApiRun:
         """
         Run a pipeline within a specified experiment.
@@ -434,13 +433,13 @@ class Client(
 
     def list_runs(
         self,
-        project: typing.Union[list[str], Optional[str]] = None,
-        namespace: typing.Optional[str] = None,
-        sort_by: typing.Optional[str] = None,
-        page_token: typing.Optional[str] = None,
-        filter_json: typing.Optional[str] = None,
-        page_size: typing.Optional[int] = None,
-    ) -> Generator[tuple[list[PipelineRun], Optional[str]], None, None]:
+        project: typing.Union[list[str], str | None] = None,
+        namespace: str | None = None,
+        sort_by: str | None = None,
+        page_token: str | None = None,
+        filter_json: str | None = None,
+        page_size: int | None = None,
+    ) -> Generator[tuple[list[PipelineRun], str | None], None, None]:
         """
         List pipeline runs with optional filters.
 
@@ -543,7 +542,7 @@ class Client(
         start_time: datetime.datetime = datetime.datetime.now()
         if isinstance(timeout, datetime.timedelta):
             timeout = int(timeout.total_seconds())
-        get_run_response: typing.Optional[kfp_server_api.ApiRun] = None
+        get_run_response: kfp_server_api.ApiRun | None = None
 
         while status not in mlrun_pipelines.common.models.RunStatuses.stable_statuses():
             try:
@@ -566,8 +565,8 @@ class Client(
     def upload_pipeline(
         self,
         pipeline_package_path: str,
-        pipeline_name: typing.Optional[str] = None,
-        description: typing.Optional[str] = None,
+        pipeline_name: str | None = None,
+        description: str | None = None,
     ) -> kfp_server_api.ApiPipeline:
         """
         Upload a pipeline package file to Kubeflow Pipelines.
@@ -614,7 +613,7 @@ class Client(
         self,
         run_id: str,
         project: str,
-    ) -> typing.Optional[str]:
+    ) -> str | None:
         """
         Retry a previous run by ID, or create a new run with the same pipeline and parameters.
 
@@ -629,7 +628,7 @@ class Client(
         :raises kfp_server_api.ApiException: If the creation of the new run fails.
         """
         existing_run_details = self.get_run(run_id).run
-        experiment_id: typing.Optional[str] = next(
+        experiment_id: str | None = next(
             (
                 ref.key.id
                 for ref in existing_run_details.resource_references
@@ -648,7 +647,7 @@ class Client(
             )
 
         # Extract workflow manifest, if no pipeline_id is available
-        workflow_manifest_path: typing.Optional[str] = None
+        workflow_manifest_path: str | None = None
         if not pipeline_spec.pipeline_id:
             with tempfile.NamedTemporaryFile(
                 mode="w",
@@ -758,11 +757,11 @@ class Client(
     def _create_job_config(
         self,
         experiment_id: str,
-        params: typing.Optional[dict[str, typing.Any]],
-        pipeline_package_path: typing.Optional[str],
-        pipeline_id: typing.Optional[str],
-        version_id: typing.Optional[str],
-        enable_caching: typing.Optional[bool],
+        params: dict[str, typing.Any] | None,
+        pipeline_package_path: str | None,
+        pipeline_id: str | None,
+        version_id: str | None,
+        enable_caching: bool | None,
     ) -> JobConfig:
         """
         Create a JobConfig object holding the pipeline spec and resource references.
@@ -779,7 +778,7 @@ class Client(
         :return: A fully configured JobConfig instance.
         """
         params = params or {}
-        pipeline_json_string: typing.Optional[str] = None
+        pipeline_json_string: str | None = None
 
         if pipeline_package_path:
             pipeline_obj = self._parse_pipeline_obj(
@@ -921,12 +920,12 @@ class Client(
 
     def _list_runs(
         self,
-        page_token: typing.Optional[str] = None,
+        page_token: str | None = None,
         page_size: int = 10,
-        sort_by: typing.Optional[str] = None,
-        experiment_id: typing.Optional[str] = None,
-        namespace: typing.Optional[str] = None,
-        filter_json: typing.Optional[str] = None,
+        sort_by: str | None = None,
+        experiment_id: str | None = None,
+        namespace: str | None = None,
+        filter_json: str | None = None,
     ) -> tuple[
         list[mlrun_pipelines.models.PipelineRun],
         str,
@@ -970,12 +969,12 @@ class Client(
 
     def _paginate_runs(
         self,
-        page_token: typing.Optional[str] = None,
+        page_token: str | None = None,
         page_size: int = 10,
-        sort_by: typing.Optional[str] = None,
-        experiment_id: typing.Optional[str] = None,
-        namespace: typing.Optional[str] = None,
-        filter_json: typing.Optional[str] = None,
+        sort_by: str | None = None,
+        experiment_id: str | None = None,
+        namespace: str | None = None,
+        filter_json: str | None = None,
     ) -> Generator[tuple[list[PipelineRun], str], None, None]:
         current_page_token = page_token
         fetched_run_count = 0
@@ -1003,10 +1002,10 @@ class Client(
 
 
 def create_list_runs_filter(
-    start_date: Optional[str] = None,
-    end_date: Optional[str] = None,
-    filter_: Optional[str] = None,
-    experiment_ids: Optional[list[str]] = None,
+    start_date: str | None = None,
+    end_date: str | None = None,
+    filter_: str | None = None,
+    experiment_ids: list[str] | None = None,
 ) -> str:
     """
     Generate a filter for KFP runs based on start and end dates, and experiment IDs.

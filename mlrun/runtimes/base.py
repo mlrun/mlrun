@@ -14,11 +14,10 @@
 import enum
 import http
 import re
-import typing
 import warnings
 from collections.abc import Callable
 from os import environ
-from typing import Optional, Union
+from typing import Union
 
 import requests.exceptions
 from nuclio.build import mlrun_footer
@@ -286,33 +285,32 @@ class BaseRuntime(ModelObj):
 
     def run(
         self,
-        runspec: Optional[
-            Union["mlrun.run.RunTemplate", "mlrun.run.RunObject", dict]
-        ] = None,
-        handler: Optional[Union[str, Callable]] = None,
-        name: Optional[str] = "",
-        project: Optional[str] = "",
-        params: Optional[dict] = None,
-        inputs: Optional[dict[str, str | list | dict]] = None,
-        out_path: Optional[str] = "",
-        workdir: Optional[str] = "",
-        artifact_path: Optional[str] = "",
-        watch: Optional[bool] = True,
-        schedule: Optional[Union[str, mlrun.common.schemas.ScheduleCronTrigger]] = None,
-        hyperparams: Optional[dict[str, list]] = None,
-        hyper_param_options: Optional[HyperParamOptions] = None,
-        verbose: Optional[bool] = None,
-        scrape_metrics: Optional[bool] = None,
-        local: Optional[bool] = False,
-        local_code_path: Optional[str] = None,
-        auto_build: Optional[bool] = None,
-        param_file_secrets: Optional[dict[str, str]] = None,
-        notifications: Optional[list[mlrun.model.Notification]] = None,
+        runspec: Union["mlrun.run.RunTemplate", "mlrun.run.RunObject", dict]
+        | None = None,
+        handler: Union[str, Callable] | None = None,
+        name: str | None = "",
+        project: str | None = "",
+        params: dict | None = None,
+        inputs: dict[str, str | list | dict] | None = None,
+        out_path: str | None = "",
+        workdir: str | None = "",
+        artifact_path: str | None = "",
+        watch: bool | None = True,
+        schedule: Union[str, mlrun.common.schemas.ScheduleCronTrigger] | None = None,
+        hyperparams: dict[str, list] | None = None,
+        hyper_param_options: HyperParamOptions | None = None,
+        verbose: bool | None = None,
+        scrape_metrics: bool | None = None,
+        local: bool | None = False,
+        local_code_path: str | None = None,
+        auto_build: bool | None = None,
+        param_file_secrets: dict[str, str] | None = None,
+        notifications: list[mlrun.model.Notification] | None = None,
         returns: "list[str | mlrun.LogHint] | None" = None,
-        state_thresholds: Optional[dict[str, int]] = None,
-        reset_on_run: Optional[bool] = None,
-        output_path: Optional[str] = "",
-        retry: Optional[Union[mlrun.model.Retry, dict]] = None,
+        state_thresholds: dict[str, int] | None = None,
+        reset_on_run: bool | None = None,
+        output_path: str | None = "",
+        retry: Union[mlrun.model.Retry, dict] | None = None,
         **launcher_kwargs,
     ) -> RunObject:
         """
@@ -607,11 +605,11 @@ class BaseRuntime(ModelObj):
 
     def _update_run_state(
         self,
-        resp: Optional[dict] = None,
+        resp: dict | None = None,
         task: RunObject = None,
-        err: Optional[Union[Exception, str]] = None,
+        err: Union[Exception, str] | None = None,
         run_format: mlrun.common.formatters.RunFormat = mlrun.common.formatters.RunFormat.full,
-    ) -> typing.Optional[dict]:
+    ) -> dict | None:
         """update the task state in the DB"""
         was_none = False
         if resp is None and task:
@@ -714,8 +712,8 @@ class BaseRuntime(ModelObj):
     def full_image_path(
         self,
         image=None,
-        client_version: Optional[str] = None,
-        client_python_version: Optional[str] = None,
+        client_version: str | None = None,
+        client_python_version: str | None = None,
     ):
         image = image or self.spec.image or ""
 
@@ -740,16 +738,16 @@ class BaseRuntime(ModelObj):
         handler=None,
         name: str = "",
         project: str = "",
-        params: Optional[dict] = None,
+        params: dict | None = None,
         hyperparams=None,
         selector="",
         hyper_param_options: HyperParamOptions = None,
-        inputs: Optional[dict[str, str | list | dict]] = None,
-        outputs: Optional[list] = None,
+        inputs: dict[str, str | list | dict] | None = None,
+        outputs: list | None = None,
         workdir: str = "",
         artifact_path: str = "",
         image: str = "",
-        labels: Optional[dict] = None,
+        labels: dict | None = None,
         use_db=True,
         verbose=None,
         scrape_metrics=False,
@@ -870,10 +868,10 @@ class BaseRuntime(ModelObj):
 
     def with_requirements(
         self,
-        requirements: Optional[list[str]] = None,
+        requirements: list[str] | None = None,
         overwrite: bool = False,
         prepare_image_for_deploy: bool = True,
-        requirements_file: Optional[str] = "",
+        requirements_file: str | None = "",
     ):
         """add package requirements from file or list to build spec.
 

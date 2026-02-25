@@ -13,12 +13,11 @@
 # limitations under the License.
 
 import asyncio
-import typing
 from collections.abc import Coroutine
 from dataclasses import dataclass
 from datetime import datetime
 from http import HTTPStatus
-from typing import Annotated, Literal, Optional, Union
+from typing import Annotated, Literal, Union
 
 from fastapi import APIRouter, BackgroundTasks, Depends, Query
 from fastapi.concurrency import run_in_threadpool
@@ -54,7 +53,7 @@ async def create_model_endpoint(
     model_endpoint: schemas.ModelEndpoint,
     project: ProjectAnnotation,
     delete_background_task: BackgroundTasks,
-    creation_strategy: Optional[mm_constants.ModelEndpointCreationStrategy] = Query(
+    creation_strategy: mm_constants.ModelEndpointCreationStrategy | None = Query(
         None, alias="creation-strategy"
     ),
     auth_info: schemas.AuthInfo = Depends(framework.api.deps.authenticate_request),
@@ -178,11 +177,9 @@ async def delete_model_endpoint(
     project: ProjectAnnotation,
     name: str,
     delete_background_task: BackgroundTasks,
-    function_name: Optional[str] = Query(None, alias="function-name"),
-    function_tag: Optional[str] = Query(None, alias="function-tag"),
-    endpoint_id: typing.Optional[EndpointIDAnnotation] = Query(
-        None, alias="endpoint-id"
-    ),
+    function_name: str | None = Query(None, alias="function-name"),
+    function_tag: str | None = Query(None, alias="function-tag"),
+    endpoint_id: EndpointIDAnnotation | None = Query(None, alias="endpoint-id"),
     auth_info: schemas.AuthInfo = Depends(framework.api.deps.authenticate_request),
     db_session: Session = Depends(framework.api.deps.get_db_session),
 ) -> None:
@@ -228,18 +225,18 @@ async def delete_model_endpoint(
 )
 async def list_model_endpoints(
     project: ProjectAnnotation,
-    names: Optional[list[str]] = Query(None, alias="name"),
-    model_name: Optional[str] = Query(None, alias="model-name"),
-    model_tag: Optional[str] = Query(None, alias="model-tag"),
-    function_name: Optional[str] = Query(None, alias="function-name"),
-    function_tag: Optional[str] = Query(None, alias="function-tag"),
+    names: list[str] | None = Query(None, alias="name"),
+    model_name: str | None = Query(None, alias="model-name"),
+    model_tag: str | None = Query(None, alias="model-tag"),
+    function_name: str | None = Query(None, alias="function-name"),
+    function_tag: str | None = Query(None, alias="function-tag"),
     labels: list[str] = Query([], alias="label"),
-    start: Optional[datetime] = None,
-    end: Optional[datetime] = None,
+    start: datetime | None = None,
+    end: datetime | None = None,
     top_level: bool = Query(False, alias="top-level"),
-    modes: Optional[list[mm_constants.EndpointMode]] = Query(None, alias="mode"),
+    modes: list[mm_constants.EndpointMode] | None = Query(None, alias="mode"),
     tsdb_metrics: bool = Query(True, alias="tsdb-metrics"),
-    metric_list: Optional[list[str]] = Query(None, alias="metric"),
+    metric_list: list[str] | None = Query(None, alias="metric"),
     uids: list[str] = Query(None, alias="uid"),
     latest_only: bool = Query(False, alias="latest-only"),
     auth_info: schemas.AuthInfo = Depends(framework.api.deps.authenticate_request),
@@ -496,11 +493,11 @@ async def get_metrics_by_multiple_endpoints(
 async def get_model_endpoint(
     name: str,
     project: ProjectAnnotation,
-    function_name: Optional[str] = Query(None, alias="function-name"),
-    function_tag: Optional[str] = Query(None, alias="function-tag"),
-    endpoint_id: Optional[EndpointIDAnnotation] = Query(None, alias="endpoint-id"),
+    function_name: str | None = Query(None, alias="function-name"),
+    function_tag: str | None = Query(None, alias="function-tag"),
+    endpoint_id: EndpointIDAnnotation | None = Query(None, alias="endpoint-id"),
     tsdb_metrics: bool = Query(True, alias="tsdb-metrics"),
-    metric_list: Optional[list[str]] = Query(None, alias="metric"),
+    metric_list: list[str] | None = Query(None, alias="metric"),
     feature_analysis: bool = Query(False, alias="feature-analysis"),
     auth_info: schemas.AuthInfo = Depends(framework.api.deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
@@ -557,8 +554,8 @@ async def _get_metrics_values_params(
         list[str],
         Query(pattern=mm_constants.FQN_PATTERN),
     ],
-    start: Optional[datetime] = None,
-    end: Optional[datetime] = None,
+    start: datetime | None = None,
+    end: datetime | None = None,
     auth_info: schemas.AuthInfo = Depends(framework.api.deps.authenticate_request),
 ) -> _MetricsValuesParams:
     """

@@ -16,7 +16,6 @@ import ast
 import datetime
 import http
 import time
-import typing
 
 import fastapi
 import fastapi.concurrency
@@ -55,7 +54,7 @@ router = fastapi.APIRouter(prefix="/projects/{project}/pipelines")
 @router.get("", response_model=mlrun.common.schemas.PipelinesOutput)
 async def list_pipelines(
     project: str,
-    namespace: typing.Optional[str] = None,
+    namespace: str | None = None,
     sort_by: str = "",
     page_token: str = "",
     filter_: str = fastapi.Query("", alias="filter"),
@@ -154,7 +153,7 @@ async def retry_pipeline(
         mlrun_constants.WorkflowSubmitMode.rerun, alias="submit-mode"
     ),
     db_session: Session = fastapi.Depends(framework.api.deps.get_db_session),
-    client_version: typing.Optional[str] = fastapi.Header(
+    client_version: str | None = fastapi.Header(
         None, alias=mlrun.common.schemas.HeaderNames.client_version
     ),
 ):
@@ -327,7 +326,7 @@ async def push_notifications(
     auth_info: mlrun.common.schemas.AuthInfo = fastapi.Depends(
         framework.api.deps.authenticate_request
     ),
-    notifications: typing.Optional[list[mlrun.common.schemas.Notification]] = None,
+    notifications: list[mlrun.common.schemas.Notification] | None = None,
 ):
     await (
         framework.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
@@ -433,7 +432,7 @@ async def _create_pipeline(
     request: fastapi.Request,
     experiment_name: str = "",
     run_name: str = "",
-    project: typing.Optional[str] = None,
+    project: str | None = None,
 ):
     if not experiment_name:
         experiment_name = run_name or project
@@ -500,9 +499,7 @@ async def _create_pipeline(
     }
 
 
-def _try_resolve_project_from_body(
-    content_type: str, data: bytes
-) -> typing.Optional[str]:
+def _try_resolve_project_from_body(content_type: str, data: bytes) -> str | None:
     if "/yaml" not in content_type:
         mlrun.utils.logger.warning(
             "Could not resolve project from body, unsupported content type",
@@ -519,7 +516,7 @@ def _push_notifications(
     db_session: sqlalchemy.orm.Session,
     run_id: str,
     project: str,
-    notifications: typing.Optional[list[mlrun.common.schemas.Notification]] = None,
+    notifications: list[mlrun.common.schemas.Notification] | None = None,
 ):
     if not notifications:
         return

@@ -94,6 +94,7 @@ class KubeResourceSpec(FunctionSpec):
         "volumes",
         "volume_mounts",
         "env",
+        "env_from",
         "resources",
         "replicas",
         "image_pull_policy",
@@ -134,6 +135,7 @@ class KubeResourceSpec(FunctionSpec):
         "volume_mounts",
         "resources",
         "env",
+        "env_from",
         "image_pull_policy",
         "service_account",
         "image_pull_secret",
@@ -167,6 +169,7 @@ class KubeResourceSpec(FunctionSpec):
         volumes=None,
         volume_mounts=None,
         env=None,
+        env_from=None,
         resources=None,
         default_handler=None,
         pythonpath=None,
@@ -211,6 +214,7 @@ class KubeResourceSpec(FunctionSpec):
         self.volume_mounts = volume_mounts or []
         # TODO: add env attribute to the sanitized types
         self.env = env or []
+        self.env_from = env_from or []
         self._resources = self.enrich_resources_with_default_pod_resources(
             "resources", resources
         )
@@ -640,6 +644,7 @@ class AutoMountType(str, Enum):
     pvc = "pvc"
     s3 = "s3"
     env = "env"
+    secret_env = "secret_env"
 
     @classmethod
     def _missing_(cls, value):
@@ -664,6 +669,7 @@ class AutoMountType(str, Enum):
             mlrun.runtimes.mounts.auto_mount.__name__,
             mlrun.runtimes.mounts.mount_s3.__name__,
             mlrun.runtimes.mounts.set_env_variables.__name__,
+            mlrun.runtimes.mounts.set_env_vars_from_secret.__name__,
         ]
 
     @classmethod
@@ -697,6 +703,7 @@ class AutoMountType(str, Enum):
             AutoMountType.auto: self._get_auto_modifier(),
             AutoMountType.s3: mlrun.runtimes.mounts.mount_s3,
             AutoMountType.env: mlrun.runtimes.mounts.set_env_variables,
+            AutoMountType.secret_env: mlrun.runtimes.mounts.set_env_vars_from_secret,
         }[self]
 
 
@@ -736,6 +743,18 @@ class KubeResource(BaseRuntime):
             secret_key_ref=k8s_client.V1SecretKeySelector(name=secret, key=key)
         )
         return self._set_env(name=name, value_from=value_from)
+
+    def set_env_from_secret_ref(self, secret_name: str):
+        """
+        Mount all keys from a Kubernetes Secret as environment variables.
+        Uses envFrom.secretRef so every key in the secret becomes an env var.
+        """
+        mlrun.common.secrets.validate_not_forbidden_secret(secret_name)
+        env_from_source = k8s_client.V1EnvFromSource(
+            secret_ref=k8s_client.V1SecretEnvSource(name=secret_name)
+        )
+        self.spec.env_from.append(env_from_source)
+        return self
 
     def set_env(
         self,

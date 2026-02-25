@@ -141,7 +141,6 @@ class NuclioSpec(KubeResourceSpec):
         volumes=None,
         volume_mounts=None,
         env=None,
-        env_from=None,
         resources=None,
         config=None,
         base_spec=None,
@@ -174,6 +173,7 @@ class NuclioSpec(KubeResourceSpec):
         parameters=None,
         track_models=None,
         auth=None,
+        env_from=None,
     ):
         super().__init__(
             command=command,

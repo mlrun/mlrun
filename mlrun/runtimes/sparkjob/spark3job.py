@@ -121,7 +121,6 @@ class Spark3JobSpec(KubeResourceSpec):
         volumes=None,
         volume_mounts=None,
         env=None,
-        env_from=None,
         resources=None,
         replicas=None,
         image_pull_policy=None,
@@ -173,6 +172,7 @@ class Spark3JobSpec(KubeResourceSpec):
         graph=None,
         parameters=None,
         track_models=None,
+        env_from=None,
     ):
         super().__init__(
             command=command,

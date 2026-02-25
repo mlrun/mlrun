@@ -168,7 +168,6 @@ class KubeResourceSpec(FunctionSpec):
         volumes=None,
         volume_mounts=None,
         env=None,
-        env_from=None,
         resources=None,
         default_handler=None,
         pythonpath=None,
@@ -193,6 +192,7 @@ class KubeResourceSpec(FunctionSpec):
         track_models=None,
         parameters=None,
         graph=None,
+        env_from=None,
     ):
         super().__init__(
             command=command,

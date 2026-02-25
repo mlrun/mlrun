@@ -62,7 +62,6 @@ class DaskSpec(KubeResourceSpec):
         volumes=None,
         volume_mounts=None,
         env=None,
-        env_from=None,
         resources=None,
         build=None,
         default_handler=None,
@@ -98,6 +97,7 @@ class DaskSpec(KubeResourceSpec):
         graph=None,
         parameters=None,
         track_models=None,
+        env_from=None,
     ):
         super().__init__(
             command=command,

@@ -54,7 +54,6 @@ class ApplicationSpec(nuclio_function.NuclioSpec):
         volumes=None,
         volume_mounts=None,
         env=None,
-        env_from=None,
         resources=None,
         config=None,
         base_spec=None,
@@ -89,6 +88,7 @@ class ApplicationSpec(nuclio_function.NuclioSpec):
         internal_application_port=None,
         application_ports=None,
         auth=None,
+        env_from=None,
     ):
         super().__init__(
             command=command,

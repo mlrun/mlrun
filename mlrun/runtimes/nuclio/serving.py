@@ -348,7 +348,6 @@ class ServingSpec(nuclio_function.NuclioSpec):
         volumes=None,
         volume_mounts=None,
         env=None,
-        env_from=None,
         resources=None,
         config=None,
         base_spec=None,
@@ -392,6 +391,7 @@ class ServingSpec(nuclio_function.NuclioSpec):
         auth=None,
         streaming: bool | None = None,
         api_handler_config: APIHandlerConfig | None = None,
+        env_from=None,
     ):
         super().__init__(
             command=command,

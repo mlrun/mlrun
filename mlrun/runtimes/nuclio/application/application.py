@@ -20,6 +20,7 @@ import nuclio
 import nuclio.auth
 
 import mlrun.common.constants
+import mlrun.common.runtimes.validators
 import mlrun.common.schemas as schemas
 import mlrun.datastore
 import mlrun.errors
@@ -373,6 +374,12 @@ class ApplicationRuntime(nuclio_function.RemoteRuntime):
                 if value is not None
             }
         )
+
+        # Validate the probe configuration before storing
+        if error := mlrun.common.runtimes.validators.validate_sidecar_probes(
+            [{type.key: probe_config}]
+        ):
+            raise mlrun.errors.MLRunInvalidArgumentError(error)
 
         # Store probe configuration in the sidecar
         sidecar = self._set_sidecar(self._get_sidecar_name())

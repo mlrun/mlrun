@@ -24,6 +24,7 @@ from sqlalchemy.orm import Session
 
 import mlrun.common.constants as mlrun_constants
 import mlrun.common.schemas
+import mlrun.errors
 import mlrun.k8s_utils
 import mlrun.utils.regex
 from mlrun.common.runtimes.constants import RunStates, SparkApplicationStates
@@ -395,7 +396,7 @@ with ctx:
             name = get_in(resp, "metadata.name", "unknown")
             logger.info(f"SparkJob {name} created")
             return resp
-        except ApiException as exc:
+        except (ApiException, mlrun.errors.MLRunBaseError) as exc:
             crd = (
                 f"{Spark3Runtime.group}/{Spark3Runtime.version}/{Spark3Runtime.plural}"
             )
@@ -600,9 +601,9 @@ with ctx:
                         grace_period_seconds=resource_deletion_grace_period,
                     )
                     logger.info(f"Deleted config map: {config_map.metadata.name}")
-            except ApiException as exc:
+            except (ApiException, mlrun.errors.MLRunNotFoundError) as exc:
                 # ignore error if config map is already removed
-                if exc.status != 404:
+                if isinstance(exc, ApiException) and exc.status != 404:
                     raise
 
     @staticmethod

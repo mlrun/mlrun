@@ -233,9 +233,9 @@ class DaskRuntimeHandler(BaseRuntimeHandler):
                         grace_period_seconds=resource_deletion_grace_period,
                     )
                     logger.info(f"Deleted service: {service.metadata.name}")
-            except ApiException as exc:
+            except (ApiException, mlrun.errors.MLRunNotFoundError) as exc:
                 # ignore error if service is already removed
-                if exc.status != 404:
+                if isinstance(exc, ApiException) and exc.status != 404:
                     raise
 
 

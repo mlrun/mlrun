@@ -387,6 +387,9 @@ class ProbeType(StrEnum):
         return valid_value
 
 
+HEALTH_CHECK_KEYS = ["httpGet", "exec", "tcpSocket", "grpc"]
+
+
 class ProbeTimeConfig(StrEnum):
     INITIAL_DELAY_SECONDS = "initialDelaySeconds"
     PERIOD_SECONDS = "periodSeconds"

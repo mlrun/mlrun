@@ -628,25 +628,6 @@ def test_set_probe_string_type():
     assert ProbeType.READINESS.key in sidecar
 
 
-def test_set_probe_no_http_path():
-    """Test setting probe without HTTP path (only timing parameters)"""
-    fn: mlrun.runtimes.ApplicationRuntime = mlrun.new_function(
-        "application-test", kind="application", image="mlrun/mlrun"
-    )
-
-    fn.set_probe(
-        type="readiness",
-        initial_delay_seconds=10,
-        period_seconds=5,
-    )
-
-    sidecar = fn._get_sidecar()
-    probe = sidecar[ProbeType.READINESS.key]
-    assert "httpGet" not in probe
-    assert probe[ProbeTimeConfig.INITIAL_DELAY_SECONDS.value] == 10
-    assert probe[ProbeTimeConfig.PERIOD_SECONDS.value] == 5
-
-
 def test_set_probe_multiple_probes():
     """Test setting multiple different probe types"""
     fn: mlrun.runtimes.ApplicationRuntime = mlrun.new_function(
@@ -996,6 +977,84 @@ def test_enrich_sidecar_probe_ports_no_probes():
     assert ProbeType.STARTUP.key not in sidecar
 
 
+def test_set_probe_without_health_check_raises_error():
+    """Test that setting a probe via config with no health check param raises an error"""
+    fn: mlrun.runtimes.ApplicationRuntime = mlrun.new_function(
+        "application-test", kind="application", image="mlrun/mlrun"
+    )
+
+    with pytest.raises(
+        mlrun.errors.MLRunInvalidArgumentError,
+        match="must have exactly one of.*httpGet.*exec.*tcpSocket.*grpc",
+    ):
+        fn.set_probe(
+            type="liveness",
+            config={
+                "initialDelaySeconds": 10,
+                "periodSeconds": 5,
+            },
+        )
+
+
+def test_set_probe_with_multiple_health_check_params_raises_error():
+    """Test that setting a probe with multiple health check keys raises an error"""
+    fn: mlrun.runtimes.ApplicationRuntime = mlrun.new_function(
+        "application-test", kind="application", image="mlrun/mlrun"
+    )
+
+    with pytest.raises(
+        mlrun.errors.MLRunInvalidArgumentError,
+        match="must have exactly one of.*httpGet.*exec.*tcpSocket.*grpc",
+    ):
+        fn.set_probe(
+            type="liveness",
+            config={
+                "httpGet": {"path": "/health", "port": 8080},
+                "exec": {"command": ["/bin/sh", "-c", "echo test"]},
+            },
+        )
+
+
+def test_set_probe_invalid_config_does_not_override_valid_probe():
+    """Test that a failed set_probe with invalid config does not modify a previously set valid probe"""
+    fn: mlrun.runtimes.ApplicationRuntime = mlrun.new_function(
+        "application-test", kind="application", image="mlrun/mlrun"
+    )
+
+    # Set a valid probe
+    fn.set_probe(
+        type="liveness",
+        config={
+            "httpGet": {"path": "/health", "port": 8080, "scheme": "HTTP"},
+            "initialDelaySeconds": 17,
+            "periodSeconds": 555,
+        },
+    )
+
+    # Attempt to set an invalid probe configuration
+    with pytest.raises(
+        mlrun.errors.MLRunInvalidArgumentError,
+        match="must have exactly one of.*httpGet.*exec.*tcpSocket.*grpc",
+    ):
+        fn.set_probe(
+            type="liveness",
+            config={
+                "httpGet": {"path": "/bad", "port": 9090},
+                "exec": {"command": ["/bin/sh", "-c", "echo bad"]},
+            },
+        )
+
+    # Verify the original valid probe remains unchanged
+    sidecar = fn._get_sidecar()
+    probe_after = sidecar[ProbeType.LIVENESS.key]
+    assert probe_after is not None
+    assert probe_after["httpGet"]["path"] == "/health"
+    assert probe_after["httpGet"]["port"] == 8080
+    assert probe_after["httpGet"]["scheme"] == "HTTP"
+    assert probe_after[ProbeTimeConfig.INITIAL_DELAY_SECONDS.value] == 17
+    assert probe_after[ProbeTimeConfig.PERIOD_SECONDS.value] == 555
+
+
 @pytest.mark.parametrize(
     "source,setup_file,expected",
     [
@@ -1108,44 +1167,6 @@ def test_upload_source_as_artifact_skip_non_local(source):
 
     # Verify source remains unchanged
     assert fn.spec.build.source == source
-
-
-def test_set_probe_without_health_check_raises_error():
-    """Test that setting a probe via config with no health check param raises an error"""
-    fn: mlrun.runtimes.ApplicationRuntime = mlrun.new_function(
-        "application-test", kind="application", image="mlrun/mlrun"
-    )
-
-    with pytest.raises(
-        mlrun.errors.MLRunInvalidArgumentError,
-        match="must have exactly one of.*httpGet.*exec.*tcpSocket.*grpc",
-    ):
-        fn.set_probe(
-            type="liveness",
-            config={
-                "initialDelaySeconds": 10,
-                "periodSeconds": 5,
-            },
-        )
-
-
-def test_set_probe_with_multiple_health_check_params_raises_error():
-    """Test that setting a probe with multiple health check keys raises an error"""
-    fn: mlrun.runtimes.ApplicationRuntime = mlrun.new_function(
-        "application-test", kind="application", image="mlrun/mlrun"
-    )
-
-    with pytest.raises(
-        mlrun.errors.MLRunInvalidArgumentError,
-        match="must have exactly one of.*httpGet.*exec.*tcpSocket.*grpc",
-    ):
-        fn.set_probe(
-            type="liveness",
-            config={
-                "httpGet": {"path": "/health", "port": 8080},
-                "exec": {"command": ["/bin/sh", "-c", "echo test"]},
-            },
-        )
 
 
 def test_upload_source_as_artifact_no_project_error():

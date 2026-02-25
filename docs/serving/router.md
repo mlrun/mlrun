@@ -1,7 +1,7 @@
 (router)=
 # Router topology
 ```{admonition} Note
-The router topology will be deprecated in v1.12.
+The router topology will be deprecated in an upcoming release.
 ```
 
 The `router` topology is a minimal configuration with a single router and one or more child routes/models, used for simple model serving or 

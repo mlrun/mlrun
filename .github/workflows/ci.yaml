@@ -422,12 +422,12 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           cat tests/coverage_reports/diff_coverage.md >> $GITHUB_STEP_SUMMARY
 
-      - name: Comment PR with coverage
-        uses: marocchino/sticky-pull-request-comment@v2
-        if: github.event_name == 'pull_request'
-        with:
-          header: coverage
-          path: tests/coverage_reports/diff_coverage.md
+#      - name: Comment PR with coverage
+#        uses: marocchino/sticky-pull-request-comment@v2
+#        if: github.event_name == 'pull_request'
+#        with:
+#          header: coverage
+#          path: tests/coverage_reports/diff_coverage.md
 
       - name: Upload coverage diff report
         uses: actions/upload-artifact@v6

@@ -16,7 +16,6 @@ name: CI
 
 permissions:
   contents: read
-  pull-requests: write
 
 on:
   pull_request:
@@ -360,6 +359,9 @@ jobs:
   coverage:
     name: Full coverage
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
     strategy:
       matrix:
         python-version: [ "3.11"]

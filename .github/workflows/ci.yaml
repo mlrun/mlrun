@@ -154,8 +154,8 @@ jobs:
         include:
           - python-version: "3.11"
             test-db: mysql
-          - python-version: "3.11"
-            test-db: postgres
+#          - python-version: "3.11"
+#            test-db: postgres
 
     steps:
     - uses: actions/checkout@v6

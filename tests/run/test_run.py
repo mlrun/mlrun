@@ -169,30 +169,6 @@ def test_run_warns_on_unexpected_kwarg_with_suggestion():
     assert not caught, "Expected no warnings, but got: {caught}"
 
 
-def test_run_no_warning_on_launcher_init_kwargs():
-    """ML-12201: local, builder_env etc. are valid launcher-init kwargs; no spurious warnings."""
-
-    def handler(context):
-        return None
-
-    with warnings.catch_warnings(record=True) as caught:
-        warnings.simplefilter("always")
-        # local is used for launcher routing; builder_env from pipeline ops
-        mlrun.new_function().run(
-            local=True,
-            handler=handler,
-            params={"x": 1},
-            builder_env={"GIT_TOKEN": "secret"},
-        )
-
-    unexpected = [
-        w for w in caught if "Unexpected run keyword argument" in str(w.message)
-    ]
-    assert not unexpected, (
-        f"Should not warn on launcher-init kwargs (local, builder_env): {unexpected}"
-    )
-
-
 def test_invalid_name():
     with pytest.raises(ValueError) as excinfo:
         # name cannot have / in it

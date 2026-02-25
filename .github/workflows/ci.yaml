@@ -359,9 +359,6 @@ jobs:
   coverage:
     name: Full coverage
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      pull-requests: write
     strategy:
       matrix:
         python-version: [ "3.11"]
@@ -421,6 +418,14 @@ jobs:
           echo "## 📊 Diff Coverage Report" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           cat tests/coverage_reports/diff_coverage.md >> $GITHUB_STEP_SUMMARY
+
+      - name: Upload markdown coverage report for PR comment
+        if: github.event_name == 'pull_request'
+        uses: actions/upload-artifact@v6
+        with:
+          name: coverage-markdown-report
+          path: tests/coverage_reports/diff_coverage.md
+          retention-days: 5
 
 #      - name: Comment PR with coverage
 #        uses: marocchino/sticky-pull-request-comment@v2

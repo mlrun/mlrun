@@ -1,13 +1,14 @@
 (profies)=
 # Profiles
 
-Profiles are containers for credentials for a remote service, for example, storage, model or stream service. 
-
-In this section:
-- [Model provider profiles](#model-provider-profiles)
+Profiles are containers for credentials for a remote service:
+- Datastore: see {ref}`datastore`
+- Config, general-purpose, used in vectorDBs. See [Milvus configuration](./genai/data-mgmt/vector-databases.md#milvus-configuration)
+And in this section:
+- [Provider profiles](#model-provider-profiles)
 - [Source and target profiles](#source-and-target-profiles)
 
-Storage provider datastore profiles are described in {ref}`datastore`.
+Profiles are also used when configuring model monitoring. See [Configuring TimescaleDB and Kafka for model monitoring](../install-mlrun-ce/mlrun-ce-development-notes.md#configuring-timescaledb-and-kafka-for-model-monitoring).
 
 ## Model provider profiles
 
@@ -53,48 +54,7 @@ See also:
 
 ## Source and target profiles
 
-Source and target profiles include model monitoring profiles and queue profiles
-### Model monitoring datastore profiles
-Model monitoring datastore profiles define the streaming and TSDB platforms required to run model monitoring.
-MLRun supports Kafka and V3IO as streaming platforms, and TimescaleDB (PostgreSQL) and V3IO as TSDB platforms.
-
-TimescaleDB (PostgreSQL) and Kafka are part of the default CE installations. The default confgurations are:
-```
-# Create and register TSDB profile
-tsdb_profile = DatastoreProfilePostgreSQL(
-    name="my-timescaledb",
-    host="<timescaledb-server-ip-address>",
-    port=5432,
-    user="postgres",
-    password="<timescaledb-password>",
-    database="mlrun",
-
-# Create and register stream profile
-stream_profile = DatastoreProfileKafkaSource(
-    name=stream_profile_name,
-    brokers=f"kafka-stream:9092",
-    topics=[],
-)
-```
-
-The V3IO configurations are:
-```
-tsdb_profile = DatastoreProfileV3io(
-    name="my-v3io-tsdb",
-)
-
-stream_profile = DatastoreProfileV3io(
-    name="my-v3io-stream",
-    v3io_access_key=mlrun.mlconf.get_v3io_access_key(),
-)
-```
-See also
-- {py:class}`~mlrun.projects.MlrunProject.set_model_monitoring_credentials`.
-- [Configuring TimescaleDB and Kafka for model monitoring](../install-mlrun-ce/mlrun-ce-development-notes.md#configuring-timescaledb-and-kafka-for-model-monitoring)
-
-### Queue datastore profiles
-
-#### RabbitMQ
+### RabbitMQ
 ```
 profile = DatastoreProfileRabbitMQ(
     name="my-profile",
@@ -112,7 +72,7 @@ See also
 - {py:class}`~mlrun.datastore.datastore_profile.DatastoreProfileRabbitMQ`
 - {py:class}`~mlrun.runtimes.RemoteRuntime.add_rabbitmq_trigger`
 
-#### Kafka
+### Kafka
 
 ```
 profile = DatastoreProfileKafkaStream(

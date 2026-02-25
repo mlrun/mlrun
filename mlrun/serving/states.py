@@ -1883,9 +1883,13 @@ class ModelRunner(storey.ParallelExecution):
         if "background_task_status_step" in self._name_to_outlet:
             sys_outlets.append("background_task_status_step")
         if self._raise_exception and self._is_error(event):
+            logger.info("error option, select_outlets returned", outlets=sys_outlets)
             return sys_outlets
         user_outlets = self.model_runner_selector.select_outlets(event)
         if user_outlets:
+            logger.info("model runner outlets option, select_outlets returned", outlets=(
+                user_outlets if isinstance(user_outlets, list) else [user_outlets]
+            ) + sys_outlets)
             return (
                 user_outlets if isinstance(user_outlets, list) else [user_outlets]
             ) + sys_outlets
@@ -1896,6 +1900,7 @@ class ModelRunner(storey.ParallelExecution):
             all_outlets.remove(f"{self.name}_error_raise")
         else:
             all_outlets.remove(f"{self.name}_unpacker")
+        logger.info("select_outlets returned", outlets=all_outlets)
         return all_outlets
 
     def _is_error(self, event: Union[dict, list]) -> bool:
@@ -2646,6 +2651,7 @@ class QueueStep(BaseStep, StepToDict):
         self._async_object = None
 
     def init_object(self, context, namespace, mode="sync", reset=False, **extra_kwargs):
+        logger.info("Initializing QueueStep", step_name=self.name, path=self.path)
         self.context = context
         if self.path:
             self._stream = get_stream_pusher(
@@ -4033,6 +4039,7 @@ def _init_async_objects(context, steps, root):
         if hasattr(step, "async_object") and step._is_local_function(context):
             max_iterations = step._max_iterations or root.max_iterations
             if step.kind == StepKinds.queue:
+                logger.info("initializing async object for queue step '%s'", step.name)
                 skip_stream = context.is_mock and step.next
                 if step.path and not skip_stream:
                     stream_path = step.path

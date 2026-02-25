@@ -473,8 +473,9 @@ class BaseLauncher(abc.ABC):
     def _get_valid_launcher_params(self) -> frozenset[str]:
         """
         Union of params valid for launcher __init__ (should not warn on these).
-        Derived from: (1) launch() signature, (2) explicit __init__ params of launcher
-        subclasses (local, auth_info, etc.), (3) pass-through params (builder_env).
+        Derived from:
+            (1) launch() signature,
+            (2) explicit __init__ params of launcher subclasses (local, auth_info, etc.).
         """
         valid = set(inspect.signature(self.launch).parameters) - {"self"}
 

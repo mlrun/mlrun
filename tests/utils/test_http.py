@@ -109,9 +109,9 @@ def test_http_session_does_not_persist_cookies():
         resp2 = session.get(f"http://127.0.0.1:{port}/second")
         # This verifies the cookie from Request 1 was NOT sent back
         # (proves DummyCookieJar didn't store it)
-        assert (
-            resp2.json()["cookies_received"] == ""
-        ), "HTTPSessionWithRetry should not persist cookies"
+        assert resp2.json()["cookies_received"] == "", (
+            "HTTPSessionWithRetry should not persist cookies"
+        )
 
         # Server still sets cookies in response, and we can still read them
         # But they won't be stored or sent in future requests

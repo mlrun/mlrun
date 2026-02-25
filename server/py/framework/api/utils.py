@@ -566,7 +566,7 @@ def _resolve_v3io_fuse_volume_access_key_matching_username(
     volume_name: str,
     volume_name_to_volume_mounts: dict,
     auth_info: mlrun.common.schemas.AuthInfo = None,
-) -> typing.Optional[str]:
+) -> str | None:
     """
     Usually v3io fuse mount is set using mlrun.mount_v3io, which by default add a volume mount to /users/<username>, try
     to resolve the username from there.
@@ -1075,7 +1075,7 @@ def artifact_project_and_resource_name_extractor(artifact):
 
 def get_or_create_project_deletion_background_task(
     project: mlrun.common.schemas.Project, deletion_strategy: str, db_session, auth_info
-) -> tuple[typing.Optional[typing.Callable], str]:
+) -> tuple[typing.Callable | None, str]:
     """
     This method is responsible for creating a background task for deleting a project.
     The project deletion flow is as follows:
@@ -1168,7 +1168,7 @@ async def _delete_project(
     auth_info: mlrun.common.schemas.AuthInfo,
     wait_for_project_deletion: bool,
     background_task_name: str,
-    model_monitoring_access_key: typing.Optional[str] = None,
+    model_monitoring_access_key: str | None = None,
 ):
     force_delete = False
     project_name = project.metadata.name
@@ -1431,8 +1431,8 @@ async def _update_functions_with_deletion_info(functions, project, updates: dict
 
 def _validate_service_account_details(
     default_service_account: str,
-    allowed_service_accounts: typing.Optional[list[str]],
-    forbidden_service_accounts: typing.Optional[list[str]],
+    allowed_service_accounts: list[str] | None,
+    forbidden_service_accounts: list[str] | None,
 ):
     """
     Sanity check on project configuration.

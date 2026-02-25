@@ -8,5 +8,4 @@ MLRun includes all the tools you need to develop and train your models: handling
 :maxdepth: 1
 
 model-training-tracking
-../feature-store/retrieve-offline-data
 ```

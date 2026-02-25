@@ -14,7 +14,7 @@
 
 import math
 import re
-from typing import Optional, Union
+from typing import Union
 
 from .data_types import ValueType, python_type_to_value_type
 from .errors import MLRunRuntimeError, err_to_str
@@ -41,10 +41,10 @@ class Entity(ModelObj):
 
     def __init__(
         self,
-        name: Optional[str] = None,
+        name: str | None = None,
         value_type: Union[ValueType, str] = None,
-        description: Optional[str] = None,
-        labels: Optional[dict[str, str]] = None,
+        description: str | None = None,
+        labels: dict[str, str] | None = None,
     ):
         """data entity (index key)
 
@@ -80,13 +80,13 @@ class Feature(ModelObj):
     def __init__(
         self,
         value_type: Union[ValueType, str] = None,
-        dims: Optional[list[int]] = None,
-        description: Optional[str] = None,
-        aggregate: Optional[bool] = None,
-        name: Optional[str] = None,
+        dims: list[int] | None = None,
+        description: str | None = None,
+        aggregate: bool | None = None,
+        name: str | None = None,
         validator=None,
-        default: Optional[str] = None,
-        labels: Optional[dict[str, str]] = None,
+        default: str | None = None,
+        labels: dict[str, str] | None = None,
     ):
         """data feature
 
@@ -231,9 +231,7 @@ class Validator(ModelObj):
     kind = ""
     _dict_fields = ["kind", "check_type", "severity"]
 
-    def __init__(
-        self, check_type: Optional[bool] = None, severity: Optional[str] = None
-    ):
+    def __init__(self, check_type: bool | None = None, severity: str | None = None):
         """Base validator
 
         example::
@@ -271,8 +269,8 @@ class MinMaxValidator(Validator):
 
     def __init__(
         self,
-        check_type: Optional[bool] = None,
-        severity: Optional[str] = None,
+        check_type: bool | None = None,
+        severity: str | None = None,
         min=None,
         max=None,
     ):
@@ -335,8 +333,8 @@ class MinMaxLenValidator(Validator):
 
     def __init__(
         self,
-        check_type: Optional[bool] = None,
-        severity: Optional[str] = None,
+        check_type: bool | None = None,
+        severity: str | None = None,
         min=None,
         max=None,
     ):
@@ -402,8 +400,8 @@ class RegexValidator(Validator):
 
     def __init__(
         self,
-        check_type: Optional[bool] = None,
-        severity: Optional[str] = None,
+        check_type: bool | None = None,
+        severity: str | None = None,
         regex=None,
     ):
         """Validate value based on regular expression
@@ -449,9 +447,7 @@ class RegexValidator(Validator):
         return ok, args
 
     @classmethod
-    def from_dict(
-        cls, struct=None, fields=None, deprecated_fields: Optional[dict] = None
-    ):
+    def from_dict(cls, struct=None, fields=None, deprecated_fields: dict | None = None):
         new_obj = super().from_dict(
             struct=struct, fields=fields, deprecated_fields=deprecated_fields
         )
@@ -459,8 +455,7 @@ class RegexValidator(Validator):
             new_obj.regex_compile = re.compile(new_obj.regex) if new_obj.regex else None
         else:
             raise MLRunRuntimeError(
-                f"Object with type {type(new_obj)} "
-                f"have to contain `regex` attribute"
+                f"Object with type {type(new_obj)} have to contain `regex` attribute"
             )
         return new_obj
 

@@ -13,12 +13,9 @@
 # limitations under the License.
 
 import os
-from typing import Optional
 
 
-def secret_test_function(
-    context, secrets: Optional[list] = None, use_prefix: bool = True
-):
+def secret_test_function(context, secrets: list | None = None, use_prefix: bool = True):
     """Validate that given secrets exist
 
     :param context: the MLRun context

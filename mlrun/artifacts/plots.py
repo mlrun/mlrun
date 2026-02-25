@@ -77,8 +77,8 @@ class PlotlyArtifact(Artifact):
     def __init__(
         self,
         figure: typing.Optional["Figure"] = None,
-        key: typing.Optional[str] = None,
-        target_path: typing.Optional[str] = None,
+        key: str | None = None,
+        target_path: str | None = None,
     ) -> None:
         """
         Initialize a Plotly artifact with the given figure.

@@ -52,8 +52,8 @@ class HuggingFaceProvider(ModelProvider):
         schema,
         name,
         endpoint="",
-        secrets: Optional[dict] = None,
-        default_invoke_kwargs: Optional[dict] = None,
+        secrets: dict | None = None,
+        default_invoke_kwargs: dict | None = None,
     ):
         endpoint = endpoint or mlrun.mlconf.model_providers.huggingface_default_model
         if schema != "huggingface":
@@ -110,6 +110,9 @@ class HuggingFaceProvider(ModelProvider):
 
         Uses snapshot_download with local_dir_use_symlinks=False to ensure proper
         file copying for safe concurrent access across multiple processes.
+
+        Note: Downloading HuggingFace models requires stable network connectivity and may fail
+        or get stuck on unreliable connections. Ensure adequate network bandwidth.
 
         :raises:
             ImportError: If huggingface_hub package is not installed.
@@ -265,7 +268,9 @@ class HuggingFaceProvider(ModelProvider):
 
             # Using custom pipeline for image classification
             image = Image.open(image_path)
-            pipeline_object = pipeline("image-classification", model="microsoft/resnet-50")
+            pipeline_object = pipeline(
+                "image-classification", model="microsoft/resnet-50"
+            )
             result = hf_provider.custom_invoke(
                 pipeline_object,
                 inputs=image,
@@ -289,7 +294,7 @@ class HuggingFaceProvider(ModelProvider):
         if operation:
             if not isinstance(operation, self._expected_operation_type):
                 raise mlrun.errors.MLRunInvalidArgumentError(
-                    "Huggingface operation must inherit" " from 'Pipeline' object"
+                    "Huggingface operation must inherit from 'Pipeline' object"
                 )
             return operation(**invoke_kwargs)
         else:

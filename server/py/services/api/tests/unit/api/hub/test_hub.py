@@ -350,9 +350,9 @@ async def test_hub_get_asset_from_default_source(
             results = await asyncio.gather(*(fetch(name) for name in items))
 
         for item_name, status_code, content_type in results:
-            assert (
-                status_code == http.HTTPStatus.OK.value
-            ), f"unexpected status for item={item_name} asset={asset_name}"
+            assert status_code == http.HTTPStatus.OK.value, (
+                f"unexpected status for item={item_name} asset={asset_name}"
+            )
             # Accepts 'application/octet-stream' is a fallback for unknown types
             # (e.g. if media-types apt package is not installed on Debian based distributions.
             assert (

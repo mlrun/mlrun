@@ -48,7 +48,7 @@ class TestAlerts(TestMLRunSystem):
         super().setup_method(method)
 
     # Set image to "<repo>/mlrun:<tag>" for local testing
-    image: typing.Optional[str] = None
+    image: str | None = None
 
     def test_job_failure_alert(self):
         """

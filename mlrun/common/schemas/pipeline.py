@@ -27,4 +27,4 @@ class PipelinesOutput(pydantic.v1.BaseModel):
     # use the format query param to control what is returned
     runs: list[typing.Union[dict, str]]
     total_size: int
-    next_page_token: typing.Optional[str]
+    next_page_token: str | None

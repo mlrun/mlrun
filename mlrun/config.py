@@ -60,6 +60,13 @@ default_config = {
             "list_pods_limit": 200,
             "list_crd_objects_limit": 200,
         },
+        "timeouts": {
+            # per-request timeouts (in seconds) for k8s API calls
+            # 0 disables timeout for the given tier
+            "default": 30,  # single-resource ops (get, create, delete, update)
+            "list": 60,  # list operations (may return large result sets)
+            "logs": 120,  # pod log retrieval
+        },
     },
     "dbpath": "",  # db/api url
     # url to nuclio dashboard api (can be with user & token, e.g. https://username:password@dashboard-url.com)
@@ -1175,7 +1182,7 @@ class Config:
         return enrichment_group_id
 
     @staticmethod
-    def get_parsed_igz_version() -> typing.Optional[semver.VersionInfo]:
+    def get_parsed_igz_version() -> semver.VersionInfo | None:
         if not config.igz_version:
             return None
         try:
@@ -1333,8 +1340,8 @@ class Config:
         return copy.deepcopy(self._cfg)
 
     @staticmethod
-    def reload():
-        _populate()
+    def reload(skip_env_file=False):
+        _populate(skip_env_file=skip_env_file)
 
     @property
     def version(self):
@@ -1363,7 +1370,7 @@ class Config:
             mock_nuclio = not mlrun.mlconf.is_nuclio_detected()
         return True if mock_nuclio and force_mock is None else force_mock
 
-    def get_v3io_access_key(self) -> typing.Optional[str]:
+    def get_v3io_access_key(self) -> str | None:
         # Get v3io access key from the environment
         return os.getenv("V3IO_ACCESS_KEY")
 
@@ -1372,8 +1379,8 @@ class Config:
         project: str,
         kind: str,
         target: typing.Literal["online", "offline"] = "online",
-        artifact_path: typing.Optional[str] = None,
-        function_name: typing.Optional[str] = None,
+        artifact_path: str | None = None,
+        function_name: str | None = None,
         **kwargs,
     ) -> str:
         """Get the full path from the configuration based on the provided project and kind.
@@ -1504,7 +1511,7 @@ class Config:
 config = Config.from_dict(default_config)
 
 
-def _populate(skip_errors=False):
+def _populate(skip_errors=False, skip_env_file=False):
     """Populate configuration from config file (if exists in environment) and
     from environment variables.
 
@@ -1513,13 +1520,15 @@ def _populate(skip_errors=False):
     global _loaded
 
     with _load_lock:
-        _do_populate(skip_errors=skip_errors)
+        _do_populate(skip_errors=skip_errors, skip_env_file=skip_env_file)
 
 
-def _do_populate(env=None, skip_errors=False):
+def _do_populate(env=None, skip_errors=False, skip_env_file=False):
     global config
 
-    if not os.environ.get("MLRUN_IGNORE_ENV_FILE"):
+    # we get into this block when we want to load the defaults from the env file.
+    # other use cases, like set_env_from_file / running api - skip this block.
+    if not skip_env_file and not os.environ.get("MLRUN_IGNORE_ENV_FILE"):
         if "MLRUN_ENV_FILE" in os.environ:
             env_file = os.path.expanduser(os.environ["MLRUN_ENV_FILE"])
             dotenv.load_dotenv(env_file, override=True)
@@ -1572,7 +1581,7 @@ def _validate_config(config):
 
 
 def _verify_gpu_requests_and_limits(
-    requests_gpu: typing.Optional[str] = None, limits_gpu: typing.Optional[str] = None
+    requests_gpu: str | None = None, limits_gpu: str | None = None
 ):
     # https://kubernetes.io/docs/tasks/manage-gpus/scheduling-gpus/
     if requests_gpu and not limits_gpu:
@@ -1586,7 +1595,7 @@ def _verify_gpu_requests_and_limits(
         )
 
 
-def _convert_resources_to_str(config: typing.Optional[dict] = None):
+def _convert_resources_to_str(config: dict | None = None):
     resources_types = ["cpu", "memory", "gpu"]
     resource_requirements = ["requests", "limits"]
     if not config.get("default_function_pod_resources"):

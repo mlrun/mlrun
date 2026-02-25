@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import os
-import typing
 
 import kubernetes
 import sqlalchemy.orm
@@ -228,10 +227,10 @@ class DatabricksRuntimeHandler(KubeRuntimeHandler):
         db: api_db_base.DBInterface,
         db_session: sqlalchemy.orm.Session,
         namespace: str,
-        label_selector: typing.Optional[str] = None,
+        label_selector: str | None = None,
         force: bool = False,
-        grace_period: typing.Optional[int] = None,
-        resource_deletion_grace_period: typing.Optional[int] = None,
+        grace_period: int | None = None,
+        resource_deletion_grace_period: int | None = None,
     ) -> list[dict]:
         # override the grace period for the deletion of the pods
         # because the databricks pods needs to signal the databricks cluster to stop the run

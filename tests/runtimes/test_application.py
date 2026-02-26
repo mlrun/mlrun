@@ -1129,10 +1129,17 @@ def test_upload_source_as_artifact_no_project_error():
             fn._upload_source_as_artifact()
 
 
-def test_set_function_single_file_application(tmp_path):
-    # Test that set_function with single .py file works for application runtime
-    source_file = tmp_path / "handler.py"
-    source_file.write_text("def handler(): pass")
+@pytest.mark.parametrize(
+    "filename,content",
+    [
+        ("handler.py", "def handler(): pass"),
+        ("app.sh", "#!/bin/bash\necho hello"),
+        ("server.js", "console.log('hello')"),
+    ],
+)
+def test_set_function_single_file_application(tmp_path, filename, content):
+    source_file = tmp_path / filename
+    source_file.write_text(content)
 
     project = mlrun.get_or_create_project("test-proj", allow_cross_project=True)
     fn = project.set_function(

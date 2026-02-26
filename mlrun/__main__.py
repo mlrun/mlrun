@@ -23,7 +23,6 @@ from ast import literal_eval
 from base64 import b64decode
 from os import environ, path, remove
 from pprint import pprint
-from typing import Optional
 
 import click
 import dotenv
@@ -156,7 +155,7 @@ def main():
     "--func-url",
     "-f",
     default="",
-    help="path/url of function yaml or function " "yaml or db://<project>/<name>[:tag]",
+    help="path/url of function yaml or function yaml or db://<project>/<name>[:tag]",
 )
 @click.option("--task", default="", help="path/url to task yaml")
 @click.option(
@@ -671,7 +670,7 @@ def build(
     "--func-url",
     "-f",
     default="",
-    help="path/url of function yaml or function " "yaml or db://<project>/<name>[:tag]",
+    help="path/url of function yaml or function yaml or db://<project>/<name>[:tag]",
 )
 @click.option("--project", "-p", default="", help="project name")
 @click.option("--model", "-m", multiple=True, help="model name and path (name=path)")
@@ -1447,7 +1446,7 @@ def dict_to_str(struct: dict):
 def func_url_to_runtime(
     func_url,
     ensure_project: bool = False,
-    allow_cross_project: Optional[bool] = None,
+    allow_cross_project: bool | None = None,
 ):
     try:
         if func_url.startswith("db://"):

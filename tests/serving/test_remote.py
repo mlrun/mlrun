@@ -344,9 +344,9 @@ def test_retry(httpserver, engine):
         server.test(body=b"tst", method=method)
     finally:
         server.wait_for_completion()
-    assert (
-        tester.retries_dict["/data"] == retries + 1
-    ), "did not get expected number of retries"
+    assert tester.retries_dict["/data"] == retries + 1, (
+        "did not get expected number of retries"
+    )
 
 
 def _echo_handler(request: Request):

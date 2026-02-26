@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import NamedTuple, Optional
+from typing import NamedTuple
 from urllib.parse import unquote, urlparse, urlunparse
 
 from nuclio.triggers import NuclioTrigger
@@ -24,8 +24,8 @@ class UrlCredentials(NamedTuple):
     """Parsed URL with extracted and decoded credentials."""
 
     url: str
-    username: Optional[str]
-    password: Optional[str]
+    username: str | None
+    password: str | None
 
 
 def _first_not_none(*values):
@@ -118,20 +118,20 @@ class RabbitMQTrigger(NuclioTrigger):
     def __init__(
         self,
         url: str,
-        exchange_name: Optional[str] = None,
-        queue_name: Optional[str] = None,
-        topics: Optional[list[str]] = None,
-        username: Optional[str] = None,
-        password: Optional[str] = None,
-        prefetch_count: Optional[int] = None,
-        durable_exchange: Optional[bool] = None,
-        durable_queue: Optional[bool] = None,
-        on_error: Optional[str] = None,
-        requeue_on_error: Optional[bool] = None,
-        reconnect_duration: Optional[str] = None,
-        reconnect_interval: Optional[str] = None,
-        num_workers: Optional[int] = None,
-        worker_termination_timeout: Optional[str] = None,
+        exchange_name: str | None = None,
+        queue_name: str | None = None,
+        topics: list[str] | None = None,
+        username: str | None = None,
+        password: str | None = None,
+        prefetch_count: int | None = None,
+        durable_exchange: bool | None = None,
+        durable_queue: bool | None = None,
+        on_error: str | None = None,
+        requeue_on_error: bool | None = None,
+        reconnect_duration: str | None = None,
+        reconnect_interval: str | None = None,
+        num_workers: int | None = None,
+        worker_termination_timeout: str | None = None,
     ):
         """
         Initialize a RabbitMQ trigger.

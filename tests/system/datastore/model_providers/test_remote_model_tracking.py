@@ -12,11 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import json
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from time import sleep
 
 import pandas as pd
 import pytest
+import requests
 
 import mlrun
 import mlrun.common.schemas.model_monitoring.constants as mm_constants
@@ -86,17 +88,17 @@ class TestMockModelProviderTracking(
         assert list(row["label_names"]) == ["answer", "usage"]
 
         for key in expected_input:
-            assert (
-                row[key] == expected_input[key]
-            ), f"Field {key} mismatch: {row[key]} != {expected_input[key]}"
+            assert row[key] == expected_input[key], (
+                f"Field {key} mismatch: {row[key]} != {expected_input[key]}"
+            )
 
         assert "mock model provider" in row["answer"].lower()
 
         # Only check item counter if expected_counter is provided (for batch invocations)
         if expected_counter is not None:
-            assert (
-                f"(Item {expected_counter})" in row["answer"]
-            ), f"Expected '(Item {expected_counter})' in answer"
+            assert f"(Item {expected_counter})" in row["answer"], (
+                f"Expected '(Item {expected_counter})' in answer"
+            )
 
         assert isinstance(row["usage"], dict)
         assert row["usage"]["prompt_tokens"] == 0
@@ -121,9 +123,9 @@ class TestMockModelProviderTracking(
         # All rows in same batch must have same timestamp and latency
         for field in ["timestamp", "latency"]:
             values = batch_group[field].unique()
-            assert (
-                len(values) == 1
-            ), f"Batch {batch_id}: expected same {field} for all rows, got {len(values)} different values"
+            assert len(values) == 1, (
+                f"Batch {batch_id}: expected same {field} for all rows, got {len(values)} different values"
+            )
 
     def _verify_direct_batch_parquet_rows(
         self, batch_group, endpoint_name, expected_inputs
@@ -405,6 +407,113 @@ class TestMockModelProviderTracking(
         self._verify_batch_step_parquet_contents(v3io_df, endpoint_name)
 
         # Verify error tracking - should have 1 error batch (containing 2 events)
+        error_df = tsdb_client.get_error_count(endpoint_ids=mep.metadata.uid)
+        assert len(error_df) == 1
+        error_dict = error_df.head(1).to_dict(orient="records")[0]
+        assert error_dict["error_count"] == 1
+
+    @pytest.mark.parametrize(
+        "execution_mechanism",
+        ["process_pool", "dedicated_process", "naive", "asyncio", "thread_pool"],
+    )
+    def test_llmodel_streaming_tracking(self, execution_mechanism):
+        """Test streaming invocation with MockModelProvider and model monitoring.
+
+        Verifies that the streaming response is delivered as chunked HTTP and that
+        the monitoring pipeline correctly records the aggregated result (the Collector
+        step gathers streamed tokens and the MonitoringPreProcessor aggregates them).
+        """
+        mlrun_model_name = "mock_model"
+        endpoint_name = "my_endpoint"
+        model_url = "mock://my-mock-model"
+
+        model_artifact, llm_prompt_artifact, function = setup_remote_model_test(
+            self.project,
+            model_url,
+            mlrun_model_name=mlrun_model_name,
+            image=self.image,
+            execution_mechanism=execution_mechanism,
+            streaming=True,
+        )
+
+        self.set_mm_credentials()
+        function.set_tracking()
+        self.project.enable_model_monitoring(
+            deploy_histogram_data_drift_app=False,
+            image=self.image,
+        )
+
+        function.deploy()
+
+        # Send a streaming request using raw HTTP so we get chunked transfer
+        url = function.get_url()
+        resp = requests.post(
+            f"{url}/v2/models/{mlrun_model_name}/infer",
+            data=json.dumps(BATCH_INPUT_DATA[0]),
+            stream=True,
+        )
+        assert resp.ok, f"Streaming request failed: {resp.status_code} {resp.text}"
+        assert resp.headers.get("Transfer-Encoding") == "chunked"
+
+        self._verify_streaming_response(
+            resp.iter_content(decode_unicode=True, chunk_size=1024)
+        )
+
+        # Send a streaming request with error input
+        self._check_single_invocation_with_error(function.invoke, mlrun_model_name)
+
+        # Wait for monitoring pipeline to process the streamed prediction
+        sleep(180)
+
+        function_name = function.metadata.name
+        mep = mlrun.db.get_run_db().get_model_endpoint(
+            name=endpoint_name,
+            project=self.project.name,
+            function_name=function_name,
+            function_tag="latest",
+            feature_analysis=True,
+            tsdb_metrics=True,
+        )
+        assert mep is not None
+
+        tsdb_client = mlrun.model_monitoring.get_tsdb_connector(
+            project=self.project.name, profile=self.mm_tsdb_profile
+        )
+        predictions = tsdb_client._get_records(
+            table=mm_constants.V3IOTSDBTables.PREDICTIONS,
+            start="now-50m",
+            end="now",
+        )
+
+        assert len(predictions) == 1
+        prediction = predictions.iloc[0].to_dict()
+        assert prediction["effective_sample_count"] == 1
+        assert prediction["estimated_prediction_count"] == 1
+
+        # Verify endpoint_features were written to the EVENTS table.
+        # Without the streaming output schema fix, write to TSDB silently fails due to
+        # a column count mismatch caused by TSDBTarget skipping None values.
+        events = tsdb_client._get_records(
+            table=mm_constants.V3IOTSDBTables.EVENTS,
+            start="now-50m",
+            end="now",
+            filter_query=(
+                f"record_type=='{mm_constants.EventKeyMetrics.ENDPOINT_FEATURES}'"
+            ),
+        )
+        assert len(events) >= 1, "Expected endpoint_features records in EVENTS table"
+
+        v3io_df = pd.read_parquet(
+            f"v3io:///projects/{self.project.name}/artifacts/model-endpoints/"
+            f"parquet/key={mep.metadata.uid}"
+        )
+        assert len(v3io_df) == 1
+
+        row = v3io_df.iloc[0]
+        assert row["endpoint_name"] == endpoint_name
+        assert row["model_class"] == "LLModel"
+        assert "mock model provider" in str(row).lower()
+
         error_df = tsdb_client.get_error_count(endpoint_ids=mep.metadata.uid)
         assert len(error_df) == 1
         error_dict = error_df.head(1).to_dict(orient="records")[0]

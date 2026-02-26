@@ -13,7 +13,7 @@
 # limitations under the License.
 
 from datetime import datetime
-from typing import Any, Literal, Optional, Union
+from typing import Any, Literal, Union
 
 from pydantic.v1 import BaseModel
 
@@ -28,20 +28,20 @@ class ScheduleCronTrigger(BaseModel):
     https://apscheduler.readthedocs.io/en/3.x/modules/triggers/cron.html#module-apscheduler.triggers.cron
     """
 
-    year: Optional[Union[int, str]]
-    month: Optional[Union[int, str]]
-    day: Optional[Union[int, str]]
-    week: Optional[Union[int, str]]
-    day_of_week: Optional[Union[int, str]]
-    hour: Optional[Union[int, str]]
-    minute: Optional[Union[int, str]]
-    second: Optional[Union[int, str]]
+    year: Union[int, str] | None
+    month: Union[int, str] | None
+    day: Union[int, str] | None
+    week: Union[int, str] | None
+    day_of_week: Union[int, str] | None
+    hour: Union[int, str] | None
+    minute: Union[int, str] | None
+    second: Union[int, str] | None
     start_date: Union[datetime, str] = None
     end_date: Union[datetime, str] = None
 
     # APScheduler also supports datetime.tzinfo type, but Pydantic doesn't - so we don't
-    timezone: Optional[str]
-    jitter: Optional[int]
+    timezone: str | None
+    jitter: int | None
 
     @classmethod
     def from_crontab(cls, expr, timezone=None):
@@ -93,11 +93,11 @@ class ScheduleKinds(mlrun.common.types.StrEnum):
 
 
 class ScheduleUpdate(BaseModel):
-    scheduled_object: Optional[Any]
-    cron_trigger: Optional[Union[str, ScheduleCronTrigger]]
-    desired_state: Optional[str]
-    labels: Optional[dict] = None
-    concurrency_limit: Optional[int]
+    scheduled_object: Any | None
+    cron_trigger: Union[str, ScheduleCronTrigger] | None
+    desired_state: str | None
+    labels: dict | None = None
+    concurrency_limit: int | None
     credentials: Credentials = Credentials()
 
 
@@ -107,9 +107,9 @@ class ScheduleInput(BaseModel):
     kind: ScheduleKinds
     scheduled_object: Any
     cron_trigger: Union[str, ScheduleCronTrigger]
-    desired_state: Optional[str]
-    labels: Optional[dict] = {}
-    concurrency_limit: Optional[int]
+    desired_state: str | None
+    labels: dict | None = {}
+    concurrency_limit: int | None
     credentials: Credentials = Credentials()
 
 
@@ -117,10 +117,10 @@ class ScheduleInput(BaseModel):
 class ScheduleRecord(ScheduleInput):
     creation_time: datetime
     project: str
-    last_run_uri: Optional[str]
-    state: Optional[str]
-    labels: Optional[list[LabelRecord]]
-    next_run_time: Optional[datetime]
+    last_run_uri: str | None
+    state: str | None
+    labels: list[LabelRecord] | None
+    next_run_time: datetime | None
 
     class Config:
         orm_mode = True
@@ -128,9 +128,9 @@ class ScheduleRecord(ScheduleInput):
 
 # Additional properties to return via API
 class ScheduleOutput(ScheduleRecord):
-    next_run_time: Optional[datetime]
-    last_run: Optional[dict] = {}
-    labels: Optional[dict] = {}
+    next_run_time: datetime | None
+    last_run: dict | None = {}
+    labels: dict | None = {}
     credentials: Credentials = Credentials()
 
 

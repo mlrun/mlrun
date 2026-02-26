@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import typing
 
 import pydantic.v1
 
@@ -50,24 +49,24 @@ class ArtifactLimits(pydantic.v1.BaseModel):
 
 
 class FrontendSpec(pydantic.v1.BaseModel):
-    jobs_dashboard_url: typing.Optional[str]
-    model_monitoring_dashboard_url: typing.Optional[str]
+    jobs_dashboard_url: str | None
+    model_monitoring_dashboard_url: str | None
     abortable_function_kinds: list[str] = []
     feature_flags: FeatureFlags
-    default_function_priority_class_name: typing.Optional[str]
+    default_function_priority_class_name: str | None
     valid_function_priority_class_names: list[str] = []
     default_function_image_by_kind: dict[str, str] = {}
-    function_deployment_target_image_template: typing.Optional[str]
+    function_deployment_target_image_template: str | None
     function_deployment_target_image_name_prefix_template: str
     function_deployment_target_image_registries_to_enforce_prefix: list[str] = []
-    function_deployment_mlrun_requirement: typing.Optional[str]
-    auto_mount_type: typing.Optional[str]
+    function_deployment_mlrun_requirement: str | None
+    auto_mount_type: str | None
     auto_mount_params: dict[str, str] = {}
     default_artifact_path: str
     default_function_pod_resources: Resources = Resources()
     default_function_preemption_mode: str
-    feature_store_data_prefixes: typing.Optional[dict[str, str]]
+    feature_store_data_prefixes: dict[str, str] | None
     allowed_artifact_path_prefixes_list: list[str]
-    ce: typing.Optional[dict]
+    ce: dict | None
     internal_labels: list[str] = []
     artifact_limits: ArtifactLimits

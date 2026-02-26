@@ -278,7 +278,7 @@ class AuthVerifier(metaclass=mlrun.utils.singleton.Singleton):
         return auth_info
 
     def get_or_create_access_key(
-        self, session: str, planes: typing.Optional[list[str]] = None
+        self, session: str, planes: list[str] | None = None
     ) -> str:
         if not self._iguazio_auth_configured():
             raise NotImplementedError(

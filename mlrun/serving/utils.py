@@ -14,7 +14,6 @@
 
 import inspect
 from http import HTTPMethod
-from typing import Optional
 
 from mlrun.utils import get_in, update_in
 
@@ -78,8 +77,8 @@ class StepToDict:
 
     def to_dict(
         self,
-        fields: Optional[list] = None,
-        exclude: Optional[list] = None,
+        fields: list | None = None,
+        exclude: list | None = None,
         strip: bool = False,
     ):
         """convert the step object to a python dictionary"""
@@ -133,8 +132,8 @@ class RouterToDict(StepToDict):
 
     def to_dict(
         self,
-        fields: Optional[list] = None,
-        exclude: Optional[list] = None,
+        fields: list | None = None,
+        exclude: list | None = None,
         strip: bool = False,
     ):
         return super().to_dict(exclude=["routes"], strip=strip)

@@ -460,7 +460,7 @@ def get_tblframe(df, display, classes=None):
 def runs_to_html(
     df: pd.DataFrame,
     display: bool = True,
-    classes: typing.Optional[typing.Union[str, list, tuple]] = None,
+    classes: typing.Union[str, list, tuple] | None = None,
     short: bool = False,
 ):
     def time_str(x):

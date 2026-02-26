@@ -122,12 +122,12 @@ if "IGZ_NAMESPACE_DOMAIN" in environ:
 
 
 def set_environment(
-    api_path: Optional[str] = None,
+    api_path: str | None = None,
     artifact_path: str = "",
-    access_key: Optional[str] = None,
-    username: Optional[str] = None,
-    env_file: Optional[str] = None,
-    mock_functions: Optional[str] = None,
+    access_key: str | None = None,
+    username: str | None = None,
+    env_file: str | None = None,
+    mock_functions: str | None = None,
 ):
     """set and test default config for: api path, artifact_path and project
 
@@ -191,14 +191,14 @@ def set_environment(
             artifact_path = path.abspath(artifact_path)
         elif not artifact_path.startswith("/") and "://" not in artifact_path:
             raise ValueError(
-                "artifact_path must refer to an absolute path" " or a valid url"
+                "artifact_path must refer to an absolute path or a valid url"
             )
         mlconf.artifact_path = artifact_path
 
     return mlconf.active_project, mlconf.artifact_path
 
 
-def get_current_project(silent: bool = False) -> Optional[MlrunProject]:
+def get_current_project(silent: bool = False) -> MlrunProject | None:
     if pipeline_context.project:
         return pipeline_context.project
 
@@ -236,7 +236,7 @@ def get_sample_path(subpath=""):
     return samples_path
 
 
-def set_env_from_file(env_file: str, return_dict: bool = False) -> Optional[dict]:
+def set_env_from_file(env_file: str, return_dict: bool = False) -> dict | None:
     """Read and set and/or return environment variables from a file
     the env file should have lines in the form KEY=VALUE, comment line start with "#"
 

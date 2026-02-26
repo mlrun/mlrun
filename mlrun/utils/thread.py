@@ -15,7 +15,7 @@
 import inspect
 import threading
 from collections.abc import Callable
-from typing import Optional, TypeVar
+from typing import TypeVar
 
 T = TypeVar("T")
 
@@ -25,7 +25,7 @@ class ThreadLocalClient:
     def __init__(
         self,
         factory: Callable[[], T],
-        close_callback: Optional[Callable[[T], None]] = None,
+        close_callback: Callable[[T], None] | None = None,
     ):
         """
         Create a thread-local client holder.

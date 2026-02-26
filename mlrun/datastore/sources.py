@@ -19,7 +19,7 @@ import warnings
 from base64 import b64encode
 from copy import copy
 from datetime import datetime
-from typing import Any, Literal, Optional, Union
+from typing import Any, Literal, Union
 
 import pandas as pd
 import semver
@@ -183,10 +183,10 @@ class CSVSource(BaseSourceDriver):
     def __init__(
         self,
         name: str = "",
-        path: Optional[str] = None,
-        attributes: Optional[dict[str, object]] = None,
-        key_field: Optional[str] = None,
-        schedule: Optional[str] = None,
+        path: str | None = None,
+        attributes: dict[str, object] | None = None,
+        key_field: str | None = None,
+        schedule: str | None = None,
         parse_dates: Union[None, int, str, list[int], list[str]] = None,
         **kwargs,
     ):
@@ -310,14 +310,14 @@ class ParquetSource(BaseSourceDriver):
     def __init__(
         self,
         name: str = "",
-        path: Optional[str] = None,
-        attributes: Optional[dict[str, object]] = None,
-        key_field: Optional[str] = None,
-        time_field: Optional[str] = None,
-        schedule: Optional[str] = None,
-        start_time: Optional[Union[datetime, str]] = None,
-        end_time: Optional[Union[datetime, str]] = None,
-        additional_filters: Optional[list[Union[tuple, list]]] = None,
+        path: str | None = None,
+        attributes: dict[str, object] | None = None,
+        key_field: str | None = None,
+        time_field: str | None = None,
+        schedule: str | None = None,
+        start_time: Union[datetime, str] | None = None,
+        end_time: Union[datetime, str] | None = None,
+        additional_filters: list[Union[tuple, list]] | None = None,
     ):
         if additional_filters:
             attributes = copy(attributes) or {}
@@ -394,9 +394,7 @@ class ParquetSource(BaseSourceDriver):
         )
 
     @classmethod
-    def from_dict(
-        cls, struct=None, fields=None, deprecated_fields: Optional[dict] = None
-    ):
+    def from_dict(cls, struct=None, fields=None, deprecated_fields: dict | None = None):
         new_obj = super().from_dict(
             struct=struct, fields=fields, deprecated_fields=deprecated_fields
         )
@@ -568,18 +566,18 @@ class BigQuerySource(BaseSourceDriver):
     def __init__(
         self,
         name: str = "",
-        table: Optional[str] = None,
-        max_results_for_table: Optional[int] = None,
-        query: Optional[str] = None,
-        materialization_dataset: Optional[str] = None,
-        chunksize: Optional[int] = None,
-        key_field: Optional[str] = None,
-        time_field: Optional[str] = None,
-        schedule: Optional[str] = None,
+        table: str | None = None,
+        max_results_for_table: int | None = None,
+        query: str | None = None,
+        materialization_dataset: str | None = None,
+        chunksize: int | None = None,
+        key_field: str | None = None,
+        time_field: str | None = None,
+        schedule: str | None = None,
         start_time=None,
         end_time=None,
-        gcp_project: Optional[str] = None,
-        spark_options: Optional[dict] = None,
+        gcp_project: str | None = None,
+        spark_options: dict | None = None,
         **kwargs,
     ):
         if query and table:
@@ -779,18 +777,18 @@ class SnowflakeSource(BaseSourceDriver):
     def __init__(
         self,
         name: str = "",
-        key_field: Optional[str] = None,
-        attributes: Optional[dict[str, object]] = None,
-        time_field: Optional[str] = None,
-        schedule: Optional[str] = None,
+        key_field: str | None = None,
+        attributes: dict[str, object] | None = None,
+        time_field: str | None = None,
+        schedule: str | None = None,
         start_time=None,
         end_time=None,
-        query: Optional[str] = None,
-        url: Optional[str] = None,
-        user: Optional[str] = None,
-        database: Optional[str] = None,
-        db_schema: Optional[str] = None,
-        warehouse: Optional[str] = None,
+        query: str | None = None,
+        url: str | None = None,
+        user: str | None = None,
+        database: str | None = None,
+        db_schema: str | None = None,
+        warehouse: str | None = None,
         **kwargs,
     ):
         attributes = attributes or {}
@@ -845,9 +843,9 @@ class CustomSource(BaseSourceDriver):
 
     def __init__(
         self,
-        class_name: Optional[str] = None,
+        class_name: str | None = None,
         name: str = "",
-        schedule: Optional[str] = None,
+        schedule: str | None = None,
         **attributes,
     ):
         attributes = attributes or {}
@@ -925,12 +923,12 @@ class OnlineSource(BaseSourceDriver):
 
     def __init__(
         self,
-        name: Optional[str] = None,
-        path: Optional[str] = None,
-        attributes: Optional[dict[str, object]] = None,
-        key_field: Optional[str] = None,
-        time_field: Optional[str] = None,
-        workers: Optional[int] = None,
+        name: str | None = None,
+        path: str | None = None,
+        attributes: dict[str, object] | None = None,
+        key_field: str | None = None,
+        time_field: str | None = None,
+        workers: int | None = None,
     ):
         super().__init__(name, path, attributes, key_field, time_field)
         self.online = True
@@ -995,7 +993,7 @@ class StreamSource(OnlineSource):
         seek_to="earliest",
         shards=1,
         retention_in_hours=24,
-        extra_attributes: Optional[dict] = None,
+        extra_attributes: dict | None = None,
         **kwargs,
     ):
         """
@@ -1055,15 +1053,15 @@ class KafkaSource(OnlineSource):
 
     def __init__(
         self,
-        brokers: Optional[list[str]] = None,
-        topics: Optional[list[str]] = None,
+        brokers: list[str] | None = None,
+        topics: list[str] | None = None,
         group: str = "serving",
         initial_offset: Literal["earliest", "latest"] = "earliest",
-        partitions: Optional[list[int]] = None,
-        sasl_user: Optional[str] = None,
-        sasl_pass: Optional[str] = None,
-        tls_enable: Optional[bool] = None,
-        attributes: Optional[dict] = None,
+        partitions: list[int] | None = None,
+        sasl_user: str | None = None,
+        sasl_pass: str | None = None,
+        tls_enable: bool | None = None,
+        attributes: dict | None = None,
         **kwargs,
     ) -> None:
         """Sets kafka source for the flow
@@ -1170,7 +1168,7 @@ class KafkaSource(OnlineSource):
         self,
         num_partitions: int = 4,
         replication_factor: int = 1,
-        topics: Optional[list[str]] = None,
+        topics: list[str] | None = None,
     ):
         """
         Create Kafka topics with the specified number of partitions and replication factor.
@@ -1222,16 +1220,16 @@ class SQLSource(BaseSourceDriver):
     def __init__(
         self,
         name: str = "",
-        chunksize: Optional[int] = None,
-        key_field: Optional[str] = None,
-        time_field: Optional[str] = None,
-        schedule: Optional[str] = None,
-        start_time: Optional[Union[datetime, str]] = None,
-        end_time: Optional[Union[datetime, str]] = None,
-        db_url: Optional[str] = None,
-        table_name: Optional[str] = None,
-        spark_options: Optional[dict] = None,
-        parse_dates: Optional[list[str]] = None,
+        chunksize: int | None = None,
+        key_field: str | None = None,
+        time_field: str | None = None,
+        schedule: str | None = None,
+        start_time: Union[datetime, str] | None = None,
+        end_time: Union[datetime, str] | None = None,
+        db_url: str | None = None,
+        table_name: str | None = None,
+        spark_options: dict | None = None,
+        parse_dates: list[str] | None = None,
         **kwargs,
     ):
         """

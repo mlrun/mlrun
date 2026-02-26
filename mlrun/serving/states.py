@@ -32,7 +32,7 @@ from collections.abc import Collection
 from contextlib import contextmanager
 from copy import copy, deepcopy
 from inspect import getfullargspec, signature
-from typing import Any, Optional, Union, cast
+from typing import Any, Union, cast
 
 import storey.utils
 from deprecated import deprecated
@@ -139,10 +139,10 @@ class BaseStep(ModelObj):
 
     def __init__(
         self,
-        name: Optional[str] = None,
-        after: Optional[list] = None,
-        shape: Optional[str] = None,
-        max_iterations: Optional[int] = None,
+        name: str | None = None,
+        after: list | None = None,
+        shape: str | None = None,
+        max_iterations: int | None = None,
     ):
         self.name = name
         self._parent = None
@@ -211,44 +211,46 @@ class BaseStep(ModelObj):
 
     def error_handler(
         self,
-        name: Optional[str] = None,
+        name: str | None = None,
         class_name=None,
         handler=None,
         before=None,
         function=None,
-        full_event: Optional[bool] = None,
-        input_path: Optional[str] = None,
-        result_path: Optional[str] = None,
+        full_event: bool | None = None,
+        input_path: str | None = None,
+        result_path: str | None = None,
         **class_args,
     ):
         """set error handler on a step or the entire graph (to be executed on failure/raise)
 
         When setting the error_handler on the graph object, the graph completes after the error handler execution.
 
-        example:
-            in the below example, an 'error_catcher' step is set as the error_handler of the 'raise' step:
-            in case of error/raise in 'raise' step, the handle_error will be run. after that,
-            the 'echo' step will be run.
+        example::
+
+            # in the below example, an 'error_catcher' step is set as the error_handler of the 'raise' step:
+            # in case of error/raise in 'raise' step, the handle_error will be run. after that,
+            # the 'echo' step will be run.
+
             graph = function.set_topology('flow', engine='async')
-            graph.to(name='raise', handler='raising_step')\
+            graph.to(name='raise', handler='raising_step')
                 .error_handler(name='error_catcher', handler='handle_error', full_event=True, before='echo')
             graph.add_step(name="echo", handler='echo', after="raise").respond()
 
         :param name:        unique name (and path) for the error handler step, default is class name
-        :param class_name:  class name or step object to build the step from
-                            the error handler step is derived from task step (ie no router/queue functionally)
+        :param class_name:  class name or step object to build the step from.
+                            The error handler step is derived from task step (ie no router/queue functionally)
         :param handler:     class/function handler to invoke on run/event
         :param before:      string or list of next step(s) names that will run after this step.
-                            the `before` param must not specify upstream steps as it will cause a loop.
-                            if `before` is not specified, the graph will complete after the error handler execution.
+                            The `before` param must not specify upstream steps as it will cause a loop.
+                            If `before` is not specified, the graph will complete after the error handler execution.
         :param function:    function this step should run in
         :param full_event:  this step accepts the full event (not just the body)
-        :param input_path:  selects the key/path in the event to use as input to the step
-                            this requires that the event body will behave like a dict, for example:
+        :param input_path:  selects the key/path in the event to use as input to the step.
+                            This requires that the event body will behave like a dict, for example:
                             event: {"data": {"a": 5, "b": 7}}, input_path="data.b" means the step will
                             receive 7 as input
-        :param result_path: selects the key/path in the event to write the results to
-                            this requires that the event body will behave like a dict, for example:
+        :param result_path: selects the key/path in the event to write the results to.
+                            This requires that the event body will behave like a dict, for example:
                             event: {"x": 5} , result_path="y" means the output of the step will be written
                             to event["y"] resulting in {"x": 5, "y": <result>}
         :param class_args:  class init arguments
@@ -354,43 +356,43 @@ class BaseStep(ModelObj):
     def to(
         self,
         class_name: Union[str, StepToDict] = None,
-        name: Optional[str] = None,
-        handler: Optional[str] = None,
-        graph_shape: Optional[str] = None,
-        function: Optional[str] = None,
-        full_event: Optional[bool] = None,
-        input_path: Optional[str] = None,
-        result_path: Optional[str] = None,
-        model_endpoint_creation_strategy: Optional[
-            schemas.ModelEndpointCreationStrategy
-        ] = None,
-        cycle_to: Optional[list[str]] = None,
-        max_iterations: Optional[int] = None,
+        name: str | None = None,
+        handler: str | None = None,
+        graph_shape: str | None = None,
+        function: str | None = None,
+        full_event: bool | None = None,
+        input_path: str | None = None,
+        result_path: str | None = None,
+        model_endpoint_creation_strategy: schemas.ModelEndpointCreationStrategy
+        | None = None,
+        cycle_to: list[str] | None = None,
+        max_iterations: int | None = None,
         **class_args,
     ):
         """add a step right after this step and return the new step
 
-        example:
-            a 4-step pipeline ending with a stream:
-            graph.to('URLDownloader')\
-                 .to('ToParagraphs')\
-                 .to(name='to_json', handler='json.dumps')\
-                 .to('>>', 'to_v3io', path=stream_path)\
+        example::
 
-        :param class_name:  class name or step object to build the step from
-                            for router steps the class name should start with '*'
-                            for queue/stream step the class should be '>>' or '$queue'
-        :param name:        unique name (and path) for the child step, default is class name
-        :param handler:     class/function handler to invoke on run/event
+            # a 4-step pipeline ending with a stream:
+            graph.to('URLDownloader')
+                 .to('ToParagraphs')
+                 .to(name='to_json', handler='json.dumps')
+                 .to('>>', 'to_v3io', path=stream_path)
+
+        :param class_name:  Class name or step object to build the step from.
+                            For router steps the class name should start with `*`.
+                            For queue/stream step the class should be `>>` or `$queue`.
+        :param name:        Unique name (and path) for the child step, default is class name
+        :param handler:     Class/function handler to invoke on run/event
         :param graph_shape: graphviz shape name
-        :param function:    function this step should run in
-        :param full_event:  this step accepts the full event (not just body)
-        :param input_path:  selects the key/path in the event to use as input to the step
-                            this requires that the event body will behave like a dict, example:
+        :param function:    Function this step should run in
+        :param full_event:  This step accepts the full event (not just body)
+        :param input_path:  Selects the key/path in the event to use as input to the step.
+                            This requires that the event body will behave like a dict, example:
                             event: {"data": {"a": 5, "b": 7}}, input_path="data.b" means the step will
                             receive 7 as input
-        :param result_path: selects the key/path in the event to write the results to
-                            this require that the event body will behave like a dict, example:
+        :param result_path: Selects the key/path in the event to write the results to.
+                            This requires that the event body will behave like a dict, example:
                             event: {"x": 5} , result_path="y" means the output of the step will be written
                             to event["y"] resulting in {"x": 5, "y": <result>}
         :param model_endpoint_creation_strategy: Strategy for creating or updating the model endpoint:
@@ -447,7 +449,8 @@ class BaseStep(ModelObj):
     def cycle_to(self, step_names: Union[str, list[str]]):
         """create a cycle in the graph to the specified step names
 
-        example:
+        example::
+
             in the below example, a cycle is created from 'step3' to 'step1':
             graph.to('step1')\
                  .to('step2')\
@@ -551,7 +554,7 @@ class BaseStep(ModelObj):
     def verify_model_runner_step(
         self,
         step: "ModelRunnerStep",
-        step_model_endpoints_names: Optional[list[str]] = None,
+        step_model_endpoints_names: list[str] | None = None,
         verify_shared_models: bool = True,
     ):
         """
@@ -735,20 +738,19 @@ class TaskStep(BaseStep):
 
     def __init__(
         self,
-        class_name: Optional[Union[str, type]] = None,
-        class_args: Optional[dict] = None,
-        handler: Optional[str] = None,
-        name: Optional[str] = None,
-        after: Optional[list] = None,
-        full_event: Optional[bool] = None,
-        function: Optional[str] = None,
-        responder: Optional[bool] = None,
-        input_path: Optional[str] = None,
-        result_path: Optional[str] = None,
-        model_endpoint_creation_strategy: Optional[
-            schemas.ModelEndpointCreationStrategy
-        ] = schemas.ModelEndpointCreationStrategy.SKIP,
-        endpoint_type: Optional[schemas.EndpointType] = schemas.EndpointType.NODE_EP,
+        class_name: Union[str, type] | None = None,
+        class_args: dict | None = None,
+        handler: str | None = None,
+        name: str | None = None,
+        after: list | None = None,
+        full_event: bool | None = None,
+        function: str | None = None,
+        responder: bool | None = None,
+        input_path: str | None = None,
+        result_path: str | None = None,
+        model_endpoint_creation_strategy: schemas.ModelEndpointCreationStrategy
+        | None = schemas.ModelEndpointCreationStrategy.SKIP,
+        endpoint_type: schemas.EndpointType | None = schemas.EndpointType.NODE_EP,
     ):
         super().__init__(name, after)
         self.class_name = class_name
@@ -950,8 +952,8 @@ class TaskStep(BaseStep):
 
     def to_dict(
         self,
-        fields: Optional[list] = None,
-        exclude: Optional[list] = None,
+        fields: list | None = None,
+        exclude: list | None = None,
         strip: bool = False,
     ) -> dict:
         self.endpoint_type = (
@@ -978,16 +980,16 @@ class MonitoringApplicationStep(TaskStep):
 
     def __init__(
         self,
-        class_name: Optional[Union[str, type]] = None,
-        class_args: Optional[dict] = None,
-        handler: Optional[str] = None,
-        name: Optional[str] = None,
-        after: Optional[list] = None,
-        full_event: Optional[bool] = None,
-        function: Optional[str] = None,
-        responder: Optional[bool] = None,
-        input_path: Optional[str] = None,
-        result_path: Optional[str] = None,
+        class_name: Union[str, type] | None = None,
+        class_args: dict | None = None,
+        handler: str | None = None,
+        name: str | None = None,
+        after: list | None = None,
+        full_event: bool | None = None,
+        function: str | None = None,
+        responder: bool | None = None,
+        input_path: str | None = None,
+        result_path: str | None = None,
     ):
         super().__init__(
             class_name=class_name,
@@ -1012,16 +1014,16 @@ class ErrorStep(TaskStep):
 
     def __init__(
         self,
-        class_name: Optional[Union[str, type]] = None,
-        class_args: Optional[dict] = None,
-        handler: Optional[str] = None,
-        name: Optional[str] = None,
-        after: Optional[list] = None,
-        full_event: Optional[bool] = None,
-        function: Optional[str] = None,
-        responder: Optional[bool] = None,
-        input_path: Optional[str] = None,
-        result_path: Optional[str] = None,
+        class_name: Union[str, type] | None = None,
+        class_args: dict | None = None,
+        handler: str | None = None,
+        name: str | None = None,
+        after: list | None = None,
+        full_event: bool | None = None,
+        function: str | None = None,
+        responder: bool | None = None,
+        input_path: str | None = None,
+        result_path: str | None = None,
     ):
         super().__init__(
             class_name=class_name,
@@ -1049,14 +1051,14 @@ class RouterStep(TaskStep):
 
     def __init__(
         self,
-        class_name: Optional[Union[str, type]] = None,
-        class_args: Optional[dict] = None,
-        handler: Optional[str] = None,
-        routes: Optional[list] = None,
-        name: Optional[str] = None,
-        function: Optional[str] = None,
-        input_path: Optional[str] = None,
-        result_path: Optional[str] = None,
+        class_name: Union[str, type] | None = None,
+        class_args: dict | None = None,
+        handler: str | None = None,
+        routes: list | None = None,
+        name: str | None = None,
+        function: str | None = None,
+        input_path: str | None = None,
+        result_path: str | None = None,
     ):
         super().__init__(
             class_name,
@@ -1220,8 +1222,8 @@ class Model(storey.ParallelExecutionRunnable, ModelObj):
         self,
         name: str,
         raise_exception: bool = True,
-        artifact_uri: Optional[str] = None,
-        shared_proxy_mapping: Optional[dict] = None,
+        artifact_uri: str | None = None,
+        shared_proxy_mapping: dict | None = None,
         **kwargs,
     ):
         super().__init__(name=name, raise_exception=raise_exception, **kwargs)
@@ -1231,9 +1233,9 @@ class Model(storey.ParallelExecutionRunnable, ModelObj):
         self.shared_proxy_mapping: dict[
             str : Union[str, ModelArtifact, LLMPromptArtifact]
         ] = shared_proxy_mapping
-        self.invocation_artifact: Optional[LLMPromptArtifact] = None
-        self.model_artifact: Optional[ModelArtifact] = None
-        self.model_provider: Optional[ModelProvider] = None
+        self.invocation_artifact: LLMPromptArtifact | None = None
+        self.model_artifact: ModelArtifact | None = None
+        self.model_provider: ModelProvider | None = None
         self._artifact_were_loaded = False
         self._execution_mechanism = None
 
@@ -1304,7 +1306,7 @@ class Model(storey.ParallelExecutionRunnable, ModelObj):
             self._artifact_were_loaded = True
 
     def _get_artifact_object(
-        self, proxy_uri: Optional[str] = None
+        self, proxy_uri: str | None = None
     ) -> Union[ModelArtifact, LLMPromptArtifact, None]:
         uri = proxy_uri or self.artifact_uri
         if uri:
@@ -1343,12 +1345,12 @@ class Model(storey.ParallelExecutionRunnable, ModelObj):
         """
         raise NotImplementedError("predict_async() method not implemented")
 
-    def run(self, body: Any, path: str, origin_name: Optional[str] = None) -> Any:
+    def run(self, body: Any, path: str, origin_name: str | None = None) -> Any:
         if isinstance(body, list):
             body = self.format_batch(body)
         return self.predict(body)
 
-    def run_async(self, body: Any, path: str, origin_name: Optional[str] = None) -> Any:
+    def run_async(self, body: Any, path: str, origin_name: str | None = None) -> Any:
         if isinstance(body, list):
             body = self.format_batch(body)
         return self.predict_async(body)
@@ -1423,7 +1425,10 @@ class LLModel(Model):
 
         [
             {"role": "system", "content": "You are a travel planning assistant."},
-            {"role": "user", "content": "Create a {{days}}-day itinerary for {{city}}."},
+            {
+                "role": "user",
+                "content": "Create a {{days}}-day itinerary for {{city}}.",
+            },
         ]
 
     Result after enrichment::
@@ -1444,8 +1449,8 @@ class LLModel(Model):
     def __init__(
         self,
         name: str,
-        input_path: Optional[Union[str, list[str]]] = None,
-        result_path: Optional[Union[str, list[str]]] = None,
+        input_path: Union[str, list[str]] | None = None,
+        result_path: Union[str, list[str]] | None = None,
         **kwargs,
     ):
         super().__init__(name, **kwargs)
@@ -1494,8 +1499,8 @@ class LLModel(Model):
     def predict(
         self,
         body: Any,
-        messages: Optional[Union[list[dict], list[list[dict]]]] = None,
-        invocation_config: Optional[dict] = None,
+        messages: Union[list[dict], list[list[dict]]] | None = None,
+        invocation_config: dict | None = None,
         **kwargs,
     ) -> Any:
         if not self._can_invoke_provider(kwargs.get("llm_prompt_artifact")):
@@ -1532,8 +1537,8 @@ class LLModel(Model):
     async def predict_async(
         self,
         body: Any,
-        messages: Optional[Union[list[dict], list[list[dict]]]] = None,
-        invocation_config: Optional[dict] = None,
+        messages: Union[list[dict], list[list[dict]]] | None = None,
+        invocation_config: dict | None = None,
         **kwargs,
     ) -> Any:
         if not self._can_invoke_provider(kwargs.get("llm_prompt_artifact")):
@@ -1583,7 +1588,7 @@ class LLModel(Model):
                 f" '{type(self.model_provider).__name__}' does not support streaming"
             )
 
-    def run(self, body: Any, path: str, origin_name: Optional[str] = None) -> Any:
+    def run(self, body: Any, path: str, origin_name: str | None = None) -> Any:
         llm_prompt_artifact = self._get_invocation_artifact(origin_name)
         messages, invocation_config = self.enrich_prompt(
             body, origin_name, llm_prompt_artifact
@@ -1601,7 +1606,7 @@ class LLModel(Model):
             llm_prompt_artifact=llm_prompt_artifact,
         )
 
-    def run_async(self, body: Any, path: str, origin_name: Optional[str] = None) -> Any:
+    def run_async(self, body: Any, path: str, origin_name: str | None = None) -> Any:
         llm_prompt_artifact = self._get_invocation_artifact(origin_name)
         messages, invocation_config = self.enrich_prompt(
             body, origin_name, llm_prompt_artifact
@@ -1629,7 +1634,7 @@ class LLModel(Model):
         self,
         body: dict,
         origin_name: str,
-        llm_prompt_artifact: Optional[LLMPromptArtifact] = None,
+        llm_prompt_artifact: LLMPromptArtifact | None = None,
     ) -> Union[tuple[list[dict], dict], tuple[None, None]]:
         logger.info(
             "Enriching prompt",
@@ -1716,7 +1721,7 @@ class LLModel(Model):
         return enriched_template
 
     def _get_invocation_artifact(
-        self, origin_name: Optional[str] = None
+        self, origin_name: str | None = None
     ) -> Union[LLMPromptArtifact, None]:
         """
         Get the LLMPromptArtifact object for this model.
@@ -1770,7 +1775,7 @@ class ModelRunnerSelector(ModelObj):
         self,
         event: Any,
         available_models: list[Model],
-    ) -> Optional[Union[list[str], list[Model]]]:
+    ) -> Union[list[str], list[Model]] | None:
         """
         Called before model execution.
 
@@ -1784,7 +1789,7 @@ class ModelRunnerSelector(ModelObj):
     def select_outlets(
         self,
         event: Any,
-    ) -> Optional[list[str]]:
+    ) -> list[str] | None:
         """
         Called after model execution.
 
@@ -1839,7 +1844,7 @@ class ModelRunner(storey.ParallelExecution):
         self,
         *args,
         context,
-        model_runner_selector: Optional[ModelRunnerSelector] = None,
+        model_runner_selector: ModelRunnerSelector | None = None,
         raise_exception: bool = True,
         **kwargs,
     ):
@@ -1870,7 +1875,7 @@ class ModelRunner(storey.ParallelExecution):
             ]
         return selected
 
-    def select_outlets(self, event) -> Optional[Collection[str]]:
+    def select_outlets(self, event) -> Collection[str] | None:
         is_batched = False
         if isinstance(event, list) and any(
             hasattr(subevent, "body") for subevent in event
@@ -1991,11 +1996,11 @@ class ModelRunnerStep(MonitoredStep):
     def __init__(
         self,
         *args,
-        name: Optional[str] = None,
-        model_runner_selector: Optional[Union[str, ModelRunnerSelector]] = None,
-        model_runner_selector_parameters: Optional[dict] = None,
-        model_selector: Optional[Union[str, ModelSelector]] = None,
-        model_selector_parameters: Optional[dict] = None,
+        name: str | None = None,
+        model_runner_selector: Union[str, ModelRunnerSelector] | None = None,
+        model_runner_selector_parameters: dict | None = None,
+        model_selector: Union[str, ModelSelector] | None = None,
+        model_selector_parameters: dict | None = None,
         raise_exception: bool = True,
         **kwargs,
     ):
@@ -2093,11 +2098,10 @@ class ModelRunnerStep(MonitoredStep):
         self,
         endpoint_name: str,
         model_artifact: Union[str, ModelArtifact, LLMPromptArtifact],
-        shared_model_name: Optional[str] = None,
-        labels: Optional[Union[list[str], dict[str, str]]] = None,
-        model_endpoint_creation_strategy: Optional[
-            schemas.ModelEndpointCreationStrategy
-        ] = schemas.ModelEndpointCreationStrategy.INPLACE,
+        shared_model_name: str | None = None,
+        labels: Union[list[str], dict[str, str]] | None = None,
+        model_endpoint_creation_strategy: schemas.ModelEndpointCreationStrategy
+        | None = schemas.ModelEndpointCreationStrategy.INPLACE,
         override: bool = False,
     ) -> None:
         """
@@ -2210,15 +2214,14 @@ class ModelRunnerStep(MonitoredStep):
         endpoint_name: str,
         model_class: Union[str, Model],
         execution_mechanism: Union[str, ParallelExecutionMechanisms],
-        model_artifact: Optional[Union[str, ModelArtifact, LLMPromptArtifact]] = None,
-        labels: Optional[Union[list[str], dict[str, str]]] = None,
-        model_endpoint_creation_strategy: Optional[
-            schemas.ModelEndpointCreationStrategy
-        ] = schemas.ModelEndpointCreationStrategy.INPLACE,
-        inputs: Optional[list[str]] = None,
-        outputs: Optional[list[str]] = None,
-        input_path: Optional[str] = None,
-        result_path: Optional[str] = None,
+        model_artifact: Union[str, ModelArtifact, LLMPromptArtifact] | None = None,
+        labels: Union[list[str], dict[str, str]] | None = None,
+        model_endpoint_creation_strategy: schemas.ModelEndpointCreationStrategy
+        | None = schemas.ModelEndpointCreationStrategy.INPLACE,
+        inputs: list[str] | None = None,
+        outputs: list[str] | None = None,
+        input_path: str | None = None,
+        result_path: str | None = None,
         override: bool = False,
         **model_parameters,
     ) -> None:
@@ -2468,9 +2471,9 @@ class ModelRunnerStep(MonitoredStep):
 
     def configure_pool_resource(
         self,
-        max_processes: Optional[int] = None,
-        max_threads: Optional[int] = None,
-        pool_factor: Optional[int] = None,
+        max_processes: int | None = None,
+        max_threads: int | None = None,
+        pool_factor: int | None = None,
     ) -> None:
         """
         Configure the resource limits for the shared models in the graph.
@@ -2575,7 +2578,7 @@ class ModelRunnerStep(MonitoredStep):
             def select_outlets(
                 self,
                 event,
-            ) -> Optional[list[str]]:
+            ) -> list[str] | None:
                 # By default, return all outlets (old ModelSelector didn't control routing)
                 return None
 
@@ -2629,12 +2632,12 @@ class QueueStep(BaseStep, StepToDict):
 
     def __init__(
         self,
-        name: Optional[str] = None,
-        path: Optional[str] = None,
-        after: Optional[list] = None,
-        shards: Optional[int] = None,
-        retention_in_hours: Optional[int] = None,
-        trigger_args: Optional[dict] = None,
+        name: str | None = None,
+        path: str | None = None,
+        after: list | None = None,
+        shards: int | None = None,
+        retention_in_hours: int | None = None,
+        trigger_args: dict | None = None,
         **options,
     ):
         super().__init__(name, after)
@@ -2666,18 +2669,17 @@ class QueueStep(BaseStep, StepToDict):
     def to(
         self,
         class_name: Union[str, StepToDict] = None,
-        name: Optional[str] = None,
-        handler: Optional[str] = None,
-        graph_shape: Optional[str] = None,
-        function: Optional[str] = None,
-        full_event: Optional[bool] = None,
-        input_path: Optional[str] = None,
-        result_path: Optional[str] = None,
-        model_endpoint_creation_strategy: Optional[
-            schemas.ModelEndpointCreationStrategy
-        ] = None,
-        cycle_to: Optional[list[str]] = None,
-        max_iterations: Optional[int] = None,
+        name: str | None = None,
+        handler: str | None = None,
+        graph_shape: str | None = None,
+        function: str | None = None,
+        full_event: bool | None = None,
+        input_path: str | None = None,
+        result_path: str | None = None,
+        model_endpoint_creation_strategy: schemas.ModelEndpointCreationStrategy
+        | None = None,
+        cycle_to: list[str] | None = None,
+        max_iterations: int | None = None,
         **class_args,
     ):
         if not function:
@@ -2729,11 +2731,11 @@ class FlowStep(BaseStep):
         self,
         name=None,
         steps=None,
-        after: Optional[list] = None,
+        after: list | None = None,
         engine=None,
         final_step=None,
         allow_cyclic: bool = False,
-        max_iterations: Optional[int] = None,
+        max_iterations: int | None = None,
     ):
         super().__init__(name, after, max_iterations=max_iterations)
         self._steps = None
@@ -2775,21 +2777,21 @@ class FlowStep(BaseStep):
         before=None,
         graph_shape=None,
         function=None,
-        full_event: Optional[bool] = None,
-        input_path: Optional[str] = None,
-        result_path: Optional[str] = None,
-        model_endpoint_creation_strategy: Optional[
-            schemas.ModelEndpointCreationStrategy
-        ] = None,
-        cycle_to: Optional[list[str]] = None,
-        max_iterations: Optional[int] = None,
+        full_event: bool | None = None,
+        input_path: str | None = None,
+        result_path: str | None = None,
+        model_endpoint_creation_strategy: schemas.ModelEndpointCreationStrategy
+        | None = None,
+        cycle_to: list[str] | None = None,
+        max_iterations: int | None = None,
         **class_args,
     ):
         """add task, queue or router step/class to the flow
 
         use after/before to insert into a specific location
 
-        example:
+        example::
+
             graph = fn.set_topology("flow", exist_ok=True)
             graph.add_step(class_name="Chain", name="s1")
             graph.add_step(class_name="Chain", name="s3", after="$prev")
@@ -2806,17 +2808,17 @@ class FlowStep(BaseStep):
         :param graph_shape: graphviz shape name
         :param function:    function this step should run in
         :param full_event:  this step accepts the full event (not just body)
-        :param input_path:  selects the key/path in the event to use as input to the step
-                            this require that the event body will behave like a dict, example:
+        :param input_path:  selects the key/path in the event to use as input to the step.
+                            This requires that the event body will behave like a dict, example:
                             event: {"data": {"a": 5, "b": 7}}, input_path="data.b" means the step will
                             receive 7 as input
-        :param result_path: selects the key/path in the event to write the results to
-                            this require that the event body will behave like a dict, example:
+        :param result_path: selects the key/path in the event to write the results to.
+                            This require that the event body will behave like a dict, example:
                             event: {"x": 5} , result_path="y" means the output of the step will be written
                             to event["y"] resulting in {"x": 5, "y": <result>}
         :param model_endpoint_creation_strategy: Strategy for creating or updating the model endpoint:
 
-                             * **overwrite**: If model endpoints with the same name exist, delete the `latest` one;
+                            * **overwrite**: If model endpoints with the same name exist, delete the `latest` one;
                                 create a new model endpoint entry and set it as `latest`.
 
                             * **inplace** (default): If model endpoints with the same name exist, update the `latest`
@@ -2891,7 +2893,7 @@ class FlowStep(BaseStep):
         self._last_added = step
         return step
 
-    def clear_children(self, steps: Optional[list] = None):
+    def clear_children(self, steps: list | None = None):
         """remove some or all of the states, empty/None for all"""
         if not steps:
             steps = self._steps.keys()
@@ -2986,7 +2988,7 @@ class FlowStep(BaseStep):
             len(responders) > 1
         ):  # should not have multiple steps which respond to request
             raise GraphError(
-                f'there are more than one responder steps in the graph ({",".join(responders)})'
+                f"there are more than one responder steps in the graph ({','.join(responders)})"
             )
 
         if self.from_step:
@@ -3310,11 +3312,11 @@ class RootFlowStep(FlowStep):
         self,
         name=None,
         steps=None,
-        after: Optional[list] = None,
+        after: list | None = None,
         engine=None,
         final_step=None,
         allow_cyclic: bool = False,
-        max_iterations: Optional[int] = None,
+        max_iterations: int | None = None,
     ):
         super().__init__(
             name,
@@ -3363,19 +3365,20 @@ class RootFlowStep(FlowStep):
         model_class: Union[str, Model],
         execution_mechanism: Union[str, ParallelExecutionMechanisms],
         model_artifact: Union[str, ModelArtifact],
-        inputs: Optional[list[str]] = None,
-        outputs: Optional[list[str]] = None,
-        input_path: Optional[str] = None,
-        result_path: Optional[str] = None,
+        inputs: list[str] | None = None,
+        outputs: list[str] | None = None,
+        input_path: str | None = None,
+        result_path: str | None = None,
         override: bool = False,
         **model_parameters,
     ) -> None:
         """
         Add a shared model to the graph, this model will be available to all the ModelRunners in the graph
+
         :param name:                Name of the shared model (should be unique in the graph)
         :param model_class:         Model class name. If LLModel is chosen
-        (either by name `LLModel` or by its full path, e.g. mlrun.serving.states.LLModel),
-        outputs will be overridden with UsageResponseKeys fields.
+                                    (either by name `LLModel` or by its full path, e.g. mlrun.serving.states.LLModel),
+                                    outputs will be overridden with UsageResponseKeys fields.
         :param execution_mechanism: Parallel execution mechanism to be used to execute this model. Must be one of:
 
             * **process_pool**: To run in a separate process from a process pool. This is appropriate for CPU or GPU
@@ -3501,9 +3504,9 @@ class RootFlowStep(FlowStep):
 
     def configure_shared_pool_resource(
         self,
-        max_processes: Optional[int] = None,
-        max_threads: Optional[int] = None,
-        pool_factor: Optional[int] = None,
+        max_processes: int | None = None,
+        max_threads: int | None = None,
+        pool_factor: int | None = None,
     ) -> None:
         """
         Configure the resource limits for the shared models in the graph.
@@ -3600,27 +3603,27 @@ class RootFlowStep(FlowStep):
         self._shared_models_mechanism = shared_models_mechanism
 
     @property
-    def shared_max_processes(self) -> Optional[int]:
+    def shared_max_processes(self) -> int | None:
         return self._shared_max_processes
 
     @shared_max_processes.setter
-    def shared_max_processes(self, max_processes: Optional[int]):
+    def shared_max_processes(self, max_processes: int | None):
         self._shared_max_processes = max_processes
 
     @property
-    def shared_max_threads(self) -> Optional[int]:
+    def shared_max_threads(self) -> int | None:
         return self._shared_max_threads
 
     @shared_max_threads.setter
-    def shared_max_threads(self, max_threads: Optional[int]):
+    def shared_max_threads(self, max_threads: int | None):
         self._shared_max_threads = max_threads
 
     @property
-    def pool_factor(self) -> Optional[int]:
+    def pool_factor(self) -> int | None:
         return self._pool_factor
 
     @pool_factor.setter
-    def pool_factor(self, pool_factor: Optional[int]):
+    def pool_factor(self, pool_factor: int | None):
         self._pool_factor = pool_factor
 
     def update_model_endpoints_routes_names(self, model_endpoints_names: list):
@@ -3648,22 +3651,21 @@ class HubTaskStep(TaskStep):
 
     def __init__(
         self,
-        class_name: Optional[Union[str, type]] = None,
-        hub_step_class_name: Optional[str] = None,
-        class_args: Optional[dict] = None,
-        handler: Optional[str] = None,
-        name: Optional[str] = None,
-        after: Optional[list] = None,
-        full_event: Optional[bool] = None,
-        function: Optional[str] = None,
-        responder: Optional[bool] = None,
-        input_path: Optional[str] = None,
-        result_path: Optional[str] = None,
-        model_endpoint_creation_strategy: Optional[
-            schemas.ModelEndpointCreationStrategy
-        ] = schemas.ModelEndpointCreationStrategy.SKIP,
-        endpoint_type: Optional[schemas.EndpointType] = schemas.EndpointType.NODE_EP,
-        requirements: Optional[list] = None,
+        class_name: Union[str, type] | None = None,
+        hub_step_class_name: str | None = None,
+        class_args: dict | None = None,
+        handler: str | None = None,
+        name: str | None = None,
+        after: list | None = None,
+        full_event: bool | None = None,
+        function: str | None = None,
+        responder: bool | None = None,
+        input_path: str | None = None,
+        result_path: str | None = None,
+        model_endpoint_creation_strategy: schemas.ModelEndpointCreationStrategy
+        | None = schemas.ModelEndpointCreationStrategy.SKIP,
+        endpoint_type: schemas.EndpointType | None = schemas.EndpointType.NODE_EP,
+        requirements: list | None = None,
     ):
         super().__init__(
             class_name=class_name,
@@ -3827,7 +3829,12 @@ def _add_graphviz_flow(
             graph.node(target.fullname, label=label, shape=target.get_shape())
             last_step = target.after or default_final_step
             if last_step:
-                graph.edge(last_step, target.fullname)
+                # Handle last_step which can be a list or a string
+                if isinstance(last_step, list):
+                    for step in last_step:
+                        graph.edge(step, target.fullname)
+                else:
+                    graph.edge(last_step, target.fullname)
 
 
 def _add_edges(items, step, graph, child, after=True):
@@ -3906,13 +3913,12 @@ def params_to_step(
     graph_shape=None,
     function=None,
     full_event=None,
-    input_path: Optional[str] = None,
-    result_path: Optional[str] = None,
+    input_path: str | None = None,
+    result_path: str | None = None,
     class_args=None,
-    model_endpoint_creation_strategy: Optional[
-        schemas.ModelEndpointCreationStrategy
-    ] = None,
-    endpoint_type: Optional[schemas.EndpointType] = None,
+    model_endpoint_creation_strategy: schemas.ModelEndpointCreationStrategy
+    | None = None,
+    endpoint_type: schemas.EndpointType | None = None,
 ):
     """return step object from provided params or classes/objects"""
 
@@ -4053,6 +4059,7 @@ def _init_async_objects(context, steps, root):
                             DatastoreProfileKafkaTarget | DatastoreProfileKafkaStream,
                         ):
                             step._async_object = KafkaStoreyTarget(
+                                name=step.name,
                                 path=stream_path,
                                 context=context,
                                 max_iterations=max_iterations,
@@ -4060,6 +4067,7 @@ def _init_async_objects(context, steps, root):
                             )
                         elif isinstance(datastore_profile, DatastoreProfileV3io):
                             step._async_object = StreamStoreyTarget(
+                                name=step.name,
                                 stream_path=stream_path,
                                 context=context,
                                 max_iterations=max_iterations,
@@ -4078,6 +4086,7 @@ def _init_async_objects(context, steps, root):
                         )
 
                         step._async_object = storey.KafkaTarget(
+                            name=step.name,
                             topic=topic,
                             brokers=brokers,
                             producer_options=kafka_producer_options,
@@ -4087,6 +4096,7 @@ def _init_async_objects(context, steps, root):
                         )
                     elif stream_path.startswith("dummy://"):
                         step._async_object = _DummyStream(
+                            name=step.name,
                             context=context,
                             max_iterations=max_iterations,
                             **options,
@@ -4098,6 +4108,7 @@ def _init_async_objects(context, steps, root):
                         step._async_object = storey.StreamTarget(
                             storey.V3ioDriver(endpoint or config.v3io_api),
                             stream_path,
+                            name=step.name,
                             context=context,
                             max_iterations=max_iterations,
                             **options,

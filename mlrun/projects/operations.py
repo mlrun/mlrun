@@ -13,7 +13,7 @@
 # limitations under the License.
 import typing
 import warnings
-from typing import Optional, Union
+from typing import Union
 
 import mlrun
 import mlrun.common.constants as mlrun_constants
@@ -57,30 +57,30 @@ def _get_engine_and_function(function, project=None):
 
 def run_function(
     function: Union[str, mlrun.runtimes.BaseRuntime],
-    handler: Optional[Union[str, typing.Callable]] = None,
+    handler: Union[str, typing.Callable] | None = None,
     name: str = "",
-    params: Optional[dict] = None,
-    hyperparams: Optional[dict] = None,
+    params: dict | None = None,
+    hyperparams: dict | None = None,
     hyper_param_options: mlrun.model.HyperParamOptions = None,
-    inputs: Optional[dict] = None,
-    outputs: Optional[list[str]] = None,
+    inputs: dict | None = None,
+    outputs: list[str] | None = None,
     workdir: str = "",
-    labels: Optional[dict] = None,
+    labels: dict | None = None,
     base_task: mlrun.model.RunTemplate = None,
     watch: bool = True,
-    local: Optional[bool] = None,
-    verbose: Optional[bool] = None,
-    selector: Optional[str] = None,
+    local: bool | None = None,
+    verbose: bool | None = None,
+    selector: str | None = None,
     project_object=None,
-    auto_build: Optional[bool] = None,
+    auto_build: bool | None = None,
     schedule: Union[str, mlrun.common.schemas.ScheduleCronTrigger] = None,
-    artifact_path: Optional[str] = None,
-    notifications: Optional[list[mlrun.model.Notification]] = None,
+    artifact_path: str | None = None,
+    notifications: list[mlrun.model.Notification] | None = None,
     returns: "list[str | mlrun.LogHint] | None" = None,
-    builder_env: Optional[list] = None,
-    reset_on_run: Optional[bool] = None,
-    output_path: Optional[str] = None,
-    retry: Optional[Union[mlrun.model.Retry, dict]] = None,
+    builder_env: list | None = None,
+    reset_on_run: bool | None = None,
+    output_path: str | None = None,
+    retry: Union[mlrun.model.Retry, dict] | None = None,
 ) -> Union[mlrun.model.RunObject, mlrun_pipelines.models.PipelineNodeWrapper]:
     """Run a local or remote task as part of a local/kubeflow pipeline
 
@@ -260,8 +260,8 @@ def run_function(
         if run_result:
             run_result._notified = False
             pipeline_context.runs_map[run_result.uid()] = run_result
-            run_result.after = (
-                lambda x: run_result
+            run_result.after = lambda x: (
+                run_result
             )  # emulate KFP op, .after() will be ignored
         return run_result
 
@@ -284,19 +284,19 @@ class BuildStatus:
 
 def build_function(
     function: Union[str, mlrun.runtimes.BaseRuntime],
-    with_mlrun: Optional[bool] = None,
+    with_mlrun: bool | None = None,
     skip_deployed: bool = False,
     image=None,
     base_image=None,
-    commands: Optional[list] = None,
+    commands: list | None = None,
     secret_name=None,
-    requirements: Optional[Union[str, list[str]]] = None,
-    requirements_file: Optional[str] = None,
+    requirements: Union[str, list[str]] | None = None,
+    requirements_file: str | None = None,
     mlrun_version_specifier=None,
-    builder_env: Optional[dict] = None,
+    builder_env: dict | None = None,
     project_object=None,
     overwrite_build_params: bool = True,
-    extra_args: Optional[str] = None,
+    extra_args: str | None = None,
     force_build: bool = False,
 ) -> Union[BuildStatus, mlrun_pipelines.models.PipelineNodeWrapper]:
     """deploy ML function, build container with its dependencies
@@ -387,13 +387,13 @@ class DeployStatus:
 
 def deploy_function(
     function: Union[str, mlrun.runtimes.BaseRuntime],
-    models: Optional[list] = None,
-    env: Optional[dict] = None,
-    tag: Optional[str] = None,
-    verbose: Optional[bool] = None,
-    builder_env: Optional[dict] = None,
+    models: list | None = None,
+    env: dict | None = None,
+    tag: str | None = None,
+    verbose: bool | None = None,
+    builder_env: dict | None = None,
     project_object=None,
-    mock: Optional[bool] = None,
+    mock: bool | None = None,
 ) -> Union[DeployStatus, mlrun_pipelines.models.PipelineNodeWrapper]:
     """deploy real-time (nuclio based) functions
 

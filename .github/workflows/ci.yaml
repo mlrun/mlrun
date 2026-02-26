@@ -445,6 +445,33 @@ jobs:
           path: tests/coverage_reports/combined_diff.html
           retention-days: 30
 
+      - name: Read coverage report
+        id: read_report
+        if: github.event_name == 'pull_request'
+        run: |
+          # Read the file and escape it for GitHub Action outputs
+          {
+            echo 'REPORT_BODY<<EOF'
+            cat tests/coverage_reports/diff_coverage.md
+            echo 'EOF'
+          } >> "$GITHUB_ENV"
+
+      - name: Post Comment to PR
+        if: github.event_name == 'pull_request'
+        uses: thollander/actions-comment-pull-request@v3
+        with:
+          # Use the environment variable inside the dropdown tags
+          message: |
+            ## 📊 Diff Coverage Report
+            <details>
+            <summary>📂 Click to view full coverage details</summary>
+
+            ${{ env.REPORT_BODY }}
+
+            </details>
+          comment-tag: coverage_report
+          mode: recreate
+
   label-oss-system-test-unknown:
     name: Label PR with Smoke Unknown
     if: github.event_name == 'pull_request'
@@ -487,30 +514,3 @@ jobs:
             "${API_URL}"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Read coverage report
-        id: read_report
-        if: github.event_name == 'pull_request'
-        run: |
-          # Read the file and escape it for GitHub Action outputs
-          {
-            echo 'REPORT_BODY<<EOF'
-            cat tests/coverage_reports/diff_coverage.md
-            echo 'EOF'
-          } >> "$GITHUB_ENV"
-
-      - name: Post Comment to PR
-        if: github.event_name == 'pull_request'
-        uses: thollander/actions-comment-pull-request@v3
-        with:
-          # Use the environment variable inside the dropdown tags
-          message: |
-            ## 📊 Diff Coverage Report
-            <details>
-            <summary>📂 Click to view full coverage details</summary>
-
-            ${{ env.REPORT_BODY }}
-
-            </details>
-          comment-tag: coverage_report
-          mode: recreate

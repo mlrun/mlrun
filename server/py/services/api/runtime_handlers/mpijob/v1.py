@@ -108,6 +108,8 @@ class MpiV1RuntimeHandler(AbstractMPIJobRuntimeHandler):
             )
         self._update_container(pod_template, "volumeMounts", runtime.spec.volume_mounts)
         self._update_container(pod_template, "env", extra_env + runtime.spec.env)
+        if runtime.spec.env_from:
+            self._update_container(pod_template, "envFrom", runtime.spec.env_from)
         if runtime.spec.image_pull_policy:
             self._update_container(
                 pod_template,

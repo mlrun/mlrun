@@ -58,20 +58,21 @@ class PackagersManager:
         # Initialize the packagers list (with the default packager in it):
         self._packagers: list[Packager] = []
 
-        # Set an artifacts list and results dictionary to collect all packed objects (will be used later to write extra
-        # data if noted by the user using the log hint key "extra_data")
-        self._artifacts: list[Artifact] = []
+        # Set an artifacts list (holding tuples of packed artifact and the `context.log_artifact` kwargs to use for it)
+        # and results dictionary to collect all packed objects (will be used later to write extra data if noted by the
+        # user using the log hint key "extra_data")
+        self._artifacts: list[tuple[Artifact, dict]] = []
         self._results = {}
 
         # Temporary holder for bundle structures results to update the store paths before logging them as results:
         self._bundles = {}
 
     @property
-    def artifacts(self) -> list[Artifact]:
+    def artifacts(self) -> list[tuple[Artifact, dict]]:
         """
         Get the artifacts that were packed by the manager.
 
-        :return: A list of artifacts.
+        :return: A list of tuples with the artifacts and their `context.log_artifact` method kwargs.
         """
         return self._artifacts
 
@@ -220,16 +221,20 @@ class PackagersManager:
         :raise MLRunPackagePackingError:    If there was an error during the packing.
         :raise MLRunPackageUnbundlingError: If there was an error during the unbundling.
         """
-        # A single object is required to be packaged:
         try:
             if log_hint.itemized:
+                # Multiple objects are required to be packaged as a bundle:
                 package, bundle_result = self._pack_bundle(
                     obj=obj,
                     log_hint=log_hint,
                     unbundle_level=log_hint.itemized,
                 )
-                self._bundles[log_hint.key] = bundle_result
+                # Check if the bundle result is a dict or list - meaning it was unbundled successfully so we collect
+                # the bundle structure:
+                if isinstance(bundle_result, dict | list):
+                    self._bundles[log_hint.key] = bundle_result
             else:
+                # A single object is required to be packaged:
                 package = self._pack(
                     obj=obj, log_hint=log_hint.copy()
                 )  # Log hint is copied to preserve key for error.
@@ -349,7 +354,9 @@ class PackagersManager:
                 )
 
         # Join all artifacts (packager artifacts + context artifacts):
-        all_artifacts = self.artifacts + additional_artifacts
+        all_artifacts = [
+            artifact for (artifact, _) in self.artifacts
+        ] + additional_artifacts
 
         # Prepare a set for artifacts that require updates post linking:
         artifacts_to_update = set()
@@ -600,6 +607,12 @@ class PackagersManager:
         """
         Pack a bundle of objects using one of the manager's packagers.
 
+        Note: ``bundle_structure`` is a dict or list mirroring the unbundled object's structure with package keys as
+        leaves when actual unbundling occurred. When the object could not be unbundled, it is packed as a single object
+        and ``bundle_structure`` is a string (the log hint key). This string serves as a leaf value in recursive calls
+        but should **not** be stored in ``_bundles`` at the top level since no actual unbundling occurred — the packed
+        result / artifact is already collected normally in ``_results`` or ``_artifacts``.
+
         :param obj:            The objects bundle to pack as artifacts.
         :param log_hint:       The log hint to use.
         :param unbundle_level: Mention the level of unbundling to perform. If provided, the method will unbundle the
@@ -764,8 +777,13 @@ class PackagersManager:
             else:
                 artifact.spec.metrics = log_hint.metrics
 
+        # Add logging kwargs from the log hint:
+        logging_kwargs = {}
+        if log_hint.artifact_path:
+            logging_kwargs["artifact_path"] = log_hint.artifact_path
+
         # Collect the artifact and return:
-        self._artifacts.append(artifact)
+        self._artifacts.append((artifact, logging_kwargs))
         return artifact
 
     def _unpack_package(

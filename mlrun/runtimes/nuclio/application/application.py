@@ -89,6 +89,7 @@ class ApplicationSpec(nuclio_function.NuclioSpec):
         internal_application_port=None,
         application_ports=None,
         auth=None,
+        env_from=None,
     ):
         super().__init__(
             command=command,
@@ -103,6 +104,7 @@ class ApplicationSpec(nuclio_function.NuclioSpec):
             volumes=volumes,
             volume_mounts=volume_mounts,
             env=env,
+            env_from=env_from,
             resources=resources,
             config=config,
             base_spec=base_spec,

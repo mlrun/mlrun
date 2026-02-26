@@ -57,6 +57,7 @@ class MPIResourceSpec(KubeResourceSpec):
         graph=None,
         parameters=None,
         track_models=None,
+        env_from=None,
     ):
         super().__init__(
             command=command,
@@ -70,6 +71,7 @@ class MPIResourceSpec(KubeResourceSpec):
             volumes=volumes,
             volume_mounts=volume_mounts,
             env=env,
+            env_from=env_from,
             resources=resources,
             replicas=replicas,
             image_pull_policy=image_pull_policy,

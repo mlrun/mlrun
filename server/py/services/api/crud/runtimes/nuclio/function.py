@@ -640,6 +640,13 @@ def _set_misc_specs(function, nuclio_spec):
             "spec.disableDefaultHTTPTrigger", function.spec.disable_default_http_trigger
         )
 
+    # Nuclio supports spec.envFrom (mount all keys from secrets/configmaps)
+    if function.spec.env_from:
+        nuclio_spec.set_config(
+            "spec.envFrom",
+            mlrun.runtimes.pod.sanitize_attribute(function.spec.env_from),
+        )
+
 
 def _set_source_code_and_handler(function, config):
     if not function.spec.build.source:

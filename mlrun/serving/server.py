@@ -373,6 +373,7 @@ def add_error_raiser_step(
             after=monitored_step.name,
             full_event=True,
             model_endpoint_creation_strategy=mlrun.common.schemas.ModelEndpointCreationStrategy.SKIP,
+            function=monitored_step.function,
         )
 
         # Add error raiser step after the unpacker

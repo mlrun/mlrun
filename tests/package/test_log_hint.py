@@ -12,9 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import json
+
 import pytest
 
 from mlrun.errors import MLRunInvalidArgumentError
+from mlrun.model import RunSpec
 from mlrun.package.log_hint import LogHint
 
 
@@ -156,3 +159,32 @@ def test_model_validate_from_string(
             assert expected_log_hint in str(error)
         else:
             raise error
+
+
+def test_run_spec_returns_serialization_roundtrip():
+    """
+    Test that RunSpec.to_dict() properly serializes LogHint objects in `returns`, producing JSON-serializable output
+    and surviving a from_dict() roundtrip.
+    """
+    returns = [
+        LogHint(key="model", artifact_type="model", labels={"env": "prod"}),
+        LogHint(key="metrics", artifact_type="result"),
+        "plain_string",
+    ]
+    run_spec = RunSpec(returns=returns)
+
+    # to_dict should produce plain dicts, not LogHint objects
+    run_spec_dict = run_spec.to_dict()
+    serialized_returns = run_spec_dict["returns"]
+    assert isinstance(serialized_returns, list)
+    for item in serialized_returns:
+        assert isinstance(item, (dict, str))
+
+    # Must be JSON-serializable now:
+    json.dumps(run_spec_dict)
+
+    # Roundtrip: from_dict should reconstruct equivalent LogHint objects
+    restored_run_spec = RunSpec.from_dict(run_spec_dict)
+    assert len(restored_run_spec.returns) == len(returns)
+    for original_log_hint, restored_log_hint in zip(returns, restored_run_spec.returns):
+        assert restored_log_hint == original_log_hint

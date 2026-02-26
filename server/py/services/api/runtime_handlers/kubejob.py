@@ -22,6 +22,7 @@ from packaging.version import parse as parse_version
 import mlrun
 import mlrun.common.constants as mlrun_constants
 import mlrun.common.schemas
+import mlrun.errors
 from mlrun.runtimes.base import RuntimeClassMode
 from mlrun.utils import logger
 
@@ -262,6 +263,7 @@ def func_to_pod(
         name="base",
         image=image,
         env=extra_env + runtime.spec.env,
+        env_from=runtime.spec.env_from or [],
         command=[command] if command else None,
         args=args,
         working_dir=workdir,

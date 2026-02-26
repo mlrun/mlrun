@@ -1201,7 +1201,7 @@ class EnrichmentVotingEnsemble(VotingEnsemble):
             fn.add_model(<model_name>, <model_path>, <model_class_name>)
 
         How to extend the VotingEnsemble
-        --------------------------------
+
         The VotingEnsemble applies its logic using the `logic(predictions)` function.
         The `logic()` function receives an array of (# samples, # predictors) which you
         can then use to apply whatever logic you may need.

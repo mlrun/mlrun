@@ -258,9 +258,9 @@ botocore==1.35.36 \
     #   boto3
     #   s3transfer
     #   snowflake-connector-python
-certifi==2026.1.4 \
-    --hash=sha256:9943707519e4add1115f44c2bc244f782c0249876bf51b6599fee1ffbedd685c \
-    --hash=sha256:ac726dd470482006e014ad384921ed6438c457018f4b3d204aea4281258b2120
+certifi==2026.2.25 \
+    --hash=sha256:027692e4402ad994f1c42e52a4997a9763c646b73e4096e4d5d6db8af1d6f0fa \
+    --hash=sha256:e887ab5cee78ea814d3472169153c2d12cd43b14bd03329a39a9c6e2e80bfba7
     # via
     #   kfp-server-api
     #   kubernetes
@@ -1473,9 +1473,9 @@ kubernetes==35.0.0 \
     # via
     #   dask-kubernetes
     #   mlrun-pipelines-kfp-common
-kubernetes-asyncio==35.0.0 \
-    --hash=sha256:9921d93838fae33993d5b563c7a5e591e9934826e5dcd6556d4adcf9fa600b40 \
-    --hash=sha256:cea90dfc93f63a79314c164f3d6e0fb3f1fa41e6fa2fb7ab472f95c1eead97eb
+kubernetes-asyncio==35.0.1 \
+    --hash=sha256:244ef45943e89c5c5104276a646bfcbf1a9dc3d060876c2094aa601e932f1c03 \
+    --hash=sha256:975870e3097b647c265a59b9175ab0841f0de06cd2162268273ca210b1fa672e
     # via dask-kubernetes
 llvmlite==0.46.0 \
     --hash=sha256:0a2d461cb89537b7c20feb04c46c32e12d5ad4f0896c9dfc0f60336219ff248e \
@@ -1732,9 +1732,9 @@ mistune==3.2.0 \
     --hash=sha256:708487c8a8cdd99c9d90eb3ed4c3ed961246ff78ac82f03418f5183ab70e398a \
     --hash=sha256:febdc629a3c78616b94393c6580551e0e34cc289987ec6c35ed3f4be42d0eee1
     # via nbconvert
-mlrun-pipelines-kfp-common==0.6.3 \
-    --hash=sha256:2152fa732001642d944eb43c833475a989470c22a3477ba374c9f6d45e1a1298 \
-    --hash=sha256:3f2306be61bda57af864aee7a4313c09b8bf191a18dce9e647069e6329762ea5
+mlrun-pipelines-kfp-common==0.6.4 \
+    --hash=sha256:139f0ecaca1fe7e9e37464dc8c596de4437417d0574b9cc6843da81eec8718f6 \
+    --hash=sha256:8e6c62ff2e693c270ec259b018b1bf719519fca2b2b85e35aec60fbdde9520f3
     # via -r requirements.txt
 mlrun-pipelines-kfp-v1-8==0.6.3 \
     --hash=sha256:8466b790aa675afbb1369d80597de06b3f7f94c67b628822168fabb0d3be29e9 \
@@ -3542,8 +3542,8 @@ stack-data==0.6.3 \
     --hash=sha256:836a778de4fec4dcd1dcd89ed8abff8a221f58308462e1c4aa2a3cf30148f0b9 \
     --hash=sha256:d5558e0c25a4cb0853cddad3d77da9891a08cb85dd9f9f91b9f8cd66e511e695
     # via ipython
-storey==1.11.17 \
-    --hash=sha256:cd9c22bb07889ef015482ec83b0175693f03272d58185538c67c478c7534c171
+storey==1.11.18 \
+    --hash=sha256:47da9550fe32cd223f6d245649b8a445aadff3914242939406b8222accda3626
     # via -r requirements.txt
 tabulate==0.8.10 \
     --hash=sha256:0ba055423dbaa164b9e456abe7920c5e8ed33fcc16f6d1b2f2d152c8e1e8b4fc \

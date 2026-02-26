@@ -445,7 +445,9 @@ class MonitoringDeployment:
         stream_source = mlrun.datastore.sources.KafkaSource(
             brokers=kafka_profile.brokers,
             topics=[topic],
-            group=kafka_profile.group,
+            # Use topic as consumer group to isolate per project+function,
+            # preventing cross-project rebalance storms (ML-11979).
+            group=topic,
             initial_offset=kafka_profile.initial_offset,
             partitions=kafka_profile.partitions,
             attributes={

@@ -354,7 +354,9 @@ class PackagersManager:
                 )
 
         # Join all artifacts (packager artifacts + context artifacts):
-        all_artifacts = [artifact for (artifact, _) in self.artifacts] + additional_artifacts
+        all_artifacts = [
+            artifact for (artifact, _) in self.artifacts
+        ] + additional_artifacts
 
         # Prepare a set for artifacts that require updates post linking:
         artifacts_to_update = set()

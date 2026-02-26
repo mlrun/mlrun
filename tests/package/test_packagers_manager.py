@@ -607,7 +607,7 @@ def test_link_packages():
     }
 
     # Add artifacts and results to the manager:
-    packagers_manager._artifacts.extend([(target_artifact,{}), (main_artifact,{})])
+    packagers_manager._artifacts.extend([(target_artifact, {}), (main_artifact, {})])
     packagers_manager._results["my_result"] = "linked_result_value"
 
     # Call link_packages:

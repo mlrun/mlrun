@@ -14,7 +14,7 @@ in the graph. The final result can be written out to some destination (file, DB,
 Different steps can run on the same local function, or run on a remote function. You can call existing functions from the graph and reuse 
 them from other graphs, as well as scale up and down the different components individually.
 
-The serving graphs can be composed of {ref}`pre-defined graph steps<building-graphs>`, block-type elements (model servers, routers, ensembles, 
+The serving graphs can be composed of {ref}`pre-defined graph steps<building-graphs>` (including data manipulation, readers, writers, and model serving), block-type elements (model servers, routers, ensembles, 
 data readers and writers, data engineering tasks, validators, etc.), [custom steps](./writing-custom-steps.ipynb), or from native python 
 classes/functions. A graph can have data processing steps, model ensembles, model servers, post-processing, etc. (see the [Advanced Model Serving Graph Notebook Example](./graph-example.ipynb)). Graphs can auto-scale and span multiple function containers (connected through streaming protocols).
   

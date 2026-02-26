@@ -482,11 +482,12 @@ def _deploy_function(
         # Validate sidecar probe configurations before deployment
         sidecars = fn.spec.config.get("spec.sidecars") or []
         if sidecars:
-            error = validate_sidecar_probes(sidecars)
-            if error:
+            try:
+                validate_sidecar_probes(sidecars)
+            except mlrun.errors.MLRunInvalidArgumentError as exc:
                 framework.api.utils.log_and_raise(
                     HTTPStatus.BAD_REQUEST.value,
-                    reason=error,
+                    reason=str(exc),
                 )
 
         # save the function to DB

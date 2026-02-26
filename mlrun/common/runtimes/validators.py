@@ -15,11 +15,15 @@
 import mlrun.common.runtimes.constants
 
 
-def validate_sidecar_probes(sidecars: list[dict]) -> str | None:
+def validate_sidecar_probes(sidecars: list[dict]):
     """Validate probe configurations in sidecars against Kubernetes V1Probe schema.
 
     Validates that each probe configuration has exactly one of the following:
     httpGet, exec, tcpSocket, or grpc.
+
+    :param sidecars: List of sidecar dicts, each potentially containing probe configs.
+    :raises mlrun.errors.MLRunInvalidArgumentError: If a probe has zero or more than one
+        health check configuration key.
     """
     for sidecar in sidecars:
         for probe_type in (pt.key for pt in mlrun.common.runtimes.constants.ProbeType):
@@ -35,10 +39,8 @@ def validate_sidecar_probes(sidecars: list[dict]) -> str | None:
             ]
 
             if len(present_keys) != 1:
-                return (
+                raise mlrun.errors.MLRunInvalidArgumentError(
                     f"Sidecar {probe_type} must have exactly one of "
                     f"the following configuration sections: "
                     f"{', '.join(mlrun.common.runtimes.constants.HEALTH_CHECK_KEYS)}"
                 )
-
-    return None

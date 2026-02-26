@@ -376,10 +376,9 @@ class ApplicationRuntime(nuclio_function.RemoteRuntime):
         )
 
         # Validate the probe configuration before storing
-        if error := mlrun.common.runtimes.validators.validate_sidecar_probes(
+        mlrun.common.runtimes.validators.validate_sidecar_probes(
             [{type.key: probe_config}]
-        ):
-            raise mlrun.errors.MLRunInvalidArgumentError(error)
+        )
 
         # Store probe configuration in the sidecar
         sidecar = self._set_sidecar(self._get_sidecar_name())

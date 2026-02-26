@@ -107,8 +107,8 @@ def generate_query_predicate_for_name(column, query_string):
 def generate_time_range_query(
     query,
     field,
-    since: typing.Optional[datetime] = None,
-    until: typing.Optional[datetime] = None,
+    since: datetime | None = None,
+    until: datetime | None = None,
 ):
     """
     Generate a query to filter results within a specified time range.
@@ -175,7 +175,7 @@ def ensure_max_length(string: str):
     return string
 
 
-def _validate_label(name: str, value: typing.Optional[typing.Union[str, int]]):
+def _validate_label(name: str, value: typing.Union[str, int] | None):
     # a backwards compatibility check for `None` key
     if value is None:
         return

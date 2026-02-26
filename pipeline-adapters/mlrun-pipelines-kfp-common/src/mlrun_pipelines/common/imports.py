@@ -16,7 +16,7 @@ import logging
 from collections.abc import Callable
 from dataclasses import dataclass
 from types import ModuleType
-from typing import Any, Optional, TypeVar
+from typing import Any, TypeVar
 
 logger = logging.getLogger(__name__)
 
@@ -49,8 +49,8 @@ class DummyPipelineConf:
 
 @dataclass
 class DummyPipelineDecorator:
-    name: Optional[str] = None
-    description: Optional[str] = None
+    name: str | None = None
+    description: str | None = None
 
     def __call__(self, func: Decoratable) -> Decoratable:
         logger.debug(f"[NoOp] Pipeline function '{func.__name__}' defined.")
@@ -69,8 +69,8 @@ class DummyCompiler:
 
         def compile(
             self,
-            pipeline_func: Optional[Callable[..., Any]] = None,
-            package_path: Optional[str] = None,
+            pipeline_func: Callable[..., Any] | None = None,
+            package_path: str | None = None,
             **kwargs: Any,
         ) -> None:
             self._warn_once_about_kfp()
@@ -87,7 +87,7 @@ class DummyCompiler:
 
 
 class DummyRunPipelineResult:
-    def get_output_file(self, op_name: str, output: Optional[str] = None) -> str:
+    def get_output_file(self, op_name: str, output: str | None = None) -> str:
         return ""
 
     def success(self) -> bool:
@@ -114,9 +114,9 @@ class DummyClient:
     def create_run_from_pipeline_func(
         self,
         pipeline_func: Callable[..., Any],
-        arguments: Optional[dict[str, Any]] = None,
-        run_name: Optional[str] = None,
-        experiment_name: Optional[str] = None,
+        arguments: dict[str, Any] | None = None,
+        run_name: str | None = None,
+        experiment_name: str | None = None,
         **kwargs: Any,
     ) -> "DummyRunPipelineResult":
         logger.debug("[NoOp] create_run_from_pipeline_func called but does nothing.")
@@ -126,8 +126,8 @@ class DummyClient:
         self,
         page_token: str = "",
         page_size: int = 100,
-        sort_by: Optional[str] = None,
-        filter: Optional[str] = None,
+        sort_by: str | None = None,
+        filter: str | None = None,
     ) -> list[Any]:
         logger.debug("[NoOp] list_runs called")
         return V1ListRunsResponse()

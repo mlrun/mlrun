@@ -48,13 +48,13 @@ class Service(ABC):
         self.service_prefix = f"/{self.service_name}"
         self.base_versioned_service_prefix = f"{self.service_prefix}/v1"
         self.v2_service_prefix = f"{self.service_prefix}/v2"
-        self.app: typing.Optional[fastapi.FastAPI] = None
+        self.app: fastapi.FastAPI | None = None
         self._logger = mlrun.utils.logger.get_child(self.service_name)
         self._mounted_services: list[Service] = []
         self._messaging_client = framework.utils.clients.messaging.Client()
         self._paginated_methods: list[tuple[typing.Callable, str]] = []
 
-    def initialize(self, mounts: typing.Optional[list] = None):
+    def initialize(self, mounts: list | None = None):
         self._logger.info("Initializing service", service_name=self.service_name)
         self._initialize_app()
         self._register_routes()
@@ -123,7 +123,7 @@ class Service(ABC):
     async def _move_service_to_online(self):
         pass
 
-    def _mount_services(self, mounts: typing.Optional[list] = None):
+    def _mount_services(self, mounts: list | None = None):
         if not mounts:
             return
 

@@ -39,17 +39,15 @@ class InternalBackgroundTasksHandler(metaclass=mlrun.utils.singleton.Singleton):
 
         # contains a lock for each background task kind, with the following format:
         # {kind: [active_name, previous_name]}
-        self._background_tasks_kind_locks: dict[
-            str, tuple[typing.Optional[str], typing.Optional[str]]
-        ] = {}
+        self._background_tasks_kind_locks: dict[str, tuple[str | None, str | None]] = {}
 
     @framework.utils.helpers.ensure_running_on_chief
     def create_background_task(
         self,
         kind: str,
-        timeout: typing.Optional[int],  # in seconds
+        timeout: int | None,  # in seconds
         function,
-        name: typing.Optional[str] = None,
+        name: str | None = None,
         *args,
         **kwargs,
     ) -> tuple[typing.Callable, str]:
@@ -80,8 +78,8 @@ class InternalBackgroundTasksHandler(metaclass=mlrun.utils.singleton.Singleton):
     @framework.utils.helpers.ensure_running_on_chief
     def list_background_tasks(
         self,
-        name: typing.Optional[str] = None,
-        kind: typing.Optional[str] = None,
+        name: str | None = None,
+        kind: str | None = None,
     ) -> list[mlrun.common.schemas.BackgroundTask]:
         if name:
             background_task = self.get_background_task(name)
@@ -143,7 +141,7 @@ class InternalBackgroundTasksHandler(metaclass=mlrun.utils.singleton.Singleton):
         self,
         kind: str,
         raise_on_not_found: bool = False,
-    ) -> typing.Optional[mlrun.common.schemas.BackgroundTask]:
+    ) -> mlrun.common.schemas.BackgroundTask | None:
         name = self._get_active_task_name_by_kind(kind)
         if name:
             return self.get_background_task(name, raise_on_not_found=raise_on_not_found)
@@ -159,7 +157,7 @@ class InternalBackgroundTasksHandler(metaclass=mlrun.utils.singleton.Singleton):
         self,
         kind: str,
         raise_on_not_found: bool = False,
-    ) -> typing.Optional[mlrun.common.schemas.BackgroundTask]:
+    ) -> mlrun.common.schemas.BackgroundTask | None:
         name = self._get_previous_task_name_by_kind(kind)
         if name:
             return self.get_background_task(name, raise_on_not_found=raise_on_not_found)
@@ -211,7 +209,7 @@ class InternalBackgroundTasksHandler(metaclass=mlrun.utils.singleton.Singleton):
         self,
         name: str,
         state: mlrun.common.schemas.BackgroundTaskState,
-        error: typing.Optional[str] = None,
+        error: str | None = None,
     ):
         background_task = self._internal_background_tasks[name]
         background_task.status.state = state
@@ -220,7 +218,7 @@ class InternalBackgroundTasksHandler(metaclass=mlrun.utils.singleton.Singleton):
 
     @staticmethod
     def _generate_background_task_not_found_response(
-        name: str, project: typing.Optional[str] = None
+        name: str, project: str | None = None
     ):
         # in order to keep things simple we don't persist the internal background tasks to the DB
         # If for some reason get is called and the background task doesn't exist, it means that probably we got
@@ -240,8 +238,8 @@ class InternalBackgroundTasksHandler(metaclass=mlrun.utils.singleton.Singleton):
     def _generate_background_task(
         name: str,
         kind: str,
-        timeout: typing.Optional[int] = None,
-        project_name: typing.Optional[str] = None,
+        timeout: int | None = None,
+        project_name: str | None = None,
     ) -> mlrun.common.schemas.BackgroundTask:
         now = datetime.datetime.utcnow()
         metadata = mlrun.common.schemas.BackgroundTaskMetadata(

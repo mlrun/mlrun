@@ -24,9 +24,11 @@ import kubernetes.dynamic.exceptions as k8s_dynamic_exceptions
 import pytest
 import yaml
 
+import mlrun
 import mlrun.common.constants as mlrun_constants
 import mlrun.common.runtimes
 import mlrun.common.schemas
+import mlrun.errors
 import mlrun.runtimes
 from mlrun.common.schemas import SecretEventActions
 
@@ -353,7 +355,11 @@ def test_delete_secrets(
     assert result == expected_action
 
     k8s_helper.v1api.read_namespaced_secret.assert_called_once_with(
-        "my-secret", k8s_helper.namespace
+        "my-secret",
+        k8s_helper.namespace,
+        _request_timeout=framework.utils.singletons.k8s.K8sHelper._resolve_k8s_timeout(
+            framework.utils.singletons.k8s.K8S_TIMEOUT_DEFAULT
+        ),
     )
 
     if expected_action == mlrun.common.schemas.SecretEventActions.updated:
@@ -783,7 +789,11 @@ def test_list_secrets_with_labels(k8s_helper):
 
     assert result == [secret1, secret2]
     k8s_helper.v1api.list_namespaced_secret.assert_called_once_with(
-        namespace="default", label_selector="mlrun/user-id=test-user-id"
+        namespace="default",
+        label_selector="mlrun/user-id=test-user-id",
+        _request_timeout=framework.utils.singletons.k8s.K8sHelper._resolve_k8s_timeout(
+            framework.utils.singletons.k8s.K8S_TIMEOUT_LIST
+        ),
     )
 
 
@@ -802,7 +812,11 @@ def test_list_secrets_no_labels(k8s_helper):
 
     assert result == [secret]
     k8s_helper.v1api.list_namespaced_secret.assert_called_once_with(
-        namespace="default", label_selector=None
+        namespace="default",
+        label_selector=None,
+        _request_timeout=framework.utils.singletons.k8s.K8sHelper._resolve_k8s_timeout(
+            framework.utils.singletons.k8s.K8S_TIMEOUT_LIST
+        ),
     )
 
 
@@ -970,6 +984,9 @@ def test_delete_user_token_secret_success(k8s_helper):
     k8s_helper.v1api.delete_namespaced_secret.assert_called_once_with(
         name=secret_name,
         namespace="default",
+        _request_timeout=framework.utils.singletons.k8s.K8sHelper._resolve_k8s_timeout(
+            framework.utils.singletons.k8s.K8S_TIMEOUT_DEFAULT
+        ),
     )
 
 
@@ -993,6 +1010,9 @@ def test_delete_user_token_secret_not_found(k8s_helper):
     k8s_helper.v1api.delete_namespaced_secret.assert_called_once_with(
         name=secret_name,
         namespace="default",
+        _request_timeout=framework.utils.singletons.k8s.K8sHelper._resolve_k8s_timeout(
+            framework.utils.singletons.k8s.K8S_TIMEOUT_DEFAULT
+        ),
     )
 
 
@@ -1016,6 +1036,9 @@ def test_delete_user_token_secret_api_error(k8s_helper):
     k8s_helper.v1api.delete_namespaced_secret.assert_called_once_with(
         name=secret_name,
         namespace="default",
+        _request_timeout=framework.utils.singletons.k8s.K8sHelper._resolve_k8s_timeout(
+            framework.utils.singletons.k8s.K8S_TIMEOUT_DEFAULT
+        ),
     )
 
 
@@ -1039,6 +1062,9 @@ def test_delete_user_token_secret_unexpected_error(k8s_helper):
     k8s_helper.v1api.delete_namespaced_secret.assert_called_once_with(
         name=secret_name,
         namespace="default",
+        _request_timeout=framework.utils.singletons.k8s.K8sHelper._resolve_k8s_timeout(
+            framework.utils.singletons.k8s.K8S_TIMEOUT_DEFAULT
+        ),
     )
 
 
@@ -1238,3 +1264,63 @@ def _make_user_token_secret(
 def _make_k8s_secret(name, labels=None):
     metadata = k8s_client.V1ObjectMeta(name=name, labels=labels or {})
     return k8s_client.V1Secret(metadata=metadata, data={})
+
+
+class TestK8sTimeouts:
+    """Tests for k8s API call timeout configuration."""
+
+    @pytest.mark.parametrize(
+        "timeout_type",
+        [
+            framework.utils.singletons.k8s.K8S_TIMEOUT_DEFAULT,
+            framework.utils.singletons.k8s.K8S_TIMEOUT_LIST,
+            framework.utils.singletons.k8s.K8S_TIMEOUT_LOGS,
+        ],
+    )
+    def test_get_k8s_timeout_returns_configured_value(self, timeout_type):
+        """Test that each timeout tier returns its configured value."""
+        expected = int(getattr(mlrun.mlconf.kubernetes.timeouts, timeout_type))
+        resolved = framework.utils.singletons.k8s.K8sHelper._resolve_k8s_timeout(
+            timeout_type
+        )
+        assert resolved == expected
+
+    def test_timeout_zero_disables_timeout_on_api_call(self, k8s_helper, monkeypatch):
+        """Test that timeout=0 passes None to _request_timeout, disabling it."""
+        monkeypatch.setattr(mlrun.mlconf.kubernetes.timeouts, "default", 0)
+        k8s_helper.v1api.read_namespaced_pod.return_value = k8s_client.V1Pod()
+        k8s_helper.get_pod(name="test-pod", namespace="test-ns")
+        call_kwargs = k8s_helper.v1api.read_namespaced_pod.call_args
+        assert call_kwargs.kwargs["_request_timeout"] is None
+
+    def test_raise_for_status_code_catches_read_timeout(self):
+        """Test that raise_for_status_code catches MaxRetryError with ReadTimeoutError."""
+        import urllib3.exceptions
+
+        @framework.utils.singletons.k8s.raise_for_status_code
+        def fake_k8s_call():
+            raise urllib3.exceptions.MaxRetryError(
+                pool=None,
+                url="/api/v1/pods",
+                reason=urllib3.exceptions.ReadTimeoutError(
+                    pool=None, url="/api/v1/pods", message="Read timed out"
+                ),
+            )
+
+        with pytest.raises(mlrun.errors.MLRunRuntimeError, match="timed out"):
+            fake_k8s_call()
+
+    def test_raise_for_status_code_reraises_non_timeout_max_retry(self):
+        """Test that raise_for_status_code re-raises MaxRetryError without ReadTimeoutError."""
+        import urllib3.exceptions
+
+        @framework.utils.singletons.k8s.raise_for_status_code
+        def fake_k8s_call():
+            raise urllib3.exceptions.MaxRetryError(
+                pool=None,
+                url="/api/v1/pods",
+                reason=urllib3.exceptions.ConnectTimeoutError("Connect failed"),
+            )
+
+        with pytest.raises(urllib3.exceptions.MaxRetryError):
+            fake_k8s_call()

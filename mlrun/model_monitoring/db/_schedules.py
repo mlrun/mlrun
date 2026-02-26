@@ -17,7 +17,7 @@ from abc import ABC, abstractmethod
 from contextlib import AbstractContextManager
 from datetime import datetime
 from types import TracebackType
-from typing import TYPE_CHECKING, Final, Optional
+from typing import TYPE_CHECKING, Final
 
 import mlrun
 import mlrun.common.schemas as schemas
@@ -107,10 +107,10 @@ class ModelMonitoringSchedulesFileBase(AbstractContextManager, ABC):
 
     def __exit__(
         self,
-        exc_type: Optional[type[BaseException]],
-        exc_value: Optional[BaseException],
-        traceback: Optional[TracebackType],
-    ) -> Optional[bool]:
+        exc_type: type[BaseException] | None,
+        exc_value: BaseException | None,
+        traceback: TracebackType | None,
+    ) -> bool | None:
         self._close()
 
     def _check_open_schedules(self) -> None:
@@ -148,7 +148,7 @@ class ModelMonitoringSchedulesFileEndpoint(ModelMonitoringSchedulesFileBase):
             endpoint_id=model_endpoint.metadata.uid,
         )
 
-    def get_application_time(self, application: str) -> Optional[float]:
+    def get_application_time(self, application: str) -> float | None:
         self._check_open_schedules()
         return self._schedules.get(application)
 
@@ -170,7 +170,7 @@ class ModelMonitoringSchedulesFileEndpoint(ModelMonitoringSchedulesFileBase):
         self._check_open_schedules()
         return set(self._schedules.keys())
 
-    def get_min_timestamp(self) -> Optional[float]:
+    def get_min_timestamp(self) -> float | None:
         self._check_open_schedules()
         return min(self._schedules.values(), default=None)
 
@@ -194,7 +194,7 @@ class ModelMonitoringSchedulesFileChief(ModelMonitoringSchedulesFileBase):
             project=self._project
         )
 
-    def get_endpoint_last_request(self, endpoint_uid: str) -> Optional[float]:
+    def get_endpoint_last_request(self, endpoint_uid: str) -> float | None:
         self._check_open_schedules()
         if endpoint_uid in self._schedules:
             return self._schedules[endpoint_uid].get(
@@ -216,7 +216,7 @@ class ModelMonitoringSchedulesFileChief(ModelMonitoringSchedulesFileBase):
             ),
         }
 
-    def get_endpoint_last_analyzed(self, endpoint_uid: str) -> Optional[float]:
+    def get_endpoint_last_analyzed(self, endpoint_uid: str) -> float | None:
         self._check_open_schedules()
         if endpoint_uid in self._schedules:
             return self._schedules[endpoint_uid].get(
@@ -256,7 +256,7 @@ class ModelMonitoringSchedulesFileApplication(ModelMonitoringSchedulesFileBase):
             self.create()
         super()._open()
 
-    def get_endpoint_last_analyzed(self, endpoint_uid: str) -> Optional[datetime]:
+    def get_endpoint_last_analyzed(self, endpoint_uid: str) -> datetime | None:
         self._check_open_schedules()
         if endpoint_uid in self._schedules:
             return datetime.fromisoformat(self._schedules[endpoint_uid])

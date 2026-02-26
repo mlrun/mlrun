@@ -174,7 +174,7 @@ class Client(
         )
 
     async def delete_project(
-        self, name, request: fastapi.Request, api_version: typing.Optional[str] = None
+        self, name, request: fastapi.Request, api_version: str | None = None
     ) -> fastapi.Response:
         """
         delete project can be responsible for deleting schedules. Schedules are running only on chief,
@@ -295,8 +295,8 @@ class Client(
         method,
         path,
         request: fastapi.Request = None,
-        json: typing.Optional[dict] = None,
-        version: typing.Optional[str] = None,
+        json: dict | None = None,
+        version: str | None = None,
         raise_on_failure: bool = False,
         **kwargs,
     ) -> fastapi.Response:
@@ -316,7 +316,7 @@ class Client(
         self,
         method,
         path,
-        version: typing.Optional[str] = None,
+        version: str | None = None,
         raise_on_failure: bool = False,
         **kwargs,
     ) -> aiohttp.ClientResponse:

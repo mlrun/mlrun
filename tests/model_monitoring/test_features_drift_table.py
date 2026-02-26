@@ -158,6 +158,6 @@ class TestCalculateInputsStatistics:
         current_stats = calculate_inputs_statistics(
             sample_set_statistics=sample_set_statistics, inputs=inputs_df
         )
-        assert (
-            current_stats.keys() == sample_set_statistics.keys()
-        ), "Inputs statistics and the current statistics should have the same features"
+        assert current_stats.keys() == sample_set_statistics.keys(), (
+            "Inputs statistics and the current statistics should have the same features"
+        )

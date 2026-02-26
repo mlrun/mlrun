@@ -158,9 +158,9 @@ def test_next_version(
         packaging.version.parse(base_version),
         feature_name,
     )
-    assert (
-        next_version == expected_next_version
-    ), f"expected {expected_next_version}, got {next_version}"
+    assert next_version == expected_next_version, (
+        f"expected {expected_next_version}, got {next_version}"
+    )
 
 
 @pytest.mark.parametrize(

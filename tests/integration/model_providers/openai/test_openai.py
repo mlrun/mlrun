@@ -336,7 +336,7 @@ class TestOpenAIProvider(TestBasicOpenAIProvider):
             )
             with pytest.raises(
                 mlrun.errors.MLRunInvalidArgumentError,
-                match="OpenAI custom_invoke " "operation must be a callable",
+                match="OpenAI custom_invoke operation must be a callable",
             ):
                 _ = await model_provider.custom_invoke(operation="test", input=prompt)
         encoding = tiktoken.encoding_for_model(self.embedding_model)
@@ -584,9 +584,9 @@ class TestOpenAIMRS(TestBasicOpenAIProvider):
             server = function.to_mock_server()
         try:
             response = server.test(body=BATCH_INPUT_DATA[0])
-            assert inspect.isgenerator(
-                response
-            ), f"Expected generator, got {type(response)}"
+            assert inspect.isgenerator(response), (
+                f"Expected generator, got {type(response)}"
+            )
             response = "".join(response)
             assert EXPECTED_RESULTS[0] in response.lower()
         finally:

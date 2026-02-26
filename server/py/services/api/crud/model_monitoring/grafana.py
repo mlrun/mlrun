@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Any, Optional
+from typing import Any
 
 from sqlalchemy.orm import Session
 
@@ -268,7 +268,7 @@ def drop_grafana_escape_chars(query_parameters: dict[str, str]):
 
 
 def validate_query_parameters(
-    query_parameters: dict[str, str], supported_endpoints: Optional[set[str]] = None
+    query_parameters: dict[str, str], supported_endpoints: set[str] | None = None
 ):
     """Validates the parameters sent via Grafana's SimpleJson query"""
     if "target_endpoint" not in query_parameters:

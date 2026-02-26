@@ -19,7 +19,6 @@ import os
 import pathlib
 import re
 import subprocess
-import typing
 
 import packaging.version
 
@@ -195,7 +194,7 @@ def resolve_next_version(
     mode: str,
     current_version: packaging.version.Version,
     base_version: packaging.version.Version,
-    feature_name: typing.Optional[str] = None,
+    feature_name: str | None = None,
 ):
     if (
         base_version.major > current_version.major
@@ -346,7 +345,7 @@ def is_feature_branch() -> bool:
     return get_feature_branch_feature_name() != ""
 
 
-def get_feature_branch_feature_name() -> typing.Optional[str]:
+def get_feature_branch_feature_name() -> str | None:
     current_branch = _run_command(
         "git", args=["rev-parse", "--abbrev-ref", "HEAD"]
     ).strip()

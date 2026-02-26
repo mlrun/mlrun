@@ -48,7 +48,7 @@ class DemoEvidentlyMonitoringApp(EvidentlyModelMonitoringApplicationBase):
     def __init__(
         self,
         evidently_project_id: Optional["STR_UUID"] = None,
-        evidently_workspace_path: Optional[str] = None,
+        evidently_workspace_path: str | None = None,
         cloud_workspace: bool = False,
         evidently_organization_id: Optional["OrgID"] = None,
     ) -> None:

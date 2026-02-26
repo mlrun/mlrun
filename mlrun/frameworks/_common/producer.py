@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Optional
 
 import mlrun
 from mlrun.artifacts import Artifact
@@ -29,7 +28,7 @@ class Producer:
     def __init__(
         self,
         context: mlrun.MLClientCtx = None,
-        plans: Optional[list[Plan]] = None,
+        plans: list[Plan] | None = None,
     ):
         """
         Initialize a producer with the given plans. The producer will log the produced artifacts using the given

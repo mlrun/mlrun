@@ -13,7 +13,6 @@
 # limitations under the License.
 
 from collections.abc import Callable
-from typing import Optional
 
 import numpy as np
 import onnx
@@ -36,7 +35,7 @@ class ONNXMLRunInterface:
     def __init__(
         self,
         model: onnx.ModelProto,
-        execution_providers: Optional[list[str]] = None,
+        execution_providers: list[str] | None = None,
         context: mlrun.MLClientCtx = None,
     ):
         # Set the context:

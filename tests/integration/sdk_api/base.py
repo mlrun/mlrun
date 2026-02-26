@@ -19,7 +19,6 @@ import subprocess
 import sys
 import time
 import typing
-from typing import Optional
 
 import docker
 import docker.errors
@@ -136,7 +135,7 @@ class TestMLRunIntegration:
         *,
         publish_port: typing.Union[int, str] = 8080,
         container_name: str = "mlrun-api",
-        image: Optional[str] = None,
+        image: str | None = None,
         wait_timeout: int = 60,
     ) -> None:
         cls._logger.debug("Starting API")

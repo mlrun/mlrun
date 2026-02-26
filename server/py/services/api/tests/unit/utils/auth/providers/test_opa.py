@@ -55,9 +55,9 @@ def permission_filter_path() -> str:
 
 
 @pytest_asyncio.fixture()
-async def opa_provider() -> (
-    typing.AsyncIterator[framework.utils.auth.providers.opa.Provider]
-):
+async def opa_provider() -> typing.AsyncIterator[
+    framework.utils.auth.providers.opa.Provider
+]:
     mlrun.mlconf.httpdb.authorization.opa.log_level = 10
     mlrun.mlconf.httpdb.authorization.mode = "opa"
     provider = framework.utils.auth.providers.opa.Provider()
@@ -67,8 +67,7 @@ async def opa_provider() -> (
     yield provider
 
     # explicitly closing the provider's session to avoid "unclosed session" warning between tests
-    if provider._session:
-        await provider._session.close()
+    await provider._sessions.async_close()
 
 
 @pytest.mark.asyncio

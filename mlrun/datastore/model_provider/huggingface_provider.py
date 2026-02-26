@@ -41,6 +41,8 @@ class HuggingFaceProvider(ModelProvider):
     into memory for inference. Ensure you have the required CPU/GPU and memory to use this operation.
     """
 
+    supports_streaming = True
+
     #  locks for threading use cases
     _client_lock = threading.Lock()
 
@@ -50,8 +52,8 @@ class HuggingFaceProvider(ModelProvider):
         schema,
         name,
         endpoint="",
-        secrets: Optional[dict] = None,
-        default_invoke_kwargs: Optional[dict] = None,
+        secrets: dict | None = None,
+        default_invoke_kwargs: dict | None = None,
     ):
         endpoint = endpoint or mlrun.mlconf.model_providers.huggingface_default_model
         if schema != "huggingface":
@@ -108,6 +110,9 @@ class HuggingFaceProvider(ModelProvider):
 
         Uses snapshot_download with local_dir_use_symlinks=False to ensure proper
         file copying for safe concurrent access across multiple processes.
+
+        Note: Downloading HuggingFace models requires stable network connectivity and may fail
+        or get stuck on unreliable connections. Ensure adequate network bandwidth.
 
         :raises:
             ImportError: If huggingface_hub package is not installed.
@@ -263,7 +268,9 @@ class HuggingFaceProvider(ModelProvider):
 
             # Using custom pipeline for image classification
             image = Image.open(image_path)
-            pipeline_object = pipeline("image-classification", model="microsoft/resnet-50")
+            pipeline_object = pipeline(
+                "image-classification", model="microsoft/resnet-50"
+            )
             result = hf_provider.custom_invoke(
                 pipeline_object,
                 inputs=image,
@@ -287,7 +294,7 @@ class HuggingFaceProvider(ModelProvider):
         if operation:
             if not isinstance(operation, self._expected_operation_type):
                 raise mlrun.errors.MLRunInvalidArgumentError(
-                    "Huggingface operation must inherit" " from 'Pipeline' object"
+                    "Huggingface operation must inherit from 'Pipeline' object"
                 )
             return operation(**invoke_kwargs)
         else:
@@ -434,3 +441,50 @@ class HuggingFaceProvider(ModelProvider):
             invoke_response_format=invoke_response_format,
         )
         return response
+
+    def _prepare_stream(self, messages, invoke_kwargs):
+        """Validate inputs and create a TextIteratorStreamer for streaming generation.
+
+        :return: Tuple of (streamer, invoke_kwargs) ready for the pipeline call.
+        """
+        if self.client.task != "text-generation":
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "HuggingFaceProvider streaming supports text-generation task only"
+            )
+        if self._validate_and_detect_batch_invocation(messages):
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Batch invocation is not supported in streaming mode"
+            )
+        from transformers import TextIteratorStreamer
+
+        streamer = TextIteratorStreamer(
+            self.client.tokenizer,
+            skip_prompt=True,
+            skip_special_tokens=True,
+        )
+        invoke_kwargs = self.get_invoke_kwargs(invoke_kwargs)
+        invoke_kwargs["streamer"] = streamer
+        return streamer, invoke_kwargs
+
+    def invoke_stream(self, messages, **invoke_kwargs):
+        """
+        Invokes the HuggingFace pipeline in streaming mode, yielding text tokens
+        as they are generated.
+
+        Generation runs in a background thread; this method yields tokens from
+        a ``TextIteratorStreamer`` on the calling thread.
+
+        :param messages:        A list of message dicts (single conversation, not a batch).
+        :param invoke_kwargs:   Additional keyword arguments passed to the pipeline.
+        :return:                A generator yielding text tokens as strings.
+        """
+        streamer, invoke_kwargs = self._prepare_stream(messages, invoke_kwargs)
+        thread = threading.Thread(
+            target=self.custom_invoke,
+            kwargs={"text_inputs": messages, **invoke_kwargs},
+        )
+        thread.start()
+        for token in streamer:
+            if token:
+                yield token
+        thread.join()

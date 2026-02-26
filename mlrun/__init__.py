@@ -17,7 +17,6 @@ __all__ = [
     "set_environment",
     "code_to_function",
     "import_function",
-    "handler",
     "ArtifactType",
     "get_secret_or_env",
     "mount_v3io",
@@ -25,12 +24,15 @@ __all__ = [
     "auto_mount",
     "VolumeMount",
     "sync_secret_tokens",
+    "RuntimeConfigurationContext",
 ]
 
 from os import environ, path
 from typing import Optional
 
 import dotenv
+
+import mlrun.runtime_configuration_context
 
 from .common.constants import MLRUN_ACTIVE_PROJECT
 from .config import config as mlconf
@@ -40,7 +42,7 @@ from .errors import MLRunInvalidArgumentError, MLRunNotFoundError
 from .execution import MLClientCtx
 from .hub import get_hub_item, get_hub_module, get_hub_step, import_module
 from .model import RunObject, RunTemplate, new_task
-from .package import ArtifactType, DefaultPackager, Packager, handler
+from .package import ArtifactType, DefaultPackager, LogHint, Packager
 from .projects import (
     MlrunProject,
     ProjectMetadata,
@@ -78,6 +80,33 @@ VolumeMount = mounts.VolumeMount
 mount_v3io = mounts.mount_v3io
 v3io_cred = mounts.v3io_cred
 auto_mount = mounts.auto_mount
+RuntimeConfigurationContext = (
+    mlrun.runtime_configuration_context.RuntimeConfigurationContext
+)
+
+
+# TODO: Remove in MLRun 1.13.0.
+def __getattr__(name):
+    """handler decorator property"""
+
+    if name == "handler":
+        import warnings
+
+        warnings.warn(
+            message=(
+                "The `mlrun.handler` decorator is applied automatically if `mlrun.mlconf.packagers.enabled` is set to "
+                "True (by default its True). It should not be used manually in that case."
+                "If you still need to use it manually, please import it from `mlrun.package.handler` instead. Usage of "
+                "the decorator directly from `mlrun.handler` will be removed in MLRun 1.13.0."
+            ),
+            category=FutureWarning,
+            stacklevel=2,
+        )
+        from mlrun.package import handler
+
+        return handler
+
+    raise AttributeError(f"module {__name__} has no attribute {name}")
 
 
 def get_version():
@@ -93,12 +122,12 @@ if "IGZ_NAMESPACE_DOMAIN" in environ:
 
 
 def set_environment(
-    api_path: Optional[str] = None,
+    api_path: str | None = None,
     artifact_path: str = "",
-    access_key: Optional[str] = None,
-    username: Optional[str] = None,
-    env_file: Optional[str] = None,
-    mock_functions: Optional[str] = None,
+    access_key: str | None = None,
+    username: str | None = None,
+    env_file: str | None = None,
+    mock_functions: str | None = None,
 ):
     """set and test default config for: api path, artifact_path and project
 
@@ -162,14 +191,14 @@ def set_environment(
             artifact_path = path.abspath(artifact_path)
         elif not artifact_path.startswith("/") and "://" not in artifact_path:
             raise ValueError(
-                "artifact_path must refer to an absolute path" " or a valid url"
+                "artifact_path must refer to an absolute path or a valid url"
             )
         mlconf.artifact_path = artifact_path
 
     return mlconf.active_project, mlconf.artifact_path
 
 
-def get_current_project(silent: bool = False) -> Optional[MlrunProject]:
+def get_current_project(silent: bool = False) -> MlrunProject | None:
     if pipeline_context.project:
         return pipeline_context.project
 
@@ -207,7 +236,7 @@ def get_sample_path(subpath=""):
     return samples_path
 
 
-def set_env_from_file(env_file: str, return_dict: bool = False) -> Optional[dict]:
+def set_env_from_file(env_file: str, return_dict: bool = False) -> dict | None:
     """Read and set and/or return environment variables from a file
     the env file should have lines in the form KEY=VALUE, comment line start with "#"
 
@@ -240,6 +269,7 @@ def set_env_from_file(env_file: str, return_dict: bool = False) -> Optional[dict
     for key, value in env_vars.items():
         environ[key] = value
 
-    # reload mlrun configuration
-    mlconf.reload()
+    # reload mlrun configuration, skipping the default env file to prevent
+    # ~/.mlrun.env from overriding the env vars we just set explicitly
+    mlconf.reload(skip_env_file=True)
     return env_vars if return_dict else None

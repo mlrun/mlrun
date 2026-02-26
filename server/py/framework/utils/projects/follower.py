@@ -14,7 +14,6 @@
 
 import datetime
 import traceback
-import typing
 
 import humanfriendly
 import mergedeep
@@ -109,7 +108,7 @@ class Member(
         auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
         wait_for_completion: bool = True,
         commit_before_get: bool = False,
-    ) -> tuple[typing.Optional[mlrun.common.schemas.Project], bool]:
+    ) -> tuple[mlrun.common.schemas.Project | None, bool]:
         self._validate_project(project)
         if framework.utils.helpers.is_request_from_leader(
             auth_info.projects_role, leader_name=self._leader_name
@@ -137,7 +136,7 @@ class Member(
         project: mlrun.common.schemas.Project,
         auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
         wait_for_completion: bool = True,
-    ) -> tuple[typing.Optional[mlrun.common.schemas.Project], bool]:
+    ) -> tuple[mlrun.common.schemas.Project | None, bool]:
         self._validate_project(project)
         if framework.utils.helpers.is_request_from_leader(
             auth_info.projects_role, leader_name=self._leader_name
@@ -169,7 +168,7 @@ class Member(
         patch_mode: mlrun.common.schemas.PatchMode = mlrun.common.schemas.PatchMode.replace,
         auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
         wait_for_completion: bool = True,
-    ) -> tuple[typing.Optional[mlrun.common.schemas.Project], bool]:
+    ) -> tuple[mlrun.common.schemas.Project | None, bool]:
         if framework.utils.helpers.is_request_from_leader(
             auth_info.projects_role, leader_name=self._leader_name
         ):
@@ -196,8 +195,8 @@ class Member(
         deletion_strategy: mlrun.common.schemas.DeletionStrategy = mlrun.common.schemas.DeletionStrategy.default(),
         auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
         wait_for_completion: bool = True,
-        background_task_name: typing.Optional[str] = None,
-        model_monitoring_access_key: typing.Optional[str] = None,
+        background_task_name: str | None = None,
+        model_monitoring_access_key: str | None = None,
     ) -> bool:
         if framework.utils.helpers.is_request_from_leader(
             auth_info.projects_role, leader_name=self._leader_name
@@ -253,11 +252,11 @@ class Member(
         self,
         db_session: sqlalchemy.orm.Session,
         auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
-        owner: typing.Optional[str] = None,
+        owner: str | None = None,
         format_: mlrun.common.formatters.ProjectFormat = mlrun.common.formatters.ProjectFormat.full,
-        labels: typing.Optional[list[str]] = None,
+        labels: list[str] | None = None,
         state: mlrun.common.schemas.ProjectState = None,
-        names: typing.Optional[list[str]] = None,
+        names: list[str] | None = None,
     ) -> mlrun.common.schemas.ProjectsOutput:
         if (
             format_ == mlrun.common.formatters.ProjectFormat.leader
@@ -284,10 +283,10 @@ class Member(
         self,
         db_session: sqlalchemy.orm.Session,
         auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
-        owner: typing.Optional[str] = None,
-        labels: typing.Optional[list[str]] = None,
+        owner: str | None = None,
+        labels: list[str] | None = None,
         state: mlrun.common.schemas.ProjectState = None,
-        names: typing.Optional[list[str]] = None,
+        names: list[str] | None = None,
     ) -> mlrun.common.schemas.ProjectSummariesOutput:
         return await services.api.crud.Projects().list_project_summaries(
             db_session, auth_info, owner, labels, state, names

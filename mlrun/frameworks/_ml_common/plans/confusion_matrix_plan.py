@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Optional
 
 import numpy as np
 import pandas as pd
@@ -36,7 +35,7 @@ class ConfusionMatrixPlan(MLPlotPlan):
         self,
         labels: np.ndarray = None,
         sample_weight: np.ndarray = None,
-        normalize: Optional[str] = None,
+        normalize: str | None = None,
     ):
         """
         Initialize a confusion matrix plan with the given configuration.

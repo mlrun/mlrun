@@ -133,9 +133,9 @@ class TestEventPreparation:
                     "mlrun/endpoint-id": cls.ENDPOINT_ID,
                     "mlrun/endpoint-name": cls.ENDPOINT_NAME,
                 }.items() <= artifact.labels.items()
-                assert (
-                    artifact.key == f"my-app-data-{cls.ENDPOINT_ID}"
-                ), "By default monitoring context concat endpoint id to artifact key"
+                assert artifact.key == f"my-app-data-{cls.ENDPOINT_ID}", (
+                    "By default monitoring context concat endpoint id to artifact key"
+                )
 
                 dataset = monitoring_context.log_dataset(
                     key="my-app-df",
@@ -149,9 +149,9 @@ class TestEventPreparation:
                     "mlrun/endpoint-id": cls.ENDPOINT_ID,
                     "mlrun/endpoint-name": cls.ENDPOINT_NAME,
                 }.items() <= dataset.labels.items()
-                assert (
-                    dataset.key == f"my-app-df-{cls.ENDPOINT_ID}"
-                ), "By default monitoring context concat endpoint id to dataset key"
+                assert dataset.key == f"my-app-df-{cls.ENDPOINT_ID}", (
+                    "By default monitoring context concat endpoint id to dataset key"
+                )
                 server.wait_for_completion()
                 monitoring_context.logger.debug("I'm done")
 

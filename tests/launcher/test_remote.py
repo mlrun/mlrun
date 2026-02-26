@@ -68,7 +68,9 @@ def test_validate_inputs():
     run = mlrun.run.RunObject(spec=mlrun.model.RunSpec(inputs={"input1": 1}))
     with pytest.raises(mlrun.errors.MLRunInvalidArgumentTypeError) as exc:
         launcher._validate_run(runtime, run)
-    assert "'Inputs' should be of type Dict[str, str]" in str(exc.value)
+    assert "'Inputs' should be of type Dict[str, Union[str,list,dict]]." in str(
+        exc.value
+    )
 
 
 def test_validate_run_success():
@@ -135,3 +137,24 @@ def test_run_error_status(rundb_mock):
     with pytest.raises(mlrun.runtimes.utils.RunError) as exc:
         launcher.launch(runtime, run, watch=True)
     assert "some error" in str(exc.value)
+
+
+def test_store_function_set_token_name():
+    launcher = mlrun.launcher.remote.ClientRemoteLauncher()
+    runtime = mlrun.code_to_function(
+        name="test",
+        kind="job",
+        filename=str(func_path),
+        handler=handler,
+    )
+    runtime.kind = "handler"
+    db = mlrun.get_run_db()
+    db.token_provider = unittest.mock.MagicMock(token_name="provider-run-token")
+    run = mlrun.run.RunObject(spec=mlrun.model.RunSpec())
+
+    launcher._store_function(runtime, run)
+    assert run.spec.auth["token_name"] == "provider-run-token"
+
+    with mlrun.RuntimeConfigurationContext(auth_token_name="context-run-token"):
+        launcher._store_function(runtime, run)
+        assert run.spec.auth["token_name"] == "context-run-token"

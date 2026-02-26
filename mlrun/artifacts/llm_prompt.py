@@ -14,7 +14,7 @@
 import json
 import tempfile
 from collections import defaultdict
-from typing import Optional, Union
+from typing import Union
 
 import mlrun
 import mlrun.artifacts.model as model_art
@@ -38,12 +38,12 @@ class LLMPromptArtifactSpec(ArtifactSpec):
     def __init__(
         self,
         model_artifact: Union[model_art.ModelArtifact, str] = None,
-        prompt_template: Optional[list[dict]] = None,
-        prompt_path: Optional[str] = None,
-        prompt_legend: Optional[dict] = None,
-        invocation_config: Optional[dict] = None,
-        description: Optional[str] = None,
-        target_path: Optional[str] = None,
+        prompt_template: list[dict] | None = None,
+        prompt_path: str | None = None,
+        prompt_legend: dict | None = None,
+        invocation_config: dict | None = None,
+        description: str | None = None,
+        target_path: str | None = None,
         **kwargs,
     ):
         if prompt_template and prompt_path:
@@ -167,16 +167,16 @@ class LLMPromptArtifact(Artifact):
 
     def __init__(
         self,
-        key: Optional[str] = None,
-        project: Optional[str] = None,
+        key: str | None = None,
+        project: str | None = None,
         model_artifact: Union[
             model_art.ModelArtifact, str
         ] = None,  # TODO support partial model uri
-        prompt_template: Optional[list[dict]] = None,
-        prompt_path: Optional[str] = None,
-        prompt_legend: Optional[dict] = None,
-        invocation_config: Optional[dict] = None,
-        description: Optional[str] = None,
+        prompt_template: list[dict] | None = None,
+        prompt_path: str | None = None,
+        prompt_legend: dict | None = None,
+        invocation_config: dict | None = None,
+        description: str | None = None,
         target_path=None,
         **kwargs,
     ):
@@ -206,7 +206,7 @@ class LLMPromptArtifact(Artifact):
         self._spec = self._verify_dict(spec, "spec", LLMPromptArtifactSpec)
 
     @property
-    def model_artifact(self) -> Optional[model_art.ModelArtifact]:
+    def model_artifact(self) -> model_art.ModelArtifact | None:
         """
         Get the model artifact linked to this prompt artifact.
         """
@@ -219,7 +219,7 @@ class LLMPromptArtifact(Artifact):
             return self.spec._model_artifact
         return None
 
-    def read_prompt(self) -> Optional[Union[str, list[dict]]]:
+    def read_prompt(self) -> Union[str, list[dict]] | None:
         """
         Read the prompt json from the artifact or if provided prompt template.
         @:param as_str: True to return the prompt string or a list of dicts.

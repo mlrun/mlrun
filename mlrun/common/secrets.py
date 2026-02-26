@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import re
-import typing
 from abc import ABC, abstractmethod
 
 import mlrun.common.schemas
@@ -84,8 +83,8 @@ class SecretProviderInterface(ABC):
         token: str,
         expiration: int,
         force: bool = False,
-        namespace: typing.Optional[str] = None,
-    ) -> typing.Optional[mlrun.common.schemas.SecretEventActions]:
+        namespace: str | None = None,
+    ) -> mlrun.common.schemas.SecretEventActions | None:
         pass
 
     @abstractmethod
@@ -93,7 +92,7 @@ class SecretProviderInterface(ABC):
         self,
         user_id: str,
         token_name: str,
-        namespace: typing.Optional[str] = None,
+        namespace: str | None = None,
     ) -> str:
         pass
 
@@ -101,7 +100,7 @@ class SecretProviderInterface(ABC):
     def list_user_token_secrets(
         self,
         user_id: str,
-        namespace: typing.Optional[str] = None,
+        namespace: str | None = None,
     ) -> list[mlrun.common.schemas.SecretTokenInfo]:
         pass
 
@@ -110,7 +109,7 @@ class SecretProviderInterface(ABC):
         self,
         user_id: str,
         token_name: str,
-        namespace: typing.Optional[str] = None,
+        namespace: str | None = None,
     ) -> None:
         pass
 
@@ -197,8 +196,8 @@ class InMemorySecretProvider(SecretProviderInterface):
         token: str,
         expiration: int,
         force: bool = False,
-        namespace: typing.Optional[str] = None,
-    ) -> typing.Optional[mlrun.common.schemas.SecretEventActions]:
+        namespace: str | None = None,
+    ) -> mlrun.common.schemas.SecretEventActions | None:
         secret_name = self.resolve_auth_secret_name(auth_info.user_id, token_name)
         self.secrets_map[secret_name] = {
             "token": token,
@@ -212,7 +211,7 @@ class InMemorySecretProvider(SecretProviderInterface):
         self,
         user_id: str,
         token_name: str,
-        namespace: typing.Optional[str] = None,
+        namespace: str | None = None,
     ) -> str:
         secret_name = self.resolve_auth_secret_name(user_id, token_name)
         return self.secrets_map[secret_name]["token"]
@@ -220,7 +219,7 @@ class InMemorySecretProvider(SecretProviderInterface):
     def list_user_token_secrets(
         self,
         user_id: str,
-        namespace: typing.Optional[str] = None,
+        namespace: str | None = None,
     ) -> list[mlrun.common.schemas.SecretTokenInfo]:
         secret_names = list(self.secrets_map.keys())
         return [
@@ -236,7 +235,7 @@ class InMemorySecretProvider(SecretProviderInterface):
         self,
         user_id: str,
         token_name: str,
-        namespace: typing.Optional[str] = None,
+        namespace: str | None = None,
     ) -> None:
         secret_name = self.resolve_auth_secret_name(user_id, token_name)
         del self.secrets_map[secret_name]

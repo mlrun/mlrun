@@ -19,6 +19,7 @@ import tempfile
 import numpy as np
 import pandas as pd
 
+from mlrun import LogHint
 from mlrun.package.packagers.pandas_packagers import (
     PandasDataFramePackager,
     PandasSeriesPackager,
@@ -141,11 +142,13 @@ class PandasDataFramePackagerTester(PackagerTester):
                             PackToUnpackTest(
                                 pack_handler="pack_dataframe",
                                 pack_parameters={"i": i},
-                                log_hint={
-                                    "key": "my_dataframe",
-                                    "artifact_type": "file",
-                                    "file_format": file_format,
-                                },
+                                log_hint=LogHint(
+                                    key="my_dataframe",
+                                    artifact_type="file",
+                                    packing_kwargs={
+                                        "file_format": file_format,
+                                    },
+                                ),
                                 expected_instructions={
                                     "file_format": file_format,
                                     "read_kwargs": {
@@ -255,10 +258,7 @@ class PandasSeriesPackagerTester(PackagerTester):
                         PackToUnpackTest(
                             pack_handler="pack_series",
                             pack_parameters={"i": i},
-                            log_hint={
-                                "key": "my_series",
-                                "artifact_type": "file",
-                            },
+                            log_hint=LogHint(key="my_series", artifact_type="file"),
                             expected_instructions={
                                 "file_format": "parquet" if i in [1, 4, 5] else "csv",
                                 "read_kwargs": {

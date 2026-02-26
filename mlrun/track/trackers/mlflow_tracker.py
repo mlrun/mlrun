@@ -15,7 +15,6 @@ import os
 import pathlib
 import tempfile
 import zipfile
-from typing import Optional
 
 import mlflow
 import mlflow.entities
@@ -191,7 +190,7 @@ class MLFlowTracker(Tracker):
         project: MlrunProject,
         reference_id: str,
         function_name: str,
-        handler: Optional[str] = None,
+        handler: str | None = None,
         **kwargs,
     ) -> RunObject:
         """
@@ -252,9 +251,9 @@ class MLFlowTracker(Tracker):
         self,
         project: MlrunProject,
         reference_id: str,
-        key: Optional[str] = None,
-        metrics: Optional[dict] = None,
-        extra_data: Optional[dict] = None,
+        key: str | None = None,
+        metrics: dict | None = None,
+        extra_data: dict | None = None,
     ) -> ModelArtifact:
         """
         Import a model from MLFlow to MLRun.
@@ -291,7 +290,7 @@ class MLFlowTracker(Tracker):
             return model
 
     def import_artifact(
-        self, project: MlrunProject, reference_id: str, key: Optional[str] = None
+        self, project: MlrunProject, reference_id: str, key: str | None = None
     ) -> Artifact:
         """
         Import an artifact from MLFlow to MLRun.

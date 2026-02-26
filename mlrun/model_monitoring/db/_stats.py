@@ -13,7 +13,6 @@
 # limitations under the License.
 import abc
 import json
-import typing
 from abc import abstractmethod
 from datetime import UTC, datetime
 from typing import cast
@@ -73,7 +72,7 @@ class ModelMonitoringStatsFile(abc.ABC):
                 path=self._item.url,
             )
 
-    def read(self) -> tuple[dict, typing.Optional[datetime]]:
+    def read(self) -> tuple[dict, datetime | None]:
         """
         Read the stats data and timestamp saved in file
         :return: tuple[dict, str] dictionary with stats data and timestamp saved in file
@@ -89,9 +88,10 @@ class ModelMonitoringStatsFile(abc.ABC):
             # Different errors are raised for S3 or local storage, see ML-8042
             FileNotFoundError,
         ) as err:
-            logger.warning(
-                "The Stats file was not found. It should have been created "
-                "as a part of the model endpoint's creation",
+            logger.debug(
+                "Stats file not found. This is expected for v2+ writer which stores "
+                "stats in parquet format. For v1 writer, the file should have been "
+                "created as part of the model endpoint's creation",
                 path=self._path,
                 error=err,
             )

@@ -52,13 +52,12 @@ class GitNotification(NotificationBase):
     async def push(
         self,
         message: str,
-        severity: typing.Optional[
-            typing.Union[mlrun.common.schemas.NotificationSeverity, str]
-        ] = mlrun.common.schemas.NotificationSeverity.INFO,
-        runs: typing.Optional[typing.Union[mlrun.lists.RunList, list]] = None,
-        custom_html: typing.Optional[typing.Optional[str]] = None,
-        alert: typing.Optional[mlrun.common.schemas.AlertConfig] = None,
-        event_data: typing.Optional[mlrun.common.schemas.Event] = None,
+        severity: typing.Union[mlrun.common.schemas.NotificationSeverity, str]
+        | None = mlrun.common.schemas.NotificationSeverity.INFO,
+        runs: typing.Union[mlrun.lists.RunList, list] | None = None,
+        custom_html: str | None = None,
+        alert: mlrun.common.schemas.AlertConfig | None = None,
+        event_data: mlrun.common.schemas.Event | None = None,
     ):
         git_repo = self.params.get("repo", None)
         git_issue = self.params.get("issue", None)
@@ -83,11 +82,11 @@ class GitNotification(NotificationBase):
     @staticmethod
     async def _pr_comment(
         message: str,
-        repo: typing.Optional[str] = None,
-        issue: typing.Optional[int] = None,
-        merge_request: typing.Optional[int] = None,
-        token: typing.Optional[str] = None,
-        server: typing.Optional[str] = None,
+        repo: str | None = None,
+        issue: int | None = None,
+        merge_request: int | None = None,
+        token: str | None = None,
+        server: str | None = None,
         gitlab: bool = False,
     ) -> str:
         """push comment message to Git system PR/issue

@@ -24,8 +24,10 @@ import deepdiff
 import igz_mgmt
 import pytest
 
+import mlrun
 import mlrun.common.schemas
 import mlrun.errors
+import mlrun.runtimes.mounts
 from mlrun.config import config
 from tests.system.base import TestMLRunSystem
 
@@ -376,6 +378,48 @@ class TestKubernetesProjectSecrets(TestMLRunSystem):
 
         # Cleanup secrets
         self._run_db.delete_project_secrets(self.project_name, provider="kubernetes")
+
+    @pytest.mark.parametrize("kind", ["job", "nuclio"])
+    @pytest.mark.parametrize("with_keys", [True, False])
+    def test_set_env_vars_from_secret_auto_mount_e2e(self, kind, with_keys):
+        """E2E: set_env_vars_from_secret with keys (per-key env) and without keys (env_from)."""
+        env_secrets = {"ENV_AUTO_A": "auto-val-a", "ENV_AUTO_B": "auto-val-b"}
+        self._run_db.create_project_secrets(
+            self.project_name, "kubernetes", env_secrets
+        )
+        secret_name = mlrun.mlconf.secret_stores.kubernetes.project_secret_name.format(
+            project=self.project_name
+        )
+        filename = str(pathlib.Path(__file__).parent / "assets" / "function.py")
+
+        try:
+            function = self.project.set_function(
+                func=filename,
+                image="mlrun/mlrun",
+                kind=kind,
+                name=f"env-secret-{kind}-{'k' if with_keys else 'w'}",
+                handler="env_vars_from_secret_handler",
+            )
+            function.apply(
+                mlrun.runtimes.mounts.set_env_vars_from_secret(
+                    secret_name,
+                    keys=["ENV_AUTO_A", "ENV_AUTO_B"] if with_keys else None,
+                )
+            )
+
+            if kind == "job":
+                results = function.run()
+                got = results.outputs["return"]
+            else:
+                function.deploy()
+                got = function.invoke("/")
+
+            assert got["ENV_AUTO_A"] == env_secrets["ENV_AUTO_A"]
+            assert got["ENV_AUTO_B"] == env_secrets["ENV_AUTO_B"]
+        finally:
+            self._run_db.delete_project_secrets(
+                self.project_name, provider="kubernetes"
+            )
 
     @pytest.mark.enterprise
     @pytest.mark.parametrize(

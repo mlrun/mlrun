@@ -255,7 +255,7 @@ class Logs(
         size: int = -1,
         offset: int = 0,
         source: LogSources = LogSources.AUTO,
-        run: typing.Optional[dict] = None,
+        run: dict | None = None,
     ) -> bytes:
         """
         :return: bytes of the logs themselves
@@ -307,7 +307,7 @@ class Logs(
         size: int = -1,
         offset: int = 0,
         source: LogSources = LogSources.AUTO,
-        run: typing.Optional[dict] = None,
+        run: dict | None = None,
     ):
         log_contents = await run_in_threadpool(
             self._get_logs_legacy_method,
@@ -391,7 +391,7 @@ class Logs(
     @staticmethod
     async def _stop_logs(
         project_name: str,
-        run_uids: typing.Optional[list[str]] = None,
+        run_uids: list[str] | None = None,
     ) -> None:
         resource = "project" if not run_uids else "run"
         try:
@@ -416,9 +416,7 @@ class Logs(
                 run_uids=run_uids,
             )
 
-    async def _delete_logs(
-        self, project: str, run_uids: typing.Optional[list[str]] = None
-    ):
+    async def _delete_logs(self, project: str, run_uids: list[str] | None = None):
         resource = "project" if not run_uids else "run"
         try:
             log_collector_client = (

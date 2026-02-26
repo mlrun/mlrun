@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import typing
 
 import pydantic.v1
 
@@ -21,54 +20,54 @@ from .k8s import Resources
 
 
 class ClientSpec(pydantic.v1.BaseModel):
-    version: typing.Optional[str]
-    namespace: typing.Optional[str]
-    docker_registry: typing.Optional[str]
-    remote_host: typing.Optional[str]
-    mpijob_crd_version: typing.Optional[str]
-    ui_url: typing.Optional[str]
-    artifact_path: typing.Optional[str]
-    feature_store_data_prefixes: typing.Optional[dict[str, str]]
-    feature_store_default_targets: typing.Optional[str]
-    spark_app_image: typing.Optional[str]
-    spark_app_image_tag: typing.Optional[str]
-    spark_history_server_path: typing.Optional[str]
-    spark_operator_version: typing.Optional[str]
-    kfp_image: typing.Optional[str]
-    kfp_url: typing.Optional[str]
-    dask_kfp_image: typing.Optional[str]
-    api_url: typing.Optional[str]
-    nuclio_version: typing.Optional[str]
-    ui_projects_prefix: typing.Optional[str]
-    scrape_metrics: typing.Optional[str]
-    default_function_node_selector: typing.Optional[str]
-    igz_version: typing.Optional[str]
-    auto_mount_type: typing.Optional[str]
-    auto_mount_params: typing.Optional[str]
-    default_function_priority_class_name: typing.Optional[str]
-    valid_function_priority_class_names: typing.Optional[str]
-    default_tensorboard_logs_path: typing.Optional[str]
-    default_function_pod_resources: typing.Optional[Resources]
-    preemptible_nodes_node_selector: typing.Optional[str]
-    preemptible_nodes_tolerations: typing.Optional[str]
-    default_preemption_mode: typing.Optional[str]
-    force_run_local: typing.Optional[str]
-    function: typing.Optional[Function]
-    redis_url: typing.Optional[str]
-    redis_type: typing.Optional[str]
-    sql_url: typing.Optional[str]
-    ce: typing.Optional[dict]
+    version: str | None
+    namespace: str | None
+    docker_registry: str | None
+    remote_host: str | None
+    mpijob_crd_version: str | None
+    ui_url: str | None
+    artifact_path: str | None
+    feature_store_data_prefixes: dict[str, str] | None
+    feature_store_default_targets: str | None
+    spark_app_image: str | None
+    spark_app_image_tag: str | None
+    spark_history_server_path: str | None
+    spark_operator_version: str | None
+    kfp_image: str | None
+    kfp_url: str | None
+    dask_kfp_image: str | None
+    api_url: str | None
+    nuclio_version: str | None
+    ui_projects_prefix: str | None
+    scrape_metrics: str | None
+    default_function_node_selector: str | None
+    igz_version: str | None
+    auto_mount_type: str | None
+    auto_mount_params: str | None
+    default_function_priority_class_name: str | None
+    valid_function_priority_class_names: str | None
+    default_tensorboard_logs_path: str | None
+    default_function_pod_resources: Resources | None
+    preemptible_nodes_node_selector: str | None
+    preemptible_nodes_tolerations: str | None
+    default_preemption_mode: str | None
+    force_run_local: str | None
+    function: Function | None
+    redis_url: str | None
+    redis_type: str | None
+    sql_url: str | None
+    ce: dict | None
     # not passing them as one object as it possible client user would like to override only one of the params
-    calculate_artifact_hash: typing.Optional[str]
-    generate_artifact_target_path_from_artifact_hash: typing.Optional[str]
-    logs: typing.Optional[dict]
-    packagers: typing.Optional[dict]
-    external_platform_tracking: typing.Optional[dict]
-    alerts_mode: typing.Optional[str]
-    system_id: typing.Optional[str]
-    model_endpoint_monitoring_store_prefixes: typing.Optional[dict[str, str]]
-    authentication_mode: typing.Optional[str]
+    calculate_artifact_hash: str | None
+    generate_artifact_target_path_from_artifact_hash: str | None
+    logs: dict | None
+    packagers: dict | None
+    external_platform_tracking: dict | None
+    alerts_mode: str | None
+    system_id: str | None
+    model_endpoint_monitoring_store_prefixes: dict[str, str] | None
+    authentication_mode: str | None
     # Iguazio V4 OAuth token provider configuration
-    oauth_internal_token_endpoint: typing.Optional[str]
-    oauth_external_token_endpoint: typing.Optional[str]
-    authorization_namespaces_resources: typing.Optional[str]
+    oauth_internal_token_endpoint: str | None
+    oauth_external_token_endpoint: str | None
+    authorization_namespaces_resources: str | None

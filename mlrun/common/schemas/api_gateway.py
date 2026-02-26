@@ -12,8 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import typing
-from typing import Optional
 
 import pydantic.v1
 
@@ -59,9 +57,9 @@ class _APIGatewayBaseModel(pydantic.v1.BaseModel):
 
 class APIGatewayMetadata(_APIGatewayBaseModel):
     name: str
-    namespace: Optional[str]
-    labels: Optional[dict] = {}
-    annotations: Optional[dict] = {}
+    namespace: str | None
+    labels: dict | None = {}
+    annotations: dict | None = {}
 
 
 class APIGatewayBasicAuth(_APIGatewayBaseModel):
@@ -70,33 +68,33 @@ class APIGatewayBasicAuth(_APIGatewayBaseModel):
 
 
 class APIGatewayUpstream(_APIGatewayBaseModel):
-    kind: Optional[str] = "nucliofunction"
+    kind: str | None = "nucliofunction"
     nucliofunction: dict[str, str]
-    percentage: Optional[int] = 0
-    port: Optional[int] = 0
+    percentage: int | None = 0
+    port: int | None = 0
 
 
 class APIGatewaySpec(_APIGatewayBaseModel):
     name: str
-    description: Optional[str]
-    path: Optional[str] = "/"
-    authenticationMode: Optional[APIGatewayAuthenticationMode] = (  # noqa: N815 - for compatibility with Nuclio https://github.com/nuclio/nuclio/blob/672b8e36f9edd6e42b4685ec1d27cabae3c5f045/pkg/platform/types.go#L476
+    description: str | None
+    path: str | None = "/"
+    authenticationMode: APIGatewayAuthenticationMode | None = (  # noqa: N815 - for compatibility with Nuclio https://github.com/nuclio/nuclio/blob/672b8e36f9edd6e42b4685ec1d27cabae3c5f045/pkg/platform/types.go#L476
         APIGatewayAuthenticationMode.none
     )
     upstreams: list[APIGatewayUpstream]
-    authentication: Optional[dict[str, Optional[APIGatewayBasicAuth]]]
-    host: Optional[str]
+    authentication: dict[str, APIGatewayBasicAuth | None] | None
+    host: str | None
 
 
 class APIGatewayStatus(_APIGatewayBaseModel):
-    name: Optional[str]
-    state: Optional[APIGatewayState]
+    name: str | None
+    state: APIGatewayState | None
 
 
 class APIGateway(_APIGatewayBaseModel):
     metadata: APIGatewayMetadata
     spec: APIGatewaySpec
-    status: Optional[APIGatewayStatus]
+    status: APIGatewayStatus | None
 
     def get_function_names(self):
         return [
@@ -196,4 +194,4 @@ class APIGateway(_APIGatewayBaseModel):
 
 
 class APIGatewaysOutput(_APIGatewayBaseModel):
-    api_gateways: typing.Optional[dict[str, APIGateway]] = {}
+    api_gateways: dict[str, APIGateway] | None = {}

@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from datetime import datetime
-from typing import Optional, Union
+from typing import Union
 
 import mlrun
 import mlrun.common.schemas.alert as alert_objects
@@ -41,22 +41,22 @@ class AlertConfig(ModelObj):
 
     def __init__(
         self,
-        project: Optional[str] = None,
-        name: Optional[str] = None,
+        project: str | None = None,
+        name: str | None = None,
         template: Union[alert_objects.AlertTemplate, str] = None,
-        description: Optional[str] = None,
-        summary: Optional[str] = None,
+        description: str | None = None,
+        summary: str | None = None,
         severity: alert_objects.AlertSeverity = None,
         trigger: alert_objects.AlertTrigger = None,
         criteria: alert_objects.AlertCriteria = None,
         reset_policy: alert_objects.ResetPolicy = None,
-        notifications: Optional[list[alert_objects.AlertNotification]] = None,
+        notifications: list[alert_objects.AlertNotification] | None = None,
         entities: alert_objects.EventEntities = None,
-        id: Optional[int] = None,
+        id: int | None = None,
         state: alert_objects.AlertActiveState = None,
-        created: Optional[str] = None,
-        count: Optional[int] = None,
-        updated: Optional[str] = None,
+        created: str | None = None,
+        count: int | None = None,
+        updated: str | None = None,
         **kwargs,
     ):
         """Alert config object
@@ -94,7 +94,9 @@ class AlertConfig(ModelObj):
                 ),
                 trigger=alert_objects.AlertTrigger(events=[event_name]),
                 criteria=alert_objects.AlertCriteria(count=3, period="1h"),
-                notifications=[alert_objects.AlertNotification(notification=notification)],
+                notifications=[
+                    alert_objects.AlertNotification(notification=notification)
+                ],
             )
             project.store_alert_config(alert_data)
 
@@ -112,8 +114,9 @@ class AlertConfig(ModelObj):
                                complex trigger which is based on a prometheus alert
         :param criteria:       When the alert will be triggered based on the specified number of events within the
                                defined time period.
-        :param reset_policy:   When to clear the alert. Either "manual" for manual reset of the alert, or
-                               "auto" if the criteria contains a time period
+        :param reset_policy:   When to clear the alert. "manual" means the alert stays active after triggering
+                               and must be reset explicitly. "auto" means the alert is reset immediately
+                               after triggering and sending notifications.
         :param notifications:  List of notifications to invoke once the alert is triggered
         :param entities:       Entities that the event relates to. The entity object will contain fields that
                                uniquely identify a given entity in the system
@@ -173,7 +176,7 @@ class AlertConfig(ModelObj):
             raise mlrun.errors.MLRunInvalidArgumentError("Alert name must be provided")
 
     def _serialize_field(
-        self, struct: dict, field_name: Optional[str] = None, strip: bool = False
+        self, struct: dict, field_name: str | None = None, strip: bool = False
     ):
         if field_name == "entities":
             if self.entities:
@@ -212,8 +215,8 @@ class AlertConfig(ModelObj):
 
     def to_dict(
         self,
-        fields: Optional[list] = None,
-        exclude: Optional[list] = None,
+        fields: list | None = None,
+        exclude: list | None = None,
         strip: bool = False,
     ):
         if self.entities is None:
@@ -225,9 +228,7 @@ class AlertConfig(ModelObj):
         return super().to_dict(self._dict_fields)
 
     @classmethod
-    def from_dict(
-        cls, struct=None, fields=None, deprecated_fields: Optional[dict] = None
-    ):
+    def from_dict(cls, struct=None, fields=None, deprecated_fields: dict | None = None):
         new_obj = super().from_dict(struct, fields=fields)
 
         entity_data = struct.get("entities")
@@ -287,8 +288,8 @@ class AlertConfig(ModelObj):
 
     def list_activations(
         self,
-        since: Optional[datetime] = None,
-        until: Optional[datetime] = None,
+        since: datetime | None = None,
+        until: datetime | None = None,
         from_last_update: bool = False,
     ) -> list[mlrun.common.schemas.alert.AlertActivation]:
         """
@@ -316,12 +317,12 @@ class AlertConfig(ModelObj):
     def paginated_list_activations(
         self,
         *args,
-        page: Optional[int] = None,
-        page_size: Optional[int] = None,
-        page_token: Optional[str] = None,
+        page: int | None = None,
+        page_size: int | None = None,
+        page_token: str | None = None,
         from_last_update: bool = False,
         **kwargs,
-    ) -> tuple[mlrun.common.schemas.alert.AlertActivation, Optional[str]]:
+    ) -> tuple[mlrun.common.schemas.alert.AlertActivation, str | None]:
         """
         List alerts activations with support for pagination and various filtering options.
 
@@ -335,7 +336,9 @@ class AlertConfig(ModelObj):
         Examples::
 
             # Fetch first page of alert activations with page size of 5
-            alert_activations, token = alert_config.paginated_list_activations(page_size=5)
+            alert_activations, token = alert_config.paginated_list_activations(
+                page_size=5
+            )
             # Fetch next page using the pagination token from the previous response
             alert_activations, token = alert_config.paginated_list_activations(
                 page_token=token

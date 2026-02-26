@@ -33,7 +33,7 @@ The serving graphs are used by [MLRun’s Feature Store](../feature-store/featur
 :maxdepth: 1
 basic-example
 getting-started
-model-serving-get-started
+building-graphs
 deploying-graphs
 demos
 graph-advanced-cfg

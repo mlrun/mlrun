@@ -15,7 +15,7 @@
 import mlrun.common.runtimes.constants
 
 
-def validate_sidecar_probes(sidecars: list[dict]):
+def validate_sidecar_probes(sidecars: list[dict]) -> None:
     """Validate probe configurations in sidecars against Kubernetes V1Probe schema.
 
     Validates that each probe configuration has exactly one of the following:
@@ -26,7 +26,7 @@ def validate_sidecar_probes(sidecars: list[dict]):
         health check configuration key.
     """
     for sidecar in sidecars:
-        for probe_type in (pt.key for pt in mlrun.common.runtimes.constants.ProbeType):
+        for probe_type in mlrun.common.runtimes.constants.ProbeType.all():
             probe_config = sidecar.get(probe_type)
             if probe_config is None:
                 continue

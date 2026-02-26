@@ -14,7 +14,6 @@
 
 import datetime
 import json
-import typing
 from base64 import b64decode
 
 import yaml
@@ -83,7 +82,7 @@ def save_credentials(
     waiter,
     host: str,
     token: str,
-    cluster_id: typing.Optional[str],
+    cluster_id: str | None,
     is_finished: bool,
 ):
     databricks_run = workspace.jobs.get_run(run_id=waiter.run_id)
@@ -132,7 +131,7 @@ def run_mlrun_databricks_job(
 
     def print_status(run: Run):
         statuses = [f"{t.task_key}: {t.state.life_cycle_state}" for t in run.tasks]
-        logger.info(f'Workflow intermediate status: {", ".join(statuses)}')
+        logger.info(f"Workflow intermediate status: {', '.join(statuses)}")
 
     try:
         cluster_id = mlrun.get_secret_or_env("DATABRICKS_CLUSTER_ID")

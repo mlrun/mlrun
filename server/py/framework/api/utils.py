@@ -34,6 +34,7 @@ from fastapi.concurrency import run_in_threadpool
 from kubernetes.client import V1EnvVar, V1EnvVarSource
 from sqlalchemy.orm import Session
 
+import mlrun.common.constants
 import mlrun.common.schemas
 import mlrun.errors
 import mlrun.runtimes.pod
@@ -565,7 +566,7 @@ def _resolve_v3io_fuse_volume_access_key_matching_username(
     volume_name: str,
     volume_name_to_volume_mounts: dict,
     auth_info: mlrun.common.schemas.AuthInfo = None,
-) -> typing.Optional[str]:
+) -> str | None:
     """
     Usually v3io fuse mount is set using mlrun.mount_v3io, which by default add a volume mount to /users/<username>, try
     to resolve the username from there.
@@ -1074,7 +1075,7 @@ def artifact_project_and_resource_name_extractor(artifact):
 
 def get_or_create_project_deletion_background_task(
     project: mlrun.common.schemas.Project, deletion_strategy: str, db_session, auth_info
-) -> tuple[typing.Optional[typing.Callable], str]:
+) -> tuple[typing.Callable | None, str]:
     """
     This method is responsible for creating a background task for deleting a project.
     The project deletion flow is as follows:
@@ -1167,7 +1168,7 @@ async def _delete_project(
     auth_info: mlrun.common.schemas.AuthInfo,
     wait_for_project_deletion: bool,
     background_task_name: str,
-    model_monitoring_access_key: typing.Optional[str] = None,
+    model_monitoring_access_key: str | None = None,
 ):
     force_delete = False
     project_name = project.metadata.name
@@ -1352,6 +1353,12 @@ async def _delete_function(
             )
             raise mlrun.errors.MLRunInternalServerError(error_message)
 
+    # For application runtime functions, clean up source artifacts that were uploaded during deploy
+    if functions[0].get("kind") == mlrun.runtimes.RuntimeKinds.application:
+        await _delete_application_source_artifacts(
+            db_session, project, function_name, auth_info
+        )
+
     # delete the function from the database
     await run_in_threadpool(
         services.api.crud.Functions().delete_function,
@@ -1359,6 +1366,48 @@ async def _delete_function(
         project,
         function_name,
     )
+
+
+async def _delete_application_source_artifacts(
+    db_session: sqlalchemy.orm.Session,
+    project: str,
+    function_name: str,
+    auth_info: mlrun.common.schemas.AuthInfo,
+):
+    """
+    Delete source artifacts associated with an application runtime function.
+
+    When an application runtime function is deployed with a local source file, the source is uploaded as an artifact
+    labeled with the function name.
+    This method cleans up those artifacts when the function is deleted.
+    """
+    labels = [
+        f"{mlrun.common.constants.MLRunInternalLabels.function_name}={function_name}",
+        f"{mlrun.common.constants.MLRunInternalLabels.system_generated}=true",
+    ]
+    logger.debug(
+        "Deleting application source artifacts",
+        project=project,
+        function_name=function_name,
+        labels=labels,
+    )
+    try:
+        await run_in_threadpool(
+            services.api.crud.Artifacts().delete_artifacts,
+            db_session,
+            project=project,
+            name="",
+            tag="*",
+            labels=labels,
+            auth_info=auth_info,
+        )
+    except Exception as exc:
+        logger.warning(
+            "Failed to delete application source artifacts, continuing with function deletion",
+            project=project,
+            function_name=function_name,
+            error=err_to_str(exc),
+        )
 
 
 async def _update_functions_with_deletion_info(functions, project, updates: dict):
@@ -1382,8 +1431,8 @@ async def _update_functions_with_deletion_info(functions, project, updates: dict
 
 def _validate_service_account_details(
     default_service_account: str,
-    allowed_service_accounts: typing.Optional[list[str]],
-    forbidden_service_accounts: typing.Optional[list[str]],
+    allowed_service_accounts: list[str] | None,
+    forbidden_service_accounts: list[str] | None,
 ):
     """
     Sanity check on project configuration.

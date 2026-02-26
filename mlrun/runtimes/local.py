@@ -29,7 +29,6 @@ from os import environ, remove
 from pathlib import Path
 from subprocess import PIPE, Popen
 from sys import executable
-from typing import Optional
 
 from nuclio import Event
 
@@ -202,7 +201,7 @@ class LocalRuntime(BaseRuntime, ParallelRunner):
     kind = "local"
     _is_remote = False
 
-    def to_job(self, image="", func_name: Optional[str] = None):
+    def to_job(self, image="", func_name: str | None = None):
         struct = self.to_dict()
         obj = KubejobRuntime.from_dict(struct)
         obj.kind = "job"  # Ensure kind is set to 'job' for KubejobRuntime

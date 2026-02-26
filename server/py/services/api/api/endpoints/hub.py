@@ -14,7 +14,6 @@
 
 import mimetypes
 from http import HTTPStatus
-from typing import Optional
 
 from fastapi import APIRouter, Depends, Query, Response
 from fastapi.concurrency import run_in_threadpool
@@ -70,9 +69,9 @@ async def create_source(
     response_model=list[mlrun.common.schemas.hub.IndexedHubSource],
 )
 async def list_sources(
-    item_name: Optional[str] = Query(None, alias="item-name"),
-    tag: Optional[str] = Query(None),
-    version: Optional[str] = Query(None),
+    item_name: str | None = Query(None, alias="item-name"),
+    tag: str | None = Query(None),
+    version: str | None = Query(None),
     item_type: HubSourceType = Query(HubSourceType.functions, alias="item-type"),
     db_session: Session = Depends(framework.api.deps.get_db_session),
     auth_info: mlrun.common.schemas.AuthInfo = Depends(
@@ -193,9 +192,9 @@ async def store_source(
 )
 async def get_catalog(
     source_name: str,
-    version: Optional[str] = Query(None),
-    tag: Optional[str] = Query(None),
-    force_refresh: Optional[bool] = Query(False, alias="force-refresh"),
+    version: str | None = Query(None),
+    tag: str | None = Query(None),
+    force_refresh: bool | None = Query(False, alias="force-refresh"),
     object_type: HubSourceType = Query(HubSourceType.functions),
     db_session: Session = Depends(framework.api.deps.get_db_session),
     auth_info: mlrun.common.schemas.AuthInfo = Depends(
@@ -232,9 +231,9 @@ async def get_catalog(
 async def get_item(
     source_name: str,
     item_name: str,
-    version: Optional[str] = Query(None),
-    tag: Optional[str] = Query("latest"),
-    force_refresh: Optional[bool] = Query(False, alias="force-refresh"),
+    version: str | None = Query(None),
+    tag: str | None = Query("latest"),
+    force_refresh: bool | None = Query(False, alias="force-refresh"),
     item_type: HubSourceType = Query(HubSourceType.functions),
     db_session: Session = Depends(framework.api.deps.get_db_session),
     auth_info: mlrun.common.schemas.AuthInfo = Depends(
@@ -308,8 +307,8 @@ async def get_asset(
     source_name: str,
     item_name: str,
     asset_name: str,
-    tag: Optional[str] = Query("latest"),
-    version: Optional[str] = Query(None),
+    tag: str | None = Query("latest"),
+    version: str | None = Query(None),
     item_type: HubSourceType = Query(HubSourceType.functions),
     db_session: Session = Depends(framework.api.deps.get_db_session),
     auth_info: mlrun.common.schemas.AuthInfo = Depends(

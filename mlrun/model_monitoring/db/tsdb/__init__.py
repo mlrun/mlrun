@@ -70,8 +70,8 @@ class ObjectTSDBFactory(enum.Enum):
 
 def get_tsdb_connector(
     project: str,
-    secret_provider: typing.Optional[typing.Callable[[str], str]] = None,
-    profile: typing.Optional[mlrun.datastore.datastore_profile.DatastoreProfile] = None,
+    secret_provider: typing.Callable[[str], str] | None = None,
+    profile: mlrun.datastore.datastore_profile.DatastoreProfile | None = None,
 ) -> TSDBConnector:
     """
     Get TSDB connector object.

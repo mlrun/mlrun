@@ -17,6 +17,7 @@ import time
 from concurrent.futures import ThreadPoolExecutor
 
 import pytest
+import requests
 import tiktoken
 
 from mlrun.datastore.datastore_profile import (
@@ -223,3 +224,34 @@ class TestOpenAIModelRunner(TestMLRunSystem):
         token_count = len(encoding.encode(prompt))
         assert len(result["data"][0]["embedding"]) == 256
         assert result["usage"]["total_tokens"] == token_count
+
+    def test_openai_model_runner_streaming(self):
+        mlrun_model_name = "streaming_model"
+        model_artifact, llm_prompt_artifact, function = setup_remote_model_test(
+            self.project,
+            self.model_url,
+            mlrun_model_name=mlrun_model_name,
+            execution_mechanism="asyncio",
+            image=self.image,
+            requirements=["openai==1.77.0"],
+            default_config={"max_tokens": 60},
+            streaming=True,
+        )
+        function.deploy()
+
+        url = function.get_url()
+        resp = requests.post(
+            f"{url}/v2/models/{mlrun_model_name}/infer",
+            data=json.dumps(BATCH_INPUT_DATA[0]),
+            stream=True,
+        )
+        assert resp.ok, f"Streaming request failed: {resp.status_code} {resp.text}"
+        assert resp.headers.get("Transfer-Encoding") == "chunked"
+
+        chunks = list(resp.iter_content(decode_unicode=True, chunk_size=1024))
+        assert len(chunks) > 1, "Expected multiple streamed chunks"
+        full_text = "".join(chunks)
+        assert EXPECTED_RESULTS[0] in full_text.lower()
+        encoding = tiktoken.encoding_for_model(self.basic_llm_model)
+        token_count = len(encoding.encode(full_text))
+        assert 50 <= token_count <= 70

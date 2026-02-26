@@ -15,7 +15,7 @@ import math
 from collections import defaultdict
 from datetime import datetime, timedelta
 from io import StringIO
-from typing import Literal, Optional, Union
+from typing import Literal, Union
 
 import pandas as pd
 import v3io_frames
@@ -66,7 +66,7 @@ class V3IOTSDBConnector(TSDBConnector):
         self,
         project: str,
         container: str = _CONTAINER,
-        v3io_framesd: Optional[str] = None,
+        v3io_framesd: str | None = None,
         v3io_access_key: str = "",
         create_table: bool = False,
     ) -> None:
@@ -76,7 +76,7 @@ class V3IOTSDBConnector(TSDBConnector):
 
         self.v3io_framesd = v3io_framesd or mlrun.mlconf.v3io_framesd
         self._v3io_access_key = v3io_access_key
-        self._frames_client: Optional[v3io_frames.client.ClientBase] = None
+        self._frames_client: v3io_frames.client.ClientBase | None = None
         self._init_tables_path()
         self._create_table = create_table
         self._v3io_client = None
@@ -213,7 +213,7 @@ class V3IOTSDBConnector(TSDBConnector):
         tsdb_batching_max_events: int = 1000,
         tsdb_batching_timeout_secs: int = 30,
         sample_window: int = 10,
-        aggregate_windows: Optional[list[str]] = None,
+        aggregate_windows: list[str] | None = None,
         aggregate_period: str = "1m",
         **kwarg,
     ):
@@ -511,7 +511,7 @@ class V3IOTSDBConnector(TSDBConnector):
                 f"Failed to write application result to TSDB: {err}"
             )
 
-    def delete_tsdb_resources(self, table: Optional[str] = None):
+    def delete_tsdb_resources(self, table: str | None = None):
         if table:
             # Delete a specific table
             tables = [table]
@@ -597,7 +597,7 @@ class V3IOTSDBConnector(TSDBConnector):
                 )
 
     def delete_application_records(
-        self, application_name: str, endpoint_ids: Optional[list[str]] = None
+        self, application_name: str, endpoint_ids: list[str] | None = None
     ) -> None:
         """
         Delete application records from the TSDB for the given model endpoints or all if ``endpoint_ids`` is ``None``.
@@ -692,11 +692,11 @@ class V3IOTSDBConnector(TSDBConnector):
         table: str,
         start: Union[datetime, str],
         end: Union[datetime, str],
-        columns: Optional[list[str]] = None,
+        columns: list[str] | None = None,
         filter_query: str = "",
-        interval: Optional[str] = None,
-        agg_funcs: Optional[list[str]] = None,
-        sliding_window_step: Optional[str] = None,
+        interval: str | None = None,
+        agg_funcs: list[str] | None = None,
+        sliding_window_step: str | None = None,
         get_raw: bool = False,
         **kwargs,
     ) -> Union[pd.DataFrame, list[v3io_frames.client.RawFrame]]:
@@ -798,7 +798,7 @@ class V3IOTSDBConnector(TSDBConnector):
     @staticmethod
     def _generate_filter_query(
         filter_key: str, filter_values: Union[str, list[str]]
-    ) -> Optional[str]:
+    ) -> str | None:
         if isinstance(filter_values, str):
             return f"{filter_key}=='{filter_values}'"
         elif isinstance(filter_values, list):
@@ -906,12 +906,12 @@ class V3IOTSDBConnector(TSDBConnector):
     def _get_sql_query(
         *,
         table_path: str,
-        endpoint_id: Optional[str] = None,
-        application_names: Optional[list[str]] = None,
+        endpoint_id: str | None = None,
+        application_names: list[str] | None = None,
         name: str = mm_schemas.ResultData.RESULT_NAME,
-        metric_and_app_names: Optional[list[tuple[str, str]]] = None,
-        columns: Optional[list[str]] = None,
-        group_by_columns: Optional[list[str]] = None,
+        metric_and_app_names: list[tuple[str, str]] | None = None,
+        columns: list[str] | None = None,
+        group_by_columns: list[str] | None = None,
     ) -> str:
         """Get the SQL query for the results/metrics table"""
 
@@ -981,11 +981,10 @@ class V3IOTSDBConnector(TSDBConnector):
         endpoint_id: str,
         start: Union[datetime, str],
         end: Union[datetime, str],
-        aggregation_window: Optional[str] = None,
-        agg_funcs: Optional[list[str]] = None,
-        limit: Optional[
-            int
-        ] = None,  # no effect, just for compatibility with the abstract method
+        aggregation_window: str | None = None,
+        agg_funcs: list[str] | None = None,
+        limit: int
+        | None = None,  # no effect, just for compatibility with the abstract method
     ) -> Union[
         mm_schemas.ModelEndpointMonitoringMetricNoData,
         mm_schemas.ModelEndpointMonitoringMetricValues,
@@ -1033,8 +1032,8 @@ class V3IOTSDBConnector(TSDBConnector):
     def get_last_request(
         self,
         endpoint_ids: Union[str, list[str]],
-        start: Optional[datetime] = None,
-        end: Optional[datetime] = None,
+        start: datetime | None = None,
+        end: datetime | None = None,
     ) -> dict[str, float]:
         if not endpoint_ids:
             return {}
@@ -1087,8 +1086,8 @@ class V3IOTSDBConnector(TSDBConnector):
     def get_drift_status(
         self,
         endpoint_ids: Union[str, list[str]],
-        start: Optional[datetime] = None,
-        end: Optional[datetime] = None,
+        start: datetime | None = None,
+        end: datetime | None = None,
         get_raw: bool = False,
     ) -> Union[pd.DataFrame, list[v3io_frames.client.RawFrame]]:
         filter_query = self._generate_filter_query(
@@ -1120,8 +1119,8 @@ class V3IOTSDBConnector(TSDBConnector):
     def get_metrics_metadata(
         self,
         endpoint_id: Union[str, list[str]],
-        start: Optional[datetime] = None,
-        end: Optional[datetime] = None,
+        start: datetime | None = None,
+        end: datetime | None = None,
     ) -> pd.DataFrame:
         start, end = get_start_end(start, end)
         filter_query = self._generate_filter_query(
@@ -1145,8 +1144,8 @@ class V3IOTSDBConnector(TSDBConnector):
     def get_results_metadata(
         self,
         endpoint_id: Union[str, list[str]],
-        start: Optional[datetime] = None,
-        end: Optional[datetime] = None,
+        start: datetime | None = None,
+        end: datetime | None = None,
     ) -> pd.DataFrame:
         start, end = get_start_end(start, end)
         filter_query = self._generate_filter_query(
@@ -1175,8 +1174,8 @@ class V3IOTSDBConnector(TSDBConnector):
     def get_error_count(
         self,
         endpoint_ids: Union[str, list[str]],
-        start: Optional[datetime] = None,
-        end: Optional[datetime] = None,
+        start: datetime | None = None,
+        end: datetime | None = None,
         get_raw: bool = False,
     ) -> Union[pd.DataFrame, list[v3io_frames.client.RawFrame]]:
         filter_query = self._generate_filter_query(
@@ -1215,8 +1214,8 @@ class V3IOTSDBConnector(TSDBConnector):
     def get_avg_latency(
         self,
         endpoint_ids: Union[str, list[str]],
-        start: Optional[datetime] = None,
-        end: Optional[datetime] = None,
+        start: datetime | None = None,
+        end: datetime | None = None,
         get_raw: bool = False,
     ) -> Union[pd.DataFrame, list[v3io_frames.client.RawFrame]]:
         filter_query = self._generate_filter_query(
@@ -1252,7 +1251,7 @@ class V3IOTSDBConnector(TSDBConnector):
     def add_basic_metrics(
         self,
         model_endpoint_objects: list[mlrun.common.schemas.ModelEndpoint],
-        metric_list: Optional[list[str]] = None,
+        metric_list: list[str] | None = None,
     ) -> list[mlrun.common.schemas.ModelEndpoint]:
         """
         Fetch basic metrics from V3IO TSDB and add them to MEP objects.
@@ -1335,11 +1334,11 @@ class V3IOTSDBConnector(TSDBConnector):
 
     def count_results_by_status(
         self,
-        start: Optional[Union[datetime, str]] = None,
-        end: Optional[Union[datetime, str]] = None,
-        endpoint_ids: Optional[Union[str, list[str]]] = None,
-        application_names: Optional[Union[str, list[str]]] = None,
-        result_status_list: Optional[list[int]] = None,
+        start: Union[datetime, str] | None = None,
+        end: Union[datetime, str] | None = None,
+        endpoint_ids: Union[str, list[str]] | None = None,
+        application_names: Union[str, list[str]] | None = None,
+        result_status_list: list[int] | None = None,
     ) -> dict[tuple[str, int], int]:
         start, end = get_start_end(start=start, end=end, delta=timedelta(hours=24))
         filter_query = ""
@@ -1397,9 +1396,9 @@ class V3IOTSDBConnector(TSDBConnector):
 
     def count_processed_model_endpoints(
         self,
-        start: Optional[Union[datetime, str]] = None,
-        end: Optional[Union[datetime, str]] = None,
-        application_names: Optional[Union[str, list[str]]] = None,
+        start: Union[datetime, str] | None = None,
+        end: Union[datetime, str] | None = None,
+        application_names: Union[str, list[str]] | None = None,
     ) -> dict[str, int]:
         start, end = get_start_end(start=start, end=end, delta=timedelta(hours=24))
         group_by_columns = [
@@ -1447,9 +1446,9 @@ class V3IOTSDBConnector(TSDBConnector):
 
     def calculate_latest_metrics(
         self,
-        start: Optional[Union[datetime, str]] = None,
-        end: Optional[Union[datetime, str]] = None,
-        application_names: Optional[Union[str, list[str]]] = None,
+        start: Union[datetime, str] | None = None,
+        end: Union[datetime, str] | None = None,
+        application_names: Union[str, list[str]] | None = None,
     ) -> list[
         Union[mm_schemas.ApplicationResultRecord, mm_schemas.ApplicationMetricRecord]
     ]:
@@ -1498,14 +1497,12 @@ class V3IOTSDBConnector(TSDBConnector):
             return metric_list
 
         # Convert the results DataFrame to a list of ApplicationResultRecord
-        def build_metric_objects() -> (
-            list[
-                Union[
-                    mm_schemas.ApplicationResultRecord,
-                    mm_schemas.ApplicationMetricRecord,
-                ]
+        def build_metric_objects() -> list[
+            Union[
+                mm_schemas.ApplicationResultRecord,
+                mm_schemas.ApplicationMetricRecord,
             ]
-        ):
+        ]:
             metric_objects = []
             if not df_results.empty:
                 df_results.rename(

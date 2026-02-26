@@ -613,6 +613,34 @@ def test_env_from_file():
         del os.environ[key]
 
 
+def test_env_from_file_overrides_default_env_file(tmp_path):
+    """Test that set_env_from_file values take precedence over ~/.mlrun.env"""
+    # Create a "default" env file simulating ~/.mlrun.env
+    default_env = tmp_path / "default.env"
+    default_env.write_text("MLRUN_KFP_TTL=111\n")
+
+    # Create a project-specific env file with different value
+    project_env = tmp_path / "project.env"
+    project_env.write_text("MLRUN_KFP_TTL=222\n")
+
+    original_default = mlrun.config.default_env_file
+    original_kfp_ttl = os.environ.get("MLRUN_KFP_TTL")
+    try:
+        mlrun.config.default_env_file = str(default_env)
+        env_dict = mlrun.set_env_from_file(str(project_env), return_dict=True)
+
+        # The project file value must win over the default env file
+        assert os.environ["MLRUN_KFP_TTL"] == "222"
+        assert env_dict["MLRUN_KFP_TTL"] == "222"
+        assert mlrun.mlconf.kfp_ttl == 222
+    finally:
+        mlrun.config.default_env_file = original_default
+        if original_kfp_ttl is None:
+            os.environ.pop("MLRUN_KFP_TTL", None)
+        else:
+            os.environ["MLRUN_KFP_TTL"] = original_kfp_ttl
+
+
 def test_mock_functions():
     mock_nuclio_config = mlrun.mlconf.mock_nuclio_deployment
     local_config = mlrun.mlconf.force_run_local

@@ -967,9 +967,9 @@ class TestRuns(services.api.tests.unit.conftest.MockedK8sHelper):
         def sort_by_key(e):
             return e["metadata"]["key"]
 
-        assert len(enriched_artifacts) == len(
-            artifacts
-        ), "Number of artifacts is different"
+        assert len(enriched_artifacts) == len(artifacts), (
+            "Number of artifacts is different"
+        )
         enriched_artifacts.sort(key=sort_by_key)
         artifacts.sort(key=sort_by_key)
         for artifact, enriched_artifact in zip(artifacts, enriched_artifacts):

@@ -3,7 +3,7 @@ scipy~=1.16.3
 scikit-learn~=1.5.2
 seaborn~=0.11.0
 scikit-plot~=0.3.7
-mpi4py~=3.1
+mpi4py~=4.1
 # pymysql version should be aligned with mlrun-api due to common use with the model monitoring database
 pymysql~=1.1
 # consumed when training a model using PyTorch

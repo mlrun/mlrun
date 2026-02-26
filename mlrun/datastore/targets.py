@@ -19,7 +19,7 @@ import sys
 import time
 from collections import Counter
 from copy import copy
-from typing import Any, Optional, Union
+from typing import Any, Union
 from urllib.parse import urlparse
 
 import pandas as pd
@@ -400,17 +400,17 @@ class BaseStoreTarget(DataTargetBase):
         self,
         name: str = "",
         path=None,
-        attributes: Optional[dict[str, str]] = None,
+        attributes: dict[str, str] | None = None,
         after_step=None,
         columns=None,
         partitioned: bool = False,
-        key_bucketing_number: Optional[int] = None,
-        partition_cols: Optional[list[str]] = None,
-        time_partitioning_granularity: Optional[str] = None,
-        max_events: Optional[int] = None,
-        flush_after_seconds: Optional[int] = None,
-        storage_options: Optional[dict[str, str]] = None,
-        schema: Optional[dict[str, Any]] = None,
+        key_bucketing_number: int | None = None,
+        partition_cols: list[str] | None = None,
+        time_partitioning_granularity: str | None = None,
+        max_events: int | None = None,
+        flush_after_seconds: int | None = None,
+        storage_options: dict[str, str] | None = None,
+        schema: dict[str, Any] | None = None,
     ):
         super().__init__(
             self.kind,
@@ -497,7 +497,7 @@ class BaseStoreTarget(DataTargetBase):
         timestamp_key=None,
         chunk_id=0,
         **kwargs,
-    ) -> Optional[int]:
+    ) -> int | None:
         if is_spark_dataframe(df):
             options = self.get_spark_options(key_column, timestamp_key)
             options.update(kwargs)
@@ -819,16 +819,16 @@ class ParquetTarget(BaseStoreTarget):
         self,
         name: str = "",
         path=None,
-        attributes: Optional[dict[str, str]] = None,
+        attributes: dict[str, str] | None = None,
         after_step=None,
         columns=None,
-        partitioned: Optional[bool] = None,
-        key_bucketing_number: Optional[int] = None,
-        partition_cols: Optional[list[str]] = None,
-        time_partitioning_granularity: Optional[str] = None,
-        max_events: Optional[int] = 10000,
-        flush_after_seconds: Optional[int] = 900,
-        storage_options: Optional[dict[str, str]] = None,
+        partitioned: bool | None = None,
+        key_bucketing_number: int | None = None,
+        partition_cols: list[str] | None = None,
+        time_partitioning_granularity: str | None = None,
+        max_events: int | None = 10000,
+        flush_after_seconds: int | None = 900,
+        storage_options: dict[str, str] | None = None,
     ):
         self.path = path
         if partitioned is None:
@@ -1185,23 +1185,23 @@ class SnowflakeTarget(BaseStoreTarget):
         self,
         name: str = "",
         path=None,
-        attributes: Optional[dict[str, str]] = None,
+        attributes: dict[str, str] | None = None,
         after_step=None,
         columns=None,
         partitioned: bool = False,
-        key_bucketing_number: Optional[int] = None,
-        partition_cols: Optional[list[str]] = None,
-        time_partitioning_granularity: Optional[str] = None,
-        max_events: Optional[int] = None,
-        flush_after_seconds: Optional[int] = None,
-        storage_options: Optional[dict[str, str]] = None,
-        schema: Optional[dict[str, Any]] = None,
-        url: Optional[str] = None,
-        user: Optional[str] = None,
-        db_schema: Optional[str] = None,
-        database: Optional[str] = None,
-        warehouse: Optional[str] = None,
-        table_name: Optional[str] = None,
+        key_bucketing_number: int | None = None,
+        partition_cols: list[str] | None = None,
+        time_partitioning_granularity: str | None = None,
+        max_events: int | None = None,
+        flush_after_seconds: int | None = None,
+        storage_options: dict[str, str] | None = None,
+        schema: dict[str, Any] | None = None,
+        url: str | None = None,
+        user: str | None = None,
+        db_schema: str | None = None,
+        database: str | None = None,
+        warehouse: str | None = None,
+        table_name: str | None = None,
     ):
         attributes = attributes or {}
         if url:
@@ -1864,24 +1864,24 @@ class SQLTarget(BaseStoreTarget):
         self,
         name: str = "",
         path=None,
-        attributes: Optional[dict[str, str]] = None,
+        attributes: dict[str, str] | None = None,
         after_step=None,
         partitioned: bool = False,
-        key_bucketing_number: Optional[int] = None,
-        partition_cols: Optional[list[str]] = None,
-        time_partitioning_granularity: Optional[str] = None,
-        max_events: Optional[int] = None,
-        flush_after_seconds: Optional[int] = None,
-        storage_options: Optional[dict[str, str]] = None,
-        db_url: Optional[str] = None,
-        table_name: Optional[str] = None,
-        schema: Optional[dict[str, Any]] = None,
+        key_bucketing_number: int | None = None,
+        partition_cols: list[str] | None = None,
+        time_partitioning_granularity: str | None = None,
+        max_events: int | None = None,
+        flush_after_seconds: int | None = None,
+        storage_options: dict[str, str] | None = None,
+        db_url: str | None = None,
+        table_name: str | None = None,
+        schema: dict[str, Any] | None = None,
         primary_key_column: str = "",
         if_exists: str = "append",
         create_table: bool = False,
         # create_according_to_data: bool = False,
         varchar_len: int = 50,
-        parse_dates: Optional[list[str]] = None,
+        parse_dates: list[str] | None = None,
     ):
         """
         Write to SqlDB as output target for a flow.
@@ -2032,7 +2032,7 @@ class SQLTarget(BaseStoreTarget):
 
         db_path, table_name, _, _, _, _ = self._parse_url()
         engine = sqlalchemy.create_engine(db_path)
-        parse_dates: Optional[list[str]] = self.attributes.get("parse_dates")
+        parse_dates: list[str] | None = self.attributes.get("parse_dates")
         with engine.connect() as conn:
             query, parse_dates = _generate_sql_query_with_time_filter(
                 table_name=table_name,

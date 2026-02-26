@@ -751,7 +751,7 @@ def process_kfp_workflow_secret_references(
     env_var_names: list[str],
     secrets_store: "SecretsStore",
     auth_secret_name: str | None = None,
-    auth_info: typing.Optional[mlrun.common.schemas.AuthInfo] = None,
+    auth_info: mlrun.common.schemas.AuthInfo | None = None,
 ) -> bytes:
     if content_type.endswith(
         "zip"
@@ -783,7 +783,7 @@ def _enrich_kfp_workflow_credentials_in_subprocess(
     env_var_names: list[str],
     secrets_store: "SecretsStore",
     auth_secret_name: str | None = None,
-    auth_info: typing.Optional[mlrun.common.schemas.AuthInfo] = None,
+    auth_info: mlrun.common.schemas.AuthInfo | None = None,
 ) -> bytes:
     queue = multiprocessing.Queue()
     process = multiprocessing.Process(
@@ -809,7 +809,7 @@ def _enrich_wrapper(
     env_var_names: list[str],
     secrets_store: "SecretsStore",
     auth_secret_name: str | None = None,
-    auth_info: typing.Optional[mlrun.common.schemas.AuthInfo] = None,
+    auth_info: mlrun.common.schemas.AuthInfo | None = None,
 ):
     result = _enrich_kfp_workflow_zip_credentials(
         byte_buffer=byte_buffer,
@@ -826,7 +826,7 @@ def _enrich_kfp_workflow_zip_credentials(
     env_var_names: list[str],
     secrets_store: "SecretsStore",
     auth_secret_name: str | None = None,
-    auth_info: typing.Optional[mlrun.common.schemas.AuthInfo] = None,
+    auth_info: mlrun.common.schemas.AuthInfo | None = None,
 ) -> bytes:
     in_memory_zip = io.BytesIO(byte_buffer)
     with zipfile.ZipFile(in_memory_zip, "r") as zip_read:
@@ -860,7 +860,7 @@ def _enrich_kfp_workflow_yaml_credentials(
     env_var_names: list[str],
     secrets_store: "SecretsStore",
     auth_secret_name: str | None = None,
-    auth_info: typing.Optional[mlrun.common.schemas.AuthInfo] = None,
+    auth_info: mlrun.common.schemas.AuthInfo | None = None,
 ) -> bytes:
     """
     Modifies the given workflow YAML to add secret environment variables to container specifications.
@@ -950,7 +950,7 @@ def _replace_secret_envs_in_argocd_template(
     env_var_names: list[str],
     container: dict,
     secrets_store: "SecretsStore",
-    auth_info: typing.Optional[mlrun.common.schemas.AuthInfo] = None,
+    auth_info: mlrun.common.schemas.AuthInfo | None = None,
 ) -> None:
     """
     Replaces specified environment variables in the container with secret references.
@@ -979,7 +979,7 @@ def _replace_secret_envs_in_tekton_template(
     env_var_names: list[str],
     task: dict,
     secrets_store: "SecretsStore",
-    auth_info: typing.Optional[mlrun.common.schemas.AuthInfo] = None,
+    auth_info: mlrun.common.schemas.AuthInfo | None = None,
 ) -> None:
     secret_name_to_secret_ref = {}
     step_template = task.get("stepTemplate", {})
@@ -997,7 +997,7 @@ def _replace_secret_vars_in_function_spec(
     env_var_names: list[str],
     secret_name_to_secret_ref: dict[str, V1EnvVar],
     secrets_store: "SecretsStore",
-    auth_info: typing.Optional[mlrun.common.schemas.AuthInfo] = None,
+    auth_info: mlrun.common.schemas.AuthInfo | None = None,
 ) -> None:
     """
     Replaces specified environment variables in the function spec within cmd_parts.
@@ -1030,7 +1030,7 @@ def _create_secret_env_var_for_pipeline(
     name: str,
     value: str,
     secrets_store: "SecretsStore",
-    auth_info: typing.Optional[mlrun.common.schemas.AuthInfo] = None,
+    auth_info: mlrun.common.schemas.AuthInfo | None = None,
 ) -> V1EnvVar:
     secret_username = auth_info.user_id if auth_info and auth_info.user_id else name
     secret_name = secrets_store.store_auth_secret(
@@ -1059,7 +1059,7 @@ def _replace_env_vars_with_secrets(
     env_var_names: list[str],
     secret_name_to_secret_ref: dict[str, V1EnvVar],
     secrets_store: "SecretsStore",
-    auth_info: typing.Optional[mlrun.common.schemas.AuthInfo] = None,
+    auth_info: mlrun.common.schemas.AuthInfo | None = None,
 ) -> list[dict]:
     """
     Helper function to replace environment variables with secrets.

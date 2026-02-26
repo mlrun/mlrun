@@ -642,6 +642,7 @@ class Pipelines(
             env_var_names=["MLRUN_AUTH_SESSION", "V3IO_ACCESS_KEY"],
             secrets_store=services.api.crud.Secrets(),
             auth_secret_name=auth_secret_name,
+            auth_info=auth_info,
         )
         pipeline_file = tempfile.NamedTemporaryFile(suffix=content_type)
         with open(pipeline_file.name, "wb") as fp:

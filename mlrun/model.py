@@ -982,6 +982,7 @@ class RunSpec(ModelObj):
         "handler",
         "affinity",
         "tolerations",
+        "returns",
     ]
 
     def __init__(
@@ -1058,11 +1059,22 @@ class RunSpec(ModelObj):
 
     def _serialize_field(
         self, struct: dict, field_name: str | None = None, strip: bool = False
-    ) -> str | None:
+    ) -> str | list | None:
         # We pull the field from self and not from struct because it was excluded from the struct
         if field_name == "handler":
             if self.handler and isinstance(self.handler, str):
                 return self.handler
+            return None
+
+        if field_name == "returns":
+            if self.returns:
+                from mlrun.package.log_hint import LogHint
+
+                # TODO: Change to `model_dump` once Pydantic v2 is supported.
+                return [
+                    log_hint.dict() if isinstance(log_hint, LogHint) else log_hint
+                    for log_hint in self.returns
+                ]
             return None
 
         # Properly serialize known K8s objects

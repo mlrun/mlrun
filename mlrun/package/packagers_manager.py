@@ -58,20 +58,21 @@ class PackagersManager:
         # Initialize the packagers list (with the default packager in it):
         self._packagers: list[Packager] = []
 
-        # Set an artifacts list and results dictionary to collect all packed objects (will be used later to write extra
-        # data if noted by the user using the log hint key "extra_data")
-        self._artifacts: list[Artifact] = []
+        # Set an artifacts list (holding tuples of packed artifact and the `context.log_artifact` kwargs to use for it)
+        # and results dictionary to collect all packed objects (will be used later to write extra data if noted by the
+        # user using the log hint key "extra_data")
+        self._artifacts: list[tuple[Artifact, dict]] = []
         self._results = {}
 
         # Temporary holder for bundle structures results to update the store paths before logging them as results:
         self._bundles = {}
 
     @property
-    def artifacts(self) -> list[Artifact]:
+    def artifacts(self) -> list[tuple[Artifact, dict]]:
         """
         Get the artifacts that were packed by the manager.
 
-        :return: A list of artifacts.
+        :return: A list of tuples with the artifacts and their `context.log_artifact` method kwargs.
         """
         return self._artifacts
 
@@ -349,7 +350,7 @@ class PackagersManager:
                 )
 
         # Join all artifacts (packager artifacts + context artifacts):
-        all_artifacts = self.artifacts + additional_artifacts
+        all_artifacts = [artifact for (artifact, _) in self.artifacts] + additional_artifacts
 
         # Prepare a set for artifacts that require updates post linking:
         artifacts_to_update = set()
@@ -764,8 +765,13 @@ class PackagersManager:
             else:
                 artifact.spec.metrics = log_hint.metrics
 
+        # Add logging kwargs from the log hint:
+        logging_kwargs = {}
+        if log_hint.artifact_path:
+            logging_kwargs["artifact_path"] = log_hint.artifact_path
+
         # Collect the artifact and return:
-        self._artifacts.append(artifact)
+        self._artifacts.append((artifact, logging_kwargs))
         return artifact
 
     def _unpack_package(

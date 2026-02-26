@@ -667,3 +667,30 @@ def test_link_packages_bidirectional():
     assert context_artifact.spec.extra_data["packager_artifact"] == packager_artifact
     assert context_artifact.spec.extra_data["packager_result"] == 42
     assert context_artifact.spec.extra_data["static_value"] == "unchanged"
+
+
+def test_unbundling_fallback():
+    """
+    Test that packing a non-unbundle-able object with ``itemized=True`` falls back gracefully to single-object packing
+    without creating a phantom entry in ``_bundles``.
+    """
+    # Set up a PackagersManager with only PackagerA (packs strings, can't unbundle):
+    packagers_manager = PackagersManager()
+    packagers_manager.collect_packagers([PackagerA])
+
+    # Pack a string with itemized=True:
+    log_hint = LogHint(key="my_result", itemized=True)
+    packages = packagers_manager.pack(obj="hello", log_hint=log_hint)
+
+    # The object should be packed normally (fallback to default packager as artifact):
+    assert packages is not None
+    assert any(
+        artifact.key == "my_result" for artifact, _ in packagers_manager._artifacts
+    )
+
+    # No bundle should have been created — the key should NOT appear in _bundles:
+    assert "my_result" not in packagers_manager._bundles
+
+    # get_bundles_results should return empty and not crash:
+    bundles_results = packagers_manager.get_bundles_results(logged_outputs={})
+    assert bundles_results == {}

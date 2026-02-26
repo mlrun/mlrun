@@ -221,16 +221,20 @@ class PackagersManager:
         :raise MLRunPackagePackingError:    If there was an error during the packing.
         :raise MLRunPackageUnbundlingError: If there was an error during the unbundling.
         """
-        # A single object is required to be packaged:
         try:
             if log_hint.itemized:
+                # Multiple objects are required to be packaged as a bundle:
                 package, bundle_result = self._pack_bundle(
                     obj=obj,
                     log_hint=log_hint,
                     unbundle_level=log_hint.itemized,
                 )
-                self._bundles[log_hint.key] = bundle_result
+                # Check if the bundle result is a dict or list - meaning it was unbundled successfully so we collect
+                # the bundle structure:
+                if isinstance(bundle_result, dict | list):
+                    self._bundles[log_hint.key] = bundle_result
             else:
+                # A single object is required to be packaged:
                 package = self._pack(
                     obj=obj, log_hint=log_hint.copy()
                 )  # Log hint is copied to preserve key for error.
@@ -600,6 +604,12 @@ class PackagersManager:
     ) -> tuple[list[Artifact | dict | None], dict | str]:
         """
         Pack a bundle of objects using one of the manager's packagers.
+
+        Note: ``bundle_structure`` is a dict or list mirroring the unbundled object's structure with package keys as
+        leaves when actual unbundling occurred. When the object could not be unbundled, it is packed as a single object
+        and ``bundle_structure`` is a string (the log hint key). This string serves as a leaf value in recursive calls
+        but should **not** be stored in ``_bundles`` at the top level since no actual unbundling occurred — the packed
+        result / artifact is already collected normally in ``_results`` or ``_artifacts``.
 
         :param obj:            The objects bundle to pack as artifacts.
         :param log_hint:       The log hint to use.

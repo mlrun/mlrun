@@ -1058,7 +1058,7 @@ class RunSpec(ModelObj):
         self.auth = auth or {}
 
     def _serialize_field(
-        self, struct: dict, field_name: Optional[str] = None, strip: bool = False
+        self, struct: dict, field_name: str | None = None, strip: bool = False
     ) -> str | list | None:
         # We pull the field from self and not from struct because it was excluded from the struct
         if field_name == "handler":

@@ -43,6 +43,10 @@ class _RequestContext(_MappedBody):
 
     Priority order: path > query > body_map (path parameters have highest priority)
     Conflicts are not allowed - request will fail if same parameter appears in multiple sources.
+
+    Additionally, system-injected ``url_params`` (e.g. ``mlrun_request_path``) are merged
+    in after the conflict check without raising conflicts - they use the reserved ``mlrun_``
+    prefix to avoid collisions with user-defined parameters.
     """
 
     def __init__(
@@ -50,6 +54,7 @@ class _RequestContext(_MappedBody):
         path_params: dict[str, str] | None = None,
         query_params: dict[str, str | list[str]] | None = None,
         body_params: dict[str, Any] | None = None,
+        url_params: dict[str, Any] | None = None,
     ):
         merged = {}
         sources = [
@@ -80,6 +85,11 @@ class _RequestContext(_MappedBody):
                 f"request sources: {conflict_details}. Parameters must be unique across "
                 f"path, query, and body_map."
             )
+
+        # Merge system-injected URL params last, without conflict checking.
+        # These use the reserved 'mlrun_' prefix (e.g. 'mlrun_request_path').
+        if url_params:
+            merged.update(url_params)
 
         super().__init__(merged)
 
@@ -125,64 +135,95 @@ class _APIHandlerStep(mlrun.serving.states.TaskStep):
                         f"'{jsonpath_expr}'. Error: {exc}"
                     ) from exc
 
-        # Pre-compile regex patterns for path template matching (performance optimization)
-        # Pattern format: /api/{user_id}/items/{item_id} → /api/(?P<user_id>[^/]+)/items/(?P<item_id>[^/]+)
-        # This converts {param_name} placeholders to named capture groups
-        self._endpoint_patterns: list[tuple[HTTPMethod, Pattern, str, dict]] = (
-            self._compile_endpoint_patterns()
-        )
+        # Pre-compile patterns in a single pass for performance.
+        # Template patterns: /api/{user_id}/items → regex with named groups.
+        # Star patterns:     /api/v1/*           → plain prefix string.
+        self._endpoint_patterns: list[tuple[HTTPMethod, Pattern, str, dict]]
+        self._star_patterns: list[tuple[HTTPMethod, str, str, dict]]
+        self._endpoint_patterns, self._star_patterns = self._compile_patterns()
 
         mlrun.utils.logger.debug("The context in API handler", context=self.context)
 
-    def _compile_endpoint_patterns(
+    def _compile_patterns(
         self,
-    ) -> list[tuple[HTTPMethod, Pattern, str, dict]]:
-        """Pre-compile regex patterns for all endpoint path templates.
+    ) -> tuple[
+        list[tuple[HTTPMethod, Pattern, str, dict]],
+        list[tuple[HTTPMethod, str, str, dict]],
+    ]:
+        """Compile all non-exact endpoint patterns in a single pass.
 
-        This optimization builds regex patterns once during initialization rather than
-        doing string manipulation on every request.
+        Exact endpoints (no ``{`` or ``*``) are handled by O(1) dict lookup at
+        request time and do not need pre-compilation.
 
-        Pattern explanation:
+        Template patterns (``{param}``):
             /api/{user_id}/items/{item_id}
             ↓ becomes ↓
             ^/api/(?P<user_id>[^/]+)/items/(?P<item_id>[^/]+)$
 
-        Regex components:
-            - ^ and $ → match entire path (anchors)
-            - (?P<name>...) → named capture group for extracted param
-            - [^/]+ → match one or more non-slash characters (greedy path segment)
+            - ^ and $ anchor the full path
+            - ``(?P<name>[^/]+)`` captures one non-slash path segment per parameter
 
-        :return: List of (method, compiled_pattern, endpoint_key, endpoint_config) tuples
+        Star (wildcard) patterns (``*`` at end only):
+            /api/v1/*  → prefix ``/api/v1/``
+            Matches any path that starts with the prefix and has at least one
+            additional character after it.
+
+        :return: Tuple of (template_patterns, star_patterns) where
+
+            * ``template_patterns`` is a list of
+              ``(method, compiled_regex, endpoint_key, endpoint_config)``
+            * ``star_patterns`` is a list of
+              ``(method, prefix, endpoint_key, endpoint_config)``
         """
-        patterns = []
+        template_patterns: list[tuple[HTTPMethod, Pattern, str, dict]] = []
+        star_patterns: list[tuple[HTTPMethod, str, str, dict]] = []
+
         for endpoint_key, endpoint_config in self.config._endpoints.items():
             method, path_pattern = self.config._parse_endpoint_key(endpoint_key)
 
-            # Skip endpoints without path parameters (handled by exact match)
-            if "{" not in path_pattern:
-                continue
+            if "*" in path_pattern:
+                # --- Star (wildcard) pattern ---
+                if not path_pattern.endswith("*"):
+                    raise mlrun.errors.MLRunValueError(
+                        f"Invalid endpoint path '{path_pattern}': "
+                        f"wildcard '*' must be at the end of the path"
+                    )
+                if path_pattern.count("*") > 1:
+                    raise mlrun.errors.MLRunValueError(
+                        f"Invalid endpoint path '{path_pattern}': "
+                        f"wildcard '*' must appear only once at the end of the path"
+                    )
+                # Strip trailing '*'; guarantee a trailing '/' for prefix matching.
+                # Examples: /api/v1/* → /api/v1/   /* → /
+                prefix = path_pattern.rstrip("*")
+                if not prefix.endswith("/"):
+                    prefix += "/"
+                star_patterns.append((method, prefix, endpoint_key, endpoint_config))
 
-            # Convert path template to regex pattern
-            # Example: /api/{user_id}/data → ^/api/(?P<user_id>[^/]+)/data$
-            regex_pattern = re.escape(path_pattern)  # Escape special chars first
-            # Replace escaped braces with capture groups
-            regex_pattern = re.sub(
-                r"\\\{([^}]+)\\\}",  # Match escaped {param_name}
-                r"(?P<\1>[^/]+)",  # Replace with named group (?P<param_name>[^/]+)
-                regex_pattern,
-            )
-            regex_pattern = f"^{regex_pattern}$"  # Add anchors
+            elif "{" in path_pattern:
+                # --- Template pattern ---
+                # Convert {param} placeholders to named regex capture groups.
+                # Example: /api/{user_id}/data → ^/api/(?P<user_id>[^/]+)/data$
+                regex_pattern = re.escape(path_pattern)
+                regex_pattern = re.sub(
+                    r"\\\{([^}]+)\\\}",  # Match escaped {param_name}
+                    r"(?P<\1>[^/]+)",  # Replace with (?P<param_name>[^/]+)
+                    regex_pattern,
+                )
+                regex_pattern = f"^{regex_pattern}$"
+                try:
+                    compiled = re.compile(regex_pattern)
+                except re.error as exc:
+                    raise mlrun.errors.MLRunValueError(
+                        f"Failed to compile regex for endpoint pattern '{path_pattern}' "
+                        f"(key: {endpoint_key}): {exc}"
+                    ) from exc
+                template_patterns.append(
+                    (method, compiled, endpoint_key, endpoint_config)
+                )
+            # else: exact endpoint – handled by dict lookup, no compilation needed
 
-            try:
-                compiled = re.compile(regex_pattern)
-                patterns.append((method, compiled, endpoint_key, endpoint_config))
-            except re.error as exc:
-                raise mlrun.errors.MLRunInvalidArgumentError(
-                    f"Failed to compile regex for endpoint pattern '{path_pattern}' "
-                    f"(key: {endpoint_key}): {exc}"
-                ) from exc
-
-        return patterns
+        return template_patterns, star_patterns
 
     def _apply_parsed_body_map(self, body: dict) -> "_MappedBody":
         """Apply pre-parsed JSONPath expressions to extract parameters from event body.
@@ -406,19 +447,27 @@ class _APIHandlerStep(mlrun.serving.states.TaskStep):
                             f"Failed to process body_map transformation: {exc}"
                         ) from exc
 
-                # Only create RequestContext if we have extracted parameters
-                # Otherwise, preserve the original event body
-                if body_params or path_params or query_params:
+                # Build system-injected URL params when include_url_info is enabled.
+                # mlrun_request_path holds the normalized path of the matched request.
+                url_params: dict[str, Any] = {}
+                if self.config.include_url_info:
+                    url_params["mlrun_request_path"] = normalized_path
+
+                # Only create RequestContext if we have extracted parameters or url_params.
+                # Otherwise, preserve the original event body.
+                if body_params or path_params or query_params or url_params:
                     mlrun.utils.logger.debug(
                         "Creating RequestContext",
                         body_params=body_params,
                         path_params=path_params,
                         query_params=query_params,
+                        url_params=url_params,
                     )
                     request_context = _RequestContext(
                         body_params=body_params,
                         path_params=path_params,
                         query_params=query_params,
+                        url_params=url_params,
                     )
 
                     # Replace event body with unified context
@@ -452,9 +501,10 @@ class _APIHandlerStep(mlrun.serving.states.TaskStep):
     ) -> tuple[str | None, dict[str, str]]:
         """Find matching endpoint key for the given method and path.
 
-        Uses a two-phase search strategy:
+        Uses a three-phase search strategy with strict precedence:
         1. Fast exact match lookup (O(1) dict lookup)
-        2. Pre-compiled regex pattern matching for path templates (O(n) but optimized)
+        2. Pre-compiled regex pattern matching for path templates (O(n), insertion order)
+        3. Star (wildcard) prefix matching (O(n), insertion order)
 
         :param method: HTTP method to match
         :param path: Request path to match
@@ -484,5 +534,27 @@ class _APIHandlerStep(mlrun.serving.states.TaskStep):
                     name: unquote(value) for name, value in match.groupdict().items()
                 }
                 return pattern_endpoint_key, path_params
+
+        # Phase 3: Try star (wildcard) patterns for prefix matching
+        # Ensure path ends with / for comparison with prefix
+        # Using trailing slash ensures /apiv2/users doesn't match /api/* prefix
+        # Path must be strictly "under" the prefix, not equal to it
+        path_with_slash = path if path.endswith("/") else path + "/"
+        for (
+            star_method,
+            prefix,
+            star_endpoint_key,
+            _,
+        ) in self._star_patterns:
+            if star_method != method:
+                continue
+
+            # Path must start with prefix AND be longer than prefix (at least one more char)
+            # This ensures /api/ doesn't match /api/* (only /api/something does)
+            if path_with_slash.startswith(prefix) and len(path_with_slash) > len(
+                prefix
+            ):
+                # Star patterns don't extract parameters
+                return star_endpoint_key, {}
 
         return None, {}

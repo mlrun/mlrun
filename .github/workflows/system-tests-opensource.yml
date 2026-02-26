@@ -17,6 +17,7 @@ name: System Tests Open Source
 permissions:
   contents: read
   packages: write
+  pull-requests: write
   
 on:
    workflow_dispatch:
@@ -276,7 +277,7 @@ jobs:
         mirrors:
           registry.localhost:
             endpoint:
-            - http://registry.localhost:80
+            - http://127.0.0.1:32000
           docker.io:
             endpoint:
             - https://registry-1.docker.io
@@ -288,7 +289,8 @@ jobs:
         EOF
         
         echo "✓ Registries configuration created at /etc/rancher/k3s/registries.yaml"
-        
+
+
         # Show the config (with credentials masked)
         echo "=== Configuration preview (credentials masked) ==="
         sudo sed 's/username:.*/username: ***/' /etc/rancher/k3s/registries.yaml | \
@@ -387,7 +389,7 @@ jobs:
       uses: nick-fields/retry@ce71cc2ab81d554ebbe88c79ab5975992d79ba08 # v3
       with:
         timeout_minutes: 45
-        max_attempts: 3
+        max_attempts: 1
         retry_wait_seconds: 120
         command: |
           # TODO: Align the mlrun config env vars with the ones in the prepare.py script to avoid further inconsistencies.
@@ -395,7 +397,11 @@ jobs:
           
           # Cleanup any existing helm release before retry
           helm uninstall mlrun-ce -n ${NAMESPACE} || true
-          
+
+          # Delete PVCs so that stateful services (e.g. Kafka) start with a clean data directory
+          kubectl delete pvc --all -n ${NAMESPACE} --wait=false 2>/dev/null || true
+          kubectl wait --for=delete pvc --all -n ${NAMESPACE} --timeout=120s 2>/dev/null || true
+
           # Wait a bit for cleanup to complete
           sleep 30
           
@@ -406,10 +412,12 @@ jobs:
               --namespace=${NAMESPACE} \
               --registry-secret-name="" \
               --devel \
+              --helm-timeout=15m \
               --override-mlrun-api-image="${{ needs.prepare-inputs.outputs.mlrun_docker_registry }}${{ needs.prepare-inputs.outputs.mlrun_docker_repo }}/mlrun-api:${{ needs.prepare-inputs.outputs.mlrun_docker_tag }}" \
               --override-mlrun-log-collector-image="${{ needs.prepare-inputs.outputs.mlrun_docker_registry }}${{ needs.prepare-inputs.outputs.mlrun_docker_repo }}/log-collector:${{ needs.prepare-inputs.outputs.mlrun_docker_tag }}" \
               --set 'mlrun.api.extraEnvKeyValue.MLRUN_HTTPDB__BUILDER__MLRUN_VERSION_SPECIFIER="mlrun[complete] @ git+https://github.com/mlrun/mlrun@${{ needs.prepare-inputs.outputs.mlrun_version_specifier }}"' \
               --set mlrun.api.extraEnvKeyValue.MLRUN_IMAGES_REGISTRY="${{ needs.prepare-inputs.outputs.mlrun_docker_registry }}" \
+              --set mlrun.api.extraEnvKeyValue.MLRUN_IMAGES_TAG="${{ needs.prepare-inputs.outputs.mlrun_docker_tag }}" \
               --set 'mlrun.api.extraEnvKeyValue.MLRUN_HTTPDB__SCHEDULING__MIN_ALLOWED_INTERVAL="0 seconds"' \
               --set mlrun.api.extraEnvKeyValue.MLRUN_MODEL_ENDPOINT_MONITORING__PARQUET_BATCHING_MAX_EVENTS="100" \
               --set jupyterNotebook.enabled=false \
@@ -418,7 +426,7 @@ jobs:
             # Wait for all pods to be ready, on K3S the helm wait does not work because services will never get an IP
             echo "Waiting for all pods in namespace ${NAMESPACE} to be ready..."
 
-            # Wait up to 30 minutes (1800 seconds) for all pods to be ready
+            # Wait up to 30 minutes (1800 seconds) for all pods to be ready.
             timeout=1800
             interval=60
             elapsed=0
@@ -426,8 +434,29 @@ jobs:
             while true; do
               not_ready=$(kubectl get pods -n ${NAMESPACE} --no-headers | grep -v 'Running\|Completed' | wc -l)
               if [ "$not_ready" -eq 0 ]; then
-                echo "All pods in namespace ${NAMESPACE} are ready."
-                break
+                # All pods appear Running/Completed, but on top of it, make sure pods state is stable by
+                # verifying that the pods restart count is not increasing across a 30 sec period
+                total_restarts=$(kubectl get pods -n ${NAMESPACE} --no-headers | awk '{sum += int($4)} END {print sum+0}')
+                if [ "$total_restarts" -gt 0 ]; then
+                  echo "WARNING: pods have $total_restarts total restart(s), waiting 30s to confirm stability..."
+                  kubectl get pods -n ${NAMESPACE}
+                  sleep 30
+                  elapsed=$((elapsed + 30))
+                  not_ready=$(kubectl get pods -n ${NAMESPACE} --no-headers | grep -v 'Running\|Completed' | wc -l)
+                  total_restarts_after=$(kubectl get pods -n ${NAMESPACE} --no-headers | awk '{sum += int($4)} END {print sum+0}')
+                  if [ "$not_ready" -eq 0 ] && [ "$total_restarts_after" -eq "$total_restarts" ]; then
+                    echo "All pods stable after confirmation check (restarts unchanged at $total_restarts)."
+                    break
+                  fi
+                  if [ "$total_restarts_after" -gt "$total_restarts" ]; then
+                    echo "Restart count increased ($total_restarts -> $total_restarts_after), pod(s) still crashing, continuing to wait..."
+                  else
+                    echo "Pod(s) not ready after confirmation window, continuing to wait..."
+                  fi
+                else
+                  echo "All pods in namespace ${NAMESPACE} are ready."
+                  break
+                fi
               fi
               if [ "$elapsed" -ge "$timeout" ]; then
                 echo "Timeout reached waiting for pods to be ready."
@@ -435,11 +464,36 @@ jobs:
                 exit 1
               fi
               echo "Waiting for pods to be ready... (${elapsed}/${timeout}s)"
+              kubectl get pods -n ${NAMESPACE}
               sleep $interval
               elapsed=$((elapsed + interval))
             done
 
+            # Wait for Kafka brokers to be ready (Strimzi creates broker pods
+            # asynchronously after the operator pod is Running).
+            echo "Waiting for Kafka CR to become Ready..."
+            kafka_timeout=300
+            kafka_elapsed=0
+            kafka_interval=15
+            while true; do
+              kafka_cr_ready=$(kubectl get kafka kafka-stream -n ${NAMESPACE} -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}' 2>/dev/null || echo "Unknown")
+              if [ "$kafka_cr_ready" = "True" ]; then
+                echo "Kafka CR is Ready."
+                break
+              fi
+              if [ "$kafka_elapsed" -ge "$kafka_timeout" ]; then
+                echo "Timeout waiting for Kafka to become Ready."
+                kubectl get pods -n ${NAMESPACE} -l strimzi.io/cluster=kafka-stream 2>/dev/null || true
+                kubectl get kafka kafka-stream -n ${NAMESPACE} -o yaml 2>/dev/null | tail -30 || true
+                exit 1
+              fi
+              echo "Waiting for Kafka... (${kafka_elapsed}/${kafka_timeout}s, status: ${kafka_cr_ready:-Unknown})"
+              sleep $kafka_interval
+              kafka_elapsed=$((kafka_elapsed + kafka_interval))
+            done
+
     - name: Run system tests
+      id: system-tests
       run: |
         # Define get_host_ip function
         get_host_ip() {
@@ -453,19 +507,98 @@ jobs:
         # Get the host IP
         HOST_IP=$(get_host_ip)
         echo "Detected host IP: $HOST_IP"
-        
+
+        # The test client (running on the host) connects to in-cluster services using
+        # their k8s DNS names (timescaledb:5432, kafka-stream:9092) which don't resolve
+        # on the host. Port-forward them to localhost so the host can reach them, and
+        # add /etc/hosts entries so the DNS names resolve to 127.0.0.1.
+        echo "127.0.0.1 timescaledb kafka-stream" | sudo tee -a /etc/hosts
+        kubectl port-forward -n ${NAMESPACE} service/timescaledb 5432:5432 &
+        kubectl port-forward -n ${NAMESPACE} service/kafka-stream-kafka-bootstrap 9092:9092 &
+        # Give port-forwards a moment to establish
+        sleep 3
+        echo "✓ Port-forwards started for timescaledb:5432 and kafka-stream:9092"
+
         # Export environment variables for tests
         export MLRUN_DBPATH="http://${HOST_IP}:${MLRUN_API_NODE_PORT}"
         export MLRUN_SYSTEM_TEST_MARKERS="$PYTEST_MARKERS"
         export MLRUN_SYSTEM_TESTS_CLEAN_RESOURCES="${{ needs.prepare-inputs.outputs.mlrun_system_tests_clean_resources }}"
         export MLRUN_VERSION="${{ needs.prepare-inputs.outputs.mlrun_version }}"
-        
+        export MLRUN_IMAGES_TAG="${{ needs.prepare-inputs.outputs.mlrun_docker_tag }}"
+
+        # S3 credentials for client-side artifact uploads (SeaweedFS).
+        # Read from the s3-credentials K8s secret created by the CE chart, but
+        # replace the in-cluster DNS endpoint with a routable ClusterIP address.
+        export AWS_ACCESS_KEY_ID=$(kubectl get secret s3-credentials -n ${NAMESPACE} -o jsonpath='{.data.AWS_ACCESS_KEY_ID}' | base64 -d)
+        export AWS_SECRET_ACCESS_KEY=$(kubectl get secret s3-credentials -n ${NAMESPACE} -o jsonpath='{.data.AWS_SECRET_ACCESS_KEY}' | base64 -d)
+        S3_CLUSTER_IP=$(kubectl get svc seaweedfs-s3 -n ${NAMESPACE} -o jsonpath='{.spec.clusterIP}')
+        S3_PORT=$(kubectl get svc seaweedfs-s3 -n ${NAMESPACE} -o jsonpath='{.spec.ports[0].port}')
+        export AWS_ENDPOINT_URL_S3="http://${S3_CLUSTER_IP}:${S3_PORT}"
+        echo "S3 endpoint: $AWS_ENDPOINT_URL_S3"
+
         echo "Running tests with MLRUN_DBPATH=$MLRUN_DBPATH"
         
         source venv/bin/activate
         make test-system-open-source
       env:
         PYTEST_MARKERS: ${{ github.event.inputs.pytest_markers || env.DEFAULT_PYTEST_MARKERS }}
+
+    - name: Label PR with system test result
+      if: >-
+        always() &&
+        (github.event_name == 'pull_request' || github.event.inputs.pr_number != '')
+      run: |
+        if [ "${{ github.event_name }}" = "pull_request" ]; then
+          PR="${{ github.event.pull_request.number }}"
+        else
+          PR="${{ github.event.inputs.pr_number }}"
+        fi
+        API_URL="https://api.github.com/repos/${{ github.repository }}/issues/${PR}/labels"
+
+        REPO_LABELS_URL="https://api.github.com/repos/${{ github.repository }}/labels"
+
+        if [ "${{ steps.system-tests.outcome }}" = "success" ]; then
+          LABEL="Smoke tests: Pass"
+          LABEL_COLOR="0e8a16"
+          REMOVE_LABEL="Smoke tests: Fail"
+        else
+          LABEL="Smoke tests: Fail"
+          LABEL_COLOR="d93f0b"
+          REMOVE_LABEL="Smoke tests: Pass"
+        fi
+
+        ENCODED_LABEL=$(echo "${LABEL}" | sed 's/ /%20/g; s/:/%3A/g')
+
+        # Ensure the label exists with the correct color
+        curl -sS -X PATCH \
+          -H "Authorization: token ${GITHUB_TOKEN}" \
+          -H "Accept: application/vnd.github+json" \
+          -d "{\"color\":\"${LABEL_COLOR}\"}" \
+          "${REPO_LABELS_URL}/${ENCODED_LABEL}" || \
+        curl -sS -X POST \
+          -H "Authorization: token ${GITHUB_TOKEN}" \
+          -H "Accept: application/vnd.github+json" \
+          -d "{\"name\":\"${LABEL}\",\"color\":\"${LABEL_COLOR}\"}" \
+          "${REPO_LABELS_URL}"
+
+        # Remove the opposite label and the Unknown label (ignore errors if not present)
+        curl -sS -X DELETE \
+          -H "Authorization: token ${GITHUB_TOKEN}" \
+          -H "Accept: application/vnd.github+json" \
+          "${API_URL}/$(echo "${REMOVE_LABEL}" | sed 's/ /%20/g; s/:/%3A/g')" || true
+        curl -sS -X DELETE \
+          -H "Authorization: token ${GITHUB_TOKEN}" \
+          -H "Accept: application/vnd.github+json" \
+          "${API_URL}/Smoke tests%3A%20Unknown" || true
+
+        # Add the correct label
+        curl -sS -X POST \
+          -H "Authorization: token ${GITHUB_TOKEN}" \
+          -H "Accept: application/vnd.github+json" \
+          -d "{\"labels\":[\"${LABEL}\"]}" \
+          "${API_URL}"
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
     - name: Output  logs
       if: always()
@@ -552,7 +685,32 @@ jobs:
         echo "=== DISK USAGE ==="
         echo "=================================="
         df -h
-        
+
+        echo "=================================="
+        echo "=== TEST RESULTS ==="
+        echo "=================================="
+        cat test-data.xml 2>/dev/null || echo "No test-data.xml found"
+
+        echo "=================================="
+        echo "=== MLRUN API CONFIG ==="
+        echo "=================================="
+        kubectl exec -n ${NAMESPACE} deployment/mlrun-api -- env 2>/dev/null | grep -E "MLRUN_IMAGES|MLRUN_VERSION" || true
+
+        echo "=================================="
+        echo "=== KAFKA BROKER STATUS ==="
+        echo "=================================="
+        kubectl get pods -n ${NAMESPACE} -l strimzi.io/cluster=kafka-stream -o wide 2>/dev/null || echo "No kafka pods found"
+        for pod in $(kubectl get pods -n ${NAMESPACE} -l strimzi.io/name=kafka-stream-kafka -o jsonpath='{.items[*].metadata.name}' 2>/dev/null); do
+          echo "=== Kafka broker logs: $pod ==="
+          kubectl logs -n ${NAMESPACE} "$pod" --tail=50 2>/dev/null || true
+        done
+
+        echo "=================================="
+        echo "=== SEAWEEDFS S3 STATUS ==="
+        echo "=================================="
+        kubectl get svc seaweedfs-s3 -n ${NAMESPACE} -o wide 2>/dev/null || echo "seaweedfs-s3 service not found"
+        kubectl get secret s3-credentials -n ${NAMESPACE} 2>/dev/null || echo "s3-credentials secret not found"
+
         set +x
 
     - name: Final clean up

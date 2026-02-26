@@ -15,7 +15,6 @@
 import base64
 import json
 import os
-import typing
 import unittest
 
 import deepdiff
@@ -99,15 +98,15 @@ class TestSpark3Runtime(services.api.tests.unit.runtimes.base.TestRuntimeBase):
         self,
         expected_runtime_class_name="spark",
         assert_create_custom_object_called=True,
-        expected_volumes: typing.Optional[list] = None,
-        expected_driver_volume_mounts: typing.Optional[list] = None,
-        expected_executor_volume_mounts: typing.Optional[list] = None,
+        expected_volumes: list | None = None,
+        expected_driver_volume_mounts: list | None = None,
+        expected_executor_volume_mounts: list | None = None,
         expected_driver_java_options=None,
         expected_executor_java_options=None,
-        expected_driver_resources: typing.Optional[dict] = None,
-        expected_executor_resources: typing.Optional[dict] = None,
-        expected_cores: typing.Optional[dict] = None,
-        expected_code: typing.Optional[str] = None,
+        expected_driver_resources: dict | None = None,
+        expected_executor_resources: dict | None = None,
+        expected_cores: dict | None = None,
+        expected_code: str | None = None,
     ):
         if assert_create_custom_object_called:
             framework.utils.singletons.k8s.get_k8s_helper().crdapi.create_namespaced_custom_object.assert_called_once()
@@ -151,9 +150,9 @@ class TestSpark3Runtime(services.api.tests.unit.runtimes.base.TestRuntimeBase):
     def _assert_volume_and_mounts(
         self,
         body: dict,
-        expected_volumes: typing.Optional[list] = None,
-        expected_driver_volume_mounts: typing.Optional[list] = None,
-        expected_executor_volume_mounts: typing.Optional[list] = None,
+        expected_volumes: list | None = None,
+        expected_driver_volume_mounts: list | None = None,
+        expected_executor_volume_mounts: list | None = None,
     ):
         if expected_volumes is not None:
             sanitized_volumes = self._sanitize_list_for_serialization(expected_volumes)
@@ -1328,9 +1327,9 @@ class TestSpark3Runtime(services.api.tests.unit.runtimes.base.TestRuntimeBase):
             for vm in executor_volume_mounts
             if vm["mountPath"] == expected_secret_volume_mount_path
         ]
-        assert (
-            len(executor_auth_mount) == 1
-        ), "Auth secret should be mounted to executor"
+        assert len(executor_auth_mount) == 1, (
+            "Auth secret should be mounted to executor"
+        )
 
         # Verify the secret volume is in the volumes list
         volumes = body["spec"]["volumes"]

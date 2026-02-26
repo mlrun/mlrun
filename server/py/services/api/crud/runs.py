@@ -51,7 +51,7 @@ class Runs(
         data: dict,
         uid: str,
         iter: int = 0,
-        project: typing.Optional[str] = None,
+        project: str | None = None,
     ):
         # Some runtimes do not use the submit job flow, so their notifications are not masked.
         # Redact notification params if not concealed with a secret
@@ -117,7 +117,7 @@ class Runs(
         db_session: sqlalchemy.orm.Session,
         uid: str,
         iter: int,
-        project: typing.Optional[str] = None,
+        project: str | None = None,
         format_: mlrun.common.formatters.RunFormat = mlrun.common.formatters.RunFormat.full,
     ) -> dict:
         # TODO: 1.8 - add notifications for full format as well.
@@ -138,34 +138,30 @@ class Runs(
     def list_runs(
         self,
         db_session: sqlalchemy.orm.Session,
-        name: typing.Optional[str] = None,
-        uid: typing.Optional[typing.Union[str, list[str]]] = None,
-        project: typing.Optional[typing.Union[str, list[str]]] = None,
-        labels: typing.Optional[typing.Union[str, list[str]]] = None,
-        states: typing.Optional[typing.Union[str, list[str]]] = None,
+        name: str | None = None,
+        uid: typing.Union[str, list[str]] | None = None,
+        project: typing.Union[str, list[str]] | None = None,
+        labels: typing.Union[str, list[str]] | None = None,
+        states: typing.Union[str, list[str]] | None = None,
         sort: bool = True,
         last: int = 0,
         iter: bool = False,
-        start_time_from: typing.Optional[typing.Union[str, datetime.datetime]] = None,
-        start_time_to: typing.Optional[typing.Union[str, datetime.datetime]] = None,
-        last_update_time_from: typing.Optional[
-            typing.Union[str, datetime.datetime]
-        ] = None,
-        last_update_time_to: typing.Optional[
-            typing.Union[str, datetime.datetime]
-        ] = None,
-        end_time_from: typing.Optional[typing.Union[str, datetime.datetime]] = None,
-        end_time_to: typing.Optional[typing.Union[str, datetime.datetime]] = None,
+        start_time_from: typing.Union[str, datetime.datetime] | None = None,
+        start_time_to: typing.Union[str, datetime.datetime] | None = None,
+        last_update_time_from: typing.Union[str, datetime.datetime] | None = None,
+        last_update_time_to: typing.Union[str, datetime.datetime] | None = None,
+        end_time_from: typing.Union[str, datetime.datetime] | None = None,
+        end_time_to: typing.Union[str, datetime.datetime] | None = None,
         partition_by: mlrun.common.schemas.RunPartitionByField = None,
         rows_per_partition: int = 1,
         partition_sort_by: mlrun.common.schemas.SortField = None,
         partition_order: mlrun.common.schemas.OrderType = mlrun.common.schemas.OrderType.desc,
         max_partitions: int = 0,
-        requested_logs: typing.Optional[bool] = None,
+        requested_logs: bool | None = None,
         return_as_run_structs: bool = True,
         with_notifications: bool = False,
-        offset: typing.Optional[int] = None,
-        limit: typing.Optional[int] = None,
+        offset: int | None = None,
+        limit: int | None = None,
     ) -> mlrun.lists.RunList:
         if (
             not name
@@ -239,7 +235,7 @@ class Runs(
         db_session: sqlalchemy.orm.Session,
         uid: str,
         iter: int,
-        project: typing.Optional[str] = None,
+        project: str | None = None,
     ):
         try:
             run = framework.utils.singletons.db.get_db().read_run(
@@ -283,7 +279,7 @@ class Runs(
         self,
         db_session: sqlalchemy.orm.Session,
         name=None,
-        project: typing.Optional[str] = None,
+        project: str | None = None,
         labels=None,
         state=None,
         days_ago: int = 0,
@@ -379,9 +375,9 @@ class Runs(
         project: str,
         uid: str,
         iter: int = 0,
-        run_updates: typing.Optional[dict] = None,
-        run: typing.Optional[dict] = None,
-        new_background_task_id: typing.Optional[str] = None,
+        run_updates: dict | None = None,
+        run: dict | None = None,
+        new_background_task_id: str | None = None,
     ):
         run_updates = run_updates or {}
         run_updates["status.state"] = mlrun.common.runtimes.constants.RunStates.aborted

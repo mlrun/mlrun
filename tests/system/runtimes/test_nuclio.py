@@ -665,9 +665,9 @@ class TestNuclioRuntime(TestMLRunSystemModelMonitoring):
         self._logger.info("Testing ModelRunnerStep path...")
         resp = requests.post(f"{url}/model_runner", data="test", stream=True)
         self._logger.info(f"ModelRunnerStep response: {resp}")
-        assert (
-            resp.ok
-        ), f"ModelRunnerStep request failed: {resp.status_code} {resp.text}"
+        assert resp.ok, (
+            f"ModelRunnerStep request failed: {resp.status_code} {resp.text}"
+        )
         assert resp.headers.get("Transfer-Encoding") == "chunked"
 
         chunks = list(resp.iter_content(decode_unicode=True, chunk_size=1024))
@@ -810,9 +810,9 @@ class TestNuclioRuntime(TestMLRunSystemModelMonitoring):
                 future.result()
         end = time.time()
         timing = end - start
-        assert (
-            timing < 7
-        ), f"running nuclio async mode took {timing} seconds should be < 7"
+        assert timing < 7, (
+            f"running nuclio async mode took {timing} seconds should be < 7"
+        )
 
     @pytest.mark.parametrize("with_code", [True, False])
     def test_async_http_mode_serving_graph(self, with_code):
@@ -877,9 +877,9 @@ class TestNuclioRuntime(TestMLRunSystemModelMonitoring):
                 future.result()
         end = time.time()
         timing = end - start
-        assert (
-            timing < 7
-        ), f"running serving async mode took {timing} seconds should be < 7"
+        assert timing < 7, (
+            f"running serving async mode took {timing} seconds should be < 7"
+        )
 
 
 @tests.system.base.TestMLRunSystem.skip_test_if_env_not_configured

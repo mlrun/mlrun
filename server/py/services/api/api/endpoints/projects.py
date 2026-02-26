@@ -13,7 +13,6 @@
 # limitations under the License.
 
 import http
-from typing import Optional
 
 import fastapi
 import semver
@@ -357,7 +356,7 @@ async def list_projects(
     format_: mlrun.common.formatters.ProjectFormat = fastapi.Query(
         mlrun.common.formatters.ProjectFormat.full, alias="format"
     ),
-    owner: Optional[str] = None,
+    owner: str | None = None,
     labels: list[str] = fastapi.Query(None, alias="label"),
     state: mlrun.common.schemas.ProjectState = None,
     auth_info: mlrun.common.schemas.AuthInfo = fastapi.Depends(
@@ -402,7 +401,7 @@ async def list_projects(
     "/project-summaries", response_model=mlrun.common.schemas.ProjectSummariesOutput
 )
 async def list_project_summaries(
-    owner: Optional[str] = None,
+    owner: str | None = None,
     labels: list[str] = fastapi.Query(None, alias="label"),
     state: mlrun.common.schemas.ProjectState = None,
     auth_info: mlrun.common.schemas.AuthInfo = fastapi.Depends(

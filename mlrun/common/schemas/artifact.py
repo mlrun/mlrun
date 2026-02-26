@@ -78,11 +78,11 @@ class ArtifactCategories(mlrun.common.types.StrEnum):
 
 class ArtifactIdentifier(pydantic.v1.BaseModel):
     # artifact kind
-    kind: typing.Optional[str]
-    key: typing.Optional[str]
-    iter: typing.Optional[int]
-    uid: typing.Optional[str]
-    producer_id: typing.Optional[str]
+    kind: str | None
+    key: str | None
+    iter: int | None
+    uid: str | None
+    producer_id: str | None
     # TODO support hash once saved as a column in the artifacts table
     # hash: typing.Optional[str]
 
@@ -90,24 +90,24 @@ class ArtifactIdentifier(pydantic.v1.BaseModel):
 class ArtifactMetadata(pydantic.v1.BaseModel):
     key: str
     project: str
-    iter: typing.Optional[int]
-    tree: typing.Optional[str]
-    tag: typing.Optional[str]
+    iter: int | None
+    tree: str | None
+    tag: str | None
 
     class Config:
         extra = pydantic.v1.Extra.allow
 
 
 class ArtifactSpec(pydantic.v1.BaseModel):
-    src_path: typing.Optional[str]
-    target_path: typing.Optional[str]
-    viewer: typing.Optional[str]
-    inline: typing.Optional[str]
-    size: typing.Optional[int]
-    db_key: typing.Optional[str]
-    extra_data: typing.Optional[dict[str, typing.Any]]
-    unpackaging_instructions: typing.Optional[dict[str, typing.Any]]
-    parent_uri: typing.Optional[str]
+    src_path: str | None
+    target_path: str | None
+    viewer: str | None
+    inline: str | None
+    size: int | None
+    db_key: str | None
+    extra_data: dict[str, typing.Any] | None
+    unpackaging_instructions: dict[str, typing.Any] | None
+    parent_uri: str | None
 
     class Config:
         extra = pydantic.v1.Extra.allow

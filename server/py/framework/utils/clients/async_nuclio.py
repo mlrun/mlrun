@@ -15,7 +15,6 @@
 import copy
 import urllib.parse
 from http import HTTPStatus
-from typing import Optional
 
 import aiohttp
 
@@ -84,13 +83,13 @@ class Client:
             ).replace_nuclio_names_with_mlrun_names()
         return parsed_api_gateways
 
-    async def api_gateway_exists(self, name: str, project_name: Optional[str] = None):
+    async def api_gateway_exists(self, name: str, project_name: str | None = None):
         # enrich api gateway name with project prefix
         name = generate_api_gateway_name(project_name, name)
 
         return name in await self.list_api_gateways(project_name=project_name)
 
-    async def get_api_gateway(self, name: str, project_name: Optional[str] = None):
+    async def get_api_gateway(self, name: str, project_name: str | None = None):
         headers = {}
 
         # enrich api gateway name with project prefix
@@ -140,7 +139,7 @@ class Client:
             json=body,
         )
 
-    async def delete_api_gateway(self, name: str, project_name: Optional[str] = None):
+    async def delete_api_gateway(self, name: str, project_name: str | None = None):
         headers = {}
 
         # enrich api gateway name with project prefix
@@ -156,7 +155,7 @@ class Client:
             json={"metadata": {"name": name}},
         )
 
-    async def delete_function(self, name: str, project_name: Optional[str] = None):
+    async def delete_function(self, name: str, project_name: str | None = None):
         # this header allows nuclio to delete function along with its api gateways
         headers = {NUCLIO_DELETE_FUNCTIONS_WITH_API_GATEWAYS_HEADER: "true"}
 
@@ -173,8 +172,8 @@ class Client:
     async def get_v3io_shard_lags(
         self,
         project_name: str,
-        stream_path: Optional[str] = None,
-        function_name: Optional[str] = None,
+        stream_path: str | None = None,
+        function_name: str | None = None,
         consumer_group: str = "serving",
         container_name: str = "projects",
     ) -> dict:

@@ -195,10 +195,10 @@ class _DefaultPackagerMeta(ABCMeta):
             return artifact_type_methods or "None"
 
         packing_artifact_types = (
-            "**Packing Artifact Types**:" f"\n\n{get_artifact_type_methods('pack')}"
+            f"**Packing Artifact Types**:\n\n{get_artifact_type_methods('pack')}"
         )
         unpacking_artifact_types = (
-            "**Unpacking Artifact Types**:" f"\n\n{get_artifact_type_methods('unpack')}"
+            f"**Unpacking Artifact Types**:\n\n{get_artifact_type_methods('unpack')}"
         )
 
         # Construct the final doc string and return:

@@ -15,7 +15,6 @@
 import asyncio
 import datetime
 import traceback
-import typing
 import uuid
 
 import fastapi
@@ -38,9 +37,9 @@ class ProjectBackgroundTasksHandler(metaclass=mlrun.utils.singleton.Singleton):
         project: str,
         background_tasks: fastapi.BackgroundTasks,
         function,
-        timeout: typing.Optional[int] = None,  # in seconds
-        name: typing.Optional[str] = None,
-        labels: typing.Optional[dict[str, str]] = None,
+        timeout: int | None = None,  # in seconds
+        name: str | None = None,
+        labels: dict[str, str] | None = None,
         *args,
         **kwargs,
     ) -> mlrun.common.schemas.BackgroundTask:
@@ -114,11 +113,11 @@ class ProjectBackgroundTasksHandler(metaclass=mlrun.utils.singleton.Singleton):
         self,
         db_session: sqlalchemy.orm.Session,
         project: str,
-        states: typing.Optional[list[str]] = None,
-        created_from: typing.Optional[datetime.datetime] = None,
-        created_to: typing.Optional[datetime.datetime] = None,
-        last_update_time_from: typing.Optional[datetime.datetime] = None,
-        last_update_time_to: typing.Optional[datetime.datetime] = None,
+        states: list[str] | None = None,
+        created_from: datetime.datetime | None = None,
+        created_to: datetime.datetime | None = None,
+        last_update_time_from: datetime.datetime | None = None,
+        last_update_time_to: datetime.datetime | None = None,
     ) -> list[mlrun.common.schemas.BackgroundTask]:
         return framework.utils.singletons.db.get_db().list_background_tasks(
             db_session,

@@ -16,7 +16,7 @@ import os
 import subprocess
 import sys
 from pathlib import Path
-from typing import ClassVar, Optional
+from typing import ClassVar
 
 from mlrun.common.schemas.hub import HubSourceType
 from mlrun.run import function_to_module, get_object
@@ -34,13 +34,13 @@ class HubAsset(ModelObj):
         self,
         name: str,
         version: str,
-        description: Optional[str] = None,
-        categories: Optional[list] = None,
-        requirements: Optional[list] = None,
-        local_path: Optional[Path] = None,
-        filename: Optional[str] = None,
-        example: Optional[str] = None,
-        url: Optional[str] = None,
+        description: str | None = None,
+        categories: list | None = None,
+        requirements: list | None = None,
+        local_path: Path | None = None,
+        filename: str | None = None,
+        example: str | None = None,
+        url: str | None = None,
         **kwargs,
     ):
         self.name: str = name
@@ -48,7 +48,7 @@ class HubAsset(ModelObj):
         self.description: str = description or ""
         self.categories: list = categories or []
         self.requirements: list = requirements or []
-        self.local_path: Optional[Path] = local_path
+        self.local_path: Path | None = local_path
         self.filename: str = filename or name
         self.example: str = example or ""
         self.url: str = url or ""
@@ -81,7 +81,7 @@ class HubAsset(ModelObj):
 
     def download_files(
         self,
-        local_path: Optional[str] = None,
+        local_path: str | None = None,
         download_example: bool = True,
     ):
         """
@@ -107,7 +107,7 @@ class HubAsset(ModelObj):
             f.write(data)
 
     @staticmethod
-    def verify_directory(path: Optional[str] = None) -> Path:
+    def verify_directory(path: str | None = None) -> Path:
         """
         Validate that the given path is an existing directory.
         If no path has been provided, returns current working directory.

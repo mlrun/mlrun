@@ -32,9 +32,9 @@ class TestPredictionQueries:
         )
 
         # Since there's no data, expect ModelEndpointMonitoringMetricNoData object
-        assert (
-            result.data is False
-        ), f"Expected result.data to be False for no data, got {result.data}"
+        assert result.data is False, (
+            f"Expected result.data to be False for no data, got {result.data}"
+        )
 
     def test_read_predictions_with_data(self, query_test_helper):
         """Test read_predictions with sample data."""
@@ -66,9 +66,9 @@ class TestPredictionQueries:
         )
 
         # Result should contain actual prediction data with the specific values we inserted
-        assert (
-            result.data is not False
-        ), "Expected result.data to contain prediction data"
+        assert result.data is not False, (
+            "Expected result.data to contain prediction data"
+        )
         # Validate we got prediction data for the endpoint we queried
         assert hasattr(result, "data"), "Expected result to have data attribute"
         # Since we inserted 1 prediction record, we should get meaningful data back

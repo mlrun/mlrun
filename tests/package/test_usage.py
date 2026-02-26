@@ -45,19 +45,17 @@ RETURNS_LOG_HINTS = [
 ]
 
 
-def log_artifacts_and_results() -> (
-    tuple[
-        np.ndarray,
-        pd.DataFrame,
-        dict,
-        list,
-        int,
-        str,
-        Pipeline,
-        dict[str, pd.DataFrame],
-        list[np.ndarray],
-    ]
-):
+def log_artifacts_and_results() -> tuple[
+    np.ndarray,
+    pd.DataFrame,
+    dict,
+    list,
+    int,
+    str,
+    Pipeline,
+    dict[str, pd.DataFrame],
+    list[np.ndarray],
+]:
     encoder_to_imputer = Pipeline(
         steps=[
             (

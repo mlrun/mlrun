@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Optional
 
 import numpy as np
 import packaging.version
@@ -33,10 +32,10 @@ def infer_schema_from_df(
     df: pd.DataFrame,
     features: ObjectList,
     entities,
-    timestamp_key: Optional[str] = None,
+    timestamp_key: str | None = None,
     entity_columns=None,
     options: InferOptions = InferOptions.Null,
-    push_at_start: Optional[bool] = False,
+    push_at_start: bool | None = False,
 ):
     """infer feature set schema from dataframe"""
     timestamp_fields = []

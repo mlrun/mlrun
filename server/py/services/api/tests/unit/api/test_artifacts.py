@@ -17,7 +17,6 @@ import unittest.mock
 import uuid
 from datetime import datetime, timedelta
 from http import HTTPStatus
-from typing import Optional
 
 import deepdiff
 import pytest
@@ -505,7 +504,7 @@ def test_list_artifacts(db: Session, client: TestClient) -> None:
 def list_limit_unversioned_client(
     unversioned_client: TestClient, request
 ) -> TestClient:
-    def ensure_endpoint_limit(limit_: Optional[int] = None):
+    def ensure_endpoint_limit(limit_: int | None = None):
         for route in unversioned_client.app.routes:
             if route.path.endswith(LIST_API_ARTIFACTS_V2_PATH):
                 for qp in route.dependant.query_params:
@@ -1021,9 +1020,9 @@ def test_list_artifacts_with_time_filters(db: Session, unversioned_client: TestC
     artifacts = resp.json()["artifacts"]
     assert len(artifacts) == 3, "since t2 filter did not return 3 artifacts"
     artifact_keys = [artifact["metadata"]["key"] for artifact in artifacts]
-    assert (
-        artifact_keys.sort() == [key2, key3, key4].sort()
-    ), "since t2 filter returned the wrong artifacts"
+    assert artifact_keys.sort() == [key2, key3, key4].sort(), (
+        "since t2 filter returned the wrong artifacts"
+    )
 
     artifact_path = LIST_API_ARTIFACTS_V2_PATH.format(project=PROJECT)
     resp = unversioned_client.get(
@@ -1037,9 +1036,9 @@ def test_list_artifacts_with_time_filters(db: Session, unversioned_client: TestC
     artifacts = resp.json()["artifacts"]
     assert len(artifacts) == 2, "since t2 until t3 filter did not return 2 artifacts"
     artifact_keys = [artifact["metadata"]["key"] for artifact in artifacts]
-    assert (
-        artifact_keys.sort() == [key2, key4].sort()
-    ), "since t2 until t3 filter returned the wrong artifacts"
+    assert artifact_keys.sort() == [key2, key4].sort(), (
+        "since t2 until t3 filter returned the wrong artifacts"
+    )
 
     artifact_path = LIST_API_ARTIFACTS_V2_PATH.format(project=PROJECT)
     resp = unversioned_client.get(
@@ -1053,9 +1052,9 @@ def test_list_artifacts_with_time_filters(db: Session, unversioned_client: TestC
     artifacts = resp.json()["artifacts"]
     assert len(artifacts) == 2, "since t3 until start filter did not return 2 artifacts"
     artifact_keys = [artifact["metadata"]["key"] for artifact in artifacts]
-    assert (
-        artifact_keys.sort() == [key3, key4].sort()
-    ), "since t3 until start filter returned the wrong artifacts"
+    assert artifact_keys.sort() == [key3, key4].sort(), (
+        "since t3 until start filter returned the wrong artifacts"
+    )
 
     artifact_path = LIST_API_ARTIFACTS_V2_PATH.format(project=PROJECT)
     resp = unversioned_client.get(
@@ -1065,9 +1064,9 @@ def test_list_artifacts_with_time_filters(db: Session, unversioned_client: TestC
     artifacts = resp.json()["artifacts"]
     assert len(artifacts) == 1, "since start filter did not return 1 artifacts"
     artifact_keys = [artifact["metadata"]["key"] for artifact in artifacts]
-    assert (
-        artifact_keys.sort() == [key4].sort()
-    ), "since start filter returned the wrong artifacts"
+    assert artifact_keys.sort() == [key4].sort(), (
+        "since start filter returned the wrong artifacts"
+    )
 
     artifact_path = LIST_API_ARTIFACTS_V2_PATH.format(project=PROJECT)
     resp = unversioned_client.get(
@@ -1077,9 +1076,9 @@ def test_list_artifacts_with_time_filters(db: Session, unversioned_client: TestC
     artifacts = resp.json()["artifacts"]
     assert len(artifacts) == 4, "until start filter did not return 4 artifacts"
     artifact_keys = [artifact["metadata"]["key"] for artifact in artifacts]
-    assert (
-        artifact_keys.sort() == [key1, key2, key3, key4].sort()
-    ), "until start filter returned the wrong artifacts"
+    assert artifact_keys.sort() == [key1, key2, key3, key4].sort(), (
+        "until start filter returned the wrong artifacts"
+    )
 
     artifact_path = LIST_API_ARTIFACTS_V2_PATH.format(project=PROJECT)
     resp = unversioned_client.get(
@@ -1286,33 +1285,33 @@ def test_failed_to_delete_artifact_with_referenced_model_endpoint(
         f"/projects/{PROJECT}/model-endpoints?creation-strategy={creation_strategy}",
         json=model_endpoint.dict(),
     )
-    assert (
-        response.status_code == HTTPStatus.CREATED.value
-    ), f"Expected 201 CREATED when creating the model endpoint, got {response.status_code}: {response.text}"
+    assert response.status_code == HTTPStatus.CREATED.value, (
+        f"Expected 201 CREATED when creating the model endpoint, got {response.status_code}: {response.text}"
+    )
 
     # Attempt to delete the model artifact that is still referenced by the model endpoint
     response = unversioned_client.delete(
         DELETE_API_ARTIFACTS_V2_PATH.format(project=PROJECT, key=KEY)
     )
     # Assert that the deletion fails with a conflict because of the reference
-    assert (
-        response.status_code == HTTPStatus.CONFLICT.value
-    ), f"Expected 409 CONFLICT when deleting an artifact in use, got {response.status_code}: {response.text}"
-    assert (
-        "The artifact is used by" in response.text
-    ), f"Expected conflict explanation in response, got: {response.text}"
+    assert response.status_code == HTTPStatus.CONFLICT.value, (
+        f"Expected 409 CONFLICT when deleting an artifact in use, got {response.status_code}: {response.text}"
+    )
+    assert "The artifact is used by" in response.text, (
+        f"Expected conflict explanation in response, got: {response.text}"
+    )
 
     # Attempt to delete the model artifact that is still referenced by the model endpoint
     response = unversioned_client.delete(
         DELETE_API_MULTI_ARTIFACTS_V2_PATH.format(project=PROJECT)
     )
     # Assert that the deletion fails with a conflict because of the reference
-    assert (
-        response.status_code == HTTPStatus.CONFLICT.value
-    ), f"Expected 409 CONFLICT when deleting an artifact in use, got {response.status_code}: {response.text}"
-    assert (
-        "due to integrity" in response.text
-    ), f"Expected conflict explanation in response, got: {response.text}"
+    assert response.status_code == HTTPStatus.CONFLICT.value, (
+        f"Expected 409 CONFLICT when deleting an artifact in use, got {response.status_code}: {response.text}"
+    )
+    assert "due to integrity" in response.text, (
+        f"Expected conflict explanation in response, got: {response.text}"
+    )
 
 
 def test_failed_to_delete_artifact_with_parent(
@@ -1360,12 +1359,12 @@ def test_failed_to_delete_artifact_with_parent(
         DELETE_API_ARTIFACTS_V2_PATH.format(project=PROJECT, key=KEY)
     )
     # Assert that the deletion fails with a conflict because of the reference
-    assert (
-        response.status_code == HTTPStatus.CONFLICT.value
-    ), f"Expected 409 CONFLICT when deleting an artifact in use, got {response.status_code}: {response.text}"
-    assert (
-        "The artifact has" in response.text
-    ), f"Expected conflict explanation in response, got: {response.text}"
+    assert response.status_code == HTTPStatus.CONFLICT.value, (
+        f"Expected 409 CONFLICT when deleting an artifact in use, got {response.status_code}: {response.text}"
+    )
+    assert "The artifact has" in response.text, (
+        f"Expected conflict explanation in response, got: {response.text}"
+    )
 
     # Attempt to delete the model artifact that is still referenced by the model endpoint
     response = unversioned_client.delete(
@@ -1373,16 +1372,16 @@ def test_failed_to_delete_artifact_with_parent(
         params={"name": [KEY]},
     )
     # Assert that the deletion fails with a conflict because of the reference
-    assert (
-        response.status_code == HTTPStatus.CONFLICT.value
-    ), f"Expected 409 CONFLICT when deleting an artifact in use, got {response.status_code}: {response.text}"
-    assert (
-        "due to integrity" in response.text
-    ), f"Expected conflict explanation in response, got: {response.text}"
+    assert response.status_code == HTTPStatus.CONFLICT.value, (
+        f"Expected 409 CONFLICT when deleting an artifact in use, got {response.status_code}: {response.text}"
+    )
+    assert "due to integrity" in response.text, (
+        f"Expected conflict explanation in response, got: {response.text}"
+    )
 
 
 def _create_project(
-    client: TestClient, project_name: str = PROJECT, prefix: Optional[str] = None
+    client: TestClient, project_name: str = PROJECT, prefix: str | None = None
 ):
     project = mlrun.common.schemas.Project(
         metadata=mlrun.common.schemas.ProjectMetadata(name=project_name),
@@ -1436,9 +1435,9 @@ def _generate_artifact_body(
 
 
 def _get_artifact_url(
-    uid: Optional[str] = None,
-    tag: Optional[str] = None,
-    tree: Optional[str] = None,
+    uid: str | None = None,
+    tag: str | None = None,
+    tree: str | None = None,
     key: str = KEY,
 ) -> str:
     url = GET_API_ARTIFACT_V2_PATH.format(project=PROJECT, key=key)

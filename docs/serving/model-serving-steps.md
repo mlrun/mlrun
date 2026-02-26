@@ -8,6 +8,8 @@ Learn about the ModelRunnerStep and other steps used when serving models.
 
 ## ModelRunnerStep
 
+### Description
+
 The {py:class}`~mlrun.serving.ModelRunnerStep` gives you an advanced way to run multiple models on each event with control 
 over how they are executed in terms of concurrency and parallelism. For example, it supports
 running models in a multi-process or a multi-threaded paradigm, and it supports having a dedicated process for a given
@@ -18,9 +20,11 @@ See [Basic code examples](#basic-code-examples) and {py:meth}`mlrun.serving.Mode
 
 ModelRunnerSteps have model endpoints, and can therefore be monitored. The input and output of each step are user-configurable. See {py:meth}`mlrun.serving.ModelRunnerStep.add_model`.
 
-When a `ModelRunnerStep `is included in a function graph, MLRun automatically imports the default language model class (`LLModel` or `mlrun.serving.states.LLModel`) during function deployment to wrap the model for handling a LLM prompt-based inference. This class extends the base Model to provide specialized handling for `LLMPromptArtifact` objects, enabling both synchronous and asynchronous invocation of language models. Follow the class description and implement your own enrichment when a custom class is needed.
+When a `ModelRunnerStep `is included in a graph, MLRun automatically imports the default language model class (`LLModel` or `mlrun.serving.states.LLModel`) during function deployment to wrap the model for handling a LLM prompt-based inference. This class extends the base Model to provide specialized handling for `LLMPromptArtifact` objects, enabling both synchronous and asynchronous invocation of language models. Follow the class description and implement your own enrichment when a custom class is needed.
 
-ModelRunnerStep can only be added to a graph that has the [flow topology](../serving/deploying-graphs.ipynb#flow) and running with the async engine, giving better utilization of CPU/GPU.
+ModelRunnerStep can only be added to a graph that has the {ref}`flow-topology` and running with the async engine, giving better utilization of CPU/GPU.
+
+### Use Cases
 
 ### SDK
 - {py:meth}`~mlrun.serving.ModelRunnerStep.add_model`: adds a model to the model runner and configures its execution.

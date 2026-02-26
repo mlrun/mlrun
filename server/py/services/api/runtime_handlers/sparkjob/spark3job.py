@@ -13,10 +13,8 @@
 # limitations under the License.
 import abc
 import os
-import typing
 from copy import deepcopy
 from datetime import datetime
-from typing import Optional
 
 from kubernetes import client as k8s_client
 from kubernetes.client.rest import ApiException
@@ -24,6 +22,7 @@ from sqlalchemy.orm import Session
 
 import mlrun.common.constants as mlrun_constants
 import mlrun.common.schemas
+import mlrun.errors
 import mlrun.k8s_utils
 import mlrun.utils.regex
 from mlrun.common.runtimes.constants import RunStates, SparkApplicationStates
@@ -208,6 +207,9 @@ with ctx:
 
         update_in(job, "spec.driver.env", extra_env + runtime.spec.env)
         update_in(job, "spec.executor.env", extra_env + runtime.spec.env)
+        if runtime.spec.env_from:
+            update_in(job, "spec.driver.envFrom", runtime.spec.env_from)
+            update_in(job, "spec.executor.envFrom", runtime.spec.env_from)
         update_in(job, "spec.driver.volumeMounts", runtime.spec.volume_mounts)
         update_in(job, "spec.executor.volumeMounts", runtime.spec.volume_mounts)
         update_in(job, "spec.deps", runtime.spec.deps)
@@ -356,7 +358,7 @@ with ctx:
         runtime: mlrun.runtimes.sparkjob.Spark3Runtime,
         job: dict,
         meta: k8s_client.V1ObjectMeta,
-        code: Optional[str] = None,
+        code: str | None = None,
     ):
         namespace = meta.namespace
         k8s = framework.utils.singletons.k8s.get_k8s_helper()
@@ -395,7 +397,7 @@ with ctx:
             name = get_in(resp, "metadata.name", "unknown")
             logger.info(f"SparkJob {name} created")
             return resp
-        except ApiException as exc:
+        except (ApiException, mlrun.errors.MLRunBaseError) as exc:
             crd = (
                 f"{Spark3Runtime.group}/{Spark3Runtime.version}/{Spark3Runtime.plural}"
             )
@@ -456,7 +458,7 @@ with ctx:
 
     def _resolve_crd_object_status_info(
         self, crd_object: dict
-    ) -> tuple[bool, Optional[datetime], Optional[str]]:
+    ) -> tuple[bool, datetime | None, str | None]:
         state = crd_object.get("status", {}).get("applicationState", {}).get("state")
         if not state:
             return False, None, None
@@ -568,10 +570,10 @@ with ctx:
         db_session: Session,
         namespace: str,
         deleted_resources: list[dict],
-        label_selector: Optional[str] = None,
+        label_selector: str | None = None,
         force: bool = False,
-        grace_period: Optional[int] = None,
-        resource_deletion_grace_period: typing.Optional[int] = None,
+        grace_period: int | None = None,
+        resource_deletion_grace_period: int | None = None,
     ):
         """
         Handling config maps deletion
@@ -600,9 +602,9 @@ with ctx:
                         grace_period_seconds=resource_deletion_grace_period,
                     )
                     logger.info(f"Deleted config map: {config_map.metadata.name}")
-            except ApiException as exc:
+            except (ApiException, mlrun.errors.MLRunNotFoundError) as exc:
                 # ignore error if config map is already removed
-                if exc.status != 404:
+                if isinstance(exc, ApiException) and exc.status != 404:
                     raise
 
     @staticmethod

@@ -21,7 +21,7 @@ import os
 import time
 import unittest.mock
 from concurrent.futures import ThreadPoolExecutor
-from typing import Optional, cast
+from typing import cast
 
 import pytest
 import yaml
@@ -135,7 +135,7 @@ class TestBasicHuggingFaceProvider:
     def _check_usage_response(
         result: dict,
         expected_result: str,
-        messages: Optional[list[dict]] = None,
+        messages: list[dict] | None = None,
         tokenizer=None,
         min_tokens: int = 95,
         max_tokens: int = 101,
@@ -191,7 +191,7 @@ class TestHuggingFaceProvider(TestBasicHuggingFaceProvider):
         model_url: str,
         secrets: dict,
         model_name: str,
-        expected_torch_dtype: Optional[str] = None,
+        expected_torch_dtype: str | None = None,
     ):
         messages = [formatted_messages[0]]
         model_provider = mlrun.get_model_provider(
@@ -757,9 +757,9 @@ class TestHuggingFaceMRS(TestBasicHuggingFaceProvider):
             server = function.to_mock_server()
         try:
             response = server.test(body=BATCH_INPUT_DATA[0])
-            assert inspect.isgenerator(
-                response
-            ), f"Expected generator, got {type(response)}"
+            assert inspect.isgenerator(response), (
+                f"Expected generator, got {type(response)}"
+            )
             response = "".join(response)
             assert EXPECTED_RESULTS[0] in response.lower()
         finally:

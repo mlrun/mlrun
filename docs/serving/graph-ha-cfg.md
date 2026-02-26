@@ -38,7 +38,7 @@ See {py:class}`~mlrun.datastore.KafkaSource.add_nuclio_trigger`, {py:class}`~mlr
 
 ## Consumer function configuration
 
-A consumer function is essentially a Nuclio function with a stream trigger. As part of the trigger, you can set a consumer group. See examples of consumer groups in [Queue (streaming)](./remote-execution.ipynb#queue-streaming).
+A consumer function is essentially a Nuclio function with a stream trigger. As part of the trigger, you can set a consumer group. See examples of consumer groups in [Queues and streams](./remote-execution.ipynb#queues-and-streams).
 
 Other configurables:
 - `StreamSource`: The number of replicas is derived from the number of shards and is therefore non-configurable. Furthermore, the number of workers in each replica is set to 1 and also is not configurable.  

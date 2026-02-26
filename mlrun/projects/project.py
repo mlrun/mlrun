@@ -2838,7 +2838,7 @@ class MlrunProject(ModelObj):
         with contextlib.suppress(mlrun.errors.MLRunNotFoundError):
             db.delete_alert_config(
                 mm_constants.MonitoringAlertNames.LAG_DETECTED,
-                project_name=self.name,
+                project=self.name,
             )
 
     def set_function(

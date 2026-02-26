@@ -383,6 +383,7 @@ def enrich_dask_cluster(
         "name": "base",
         "image": image,
         "env": env,
+        "env_from": spec.env_from or [],
         "image_pull_policy": spec.image_pull_policy,
         "volume_mounts": spec.volume_mounts,
     }

@@ -391,6 +391,7 @@ class ServingSpec(nuclio_function.NuclioSpec):
         auth=None,
         streaming: bool | None = None,
         api_handler_config: APIHandlerConfig | None = None,
+        env_from=None,
     ):
         super().__init__(
             command=command,
@@ -405,6 +406,7 @@ class ServingSpec(nuclio_function.NuclioSpec):
             volumes=volumes,
             volume_mounts=volume_mounts,
             env=env,
+            env_from=env_from,
             resources=resources,
             config=config,
             base_spec=base_spec,

@@ -262,6 +262,7 @@ def func_to_pod(
         name="base",
         image=image,
         env=extra_env + runtime.spec.env,
+        env_from=runtime.spec.env_from or [],
         command=[command] if command else None,
         args=args,
         working_dir=workdir,

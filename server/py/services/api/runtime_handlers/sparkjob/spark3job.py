@@ -207,6 +207,9 @@ with ctx:
 
         update_in(job, "spec.driver.env", extra_env + runtime.spec.env)
         update_in(job, "spec.executor.env", extra_env + runtime.spec.env)
+        if runtime.spec.env_from:
+            update_in(job, "spec.driver.envFrom", runtime.spec.env_from)
+            update_in(job, "spec.executor.envFrom", runtime.spec.env_from)
         update_in(job, "spec.driver.volumeMounts", runtime.spec.volume_mounts)
         update_in(job, "spec.executor.volumeMounts", runtime.spec.volume_mounts)
         update_in(job, "spec.deps", runtime.spec.deps)

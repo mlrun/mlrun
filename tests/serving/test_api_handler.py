@@ -1059,10 +1059,8 @@ class TestAPIHandlerMockServer:
         finally:
             server.wait_for_completion()
 
-    def test_api_handler_parameter_conflict_error(
-        self,
-    ) -> None:
-        """Test that parameter conflicts from multiple sources raise error"""
+    def test_api_handler_body_map_path_conflict_at_init(self) -> None:
+        """Test that body_map vs path template conflicts are caught at init time"""
 
         def handler(**kwargs):
             return {"id": kwargs.get("id")}
@@ -1084,14 +1082,47 @@ class TestAPIHandlerMockServer:
         graph = fn.set_topology("flow", engine="sync")
         graph.to(name="handler", handler=handler).respond()
 
+        # Conflict should be raised at mock server init, not at request time
+        with pytest.raises(
+            mlrun.errors.MLRunValueError,
+            match="Configuration conflict.*body_map parameter.*id.*overlap with path template",
+        ):
+            fn.to_mock_server()
+
+    def test_api_handler_parameter_conflict_error(
+        self,
+    ) -> None:
+        """Test that parameter conflicts from multiple sources raise error at request time"""
+
+        def handler(**kwargs):
+            return {"limit": kwargs.get("limit")}
+
+        fn = cast(
+            ServingRuntime,
+            mlrun.new_function("test-param-conflict", kind="serving"),
+        )
+
+        config = APIHandlerConfig()
+        # Use a path template with 'category' (no body_map overlap) so init passes,
+        # but the query string at request time will conflict with 'limit' from path.
+        config.add_endpoint_handler(
+            "/items/{category}/{limit}",
+            HTTPMethod.GET,
+            APIHandlerAction.ALLOW,
+        )
+        fn.set_api_handler_config(config)
+
+        graph = fn.set_topology("flow", engine="sync")
+        graph.to(name="handler", handler=handler).respond()
+
         server = fn.to_mock_server()
         try:
-            # Should raise 400 Bad Request due to parameter conflict
+            # Should raise 400 Bad Request due to runtime parameter conflict
+            # (path 'limit' = "50" vs query 'limit' = "100")
             with pytest.raises(RuntimeError, match="400.*Parameter name conflict"):
                 server.test(
-                    "/items/path-id",
-                    method="POST",
-                    body={"identifier": "body-id"},
+                    "/items/electronics/50?limit=100",
+                    method="GET",
                 )
         finally:
             server.wait_for_completion()

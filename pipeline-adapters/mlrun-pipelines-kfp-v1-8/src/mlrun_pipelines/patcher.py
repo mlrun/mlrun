@@ -32,10 +32,10 @@ from mlrun_pipelines.imports import dsl, kfp
 def _create_enriched_mlrun_workflow(
     self,
     pipeline_func: typing.Callable,
-    pipeline_name: typing.Optional[str] = None,
-    pipeline_description: typing.Optional[str] = None,
-    params_list: typing.Optional[list[dsl.PipelineParam]] = None,
-    pipeline_conf: typing.Optional[dsl.PipelineConf] = None,
+    pipeline_name: str | None = None,
+    pipeline_description: str | None = None,
+    params_list: list[dsl.PipelineParam] | None = None,
+    pipeline_conf: dsl.PipelineConf | None = None,
 ):
     """Call internal implementation of create_workflow and enrich with mlrun functions attributes"""
     from mlrun import pipeline_context

@@ -38,7 +38,7 @@ def parse_model_endpoint_store_prefix(store_prefix: str):
     return endpoint, container, path
 
 
-def get_kafka_topic(project: str, function_name: typing.Optional[str] = None) -> str:
+def get_kafka_topic(project: str, function_name: str | None = None) -> str:
     if (
         function_name is None
         or function_name == mm_constants.MonitoringFunctionNames.STREAM
@@ -133,8 +133,8 @@ def get_model_endpoints_creation_task_status(
     server,
 ) -> tuple[
     mlrun.common.schemas.BackgroundTaskState,
-    typing.Optional[datetime],
-    typing.Optional[set[str]],
+    datetime | None,
+    set[str] | None,
 ]:
     background_task = None
     background_task_state = mlrun.common.schemas.BackgroundTaskState.running
@@ -189,7 +189,7 @@ def get_model_endpoints_creation_task_status(
 def log_background_task_state(
     server,
     background_task_state: mlrun.common.schemas.BackgroundTaskState,
-    background_task_check_timestamp: typing.Optional[datetime],
+    background_task_check_timestamp: datetime | None,
 ):
     logger.info(
         "Checking model endpoint creation task status",

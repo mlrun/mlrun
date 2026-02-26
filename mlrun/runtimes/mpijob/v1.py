@@ -53,6 +53,7 @@ class MPIV1ResourceSpec(MPIResourceSpec):
         graph=None,
         parameters=None,
         track_models=None,
+        env_from=None,
     ):
         super().__init__(
             command=command,
@@ -66,6 +67,7 @@ class MPIV1ResourceSpec(MPIResourceSpec):
             volumes=volumes,
             volume_mounts=volume_mounts,
             env=env,
+            env_from=env_from,
             resources=resources,
             replicas=replicas,
             image_pull_policy=image_pull_policy,

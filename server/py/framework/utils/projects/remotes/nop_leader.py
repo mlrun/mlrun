@@ -13,7 +13,6 @@
 # limitations under the License.
 
 import datetime
-import typing
 
 import mlrun.common.schemas
 import mlrun.errors
@@ -90,8 +89,8 @@ class Member(project_leader.Member):
         self,
         session: str,
         auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
-        updated_after: typing.Optional[datetime.datetime] = None,
-    ) -> tuple[list[mlrun.common.schemas.Project], typing.Optional[datetime.datetime]]:
+        updated_after: datetime.datetime | None = None,
+    ) -> tuple[list[mlrun.common.schemas.Project], datetime.datetime | None]:
         return (
             framework.utils.singletons.project_member.get_project_member()
             .list_projects(self.db_session, auth_info)

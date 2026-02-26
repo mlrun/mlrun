@@ -15,6 +15,8 @@
 import contextvars
 from typing import Optional
 
+import mlrun
+
 # Context storage for RuntimeConfigurationContext
 runtime_configuration_context: contextvars.ContextVar[
     Optional["RuntimeConfigurationContext"]
@@ -38,9 +40,9 @@ class RuntimeConfigurationContext:
 
     __slots__ = ("auth_token_name", "_token")
 
-    def __init__(self, auth_token_name: Optional[str] = None):
+    def __init__(self, auth_token_name: str | None = None):
         self.auth_token_name = auth_token_name
-        self._token: Optional[contextvars.Token] = None
+        self._token: contextvars.Token | None = None
 
     def __enter__(self):
         self._token = runtime_configuration_context.set(self)
@@ -54,7 +56,7 @@ class RuntimeConfigurationContext:
         return f"RuntimeConfigurationContext(auth_token_name={self.auth_token_name!r})"
 
     @staticmethod
-    def get_auth_token_name() -> Optional[str]:
+    def get_auth_token_name() -> str | None:
         """
         Get auth token name from context manager.
 
@@ -63,4 +65,10 @@ class RuntimeConfigurationContext:
         ctx = runtime_configuration_context.get()
         if ctx and ctx.auth_token_name:
             return ctx.auth_token_name
+
+        rundb = mlrun.get_run_db()
+
+        # ensure that rundb of SQLDB wont get into here
+        if rundb and getattr(rundb, "token_provider", None):
+            return getattr(rundb.token_provider, "token_name", None)
         return None

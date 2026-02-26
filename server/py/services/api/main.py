@@ -407,7 +407,7 @@ class Service(framework.service.Service):
     def _list_runs_uids_to_collect_logs(
         self,
         db_session: sqlalchemy.orm.Session,
-        last_update_time: typing.Optional[datetime.datetime] = None,
+        last_update_time: datetime.datetime | None = None,
     ):
         # list all the runs currently still running in the system which we didn't request logs collection for yet
         runs_uids = get_db().list_distinct_runs_uids(
@@ -441,10 +441,10 @@ class Service(framework.service.Service):
     async def _start_log_for_run(
         self,
         run: dict,
-        start_logs_limit: typing.Optional[asyncio.Semaphore] = None,
+        start_logs_limit: asyncio.Semaphore | None = None,
         raise_on_error: bool = True,
         best_effort: bool = False,
-    ) -> typing.Optional[typing.Union[str, None]]:
+    ) -> typing.Union[str, None] | None:
         """
         Starts log collection for a specific run
         :param run: run object
@@ -488,7 +488,7 @@ class Service(framework.service.Service):
                     # Adding the attempt number to the run uid since the log collector does not support multiple pods
                     # per run uid. This separates the attempts so that each attempt has its own logs file.
                     # Incrementing the retry count by 1 since the first retry is the 2nd attempt and so on.
-                    logs_run_uid = f"{run_uid}-attempt-{int(retry_count)+1}"
+                    logs_run_uid = f"{run_uid}-attempt-{int(retry_count) + 1}"
                 success, _ = await logs_collector_client.start_logs(
                     run_uid=logs_run_uid,
                     selector=label_selector,

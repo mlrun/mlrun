@@ -11,13 +11,14 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import inspect
 import json
 import time
 import unittest
 from concurrent.futures import ThreadPoolExecutor
-from typing import Optional
 
 import pytest
+from storey.dtypes import StreamingError
 
 import mlrun
 from mlrun.datastore.model_provider.model_provider import UsageResponseKeys
@@ -125,6 +126,14 @@ class BaseMockModelProviderTest:
         assert event["labels"] == {}
         assert event["metrics"] is None
 
+    def _verify_streaming_response(self, response):
+        """Verify that a streaming response is a generator with the expected mock text."""
+        assert inspect.isgenerator(response), (
+            f"Expected generator, got {type(response)}"
+        )
+        text = "".join(response)
+        assert "mock model provider" in text.lower()
+
     def _verify_single_error_tracking(self, event, input_data):
         """Verify tracking data for single invocation with error"""
         assert event["effective_sample_count"] == 1
@@ -140,7 +149,7 @@ class BaseMockModelProviderTest:
             self._verify_error_tracking(event, invocation_input, model)
 
     def _check_single_invocation(
-        self, invoke_func, mlrun_model_name: Optional[str] = None
+        self, invoke_func, mlrun_model_name: str | None = None
     ):
         """Helper to test single invocation and verify response"""
         if mlrun_model_name:
@@ -157,9 +166,7 @@ class BaseMockModelProviderTest:
 
         self._verify_single_response(response)
 
-    def _check_batch_invocation(
-        self, invoke_func, mlrun_model_name: Optional[str] = None
-    ):
+    def _check_batch_invocation(self, invoke_func, mlrun_model_name: str | None = None):
         """Helper to test batch invocation and verify responses"""
         if mlrun_model_name:
             # System test - use function.invoke()
@@ -174,7 +181,7 @@ class BaseMockModelProviderTest:
         self._verify_batch_response(batch_response)
 
     def _check_single_invocation_with_error(
-        self, invoke_func, mlrun_model_name: Optional[str] = None
+        self, invoke_func, mlrun_model_name: str | None = None
     ):
         """Helper to test single invocation with error and verify error is raised"""
         # Should raise RuntimeError with "Mock error triggered" message
@@ -192,7 +199,7 @@ class BaseMockModelProviderTest:
                 invoke_func(body=self.ERROR_INPUT)
 
     def _check_batch_invocation_with_error(
-        self, invoke_func, mlrun_model_name: Optional[str] = None
+        self, invoke_func, mlrun_model_name: str | None = None
     ):
         """Helper to test batch invocation with error and verify error is raised"""
         # Append error input to BATCH_INPUT_DATA - the ERROR keyword will trigger mock error
@@ -1005,9 +1012,9 @@ class TestMockModelProviderBatchStep(BaseMockModelProviderTest):
             # Single model - error should be in response body directly
             for response in responses:
                 assert isinstance(response, dict)
-                assert (
-                    "error" in response
-                ), f"Expected error field in response, got {response}"
+                assert "error" in response, (
+                    f"Expected error field in response, got {response}"
+                )
                 assert "Mock error triggered by ERROR keyword" in response["error"]
 
         # Verify tracking events
@@ -1032,3 +1039,80 @@ class TestMockModelProviderBatchStep(BaseMockModelProviderTest):
             # Single model
             error_event = dummy_stream.event_list[0]
             self._verify_batch_error_tracking(error_event, error_inputs)
+
+
+class TestMockModelProviderStreaming(BaseMockModelProviderTest):
+    """Tests for streaming invocation with MockModelProvider through MRS."""
+
+    def test_llmodel_streaming(self, rundb_mock):
+        """Test streaming invocation through MRS with MockModelProvider."""
+        project = mlrun.new_project("test-mock-streaming", save=False)
+        model_url = "mock://my-mock-model"
+
+        model_artifact, llm_prompt_artifact, function = setup_remote_model_test(
+            project,
+            model_url,
+            execution_mechanism="asyncio",
+            streaming=True,
+        )
+
+        mocked_get_store_artifact = create_mocked_get_store_artifact(
+            {
+                model_artifact.uri: model_artifact,
+                llm_prompt_artifact.uri: llm_prompt_artifact,
+            }
+        )
+        with unittest.mock.patch(
+            "mlrun.artifacts.llm_prompt.mlrun.datastore.store_manager.get_store_artifact",
+            side_effect=lambda *args, **kwargs: mocked_get_store_artifact(
+                *args, **kwargs
+            ),
+        ):
+            server = function.to_mock_server()
+
+        try:
+            response = server.test(body=BATCH_INPUT_DATA[0])
+            self._verify_streaming_response(response)
+        finally:
+            server.wait_for_completion()
+
+    def test_llmodel_streaming_error(self, rundb_mock):
+        """Test streaming error tracking through MRS with MockModelProvider."""
+        project = mlrun.new_project("test-mock-streaming-error", save=False)
+        model_url = "mock://my-mock-model"
+
+        model_artifact, llm_prompt_artifact, function = setup_remote_model_test(
+            project,
+            model_url,
+            execution_mechanism="asyncio",
+            streaming=True,
+        )
+        function.set_tracking("dummy://", enable_tracking=True)
+
+        mocked_get_store_artifact = create_mocked_get_store_artifact(
+            {
+                model_artifact.uri: model_artifact,
+                llm_prompt_artifact.uri: llm_prompt_artifact,
+            }
+        )
+        with unittest.mock.patch(
+            "mlrun.artifacts.llm_prompt.mlrun.datastore.store_manager.get_store_artifact",
+            side_effect=lambda *args, **kwargs: mocked_get_store_artifact(
+                *args, **kwargs
+            ),
+        ):
+            server = function.to_mock_server()
+
+        try:
+            response = server.test(body=self.ERROR_INPUT)
+            with pytest.raises(
+                StreamingError, match="Mock error triggered by ERROR keyword"
+            ):
+                list(response)
+        finally:
+            server.wait_for_completion()
+
+        dummy_stream = server.context.stream.output_stream
+        assert len(dummy_stream.event_list) == 1
+        event = dummy_stream.event_list[0]
+        self._verify_single_error_tracking(event, self.ERROR_INPUT)

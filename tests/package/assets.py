@@ -13,6 +13,16 @@
 # limitations under the License.
 
 
+class DummyDataItem:
+    def __init__(self, key: str, is_artifact: bool = False):
+        self.key = key
+        self.artifact_url = ""
+        self._is_artifact = is_artifact
+
+    def get_artifact_type(self) -> bool:
+        return self._is_artifact
+
+
 class BaseClass:
     def __init__(self, a: int):
         self.a = a

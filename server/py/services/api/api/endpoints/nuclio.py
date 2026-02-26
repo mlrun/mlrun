@@ -15,9 +15,7 @@
 import asyncio
 import http
 import traceback
-import typing
 from http import HTTPStatus
-from typing import Optional
 
 import fastapi
 import semver
@@ -233,10 +231,10 @@ async def deploy_function(
     background_tasks: fastapi.BackgroundTasks,
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: sqlalchemy.orm.Session = Depends(deps.get_db_session),
-    client_version: typing.Optional[str] = Header(
+    client_version: str | None = Header(
         None, alias=mlrun.common.schemas.HeaderNames.client_version
     ),
-    client_python_version: typing.Optional[str] = Header(
+    client_python_version: str | None = Header(
         None, alias=mlrun.common.schemas.HeaderNames.python_version
     ),
 ):
@@ -431,7 +429,7 @@ def _deploy_function(
     builder_env: dict,
     client_version: str,
     client_python_version: str,
-    model_endpoint_creation_task_name: Optional[str] = None,
+    model_endpoint_creation_task_name: str | None = None,
 ):
     fn = None
     try:
@@ -723,7 +721,7 @@ def _is_nuclio_deploy_status_changed(
     previous_status: dict,
     new_status: dict,
     new_state: str,
-    new_nuclio_name: typing.Optional[str] = None,
+    new_nuclio_name: str | None = None,
 ) -> bool:
     # get relevant fields from the new status
     new_container_image = new_status.get("containerImage", "")

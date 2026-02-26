@@ -221,6 +221,7 @@ from .schedule import (
 from .secret import (
     AuthSecretData,
     DeleteSecretTokenResponse,
+    DeleteSecretTokensResponse,
     ListSecretTokensResponse,
     SecretKeysData,
     SecretProviderName,

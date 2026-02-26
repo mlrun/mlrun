@@ -28,20 +28,20 @@ from .utils import TFKerasTypes, TFKerasUtils
 
 def apply_mlrun(
     model: tf.keras.Model = None,
-    model_name: Optional[str] = None,
+    model_name: str | None = None,
     tag: str = "",
-    model_path: Optional[str] = None,
-    model_format: Optional[str] = None,
+    model_path: str | None = None,
+    model_format: str | None = None,
     save_traces: bool = False,
-    modules_map: Optional[Union[dict[str, Union[None, str, list[str]]], str]] = None,
-    custom_objects_map: Optional[Union[dict[str, Union[str, list[str]]], str]] = None,
-    custom_objects_directory: Optional[str] = None,
+    modules_map: Union[dict[str, Union[None, str, list[str]]], str] | None = None,
+    custom_objects_map: Union[dict[str, Union[str, list[str]]], str] | None = None,
+    custom_objects_directory: str | None = None,
     context: mlrun.MLClientCtx = None,
     auto_log: bool = True,
-    tensorboard_directory: Optional[str] = None,
-    mlrun_callback_kwargs: Optional[dict[str, Any]] = None,
-    tensorboard_callback_kwargs: Optional[dict[str, Any]] = None,
-    use_horovod: Optional[bool] = None,
+    tensorboard_directory: str | None = None,
+    mlrun_callback_kwargs: dict[str, Any] | None = None,
+    tensorboard_callback_kwargs: dict[str, Any] | None = None,
+    use_horovod: bool | None = None,
     **kwargs,
 ) -> TFKerasModelHandler:
     """
@@ -69,7 +69,10 @@ def apply_mlrun(
 
                                             {
                                                 "module1": None,  # import module1
-                                                "module2": ["func1", "func2"],  # from module2 import func1, func2
+                                                "module2": [
+                                                    "func1",
+                                                    "func2",
+                                                ],  # from module2 import func1, func2
                                                 "module3.sub_module": "func3",  # from module3.sub_module import func3
                                             }
 
@@ -85,7 +88,10 @@ def apply_mlrun(
 
                                             {
                                                 "/.../custom_optimizer.py": "optimizer",
-                                                "/.../custom_layers.py": ["layer1", "layer2"],
+                                                "/.../custom_layers.py": [
+                                                    "layer1",
+                                                    "layer2",
+                                                ],
                                             }
 
                                         All the paths will be accessed from the given 'custom_objects_directory',

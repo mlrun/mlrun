@@ -17,7 +17,6 @@ import string
 from collections.abc import Iterator
 from http import HTTPStatus
 from random import choice, randint
-from typing import Optional
 from unittest.mock import Mock, patch
 
 import pytest
@@ -233,7 +232,7 @@ def _get_auth_info() -> mlrun.common.schemas.AuthInfo:
 
 
 def _mock_random_endpoint(
-    state: Optional[str] = None, name: str = "some-name"
+    state: str | None = None, name: str = "some-name"
 ) -> mlrun.common.schemas.ModelEndpoint:
     def random_labels():
         return {f"{choice(string.ascii_letters)}": randint(0, 100) for _ in range(1, 5)}

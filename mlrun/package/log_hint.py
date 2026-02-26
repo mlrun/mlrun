@@ -49,11 +49,11 @@ class LogHint(BaseModel):
     or a sub-key suffix (for maps), inheriting the original log hint configuration.
 
     Accepts the following types:
-    * `bool`:
-        - `True`: Recursively **unbundles** the object all the way down.
-        - `False` (default): Logs the collection as a single, opaque artifact.
-    * `int`: Specifies the maximum depth of **unbundling**. For example, `1` will itemize the top-level collection but
-      log nested collections as single units.
+
+    * ``bool`` - ``True`` recursively unbundles the object all the way down. ``False`` (default) logs the collection as
+      a single, opaque artifact.
+    * ``int`` - Specifies the maximum depth of unbundling. For example, ``1`` itemizes the top-level collection but
+      logs nested collections as single units.
     """
 
     artifact_type: str | None = None

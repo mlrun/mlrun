@@ -45,7 +45,13 @@ class Packager(ABC):
     * :py:meth:`get_default_unpacking_artifact_type` - A class method to get the default artifact type for unpacking a
       data item when it is not representing a package, but a simple url or an old / manually logged artifact.
     * :py:meth:`get_supported_artifact_types` - A class method to get the supported artifact types this packager can
-      pack an object as. Used for the ``is_packable`` and `repr` methods.
+      pack an object as. Used for the ``is_packable`` and `repr` methods. If needed to declare different artifact types
+      for packing and unpacking, override the following two methods:
+
+      * :py:meth:`get_supported_packing_artifact_types` - Returns the artifact types available for packing. Defaults to
+        delegating to ``get_supported_artifact_types``. Override to declare pack-only artifact types.
+      * :py:meth:`get_supported_unpacking_artifact_types` - Returns the artifact types available for unpacking. Defaults
+        to delegating to ``get_supported_artifact_types``. Override to declare unpack-only artifact types.
     * :py:meth:`pack` - A class method to pack a returned object using the provided log hint configurations while noting
       itself instructions for how to unpack it once needed (only relevant for packed artifacts since results do not need
       unpacking).
@@ -60,12 +66,12 @@ class Packager(ABC):
 
     * :py:meth:`is_packable` - a class method to know whether to use this packager to pack an object by its
       type and artifact type. It compares the object's type with the ``PACKABLE_OBJECT_TYPE`` and checks that the
-      artifact type is in the returned supported artifacts list from ``get_supported_artifact_types``.
+      artifact type is in the returned supported artifacts list from ``get_supported_packing_artifact_types``.
     * :py:meth:`is_unpackable` - a class method to know whether to use this packager to unpack a data item by the user-
       noted type hint and optionally stored artifact type in the data item (in case it was packaged before). It matches
       the ``PACKABLE_OBJECT_TYPE`` to the type hint given (same logic as IDE matchups, meaning subclasses are
       considered as unpackable) and checks if the artifact type is in the returned supported artifacts list from
-      ``get_supported_artifact_types``.
+      ``get_supported_unpacking_artifact_types``.
 
     Preferably, each packager should handle a single type of object.
 
@@ -176,6 +182,28 @@ class Packager(ABC):
         """
         pass
 
+    def get_supported_packing_artifact_types(self) -> list[str]:
+        """
+        Get the supported artifact types for packing on this packager.
+
+        By default, delegates to ``get_supported_artifact_types``. Override this method to declare artifact types
+        that are only available for packing (not unpacking).
+
+        :return: A list of artifact types this packager can pack objects as.
+        """
+        return self.get_supported_artifact_types()
+
+    def get_supported_unpacking_artifact_types(self) -> list[str]:
+        """
+        Get the supported artifact types for unpacking on this packager.
+
+        By default, delegates to ``get_supported_artifact_types``. Override this method to declare artifact types
+        that are only available for unpacking (not packing).
+
+        :return: A list of artifact types this packager can unpack data items as.
+        """
+        return self.get_supported_artifact_types()
+
     @abstractmethod
     def pack(
         self,
@@ -285,7 +313,7 @@ class Packager(ABC):
 
         The default implementation checks if the packable object type of this packager is equal to the given object's
         type. If it matches, it looks for the artifact type in the list returned from
-        `get_supported_artifact_types`.
+        ``get_supported_packing_artifact_types``.
 
         :param obj:            The object to pack.
         :param artifact_type:  The artifact type to log the object as.
@@ -304,7 +332,10 @@ class Packager(ABC):
             return False
 
         # Validate the artifact type (if given):
-        if artifact_type and artifact_type not in self.get_supported_artifact_types():
+        if (
+            artifact_type
+            and artifact_type not in self.get_supported_packing_artifact_types()
+        ):
             return False
 
         return True
@@ -317,7 +348,7 @@ class Packager(ABC):
         Check if this packager can unpack an input according to the user-given type hint and the provided artifact type.
 
         The default implementation tries to match the packable object type of this packager to the given type hint. If
-        it matches, it looks for the artifact type in the list returned from `get_supported_artifact_types`.
+        it matches, it looks for the artifact type in the list returned from ``get_supported_unpacking_artifact_types``.
 
         :param data_item:     The input data item to check if unpackable.
         :param type_hint:     The type hint of the input to unpack (the object type to be unpacked).
@@ -335,7 +366,10 @@ class Packager(ABC):
                 return False
 
         # Check the artifact type:
-        if artifact_type and artifact_type not in self.get_supported_artifact_types():
+        if (
+            artifact_type
+            and artifact_type not in self.get_supported_unpacking_artifact_types()
+        ):
             return False
 
         # Unpackable:
@@ -389,9 +423,10 @@ class Packager(ABC):
     def __repr__(self) -> str:
         """
         Get the string representation of a packager in the following format:
-        <packager name>(type=<handled type>, artifact_types=[<all supported artifact types>], priority=<priority>)
+        <packager name>(packable_type=<type>, packing_artifact_types=[...], unpacking_artifact_types=[...],
+        priority=<priority>)
 
-        :return: The string representation of e packager.
+        :return: The string representation of a packager.
         """
         # Get the packager info into variables:
         packager_name = self.__class__.__name__
@@ -405,11 +440,14 @@ class Packager(ABC):
             if self.PACKABLE_OBJECT_TYPE is not ...
             else "Any"
         )
-        supported_artifact_types = self.get_supported_artifact_types()
+        packing_artifact_types = self.get_supported_packing_artifact_types()
+        unpacking_artifact_types = self.get_supported_unpacking_artifact_types()
 
         # Return the string representation in the format noted above:
         return (
-            f"{packager_name}(packable_type={handled_type}, artifact_types={supported_artifact_types}, "
+            f"{packager_name}(packable_type={handled_type}, "
+            f"packing_artifact_types={packing_artifact_types}, "
+            f"unpacking_artifact_types={unpacking_artifact_types}, "
             f"priority={self.priority})"
         )
 

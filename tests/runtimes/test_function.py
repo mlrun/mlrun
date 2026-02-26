@@ -15,7 +15,7 @@
 import pathlib
 import sys
 from contextlib import nullcontext as does_not_raise
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 from deepdiff import DeepDiff
@@ -133,6 +133,26 @@ def test_http_trigger():
         trigger["annotations"]["nginx.ingress.kubernetes.io/proxy-connect-timeout"]
         == "65"
     )
+
+
+def test_nuclio_deploy_set_token_name():
+    function: mlrun.runtimes.RemoteRuntime = mlrun.new_function("tst", kind="nuclio")
+    db = mlrun.get_run_db()
+    db.token_provider = MagicMock(token_name="provider-nuclio-token")
+    db.deploy_nuclio_function = MagicMock(
+        return_value={"data": {"status": {}, "spec": function.spec}}
+    )
+    function._wait_for_function_deployment = MagicMock()
+    function._update_credentials_from_remote_build = MagicMock()
+    function._enrich_command_from_status = MagicMock(return_value={})
+
+    function.deploy()
+
+    assert function.spec.auth["token_name"] == "provider-nuclio-token"
+
+    with mlrun.RuntimeConfigurationContext(auth_token_name="context-nuclio-token"):
+        function.deploy()
+        assert function.spec.auth["token_name"] == "context-nuclio-token"
 
 
 def test_v3io_stream_trigger():

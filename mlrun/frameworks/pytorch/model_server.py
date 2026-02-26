@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Any, Optional, Union
+from typing import Any, Union
 
 import numpy as np
 import torch
@@ -35,21 +35,17 @@ class PyTorchModelServer(V2ModelServer):
     def __init__(
         self,
         context: mlrun.MLClientCtx = None,
-        name: Optional[str] = None,
+        name: str | None = None,
         model: Module = None,
-        model_path: Optional[str] = None,
-        model_name: Optional[str] = None,
-        model_class: Optional[Union[type[Module], str]] = None,
-        modules_map: Optional[
-            Union[dict[str, Union[None, str, list[str]]], str]
-        ] = None,
-        custom_objects_map: Optional[
-            Union[dict[str, Union[str, list[str]]], str]
-        ] = None,
-        custom_objects_directory: Optional[str] = None,
+        model_path: str | None = None,
+        model_name: str | None = None,
+        model_class: Union[type[Module], str] | None = None,
+        modules_map: Union[dict[str, Union[None, str, list[str]]], str] | None = None,
+        custom_objects_map: Union[dict[str, Union[str, list[str]]], str] | None = None,
+        custom_objects_directory: str | None = None,
         use_cuda: bool = True,
         to_list: bool = False,
-        protocol: Optional[str] = None,
+        protocol: str | None = None,
         **class_args,
     ):
         """

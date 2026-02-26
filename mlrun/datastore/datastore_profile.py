@@ -78,7 +78,7 @@ class DatastoreProfileBasic(DatastoreProfile):
     type: str = pydantic.v1.Field("basic")
     _private_attributes = "private"
     public: str
-    private: typing.Optional[str] = None
+    private: str | None = None
 
 
 class ConfigProfile(DatastoreProfile):
@@ -127,8 +127,8 @@ class ConfigProfile(DatastoreProfile):
 
     type = "config"
     _private_attributes = "private"
-    public: typing.Optional[dict] = None
-    private: typing.Optional[dict] = None
+    public: dict | None = None
+    private: dict | None = None
 
     def attributes(self):
         res = {}
@@ -153,10 +153,10 @@ class DatastoreProfileKafkaTarget(DatastoreProfile):
     _private_attributes = "kwargs_private"
     brokers: str
     topic: str
-    kwargs_public: typing.Optional[dict]
-    kwargs_private: typing.Optional[dict]
+    kwargs_public: dict | None
+    kwargs_private: dict | None
 
-    def get_topic(self) -> typing.Optional[str]:
+    def get_topic(self) -> str | None:
         return self.topic
 
     def attributes(self):
@@ -173,15 +173,15 @@ class DatastoreProfileKafkaStream(DatastoreProfile):
     _private_attributes = ("kwargs_private", "sasl_user", "sasl_pass")
     brokers: typing.Union[str, list[str]]
     topics: typing.Union[str, list[str]]
-    group: typing.Optional[str] = "serving"
-    initial_offset: typing.Optional[str] = "earliest"
-    partitions: typing.Optional[typing.Union[str, list[str]]]
-    sasl_user: typing.Optional[str]
-    sasl_pass: typing.Optional[str]
-    kwargs_public: typing.Optional[dict]
-    kwargs_private: typing.Optional[dict]
+    group: str | None = "serving"
+    initial_offset: str | None = "earliest"
+    partitions: typing.Union[str, list[str]] | None
+    sasl_user: str | None
+    sasl_pass: str | None
+    kwargs_public: dict | None
+    kwargs_private: dict | None
 
-    def get_topic(self) -> typing.Optional[str]:
+    def get_topic(self) -> str | None:
         topics = [self.topics] if isinstance(self.topics, str) else self.topics
         return topics[0] if topics else None
 
@@ -248,10 +248,10 @@ class DatastoreProfileRabbitMQ(DatastoreProfile):
 
     broker_url: str
     exchange_name: str
-    queue_name: typing.Optional[str] = None
-    topics: typing.Optional[typing.Union[str, list[str]]] = None
-    username: typing.Optional[str] = None
-    password: typing.Optional[str] = None
+    queue_name: str | None = None
+    topics: typing.Union[str, list[str]] | None = None
+    username: str | None = None
+    password: str | None = None
     prefetch_count: int = 0
     durable_exchange: bool = False
     durable_queue: bool = False
@@ -289,7 +289,7 @@ class DatastoreProfileRabbitMQ(DatastoreProfile):
 
 class DatastoreProfileV3io(DatastoreProfile):
     type: str = pydantic.v1.Field("v3io")
-    v3io_access_key: typing.Optional[str] = None
+    v3io_access_key: str | None = None
     _private_attributes = "v3io_access_key"
 
     def url(self, subpath):
@@ -306,12 +306,12 @@ class DatastoreProfileV3io(DatastoreProfile):
 class DatastoreProfileS3(DatastoreProfile):
     type: str = pydantic.v1.Field("s3")
     _private_attributes = ("access_key_id", "secret_key")
-    endpoint_url: typing.Optional[str] = None
-    force_non_anonymous: typing.Optional[str] = None
-    profile_name: typing.Optional[str] = None
-    assume_role_arn: typing.Optional[str] = None
-    access_key_id: typing.Optional[str] = None
-    secret_key: typing.Optional[str] = None
+    endpoint_url: str | None = None
+    force_non_anonymous: str | None = None
+    profile_name: str | None = None
+    assume_role_arn: str | None = None
+    access_key_id: str | None = None
+    secret_key: str | None = None
     bucket: str
 
     def secrets(self) -> dict:
@@ -344,8 +344,8 @@ class DatastoreProfileRedis(DatastoreProfile):
     type: str = pydantic.v1.Field("redis")
     _private_attributes = ("username", "password")
     endpoint_url: str
-    username: typing.Optional[str] = None
-    password: typing.Optional[str] = None
+    username: str | None = None
+    password: str | None = None
 
     def url_with_credentials(self):
         parsed_url = urlparse(self.endpoint_url)
@@ -387,8 +387,8 @@ class DatastoreProfileRedis(DatastoreProfile):
 class DatastoreProfileDBFS(DatastoreProfile):
     type: str = pydantic.v1.Field("dbfs")
     _private_attributes = ("token",)
-    endpoint_url: typing.Optional[str] = None  # host
-    token: typing.Optional[str] = None
+    endpoint_url: str | None = None  # host
+    token: str | None = None
 
     def url(self, subpath) -> str:
         return f"dbfs://{subpath}"
@@ -405,8 +405,8 @@ class DatastoreProfileDBFS(DatastoreProfile):
 class DatastoreProfileGCS(DatastoreProfile):
     type: str = pydantic.v1.Field("gcs")
     _private_attributes = ("gcp_credentials",)
-    credentials_path: typing.Optional[str] = None  # path to file.
-    gcp_credentials: typing.Optional[typing.Union[str, dict]] = None
+    credentials_path: str | None = None  # path to file.
+    gcp_credentials: typing.Union[str, dict] | None = None
     bucket: str
 
     @pydantic.v1.validator("gcp_credentials", pre=True, always=True)
@@ -447,14 +447,14 @@ class DatastoreProfileAzureBlob(DatastoreProfile):
         "sas_token",
         "credential",
     )
-    connection_string: typing.Optional[str] = None
-    account_name: typing.Optional[str] = None
-    account_key: typing.Optional[str] = None
-    tenant_id: typing.Optional[str] = None
-    client_id: typing.Optional[str] = None
-    client_secret: typing.Optional[str] = None
-    sas_token: typing.Optional[str] = None
-    credential: typing.Optional[str] = None
+    connection_string: str | None = None
+    account_name: str | None = None
+    account_key: str | None = None
+    tenant_id: str | None = None
+    client_id: str | None = None
+    client_secret: str | None = None
+    sas_token: str | None = None
+    credential: str | None = None
     container: str
 
     def url(self, subpath) -> str:
@@ -494,10 +494,10 @@ class DatastoreProfileAzureBlob(DatastoreProfile):
 class DatastoreProfileHdfs(DatastoreProfile):
     type: str = pydantic.v1.Field("hdfs")
     _private_attributes = "token"
-    host: typing.Optional[str] = None
-    port: typing.Optional[int] = None
-    http_port: typing.Optional[int] = None
-    user: typing.Optional[str] = None
+    host: str | None = None
+    port: int | None = None
+    http_port: int | None = None
+    user: str | None = None
 
     def secrets(self) -> dict:
         res = {}
@@ -525,12 +525,12 @@ class DatastoreProfilePostgreSQL(DatastoreProfile):
     _private_attributes = ["password"]
     user: str
     # The password cannot be empty in real world scenarios. It's here just because of the profiles completion design.
-    password: typing.Optional[str]
+    password: str | None
     host: str
     port: int
     database: str = "postgres"  # Default PostgreSQL admin database
 
-    def dsn(self, database: typing.Optional[str] = None) -> str:
+    def dsn(self, database: str | None = None) -> str:
         """
         Get the Data Source Name of the configured PostgreSQL profile.
 
@@ -586,13 +586,13 @@ class DatastoreProfilePostgreSQL(DatastoreProfile):
 class OpenAIProfile(DatastoreProfile):
     type: str = pydantic.v1.Field("openai")
     _private_attributes = "api_key"
-    api_key: typing.Optional[str] = None
-    organization: typing.Optional[str] = None
-    project: typing.Optional[str] = None
-    base_url: typing.Optional[str] = None
-    timeout: typing.Optional[float] = None
-    max_retries: typing.Optional[int] = None
-    batch_max_concurrent: typing.Optional[int] = None
+    api_key: str | None = None
+    organization: str | None = None
+    project: str | None = None
+    base_url: str | None = None
+    timeout: float | None = None
+    max_retries: int | None = None
+    batch_max_concurrent: int | None = None
 
     def secrets(self) -> dict:
         res = {}
@@ -620,12 +620,12 @@ class OpenAIProfile(DatastoreProfile):
 class HuggingFaceProfile(DatastoreProfile):
     type: str = pydantic.v1.Field("huggingface")
     _private_attributes = ("token", "model_kwargs")
-    task: typing.Optional[str] = None
-    token: typing.Optional[str] = None
-    device: typing.Optional[typing.Union[int, str]] = None
+    task: str | None = None
+    token: str | None = None
+    device: typing.Union[int, str] | None = None
     device_map: typing.Union[str, dict[str, typing.Union[int, str]], None] = None
     trust_remote_code: bool = None
-    model_kwargs: typing.Optional[dict[str, typing.Any]] = None
+    model_kwargs: dict[str, typing.Any] | None = None
 
     def secrets(self) -> dict:
         keys = {
@@ -725,7 +725,7 @@ class DatastoreProfile2Json(pydantic.v1.BaseModel):
             )
 
 
-def datastore_profile_read(url, project_name="", secrets: typing.Optional[dict] = None):
+def datastore_profile_read(url, project_name="", secrets: dict | None = None):
     """
     Read and retrieve a datastore profile from a given URL.
 

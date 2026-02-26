@@ -17,7 +17,7 @@ import functools
 import os
 from collections.abc import Callable
 from fnmatch import fnmatchcase
-from typing import TYPE_CHECKING, Optional, TypedDict, Union, cast
+from typing import TYPE_CHECKING, TypedDict, Union, cast
 
 import numpy as np
 import pandas as pd
@@ -48,8 +48,8 @@ class _BatchDict(TypedDict):
 
 
 def _is_results_regex_match(
-    existing_result_name: Optional[str],
-    result_name_filters: Optional[list[str]],
+    existing_result_name: str | None,
+    result_name_filters: list[str] | None,
 ) -> bool:
     if existing_result_name.count(".") != 3 or any(
         part == "" for part in existing_result_name.split(".")
@@ -67,8 +67,8 @@ def _is_results_regex_match(
 
 
 def filter_results_by_regex(
-    existing_result_names: Optional[list[str]] = None,
-    result_name_filters: Optional[list[str]] = None,
+    existing_result_names: list[str] | None = None,
+    result_name_filters: list[str] | None = None,
 ) -> list[str]:
     """
     Filter a list of existing result names by a list of filters.
@@ -114,9 +114,9 @@ def filter_results_by_regex(
 def get_stream_path(
     project: str,
     function_name: str = mm_constants.MonitoringFunctionNames.STREAM,
-    stream_uri: Optional[str] = None,
-    secret_provider: Optional[Callable[[str], str]] = None,
-    profile: Optional[mlrun.datastore.datastore_profile.DatastoreProfile] = None,
+    stream_uri: str | None = None,
+    secret_provider: Callable[[str], str] | None = None,
+    profile: mlrun.datastore.datastore_profile.DatastoreProfile | None = None,
 ) -> str:
     """
     Get stream path from the project secret. If wasn't set, take it from the system configurations
@@ -244,7 +244,7 @@ def get_monitoring_drift_measures_data(project: str, endpoint_id: str) -> "DataI
 
 def _get_profile(
     project: str,
-    secret_provider: Optional[Callable[[str], str]],
+    secret_provider: Callable[[str], str] | None,
     profile_name_key: str,
 ) -> mlrun.datastore.datastore_profile.DatastoreProfile:
     """
@@ -281,7 +281,7 @@ def _get_v3io_output_stream(
     v3io_profile: mlrun.datastore.datastore_profile.DatastoreProfileV3io,
     project: str,
     function_name: str,
-    v3io_access_key: Optional[str],
+    v3io_access_key: str | None,
     mock: bool = False,
 ) -> mlrun.platforms.iguazio.OutputStream:
     stream_uri = mlrun.mlconf.get_model_monitoring_file_target_path(
@@ -323,9 +323,9 @@ def _get_kafka_output_stream(
 def get_output_stream(
     project: str,
     function_name: str = mm_constants.MonitoringFunctionNames.STREAM,
-    secret_provider: Optional[Callable[[str], str]] = None,
-    profile: Optional[mlrun.datastore.datastore_profile.DatastoreProfile] = None,
-    v3io_access_key: Optional[str] = None,
+    secret_provider: Callable[[str], str] | None = None,
+    profile: mlrun.datastore.datastore_profile.DatastoreProfile | None = None,
+    v3io_access_key: str | None = None,
     mock: bool = False,
 ) -> Union[
     mlrun.platforms.iguazio.OutputStream, mlrun.platforms.iguazio.KafkaOutputStream
@@ -617,7 +617,7 @@ def _get_monitoring_schedules_file_user_application_path(
 def get_start_end(
     start: Union[datetime.datetime, None],
     end: Union[datetime.datetime, None],
-    delta: Optional[datetime.timedelta] = None,
+    delta: datetime.timedelta | None = None,
 ) -> tuple[datetime.datetime, datetime.datetime]:
     """
     static utils function for tsdb start end format
@@ -663,7 +663,7 @@ def get_start_end(
 
 
 def validate_time_range(
-    start: Optional[datetime.datetime] = None, end: Optional[datetime.datetime] = None
+    start: datetime.datetime | None = None, end: datetime.datetime | None = None
 ) -> tuple[datetime.datetime, datetime.datetime]:
     """
     validate start and end parameters and set default values if needed.

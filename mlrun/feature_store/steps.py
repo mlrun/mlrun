@@ -16,7 +16,7 @@ import math
 import re
 import uuid
 from collections import OrderedDict
-from typing import Any, Optional, Union
+from typing import Any, Union
 
 import numpy as np
 import pandas as pd
@@ -162,7 +162,9 @@ class MapValues(StepToDict, MLRunStep):
         example::
 
             # replace the value "U" with '0' in the age column
-            graph.to(MapValues(mapping={"age": {"U": "0"}}, with_original_features=True))
+            graph.to(
+                MapValues(mapping={"age": {"U": "0"}}, with_original_features=True)
+            )
 
             # replace integers, example
             graph.to(MapValues(mapping={"not": {0: 1, 1: 0}}))
@@ -171,7 +173,9 @@ class MapValues(StepToDict, MLRunStep):
             graph.to(
                 MapValues(
                     mapping={
-                        "numbers": {"ranges": {"negative": [-inf, 0], "positive": [0, inf]}}
+                        "numbers": {
+                            "ranges": {"negative": [-inf, 0], "positive": [0, inf]}
+                        }
                     }
                 )
             )
@@ -381,7 +385,7 @@ class Imputer(StepToDict, MLRunStep):
         self,
         method: str = "avg",
         default_value=None,
-        mapping: Optional[dict[str, Any]] = None,
+        mapping: dict[str, Any] | None = None,
         **kwargs,
     ):
         """Replace None values with default values
@@ -519,7 +523,7 @@ class DateExtractor(StepToDict, MLRunStep):
     def __init__(
         self,
         parts: Union[dict[str, str], list[str]],
-        timestamp_col: Optional[str] = None,
+        timestamp_col: str | None = None,
         **kwargs,
     ):
         """Date Extractor extracts a date-time component into new columns
@@ -637,9 +641,9 @@ class DateExtractor(StepToDict, MLRunStep):
 class SetEventMetadata(MapClass):
     def __init__(
         self,
-        id_path: Optional[str] = None,
-        key_path: Optional[str] = None,
-        random_id: Optional[bool] = None,
+        id_path: str | None = None,
+        key_path: str | None = None,
+        random_id: bool | None = None,
         **kwargs,
     ) -> None:
         """Set the event metadata (id, key) from the event body

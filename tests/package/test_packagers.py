@@ -20,8 +20,8 @@ import typing
 import pytest
 
 import mlrun
-from mlrun.package import ArtifactType, LogHintKey, PackagersManager
-from mlrun.package.utils import LogHintUtils
+from mlrun.package import ArtifactType, PackagersManager
+from mlrun.package.log_hint import LogHint
 from mlrun.runtimes import KubejobRuntime
 
 from .packager_tester import PackagerTester, PackTest, PackToUnpackTest, UnpackTest
@@ -111,25 +111,22 @@ def _setup_test(
     )
 
 
-def _get_key_and_artifact_type(
+def _get_log_hint(
     tester: type[PackagerTester], test: PackTest | PackToUnpackTest
-) -> tuple[str, str]:
+) -> LogHint:
     # Parse the log hint (in case it is a string):
-    log_hint = LogHintUtils.parse_log_hint(log_hint=test.log_hint)
-
-    # Extract the key:
-    key = log_hint[LogHintKey.KEY]
+    log_hint = LogHint.parse_obj(obj=test.log_hint)
 
     # Get the artifact type (either from the log hint or from the packager - the default artifact type):
-    artifact_type = (
-        log_hint[LogHintKey.ARTIFACT_TYPE]
-        if LogHintKey.ARTIFACT_TYPE in log_hint
+    log_hint.artifact_type = (
+        log_hint.artifact_type
+        if log_hint.artifact_type
         else tester.PACKAGER_IN_TEST.get_default_packing_artifact_type(
             obj=test.default_artifact_type_object
         )
     )
 
-    return key, artifact_type
+    return log_hint
 
 
 @pytest.mark.parametrize(
@@ -162,30 +159,23 @@ def test_packager_pack(rundb_mock, tester: type[PackagerTester], test: PackTest)
         )
 
         # Verify the packaged output:
-        key, artifact_type = _get_key_and_artifact_type(tester=tester, test=test)
-
-        # Check if unbundling was performed (key starts with "*" or contains "*"):
-        unbundle_key, unbundle_level = LogHintUtils.extract_unbundling_from_key(
-            log_hint=key
-        )
-        is_unbundling = unbundle_level is not False
+        log_hint = _get_log_hint(tester=tester, test=test)
 
         # If bundling was performed, check each element from the bundle accordingly (they will be sent to the validation
         # function as well):
         unbundled_artifacts = {}
-        if is_unbundling:
-            key = unbundle_key
+        if log_hint.itemized:
             unbundled_artifacts = {
                 k: pack_run.outputs[k]
                 for k in pack_run.outputs
-                if k.startswith(unbundle_key) and k != unbundle_key
+                if k.startswith(log_hint.key) and k != log_hint.key
             }
             assert unbundled_artifacts
 
         # Verify the output:
-        assert key in pack_run.outputs
+        assert log_hint.key in pack_run.outputs
         assert test.validation_function(
-            pack_run.outputs[key], **test.validation_parameters
+            pack_run.outputs[log_hint.key], **test.validation_parameters
         )
     except Exception as exception:
         # An error was raised, check if the test failed or should have failed:
@@ -274,36 +264,30 @@ def test_packager_pack_to_unpack(
         )
 
         # Verify the outputs are logged (artifact type as "result" will stop the test here as it cannot be unpacked):
-        key, artifact_type = _get_key_and_artifact_type(tester=tester, test=test)
-
-        # Check if unbundling was performed (key starts with "*" or contains "*"):
-        unbundle_key, unbundle_level = LogHintUtils.extract_unbundling_from_key(
-            log_hint=key
-        )
-        is_unbundling = unbundle_level is not False
+        log_hint = _get_log_hint(tester=tester, test=test)
 
         # Verify result:
-        if artifact_type == ArtifactType.RESULT:
-            if is_unbundling:
+        if log_hint.artifact_type == ArtifactType.RESULT:
+            if log_hint.itemized:
                 # For unbundling results, just verify results exist with the prefix
                 unbundled_results = {
                     k: v
                     for k, v in pack_run.status.results.items()
-                    if k.startswith(unbundle_key)
+                    if k.startswith(log_hint.key)
                 }
                 assert len(unbundled_results) > 0
             else:
-                assert key in pack_run.status.results
+                assert log_hint.key in pack_run.status.results
             return
 
         # Verify artifact (Notice: for bundles we do not check the instructions as the packager in test did only the
         # bundling and unbundling, not the packing - so there are no instructions):
-        if is_unbundling:
+        if log_hint.itemized:
             # For unbundling artifacts, collect all outputs that start with the unbundle prefix:
             unbundled_outputs = {
                 k: pack_run.outputs[k]
                 for k in pack_run.outputs
-                if k.startswith(unbundle_key)
+                if k.startswith(log_hint.key)
             }
             assert (
                 len(unbundled_outputs) > 2
@@ -312,16 +296,16 @@ def test_packager_pack_to_unpack(
             mlrun_function.run(
                 name="unpack",
                 handler=test.unpack_handler,
-                inputs={"obj": pack_run.outputs[unbundle_key]},
+                inputs={"obj": pack_run.outputs[log_hint.key]},
                 params=test.unpack_parameters,
                 artifact_path=test_directory.name,
                 local=True,
             )
         else:
             # Regular single artifact unpacking:
-            assert key in pack_run.outputs
+            assert log_hint.key in pack_run.outputs
             # Validate the packager manager notes and packager instructions:
-            unpackaging_instructions = pack_run._artifact(key=key)["spec"][
+            unpackaging_instructions = pack_run._artifact(key=log_hint.key)["spec"][
                 "unpackaging_instructions"
             ]
             assert (
@@ -344,7 +328,7 @@ def test_packager_pack_to_unpack(
                     ),
                     tester.PACKAGER_IN_TEST.PACKABLE_OBJECT_TYPE,
                 )
-            assert unpackaging_instructions["artifact_type"] == artifact_type
+            assert unpackaging_instructions["artifact_type"] == log_hint.artifact_type
             assert (
                 unpackaging_instructions["instructions"] == test.expected_instructions
             )
@@ -352,7 +336,7 @@ def test_packager_pack_to_unpack(
             mlrun_function.run(
                 name="unpack",
                 handler=test.unpack_handler,
-                inputs={"obj": pack_run.outputs[key]},
+                inputs={"obj": pack_run.outputs[log_hint.key]},
                 params=test.unpack_parameters,
                 artifact_path=test_directory.name,
                 local=True,

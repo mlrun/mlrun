@@ -120,8 +120,8 @@ class AlertNotificationPusher(_NotificationPusherBase):
         self,
         alert: mlrun.common.schemas.AlertConfig,
         event_data: mlrun.common.schemas.Event,
-        activation_id: typing.Optional[int] = None,
-        activation_time: typing.Optional[datetime.datetime] = None,
+        activation_id: int | None = None,
+        activation_time: datetime.datetime | None = None,
     ):
         """
         Asynchronously push notification.
@@ -338,9 +338,9 @@ class AlertNotificationPusher(_NotificationPusherBase):
         alert_id: int,
         project: str,
         notification: mlrun.common.schemas.Notification,
-        status: typing.Optional[str] = None,
-        sent_time: typing.Optional[datetime.datetime] = None,
-        reason: typing.Optional[str] = None,
+        status: str | None = None,
+        sent_time: datetime.datetime | None = None,
+        reason: str | None = None,
     ):
         db = mlrun.get_run_db()
         notification.status = status or notification.status
@@ -372,7 +372,7 @@ class KFPNotificationPusher(NotificationPusher):
         project: str,
         workflow_id: str,
         notifications: list[mlrun.common.schemas.Notification],
-        default_params: typing.Optional[dict] = None,
+        default_params: dict | None = None,
     ):
         self._project = project
 
@@ -409,7 +409,7 @@ class KFPNotificationPusher(NotificationPusher):
 
     def push(self, sync_push_callback=None, async_push_callback=None):
         def sync_push(
-            runs_: typing.Optional[typing.Union[mlrun.lists.RunList, list]] = None,
+            runs_: typing.Union[mlrun.lists.RunList, list] | None = None,
         ):
             for notification_data in self._sync_notifications:
                 try:
@@ -425,7 +425,7 @@ class KFPNotificationPusher(NotificationPusher):
                     )
 
         async def async_push(
-            runs_: typing.Optional[typing.Union[mlrun.lists.RunList, list]] = None,
+            runs_: typing.Union[mlrun.lists.RunList, list] | None = None,
         ):
             tasks = []
             for notification_data in self._async_notifications:
@@ -464,7 +464,7 @@ class KFPNotificationPusher(NotificationPusher):
         self,
         notification: base.NotificationBase,
         notification_object: mlrun.common.schemas.Notification,
-        runs: typing.Optional[typing.Union[mlrun.lists.RunList, list]] = None,
+        runs: typing.Union[mlrun.lists.RunList, list] | None = None,
     ):
         message, severity = self._prepare_workflow_notification_args(
             notification_object
@@ -497,7 +497,7 @@ class KFPNotificationPusher(NotificationPusher):
         self,
         notification: base.NotificationBase,
         notification_object: mlrun.common.schemas.Notification,
-        runs: typing.Optional[typing.Union[mlrun.lists.RunList, list]] = None,
+        runs: typing.Union[mlrun.lists.RunList, list] | None = None,
     ):
         message, severity = self._prepare_workflow_notification_args(
             notification_object

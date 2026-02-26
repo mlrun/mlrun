@@ -20,7 +20,7 @@ different database backends.
 """
 
 import uuid
-from typing import Any, Optional, Union
+from typing import Any, Union
 
 import sqlalchemy.types
 from sqlalchemy import CHAR, Text
@@ -130,9 +130,9 @@ class UuidType(TypeDecorator):
 
     def process_bind_param(
         self,
-        value: Optional[Union[uuid.UUID, str]],
+        value: Union[uuid.UUID, str] | None,
         dialect: Dialect,
-    ) -> Optional[Union[uuid.UUID, str]]:
+    ) -> Union[uuid.UUID, str] | None:
         if value is None:
             return None
         if isinstance(value, uuid.UUID):
@@ -151,8 +151,8 @@ class UuidType(TypeDecorator):
         raise ValueError(f"Cannot bind UUID value {value!r}")
 
     def process_result_value(
-        self, value: Optional[Union[uuid.UUID, bytes, str]], dialect: Dialect
-    ) -> Optional[str]:
+        self, value: Union[uuid.UUID, bytes, str] | None, dialect: Dialect
+    ) -> str | None:
         if value is None:
             return None
         return value.hex if isinstance(value, uuid.UUID) else value

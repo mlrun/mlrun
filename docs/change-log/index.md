@@ -25,6 +25,13 @@ Upgrading these three MLRun dependencies spans several releases.  The upgrades a
 
 See a full description of KFP, Python, and the workflow engines in {ref}`local-remote`. Specific changes are listed under the relevant versions.
 
+(v1102)=
+## v1.10.2 (February 2025)
+### Closed issues
+| ID    |Description                                                                 |
+|-------|----------------------------------------------------------------------------|
+|ML-11771|Resolved issue of Users temporarily unable to access projects by improving all the async clients to use per-thread session instances and all http clients to use a dummy cookie jar.|
+
 (v1101)=
 ## v1.10.1 (January 2026)
 
@@ -1008,8 +1015,7 @@ conda activate python39
 | ID      | Description                                                                                                                                                                                                                                      |
 |---------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | ML-1167 | Add support for graphs that split and merge (DAG), including a list of steps for the `after` argument in the `add_step()` method. See [Branching and merging steps](../serving/branch-merge.md). |
-| ML-2507 | Supports configuring of consumer group name for steps following QueueSteps. See 
-[Queue (streaming)](../serving/remote-execution.ipynb#queue-streaming).                                                                   |
+| ML-2507 | Supports configuring of consumer group name for steps following QueueSteps. See [Queues and streams](../serving/remote-execution.ipynb#queues-and-streams).|
 
 #### Storey 
 

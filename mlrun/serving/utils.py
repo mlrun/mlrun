@@ -14,7 +14,6 @@
 
 import inspect
 from http import HTTPMethod
-from typing import Optional
 
 from mlrun.utils import get_in, update_in
 
@@ -45,6 +44,25 @@ def _update_result_body(result_path, event_body, result):
     return event_body
 
 
+class _MappedBody(dict):
+    """Marker dict subclass for body_map-transformed event bodies.
+
+    When a downstream :class:`TaskStep` receives a body that is an instance
+    of ``_MappedBody``, it unpacks the dict as ``**kwargs`` to the handler
+    instead of passing it as a single positional argument.  This allows
+    handler functions to declare named parameters that match the body_map
+    keys, e.g.::
+
+        body_map = {"book": "$.age"}
+
+
+        def handler(book):
+            return f"{book} - this is the book"
+    """
+
+    pass
+
+
 class StepToDict:
     """auto serialization of graph steps to a python dictionary"""
 
@@ -59,8 +77,8 @@ class StepToDict:
 
     def to_dict(
         self,
-        fields: Optional[list] = None,
-        exclude: Optional[list] = None,
+        fields: list | None = None,
+        exclude: list | None = None,
         strip: bool = False,
     ):
         """convert the step object to a python dictionary"""
@@ -114,8 +132,8 @@ class RouterToDict(StepToDict):
 
     def to_dict(
         self,
-        fields: Optional[list] = None,
-        exclude: Optional[list] = None,
+        fields: list | None = None,
+        exclude: list | None = None,
         strip: bool = False,
     ):
         return super().to_dict(exclude=["routes"], strip=strip)

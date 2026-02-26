@@ -1,70 +1,208 @@
-(available-steps)=
-# Built-in steps
+(basic-steps)=
+# Basic steps
 
-A step runs a function or class handler or a REST API call: MLRun comes with pre-built steps that include data manipulation, readers, writers and model serving.
-All steps are supported by the storey engine. Support by any other engines is included in the step description, as relevant.
 
-You can also write your own steps using standard Python functions or custom functions/classes, or a step can be an external REST API (the special `$remote` class).
 
-See also [Data transformations](../feature-store/transformations.md#data-transformation-steps).
+All steps are supported by the storey engine. 
+
 
 **In this section**
-- [Base Operators](#base-operators)
-- [External IO and data enrichment](#external-io-and-data-enrichment)
-- [Models](#models)
-- [Model serving](#model-serving)
-- [Other](#other)
 
-## Base Operators
+- [Choice steps](#choice-steps)
+- [Event operation steps](#event-operation-steps)
+- [Batch operation steps](#batch-operation-steps)
+- [Filter steps](#filter-steps)
 
-| Class name                                                                                                                  | Description                                                                                                                                                                 |   
-|-----------------------------------------------------------------------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------|      
-|{py:class}`~storey.transformations.Batch`             | Batches events. This step emits a batch every `max_events` events, or when `timeout` seconds have passed since the first event in the batch was received.                   |
-|{py:class}`~storey.transformations.Choice`           | Redirects each input element into one of the multiple downstreams.                                                                                                          |
-|{py:class}`~storey.transformations.Extend`                       | Adds fields to each incoming event.                                                                                                                                         | 
-|{py:class}`~storey.transformations.Filter`             | Filters events based on a user-provided function.                                                                                                                           | 
-|{py:class}`~storey.transformations.FlatMap`          | Maps, or transforms, each incoming event into any number of events.                                                                                                         |
-|{py:class}`~storey.transformations.Flatten`                    | Flatten is equivalent to FlatMap(lambda x: x).                                                                                                                              | 
-|{py:class}`~storey.transformations.ForEach`          | Applies the given function on each event in the stream, and passes the original event downstream.                                                                           |
-|{py:class}`~storey.transformations.MapClass`         | Similar to Map, but instead of a function argument, this class should be extended and its do() method overridden.                                                           |
-|{py:class}`~storey.transformations.MapWithState` | Maps, or transforms, incoming events using a stateful user-provided function, and an initial state, which can be a database table.                                          |
-|{py:class}`~storey.transformations.Partition`      | Partitions events by calling a predicate function on each event. Each processed event results in a Partitioned named tuple of (left=Optional[Event], right=Optional[Event]). |
-|storey.Reduce                                       | Reduces incoming events into a single value that is returned upon the successful termination of the flow.                                                                   |
-|{py:class}`~storey.transformations.SampleWindow` | Emits a single event in a window of `window_size` events, in accordance with `emit_period` and `emit_before_termination`.                                                   | 
+## Choice steps
+- [Choice](#choice)
+- [ChoiceByField](#choicebyfield)
 
-## External IO and data enrichment
-| Class name                                                                                                                    | Description                                                                                    |   
-|-------------------------------------------------------------------------------------------------------------------------------|------------------------------------------------------------------------------------------------|
-| {py:class}`~mlrun.serving.remote.BatchHttpRequests`                                                                           | A class for calling remote endpoints in parallel.                                              | 
-| {py:class}`~mlrun.datastore.DataItem`                                                                                         | Data input/output class abstracting access to various local/remote data sources.               |
-| {py:class}`~storey.transformations.JoinWithTable`                                                                   | Joins each event with data from the given table.                                               |
-| JoinWithV3IOTable                                                                                                             | Joins each event with a V3IO table. Used for event augmentation.                               | 
-| {py:class}`~storey.transformations.QueryByKey`                                 | Similar to AggregateByKey, but this step is for serving only and does not aggregate the event. | 
-| {py:class}`~mlrun.serving.remote.RemoteStep`                                                                                  | Class for calling remote endpoints.                                                            | 
-| {py:class}`~storey.transformations.SendToHttp`                                                   | Joins each event with data from any HTTP source. Used for event augmentation.                  |
+### Choice
+- Description: Redirects each input element into one of the multiple downstreams. See {py:class}`~storey.transformations.Choice`.
+- Use case:
+- Example:
+
+### ChoiceByField
+- Description: Routes events to downstream steps based on an event field that contains the step name or names. See {py:class}`~mlrun.serving.steps.ChoiceByField`.
+- Use case:
+- Example:
+
+
+## Event operation steps 
+
+- [DataItem](#dataitem)
+- [Extend](#extend)
+- [FlatMap](#flatmap)
+- [Flatten](#flatten)
+- [JoinWithTable](#joinwithtable)
+- [JoinWithV3IOTable](#joinwithv3iotable)
+- [MapClass](#mapclass)
+- [MapWithState](#mapwithstate)
+- [Partition](#partition)
+- [Reduce](#storey-reduce)
+- [SendToHttp](#sendtohttp)
+- [ReduceToDataFrame](#reducetodataframe)
+
+### DataItem
+- Description: Data input/output class abstracting access to various local/remote data sources. See {py:class}`~mlrun.datastore.DataItem`.
+- Use case:
+- Example:
+
+### Extend
+- Description: Adds fields to each incoming event. See {py:class}`~storey.transformations.Extend`.
+- Use case:
+- Example:
+
+
+### FlatMap
+- Description: Maps, or transforms, each incoming event into any number of events. See {py:class}`~storey.transformations.FlatMap`.
+- Use case:
+- Example:
+
+
+### Flatten 
+- Description: Flatten is equivalent to FlatMap(lambda x: x). See {py:class}`~storey.transformations.Flatten`.
+- Use case:
+- Example:
+
+
+### JoinWithTable
+- Description: Joins each event with data from the given table. See {py:class}`~storey.transformations.JoinWithTable` 
+- Use case:
+- Example:
+
+
+### JoinWithV3IOTable 
+- Description: Joins each event with a V3IO table. Used for event augmentation.  
+- Use case:
+- Example:
+
+
+### MapClass
+- Description: Similar to Map, but instead of a function argument, this class should be extended and its do() method overridden. See {py:class}`~storey.transformations.MapClass`.
+- Use case:
+- Example:
+
+
+### MapWithState
+- Description: Maps, or transforms, incoming events using a stateful user-provided function, and an initial state, which can be a database table. See {py:class}`~storey.transformations.MapWithState`.
+- Use case:
+- Example:
+
+
+### Partition
+- Description: Partitions events by calling a predicate function on each event. Each processed event results in a Partitioned named tuple of (left=Optional[Event], right=Optional[Event]). See {py:class}`~storey.transformations.Partition` .
+- Use case:
+- Example:
+
+(storey-reduce)=
+### storey.Reduce
+- Description: Reduces incoming events into a single value that is returned upon the successful termination of the flow. 
+- Use case:
+- Example:
+
+
+
+
+
+### SendToHttp
+- Description: Joins each event with data from any HTTP source. Used for event augmentation. See {py:class}`~storey.transformations.SendToHttp`.
+- Use case:
+- Example:
+
+
+### ReduceToDataFrame 
+- Description:  Builds a pandas DataFrame from events and returns that DataFrame on flow termination. 
+- Use case:
+- Example:
+
+
+
+
+
+## Batch operation steps 
+- [Batch](#batch)
+- [BatchHttpRequests](#batchhttprequests)
+- [ForEach](#foreach)
+
+### Batch
+- Description: Batches events. This step emits a batch every `max_events` events, or when `timeout` seconds have passed since the first event in the batch was received. See {py:class}`~storey.transformations.Batch`. 
+- Use Case: 
+- Example:
+
+### BatchHttpRequests
+- Description: A class for calling remote step endpoints in parallel. See {py:class}`~mlrun.serving.remote.BatchHttpRequests`.
+- Use Case: 
+- Example:
+
+### ForEach
+- Description: Applies the given function on each event in the stream, and passes the original event downstream. See {py:class}`~storey.transformations.ForEach`. 
+- Use Case: 
+- Example:
+
+
+## Filter steps
+- [Filter](#filter)
+- [SampleWindow](#samplewindow)
+
+### Filter
+- Description: Filters events based on a user-provided function. See {py:class}`~storey.transformations.Filter` .
+- Use Case: 
+- Example:
+
+### SampleWindow
+- Description: Emits a single event in a window of `window_size` events, in accordance with `emit_period` and `emit_before_termination`. See {py:class}`~storey.transformations.SampleWindow`.
+- Use case:
+- Example:
+
+
+## Custom steps
+
+- [VotingEnsemble](#votingensemble)
+- [QueryByKey](#querybykey)
+- [RemoteStep](#remotestep)
+- [ONNXModelServer](#onnxmodelserver)
+- [PyTorchModelServer](#pytorchmodelserver)
+- [SKLearnModelServer](#sklearnmodelserver)
+- [TFKerasModelServer](#tfkerasmodelserver)
+- [XGBModelServer](#xgbmodelserver)
+    
+### VotingEnsemble
+- Description: An ensemble machine learning model that combines the prediction of several models. See {py:class}`~mlrun.serving.routers.VotingEnsemble`.
+- Use Case: 
+- Example:
+
+### QueryByKey 
+- Description: Similar to AggregateByKey, but this step is for serving only and does not aggregate the event. See {py:class}`~storey.transformations.QueryByKey`.
+- Use Case: 
+- Example:
+
+### RemoteStep
+- Description: Calls remote endpoints. See {py:class}`~mlrun.serving.remote.RemoteStep`.
+- Use Case: 
+- Example:
  
-## Models
-| Class name                                                | Description                                                                                |   
-|-----------------------------------------------------------|--------------------------------------------------------------------------------------------|
-| {py:class}`~mlrun.frameworks.onnx.ONNXModelServer`        | A model serving class for serving ONYX Models. A sub-class of the  V2ModelServer class.    | 
-| {py:class}`~mlrun.frameworks.pytorch.PyTorchModelServer`  | A model serving class for serving PyTorch Models. A sub-class of the  V2ModelServer class. |
-| {py:class}`~mlrun.frameworks.sklearn.SKLearnModelServer`  | A model serving class for serving Sklearn Models. A sub-class of the  V2ModelServer class. |  
-| {py:class}`~mlrun.frameworks.tf_keras.TFKerasModelServer` | A model serving class for serving TFKeras Models. A sub-class of the V2ModelServer class.  |
-| {py:class}`~mlrun.frameworks.xgboost.XGBModelServer`      | A model serving class for serving XGB Models. A sub-class of the  V2ModelServer class.     | 
+### ONNXModelServer
+- Description: A model serving class for serving ONYX Models. A sub-class of the  V2ModelServer class. See {py:class}`~mlrun.frameworks.onnx.ONNXModelServer`.
+- Use Case: 
+- Example:
 
-## Model serving
+### PyTorchModelServer
+- Description: A model serving class for serving PyTorch Models. A sub-class of the  V2ModelServer class. See {py:class}`~mlrun.frameworks.pytorch.PyTorchModelServer`.
+- Use Case: 
+- Example:
 
-| Class name                                                  | Description                                                                                                                                                                                                                                                                   |        
-|-------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| {py:class}`~mlrun.serving.routers.EnrichmentModelRouter`    | Auto enrich the request with data from the feature store. The router input accepts a list of inference requests (each request can be a dict or a list of incoming features/keys). It enriches the request with data from the specified feature vector (`feature_vector_uri`). |
-| {py:class}`~mlrun.serving.routers.EnrichmentVotingEnsemble` | Auto enrich the request with data from the feature store. The router input accepts a list of inference requests (each request can be a dict or a list of incoming features/keys). It enriches the request with data from the specified feature vector (`feature_vector_uri`). |
-| {py:class}`~mlrun.serving.routers.ModelRouter`              | Basic model router, for calling different models per each model path.                                                                                                                                                                                                         | 
-| {py:class}`~mlrun.serving.routers.VotingEnsemble`           | An ensemble machine learning model that combines the prediction of several models.                                                                                                                                                                                            |     
-| {py:class}`~mlrun.serving.ModelRunnerStep`                  | Runs multiple models on each event. When used in a graph, MLRun automatically imports the default language model class (LLModel) during function deployment. See [ModelRunnerStep](./model-serving-steps.md#modelrunnerstep).|
+### SKLearnModelServer
+- Description: A model serving class for serving Sklearn Models. A sub-class of the V2ModelServer class. See {py:class}`~mlrun.frameworks.sklearn.SKLearnModelServer`.
+- Use Case: 
+- Example:
 
-## Other
-| Class name                                                 | Description                                                                                                   |   
-|------------------------------------------------------------|---------------------------------------------------------------------------------------------------------------|
-| {py:class}`~mlrun.feature_store.steps.FeaturesetValidator` | Validate feature values according to the feature set validation policy. Supported also by the Pandas engines. | 
-| {py:class}`~mlrun.serving.steps.ChoiceByField`             | Routes events to downstream steps based on an event field that contains the step name or names. | 
-| ReduceToDataFrame                                          | Builds a pandas DataFrame from events and returns that DataFrame on flow termination.                         |
+### TFKerasModelServer 
+- Description: A model serving class for serving TFKeras Models. A sub-class of the V2ModelServer class. See {py:class}`~mlrun.frameworks.tf_keras.TFKerasModelServer`.
+- Use Case: 
+- Example:
+
+### XGBModelServer
+- Description: See {py:class}`~mlrun.frameworks.xgboost.XGBModelServer`.
+- Use Case: 
+- Example:ß

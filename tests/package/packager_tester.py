@@ -19,7 +19,7 @@ from typing import Any, NamedTuple
 
 import cloudpickle
 
-from mlrun import Packager
+from mlrun import LogHint, Packager
 
 # When using artifact type "object", these instructions will be common to most artifacts in the tests:
 COMMON_OBJECT_INSTRUCTIONS = {
@@ -47,7 +47,7 @@ class PackTest(NamedTuple):
     """
 
     pack_handler: str
-    log_hint: str | dict
+    log_hint: str | LogHint
     validation_function: Callable[..., bool]
     pack_parameters: dict = {}
     validation_parameters: dict = {}
@@ -98,7 +98,7 @@ class PackToUnpackTest(NamedTuple):
     """
 
     pack_handler: str
-    log_hint: str | dict
+    log_hint: str | LogHint
     pack_parameters: dict = {}
     expected_instructions: dict = {}
     unpack_handler: str = None

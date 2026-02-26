@@ -20,8 +20,9 @@ from mlrun.datastore import DataItem
 from mlrun.errors import MLRunInvalidArgumentError
 from mlrun.execution import MLClientCtx
 from mlrun.package.errors import MLRunPackageCollectionError, MLRunPackagePackingError
+from mlrun.package.log_hint import LogHint
 from mlrun.package.packagers_manager import PackagersManager
-from mlrun.package.utils import LogHintUtils, TypeHintUtils
+from mlrun.package.utils import TypeHintUtils
 
 
 class ContextHandler:
@@ -187,7 +188,7 @@ class ContextHandler:
     def log_outputs(
         self,
         outputs: list,
-        log_hints: list[dict[str, str] | str | None],
+        log_hints: list[LogHint | dict[str, str] | str | None],
     ):
         """
         Log the given outputs as artifacts (or results) with the stored context. Errors raised during the packing will
@@ -211,7 +212,7 @@ class ContextHandler:
                     if log_hint is None:
                         continue
                     # Parse the log hint:
-                    log_hint = LogHintUtils.parse_log_hint(log_hint=log_hint)
+                    log_hint = LogHint.parse_obj(obj=log_hint)
                     # Pack the object (we don't catch the returned package as we log it after we pack all the outputs to
                     # enable linking extra data of some artifacts):
                     self._packagers_manager.pack(obj=obj, log_hint=log_hint)
@@ -221,10 +222,12 @@ class ContextHandler:
                         f"due to the following error:\n{error}"
                     )
             # Link packages:
-            self._packagers_manager.link_packages(
+            context_artifacts_to_update = self._packagers_manager.link_packages(
                 additional_artifact_uris=self._context.artifact_uris,
                 additional_results=self._context.results,
             )
+            for artifact in context_artifacts_to_update:
+                self._context.update_artifact(artifact_object=artifact)
             # Log the packed results and artifacts:
             self._context.log_results(results=self._packagers_manager.results)
             for artifact in self._packagers_manager.artifacts:
@@ -313,7 +316,7 @@ class ContextHandler:
     def _validate_objects_to_log_hints_length(
         self,
         outputs: list,
-        log_hints: list[dict[str, str] | str | None],
+        log_hints: list[LogHint | dict[str, str] | str | None],
     ):
         """
         Validate the outputs and log hints are the same length. If they are not, warnings will be printed on what will

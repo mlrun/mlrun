@@ -15,7 +15,6 @@
 import datetime
 from dataclasses import dataclass
 from io import StringIO
-from typing import Optional
 
 import mlrun.common.schemas.model_monitoring as mm_schemas
 import mlrun.errors
@@ -65,7 +64,7 @@ class _TimescaleDBColumnType:
     """Represents a TimescaleDB column type with optional constraints."""
 
     def __init__(
-        self, data_type: str, length: Optional[int] = None, nullable: bool = True
+        self, data_type: str, length: int | None = None, nullable: bool = True
     ):
         self.data_type = data_type
         self.length = length
@@ -92,9 +91,9 @@ class TimescaleDBSchema:
         columns: dict[str, _TimescaleDBColumnType],
         time_column: str,
         project: str,
-        schema: Optional[str] = None,
+        schema: str | None = None,
         chunk_time_interval: str = "1 day",
-        indexes: Optional[list[str]] = None,
+        indexes: list[str] | None = None,
     ):
         self.table_name = f"{table_name}_{project.replace('-', '_')}"
         self.columns = columns
@@ -275,16 +274,16 @@ class TimescaleDBSchema:
         self,
         start: datetime.datetime,
         end: datetime.datetime,
-        columns_to_filter: Optional[list[str]] = None,
-        filter_query: Optional[str] = None,
-        interval: Optional[str] = None,
-        limit: Optional[int] = None,
-        agg_funcs: Optional[list] = None,
-        order_by: Optional[str] = None,
-        desc: Optional[bool] = None,
+        columns_to_filter: list[str] | None = None,
+        filter_query: str | None = None,
+        interval: str | None = None,
+        limit: int | None = None,
+        agg_funcs: list | None = None,
+        order_by: str | None = None,
+        desc: bool | None = None,
         use_pre_aggregates: bool = True,
-        group_by: Optional[list[str]] = None,
-        timestamp_column: Optional[str] = None,
+        group_by: list[str] | None = None,
+        timestamp_column: str | None = None,
     ) -> str:
         """Build query to get records from the table or its pre-aggregates."""
 
@@ -355,7 +354,7 @@ class TimescaleDBSchema:
 class AppResultTable(TimescaleDBSchema):
     """Schema for application results table."""
 
-    def __init__(self, project: str, schema: Optional[str] = None):
+    def __init__(self, project: str, schema: str | None = None):
         table_name = mm_schemas.TimescaleDBTables.APP_RESULTS
         columns = {
             mm_schemas.WriterEvent.END_INFER_TIME: _TimescaleDBColumnType(
@@ -397,7 +396,7 @@ class AppResultTable(TimescaleDBSchema):
 class Metrics(TimescaleDBSchema):
     """Schema for metrics table."""
 
-    def __init__(self, project: str, schema: Optional[str] = None):
+    def __init__(self, project: str, schema: str | None = None):
         table_name = mm_schemas.TimescaleDBTables.METRICS
         columns = {
             mm_schemas.WriterEvent.END_INFER_TIME: _TimescaleDBColumnType(
@@ -437,7 +436,7 @@ class Metrics(TimescaleDBSchema):
 class Predictions(TimescaleDBSchema):
     """Schema for predictions table."""
 
-    def __init__(self, project: str, schema: Optional[str] = None):
+    def __init__(self, project: str, schema: str | None = None):
         table_name = mm_schemas.TimescaleDBTables.PREDICTIONS
         columns = {
             mm_schemas.WriterEvent.END_INFER_TIME: _TimescaleDBColumnType(
@@ -477,7 +476,7 @@ class Predictions(TimescaleDBSchema):
 class Errors(TimescaleDBSchema):
     """Schema for errors table."""
 
-    def __init__(self, project: str, schema: Optional[str] = None):
+    def __init__(self, project: str, schema: str | None = None):
         table_name = mm_schemas.TimescaleDBTables.ERRORS
         columns = {
             mm_schemas.EventFieldType.TIME: _TimescaleDBColumnType("TIMESTAMPTZ"),

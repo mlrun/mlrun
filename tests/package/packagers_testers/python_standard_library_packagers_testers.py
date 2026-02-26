@@ -18,7 +18,7 @@ import pathlib
 import tempfile
 import types
 
-from mlrun import MLClientCtx
+from mlrun import LogHint, MLClientCtx
 from mlrun.package.packagers.python_standard_library_packagers import (
     BoolPackager,
     BytearrayPackager,
@@ -308,11 +308,13 @@ class StrPackagerTester(PackagerTester):
         *[
             PackToUnpackTest(
                 pack_handler="pack_str_path_directory",
-                log_hint={
-                    "key": "my_dir",
-                    "artifact_type": "path",
-                    "archive_format": archive_format,
-                },
+                log_hint=LogHint(
+                    key="my_dir",
+                    artifact_type="path",
+                    packing_kwargs={
+                        "archive_format": archive_format,
+                    },
+                ),
                 expected_instructions={
                     "is_directory": True,
                     "archive_format": archive_format,
@@ -422,11 +424,13 @@ class DictPackagerTester(PackagerTester):
         *[
             PackToUnpackTest(
                 pack_handler="pack_dict",
-                log_hint={
-                    "key": "my_dict",
-                    "artifact_type": "file",
-                    "file_format": file_format,
-                },
+                log_hint=LogHint(
+                    key="my_dict",
+                    artifact_type="file",
+                    packing_kwargs={
+                        "file_format": file_format,
+                    },
+                ),
                 expected_instructions={
                     "file_format": file_format,
                 },
@@ -540,11 +544,13 @@ class ListPackagerTester(PackagerTester):
         *[
             PackToUnpackTest(
                 pack_handler="pack_list",
-                log_hint={
-                    "key": "my_list",
-                    "artifact_type": "file",
-                    "file_format": file_format,
-                },
+                log_hint=LogHint(
+                    key="my_list",
+                    artifact_type="file",
+                    packing_kwargs={
+                        "file_format": file_format,
+                    },
+                ),
                 expected_instructions={
                     "file_format": file_format,
                 },
@@ -659,11 +665,13 @@ class TuplePackagerTester(PackagerTester):
         *[
             PackToUnpackTest(
                 pack_handler="pack_tuple",
-                log_hint={
-                    "key": "my_tuple",
-                    "artifact_type": "file",
-                    "file_format": file_format,
-                },
+                log_hint=LogHint(
+                    key="my_tuple",
+                    artifact_type="file",
+                    packing_kwargs={
+                        "file_format": file_format,
+                    },
+                ),
                 expected_instructions={
                     "file_format": file_format,
                 },
@@ -779,11 +787,13 @@ class SetPackagerTester(PackagerTester):
         *[
             PackToUnpackTest(
                 pack_handler="pack_set",
-                log_hint={
-                    "key": "my_set",
-                    "artifact_type": "file",
-                    "file_format": file_format,
-                },
+                log_hint=LogHint(
+                    key="my_set",
+                    artifact_type="file",
+                    packing_kwargs={
+                        "file_format": file_format,
+                    },
+                ),
                 expected_instructions={
                     "file_format": file_format,
                 },
@@ -901,11 +911,13 @@ class FrozensetPackagerTester(PackagerTester):
         *[
             PackToUnpackTest(
                 pack_handler="pack_frozenset",
-                log_hint={
-                    "key": "my_frozenset",
-                    "artifact_type": "file",
-                    "file_format": file_format,
-                },
+                log_hint=LogHint(
+                    key="my_frozenset",
+                    artifact_type="file",
+                    packing_kwargs={
+                        "file_format": file_format,
+                    },
+                ),
                 expected_instructions={
                     "file_format": file_format,
                 },
@@ -983,11 +995,13 @@ class BytearrayPackagerTester(PackagerTester):
         *[
             PackToUnpackTest(
                 pack_handler="pack_bytearray",
-                log_hint={
-                    "key": "my_bytearray",
-                    "artifact_type": "file",
-                    "file_format": file_format,
-                },
+                log_hint=LogHint(
+                    key="my_bytearray",
+                    artifact_type="file",
+                    packing_kwargs={
+                        "file_format": file_format,
+                    },
+                ),
                 expected_instructions={
                     "file_format": file_format,
                 },
@@ -1060,11 +1074,13 @@ class BytesPackagerTester(PackagerTester):
         *[
             PackToUnpackTest(
                 pack_handler="pack_bytes",
-                log_hint={
-                    "key": "my_bytes",
-                    "artifact_type": "file",
-                    "file_format": file_format,
-                },
+                log_hint=LogHint(
+                    key="my_bytes",
+                    artifact_type="file",
+                    packing_kwargs={
+                        "file_format": file_format,
+                    },
+                ),
                 expected_instructions={
                     "file_format": file_format,
                 },
@@ -1167,10 +1183,12 @@ class PathPackagerTester(PackagerTester):
         *[
             PackToUnpackTest(
                 pack_handler="pack_path_directory",
-                log_hint={
-                    "key": "my_dir",
-                    "archive_format": archive_format,
-                },
+                log_hint=LogHint(
+                    key="my_dir",
+                    packing_kwargs={
+                        "archive_format": archive_format,
+                    },
+                ),
                 expected_instructions={
                     "is_directory": True,
                     "archive_format": archive_format,

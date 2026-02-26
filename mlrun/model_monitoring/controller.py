@@ -21,7 +21,7 @@ import warnings
 from collections.abc import Iterator
 from contextlib import AbstractContextManager
 from types import TracebackType
-from typing import Any, Final, NamedTuple, Optional, Union, cast
+from typing import Any, Final, NamedTuple, Union, cast
 
 import nuclio_sdk
 import numpy as np
@@ -81,7 +81,7 @@ class _BatchWindow:
 
     def _get_saved_last_analyzed(
         self,
-    ) -> Optional[float]:
+    ) -> float | None:
         return self._db.get_application_time(self._application)
 
     def _update_last_analyzed(self, last_analyzed: float) -> None:
@@ -193,7 +193,7 @@ class _BatchWindow:
 
 class _BatchWindowGenerator(AbstractContextManager):
     def __init__(
-        self, project: str, endpoint_id: str, window_length: Optional[int] = None
+        self, project: str, endpoint_id: str, window_length: int | None = None
     ) -> None:
         """
         Initialize a batch window generator object that generates batch window objects
@@ -213,10 +213,10 @@ class _BatchWindowGenerator(AbstractContextManager):
 
     def __exit__(
         self,
-        exc_type: Optional[type[BaseException]],
-        exc_value: Optional[BaseException],
-        traceback: Optional[TracebackType],
-    ) -> Optional[bool]:
+        exc_type: type[BaseException] | None,
+        exc_value: BaseException | None,
+        traceback: TracebackType | None,
+    ) -> bool | None:
         self._schedules_file.__exit__(
             exc_type=exc_type, exc_value=exc_value, traceback=traceback
         )
@@ -224,7 +224,7 @@ class _BatchWindowGenerator(AbstractContextManager):
     def get_application_list(self) -> set[str]:
         return self._schedules_file.get_application_list()
 
-    def get_min_last_analyzed(self) -> Optional[float]:
+    def get_min_last_analyzed(self) -> float | None:
         return self._schedules_file.get_min_timestamp()
 
     @classmethod
@@ -318,18 +318,20 @@ class MonitoringApplicationController:
             mlrun.mlconf.artifact_path
         )
         self.storage_options = store.get_storage_options()
-        self._controller_stream: Optional[
+        self._controller_stream: (
             Union[
                 mlrun.platforms.iguazio.OutputStream,
                 mlrun.platforms.iguazio.KafkaOutputStream,
             ]
-        ] = None
-        self._model_monitoring_stream: Optional[
+            | None
+        ) = None
+        self._model_monitoring_stream: (
             Union[
                 mlrun.platforms.iguazio.OutputStream,
                 mlrun.platforms.iguazio.KafkaOutputStream,
             ]
-        ] = None
+            | None
+        ) = None
         self.applications_streams: dict[
             str,
             Union[
@@ -377,7 +379,7 @@ class MonitoringApplicationController:
         return self._model_monitoring_stream
 
     @staticmethod
-    def _get_model_monitoring_access_key() -> Optional[str]:
+    def _get_model_monitoring_access_key() -> str | None:
         access_key = os.getenv(mm_constants.ProjectSecretKeys.ACCESS_KEY)
         # allow access key to be empty and don't fetch v3io access key if not needed
         if access_key is None:
@@ -518,7 +520,7 @@ class MonitoringApplicationController:
 
     def model_endpoint_process(
         self,
-        event: Optional[dict] = None,
+        event: dict | None = None,
     ) -> None:
         """
         Process a model endpoint and trigger the monitoring applications. This function running on different process

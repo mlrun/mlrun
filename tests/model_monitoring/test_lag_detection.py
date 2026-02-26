@@ -426,7 +426,7 @@ _LAG_ALERT_PROJECT = "test-lag-alert"
 
 @pytest.fixture()
 def lag_alert_mock_db():
-    mock = unittest.mock.Mock()
+    mock = unittest.mock.Mock(spec=mlrun.db.httpdb.HTTPRunDB)
     with unittest.mock.patch("mlrun.db.get_run_db", return_value=mock):
         yield mock
 
@@ -521,7 +521,7 @@ class TestDeleteModelMonitoringLagAlert:
 
         lag_alert_mock_db.delete_alert_config.assert_called_once_with(
             MonitoringAlertNames.LAG_DETECTED,
-            project_name=_LAG_ALERT_PROJECT,
+            project=_LAG_ALERT_PROJECT,
         )
 
     def test_ignores_not_found_errors(self, lag_alert_mock_db, lag_alert_project):

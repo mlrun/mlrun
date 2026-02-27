@@ -310,7 +310,7 @@ jobs:
         GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
 
     - name: Upload env file
-      uses: actions/upload-artifact@v6
+      uses: actions/upload-artifact@v7
       with:
         name: env
         path: "${{ steps.encrypt_file.outputs.env_file_path }}"

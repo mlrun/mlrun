@@ -377,22 +377,22 @@ jobs:
         # To save time, install only pytest and coverage-related packages, without mlrun and its dependencies.
         run: make install-dev-requirements
       - name: Download server unit tests coverage report
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           name: coverage_unit_tests_report_${{ matrix.python-version }}_${{ github.run_id }}_server.coverage
           path: tests/coverage_reports/
       - name: Download client unit tests coverage report
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           name: coverage_unit_tests_report_${{ matrix.python-version }}_${{ github.run_id }}_client.coverage
           path: tests/coverage_reports/
       - name: Download integration coverage report
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           path: tests/coverage_reports/
 
       - name: Download migration coverage report
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           name: coverage_migration_tests_report-${{ github.run_id }}.coverage
           path: tests/coverage_reports/

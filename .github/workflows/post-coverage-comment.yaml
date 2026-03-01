@@ -1,3 +1,17 @@
+# Copyright 2026 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 name: Post Coverage Comment
 
 on:
@@ -17,7 +31,7 @@ jobs:
       actions: read
     steps:
       - name: Download coverage artifact
-        uses: dawidd6/action-download-artifact@v6
+        uses: dawidd6/action-download-artifact@2536c51d3d126276eb39f74d6bc9c72ac6ef30d3
         with:
           name: coverage-markdown-report
           workflow_conclusion: success
@@ -74,7 +88,7 @@ jobs:
           } > final_comment.md
 
       - name: Post Comment to PR
-        uses: thollander/actions-comment-pull-request@v3
+        uses: thollander/actions-comment-pull-request@24bffb9b452ba05a4f3f77933840a6a841d1b32b
         with:
           pr-number: ${{ steps.pr.outputs.number }}
           file-path: final_comment.md

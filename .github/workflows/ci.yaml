@@ -422,9 +422,7 @@ jobs:
             echo "<details>"
             echo "<summary>📂 Click to view full coverage details</summary>"
             echo ""
-            echo "\`\`\`markdown"
             cat tests/coverage_reports/diff_coverage.md
-            echo "\`\`\`"
             echo ""
             echo "</details>"
           } >> "$GITHUB_STEP_SUMMARY"

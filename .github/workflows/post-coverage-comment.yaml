@@ -58,30 +58,26 @@ jobs:
           echo "Found PR number: ${PR_NUMBER}"
           echo "number=${PR_NUMBER}" >> "$GITHUB_OUTPUT"
 
-      - name: Read coverage report
-        id: read_report
+      - name: Build coverage comment file
         shell: bash
         run: |
           set -euo pipefail
           {
-            echo 'REPORT_BODY<<EOF'
+            echo "## 📊 Diff Coverage Report"
+            echo ""
+            echo "<details>"
+            echo "<summary>📂 Click to view full coverage details</summary>"
+            echo ""
             cat diff_coverage.md
-            echo 'EOF'
-          } >> "$GITHUB_ENV"
-
+            echo ""
+            echo "</details>"
+          } > final_comment.md
 
       - name: Post Comment to PR
         uses: thollander/actions-comment-pull-request@v3
         with:
           pr-number: ${{ steps.pr.outputs.number }}
-          message: |
-            ## 📊 Diff Coverage Report
-            <details>
-            <summary>📂 Click to view full coverage details</summary>
-
-            ${{ env.REPORT_BODY }}
-
-            </details>
+          file-path: final_comment.md
           comment-tag: coverage_report
           mode: recreate
 

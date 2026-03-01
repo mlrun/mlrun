@@ -429,7 +429,7 @@ jobs:
 
       - name: Upload markdown coverage report for PR comment
         if: github.event_name == 'pull_request'
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: coverage-markdown-report
           path: tests/coverage_reports/diff_coverage.md

@@ -39,12 +39,13 @@ import mlrun.runtimes.nuclio.function
 import mlrun.runtimes.pod
 from mlrun import code_to_function, mlconf
 from mlrun.common.runtimes.constants import NuclioIngressAddTemplatedIngressModes
+from mlrun.common.runtimes.validators import validate_sidecar_probes
 from mlrun.platforms.iguazio import split_path
 from mlrun.utils import logger
 
 import services.api.crud.runtimes.nuclio.function
 import services.api.crud.runtimes.nuclio.helpers
-from services.api.api.endpoints.nuclio import _deploy_function, _validate_sidecar_probes
+from services.api.api.endpoints.nuclio import _deploy_function
 from services.api.tests.unit.conftest import APIK8sSecretsMock
 from services.api.tests.unit.runtimes.base import TestRuntimeBase
 from services.api.utils.functions import build_function
@@ -2251,10 +2252,10 @@ class TestNuclioRuntime(TestRuntimeBase):
             },
         ]
 
-        _validate_sidecar_probes(sidecars)
+        validate_sidecar_probes(sidecars)
 
     def test_validate_sidecar_probes_invalid_configurations(self):
-        # Test various invalid probe configurations - should raise HTTPException
+        # Test various invalid probe configurations - should raise MLRunInvalidArgumentError
         invalid_sidecar_configs = [
             [
                 {
@@ -2284,13 +2285,11 @@ class TestNuclioRuntime(TestRuntimeBase):
         ]
 
         for sidecars in invalid_sidecar_configs:
-            with pytest.raises(HTTPException) as exception_result:
-                _validate_sidecar_probes(sidecars)
-
-            assert exception_result.value.status_code == HTTPStatus.BAD_REQUEST.value
-            assert "must have exactly one of" in str(
-                exception_result.value.detail.get("reason", "")
-            )
+            with pytest.raises(
+                mlrun.errors.MLRunInvalidArgumentError,
+                match="must have exactly one of",
+            ):
+                validate_sidecar_probes(sidecars)
 
     @pytest.mark.parametrize(
         "sidecars,expectation,is_valid",
@@ -2338,7 +2337,8 @@ class TestNuclioRuntime(TestRuntimeBase):
         Validates that:
         - Valid sidecar probes allow the function to be saved to DB
         - Invalid sidecar probes:
-          1. Raise specific HTTPException from _validate_sidecar_probes
+          1. validate_sidecar_probes raises MLRunInvalidArgumentError,
+             which _deploy_function converts to HTTPException
           2. No DB changes (save is not called)
         """
         function = self._generate_runtime(self.runtime_kind)
@@ -2378,7 +2378,7 @@ class TestNuclioRuntime(TestRuntimeBase):
                 assert exception_result is None
                 mock_db.assert_called_with(versioned=False)
             else:
-                # Verify HTTPException was raised by _validate_sidecar_probes
+                # Verify MLRunInvalidArgumentError was raised by validate_sidecar_probes
                 assert (
                     exception_result.value.status_code == HTTPStatus.BAD_REQUEST.value
                 )

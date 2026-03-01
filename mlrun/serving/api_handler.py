@@ -223,6 +223,23 @@ class _APIHandlerStep(mlrun.serving.states.TaskStep):
                 )
             # else: exact endpoint – handled by dict lookup, no compilation needed
 
+        # Validate that body_map parameter names don't overlap with path template
+        # parameter names. This is a static conflict that can be caught early,
+        # before any request arrives.
+        if self._parsed_body_map and template_patterns:
+            body_map_names = set(self._parsed_body_map.keys())
+            for _, compiled_pattern, _, _ in template_patterns:
+                path_param_names = set(compiled_pattern.groupindex.keys())
+                overlapping = body_map_names & path_param_names
+                if overlapping:
+                    raise mlrun.errors.MLRunValueError(
+                        f"Configuration conflict: body_map parameter(s) "
+                        f"{', '.join(sorted(overlapping))} overlap with path template "
+                        f"parameter(s) in pattern '{compiled_pattern.pattern}'. "
+                        f"Rename the body_map parameter(s) or the path template "
+                        f"placeholder(s) to avoid ambiguity."
+                    )
+
         return template_patterns, star_patterns
 
     def _apply_parsed_body_map(self, body: dict) -> "_MappedBody":

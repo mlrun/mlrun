@@ -3692,6 +3692,7 @@ class RootFlowStep(FlowStep):
     def _is_local_function(self, context, current_function=None) -> bool:
         return True
 
+
 class HubTaskStep(TaskStep):
     """hub task execution step, runs a class or handler from a hub"""
 

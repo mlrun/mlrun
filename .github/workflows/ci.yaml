@@ -364,9 +364,6 @@ jobs:
       matrix:
         python-version: [ "3.11"]
     needs: [tests, integration-tests, migrations-tests]
-    permissions:
-      contents: write    # Required to push to the gh-pages branch
-      pull-requests: write # If you are still posting comments
     steps:
       - uses: actions/checkout@v6
         with:
@@ -429,14 +426,7 @@ jobs:
         with:
           name: coverage-markdown-report
           path: tests/coverage_reports/diff_coverage.md
-          retention-days: 5
-
-#      - name: Comment PR with coverage
-#        uses: marocchino/sticky-pull-request-comment@v2
-#        if: github.event_name == 'pull_request'
-#        with:
-#          header: coverage
-#          path: tests/coverage_reports/diff_coverage.md
+          retention-days: 30
 
       - name: Upload coverage diff report
         uses: actions/upload-artifact@v6
@@ -455,22 +445,6 @@ jobs:
             cat tests/coverage_reports/diff_coverage.md
             echo 'EOF'
           } >> "$GITHUB_ENV"
-
-      - name: Post Comment to PR
-        if: github.event_name == 'pull_request'
-        uses: thollander/actions-comment-pull-request@v3
-        with:
-          # Use the environment variable inside the dropdown tags
-          message: |
-            ## 📊 Diff Coverage Report
-            <details>
-            <summary>📂 Click to view full coverage details</summary>
-
-            ${{ env.REPORT_BODY }}
-
-            </details>
-          comment-tag: coverage_report
-          mode: recreate
 
   label-oss-system-test-unknown:
     name: Label PR with Smoke Unknown

@@ -16,6 +16,7 @@ name: CI
 
 permissions:
   contents: read
+  pull-requests: write
 
 on:
   pull_request:
@@ -416,3 +417,46 @@ jobs:
           name: coverage_combined_diff_report_${{ matrix.python-version }}_${{ github.run_id }}.html
           path: tests/coverage_reports/combined_diff.html
           retention-days: 30
+
+  label-oss-system-test-unknown:
+    name: Label PR with Smoke Unknown
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Set Smoke tests Unknown label
+        run: |
+          PR="${{ github.event.pull_request.number }}"
+          API_URL="https://api.github.com/repos/${{ github.repository }}/issues/${PR}/labels"
+
+          REPO_LABELS_URL="https://api.github.com/repos/${{ github.repository }}/labels"
+
+          # Ensure the Unknown label exists with gray color
+          curl -sS -X PATCH \
+            -H "Authorization: token ${GITHUB_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            -d '{"color":"c5def5"}' \
+            "${REPO_LABELS_URL}/Smoke tests%3A%20Unknown" || \
+          curl -sS -X POST \
+            -H "Authorization: token ${GITHUB_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            -d '{"name":"Smoke tests: Unknown","color":"c5def5"}' \
+            "${REPO_LABELS_URL}"
+
+          # Remove Pass and Fail labels (ignore errors if not present)
+          curl -sS -X DELETE \
+            -H "Authorization: token ${GITHUB_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            "${API_URL}/Smoke tests%3A%20Pass" || true
+          curl -sS -X DELETE \
+            -H "Authorization: token ${GITHUB_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            "${API_URL}/Smoke tests%3A%20Fail" || true
+
+          # Add Unknown label
+          curl -sS -X POST \
+            -H "Authorization: token ${GITHUB_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            -d '{"labels":["Smoke tests: Unknown"]}' \
+            "${API_URL}"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

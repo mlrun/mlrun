@@ -77,7 +77,7 @@ def run_function(
     artifact_path: str | None = None,
     notifications: list[mlrun.model.Notification] | None = None,
     returns: "list[str | mlrun.LogHint] | None" = None,
-    builder_env: list | None = None,
+    builder_env: dict | None = None,
     reset_on_run: bool | None = None,
     output_path: str | None = None,
     retry: Union[mlrun.model.Retry, dict] | None = None,
@@ -236,6 +236,12 @@ def run_function(
         if local and project and function.spec.build.source:
             workdir = workdir or project.spec.get_code_path()
 
+        # builder_env is used when auto_build triggers deploy(); set on build spec so it
+        # reaches the build flow via func.to_dict() when launcher calls runtime.deploy()
+        if builder_env:
+            existing = function.spec.build.builder_env or {}
+            function.spec.build.builder_env = {**existing, **builder_env}
+
         # remove this filter once the artifact_path parameter is deprecated in 1.12.0
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", category=FutureWarning)
@@ -254,7 +260,6 @@ def run_function(
                 auto_build=auto_build,
                 schedule=schedule,
                 notifications=notifications,
-                builder_env=builder_env,
                 reset_on_run=reset_on_run,
             )
         if run_result:

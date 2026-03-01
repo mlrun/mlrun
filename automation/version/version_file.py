@@ -279,7 +279,10 @@ def create_or_update_version_file(mlrun_version: str, version_file_path: str):
     ):
         feature_name = resolve_feature_name(git_branch)
         if not mlrun_version.endswith(feature_name):
-            mlrun_version = f"{mlrun_version}+{feature_name}"
+            # Use "." separator if version already has a "+" (build metadata),
+            # since semver only allows one "+" segment
+            sep = "." if "+" in mlrun_version else "+"
+            mlrun_version = f"{mlrun_version}{sep}{feature_name}"
             logger.debug(f"With feature_name: {mlrun_version = }")
 
     # Check if the provided version is a semver and followed by a "-"

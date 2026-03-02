@@ -47,7 +47,7 @@ Once configured, the API handler configuration is placed in the serving function
 
 ## Viewing API handlers in graphs
 In a serving graph visualized in the MLRun UI, the graph displays details on the API handler. For example, you can see allowed paths, and also the transformations between schemas. 
-Inn a Jupyter plot of a graph there are indications that an API handler exists without specific details.
+In a Jupyter plot of a graph there are indications that an API handler exists without specific details.
 
 
 

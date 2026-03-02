@@ -469,12 +469,38 @@ class MonitoringDeployment:
             )
         except kafka.errors.TopicAlreadyExistsError as exc:
             if ignore_stream_already_exists_failure:
-                logger.info(
-                    "Kafka topic of model monitoring stream already exists. "
-                    "Skipping topic creation and using `earliest` offset",
-                    project=self.project,
-                    error_message=mlrun.errors.err_to_str(exc),
-                )
+                if function_name == mm_constants.MonitoringFunctionNames.STREAM:
+                    # TODO: Remove in 1.13.0 — one-time upgrade handling
+                    # from the old shared consumer group to per-topic groups.
+                    if not self._consumer_group_has_offsets(
+                        kafka_profile=kafka_profile,
+                        group=topic,
+                        topic=topic,
+                    ):
+                        # First upgrade: the new per-topic group has no
+                        # committed offsets yet.  Use "latest" so the new
+                        # consumer starts from the current end of the topic
+                        # rather than replaying from the beginning.
+                        stream_source.attributes["initial_offset"] = "latest"
+                        logger.info(
+                            "Upgrade detected: setting initial_offset to latest "
+                            "for new per-topic consumer group",
+                            project=self.project,
+                            topic=topic,
+                        )
+                    else:
+                        logger.info(
+                            "Kafka topic of model monitoring stream already "
+                            "exists, skipping topic creation",
+                            project=self.project,
+                            topic=topic,
+                        )
+                else:
+                    logger.debug(
+                        "Kafka topic already exists",
+                        project=self.project,
+                        topic=topic,
+                    )
             else:
                 raise exc
 
@@ -488,6 +514,46 @@ class MonitoringDeployment:
             function.with_annotations(nuclio_annotations)
         function.spec.min_replicas = stream_args.kafka.min_replicas
         function.spec.max_replicas = stream_args.kafka.max_replicas
+
+    # TODO: Remove in 1.13.0 — one-time upgrade detection from the old
+    # shared consumer group to per-topic groups (ML-11979).
+    def _consumer_group_has_offsets(
+        self,
+        *,
+        kafka_profile: mlrun.datastore.datastore_profile.DatastoreProfileKafkaStream,
+        group: str,
+        topic: str,
+    ) -> bool:
+        """Check whether *group* has committed offsets for *topic*.
+
+        :param kafka_profile: Kafka datastore profile with broker credentials.
+        :param group:         Consumer group name to check.
+        :param topic:         Topic to filter offsets by.
+        """
+        from kafka.admin import KafkaAdminClient
+
+        try:
+            profile_attributes = kafka_profile.attributes()
+            admin_kwargs = mlrun.datastore.utils.KafkaParameters(
+                profile_attributes
+            ).admin()
+            admin = KafkaAdminClient(
+                bootstrap_servers=kafka_profile.brokers, **admin_kwargs
+            )
+            try:
+                offsets = admin.list_consumer_group_offsets(group)
+                return any(tp.topic == topic for tp in offsets)
+            finally:
+                admin.close()
+        except Exception as exc:
+            logger.warning(
+                "Failed to check consumer group offsets, assuming upgrade (no offsets)",
+                project=self.project,
+                group=group,
+                topic=topic,
+                exc=mlrun.errors.err_to_str(exc),
+            )
+            return False
 
     @staticmethod
     def create_model_monitoring_stream(

@@ -407,14 +407,6 @@ class SystemTestPreparer:
         )
 
     def _enrich_env(self):
-        devutils_outputs = self._get_devutils_status()
-        if "redis" in devutils_outputs:
-            self._logger.log("debug", "Enriching env with redis info")
-            # uncomment when url is accessible from outside the cluster
-            # self._env_config["MLRUN_REDIS__URL"] = f"redis://{devutils_outputs['redis']['app_url']}"
-            # self._env_config["REDIS_USER"] = devutils_outputs["redis"]["username"]
-            # self._env_config["REDIS_PASSWORD"] = devutils_outputs["redis"]["password"]
-
         api_url_host = self._get_ingress_host("datanode-dashboard")
         framesd_host = self._get_ingress_host("framesd")
         v3io_api_host = self._get_ingress_host("webapi")

@@ -1,10 +1,11 @@
 (profies)=
 # Profiles
 
-Profiles are containers for credentials for a remote service:
+Profiles are containers for credentials for a remote service. See:
 - Datastore: see {ref}`datastore`
-- Config, general-purpose, used in vectorDBs. See [Milvus configuration](./genai/data-mgmt/vector-databases.md#milvus-configuration)
-And in this section:
+- Config, general-purpose, used in vectorDBs. See [Milvus configuration](../genai/data-mgmt/vector-databases.md#milvus-configuration)
+
+**In this section**
 - [Provider profiles](#model-provider-profiles)
 - [Source and target profiles](#source-and-target-profiles)
 

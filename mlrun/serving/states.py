@@ -225,30 +225,32 @@ class BaseStep(ModelObj):
 
         When setting the error_handler on the graph object, the graph completes after the error handler execution.
 
-        example:
-            in the below example, an 'error_catcher' step is set as the error_handler of the 'raise' step:
-            in case of error/raise in 'raise' step, the handle_error will be run. after that,
-            the 'echo' step will be run.
+        example::
+
+            # in the below example, an 'error_catcher' step is set as the error_handler of the 'raise' step:
+            # in case of error/raise in 'raise' step, the handle_error will be run. after that,
+            # the 'echo' step will be run.
+
             graph = function.set_topology('flow', engine='async')
-            graph.to(name='raise', handler='raising_step')\
+            graph.to(name='raise', handler='raising_step')
                 .error_handler(name='error_catcher', handler='handle_error', full_event=True, before='echo')
             graph.add_step(name="echo", handler='echo', after="raise").respond()
 
         :param name:        unique name (and path) for the error handler step, default is class name
-        :param class_name:  class name or step object to build the step from
-                            the error handler step is derived from task step (ie no router/queue functionally)
+        :param class_name:  class name or step object to build the step from.
+                            The error handler step is derived from task step (ie no router/queue functionally)
         :param handler:     class/function handler to invoke on run/event
         :param before:      string or list of next step(s) names that will run after this step.
-                            the `before` param must not specify upstream steps as it will cause a loop.
-                            if `before` is not specified, the graph will complete after the error handler execution.
+                            The `before` param must not specify upstream steps as it will cause a loop.
+                            If `before` is not specified, the graph will complete after the error handler execution.
         :param function:    function this step should run in
         :param full_event:  this step accepts the full event (not just the body)
-        :param input_path:  selects the key/path in the event to use as input to the step
-                            this requires that the event body will behave like a dict, for example:
+        :param input_path:  selects the key/path in the event to use as input to the step.
+                            This requires that the event body will behave like a dict, for example:
                             event: {"data": {"a": 5, "b": 7}}, input_path="data.b" means the step will
                             receive 7 as input
-        :param result_path: selects the key/path in the event to write the results to
-                            this requires that the event body will behave like a dict, for example:
+        :param result_path: selects the key/path in the event to write the results to.
+                            This requires that the event body will behave like a dict, for example:
                             event: {"x": 5} , result_path="y" means the output of the step will be written
                             to event["y"] resulting in {"x": 5, "y": <result>}
         :param class_args:  class init arguments
@@ -369,27 +371,28 @@ class BaseStep(ModelObj):
     ):
         """add a step right after this step and return the new step
 
-        example:
-            a 4-step pipeline ending with a stream:
-            graph.to('URLDownloader')\
-                 .to('ToParagraphs')\
-                 .to(name='to_json', handler='json.dumps')\
-                 .to('>>', 'to_v3io', path=stream_path)\
+        example::
 
-        :param class_name:  class name or step object to build the step from
-                            for router steps the class name should start with '*'
-                            for queue/stream step the class should be '>>' or '$queue'
-        :param name:        unique name (and path) for the child step, default is class name
-        :param handler:     class/function handler to invoke on run/event
+            # a 4-step pipeline ending with a stream:
+            graph.to('URLDownloader')
+                 .to('ToParagraphs')
+                 .to(name='to_json', handler='json.dumps')
+                 .to('>>', 'to_v3io', path=stream_path)
+
+        :param class_name:  Class name or step object to build the step from.
+                            For router steps the class name should start with `*`.
+                            For queue/stream step the class should be `>>` or `$queue`.
+        :param name:        Unique name (and path) for the child step, default is class name
+        :param handler:     Class/function handler to invoke on run/event
         :param graph_shape: graphviz shape name
-        :param function:    function this step should run in
-        :param full_event:  this step accepts the full event (not just body)
-        :param input_path:  selects the key/path in the event to use as input to the step
-                            this requires that the event body will behave like a dict, example:
+        :param function:    Function this step should run in
+        :param full_event:  This step accepts the full event (not just body)
+        :param input_path:  Selects the key/path in the event to use as input to the step.
+                            This requires that the event body will behave like a dict, example:
                             event: {"data": {"a": 5, "b": 7}}, input_path="data.b" means the step will
                             receive 7 as input
-        :param result_path: selects the key/path in the event to write the results to
-                            this require that the event body will behave like a dict, example:
+        :param result_path: Selects the key/path in the event to write the results to.
+                            This requires that the event body will behave like a dict, example:
                             event: {"x": 5} , result_path="y" means the output of the step will be written
                             to event["y"] resulting in {"x": 5, "y": <result>}
         :param model_endpoint_creation_strategy: Strategy for creating or updating the model endpoint:
@@ -446,7 +449,8 @@ class BaseStep(ModelObj):
     def cycle_to(self, step_names: Union[str, list[str]]):
         """create a cycle in the graph to the specified step names
 
-        example:
+        example::
+
             in the below example, a cycle is created from 'step3' to 'step1':
             graph.to('step1')\
                  .to('step2')\
@@ -2786,7 +2790,8 @@ class FlowStep(BaseStep):
 
         use after/before to insert into a specific location
 
-        example:
+        example::
+
             graph = fn.set_topology("flow", exist_ok=True)
             graph.add_step(class_name="Chain", name="s1")
             graph.add_step(class_name="Chain", name="s3", after="$prev")
@@ -2803,17 +2808,17 @@ class FlowStep(BaseStep):
         :param graph_shape: graphviz shape name
         :param function:    function this step should run in
         :param full_event:  this step accepts the full event (not just body)
-        :param input_path:  selects the key/path in the event to use as input to the step
-                            this require that the event body will behave like a dict, example:
+        :param input_path:  selects the key/path in the event to use as input to the step.
+                            This requires that the event body will behave like a dict, example:
                             event: {"data": {"a": 5, "b": 7}}, input_path="data.b" means the step will
                             receive 7 as input
-        :param result_path: selects the key/path in the event to write the results to
-                            this require that the event body will behave like a dict, example:
+        :param result_path: selects the key/path in the event to write the results to.
+                            This require that the event body will behave like a dict, example:
                             event: {"x": 5} , result_path="y" means the output of the step will be written
                             to event["y"] resulting in {"x": 5, "y": <result>}
         :param model_endpoint_creation_strategy: Strategy for creating or updating the model endpoint:
 
-                             * **overwrite**: If model endpoints with the same name exist, delete the `latest` one;
+                            * **overwrite**: If model endpoints with the same name exist, delete the `latest` one;
                                 create a new model endpoint entry and set it as `latest`.
 
                             * **inplace** (default): If model endpoints with the same name exist, update the `latest`
@@ -3369,10 +3374,11 @@ class RootFlowStep(FlowStep):
     ) -> None:
         """
         Add a shared model to the graph, this model will be available to all the ModelRunners in the graph
+
         :param name:                Name of the shared model (should be unique in the graph)
         :param model_class:         Model class name. If LLModel is chosen
-        (either by name `LLModel` or by its full path, e.g. mlrun.serving.states.LLModel),
-        outputs will be overridden with UsageResponseKeys fields.
+                                    (either by name `LLModel` or by its full path, e.g. mlrun.serving.states.LLModel),
+                                    outputs will be overridden with UsageResponseKeys fields.
         :param execution_mechanism: Parallel execution mechanism to be used to execute this model. Must be one of:
 
             * **process_pool**: To run in a separate process from a process pool. This is appropriate for CPU or GPU
@@ -4053,6 +4059,7 @@ def _init_async_objects(context, steps, root):
                             DatastoreProfileKafkaTarget | DatastoreProfileKafkaStream,
                         ):
                             step._async_object = KafkaStoreyTarget(
+                                name=step.name,
                                 path=stream_path,
                                 context=context,
                                 max_iterations=max_iterations,
@@ -4060,6 +4067,7 @@ def _init_async_objects(context, steps, root):
                             )
                         elif isinstance(datastore_profile, DatastoreProfileV3io):
                             step._async_object = StreamStoreyTarget(
+                                name=step.name,
                                 stream_path=stream_path,
                                 context=context,
                                 max_iterations=max_iterations,
@@ -4078,6 +4086,7 @@ def _init_async_objects(context, steps, root):
                         )
 
                         step._async_object = storey.KafkaTarget(
+                            name=step.name,
                             topic=topic,
                             brokers=brokers,
                             producer_options=kafka_producer_options,
@@ -4087,6 +4096,7 @@ def _init_async_objects(context, steps, root):
                         )
                     elif stream_path.startswith("dummy://"):
                         step._async_object = _DummyStream(
+                            name=step.name,
                             context=context,
                             max_iterations=max_iterations,
                             **options,
@@ -4098,6 +4108,7 @@ def _init_async_objects(context, steps, root):
                         step._async_object = storey.StreamTarget(
                             storey.V3ioDriver(endpoint or config.v3io_api),
                             stream_path,
+                            name=step.name,
                             context=context,
                             max_iterations=max_iterations,
                             **options,

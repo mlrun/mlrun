@@ -20,6 +20,7 @@ import nuclio
 import nuclio.auth
 
 import mlrun.common.constants
+import mlrun.common.runtimes.validators
 import mlrun.common.schemas as schemas
 import mlrun.datastore
 import mlrun.errors
@@ -88,6 +89,7 @@ class ApplicationSpec(nuclio_function.NuclioSpec):
         internal_application_port=None,
         application_ports=None,
         auth=None,
+        env_from=None,
     ):
         super().__init__(
             command=command,
@@ -102,6 +104,7 @@ class ApplicationSpec(nuclio_function.NuclioSpec):
             volumes=volumes,
             volume_mounts=volume_mounts,
             env=env,
+            env_from=env_from,
             resources=resources,
             config=config,
             base_spec=base_spec,
@@ -372,6 +375,11 @@ class ApplicationRuntime(nuclio_function.RemoteRuntime):
                 }.items()
                 if value is not None
             }
+        )
+
+        # Validate the probe configuration before storing
+        mlrun.common.runtimes.validators.validate_sidecar_probes(
+            [{type.key: probe_config}]
         )
 
         # Store probe configuration in the sidecar

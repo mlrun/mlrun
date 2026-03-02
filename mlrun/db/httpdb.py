@@ -1793,8 +1793,9 @@ class HTTPRunDB(RunDBInterface):
     ) -> mlrun.common.schemas.GroupedByProjectRuntimeResourcesOutput:
         """Delete all runtime resources which are in terminal state.
 
-        :param project: Delete only runtime resources of a specific project, by default None, which will delete only
-            from the projects you're authorized to delete from.
+        :param project: Delete only runtime resources of a specific project. By default None, which will attempt to
+            delete from all projects. The operation will fail with an access denied error if runtime resources exist
+            in projects the user is not authorized to delete from.
         :param label_selector: Delete only runtime resources matching the label selector.
         :param kind: The kind of runtime to delete. May be one of `['dask', 'job', 'spark', 'remote-spark', 'mpijob']`
         :param object_id: The identifier of the mlrun object to delete its runtime resources. for most function

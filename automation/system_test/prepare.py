@@ -358,6 +358,8 @@ class SystemTestPreparer:
         # enrichment can be done only if ssh client is initialized
         if self._ssh_client:
             self._enrich_env()
+        else:
+            self._enrich_oss_env()
         serialized_env_config = self._serialize_env_config()
         with open(filepath, "w") as f:
             f.write(serialized_env_config)
@@ -455,6 +457,28 @@ class SystemTestPreparer:
                 "type": "v3io",
                 "name": "mm-stream-profile",
                 "v3io_access_key": self._env_config["V3IO_ACCESS_KEY"],
+            }
+        )
+
+    def _enrich_oss_env(self):
+        """Add model monitoring profiles for OSS/CE deployments."""
+        self._env_config["mlrun_model_monitoring_tsdb_profile"] = json.dumps(
+            {
+                "type": "postgresql",
+                "name": "mm-tsdb-profile",
+                "user": "postgres",
+                "password": "postgres",
+                "host": "timescaledb",
+                "port": 5432,
+                "database": "postgres",
+            }
+        )
+        self._env_config["mlrun_model_monitoring_stream_profile"] = json.dumps(
+            {
+                "type": "kafka_stream",
+                "name": "mm-stream-profile",
+                "brokers": "kafka-stream:9092",
+                "topics": [],
             }
         )
 

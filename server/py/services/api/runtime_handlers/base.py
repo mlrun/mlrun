@@ -931,9 +931,9 @@ class BaseRuntimeHandler(ABC):
                     namespace,
                     label_selector=label_selector,
                 )
-            except ApiException as exc:
-                # ignore error if crd is not defined
-                if exc.status != 404:
+            except (ApiException, mlrun.errors.MLRunNotFoundError) as exc:
+                # ignore error if crd is not defined (e.g. Spark/MPI operators not installed in MLRun CE)
+                if isinstance(exc, ApiException) and exc.status != 404:
                     raise
         return crd_objects
 
@@ -1174,9 +1174,9 @@ class BaseRuntimeHandler(ABC):
                 namespace,
                 label_selector=label_selector,
             )
-        except ApiException as exc:
-            # ignore error if crd is not defined
-            if exc.status != 404:
+        except (ApiException, mlrun.errors.MLRunNotFoundError) as exc:
+            # ignore error if crd is not defined (e.g. Spark/MPI operators not installed in MLRun CE)
+            if isinstance(exc, ApiException) and exc.status != 404:
                 raise
         else:
             for crd_object in crd_objects:

@@ -61,6 +61,7 @@ class RemoteSparkSpec(KubeResourceSpec):
         graph=None,
         parameters=None,
         track_models=None,
+        env_from=None,
     ):
         super().__init__(
             command=command,
@@ -70,6 +71,7 @@ class RemoteSparkSpec(KubeResourceSpec):
             volumes=volumes,
             volume_mounts=volume_mounts,
             env=env,
+            env_from=env_from,
             resources=resources,
             default_handler=default_handler,
             entry_points=entry_points,

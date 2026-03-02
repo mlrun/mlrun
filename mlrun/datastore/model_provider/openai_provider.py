@@ -616,10 +616,3 @@ class OpenAIProvider(ModelProvider):
             token = self._extract_stream_token(chunk)
             if token:
                 yield token
-
-    @staticmethod
-    def dummy():
-        print("this is a dummy method")
-        x = 1
-        x += 3
-        return x

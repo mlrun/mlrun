@@ -420,14 +420,10 @@ class SystemTestPreparer:
         self._env_config["V3IO_API"] = f"https://{v3io_api_host}"
         self._env_config["MLRUN_DBPATH"] = f"https://{mlrun_api_url}"
 
-        # Since the prepare script is shared across branches, two MM configs are set.
-        # Remove the deprecated config when we stop testing 1.7.x.
+        # running system tests in a lab environment where TLS verification may be disabled.
+        self._env_config["MLRUN_HTTPDB__HTTP__VERIFY"] = "false"
 
-        # MM infra for < 1.8.0
-        self._env_config["MLRUN_MODEL_ENDPOINT_MONITORING__TSDB_CONNECTION"] = "v3io"
-        self._env_config["MLRUN_MODEL_ENDPOINT_MONITORING__STREAM_CONNECTION"] = "v3io"
-
-        # MM infra for >= 1.8.0
+        # MM infra
         self._env_config["mlrun_model_monitoring_tsdb_profile"] = json.dumps(
             {
                 "type": "v3io",

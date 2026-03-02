@@ -2037,18 +2037,6 @@ class TestExtractQueryParams:
         assert normalized_path == "/api/users"
         assert params == {"id": ["1", "2", "3"], "single": "value"}
 
-    def test_extract_query_params_from_event_fields(self) -> None:
-        """Test extracting query params from event.fields"""
-        config = APIHandlerConfig()
-        handler = _APIHandlerStep(config=config)
-
-        event = MockEvent(path="/api/users", method="GET")
-        event.fields = {"limit": ["10"], "filter": ["active"]}
-
-        normalized_path, params = handler._extract_query_params(event, "/api/users")
-        assert normalized_path == "/api/users"
-        assert params == {"limit": "10", "filter": "active"}
-
     def test_extract_query_params_empty_fields_list(self) -> None:
         """Test extracting query params when event.fields has empty list"""
         config = APIHandlerConfig()

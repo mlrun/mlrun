@@ -14,11 +14,14 @@
 
 import base64
 import pathlib
+import unittest.mock
 
 import pytest
 
 import mlrun
+import mlrun.common.constants
 import mlrun.common.schemas
+import mlrun.errors
 import mlrun.runtimes
 import mlrun.utils
 from mlrun.common.runtimes.constants import ProbeTimeConfig, ProbeType
@@ -263,6 +266,41 @@ def test_application_image_build(remote_builder_mock, igz_version_mock):
     )
 
 
+@pytest.mark.parametrize(
+    "source,commands,requirements,expected",
+    [
+        # No source, no commands, no requirements - no build needed
+        (None, None, None, False),
+        # store:// URI alone doesn't require build (init container handles it)
+        ("store://artifacts/project/my-source", None, None, False),
+        # store:// URI with commands requires build
+        ("store://artifacts/project/my-source", ["pip install foo"], None, True),
+        # store:// URI with requirements requires build
+        ("store://artifacts/project/my-source", None, ["pandas"], True),
+        # Remote source without load_source_on_run requires build
+        ("https://github.com/repo.git", None, None, True),
+        # Commands alone require build
+        (None, ["pip install foo"], None, True),
+        # Requirements alone require build
+        (None, None, ["pandas"], True),
+    ],
+)
+def test_application_requires_build(source, commands, requirements, expected):
+    fn: mlrun.runtimes.ApplicationRuntime = mlrun.new_function(
+        "application-test",
+        kind="application",
+        image="mlrun/mlrun",
+    )
+    if source:
+        fn.spec.build.source = source
+    if commands:
+        fn.spec.build.commands = commands
+    if requirements:
+        fn.spec.build.requirements = requirements
+
+    assert fn.requires_build() == expected
+
+
 def test_application_default_api_gateway(rundb_mock, igz_version_mock):
     function_name = "application-test"
     fn: mlrun.runtimes.ApplicationRuntime = mlrun.new_function(
@@ -393,17 +431,6 @@ def test_deploy_reverse_proxy_image(rundb_mock, igz_version_mock):
     mlrun.get_or_create_project("test-deploy-reverse-proxy", allow_cross_project=True)
     mlrun.runtimes.ApplicationRuntime.deploy_reverse_proxy_image()
     assert mlrun.runtimes.ApplicationRuntime.reverse_proxy_image
-
-
-def test_application_from_local_file_validation():
-    project = mlrun.get_or_create_project("test-application", allow_cross_project=True)
-    func_path = assets_path / "sample_function.py"
-    with pytest.raises(
-        mlrun.errors.MLRunInvalidArgumentError,
-        match="Embedding a code file is not supported for application runtime. "
-        "Code files should be specified via project/function source.",
-    ):
-        project.set_function(func=str(func_path), name="my-app", kind="application")
 
 
 def _assert_function_code(fn, file_path=None):
@@ -599,25 +626,6 @@ def test_set_probe_string_type():
 
     sidecar = fn._get_sidecar()
     assert ProbeType.READINESS.key in sidecar
-
-
-def test_set_probe_no_http_path():
-    """Test setting probe without HTTP path (only timing parameters)"""
-    fn: mlrun.runtimes.ApplicationRuntime = mlrun.new_function(
-        "application-test", kind="application", image="mlrun/mlrun"
-    )
-
-    fn.set_probe(
-        type="readiness",
-        initial_delay_seconds=10,
-        period_seconds=5,
-    )
-
-    sidecar = fn._get_sidecar()
-    probe = sidecar[ProbeType.READINESS.key]
-    assert "httpGet" not in probe
-    assert probe[ProbeTimeConfig.INITIAL_DELAY_SECONDS.value] == 10
-    assert probe[ProbeTimeConfig.PERIOD_SECONDS.value] == 5
 
 
 def test_set_probe_multiple_probes():
@@ -967,3 +975,268 @@ def test_enrich_sidecar_probe_ports_no_probes():
     assert ProbeType.READINESS.key not in sidecar
     assert ProbeType.LIVENESS.key not in sidecar
     assert ProbeType.STARTUP.key not in sidecar
+
+
+def test_set_probe_without_health_check_raises_error():
+    """Test that setting a probe via config with no health check param raises an error"""
+    fn: mlrun.runtimes.ApplicationRuntime = mlrun.new_function(
+        "application-test", kind="application", image="mlrun/mlrun"
+    )
+
+    with pytest.raises(
+        mlrun.errors.MLRunInvalidArgumentError,
+        match="must have exactly one of.*httpGet.*exec.*tcpSocket.*grpc",
+    ):
+        fn.set_probe(
+            type="liveness",
+            config={
+                "initialDelaySeconds": 10,
+                "periodSeconds": 5,
+            },
+        )
+
+
+def test_set_probe_with_multiple_health_check_params_raises_error():
+    """Test that setting a probe with multiple health check keys raises an error"""
+    fn: mlrun.runtimes.ApplicationRuntime = mlrun.new_function(
+        "application-test", kind="application", image="mlrun/mlrun"
+    )
+
+    with pytest.raises(
+        mlrun.errors.MLRunInvalidArgumentError,
+        match="must have exactly one of.*httpGet.*exec.*tcpSocket.*grpc",
+    ):
+        fn.set_probe(
+            type="liveness",
+            config={
+                "httpGet": {"path": "/health", "port": 8080},
+                "exec": {"command": ["/bin/sh", "-c", "echo test"]},
+            },
+        )
+
+
+def test_set_probe_invalid_config_does_not_override_valid_probe():
+    """Test that a failed set_probe with invalid config does not modify a previously set valid probe"""
+    fn: mlrun.runtimes.ApplicationRuntime = mlrun.new_function(
+        "application-test", kind="application", image="mlrun/mlrun"
+    )
+
+    # Set a valid probe
+    fn.set_probe(
+        type="liveness",
+        config={
+            "httpGet": {"path": "/health", "port": 8080, "scheme": "HTTP"},
+            "initialDelaySeconds": 17,
+            "periodSeconds": 555,
+        },
+    )
+
+    # Attempt to set an invalid probe configuration
+    with pytest.raises(
+        mlrun.errors.MLRunInvalidArgumentError,
+        match="must have exactly one of.*httpGet.*exec.*tcpSocket.*grpc",
+    ):
+        fn.set_probe(
+            type="liveness",
+            config={
+                "httpGet": {"path": "/bad", "port": 9090},
+                "exec": {"command": ["/bin/sh", "-c", "echo bad"]},
+            },
+        )
+
+    # Verify the original valid probe remains unchanged
+    sidecar = fn._get_sidecar()
+    probe_after = sidecar[ProbeType.LIVENESS.key]
+    assert probe_after is not None
+    assert probe_after["httpGet"]["path"] == "/health"
+    assert probe_after["httpGet"]["port"] == 8080
+    assert probe_after["httpGet"]["scheme"] == "HTTP"
+    assert probe_after[ProbeTimeConfig.INITIAL_DELAY_SECONDS.value] == 17
+    assert probe_after[ProbeTimeConfig.PERIOD_SECONDS.value] == 555
+
+
+@pytest.mark.parametrize(
+    "source,setup_file,expected",
+    [
+        ("local_file.py", True, True),
+        ("directory_path", False, False),
+        ("", False, False),
+        ("store://artifacts/project/file", False, False),
+        ("https://example.com/file.py", False, False),
+        ("git://github.com/repo.git", False, False),
+        ("/non/existent/path.py", False, False),
+    ],
+)
+def test_is_single_local_file(tmp_path, source, setup_file, expected):
+    # Test _is_single_local_file identifies local files vs remote/invalid sources.
+    func_name = "application-test"
+    fn: mlrun.runtimes.ApplicationRuntime = mlrun.new_function(
+        func_name,
+        kind="application",
+        image="mlrun/mlrun",
+    )
+
+    if setup_file:
+        # Create a temporary file for local file case
+        file_path = tmp_path / source
+        file_path.write_text("def handler(): pass")
+        test_source = str(file_path)
+    elif source == "directory_path":
+        # Use tmp_path as directory
+        test_source = str(tmp_path)
+    else:
+        test_source = source
+
+    assert fn._is_single_local_file(test_source) is expected
+
+
+def test_upload_source_as_artifact(tmp_path):
+    # Test that local single file is uploaded as artifact
+    func_name = "application-test"
+    # Create a temporary source file
+    source_file = tmp_path / "handler.py"
+    source_file.write_text("def handler(): pass")
+
+    fn: mlrun.runtimes.ApplicationRuntime = mlrun.new_function(
+        func_name,
+        kind="application",
+        image="mlrun/mlrun",
+        project="test-project",
+    )
+    fn.spec.build.source = str(source_file)
+
+    mock_artifact = unittest.mock.MagicMock()
+    mock_artifact.uri = "store://artifacts/test-project/application-test-source"
+
+    mock_project = unittest.mock.MagicMock()
+    mock_project.log_artifact.return_value = mock_artifact
+
+    with unittest.mock.patch(
+        "mlrun.get_or_create_project", return_value=mock_project
+    ) as mock_get_project:
+        original_path, artifact_uri = fn._upload_source_as_artifact()
+
+    # Verify project was retrieved
+    mock_get_project.assert_called_once_with("test-project")
+
+    # Verify artifact was logged with correct parameters
+    mock_project.log_artifact.assert_called_once_with(
+        item="application-test-source",
+        local_path=str(source_file),
+        artifact_path=mlrun.common.constants.MLRUN_INTERNAL_ARTIFACT_PATH,
+        upload=True,
+        labels={
+            mlrun.common.constants.MLRunInternalLabels.function_name: func_name,
+            mlrun.common.constants.MLRunInternalLabels.system_generated: "true",
+        },
+    )
+
+    # Verify source was swapped to artifact URI and original path is returned for restore
+    assert (
+        fn.spec.build.source == "store://artifacts/test-project/application-test-source"
+    )
+    assert original_path == str(source_file)
+    assert artifact_uri == "store://artifacts/test-project/application-test-source"
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        "store://artifacts/test-project/existing-artifact",
+        "https://github.com/org/repo.git",
+        "s3://bucket/path/file.py",
+        "",
+    ],
+)
+def test_upload_source_as_artifact_skip_non_local(source):
+    # Test that non-local sources (store URIs, remote URLs) and empty path are not uploaded
+    func_name = "application-test"
+    fn: mlrun.runtimes.ApplicationRuntime = mlrun.new_function(
+        func_name,
+        kind="application",
+        image="mlrun/mlrun",
+        project="test-project",
+    )
+    fn.spec.build.source = source
+
+    with unittest.mock.patch("mlrun.get_or_create_project") as mock_get_project:
+        fn._upload_source_as_artifact()
+
+    # Verify project was not called (upload skipped)
+    mock_get_project.assert_not_called()
+
+    # Verify source remains unchanged
+    assert fn.spec.build.source == source
+
+
+def test_upload_source_as_artifact_no_project_error():
+    # Test that missing project raises an error
+    func_name = "application-test"
+    # Create a temporary source file
+    with unittest.mock.patch("os.path.isfile", return_value=True):
+        fn: mlrun.runtimes.ApplicationRuntime = mlrun.new_function(
+            func_name,
+            kind="application",
+            image="mlrun/mlrun",
+        )
+        fn.metadata.project = None
+        fn.spec.build.source = "/path/to/handler.py"
+
+        with pytest.raises(
+            mlrun.errors.MLRunMissingProjectError,
+            match="Project is required to upload source as artifact",
+        ):
+            fn._upload_source_as_artifact()
+
+
+@pytest.mark.parametrize(
+    "filename,content",
+    [
+        ("handler.py", "def handler(): pass"),
+        ("app.sh", "#!/bin/bash\necho hello"),
+        ("server.js", "console.log('hello')"),
+    ],
+)
+def test_set_function_single_file_application(tmp_path, filename, content):
+    source_file = tmp_path / filename
+    source_file.write_text(content)
+
+    project = mlrun.get_or_create_project("test-proj", allow_cross_project=True)
+    fn = project.set_function(
+        str(source_file),
+        name="my-app",
+        kind="application",
+        image="mlrun/mlrun",
+    )
+
+    assert fn.kind == "application"
+    assert fn.metadata.project == "test-proj"
+    assert fn.spec.build.source == str(source_file)
+
+
+@pytest.mark.parametrize(
+    "target_dir,should_succeed,error_match",
+    [
+        ("/my/custom/path", True, None),
+        ("/another/path", True, None),
+        ("", False, "target_dir is required"),
+        ("relative/path", False, "must be an absolute path"),
+    ],
+)
+def test_set_source_target(target_dir, should_succeed, error_match):
+    """
+    Test set_source_target with various valid and invalid inputs.
+
+    Valid absolute paths should set spec.build.source_code_target_dir.
+    Empty or relative paths should raise MLRunInvalidArgumentError.
+    """
+    fn: mlrun.runtimes.ApplicationRuntime = mlrun.new_function(
+        "application-test", kind="application", image="mlrun/mlrun"
+    )
+
+    if should_succeed:
+        fn.set_source_target(target_dir)
+        assert fn.spec.build.source_code_target_dir == target_dir
+    else:
+        with pytest.raises(mlrun.errors.MLRunInvalidArgumentError, match=error_match):
+            fn.set_source_target(target_dir)

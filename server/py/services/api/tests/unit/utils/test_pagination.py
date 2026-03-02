@@ -31,9 +31,9 @@ import framework.utils.singletons.db
 def paginated_method(
     session: sqlalchemy.orm.Session,
     total_amount: int,
-    since: typing.Optional[datetime.datetime] = None,
-    offset: typing.Optional[int] = None,
-    limit: typing.Optional[int] = None,
+    since: datetime.datetime | None = None,
+    offset: int | None = None,
+    limit: int | None = None,
 ):
     items = [{"name": f"item{i}", "since": since} for i in range(total_amount)]
     offset = offset or 0
@@ -277,27 +277,27 @@ async def test_paginate_call_get_token_once(
     response, pagination_info = await paginator.paginate_request(
         db, paginated_method, auth_info, None, 1, page_size, **method_kwargs
     )
-    assert (
-        call_count == 1
-    ), "First request with token=None should call get_paginated_query_cache_record once when creating cache record"
+    assert call_count == 1, (
+        "First request with token=None should call get_paginated_query_cache_record once when creating cache record"
+    )
 
     logger.info("Requesting second page")
     # Second request with token should call get_paginated_query_cache_record once more
     await paginator.paginate_request(
         db, paginated_method, auth_info, pagination_info.page_token
     )
-    assert (
-        call_count == 2
-    ), "Second request with token should call get_paginated_query_cache_record once"
+    assert call_count == 2, (
+        "Second request with token should call get_paginated_query_cache_record once"
+    )
 
     logger.info("Requesting third page")
     # Third request with token should call get_paginated_query_cache_record once more
     await paginator.paginate_request(
         db, paginated_method, auth_info, pagination_info.page_token
     )
-    assert (
-        call_count == 3
-    ), "Third request with token should call get_paginated_query_cache_record once more"
+    assert call_count == 3, (
+        "Third request with token should call get_paginated_query_cache_record once more"
+    )
 
 
 @pytest.mark.asyncio
@@ -800,43 +800,43 @@ def _assert_paginated_response(
     since,
     last_page=False,
 ):
-    assert len(response) == len(
-        expected_items
-    ), f"Expected {len(expected_items)} items, got {len(response)}"
+    assert len(response) == len(expected_items), (
+        f"Expected {len(expected_items)} items, got {len(response)}"
+    )
     for i, item in enumerate(expected_items):
-        assert (
-            response[i]["name"] == item
-        ), f"Expected item name {item}, got {response[i]['name']}"
-        assert (
-            response[i]["since"] == since
-        ), f"Expected since {since}, got {response[i]['since']}"
+        assert response[i]["name"] == item, (
+            f"Expected item name {item}, got {response[i]['name']}"
+        )
+        assert response[i]["since"] == since, (
+            f"Expected since {since}, got {response[i]['since']}"
+        )
     if not last_page:
         assert pagination_info.page_token is not None
     else:
         assert pagination_info.page_token is None
-    assert (
-        pagination_info.page == page
-    ), f"Expected page {page}, got {pagination_info.page}"
-    assert (
-        pagination_info.page_size == page_size
-    ), f"Expected page size {page_size}, got {pagination_info.page_size}"
+    assert pagination_info.page == page, (
+        f"Expected page {page}, got {pagination_info.page}"
+    )
+    assert pagination_info.page_size == page_size, (
+        f"Expected page size {page_size}, got {pagination_info.page_size}"
+    )
 
 
 def _assert_cache_record(
     cache_record: framework.db.sqldb.models.PaginationCache,
-    user: typing.Optional[str],
+    user: str | None,
     method: typing.Callable,
     current_page: int,
     page_size: int,
 ):
     assert cache_record is not None, "Cache record should not be None"
     assert cache_record.user == user, f"Expected user {user}, got {cache_record.user}"
-    assert (
-        cache_record.function == method.__name__
-    ), f"Expected function {method.__name__}, got {cache_record.function}"
-    assert (
-        cache_record.current_page == current_page
-    ), f"Expected current page {current_page}, got {cache_record.current_page}"
-    assert (
-        cache_record.page_size == page_size
-    ), f"Expected page size {page_size}, got {cache_record.page_size}"
+    assert cache_record.function == method.__name__, (
+        f"Expected function {method.__name__}, got {cache_record.function}"
+    )
+    assert cache_record.current_page == current_page, (
+        f"Expected current page {current_page}, got {cache_record.current_page}"
+    )
+    assert cache_record.page_size == page_size, (
+        f"Expected page size {page_size}, got {cache_record.page_size}"
+    )

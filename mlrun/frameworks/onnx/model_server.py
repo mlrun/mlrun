@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Any, Optional, Union
+from typing import Any, Union
 
 import numpy as np
 import onnx
@@ -33,14 +33,12 @@ class ONNXModelServer(V2ModelServer):
     def __init__(
         self,
         context: mlrun.MLClientCtx = None,
-        name: Optional[str] = None,
+        name: str | None = None,
         model: onnx.ModelProto = None,
-        model_path: Optional[str] = None,
-        model_name: Optional[str] = None,
-        execution_providers: Optional[
-            list[Union[str, tuple[str, dict[str, Any]]]]
-        ] = None,
-        protocol: Optional[str] = None,
+        model_path: str | None = None,
+        model_name: str | None = None,
+        execution_providers: list[Union[str, tuple[str, dict[str, Any]]]] | None = None,
+        protocol: str | None = None,
         **class_args,
     ):
         """

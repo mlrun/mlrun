@@ -13,7 +13,7 @@
 # limitations under the License.
 
 from datetime import datetime, timedelta
-from typing import Optional, Union
+from typing import Union
 
 import pandas as pd
 import v3io_frames.client
@@ -24,9 +24,6 @@ import mlrun.errors
 import mlrun.model_monitoring.db.tsdb.timescaledb.timescaledb_schema as timescaledb_schema
 import mlrun.utils
 from mlrun.common.schemas.model_monitoring.model_endpoints import _MetricPoint
-from mlrun.model_monitoring.db.tsdb.timescaledb.timescaledb_connection import (
-    Statement,
-)
 from mlrun.model_monitoring.db.tsdb.timescaledb.utils.timescaledb_dataframe_processor import (
     TimescaleDBDataFrameProcessor,
 )
@@ -45,10 +42,10 @@ class TimescaleDBPredictionsQueries:
 
     def __init__(
         self,
-        project: Optional[str] = None,
+        project: str | None = None,
         connection=None,
         pre_aggregate_manager=None,
-        tables: Optional[dict] = None,
+        tables: dict | None = None,
     ):
         """
         Initialize TimescaleDB predictions query handler.
@@ -66,15 +63,15 @@ class TimescaleDBPredictionsQueries:
     def read_predictions_impl(
         self,
         *,
-        endpoint_id: Optional[str] = None,
+        endpoint_id: str | None = None,
         start: datetime,
         end: datetime,
-        columns: Optional[list[str]] = None,
-        aggregation_window: Optional[str] = None,
-        agg_funcs: Optional[list[str]] = None,
-        limit: Optional[int] = None,
+        columns: list[str] | None = None,
+        aggregation_window: str | None = None,
+        agg_funcs: list[str] | None = None,
+        limit: int | None = None,
         use_pre_aggregates: bool = True,
-        timestamp_column: Optional[str] = None,
+        timestamp_column: str | None = None,
     ) -> pd.DataFrame:
         """Read predictions data from TimescaleDB (predictions table) - returns DataFrame.
 
@@ -146,9 +143,9 @@ class TimescaleDBPredictionsQueries:
         endpoint_id: str,
         start: datetime,
         end: datetime,
-        aggregation_window: Optional[str] = None,
-        agg_funcs: Optional[list[str]] = None,
-        limit: Optional[int] = None,
+        aggregation_window: str | None = None,
+        agg_funcs: list[str] | None = None,
+        limit: int | None = None,
         use_pre_aggregates: bool = True,
     ) -> Union[
         mm_schemas.ModelEndpointMonitoringMetricValues,
@@ -208,9 +205,9 @@ class TimescaleDBPredictionsQueries:
     def get_last_request(
         self,
         endpoint_ids: Union[str, list[str]],
-        start: Optional[datetime] = None,
-        end: Optional[datetime] = None,
-        interval: Optional[str] = None,
+        start: datetime | None = None,
+        end: datetime | None = None,
+        interval: str | None = None,
     ) -> pd.DataFrame:
         """Get last request timestamp with optional pre-aggregate optimization."""
 
@@ -286,8 +283,8 @@ class TimescaleDBPredictionsQueries:
     def get_avg_latency(
         self,
         endpoint_ids: Union[str, list[str]],
-        start: Optional[datetime] = None,
-        end: Optional[datetime] = None,
+        start: datetime | None = None,
+        end: datetime | None = None,
         get_raw: bool = False,
     ) -> Union[pd.DataFrame, list[v3io_frames.client.RawFrame]]:
         """Get average latency with automatic pre-aggregate optimization, returning single value per endpoint."""
@@ -377,113 +374,3 @@ class TimescaleDBPredictionsQueries:
             column_mapping_rules=column_mapping_rules,
             debug_name="avg_latency",
         )
-
-    def count_processed_model_endpoints(
-        self,
-        start: Optional[datetime] = None,
-        end: Optional[datetime] = None,
-        application_names: Optional[Union[str, list[str]]] = None,
-    ) -> dict[str, int]:
-        """
-        Optimized count with application filtering using JOIN approach.
-
-        This implementation:
-        1. Uses JOIN when application filtering is needed (most performant)
-        2. Falls back to simple query when no filtering (fastest for that case)
-        3. Leverages TimescaleDB's chunk exclusion and parallel processing
-        4. Can utilize pre-aggregates when available
-        """
-        start = start or (mlrun.utils.datetime_now() - timedelta(hours=24))
-        start, end = self._pre_aggregate_manager.get_start_end(start, end)
-
-        predictions_table = self.tables[mm_schemas.TimescaleDBTables.PREDICTIONS]
-
-        if application_names:
-            # Ensure application_names is a list
-            if isinstance(application_names, str):
-                application_names = [application_names]
-
-            result = {}
-
-            # For each application, call the existing JOIN method and wrap result in dict
-            for app_name in application_names:
-                # Use existing _count_with_application_join but extract count for single app
-                count = self._count_with_application_join(
-                    predictions_table,
-                    start,
-                    end,
-                    [app_name],  # Pass as list to existing method
-                )
-                result[app_name] = count
-
-            return result
-        else:
-            # Use existing simple count method and wrap result
-            total_count = self._count_simple(predictions_table, start, end)
-            return {"total": total_count} if total_count > 0 else {}
-
-    def _count_with_application_join(
-        self,
-        predictions_table,
-        start: datetime,
-        end: datetime,
-        application_names: Union[str, list[str]],
-    ) -> int:
-        """
-        Use JOIN with metrics table for application filtering.
-
-        Performance characteristics:
-        - Leverages indexes on both tables
-        - TimescaleDB optimizes time-based JOINs
-        - Chunk exclusion works on both sides
-        - DISTINCT applied after filtering
-        """
-        metrics_table = self.tables[mm_schemas.TimescaleDBTables.METRICS]
-
-        # Normalize application_names to list for consistent handling
-        if isinstance(application_names, str):
-            app_names_list = [application_names]
-        else:
-            app_names_list = list(application_names)
-
-        # Build parameterized query with proper placeholders
-        app_placeholders = ", ".join(["%s"] * len(app_names_list))
-
-        query_sql = f"""
-        SELECT COUNT(DISTINCT p.{mm_schemas.WriterEvent.ENDPOINT_ID}) AS endpoint_count
-        FROM {predictions_table.full_name()} p
-        INNER JOIN {metrics_table.full_name()} m
-            ON p.{mm_schemas.WriterEvent.ENDPOINT_ID} = m.{mm_schemas.WriterEvent.ENDPOINT_ID}
-            AND m.{metrics_table.time_column} >= %s
-            AND m.{metrics_table.time_column} <= %s
-        WHERE p.{predictions_table.time_column} >= %s
-            AND p.{predictions_table.time_column} <= %s
-            AND m.{mm_schemas.WriterEvent.APPLICATION_NAME} IN ({app_placeholders})
-        """
-
-        # Parameters: [start, end, start, end] + application_names_list
-        params = [start, end, start, end] + app_names_list
-
-        stmt = Statement(query_sql, params)
-        result = self._connection.run(query=stmt)
-
-        return result.data[0][0] if result and result.data else 0
-
-    def _count_simple(self, predictions_table, start: datetime, end: datetime) -> int:
-        """
-        Simple count without application filtering.
-
-        Uses the schema's query builder for consistency and potential pre-aggregate usage.
-        """
-        columns = [
-            f"COUNT(DISTINCT {mm_schemas.WriterEvent.ENDPOINT_ID}) AS endpoint_count"
-        ]
-
-        query = predictions_table._get_records_query(
-            start=start,
-            end=end,
-            columns_to_filter=columns,
-        )
-
-        result = self._connection.run(query=query)
-        return result.data[0][0] if result and result.data else 0

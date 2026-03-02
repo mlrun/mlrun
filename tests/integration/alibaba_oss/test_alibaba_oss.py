@@ -173,7 +173,7 @@ class TestAlibabaOssDataStore:
 
     def _perform_alibaba_oss_tests(self, use_datastore_profile, secrets=None):
         param = self.oss["ds"] if use_datastore_profile else self.oss["oss"]
-        logger.info(f'Object URL: {param["object_url"]}')
+        logger.info(f"Object URL: {param['object_url']}")
 
         data_item = mlrun.run.get_dataitem(param["object_url"], secrets=secrets)
         data_item.put(test_string)
@@ -190,12 +190,12 @@ class TestAlibabaOssDataStore:
         assert stat.size == len(test_string), "Stat size different than expected"
 
         dir_list = mlrun.run.get_dataitem(param["bucket_path_dir"]).listdir()
-        assert (
-            param["object_path"].split("/")[1] in dir_list
-        ), "File not in container dir-list"
-        assert (
-            param["df_path"].split("/")[1] in dir_list
-        ), "CSV file not in container dir-list"
+        assert param["object_path"].split("/")[1] in dir_list, (
+            "File not in container dir-list"
+        )
+        assert param["df_path"].split("/")[1] in dir_list, (
+            "CSV file not in container dir-list"
+        )
 
         upload_data_item = mlrun.run.get_dataitem(param["blob_url"])
         upload_data_item.upload(test_filename)

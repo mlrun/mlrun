@@ -42,6 +42,7 @@ from .artifact import (
 )
 from .auth import (
     AuthInfo,
+    AuthInfoKind,
     AuthorizationAction,
     AuthorizationResourceNamespace,
     AuthorizationResourceTypes,
@@ -178,7 +179,7 @@ from .notification import (
 )
 from .object import ObjectKind, ObjectMetadata, ObjectSpec, ObjectStatus
 from .pagination import PaginationInfo
-from .partition import PartitionInterval
+from .partition_interval import PartitionInterval
 from .pipeline import PipelinesOutput, PipelinesPagination
 from .project import (
     IguazioProject,
@@ -219,6 +220,8 @@ from .schedule import (
 )
 from .secret import (
     AuthSecretData,
+    DeleteSecretTokenResponse,
+    DeleteSecretTokensResponse,
     ListSecretTokensResponse,
     SecretKeysData,
     SecretProviderName,
@@ -227,7 +230,12 @@ from .secret import (
     SecretTokenInfo,
     StoreSecretTokensResponse,
 )
-from .serving import ModelRunnerStepData, ModelsData, MonitoringData
+from .serving import (
+    APIHandlerAction,
+    ModelRunnerStepData,
+    ModelsData,
+    MonitoringData,
+)
 from .tag import Tag, TagObjects
 from .workflow import (
     GetWorkflowResponse,

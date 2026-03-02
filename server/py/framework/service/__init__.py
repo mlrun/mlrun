@@ -48,13 +48,13 @@ class Service(ABC):
         self.service_prefix = f"/{self.service_name}"
         self.base_versioned_service_prefix = f"{self.service_prefix}/v1"
         self.v2_service_prefix = f"{self.service_prefix}/v2"
-        self.app: typing.Optional[fastapi.FastAPI] = None
+        self.app: fastapi.FastAPI | None = None
         self._logger = mlrun.utils.logger.get_child(self.service_name)
         self._mounted_services: list[Service] = []
         self._messaging_client = framework.utils.clients.messaging.Client()
         self._paginated_methods: list[tuple[typing.Callable, str]] = []
 
-    def initialize(self, mounts: typing.Optional[list] = None):
+    def initialize(self, mounts: list | None = None):
         self._logger.info("Initializing service", service_name=self.service_name)
         self._initialize_app()
         self._register_routes()
@@ -123,7 +123,7 @@ class Service(ABC):
     async def _move_service_to_online(self):
         pass
 
-    def _mount_services(self, mounts: typing.Optional[list] = None):
+    def _mount_services(self, mounts: list | None = None):
         if not mounts:
             return
 
@@ -391,7 +391,14 @@ class Service(ABC):
         chief_version = semver.version.Version.parse(clusterization_spec.chief_version)
         unstable_chief = chief_version.build == "unstable"
         unstable_worker = worker_version.build == "unstable"
-        if not (unstable_chief or unstable_worker) and worker_version != chief_version:
+        chief_worker_mismatch_version = (
+            not (unstable_chief or unstable_worker) and worker_version != chief_version
+        )
+
+        if (
+            chief_worker_mismatch_version
+            and not mlconf.httpdb.clusterization.worker.sync_with_chief.allow_version_mismatch
+        ):
             self._logger.warning(
                 "Chief version is different than worker version, denying response",
                 chief_version=chief_version,

@@ -31,7 +31,7 @@ jobs:
     steps:
     - uses: actions/checkout@v6
 
-    - uses: astral-sh/setup-uv@ed21f2f24f8dd64503750218de024bcf64c7250a # 7.1.5
+    - uses: astral-sh/setup-uv@5a095e7a2014a4212f075830d4f7277575a9d098 # 7.3.1
 
     - name: Upgrade dependencies in the lock file with uv
       run: make upgrade-mlrun-deps-lock
@@ -44,7 +44,7 @@ jobs:
         else
           echo "title=[Requirements-automated] Upgrade lock files" >> "$GITHUB_OUTPUT"
         fi
-    - uses: peter-evans/create-pull-request@98357b18bf14b5342f975ff684046ec3b2a07725 # 8.0.0
+    - uses: peter-evans/create-pull-request@c0f553fe549906ede9cf27b5156039d195d2ece0 # 8.1.0
       with:
         title: ${{ steps.format-title.outputs.title }}
         body: |

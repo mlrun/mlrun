@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import typing
 
 import pydantic.v1
 
@@ -27,14 +26,14 @@ class ListRuntimeResourcesGroupByField(mlrun.common.types.StrEnum):
 class RuntimeResource(pydantic.v1.BaseModel):
     name: str
     labels: dict[str, str] = {}
-    status: typing.Optional[dict]
+    status: dict | None
 
 
 class RuntimeResources(pydantic.v1.BaseModel):
     crd_resources: list[RuntimeResource] = []
     pod_resources: list[RuntimeResource] = []
     # only for dask runtime
-    service_resources: typing.Optional[list[RuntimeResource]] = None
+    service_resources: list[RuntimeResource] | None = None
 
     class Config:
         extra = pydantic.v1.Extra.allow

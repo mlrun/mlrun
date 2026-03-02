@@ -13,7 +13,6 @@
 # limitations under the License.
 import asyncio
 import datetime
-import typing
 import unittest.mock
 import uuid
 
@@ -142,8 +141,8 @@ class TestService(TestAPIBase):
     def _generate_retry_job(
         self,
         uid: str = "test-job-uid",
-        project: typing.Optional[str] = None,
-        state: typing.Optional[str] = None,
+        project: str | None = None,
+        state: str | None = None,
         count: int = 3,
         retry_count: int = 0,
         base_delay: str = "1s",

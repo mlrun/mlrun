@@ -13,6 +13,7 @@
 # limitations under the License.
 import pickle
 import typing
+from typing import Any
 
 import fsspec
 import numpy as np
@@ -97,9 +98,7 @@ class OneToMany(mlrun.serving.V2ModelServer):
 
 
 class IncModel(mlrun.serving.states.Model):
-    def __init__(
-        self, *args, inc: int, gpu_number: typing.Optional[int] = None, **kwargs
-    ):
+    def __init__(self, *args, inc: int, gpu_number: int | None = None, **kwargs):
         super().__init__(*args, **kwargs)
         self.inc = inc
         self.gpu_number = gpu_number
@@ -135,9 +134,9 @@ class MyModel(mlrun.serving.Model):
     def __init__(
         self,
         *args,
-        artifact_uri: typing.Optional[str] = None,
+        artifact_uri: str | None = None,
         raise_exception: bool = False,
-        gpu_number: typing.Optional[int] = None,
+        gpu_number: int | None = None,
         **kwargs,
     ):
         super().__init__(
@@ -202,8 +201,47 @@ class MyModel(mlrun.serving.Model):
         body["timestamp"] = start
         return body
 
+    def format_batch(self, body: Any):
+        if isinstance(body, list):
+            batched_body = {"inputs": []}
+            for item in body:
+                batched_body["inputs"].append(item.get("inputs", item))
+            return batched_body
+        return body
+
     async def predict_async(self, body):
         return self.predict(body)
+
+
+class StreamingModel(mlrun.serving.Model):
+    """Model that yields streaming chunks for monitoring test.
+
+    This model simulates a streaming LLM-like response by yielding
+    multiple chunks from predict(). Used to test model monitoring
+    with streaming ModelRunnerStep.
+    """
+
+    def __init__(self, *args, num_chunks: int = 3, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.num_chunks = num_chunks
+
+    def predict(self, body, **kwargs):
+        """Yield streaming chunks for aggregation testing."""
+        prompt = body.get("prompt", "default") if isinstance(body, dict) else str(body)
+        for i in range(self.num_chunks):
+            yield f"{prompt}_chunk_{i}"
+
+
+class MyModelSelector(mlrun.serving.states.ModelRunnerSelector):
+    """Selector that reads a 'models' key (comma-separated string) from the
+    event body to choose which models to run. Falls back to all models when
+    the key is absent."""
+
+    def select_models(self, event, available_models):
+        body = event.body if hasattr(event, "body") else event
+        if isinstance(body, dict) and "models" in body:
+            return body.pop("models").split(",")
+        return None
 
 
 class MyDictModel(mlrun.serving.Model):

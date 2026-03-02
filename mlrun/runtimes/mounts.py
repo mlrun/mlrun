@@ -71,8 +71,8 @@ def mount_v3io(
     remote: str = "",
     access_key: str = "",
     user: str = "",
-    secret: typing.Optional[str] = None,
-    volume_mounts: typing.Optional[list[VolumeMount]] = None,
+    secret: str | None = None,
+    volume_mounts: list[VolumeMount] | None = None,
 ) -> typing.Callable[["KubeResource"], "KubeResource"]:
     """Modifier function to apply to a Container Op to volume mount a v3io path
 
@@ -210,12 +210,12 @@ def mount_v3iod(
 
 
 def mount_s3(
-    secret_name: typing.Optional[str] = None,
+    secret_name: str | None = None,
     aws_access_key: str = "",
     aws_secret_key: str = "",
-    endpoint_url: typing.Optional[str] = None,
+    endpoint_url: str | None = None,
     prefix: str = "",
-    aws_region: typing.Optional[str] = None,
+    aws_region: str | None = None,
     non_anonymous: bool = False,
 ) -> typing.Callable[["KubeResource"], "KubeResource"]:
     """Modifier function to add s3 env vars or secrets to container
@@ -306,7 +306,7 @@ def mount_s3(
 
 
 def mount_pvc(
-    pvc_name: typing.Optional[str] = None,
+    pvc_name: str | None = None,
     volume_name: str = "pipeline",
     volume_mount_path: str = "/mnt/pipeline",
 ) -> typing.Callable[["KubeResource"], "KubeResource"]:
@@ -362,7 +362,7 @@ def mount_pvc(
 def auto_mount(
     pvc_name: str = "",
     volume_mount_path: str = "",
-    volume_name: typing.Optional[str] = None,
+    volume_name: str | None = None,
 ) -> typing.Callable[["KubeResource"], "KubeResource"]:
     """Choose the mount based on env variables and params
 
@@ -398,7 +398,7 @@ def mount_secret(
     secret_name: str,
     mount_path: str,
     volume_name: str = "secret",
-    items: typing.Optional[list[dict]] = None,
+    items: list[dict] | None = None,
 ) -> typing.Callable[["KubeResource"], "KubeResource"]:
     """
     Modifier function to mount a Kubernetes secret as file(s).
@@ -449,7 +449,7 @@ def mount_configmap(
     configmap_name: str,
     mount_path: str,
     volume_name: str = "configmap",
-    items: typing.Optional[list[dict]] = None,
+    items: list[dict] | None = None,
 ) -> typing.Callable[["KubeResource"], "KubeResource"]:
     """
     Modifier function to mount a Kubernetes ConfigMap as file(s).
@@ -527,7 +527,7 @@ def mount_hostpath(
 
 
 def set_env_variables(
-    env_vars_dict: typing.Optional[dict[str, str]] = None, **kwargs
+    env_vars_dict: dict[str, str] | None = None, **kwargs
 ) -> typing.Callable[["KubeResource"], "KubeResource"]:
     """
     Modifier function to apply a set of environment variables to a runtime. Variables may be passed
@@ -556,9 +556,61 @@ def set_env_variables(
     return _set_env_variables
 
 
+def set_env_vars_from_secret(
+    secret_name: str,
+    keys: typing.Union[str, list[str], None] = None,
+) -> typing.Callable[["KubeResource"], "KubeResource"]:
+    """
+    Modifier function to set environment variables from a Kubernetes Secret.
+    If keys are given, each key is exposed as an environment variable with the same name.
+    If no keys are given, all keys in the secret are mounted as env vars (via envFrom).
+
+    Performs the same secret-name validation as other secret-mount functions
+    (validate_not_forbidden_secret); when using specific keys this is done via
+    set_env_from_secret(), and when mounting all keys via set_env_from_secret_ref().
+
+    Supports auto-mount-params in two forms:
+    - Comma-delimited string: e.g. keys="key1,key2,key3" (no JSON decoding).
+    - List of strings: e.g. keys=["key1", "key2", "key3"] (when params are base64-encoded JSON).
+
+    Usage::
+
+        function.apply(set_env_vars_from_secret("my-secret"))  # mount all keys
+        function.apply(set_env_vars_from_secret("my-secret", keys=["KEY1", "KEY2"]))
+        function.apply(set_env_vars_from_secret("my-secret", keys="KEY1,KEY2,KEY3"))
+
+    :param secret_name: Kubernetes secret name.
+    :param keys: Optional. Secret data keys to expose as env vars. Either a comma-delimited
+        string (e.g. "key1,key2,key3") or a list of strings. If omitted, all keys in the
+        secret are mounted as environment variables.
+    """
+
+    if isinstance(keys, str):
+        keys_list = [k.strip() for k in keys.split(",") if k.strip()]
+    elif keys is not None:
+        keys_list = [k if isinstance(k, str) else str(k) for k in keys]
+    else:
+        keys_list = []
+
+    if secret_name:
+        mlrun.common.secrets.validate_not_forbidden_secret(secret_name.strip())
+
+    def _set_env_vars_from_secret(runtime: "KubeResource"):
+        if not keys_list:
+            runtime.set_env_from_secret_ref(secret_name)
+        else:
+            for key in keys_list:
+                runtime.set_env_from_secret(
+                    name=key, secret=secret_name, secret_key=key
+                )
+        return runtime
+
+    return _set_env_vars_from_secret
+
+
 def _enrich_and_validate_v3io_mounts(
     remote: str = "",
-    volume_mounts: typing.Optional[list[VolumeMount]] = None,
+    volume_mounts: list[VolumeMount] | None = None,
     user: str = "",
 ) -> tuple[list[VolumeMount], str]:
     if volume_mounts is None:
@@ -588,5 +640,5 @@ def _enrich_and_validate_v3io_mounts(
     return volume_mounts, user
 
 
-def _resolve_mount_user(user: typing.Optional[str] = None):
+def _resolve_mount_user(user: str | None = None):
     return user or os.environ.get("V3IO_USERNAME")

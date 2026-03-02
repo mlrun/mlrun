@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Optional
+import os
 
 import mlrun.common.schemas
 import mlrun.utils.singleton
@@ -27,12 +27,24 @@ class ClientSpec(
 ):
     def get_client_spec(
         self,
-        client_version: Optional[str] = None,
-        client_python_version: Optional[str] = None,
+        client_version: str | None = None,
+        client_python_version: str | None = None,
     ) -> mlrun.common.schemas.ClientSpec:
         mpijob_crd_version = (
             framework.utils.runtimes.mpijob.resolve_mpijob_crd_version()
         )
+
+        oauth_internal_token_endpoint = None
+        oauth_external_token_endpoint = None
+        if config.is_iguazio_v4_mode():
+            oauth_external_token_endpoint = os.path.join(
+                config.iguazio_api_url_ingress,
+                config.httpdb.authentication.iguazio.authentication_endpoint,
+            )
+            oauth_internal_token_endpoint = os.path.join(
+                config.iguazio_api_url,
+                config.httpdb.authentication.iguazio.authentication_endpoint,
+            )
 
         return mlrun.common.schemas.ClientSpec(
             version=config.version,
@@ -124,11 +136,16 @@ class ClientSpec(
             authentication_mode=self._get_config_value_if_not_default(
                 "httpdb.authentication.mode"
             ),
+            authorization_namespaces_resources=self._get_config_value_if_not_default(
+                "httpdb.authorization.namespaces.resources"
+            ),
+            oauth_internal_token_endpoint=oauth_internal_token_endpoint,
+            oauth_external_token_endpoint=oauth_external_token_endpoint,
         )
 
     @staticmethod
     def _resolve_image_by_client_versions(
-        image: str, client_version: Optional[str] = None, client_python_version=None
+        image: str, client_version: str | None = None, client_python_version=None
     ):
         """
         This method main purpose is to provide enriched images for deployment processes which are being executed on

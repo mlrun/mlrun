@@ -283,9 +283,9 @@ class TestRuns(tests.integration.sdk_api.base.TestMLRunIntegration):
             "run-name-0",
         ]
         for i, expected_name in enumerate(expected_names):
-            assert (
-                runs[i]["metadata"]["name"] == expected_name
-            ), f"Expected '{expected_name}', but got '{runs[i]['metadata']['name']}' at index {i}"
+            assert runs[i]["metadata"]["name"] == expected_name, (
+                f"Expected '{expected_name}', but got '{runs[i]['metadata']['name']}' at index {i}"
+            )
 
         # Move 2nd and 3rd run to completed
         updates = {

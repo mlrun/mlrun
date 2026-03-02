@@ -14,7 +14,6 @@
 
 import os
 import pathlib
-import typing
 
 import pandas as pd
 import pytest
@@ -30,7 +29,7 @@ CREDENTIALS_JSON_DEFAULT_PATH = (
 )
 
 
-def resolve_google_credentials_json_path() -> typing.Optional[pathlib.Path]:
+def resolve_google_credentials_json_path() -> pathlib.Path | None:
     default_path = pathlib.Path(CREDENTIALS_JSON_DEFAULT_PATH)
     if os.getenv(CREDENTIALS_ENV):
         return pathlib.Path(os.getenv(CREDENTIALS_ENV))

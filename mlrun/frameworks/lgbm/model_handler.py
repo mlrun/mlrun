@@ -14,7 +14,7 @@
 
 import os
 import pickle
-from typing import Optional, Union
+from typing import Union
 
 import cloudpickle
 import lightgbm as lgb
@@ -53,16 +53,12 @@ class LGBMModelHandler(MLModelHandler):
 
     def __init__(
         self,
-        model_name: Optional[str] = None,
-        model_path: Optional[str] = None,
+        model_name: str | None = None,
+        model_path: str | None = None,
         model: LGBMTypes.ModelType = None,
-        modules_map: Optional[
-            Union[dict[str, Union[None, str, list[str]]], str]
-        ] = None,
-        custom_objects_map: Optional[
-            Union[dict[str, Union[str, list[str]]], str]
-        ] = None,
-        custom_objects_directory: Optional[str] = None,
+        modules_map: Union[dict[str, Union[None, str, list[str]]], str] | None = None,
+        custom_objects_map: Union[dict[str, Union[str, list[str]]], str] | None = None,
+        custom_objects_directory: str | None = None,
         context: mlrun.MLClientCtx = None,
         model_format: str = ModelFormats.PKL,
         **kwargs,
@@ -91,7 +87,10 @@ class LGBMModelHandler(MLModelHandler):
 
                                              {
                                                  "module1": None,  # import module1
-                                                 "module2": ["func1", "func2"],  # from module2 import func1, func2
+                                                 "module2": [
+                                                     "func1",
+                                                     "func2",
+                                                 ],  # from module2 import func1, func2
                                                  "module3.sub_module": "func3",  # from module3.sub_module import func3
                                              }
 
@@ -107,7 +106,10 @@ class LGBMModelHandler(MLModelHandler):
 
                                              {
                                                  "/.../custom_model.py": "MyModel",
-                                                 "/.../custom_objects.py": ["object1", "object2"],
+                                                 "/.../custom_objects.py": [
+                                                     "object1",
+                                                     "object2",
+                                                 ],
                                              }
 
                                          All the paths will be accessed from the given 'custom_objects_directory',
@@ -156,8 +158,8 @@ class LGBMModelHandler(MLModelHandler):
 
     def set_labels(
         self,
-        to_add: Optional[dict[str, Union[str, int, float]]] = None,
-        to_remove: Optional[list[str]] = None,
+        to_add: dict[str, Union[str, int, float]] | None = None,
+        to_remove: list[str] | None = None,
     ):
         """
         Update the labels dictionary of this model artifact. There are required labels that cannot be edited or removed.
@@ -187,7 +189,7 @@ class LGBMModelHandler(MLModelHandler):
                 f"'model_path': '{self._model_path}'"
             )
 
-    def save(self, output_path: Optional[str] = None, **kwargs):
+    def save(self, output_path: str | None = None, **kwargs):
         """
         Save the handled model at the given output path. If a MLRun context is available, the saved model files will be
         logged and returned as artifacts.
@@ -221,10 +223,10 @@ class LGBMModelHandler(MLModelHandler):
 
     def to_onnx(
         self,
-        model_name: Optional[str] = None,
+        model_name: str | None = None,
         optimize: bool = True,
         input_sample: LGBMTypes.DatasetType = None,
-        log: Optional[bool] = None,
+        log: bool | None = None,
     ):
         """
         Convert the model in this handler to an ONNX model. The inputs names are optional, they do not change the

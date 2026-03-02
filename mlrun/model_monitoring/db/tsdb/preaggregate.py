@@ -15,7 +15,6 @@
 import re
 from dataclasses import dataclass
 from datetime import datetime, timedelta
-from typing import Optional
 
 import mlrun.errors
 import mlrun.utils
@@ -54,7 +53,7 @@ class PreAggregateConfig:
 class PreAggregateManager:
     """Handles pre-aggregate validation, time alignment, and optimization decisions."""
 
-    def __init__(self, pre_aggregate_config: Optional[PreAggregateConfig] = None):
+    def __init__(self, pre_aggregate_config: PreAggregateConfig | None = None):
         """
         Initialize the pre-aggregate handler.
 
@@ -64,7 +63,7 @@ class PreAggregateManager:
         self._pre_aggregate_config = pre_aggregate_config
 
     def validate_interval_and_function(
-        self, interval: Optional[str], agg_function: Optional[str]
+        self, interval: str | None, agg_function: str | None
     ) -> None:
         """Validate that interval and aggregation function are available in pre-aggregate config."""
         if not interval and not agg_function:
@@ -91,7 +90,7 @@ class PreAggregateManager:
             )
 
     def can_use_pre_aggregates(
-        self, interval: Optional[str] = None, agg_funcs: Optional[list[str]] = None
+        self, interval: str | None = None, agg_funcs: list[str] | None = None
     ) -> bool:
         """Check if pre-aggregates can be used for the given parameters."""
         if not self._pre_aggregate_config or not interval:
@@ -175,7 +174,7 @@ class PreAggregateManager:
         return dt
 
     def align_time_range(
-        self, start: datetime, end: datetime, interval: Optional[str]
+        self, start: datetime, end: datetime, interval: str | None
     ) -> tuple[datetime, datetime]:
         """Align both start and end times to interval boundaries."""
         if not interval:
@@ -188,8 +187,8 @@ class PreAggregateManager:
 
     @staticmethod
     def get_start_end(
-        start: Optional[datetime],
-        end: Optional[datetime],
+        start: datetime | None,
+        end: datetime | None,
     ) -> tuple[datetime, datetime]:
         """
         Utility function for TSDB start/end format validation.
@@ -207,7 +206,7 @@ class PreAggregateManager:
         return start, end
 
     @property
-    def config(self) -> Optional[PreAggregateConfig]:
+    def config(self) -> PreAggregateConfig | None:
         """Get the current pre-aggregate configuration."""
         return self._pre_aggregate_config
 

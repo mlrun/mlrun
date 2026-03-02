@@ -1498,9 +1498,9 @@ class TestArtifacts(TestDatabaseBase):
                 for call in mock_execute.call_args_list
                 if str(call[0][0]).startswith("DELETE")
             ]
-            assert (
-                len(delete_calls) == 3
-            ), f"Expected 3 batch deletions, got {len(delete_calls)}"
+            assert len(delete_calls) == 3, (
+                f"Expected 3 batch deletions, got {len(delete_calls)}"
+            )
 
         # Validate that all artifacts were deleted
         assert deleted_count == 15
@@ -1841,9 +1841,9 @@ class TestArtifacts(TestDatabaseBase):
         )
 
         expected_count = limit or number_of_artifacts
-        assert (
-            len(artifacts) == expected_count
-        ), f"Expected {expected_count} results, got {len(artifacts)}"
+        assert len(artifacts) == expected_count, (
+            f"Expected {expected_count} results, got {len(artifacts)}"
+        )
 
         start_index = number_of_artifacts - 1
         expected_names = [
@@ -1853,9 +1853,9 @@ class TestArtifacts(TestDatabaseBase):
 
         for artifact, expected_name in zip(artifacts, expected_names):
             artifact_name = artifact["metadata"]["key"]
-            assert (
-                artifact_name == expected_name
-            ), f"Expected {expected_name}, got {artifact_name}"
+            assert artifact_name == expected_name, (
+                f"Expected {expected_name}, got {artifact_name}"
+            )
 
     @pytest.mark.parametrize("limit", [None, 6])
     def test_list_artifacts_orders_by_id_when_updated_is_identical(self, limit):
@@ -1893,9 +1893,9 @@ class TestArtifacts(TestDatabaseBase):
         )
 
         expected_count = limit or number_of_artifacts
-        assert (
-            len(artifacts) == expected_count
-        ), f"Expected {expected_count} results, got {len(artifacts)}"
+        assert len(artifacts) == expected_count, (
+            f"Expected {expected_count} results, got {len(artifacts)}"
+        )
 
         start_index = number_of_artifacts - 1
         expected_names = [
@@ -1905,9 +1905,9 @@ class TestArtifacts(TestDatabaseBase):
 
         for artifact, expected_name in zip(artifacts, expected_names):
             artifact_name = artifact["metadata"]["key"]
-            assert (
-                artifact_name == expected_name
-            ), f"Expected {expected_name}, got {artifact_name}"
+            assert artifact_name == expected_name, (
+                f"Expected {expected_name}, got {artifact_name}"
+            )
 
     @pytest.mark.parametrize("limit", [None, 3])
     @pytest.mark.parametrize("tag", [None, "*"])
@@ -1948,9 +1948,9 @@ class TestArtifacts(TestDatabaseBase):
         expected_tags = expected_tags[:expected_count]
 
         actual_tags = [artifact["metadata"]["tag"] for artifact in artifacts]
-        assert (
-            actual_tags == expected_tags
-        ), f"Expected tags {expected_tags}, got {actual_tags}"
+        assert actual_tags == expected_tags, (
+            f"Expected tags {expected_tags}, got {actual_tags}"
+        )
 
         # Verify the case of listing artifacts by a specific tag, which should result in an inner join and
         # return only the matching tagged artifact
@@ -2004,13 +2004,13 @@ class TestArtifacts(TestDatabaseBase):
         )
 
         assert len(artifacts) == 2, f"Expected 2 artifacts, but found {len(artifacts)}"
-        assert (
-            artifacts[0]["spec"]["producer"]["uri"] == second_producer_uri
-        ), f"Expected producer URI {second_producer_uri}, but got {artifacts[0]['spec']['producer']['uri']}"
+        assert artifacts[0]["spec"]["producer"]["uri"] == second_producer_uri, (
+            f"Expected producer URI {second_producer_uri}, but got {artifacts[0]['spec']['producer']['uri']}"
+        )
 
-        assert (
-            artifacts[1]["spec"]["producer"]["uri"] == first_producer_uri
-        ), f"Expected producer URI {first_producer_uri}, but got {artifacts[1]['spec']['producer']['uri']}"
+        assert artifacts[1]["spec"]["producer"]["uri"] == first_producer_uri, (
+            f"Expected producer URI {first_producer_uri}, but got {artifacts[1]['spec']['producer']['uri']}"
+        )
 
     def test_iterations_with_latest_tag(self):
         artifact_key = "artifact_key"
@@ -2893,9 +2893,9 @@ class TestArtifacts(TestDatabaseBase):
         if expect_hint:
             assert hint_called["value"], f"{scenario}: expected USE INDEX hint"
         else:
-            assert not hint_called[
-                "value"
-            ], f"{scenario}: did NOT expect USE INDEX hint"
+            assert not hint_called["value"], (
+                f"{scenario}: did NOT expect USE INDEX hint"
+            )
 
     @pytest.mark.parametrize(
         "scenario, attach_tags, ids_value, expect_hint",
@@ -2940,9 +2940,9 @@ class TestArtifacts(TestDatabaseBase):
         if expect_hint:
             assert hint_called["value"], f"{scenario}: expected USE INDEX hint"
         else:
-            assert not hint_called[
-                "value"
-            ], f"{scenario}: did not expect USE INDEX hint"
+            assert not hint_called["value"], (
+                f"{scenario}: did not expect USE INDEX hint"
+            )
 
     @staticmethod
     def _ui_defaults():

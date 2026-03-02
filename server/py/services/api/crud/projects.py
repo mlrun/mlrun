@@ -34,6 +34,7 @@ import framework.utils.auth.verifier
 import framework.utils.background_tasks
 import framework.utils.clients.messaging
 import framework.utils.clients.nuclio
+import framework.utils.clients.service_account_token as service_account_token
 import framework.utils.projects.remotes.follower as project_follower
 import framework.utils.singletons.db
 import services.alerts.crud
@@ -49,6 +50,10 @@ class Projects(
     project_follower.Member,
     metaclass=mlrun.utils.singleton.AbstractSingleton,
 ):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._service_account_token_client = service_account_token.Client()
+
     def create_project(
         self,
         session: sqlalchemy.orm.Session,
@@ -109,8 +114,8 @@ class Projects(
         name: str,
         deletion_strategy: mlrun.common.schemas.DeletionStrategy = mlrun.common.schemas.DeletionStrategy.default(),
         auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
-        background_task_name: typing.Optional[str] = None,
-        model_monitoring_access_key: typing.Optional[str] = None,
+        background_task_name: str | None = None,
+        model_monitoring_access_key: str | None = None,
     ):
         logger.debug("Deleting project", name=name, deletion_strategy=deletion_strategy)
         self._enrich_project_with_deletion_background_task_name(
@@ -162,7 +167,7 @@ class Projects(
         session: sqlalchemy.orm.Session,
         name: str,
         auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
-        model_monitoring_access_key: typing.Optional[str] = None,
+        model_monitoring_access_key: str | None = None,
     ):
         logger.debug(
             "Deleting project resources",
@@ -218,9 +223,20 @@ class Projects(
             services.alerts.crud.Alerts().delete_alerts(session=session, project=name)
         else:
             messaging_client = framework.utils.clients.messaging.Client()
+            request_headers = auth_info.request_headers
+
+            if mlrun.mlconf.is_iguazio_v4_mode():
+                # In IG4 as the project has already been deleted, it will no longer exist in the permission manifest at
+                # all, so we must escalate the request to have permissions to delete all project resources
+                request_headers = (
+                    self._service_account_token_client.escalate_request_headers(
+                        auth_info.request_headers
+                    )
+                )
+
             messaging_client.delete(
                 path=f"projects/{name}/alerts",
-                headers=auth_info.request_headers,
+                headers=request_headers,
                 raise_on_failure=True,
             )
 
@@ -274,11 +290,11 @@ class Projects(
         self,
         session: sqlalchemy.orm.Session,
         auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
-        owner: typing.Optional[str] = None,
+        owner: str | None = None,
         format_: mlrun.common.formatters.ProjectFormat = mlrun.common.formatters.ProjectFormat.full,
-        labels: typing.Optional[list[str]] = None,
+        labels: list[str] | None = None,
         state: mlrun.common.schemas.ProjectState = None,
-        names: typing.Optional[list[str]] = None,
+        names: list[str] | None = None,
     ) -> mlrun.common.schemas.ProjectsOutput:
         return framework.utils.singletons.db.get_db().list_projects(
             session, owner, format_, labels, state, names
@@ -289,7 +305,7 @@ class Projects(
         session: sqlalchemy.orm.Session,
         auth_info: mlrun.common.schemas.AuthInfo,
         action: mlrun.common.schemas.AuthorizationAction = mlrun.common.schemas.AuthorizationAction.read,
-        project: typing.Optional[str] = None,
+        project: str | None = None,
         **project_filters,
     ) -> list[str]:
         if project != "*":
@@ -319,7 +335,7 @@ class Projects(
         session: sqlalchemy.orm.Session,
         auth_info: mlrun.common.schemas.AuthInfo,
         action: mlrun.common.schemas.AuthorizationAction = mlrun.common.schemas.AuthorizationAction.read,
-        project: typing.Optional[str] = None,
+        project: str | None = None,
         **project_filters,
     ) -> list[tuple[str, datetime.datetime]]:
         if project != "*":
@@ -363,10 +379,10 @@ class Projects(
         self,
         session: sqlalchemy.orm.Session,
         auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
-        owner: typing.Optional[str] = None,
-        labels: typing.Optional[list[str]] = None,
+        owner: str | None = None,
+        labels: list[str] | None = None,
         state: mlrun.common.schemas.ProjectState = None,
-        names: typing.Optional[list[str]] = None,
+        names: list[str] | None = None,
     ) -> mlrun.common.schemas.ProjectSummariesOutput:
         project_summaries = await fastapi.concurrency.run_in_threadpool(
             framework.utils.singletons.db.get_db().list_project_summaries,

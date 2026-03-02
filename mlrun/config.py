@@ -60,6 +60,13 @@ default_config = {
             "list_pods_limit": 200,
             "list_crd_objects_limit": 200,
         },
+        "timeouts": {
+            # per-request timeouts (in seconds) for k8s API calls
+            # 0 disables timeout for the given tier
+            "default": 30,  # single-resource ops (get, create, delete, update)
+            "list": 60,  # list operations (may return large result sets)
+            "logs": 120,  # pod log retrieval
+        },
     },
     "dbpath": "",  # db/api url
     # url to nuclio dashboard api (can be with user & token, e.g. https://username:password@dashboard-url.com)
@@ -85,7 +92,8 @@ default_config = {
     "kfp_image": "mlrun/mlrun-kfp",  # image to use for KFP runner
     "dask_kfp_image": "mlrun/mlrun",  # image to use for dask KFP runner
     "igz_version": "",  # the version of the iguazio system the API is running on
-    "iguazio_api_url": "",  # the url to iguazio api
+    "iguazio_api_url": "",  # the url to iguazio api (internal / external access with priority to internal)
+    "iguazio_api_url_ingress": "",  # the url to iguazio api ingress (for external access)
     "iguazio_api_ssl_verify": True,  # verify ssl certificate of iguazio api
     "spark_app_image": "",  # image to use for spark operator app runtime
     "spark_app_image_tag": "",  # image tag to use for spark operator app runtime
@@ -199,7 +207,9 @@ default_config = {
     "v3io_framesd": "http://framesd:8080",
     "model_providers": {
         "openai_default_model": "gpt-4o",
+        "openai_batch_max_concurrent": 10,
         "huggingface_default_model": "microsoft/Phi-3-mini-4k-instruct",
+        "huggingface_default_batch_size": 8,
     },
     # default node selector to be applied to all functions - json string base64 encoded format
     "default_function_node_selector": "e30=",
@@ -279,7 +289,10 @@ default_config = {
                     "kfp_pod_user_unix_id": 5,
                 },
             },
-            "service_account": {"default": None},
+            "service_account": {
+                "default": None,
+                "forbidden_service_accounts": "",
+            },
             "state_thresholds": {
                 "default": {
                     "pending_scheduled": "1h",
@@ -305,7 +318,7 @@ default_config = {
         "application": {
             "default_sidecar_internal_port": 8050,
             "default_authentication_mode": mlrun.common.schemas.APIGatewayAuthenticationMode.none,
-            "default_worker_number": 10000,
+            "default_worker_number": 100,
         },
     },
     # TODO: function defaults should be moved to the function spec config above
@@ -349,6 +362,9 @@ default_config = {
                     # enabled / disabled
                     "mode": "enabled",
                     "interval": 15,  # seconds
+                    # when set to True, the worker will allow to run even if the chief version is different
+                    # this is useful for development purposes
+                    "allow_version_mismatch": False,
                 },
                 "request_timeout": 45,  # seconds
             },
@@ -428,6 +444,12 @@ default_config = {
             "bearer": {"token": ""},
             "iguazio": {
                 "session_verification_endpoint": "data_sessions/verifications/app_service",
+                "authentication_endpoint": "api/v1/authentication/refresh-access-token",
+            },
+            "service_account": {
+                # the following are the default values for k8s service accounts, but may be changed per deployment
+                "token_expiration_seconds": 600,
+                "token_path": "/var/run/secrets/kubernetes.io/serviceaccount/token",
             },
         },
         "nuclio": {
@@ -662,6 +684,11 @@ default_config = {
             "parquet_batching_max_events": 10,
             "parquet_batching_timeout_secs": 30,
         },
+        "lag_detection": {
+            "min_lag_threshold_minutes": 5,
+            "default_lag_threshold_minutes": 60,
+            "default_lag_event_cooldown_minutes": 30,
+        },
         # Store prefixes are used to handle model monitoring storing policies based on project and kind, such as events,
         # stream, and endpoints.
         "store_prefixes": {
@@ -680,6 +707,9 @@ default_config = {
             # When True, automatically create/generate database name using system_id if not explicitly
             # specified in the connection string. When False, use the database from connection string as-is.
             "auto_create_database": True,
+            # Connection pool timeout in seconds. This is the maximum time to wait for a connection
+            # from the pool before raising an error.
+            "connection_pool_timeout": 120,
         },
     },
     "secret_stores": {
@@ -711,6 +741,7 @@ default_config = {
             "auth_secret_name": "mlrun-auth-secrets.{hashed_access_key}",
             "env_variable_prefix": "",
             "global_function_env_secret_name": None,
+            "concurrent_token_deletions": 10,
         },
     },
     "feature_store": {
@@ -742,7 +773,8 @@ default_config = {
         },
     },
     "storage": {
-        # What type of auto-mount to use for functions. One of: none, auto, v3io_credentials, v3io_fuse, pvc, s3, env.
+        # What type of auto-mount to use for functions.
+        # One of: none, auto, v3io_credentials, v3io_fuse, pvc, s3, env, secret_env.
         # Default is auto - which is v3io_credentials when running on Iguazio. If not Iguazio: pvc if the
         # MLRUN_PVC_MOUNT env is configured or auto_mount_params contain "pvc_name". Otherwise will do nothing (none).
         "auto_mount_type": "auto",
@@ -834,13 +866,23 @@ default_config = {
         # Whether to enable packagers. True will wrap each run in the `mlrun.package.handler` decorator to log and parse
         # using packagers.
         "enabled": True,
+        # Whether to automatically unpack inputs with no type hints instead of leaving them as `mlrun.DataItem` objects.
+        # If True, all inputs without type hints that were originally logged via `mlrun.package` will be unpacked
+        # automatically. Default is False.
+        "auto_unpack_inputs": False,
+        # Whether to automatically pack outputs, even if not log hints were provided by the user running the function.
+        # If True, returned objects will be packed with their default packager and their artifact key will be equal to
+        # the following name template: "<context_name>-<auto_pack_key>-<i>" where "i" is enumerated. If
+        # False, the returned objects will simply be ignored. Default is False.
+        "auto_pack_outputs": False,
+        "auto_pack_key": "artifact",
         # Whether to treat returned tuples from functions as a tuple and not as multiple returned items. If True, all
         # returned values will be packaged together as the tuple they are returned in. Default is False to enable
         # logging multiple returned items.
         "pack_tuples": False,
         # In multi-workers run, only the logging worker will pack the outputs and log the results and artifacts.
         # Otherwise, the workers will log the results and artifacts using the same keys, overriding them. It is common
-        # that only the main worker (usualy rank 0) will log, so this is the default value.
+        # that only the main worker (usually rank 0) will log, so this is the default value.
         "logging_worker": 0,
         # TODO: Consider adding support for logging from all workers (ignoring the `logging_worker`) and add the worker
         #       number to the artifact / result key (like "<key>-rank<#>". Results can have reduce operation in the
@@ -883,11 +925,20 @@ default_config = {
         "enabled": False,
         "request_timeout": 5,
         "refresh_threshold": 0.75,
-        "token_file": "~/.igz.yml",
+        # Default is empty. automatically set based on configuration (end client vs jupyter vs runtime, etc)
+        # can be set manually set using envvars
+        "token_file": "",
         # Default is empty because if set, searches for the specific token name in the file, if empty, it will look
         # for a token named "default", if "default" does not exist, it will use the first token in the file
         "token_name": "",
+        # Timeout in seconds for token refresh retries when running inside an MLRun runtime.
+        # This allows time for Kubelet to propagate updated tokens from secrets to mounted files.
+        # Set to 0 to disable runtime-specific retry behavior.
+        "runtime_token_refresh_timeout": 120,
+        # Backoff interval in seconds between token refresh retry attempts when running in a runtime.
+        "runtime_token_refresh_backoff": 10,
     },
+    # a runtime computed value. Do not set it manually.
     "auth_token_endpoint": "",
     "services": {
         # The running service name. One of: "api", "alerts"
@@ -1131,7 +1182,7 @@ class Config:
         return enrichment_group_id
 
     @staticmethod
-    def get_parsed_igz_version() -> typing.Optional[semver.VersionInfo]:
+    def get_parsed_igz_version() -> semver.VersionInfo | None:
         if not config.igz_version:
             return None
         try:
@@ -1289,8 +1340,8 @@ class Config:
         return copy.deepcopy(self._cfg)
 
     @staticmethod
-    def reload():
-        _populate()
+    def reload(skip_env_file=False):
+        _populate(skip_env_file=skip_env_file)
 
     @property
     def version(self):
@@ -1319,7 +1370,7 @@ class Config:
             mock_nuclio = not mlrun.mlconf.is_nuclio_detected()
         return True if mock_nuclio and force_mock is None else force_mock
 
-    def get_v3io_access_key(self) -> typing.Optional[str]:
+    def get_v3io_access_key(self) -> str | None:
         # Get v3io access key from the environment
         return os.getenv("V3IO_ACCESS_KEY")
 
@@ -1328,8 +1379,8 @@ class Config:
         project: str,
         kind: str,
         target: typing.Literal["online", "offline"] = "online",
-        artifact_path: typing.Optional[str] = None,
-        function_name: typing.Optional[str] = None,
+        artifact_path: str | None = None,
+        function_name: str | None = None,
         **kwargs,
     ) -> str:
         """Get the full path from the configuration based on the provided project and kind.
@@ -1433,6 +1484,9 @@ class Config:
             == mlrun.common.types.AuthenticationMode.IGUAZIO_V4
         )
 
+    def is_using_v3io(self) -> bool:
+        return not self.is_iguazio_v4_mode() and not self.is_ce_mode()
+
     def is_explicit_ack_enabled(self) -> bool:
         return self.httpdb.nuclio.explicit_ack == "enabled" and (
             not self.nuclio_version
@@ -1440,12 +1494,24 @@ class Config:
             >= semver.VersionInfo.parse("1.12.10")
         )
 
+    def default_forbidden_service_accounts(self):
+        forbidden_service_accounts_str = (
+            self.function.spec.service_account.forbidden_service_accounts
+        )
+        if forbidden_service_accounts_str:
+            return [
+                service_account.strip()
+                for service_account in forbidden_service_accounts_str.split(",")
+            ]
+
+        return []
+
 
 # Global configuration
 config = Config.from_dict(default_config)
 
 
-def _populate(skip_errors=False):
+def _populate(skip_errors=False, skip_env_file=False):
     """Populate configuration from config file (if exists in environment) and
     from environment variables.
 
@@ -1454,13 +1520,15 @@ def _populate(skip_errors=False):
     global _loaded
 
     with _load_lock:
-        _do_populate(skip_errors=skip_errors)
+        _do_populate(skip_errors=skip_errors, skip_env_file=skip_env_file)
 
 
-def _do_populate(env=None, skip_errors=False):
+def _do_populate(env=None, skip_errors=False, skip_env_file=False):
     global config
 
-    if not os.environ.get("MLRUN_IGNORE_ENV_FILE"):
+    # we get into this block when we want to load the defaults from the env file.
+    # other use cases, like set_env_from_file / running api - skip this block.
+    if not skip_env_file and not os.environ.get("MLRUN_IGNORE_ENV_FILE"):
         if "MLRUN_ENV_FILE" in os.environ:
             env_file = os.path.expanduser(os.environ["MLRUN_ENV_FILE"])
             dotenv.load_dotenv(env_file, override=True)
@@ -1513,7 +1581,7 @@ def _validate_config(config):
 
 
 def _verify_gpu_requests_and_limits(
-    requests_gpu: typing.Optional[str] = None, limits_gpu: typing.Optional[str] = None
+    requests_gpu: str | None = None, limits_gpu: str | None = None
 ):
     # https://kubernetes.io/docs/tasks/manage-gpus/scheduling-gpus/
     if requests_gpu and not limits_gpu:
@@ -1527,7 +1595,7 @@ def _verify_gpu_requests_and_limits(
         )
 
 
-def _convert_resources_to_str(config: typing.Optional[dict] = None):
+def _convert_resources_to_str(config: dict | None = None):
     resources_types = ["cpu", "memory", "gpu"]
     resource_requirements = ["requests", "limits"]
     if not config.get("default_function_pod_resources"):

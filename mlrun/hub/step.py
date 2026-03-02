@@ -13,7 +13,6 @@
 # limitations under the License.
 
 from pathlib import Path
-from typing import Optional
 
 import yaml
 
@@ -34,13 +33,13 @@ class HubStep(HubAsset):
         version: str,
         class_name: str,
         default_handler: str,
-        description: Optional[str] = None,
-        categories: Optional[list] = None,
-        requirements: Optional[list] = None,
-        local_path: Optional[Path] = None,
-        filename: Optional[str] = None,
-        example: Optional[str] = None,
-        url: Optional[str] = None,
+        description: str | None = None,
+        categories: list | None = None,
+        requirements: list | None = None,
+        local_path: Path | None = None,
+        filename: str | None = None,
+        example: str | None = None,
+        url: str | None = None,
         **kwargs,  # catch all for unused args
     ):
         super().__init__(
@@ -59,7 +58,7 @@ class HubStep(HubAsset):
 
     def download_files(
         self,
-        local_path: Optional[str] = None,
+        local_path: str | None = None,
         download_example: bool = False,
     ):
         """
@@ -76,7 +75,7 @@ class HubStep(HubAsset):
 
 def get_hub_step(
     url: str,
-    local_path: Optional[str] = None,
+    local_path: str | None = None,
     download_files: bool = True,
     include_example: bool = False,
 ) -> HubStep:

@@ -18,6 +18,7 @@ from typing import Optional, Union
 
 from dependency_injector import containers, providers
 
+import mlrun.auth.utils
 import mlrun.common.constants as mlrun_constants
 import mlrun.common.runtimes.constants
 import mlrun.common.schemas.schedule
@@ -43,6 +44,7 @@ import framework.utils.helpers
 import framework.utils.singletons.db
 import services.api.crud
 import services.api.runtime_handlers
+import services.api.utils.helpers
 
 # Configmap objects on Kubernetes have 10Mb size limit
 SERVING_SPEC_MAX_LENGTH = 10485760
@@ -52,7 +54,7 @@ class ServerSideLauncher(launcher.BaseLauncher):
     def __init__(
         self,
         local: bool = False,
-        auth_info: Optional[mlrun.common.schemas.AuthInfo] = None,
+        auth_info: mlrun.common.schemas.AuthInfo | None = None,
         **kwargs,
     ):
         super().__init__(**kwargs)
@@ -66,34 +68,31 @@ class ServerSideLauncher(launcher.BaseLauncher):
     def launch(
         self,
         runtime: mlrun.runtimes.BaseRuntime,
-        task: Optional[
-            Union["mlrun.run.RunTemplate", "mlrun.run.RunObject", dict]
-        ] = None,
-        handler: Optional[str] = None,
-        name: Optional[str] = "",
-        project: Optional[str] = "",
-        params: Optional[dict] = None,
-        inputs: Optional[dict[str, str]] = None,
-        out_path: Optional[str] = "",
-        workdir: Optional[str] = "",
-        artifact_path: Optional[str] = "",
-        output_path: Optional[str] = "",
-        watch: Optional[bool] = True,
-        schedule: Optional[
-            Union[str, mlrun.common.schemas.schedule.ScheduleCronTrigger]
-        ] = None,
-        hyperparams: Optional[dict[str, list]] = None,
-        hyper_param_options: Optional[mlrun.model.HyperParamOptions] = None,
-        verbose: Optional[bool] = None,
-        scrape_metrics: Optional[bool] = None,
-        local_code_path: Optional[str] = None,
-        auto_build: Optional[bool] = None,
-        param_file_secrets: Optional[dict[str, str]] = None,
-        notifications: Optional[list[mlrun.model.Notification]] = None,
-        returns: Optional[list[Union[str, dict[str, str]]]] = None,
-        state_thresholds: Optional[dict[str, int]] = None,
-        reset_on_run: Optional[bool] = None,
-        retry: Optional[Union[mlrun.model.Retry, dict]] = None,
+        task: Union["mlrun.run.RunTemplate", "mlrun.run.RunObject", dict] | None = None,
+        handler: str | None = None,
+        name: str | None = "",
+        project: str | None = "",
+        params: dict | None = None,
+        inputs: dict[str, str | dict | list] | None = None,
+        out_path: str | None = "",
+        workdir: str | None = "",
+        artifact_path: str | None = "",
+        output_path: str | None = "",
+        watch: bool | None = True,
+        schedule: Union[str, mlrun.common.schemas.schedule.ScheduleCronTrigger]
+        | None = None,
+        hyperparams: dict[str, list] | None = None,
+        hyper_param_options: mlrun.model.HyperParamOptions | None = None,
+        verbose: bool | None = None,
+        scrape_metrics: bool | None = None,
+        local_code_path: str | None = None,
+        auto_build: bool | None = None,
+        param_file_secrets: dict[str, str] | None = None,
+        notifications: list[mlrun.model.Notification] | None = None,
+        returns: list[Union[str, dict[str, str]]] | None = None,
+        state_thresholds: dict[str, int] | None = None,
+        reset_on_run: bool | None = None,
+        retry: Union[mlrun.model.Retry, dict] | None = None,
     ) -> mlrun.run.RunObject:
         self.enrich_runtime(runtime, project)
 
@@ -200,7 +199,7 @@ class ServerSideLauncher(launcher.BaseLauncher):
     def enrich_runtime(
         self,
         runtime: "mlrun.runtimes.base.BaseRuntime",
-        project_name: Optional[str] = "",
+        project_name: str | None = "",
         full: bool = True,
         client_version: str = "",
     ):
@@ -283,9 +282,9 @@ class ServerSideLauncher(launcher.BaseLauncher):
         scrape_metrics=None,
         output_path=None,
         workdir=None,
-        notifications: Optional[list[mlrun.model.Notification]] = None,
-        state_thresholds: Optional[dict[str, int]] = None,
-        retry: Optional[Union[mlrun.model.Retry, dict]] = None,
+        notifications: list[mlrun.model.Notification] | None = None,
+        state_thresholds: dict[str, int] | None = None,
+        retry: Union[mlrun.model.Retry, dict] | None = None,
     ):
         run = super()._enrich_run(
             runtime=runtime,
@@ -538,7 +537,7 @@ class ServerSideLauncher(launcher.BaseLauncher):
 
         # Validate function's service-account, based on allowed SAs for the project,
         # if existing in a project-secret.
-        framework.api.utils.process_function_service_account(runtime)
+        framework.api.utils.process_function_service_account(runtime, self._auth_info)
 
         framework.api.utils.ensure_function_security_context(runtime, self._auth_info)
 
@@ -565,6 +564,25 @@ class ServerSideLauncher(launcher.BaseLauncher):
         self, runtime: mlrun.runtimes.base.BaseRuntime, run: mlrun.run.RunObject
     ):
         run.metadata.labels[mlrun_constants.MLRunInternalLabels.kind] = runtime.kind
+
+        # Server-side owner enrichment: override client-provided owner with authenticated username.
+        # In authenticated environments (e.g., IG4), auth_info.username is the source of truth.
+        # This ensures the owner label reflects the authenticated user rather than the local user
+        # on the client machine (e.g., 'jovyan' in Jupyter notebooks).
+        # For CE/unauthenticated deployments, auth_info.username will be None, preserving
+        # any existing owner label from client-side enrichment.
+        if self._auth_info and self._auth_info.username:
+            run.metadata.labels[mlrun_constants.MLRunInternalLabels.owner] = (
+                self._auth_info.username
+            )
+
+        # Replace {{run.user}} template in output_path with the final owner value.
+        # This must happen after owner enrichment to ensure correct substitution.
+        run.spec.output_path = mlrun.runtimes.utils.resolve_run_user_template(
+            run.spec.output_path,
+            run.metadata.labels.get(mlrun_constants.MLRunInternalLabels.owner),
+        )
+
         db = runtime._get_db()
         if db and runtime.kind != "handler":
             struct = runtime.to_dict()
@@ -601,7 +619,7 @@ class ServerSideLauncher(launcher.BaseLauncher):
 
     @staticmethod
     def _validate_state_thresholds(
-        state_thresholds: Optional[dict[str, str]] = None,
+        state_thresholds: dict[str, str] | None = None,
     ):
         """
         Validate the state thresholds
@@ -674,36 +692,21 @@ class ServerSideLauncher(launcher.BaseLauncher):
                     f"must be less than {staleness_threshold_seconds} seconds, got {max_delay} seconds"
                 )
 
-    # TODO In ML-11600, implement token name resolution and validation + tests
     def enrich_and_validate_auth_token_name(
         self, object: Union[mlrun.run.RunObject, mlrun.runtimes.RemoteRuntime]
     ):
-        if mlrun.mlconf.is_iguazio_v4_mode():
-            if object.spec.auth is None:
-                object.spec.auth = {}
+        if not (mlrun.mlconf.is_iguazio_v4_mode()):
+            return
 
-            # Get the provided token name, if any
-            provided_token_name = object.spec.auth.get("token_name")
+        # Get the provided token name, if any
+        provided_token_name = (object.spec.auth or {}).get("token_name")
 
-            # Resolve token name and raise error only if token is explicitly provided by the user
-            # in ML-11600, we will implement a proper resolution logic that checks all secret tokens
-            # of the user and finds a valid one if no token name is provided
-            raise_error_on_failure = bool(provided_token_name)
-            token_name = (
-                provided_token_name
-                or mlrun.common.constants.MLRUN_JOB_AUTH_DEFAULT_TOKEN_NAME
-            )
-            self._validate_token_name(
-                token_name, raise_error_on_failure=raise_error_on_failure
-            )
+        # Use the token resolution logic that validates existence and expiration
+        token_name = services.api.utils.helpers.resolve_auth_token_name(
+            user_id=self._auth_info.user_id, provided_token_name=provided_token_name
+        )
 
-            object.spec.auth["token_name"] = token_name
-
-    # TODO implement validation in ML-11600
-    def _validate_token_name(
-        self, token_name: str, raise_error_on_failure: bool = False
-    ):
-        pass
+        mlrun.utils.helpers.set_auth_token_name(object.spec, token_name)
 
 
 # Once this file is imported it will set the container server side launcher

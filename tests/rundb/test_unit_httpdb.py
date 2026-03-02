@@ -29,7 +29,7 @@ import mlrun.db.httpdb
 from mlrun.common.types import AuthenticationMode
 
 
-class SomeEnumClass(str, enum.Enum):
+class SomeEnumClass(enum.StrEnum):
     value1 = "value1"
     value2 = "value2"
 
@@ -316,9 +316,9 @@ def test_watch_logs_continue():
         # the first log line is printed with a newline
         assert newprint.getvalue() == "Firstrow\nSecondrowThirdrowSmiley😆�LastRow"
 
-    assert (
-        adapter.call_count == len(log_lines) + 1
-    ), "should have called the adapter once per log line, and one more time at the end of log"
+    assert adapter.call_count == len(log_lines) + 1, (
+        "should have called the adapter once per log line, and one more time at the end of log"
+    )
 
 
 @pytest.mark.parametrize(
@@ -336,10 +336,6 @@ def test_watch_logs_continue():
             {"page": 2},
             {"page": 2, "page-size": mlrun.mlconf.httpdb.pagination.default_page_size},
         ),
-        # `limit` turns into `page-size`
-        ({"limit": 5}, {"page": 1, "page-size": 5}),
-        # `page-size` overrides limit
-        ({"page-size": 2, "limit": 5}, {"page": 1, "page-size": 2}),
     ],
 )
 def test_resolve_page_params(params, expected_page_params):
@@ -354,7 +350,7 @@ def test_resolve_page_params(params, expected_page_params):
         "store_secret_token",
         "store_secret_tokens",
         "list_secret_tokens",
-        "revoke_secret_token",
+        "delete_secret_token",
     ],
 )
 def test_restricted_methods_in_wrong_mode(monkeypatch, method_name):

@@ -145,8 +145,8 @@ class TestRuntimeBase(services.api.tests.unit.conftest.MockedK8sHelper):
     def _create_project(
         self,
         client: fastapi.testclient.TestClient,
-        project_name: typing.Optional[str] = None,
-        default_function_node_selector: typing.Optional[dict] = None,
+        project_name: str | None = None,
+        default_function_node_selector: dict | None = None,
     ):
         services.api.tests.unit.api.utils.create_project(
             client=client,
@@ -308,8 +308,8 @@ class TestRuntimeBase(services.api.tests.unit.conftest.MockedK8sHelper):
 
     def _generate_security_context(
         self,
-        run_as_user: typing.Optional[int] = None,
-        run_as_group: typing.Optional[int] = None,
+        run_as_user: int | None = None,
+        run_as_group: int | None = None,
     ) -> k8s_client.V1SecurityContext:
         return k8s_client.V1SecurityContext(
             run_as_user=run_as_user,
@@ -317,7 +317,7 @@ class TestRuntimeBase(services.api.tests.unit.conftest.MockedK8sHelper):
         )
 
     def _mock_create_namespaced_pod(self):
-        def _generate_pod(namespace, pod):
+        def _generate_pod(namespace, pod, **kwargs):
             terminated_container_state = client.V1ContainerStateTerminated(
                 finished_at=datetime.now(UTC), exit_code=0
             )
@@ -556,8 +556,11 @@ class TestRuntimeBase(services.api.tests.unit.conftest.MockedK8sHelper):
     @staticmethod
     def _assert_pod_env_from_secrets(pod_env, expected_variables):
         for env_variable in pod_env:
-            if isinstance(env_variable, dict) and env_variable.setdefault(
-                "valueFrom", None
+            # valueFrom can be secretKeyRef, but also configMapKeyRef/fieldRef/resourceFieldRef
+            if (
+                isinstance(env_variable, dict)
+                and "valueFrom" in env_variable
+                and "secretKeyRef" in env_variable["valueFrom"]
             ):
                 # Nuclio spec comes in as a dict, with some differences from the V1EnvVar - convert it.
                 value_from = client.V1EnvVarSource(

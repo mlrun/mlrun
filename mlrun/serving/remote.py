@@ -15,7 +15,7 @@
 import asyncio
 import json
 from copy import copy
-from typing import Optional, Union
+from typing import Union
 
 import aiohttp
 import requests
@@ -47,19 +47,19 @@ class RemoteStep(storey.SendToHttp):
     def __init__(
         self,
         url: str,
-        subpath: Optional[str] = None,
-        method: Optional[str] = None,
-        headers: Optional[dict] = None,
-        url_expression: Optional[str] = None,
-        body_expression: Optional[str] = None,
+        subpath: str | None = None,
+        method: str | None = None,
+        headers: dict | None = None,
+        url_expression: str | None = None,
+        body_expression: str | None = None,
         return_json: bool = True,
-        input_path: Optional[str] = None,
-        result_path: Optional[str] = None,
+        input_path: str | None = None,
+        result_path: str | None = None,
         max_in_flight=None,
         retries=None,
         backoff_factor=None,
         timeout=None,
-        headers_expression: Optional[str] = None,
+        headers_expression: str | None = None,
         **kwargs,
     ):
         """class for calling remote endpoints
@@ -262,15 +262,15 @@ class RemoteStep(storey.SendToHttp):
 class BatchHttpRequests(_ConcurrentJobExecution):
     def __init__(
         self,
-        url: Optional[str] = None,
-        subpath: Optional[str] = None,
-        method: Optional[str] = None,
-        headers: Optional[dict] = None,
-        url_expression: Optional[str] = None,
-        body_expression: Optional[str] = None,
+        url: str | None = None,
+        subpath: str | None = None,
+        method: str | None = None,
+        headers: dict | None = None,
+        url_expression: str | None = None,
+        body_expression: str | None = None,
         return_json: bool = True,
-        input_path: Optional[str] = None,
-        result_path: Optional[str] = None,
+        input_path: str | None = None,
+        result_path: str | None = None,
         retries=None,
         backoff_factor=None,
         timeout=None,
@@ -466,7 +466,7 @@ class BatchHttpRequests(_ConcurrentJobExecution):
 
 class MLRunAPIRemoteStep(RemoteStep):
     def __init__(
-        self, method: str, path: str, fill_placeholders: Optional[bool] = None, **kwargs
+        self, method: str, path: str, fill_placeholders: bool | None = None, **kwargs
     ):
         """
         Graph step implementation for calling MLRun API endpoints
@@ -507,8 +507,18 @@ class MLRunAPIRemoteStep(RemoteStep):
                     session_cookie = f'session=j:{{"sid": "{token}"}}'
                     headers["cookie"] = session_cookie
                 else:
-                    if "Authorization" not in kw.setdefault("headers", {}):
-                        headers.update({"Authorization": "Bearer " + token})
+                    if mlrun.common.schemas.HeaderNames.authorization not in headers:
+                        logger.info(
+                            "Adding authorization header with bearer token for MLRun API request"
+                        )
+                        headers.update(
+                            {
+                                mlrun.common.schemas.HeaderNames.authorization: (
+                                    mlrun.common.schemas.AuthorizationHeaderPrefixes.bearer
+                                    + token
+                                )
+                            }
+                        )
 
         if mlrun.common.schemas.HeaderNames.client_version not in headers:
             headers.update(

@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import typing
 
 import pytest
 
@@ -186,7 +185,7 @@ import framework.utils.db.dsn
 )
 def test_parse_dsn(
     dsn: str,
-    expected_output: typing.Optional[dict],
+    expected_output: dict | None,
     monkeypatch: pytest.MonkeyPatch,
 ):
     parsed = framework.utils.db.dsn.Dsn(dsn)

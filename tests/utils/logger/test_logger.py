@@ -21,6 +21,7 @@ import pydantic.v1
 import pytest
 
 import mlrun
+import mlrun.common.schemas
 from mlrun.utils.helpers import now_date
 from mlrun.utils.logger import FormatterKinds, Logger, create_logger
 

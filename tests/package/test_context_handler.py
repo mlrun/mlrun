@@ -18,7 +18,7 @@ import pytest
 
 import mlrun
 from mlrun import MLClientCtx
-from mlrun.package import ContextHandler
+from mlrun.package.context_handler import ContextHandler
 from mlrun.runtimes import RunError
 
 

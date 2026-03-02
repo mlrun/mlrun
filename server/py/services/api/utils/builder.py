@@ -40,16 +40,16 @@ import framework.utils.singletons.k8s
 
 def make_dockerfile(
     base_image: str,
-    commands: typing.Optional[list] = None,
-    source: typing.Optional[str] = None,
-    requirements_path: typing.Optional[str] = None,
+    commands: list | None = None,
+    source: str | None = None,
+    requirements_path: str | None = None,
     target_dir: str = "/mlrun",
     extra: str = "",
-    user_unix_id: typing.Optional[int] = None,
-    enriched_group_id: typing.Optional[int] = None,
-    builder_env: typing.Optional[list[client.V1EnvVar]] = None,
+    user_unix_id: int | None = None,
+    enriched_group_id: int | None = None,
+    builder_env: list[client.V1EnvVar] | None = None,
     extra_args: str = "",
-    project_secrets: typing.Optional[list[client.V1EnvVar]] = None,
+    project_secrets: list[client.V1EnvVar] | None = None,
 ):
     """
     Generates the content of a Dockerfile for building a container image.
@@ -164,6 +164,7 @@ def make_kaniko_pod(
     extra_labels=None,
     project_secrets=None,
     project_default_fucntion_node_selector=None,
+    auth_info: mlrun.common.schemas.AuthInfo = None,
 ):
     extra_runtime_spec = {}
     if not registry:
@@ -175,6 +176,7 @@ def make_kaniko_pod(
         project,
         runtime_spec,
         project_default_fucntion_node_selector,
+        auth_info,
     ).items():
         attr_value = handler(getattr(runtime_spec, attribute, None))
         if attr_value:
@@ -550,6 +552,7 @@ def build_image(
             mlrun_constants.MLRunInternalLabels.tag: runtime.metadata.tag or "latest",
         },
         project_default_fucntion_node_selector=project_default_function_node_selector,
+        auth_info=auth_info,
     )
 
     if to_mount:
@@ -574,21 +577,27 @@ def build_image(
 
 
 def get_kaniko_spec_attributes_from_runtime(
-    project, runtime_spec, project_default_fucntion_node_selector
+    project,
+    runtime_spec,
+    project_default_fucntion_node_selector,
+    auth_info: mlrun.common.schemas.AuthInfo = None,
 ):
     """Get the names of Kaniko spec attributes that are defined for runtime but should also be applied to Kaniko."""
     # preemption mode scheduling constraints cache
     _preemption_enrichment_result = {}
 
     def service_account_handler(attr_value):
-        from framework.api.utils import resolve_project_default_service_account
+        from framework.api.utils import resolve_project_service_account_details
 
         (
             allowed_service_accounts,
+            forbidden_service_accounts,
             default_service_account,
-        ) = resolve_project_default_service_account(project)
+        ) = resolve_project_service_account_details(project, auth_info=auth_info)
         if attr_value:
-            runtime_spec.validate_service_account(allowed_service_accounts)
+            runtime_spec.validate_service_account(
+                allowed_service_accounts, forbidden_service_accounts
+            )
         else:
             attr_value = default_service_account
         return attr_value
@@ -858,9 +867,9 @@ def is_mlrun_image(base_image):
 
 def resolve_and_enrich_image_target(
     image_target: str,
-    registry: typing.Optional[str] = None,
-    client_version: typing.Optional[str] = None,
-    client_python_version: typing.Optional[str] = None,
+    registry: str | None = None,
+    client_version: str | None = None,
+    client_python_version: str | None = None,
 ) -> str:
     image_target = resolve_image_target(image_target, registry)
     image_target = mlrun.utils.enrich_image_url(
@@ -869,9 +878,7 @@ def resolve_and_enrich_image_target(
     return image_target
 
 
-def resolve_image_target(
-    image_target: str, registry: typing.Optional[str] = None
-) -> str:
+def resolve_image_target(image_target: str, registry: str | None = None) -> str:
     if registry:
         return "/".join([registry, image_target])
 
@@ -970,8 +977,8 @@ def _resolve_build_requirements(
     requirements: typing.Union[list, str],
     commands: list,
     with_mlrun: bool,
-    mlrun_version_specifier: typing.Optional[str],
-    client_version: typing.Optional[str],
+    mlrun_version_specifier: str | None,
+    client_version: str | None,
 ):
     """
     Resolve build requirements list, requirements path and commands.
@@ -1128,7 +1135,7 @@ def _validate_and_merge_args_with_extra_args(args: list, extra_args: str) -> lis
     return merged_args
 
 
-def _resolve_function_image_name(function, image: typing.Optional[str] = None) -> str:
+def _resolve_function_image_name(function, image: str | None = None) -> str:
     project = function.metadata.project
     name = function.metadata.name
     tag = function.metadata.tag or "latest"
@@ -1163,7 +1170,7 @@ def _generate_function_image_name(project: str, name: str, tag: str) -> str:
 
 
 def _resolve_function_image_secret(
-    resolved_target_image: str, secret: typing.Optional[str] = None
+    resolved_target_image: str, secret: str | None = None
 ) -> str:
     if not secret:
         parsed_registry, _ = mlrun.utils.get_parsed_docker_registry()

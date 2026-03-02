@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Optional
 from uuid import UUID
 
 from mlrun.model_monitoring.applications.evidently import _HAS_EVIDENTLY
@@ -34,8 +33,8 @@ _PROJECT_DESCRIPTION = "Test project using iris dataset"
 
 def create_evidently_project(
     workspace: WorkspaceBase,
-    id: Optional[UUID] = None,
-    org_id: Optional[OrgID] = None,
+    id: UUID | None = None,
+    org_id: OrgID | None = None,
 ):
     if id:
         project = ProjectModel(
@@ -104,7 +103,7 @@ def get_local_workspace(evidently_workspace_path: str) -> "Workspace":
 def setup_evidently_project(
     evidently_project_id: "STR_UUID",
     evidently_workspace_path: str,
-    org_id: Optional[OrgID] = None,
+    org_id: OrgID | None = None,
 ) -> None:
     if isinstance(evidently_project_id, str):
         evidently_project_id = UUID(evidently_project_id)

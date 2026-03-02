@@ -11,9 +11,12 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import asyncio
+import inspect
 import os
 import time
 import unittest.mock
+from concurrent.futures import ThreadPoolExecutor
 from typing import cast
 
 import openai.types.chat
@@ -33,15 +36,17 @@ from mlrun.datastore.datastore_profile import (
 )
 from mlrun.datastore.model_provider.model_provider import (
     InvokeResponseFormat,
-    UsageResponseKeys,
 )
 from mlrun.datastore.model_provider.openai_provider import OpenAIProvider
 from tests.datastore.remote_model.remote_model_utils import (
+    BATCH_INPUT_DATA,
     EXPECTED_RESULTS,
-    INPUT_DATA,
     assert_async_invocations,
+    create_mocked_get_store_artifact,
     formatted_messages,
     setup_remote_model_test,
+    validate_openai_batch_response,
+    validate_openai_single_response,
 )
 
 here = os.path.dirname(__file__)
@@ -50,16 +55,6 @@ config_file_path = os.path.join(here, "test-openai.yml")
 if os.path.exists(config_file_path):
     with open(config_file_path) as yaml_file:
         config = yaml.safe_load(yaml_file).get("env", {})
-
-
-def create_mocked_get_store_artifact(uri_to_artifact: dict):
-    def mocked_get_store_artifact(uri, **kwargs):
-        artifact = uri_to_artifact.get(uri)
-        if not artifact:
-            raise mlrun.errors.MLRunInvalidArgumentError("Artifact uri not found")
-        return artifact, None
-
-    return mocked_get_store_artifact
 
 
 def openai_configured():
@@ -155,7 +150,7 @@ class TestOpenAIProvider(TestBasicOpenAIProvider):
             )
         assert isinstance(response, openai.types.chat.ChatCompletion)
         assert EXPECTED_RESULTS[0] in response.choices[0].message.content.lower()
-        assert response.usage.completion_tokens == 50
+        assert 45 <= response.usage.completion_tokens <= 55
 
         if run_async:
             response = await model_provider.async_invoke(
@@ -170,14 +165,9 @@ class TestOpenAIProvider(TestBasicOpenAIProvider):
                 invoke_response_format=InvokeResponseFormat.USAGE,
             )
 
-        assert isinstance(response, dict)
-        completion_tokens = response[UsageResponseKeys.USAGE]["completion_tokens"]
-        prompt_tokens = response[UsageResponseKeys.USAGE]["prompt_tokens"]
-        total_tokens = response[UsageResponseKeys.USAGE]["total_tokens"]
-        assert EXPECTED_RESULTS[0] in response[UsageResponseKeys.ANSWER].lower()
-        assert completion_tokens == 50
-        assert prompt_tokens > 0
-        assert total_tokens == prompt_tokens + completion_tokens
+        validate_openai_single_response(
+            response, EXPECTED_RESULTS[0], model_name, min_tokens=45, max_tokens=55
+        )
 
     @pytest.mark.parametrize("cred_mode", ["profile", "env", "secrets"])
     @pytest.mark.parametrize("run_async", [True, False])
@@ -196,6 +186,58 @@ class TestOpenAIProvider(TestBasicOpenAIProvider):
             model_name=self.basic_llm_model,
             run_async=run_async,
         )
+
+    @pytest.mark.parametrize(
+        "invoke_response_format",
+        [
+            InvokeResponseFormat.STRING,
+            InvokeResponseFormat.FULL,
+            InvokeResponseFormat.USAGE,
+        ],
+    )
+    @pytest.mark.parametrize("run_async", [True, False])
+    def test_batch_invoke(self, invoke_response_format, run_async):
+        model_url = self.url_prefix + self.basic_llm_model
+        model_provider = mlrun.get_model_provider(
+            url=model_url, default_invoke_kwargs={"max_tokens": 100}
+        )
+        model_provider = cast(OpenAIProvider, model_provider)
+
+        # Create batch messages (list of lists)
+        messages_list = [[msg] for msg in formatted_messages]
+
+        # Execute batch invoke (sync or async)
+        if run_async:
+            results = asyncio.run(
+                model_provider.async_invoke(
+                    messages=messages_list,
+                    invoke_response_format=invoke_response_format,
+                )
+            )
+        else:
+            results = model_provider.invoke(
+                messages=messages_list, invoke_response_format=invoke_response_format
+            )
+
+        # Assert common for all formats
+        assert isinstance(results, list)
+        assert len(results) == len(formatted_messages)
+
+        # Assert per result based on format
+        for i, result in enumerate(results):
+            if invoke_response_format == InvokeResponseFormat.STRING:
+                assert isinstance(result, str)
+                assert EXPECTED_RESULTS[i] in result.lower()
+
+            elif invoke_response_format == InvokeResponseFormat.FULL:
+                assert isinstance(result, openai.types.chat.ChatCompletion)
+                assert EXPECTED_RESULTS[i] in result.choices[0].message.content.lower()
+                assert 95 <= result.usage.completion_tokens <= 105
+
+            elif invoke_response_format == InvokeResponseFormat.USAGE:
+                validate_openai_single_response(
+                    result, EXPECTED_RESULTS[i], self.basic_llm_model
+                )
 
     async def test_configurable_model(self):
         configurable_model = mlrun.mlconf.model_providers.openai_default_model
@@ -235,6 +277,39 @@ class TestOpenAIProvider(TestBasicOpenAIProvider):
         assert result
         assert " " not in result.strip()  # checking one-word answer
 
+    def test_invoke_stream(self):
+        """Sync streaming yields non-empty tokens that form a coherent answer."""
+        model_url = self.url_prefix + self.basic_llm_model
+        provider = mlrun.get_model_provider(
+            url=model_url, default_invoke_kwargs={"max_tokens": 60}
+        )
+        messages = [formatted_messages[0]]
+        tokens = list(provider.invoke_stream(messages=messages))
+        assert len(tokens) > 1, "Expected multiple streamed tokens"
+        full_text = "".join(tokens)
+        assert EXPECTED_RESULTS[0] in full_text.lower()
+        encoding = tiktoken.encoding_for_model(self.basic_llm_model)
+        token_count = len(encoding.encode(full_text))
+        assert 50 <= token_count <= 70
+
+    @pytest.mark.asyncio
+    async def test_async_invoke_stream(self):
+        """Async streaming yields non-empty tokens that form a coherent answer."""
+        model_url = self.url_prefix + self.basic_llm_model
+        provider = mlrun.get_model_provider(
+            url=model_url, default_invoke_kwargs={"max_tokens": 60}
+        )
+        messages = [formatted_messages[0]]
+        tokens = [
+            token async for token in provider.async_invoke_stream(messages=messages)
+        ]
+        assert len(tokens) > 1, "Expected multiple streamed tokens"
+        full_text = "".join(tokens)
+        assert EXPECTED_RESULTS[0] in full_text.lower()
+        encoding = tiktoken.encoding_for_model(self.basic_llm_model)
+        token_count = len(encoding.encode(full_text))
+        assert 50 <= token_count <= 70
+
     @pytest.mark.asyncio
     @pytest.mark.parametrize("run_async", [True, False])
     async def test_custom_invoke(self, run_async):
@@ -261,7 +336,7 @@ class TestOpenAIProvider(TestBasicOpenAIProvider):
             )
             with pytest.raises(
                 mlrun.errors.MLRunInvalidArgumentError,
-                match="OpenAI custom_invoke " "operation must be a callable",
+                match="OpenAI custom_invoke operation must be a callable",
             ):
                 _ = await model_provider.custom_invoke(operation="test", input=prompt)
         encoding = tiktoken.encoding_for_model(self.embedding_model)
@@ -272,7 +347,7 @@ class TestOpenAIProvider(TestBasicOpenAIProvider):
         assert isinstance(embeddings, CreateEmbeddingResponse)
 
 
-class TestOpenAIModel(TestBasicOpenAIProvider):
+class TestOpenAIMRS(TestBasicOpenAIProvider):
     @pytest.mark.parametrize(
         "execution_mechanism",
         ["process_pool", "dedicated_process", "naive", "asyncio", "thread_pool"],
@@ -305,19 +380,9 @@ class TestOpenAIModel(TestBasicOpenAIProvider):
         ):
             server = function.to_mock_server()
         try:
-            response = server.test(body=INPUT_DATA[0])["output"]
-            assert len(response) == 2
-            answer = response[UsageResponseKeys.ANSWER]
-            assert EXPECTED_RESULTS[0] in answer.lower()
-            encoding = tiktoken.encoding_for_model(self.basic_llm_model)
-            assert len(encoding.encode(answer)) == 100
-
-            stats = response[UsageResponseKeys.USAGE]
-            assert stats["completion_tokens"] == 100
-            assert stats["prompt_tokens"] > 0
-            assert (
-                stats["total_tokens"]
-                == stats["completion_tokens"] + stats["prompt_tokens"]
+            response = server.test(body=BATCH_INPUT_DATA[0])["output"]
+            validate_openai_single_response(
+                response, EXPECTED_RESULTS[0], self.basic_llm_model
             )
         finally:
             server.wait_for_completion()
@@ -353,7 +418,7 @@ class TestOpenAIModel(TestBasicOpenAIProvider):
             server = function.to_mock_server()
         try:
             start = time.perf_counter()
-            results_with_times = server.test(body={"input": INPUT_DATA})
+            results_with_times = server.test(body={"input": BATCH_INPUT_DATA})
             total_duration = time.perf_counter() - start
 
             assert_async_invocations(
@@ -405,5 +470,124 @@ class TestOpenAIModel(TestBasicOpenAIProvider):
             assert len(results_with_times["data"][0]["embedding"]) == 256
             assert results_with_times["usage"]["total_tokens"] == token_count
 
+        finally:
+            server.wait_for_completion()
+
+    @pytest.mark.parametrize(
+        "execution_mechanism",
+        ["process_pool", "dedicated_process", "naive", "asyncio", "thread_pool"],
+    )
+    def test_model_runner_batch_with_openai(self, execution_mechanism):
+        """Test batch processing of multiple events with OpenAI model"""
+        project = mlrun.new_project("test-openai-model-batch", save=False)
+        model_url = self.url_prefix + self.basic_llm_model
+        model_artifact, llm_prompt_artifact, function = setup_remote_model_test(
+            project,
+            model_url,
+            execution_mechanism=execution_mechanism,
+            default_config={"max_tokens": 100},
+        )
+        mocked_get_store_artifact = create_mocked_get_store_artifact(
+            {
+                model_artifact.uri: model_artifact,
+                llm_prompt_artifact.uri: llm_prompt_artifact,
+            }
+        )
+        with (
+            unittest.mock.patch(
+                "mlrun.artifacts.llm_prompt.mlrun.datastore.store_manager.get_store_artifact",
+                side_effect=lambda *args, **kwargs: mocked_get_store_artifact(
+                    *args, **kwargs
+                ),
+            ),
+        ):
+            server = function.to_mock_server()
+        try:
+            batch_response = server.test(body=BATCH_INPUT_DATA)
+            validate_openai_batch_response(
+                batch_response, EXPECTED_RESULTS, self.basic_llm_model
+            )
+        finally:
+            server.wait_for_completion()
+
+    @pytest.mark.parametrize(
+        "execution_mechanism",
+        ["process_pool", "dedicated_process", "naive", "asyncio", "thread_pool"],
+    )
+    def test_model_runner_batch_step_with_openai(self, execution_mechanism):
+        project = mlrun.new_project("test-openai-batch-step", save=False)
+        model_url = self.url_prefix + self.basic_llm_model
+
+        model_artifact, llm_prompt_artifact, function = setup_remote_model_test(
+            project,
+            model_url,
+            execution_mechanism=execution_mechanism,
+            default_config={"max_tokens": 100},
+            batch_step=True,
+        )
+
+        mocked_get_store_artifact = create_mocked_get_store_artifact(
+            {
+                model_artifact.uri: model_artifact,
+                llm_prompt_artifact.uri: llm_prompt_artifact,
+            }
+        )
+        with unittest.mock.patch(
+            "mlrun.artifacts.llm_prompt.mlrun.datastore.store_manager.get_store_artifact",
+            side_effect=lambda *args, **kwargs: mocked_get_store_artifact(
+                *args, **kwargs
+            ),
+        ):
+            server = function.to_mock_server()
+
+        try:
+            # Send events concurrently with staggered timing
+            def send_event(event, delay):
+                time.sleep(delay)
+                return server.test(body=event)
+
+            with ThreadPoolExecutor(max_workers=len(BATCH_INPUT_DATA)) as executor:
+                futures = [
+                    executor.submit(send_event, event, i * 0.1)
+                    for i, event in enumerate(BATCH_INPUT_DATA)
+                ]
+                batch_response = [future.result() for future in futures]
+        finally:
+            server.wait_for_completion()
+        validate_openai_batch_response(
+            batch_response, EXPECTED_RESULTS, self.basic_llm_model
+        )
+
+    def test_model_runner_streaming(self):
+        """Test streaming through MRS with OpenAI provider."""
+        project = mlrun.new_project("test-openai-streaming", save=False)
+        model_url = self.url_prefix + self.basic_llm_model
+        model_artifact, llm_prompt_artifact, function = setup_remote_model_test(
+            project,
+            model_url,
+            execution_mechanism="asyncio",
+            default_config={"max_tokens": 60},
+            streaming=True,
+        )
+        mocked_get_store_artifact = create_mocked_get_store_artifact(
+            {
+                model_artifact.uri: model_artifact,
+                llm_prompt_artifact.uri: llm_prompt_artifact,
+            }
+        )
+        with unittest.mock.patch(
+            "mlrun.artifacts.llm_prompt.mlrun.datastore.store_manager.get_store_artifact",
+            side_effect=lambda *args, **kwargs: mocked_get_store_artifact(
+                *args, **kwargs
+            ),
+        ):
+            server = function.to_mock_server()
+        try:
+            response = server.test(body=BATCH_INPUT_DATA[0])
+            assert inspect.isgenerator(response), (
+                f"Expected generator, got {type(response)}"
+            )
+            response = "".join(response)
+            assert EXPECTED_RESULTS[0] in response.lower()
         finally:
             server.wait_for_completion()

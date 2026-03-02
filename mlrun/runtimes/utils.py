@@ -19,7 +19,6 @@ import os
 import re
 from io import StringIO
 from sys import stderr
-from typing import Optional
 
 import pandas as pd
 
@@ -450,29 +449,67 @@ def enrich_function_from_dict(function, function_dict):
 
 def resolve_owner(
     labels: dict,
-    owner_to_enrich: Optional[str] = None,
+    owner_to_enrich: str | None = None,
 ):
     """
-    Resolve the owner label value
+    Resolve the owner label value.
+
+    Resolution order:
+    1. For workflow runners: use owner_to_enrich if provided
+    2. V3IO_USERNAME environment variable (IG3 environments)
+    3. Authenticated username from IG4 JWT token (if available)
+    4. Local system user (getpass.getuser())
+
     :param labels: The run labels dict
-    :param auth_username: The authenticated username
+    :param owner_to_enrich: Optional owner to use for workflow runners
     :return: The resolved owner label value
     """
-
     if owner_to_enrich and (
         labels.get("job-type") == mlrun.common.constants.JOB_TYPE_WORKFLOW_RUNNER
         or labels.get("job-type")
         == mlrun.common.constants.JOB_TYPE_RERUN_WORKFLOW_RUNNER
     ):
         return owner_to_enrich
-    else:
-        return os.environ.get("V3IO_USERNAME") or getpass.getuser()
+
+    # Check V3IO_USERNAME first (IG3 environments)
+    if v3io_username := os.environ.get("V3IO_USERNAME"):
+        return v3io_username
+
+    # Try to get authenticated username from IG4 token provider
+    authenticated_username = _resolve_authenticated_username_from_token_provider()
+    if authenticated_username:
+        return authenticated_username
+
+    # Fall back to local system user
+    return getpass.getuser()
+
+
+def _resolve_authenticated_username_from_token_provider() -> str | None:
+    """
+    Attempt to resolve the authenticated username from the IG4 token provider.
+
+    This is used for local runs in IG4 environments where the JWT access token
+    contains the 'preferred_username' claim.
+
+    :return: The authenticated username, or None if not available.
+    """
+    try:
+        db = mlrun.get_run_db()
+        if db and hasattr(db, "token_provider") and db.token_provider:
+            token_provider = db.token_provider
+            # Check if this is an IG4 token provider with authenticated_username
+            if hasattr(token_provider, "authenticated_username"):
+                return token_provider.authenticated_username
+    except Exception:
+        # If we can't get the DB or token provider, silently fall back
+        pass
+    return None
 
 
 def enrich_run_labels(
     labels: dict,
-    labels_to_enrich: Optional[list[mlrun_constants.MLRunInternalLabels]] = None,
-    owner_to_enrich: Optional[str] = None,
+    labels_to_enrich: list[mlrun_constants.MLRunInternalLabels] | None = None,
+    owner_to_enrich: str | None = None,
 ):
     """
     Enrich the run labels with the internal labels and the labels enrichment extension.
@@ -501,6 +538,19 @@ def enrich_run_labels(
         if label not in labels and enrichment:
             labels[label] = enrichment
     return labels
+
+
+def resolve_run_user_template(output_path: str, owner: str) -> str:
+    """
+    Replace {{run.user}} template in output path with actual owner value.
+
+    :param output_path: The output path that may contain {{run.user}} template.
+    :param owner: The owner/username to substitute.
+    :return: The resolved output path, or original if no substitution needed.
+    """
+    if not output_path or not owner:
+        return output_path
+    return output_path.replace("{{run.user}}", owner)
 
 
 def resolve_node_selectors(

@@ -19,7 +19,6 @@ import mlrun.model_monitoring
 from mlrun.datastore.datastore_profile import (
     DatastoreProfile,
     DatastoreProfilePostgreSQL,
-    DatastoreProfileTDEngine,
     DatastoreProfileV3io,
 )
 from mlrun.model_monitoring.writer import WriterGraphFactory
@@ -29,9 +28,6 @@ from mlrun.model_monitoring.writer import WriterGraphFactory
     "tsdb_profile",
     [
         DatastoreProfileV3io(name="v3io-tsdb-test"),
-        DatastoreProfileTDEngine(
-            name="tdengine-test", user="root", host="localhost", port=6041
-        ),
         DatastoreProfilePostgreSQL(
             name="timescaledb-test",
             user="testuser",
@@ -46,8 +42,6 @@ def test_plot_writer_graph(
     monkeypatch: pytest.MonkeyPatch, tsdb_profile: DatastoreProfile
 ) -> None:
     monkeypatch.setattr(mlrun.mlconf, "system_id", "123456")
-    # Set system_id for the test to enable TDEngineConnector to construct database name
-    mlrun.mlconf.system_id = "123456"
     project_name = "test-writer"
     project = mlrun.get_or_create_project(project_name, allow_cross_project=True)
 

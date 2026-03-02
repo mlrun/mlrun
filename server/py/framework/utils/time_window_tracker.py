@@ -35,7 +35,7 @@ class TimeWindowTracker:
     def __init__(
         self,
         key: str,
-        max_window_size_seconds: typing.Optional[int] = None,
+        max_window_size_seconds: int | None = None,
     ):
         self._key = key
         self._timestamp = None
@@ -56,7 +56,7 @@ class TimeWindowTracker:
     def update_window(
         self,
         session: sqlalchemy.orm.Session,
-        timestamp: typing.Optional[datetime.datetime] = None,
+        timestamp: datetime.datetime | None = None,
     ):
         self._timestamp = timestamp or datetime.datetime.now(datetime.UTC)
         self._db.store_time_window_tracker_record(

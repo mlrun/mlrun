@@ -237,3 +237,77 @@ def test_mlrun_function_translation_to_nuclio(
         api_gateway_with_replaced_nuclio_names_to_mlrun.get_function_names()
         == api_gateway_client_side.spec.functions
     )
+
+
+@pytest.mark.parametrize(
+    "async_spec, expected_mode, expected_async_struct, expected_workers",
+    [
+        # None case - sync mode with default workers
+        (None, "sync", None, 8),
+        # Async enabled with default max_connections
+        (
+            mlrun.runtimes.nuclio.function.AsyncSpec(enabled=True),
+            "async",
+            {"maxConnectionsNumber": None, "connectionAvailabilityTimeout": None},
+            1,
+        ),
+        # Async enabled with custom settings
+        (
+            mlrun.runtimes.nuclio.function.AsyncSpec(
+                enabled=True, max_connections=500, connection_availability_timeout=30
+            ),
+            "async",
+            {"maxConnectionsNumber": 500, "connectionAvailabilityTimeout": 30},
+            1,
+        ),
+        # Async explicitly disabled
+        (
+            mlrun.runtimes.nuclio.function.AsyncSpec(enabled=False),
+            "sync",
+            None,
+            8,
+        ),
+    ],
+)
+@pytest.mark.parametrize("nuclio_support_async", [True, False])
+def test_with_http_async_spec(
+    async_spec,
+    expected_mode,
+    expected_async_struct,
+    expected_workers,
+    nuclio_support_async,
+):
+    """Test with_http method with various async_spec configurations."""
+    func = mlrun.runtimes.nuclio.function.RemoteRuntime()
+
+    with patch(
+        "mlrun.runtimes.nuclio.function.validate_nuclio_version_compatibility",
+        return_value=nuclio_support_async,
+    ):
+        if not nuclio_support_async and async_spec is not None:
+            with pytest.raises(
+                mlrun.errors.MLRunValueError,
+                match="Async spec is only supported from Nuclio 1.15.3",
+            ):
+                func.with_http(async_spec=async_spec)
+        else:
+            func.with_http(async_spec=async_spec)
+            trigger = func.spec.config.get("spec.triggers.http")
+            assert trigger is not None
+            if nuclio_support_async:
+                # Check mode
+                assert trigger.get("mode") == expected_mode
+
+                # Check workers
+                assert trigger.get("maxWorkers") == expected_workers
+            else:
+                assert trigger.get("mode") is None
+                assert (
+                    trigger.get("maxWorkers") == 8
+                )  # Default workers when async is not supported
+
+            # Check async struct
+            if expected_async_struct is not None:
+                assert trigger.get("async") == expected_async_struct
+            else:
+                assert "async" not in trigger

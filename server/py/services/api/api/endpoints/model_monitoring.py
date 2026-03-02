@@ -15,7 +15,7 @@
 import http
 from dataclasses import dataclass
 from datetime import datetime, timedelta
-from typing import Annotated, Literal, Optional
+from typing import Annotated, Literal
 
 import fastapi
 import semver
@@ -33,6 +33,7 @@ import framework.api.utils
 import framework.utils.auth.verifier
 import services.api.api.endpoints.model_endpoints
 import services.api.common.constants as api_constants
+import services.api.crud
 from framework.api import deps
 from framework.constants import MINIMUM_CLIENT_VERSION_FOR_MM
 from services.api.api.endpoints.nuclio import process_model_monitoring_secret
@@ -51,10 +52,11 @@ class _CommonParams:
     project: str
     auth_info: mlrun.common.schemas.AuthInfo
     db_session: Session
-    model_monitoring_access_key: Optional[str] = None
+    model_monitoring_access_key: str | None = None
+    auth_token_name: str | None = None
 
     def __post_init__(self) -> None:
-        if not mlrun.mlconf.is_ce_mode():
+        if mlrun.mlconf.is_using_v3io():
             # Get V3IO Access Key
             self.model_monitoring_access_key = process_model_monitoring_secret(
                 self.db_session,
@@ -69,6 +71,7 @@ class _CommonParams:
             auth_info=self.auth_info,
             db_session=self.db_session,
             model_monitoring_access_key=self.model_monitoring_access_key,
+            auth_token_name=self.auth_token_name,
         )
 
 
@@ -107,8 +110,11 @@ async def _common_parameters(
         mlrun.common.schemas.AuthInfo, Depends(deps.authenticate_request)
     ],
     db_session: Annotated[Session, Depends(deps.get_db_session)],
-    client_version: Optional[str] = Header(
+    client_version: str | None = Header(
         None, alias=mlrun.common.schemas.HeaderNames.client_version
+    ),
+    auth_token_name: str | None = Query(
+        None, description="Auth token name (set by mlrun.RuntimeConfigurationContext)"
     ),
 ) -> _CommonParams:
     """
@@ -118,6 +124,7 @@ async def _common_parameters(
     :param auth_info:       The auth info of the request.
     :param db_session:      A session that manages the current dialog with the database.
     :param client_version:  The client version.
+    :param auth_token_name: The auth token name (set by mlrun.RuntimeConfigurationContext).
     :returns:          A `_CommonParameters` object that contains the input data.
     """
     await _verify_authorization(
@@ -127,6 +134,7 @@ async def _common_parameters(
         project=project,
         auth_info=auth_info,
         db_session=db_session,
+        auth_token_name=auth_token_name,
     )
 
 
@@ -142,6 +150,13 @@ def enable_model_monitoring(
         description=(
             "`fetch_credentials_from_sys_config` is deprecated as of 1.10.0 and will be removed in 1.12.0."
         ),
+    ),
+    lag_threshold: int | None = Query(
+        None, description="Lag threshold in minutes for writer lag detection."
+    ),
+    lag_event_cooldown: int | None = Query(
+        None,
+        description="Cooldown in minutes between consecutive lag events per worker.",
     ),
 ):
     """
@@ -160,6 +175,8 @@ def enable_model_monitoring(
                                               By default, the image is mlrun/mlrun.
     :param deploy_histogram_data_drift_app:   If true, deploy the default histogram-based data drift application.
     :param fetch_credentials_from_sys_config: Deprecated. If true, fetch the credentials from the system configuration.
+    :param lag_threshold:                     Lag threshold in minutes for writer lag detection.
+    :param lag_event_cooldown:                Cooldown in minutes between consecutive lag events per worker.
 
     """
     commons.get_monitoring_deployment().deploy_monitoring_functions(
@@ -167,6 +184,8 @@ def enable_model_monitoring(
         base_period=base_period,
         deploy_histogram_data_drift_app=deploy_histogram_data_drift_app,
         fetch_credentials_from_sys_config=fetch_credentials_from_sys_config,
+        lag_threshold=lag_threshold,
+        lag_event_cooldown=lag_event_cooldown,
     )
 
 
@@ -202,6 +221,26 @@ def update_model_monitoring_controller(
             f"Run `project.enable_model_monitoring()` first."
         )
 
+    # Preserve existing auth token when redeploying (ML-12021)
+    if not commons.auth_token_name:
+        try:
+            existing_fn = services.api.crud.Functions().get_function(
+                db_session=commons.db_session,
+                name=mm_constants.MonitoringFunctionNames.APPLICATION_CONTROLLER,
+                project=commons.project,
+            )
+            existing_token = (
+                existing_fn.get("spec", {}).get("auth", {}).get("token_name")
+            )
+            if existing_token:
+                commons.auth_token_name = existing_token
+        except Exception:
+            logger.debug(
+                "Could not read existing controller function from DB, "
+                "skipping auth token preservation",
+                project=commons.project,
+            )
+
     return commons.get_monitoring_deployment().deploy_model_monitoring_controller(
         controller_image=image,
         base_period=base_period,
@@ -225,7 +264,7 @@ async def disable_model_monitoring(
     delete_stream_function: bool = False,
     delete_histogram_data_drift_app: bool = True,
     delete_user_applications: bool = False,
-    user_application_list: Optional[list[str]] = None,
+    user_application_list: list[str] | None = None,
 ):
     """
     Disable model monitoring application controller, writer, stream, histogram data drift application
@@ -336,11 +375,11 @@ async def _common_function_parameters(
         mlrun.common.schemas.AuthInfo, Depends(deps.authenticate_request)
     ],
     db_session: Annotated[Session, Depends(deps.get_db_session)],
-    client_version: Optional[str] = Header(
+    client_version: str | None = Header(
         None, alias=mlrun.common.schemas.HeaderNames.client_version
     ),
-    start: Optional[datetime] = None,
-    end: Optional[datetime] = None,
+    start: datetime | None = None,
+    end: datetime | None = None,
 ) -> _FunctionSummariesParams:
     """
     Verify authorization and return common parameters.
@@ -382,7 +421,7 @@ async def _common_function_parameters(
 @router.get("/function-summaries")
 async def get_model_monitoring_function_summaries(
     commons: Annotated[_FunctionSummariesParams, Depends(_common_function_parameters)],
-    names: Optional[list[str]] = Query(None, alias="name"),
+    names: list[str] | None = Query(None, alias="name"),
     labels: list[str] = Query([], alias="label"),
     include_stats: bool = Query(True, alias="include-stats"),
     include_infra: bool = Query(True, alias="include-infra"),
@@ -481,7 +520,7 @@ async def delete_model_endpoints_metrics_values(
         Query(pattern=mm_constants.APP_NAME_REGEX.pattern, alias="application-name"),
     ],
     endpoint_id: Annotated[
-        Optional[list[str]],
+        list[str] | None,
         Query(
             pattern=mm_constants.MODEL_ENDPOINT_ID_PATTERN,
             alias="endpoint-id",
@@ -522,8 +561,8 @@ async def delete_model_endpoints_metrics_values(
 )
 async def get_model_endpoint_drift_over_time(
     project: ProjectAnnotation,
-    start: Optional[datetime] = None,
-    end: Optional[datetime] = None,
+    start: datetime | None = None,
+    end: datetime | None = None,
     auth_info: mlrun.common.schemas.AuthInfo = Depends(
         framework.api.deps.authenticate_request
     ),

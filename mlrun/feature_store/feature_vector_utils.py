@@ -28,11 +28,11 @@ from ..model import ModelObj, ObjectList
 class _JoinStep(ModelObj):
     def __init__(
         self,
-        name: typing.Optional[str] = None,
-        left_step_name: typing.Optional[str] = None,
-        right_step_name: typing.Optional[str] = None,
-        left_feature_set_names: typing.Optional[Union[str, list[str]]] = None,
-        right_feature_set_name: typing.Optional[str] = None,
+        name: str | None = None,
+        left_step_name: str | None = None,
+        right_step_name: str | None = None,
+        left_feature_set_names: Union[str, list[str]] | None = None,
+        right_feature_set_name: str | None = None,
         join_type: str = "inner",
         asof_join: bool = False,
     ):
@@ -56,7 +56,7 @@ class _JoinStep(ModelObj):
         self,
         feature_set_objects: ObjectList,
         vector,
-        entity_rows_keys: typing.Optional[list[str]] = None,
+        entity_rows_keys: list[str] | None = None,
     ):
         if feature_set_objects[self.right_feature_set_name].is_connectable_to_df(
             entity_rows_keys
@@ -114,7 +114,7 @@ class JoinGraph(ModelObj):
 
     def __init__(
         self,
-        name: typing.Optional[str] = None,
+        name: str | None = None,
         first_feature_set: Union[str, FeatureSet] = None,
     ):
         """
@@ -223,7 +223,7 @@ class JoinGraph(ModelObj):
         self,
         feature_set_objects,
         vector,
-        entity_rows_keys: typing.Optional[list[str]] = None,
+        entity_rows_keys: list[str] | None = None,
     ):
         for step in self.steps:
             step.init_join_keys(feature_set_objects, vector, entity_rows_keys)
@@ -281,8 +281,8 @@ class OnlineVectorService:
         vector,
         graph,
         index_columns,
-        impute_policy: typing.Optional[dict] = None,
-        requested_columns: typing.Optional[list[str]] = None,
+        impute_policy: dict | None = None,
+        requested_columns: list[str] | None = None,
     ):
         self.vector = vector
         self.impute_policy = impute_policy or {}
@@ -394,33 +394,31 @@ class OnlineVectorService:
             futures.append(self._controller.emit(row, return_awaitable_result=True))
 
         for future in futures:
-            result = future.await_result()
-            data = result.body
-            if data:
-                actual_columns = data.keys()
-                if all([col in self._index_columns for col in actual_columns]):
-                    # didn't get any data from the graph
-                    results.append(None)
-                    continue
-                for column in self._requested_columns:
-                    if (
-                        column not in actual_columns
-                        and column != self.vector.status.label_column
-                    ):
-                        data[column] = None
+            data = future.await_result()
+            actual_columns = data.keys()
+            if all([col in self._index_columns for col in actual_columns]):
+                # didn't get any data from the graph
+                results.append(None)
+                continue
+            for column in self._requested_columns:
+                if (
+                    column not in actual_columns
+                    and column != self.vector.status.label_column
+                ):
+                    data[column] = None
 
-                if self._impute_values:
-                    for name in data.keys():
-                        v = data[name]
-                        if v is None or (
-                            isinstance(v, float) and (np.isinf(v) or np.isnan(v))
-                        ):
-                            data[name] = self._impute_values.get(name, v)
-                if not self.vector.spec.with_indexes:
-                    for name in self.vector.status.index_keys:
-                        data.pop(name, None)
-                if not any(data.values()):
-                    data = None
+            if self._impute_values:
+                for name in data.keys():
+                    v = data[name]
+                    if v is None or (
+                        isinstance(v, float) and (np.isinf(v) or np.isnan(v))
+                    ):
+                        data[name] = self._impute_values.get(name, v)
+            if not self.vector.spec.with_indexes:
+                for name in self.vector.status.index_keys:
+                    data.pop(name, None)
+            if not any(data.values()):
+                data = None
 
             if as_list and data:
                 data = [

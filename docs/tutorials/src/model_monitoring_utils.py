@@ -3,7 +3,7 @@ import os
 import mlrun
 from mlrun.datastore.datastore_profile import (
     DatastoreProfileKafkaStream,
-    DatastoreProfileTDEngine,
+    DatastoreProfilePostgreSQL,
     DatastoreProfileV3io,
 )
 
@@ -22,14 +22,15 @@ def enable_model_monitoring(
         name=stream_profile_name, v3io_access_key=mlrun.mlconf.get_v3io_access_key()
     )
 
-    if mlrun.mlconf.is_ce_mode():
+    if not mlrun.mlconf.is_using_v3io():
         mlrun_namespace = os.environ.get("MLRUN_NAMESPACE", "mlrun")
-        tsdb_profile = DatastoreProfileTDEngine(
+        tsdb_profile = DatastoreProfilePostgreSQL(
             name=tsdb_profile_name,
-            user="root",
-            password="taosdata",
-            host=f"tdengine-tsdb.{mlrun_namespace}.svc.cluster.local",
-            port="6041",
+            user="postgres",
+            password="password",
+            host=f"timescaledb.{mlrun_namespace}.svc.cluster.local",
+            port=5432,
+            database="mlrun",
         )
 
         stream_profile = DatastoreProfileKafkaStream(

@@ -14,7 +14,7 @@
 
 import re
 from datetime import datetime, timedelta
-from typing import TYPE_CHECKING, Optional, Union
+from typing import TYPE_CHECKING, Union
 
 import mlrun.common.schemas.model_monitoring as mm_schemas
 import mlrun.errors
@@ -30,7 +30,7 @@ class TimescaleDBQueryBuilder:
     """Utility class for building common SQL query components."""
 
     @staticmethod
-    def build_endpoint_filter(endpoint_ids: Optional[Union[str, list[str]]]) -> str:
+    def build_endpoint_filter(endpoint_ids: Union[str, list[str]] | None) -> str:
         """
         Generate SQL filter for endpoint IDs.
 
@@ -83,7 +83,7 @@ class TimescaleDBQueryBuilder:
 
     @staticmethod
     def build_metrics_filter(
-        metrics: Optional[list[mm_schemas.ModelEndpointMonitoringMetric]],
+        metrics: list[mm_schemas.ModelEndpointMonitoringMetric] | None,
     ) -> str:
         """
         Generate SQL filter for metrics using both application_name and metric_name columns.
@@ -113,7 +113,7 @@ class TimescaleDBQueryBuilder:
 
     @staticmethod
     def build_results_filter(
-        metrics: Optional[list[mm_schemas.ModelEndpointMonitoringMetric]],
+        metrics: list[mm_schemas.ModelEndpointMonitoringMetric] | None,
     ) -> str:
         """
         Generate SQL filter for results using both application_name and result_name columns.
@@ -159,7 +159,7 @@ class TimescaleDBQueryBuilder:
         return f"{mm_schemas.MetricData.METRIC_NAME} IN ('{metric_list}')"
 
     @staticmethod
-    def combine_filters(filters: list[str]) -> Optional[str]:
+    def combine_filters(filters: list[str]) -> str | None:
         """
         Combine multiple filter conditions with AND operator.
 
@@ -176,7 +176,7 @@ class TimescaleDBQueryBuilder:
             return None
 
     @staticmethod
-    def interval_to_minutes(interval: str) -> Optional[int]:
+    def interval_to_minutes(interval: str) -> int | None:
         """
         Convert TimescaleDB interval string to minutes.
 
@@ -254,7 +254,7 @@ class TimescaleDBQueryBuilder:
     @staticmethod
     def determine_optimal_from_available(
         start: datetime, end: datetime, available_intervals: list[str]
-    ) -> Optional[str]:
+    ) -> str | None:
         """
         Determine optimal interval from available pre-aggregate intervals.
 
@@ -318,11 +318,11 @@ class TimescaleDBQueryBuilder:
         start: "datetime",  # Use string to avoid import cycle
         end: "datetime",
         columns: list[str],
-        filter_query: Optional[str],
+        filter_query: str | None,
         name_column: str,
         value_column: str,
         debug_name: str = "read_data",
-        timestamp_column: Optional[str] = None,
+        timestamp_column: str | None = None,
     ) -> "pd.DataFrame":  # Use string to avoid import cycle
         """
         Build and execute read data query with pre-aggregate fallback pattern.
@@ -388,9 +388,9 @@ class TimescaleDBQueryBuilder:
     @staticmethod
     def prepare_time_range_and_interval(
         pre_aggregate_manager,
-        start: Optional[datetime] = None,
-        end: Optional[datetime] = None,
-        interval: Optional[str] = None,
+        start: datetime | None = None,
+        end: datetime | None = None,
+        interval: str | None = None,
         auto_determine_interval: bool = True,
     ) -> tuple[datetime, datetime, str]:
         """
@@ -444,9 +444,9 @@ class TimescaleDBQueryBuilder:
         pre_aggregate_manager,
         start_iso: str,
         end_iso: str,
-        interval: Optional[str] = None,
-        agg_function: Optional[str] = None,
-    ) -> tuple[datetime, datetime, Optional[str]]:
+        interval: str | None = None,
+        agg_function: str | None = None,
+    ) -> tuple[datetime, datetime, str | None]:
         """
         Specialized helper for time preparation with validation and ISO string conversion.
 
@@ -505,7 +505,7 @@ class TimescaleDBQueryBuilder:
 
         return f"""
         SELECT
-            {', '.join(select_columns)}
+            {", ".join(select_columns)}
         FROM ({subquery}) AS time_buckets
         GROUP BY {group_by_column}
         ORDER BY {order_by_column}

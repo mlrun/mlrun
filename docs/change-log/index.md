@@ -25,6 +25,13 @@ Upgrading these three MLRun dependencies spans several releases.  The upgrades a
 
 See a full description of KFP, Python, and the workflow engines in {ref}`local-remote`. Specific changes are listed under the relevant versions.
 
+(v1102)=
+## v1.10.2 (February 2025)
+### Closed issues
+| ID    |Description                                                                 |
+|-------|----------------------------------------------------------------------------|
+|ML-11771|Resolved issue of Users temporarily unable to access projects by improving all the async clients to use per-thread session instances and all http clients to use a dummy cookie jar.|
+
 (v1101)=
 ## v1.10.1 (January 2026)
 
@@ -461,7 +468,7 @@ To upgrade the MLRun server:
 | ID      | Description                                                                                                 |
 |---------|-------------------------------------------------------------------------------------------------------------|
 | ML-6052 | New page: {ref}`log-artifacts`.                                                                             |
-| ML-7480 | New note: [ARM64 (Apple Silicon) Users and Python 3.9](#apple-silicon). |
+| ML-7480 | New note: [ARM64 (Apple Silicon) Users and Python 3.9](https://docs.mlrun.org/en/v1.7/install/remote.html#note-for-arm64-apple-silicon-users). |
 | ML-7669 | New topic: [Setting the log level](../runtimes/configuring-job-resources.md#setting-the-log-level).         |
 | NA      | New tutorial: {ref}`genai-02-mm-llm`.                                                                       |
 | NA      | New page: {ref}`mm-applications`.                                                                           |
@@ -1008,8 +1015,7 @@ conda activate python39
 | ID      | Description                                                                                                                                                                                                                                      |
 |---------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | ML-1167 | Add support for graphs that split and merge (DAG), including a list of steps for the `after` argument in the `add_step()` method. See [Branching and merging steps](../serving/branch-merge.md). |
-| ML-2507 | Supports configuring of consumer group name for steps following QueueSteps. See 
-[Queue (streaming)](../serving/remote-execution.ipynb#queue-streaming).                                                                   |
+| ML-2507 | Supports configuring of consumer group name for steps following QueueSteps. See [Queues and streams](../serving/remote-execution.ipynb#queues-and-streams).|
 
 #### Storey 
 
@@ -1445,6 +1451,7 @@ with a drill-down to view the steps and their details. [Tech Preview]
 |ML-11463|The application graph in the model monitoring UI does not present the “dead zones” where no activity happened, and the time axis representation is not consistent.|NA|v1.10.0|
 |ML-11654|MLRun serving graphs with HTTP trigger and no responder. When a serving function is configured with an HTTP trigger only and the graph does not include any `.respond()` step, the function does not return the actual result or error of the graph execution. Instead, it only returns a generic invocation ID (for example, {"id": "<uuid>"}), even if an exception occurred inside the graph.|Add a `.respond()` step.|v1.10.0|
 |ML-11771|In rare circumstances, access to projects is temporarily unavailable.|Restart MLRun.|V1.9.2|
+|ML-11468|A rare race-condition exists in the pagination mechanism, where concurrently issuing two paginated query requests for the same resource and with the exact same parameters (for example, asking to list functions for the same project with same filters and order type) at the exact same time may result in one of these requests receiving an MLRunConflictError response.|Reissue the same request. |v1.10.1|
 
 
 ## Limitations

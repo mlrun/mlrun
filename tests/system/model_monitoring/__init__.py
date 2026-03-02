@@ -27,7 +27,6 @@ from mlrun.datastore.datastore_profile import (
     DatastoreProfileKafkaSource,
     DatastoreProfileKafkaStream,
     DatastoreProfilePostgreSQL,
-    DatastoreProfileTDEngine,
     DatastoreProfileV3io,
 )
 from tests.system.base import TestMLRunSystem
@@ -36,7 +35,6 @@ _ProfilesMap: TypeAlias = dict[str, type[DatastoreProfile]]
 
 _DS_TYPE_TO_DS_PROFILE: _ProfilesMap = {
     "v3io": DatastoreProfileV3io,
-    "taosws": DatastoreProfileTDEngine,
     "kafka_source": DatastoreProfileKafkaSource,
     "postgresql": DatastoreProfilePostgreSQL,
     "kafka_stream": DatastoreProfileKafkaStream,
@@ -64,10 +62,7 @@ class TestMLRunSystemModelMonitoring(TestMLRunSystem):
     def get_tsdb_profile(cls, profile_data: dict[str, Any]) -> DatastoreProfile:
         return cls._get_profile(
             profile_data,
-            {
-                type_: _DS_TYPE_TO_DS_PROFILE[type_]
-                for type_ in ("v3io", "taosws", "postgresql")
-            },
+            {type_: _DS_TYPE_TO_DS_PROFILE[type_] for type_ in ("v3io", "postgresql")},
         )
 
     @classmethod
@@ -128,7 +123,7 @@ class TestMLRunSystemModelMonitoring(TestMLRunSystem):
         cls,
         condition_check: Callable,
         initial_wait: float = 0.0,
-        timeout: Optional[float] = None,
+        timeout: float | None = None,
         retry_interval: float = 10.0,
         condition_description: str = "condition to be met",
     ) -> None:

@@ -15,7 +15,6 @@
 import copy
 import enum
 import http
-import typing
 
 import requests.adapters
 import requests.auth
@@ -83,7 +82,7 @@ class Client(
             project=project,
             patch_mode=patch_mode,
         )
-        response = self._get_project_from_nuclio(name)
+        response = self._get_project_from_nuclio(name, auth_info=auth_info)
         response_body = response.json()
         if project.get("metadata", {}).get("labels") is not None:
             response_body.setdefault("metadata", {}).setdefault("labels", {}).update(
@@ -148,11 +147,11 @@ class Client(
         self,
         session: sqlalchemy.orm.Session,
         auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
-        owner: typing.Optional[str] = None,
+        owner: str | None = None,
         format_: mlrun.common.formatters.ProjectFormat = mlrun.common.formatters.ProjectFormat.full,
-        labels: typing.Optional[list[str]] = None,
+        labels: list[str] | None = None,
         state: mlrun.common.schemas.ProjectState = None,
-        names: typing.Optional[list[str]] = None,
+        names: list[str] | None = None,
     ) -> mlrun.common.schemas.ProjectsOutput:
         if owner:
             raise NotImplementedError(
@@ -190,10 +189,10 @@ class Client(
         self,
         session: sqlalchemy.orm.Session,
         auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
-        owner: typing.Optional[str] = None,
-        labels: typing.Optional[list[str]] = None,
+        owner: str | None = None,
+        labels: list[str] | None = None,
         state: mlrun.common.schemas.ProjectState = None,
-        names: typing.Optional[list[str]] = None,
+        names: list[str] | None = None,
     ) -> mlrun.common.schemas.ProjectSummariesOutput:
         raise NotImplementedError("Listing project summaries is not supported")
 
@@ -240,10 +239,11 @@ class Client(
         if kwargs.get("timeout") is None:
             kwargs["timeout"] = 20
 
-        if mlrun.mlconf.httpdb.projects.leader == "mlrun":
-            framework.utils.clients.helpers.add_project_role_headers_if_needed(
-                path, kwargs
-            )
+        kwargs["headers"] = framework.utils.clients.helpers.enrich_headers(
+            headers=kwargs.get("headers"),
+            path=path,
+        )
+
         # requests no longer supports header values to be enum (https://github.com/psf/requests/pull/6154)
         # convert to strings. Do the same for params for niceness
         for kwarg in ["headers", "params"]:

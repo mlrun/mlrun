@@ -53,24 +53,26 @@ def test_get_offline_token_from_env(monkeypatch):
 
 
 @pytest.mark.parametrize(
-    "data, token_name, expected_token",
+    "data, token_name, expected_token, expected_name",
     [
         # 1. Valid default token
         (
             [{"name": "default", "token": "file-token"}],
             None,
             "file-token",
+            "default",
         ),
         # 2. Valid token with custom name
         (
             [{"name": "custom", "token": "custom-token"}],
             "custom",
             "custom-token",
+            "custom",
         ),
         # # 3. secretTokens not a list
-        ("not-a-list", None, None),
+        ("not-a-list", None, None, None),
         # # 4. secretTokens empty list
-        ([], None, None),
+        ([], None, None, None),
         # 5. Multiple matching tokens
         (
             [
@@ -79,9 +81,10 @@ def test_get_offline_token_from_env(monkeypatch):
             ],
             None,
             None,
+            None,
         ),
         # 6. Token entry missing 'token' field
-        ([{"name": "default"}], None, None),
+        ([{"name": "default"}], None, None, None),
         # 7. Empty default token name, no default, use 1st token
         (
             [
@@ -90,15 +93,19 @@ def test_get_offline_token_from_env(monkeypatch):
             ],
             None,
             "file-token1",
+            "token1",
         ),
     ],
 )
-def test_parse_offline_token_data_cases(data, token_name, expected_token, monkeypatch):
+def test_parse_offline_token_data_cases(
+    data, token_name, expected_token, expected_name, monkeypatch
+):
     monkeypatch.setattr(
         "mlrun.config.config.auth_with_oauth_token.token_name", token_name
     )
     # Suppress raising errors, we just check return value
-    token = mlrun.auth.utils.parse_offline_token_data(data, raise_on_error=False)
+    token, name = mlrun.auth.utils.parse_offline_token_data(data, raise_on_error=False)
+    assert name == expected_name
     assert token == expected_token
 
 
@@ -134,31 +141,34 @@ def test_parse_offline_token_data_raise_exception(data, token_name, monkeypatch)
     "env_token, file_token, expected",
     [
         # env token exists
-        ("env-token", None, "env-token"),
+        ("env-token", None, ("env-token", "default")),
         # only file token exists
-        (None, "file-token", "file-token"),
+        (None, ("file-token", "default"), ("file-token", "default")),
         # token missing
-        (None, None, None),
+        (None, (None, None), (None, None)),
     ],
 )
-def test_load_offline_token_parametrized(env_token, file_token, expected):
+def test_load_offline_token_parametrized(env_token, file_token, expected, monkeypatch):
+    monkeypatch.setattr(config.auth_with_oauth_token, "token_name", None)
     with (
         patch.object(
             mlrun.auth.utils, "get_offline_token_from_env", return_value=env_token
         ),
         patch.object(
-            mlrun.auth.utils, "get_offline_token_from_file", return_value=file_token
+            mlrun.auth.utils,
+            "get_offline_token_from_file",
+            return_value=file_token,
         ),
     ):
-        token = mlrun.auth.utils.load_offline_token(raise_on_error=False)
-        assert token == expected
+        token, _ = mlrun.auth.utils.load_offline_token(raise_on_error=False)
+        assert token == expected[0]
 
 
 def test_token_file_not_exists(monkeypatch):
     fake_file = "no_such_file.yaml"
     monkeypatch.setattr(config.auth_with_oauth_token, "token_file", str(fake_file))
 
-    result = mlrun.auth.utils.get_offline_token_from_file(raise_on_error=False)
+    result, _ = mlrun.auth.utils.get_offline_token_from_file(raise_on_error=False)
     assert result is None
 
     with pytest.raises(mlrun.errors.MLRunRuntimeError):
@@ -207,7 +217,7 @@ def test_get_offline_token_from_file(
         with pytest.raises(mlrun.errors.MLRunRuntimeError):
             mlrun.auth.utils.get_offline_token_from_file(raise_on_error=True)
     else:
-        token = mlrun.auth.utils.get_offline_token_from_file(
+        token, _ = mlrun.auth.utils.get_offline_token_from_file(
             raise_on_error=raise_on_error
         )
         assert token == expected_token
@@ -233,7 +243,7 @@ def test_load_and_prepare_secret_tokens_valid(
     tokens = []
     for idx, user_id in enumerate(token_user_ids):
         jwt_token = _create_jwt_token({"sub": user_id, "exp": 9999999999})
-        tokens.append({"name": f"token{idx+1}", "token": jwt_token})
+        tokens.append({"name": f"token{idx + 1}", "token": jwt_token})
 
     content = {"secretTokens": tokens}
     path = _write_file(tmp_path, "tokens.yml", content)
@@ -605,3 +615,59 @@ def test_resolve_jwt_subject(token, add_defaults, expected_sub):
     jwt_token = _create_jwt_token(token, add_defaults=add_defaults)
     result = mlrun.auth.utils.resolve_jwt_subject(jwt_token, raise_on_error=True)
     assert result == expected_sub
+
+
+@pytest.mark.parametrize(
+    "exp_offset, buffer_seconds, should_expire",
+    [
+        # Token expired 10 seconds ago, no buffer
+        (-10, 0, True),
+        # Token expires in 10 seconds, no buffer
+        (10, 0, False),
+        # Token expires in 10 seconds, buffer 15 seconds (should be expired)
+        (10, 15, True),
+        # Token expires in 10 seconds, buffer 5 seconds (should not be expired)
+        (10, 5, False),
+        # Token expires now, no buffer
+        (0, 0, True),
+    ],
+)
+def test_is_token_expired(exp_offset, buffer_seconds, should_expire):
+    exp = int(time.time()) + exp_offset
+    token = _create_jwt_token({"exp": exp, "sub": "user-1"}, add_defaults=False)
+    result = mlrun.auth.utils.is_token_expired(token, buffer_seconds=buffer_seconds)
+    assert result is should_expire
+
+
+def test_is_token_expired_missing_exp():
+    token = _create_jwt_token({"sub": "user-1"}, add_defaults=False)
+    with pytest.raises(
+        mlrun.errors.MLRunInvalidArgumentError, match="Token is missing the 'exp'"
+    ):
+        mlrun.auth.utils.is_token_expired(token)
+
+
+@pytest.mark.parametrize(
+    "token_payload, expected_username",
+    [
+        # Token with preferred_username claim
+        ({"preferred_username": "alice"}, "alice"),
+        # Token without preferred_username claim
+        ({}, None),
+        # Token with empty preferred_username
+        ({"preferred_username": ""}, ""),
+    ],
+)
+def test_resolve_jwt_username(token_payload, expected_username):
+    """Test extracting 'preferred_username' claim from JWT token."""
+    jwt_token = _create_jwt_token(token_payload, add_defaults=True)
+    result = mlrun.auth.utils.resolve_jwt_username(jwt_token, raise_on_error=False)
+    assert result == expected_username
+
+
+def test_resolve_jwt_username_invalid_token():
+    """Test that resolve_jwt_username handles invalid tokens gracefully."""
+    result = mlrun.auth.utils.resolve_jwt_username(
+        "not-a-valid-jwt", raise_on_error=False
+    )
+    assert result is None

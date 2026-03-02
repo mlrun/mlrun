@@ -35,9 +35,7 @@ MLRUN_PYTHON_VERSION ?= 3.11
 
 # Centralized MySQL image tag for tests and tooling (overridable)
 MLRUN_MYSQL_IMAGE ?= gcr.io/iguazio/mlrun-mysql:8.4
-
-# TODO: remove this once iguazio package is released to PyPI and move to requirements.txt
-IGUAZIO_PACKAGE_VERSION ?= 0.0.1a20
+MLRUN_POSTGRES_IMAGE = gcr.io/iguazio/postgres:17
 
 MLRUN_SKIP_COMPILE_SCHEMAS ?=
 INCLUDE_PYTHON_VERSION_SUFFIX ?=
@@ -156,7 +154,7 @@ all:
 
 .PHONY: install-requirements
 install-requirements: ## Install all requirements needed for development
-	# relevant for pip package installer only
+	@# relevant for pip package installer only
 	@if [ "$(MLRUN_PYTHON_PACKAGE_INSTALLER)" = "pip" ]; then \
 		$(MLRUN_PYTHON_VENV_PIP_INSTALL) --upgrade $(MLRUN_PIP_NO_CACHE_FLAG) pip~=$(MLRUN_PIP_VERSION); \
 	fi
@@ -168,24 +166,9 @@ install-requirements: ## Install all requirements needed for development
 		-r dev-requirements.txt \
 		-r dockerfiles/mlrun-api/requirements.txt
 
-	$(MAKE) install-iguazio-sdk
-
-# TODO: Remove the iguazio installation here when the package is released to PyPI and move it to requirements.txt
-.PHONY: install-iguazio-sdk
-install-iguazio-sdk: ## Install iguazio package from Test PyPI only for Python 3.11
-	@if [ "$(MLRUN_PYTHON_VERSION)" = "3.11" ]; then \
-		echo "Installing iguazio package version $(IGUAZIO_PACKAGE_VERSION) for Python $(MLRUN_PYTHON_VERSION)..."; \
-		$(MLRUN_PYTHON_VENV_PIP_INSTALL) $(MLRUN_PIP_NO_CACHE_FLAG) \
-			--index-url https://test.pypi.org/simple/ \
-			--extra-index-url https://pypi.org/simple \
-			"iguazio~=$(IGUAZIO_PACKAGE_VERSION)"; \
-	else \
-		echo "Skipping iguazio install (Python $(MLRUN_PYTHON_VERSION))"; \
-	fi
-
 .PHONY: install-dev-requirements
 install-dev-requirements: ## Install dev-requirements relevant for pytest and coverage.
-	# relevant for pip package installer only
+	@# relevant for pip package installer only
 	@if [ "$(MLRUN_PYTHON_PACKAGE_INSTALLER)" = "pip" ]; then \
 		$(MLRUN_PYTHON_VENV_PIP_INSTALL) --upgrade $(MLRUN_PIP_NO_CACHE_FLAG) pip~=$(MLRUN_PIP_VERSION); \
 	fi
@@ -194,9 +177,9 @@ install-dev-requirements: ## Install dev-requirements relevant for pytest and co
 		$(MLRUN_PIP_NO_CACHE_FLAG) \
 		-r dev-requirements.txt
 
-.PHONY: install-dev-requirements
+.PHONY: install-automation-requirements
 install-automation-requirements: ## Install automation-requirements relevant for CI and automation scripts
-	# relevant for pip package installer only
+	@# relevant for pip package installer only
 	@if [ "$(MLRUN_PYTHON_PACKAGE_INSTALLER)" = "pip" ]; then \
 		$(MLRUN_PYTHON_VENV_PIP_INSTALL) --upgrade $(MLRUN_PIP_NO_CACHE_FLAG) pip~=$(MLRUN_PIP_VERSION); \
 	fi
@@ -209,11 +192,6 @@ install-automation-requirements: ## Install automation-requirements relevant for
 install-docs-requirements: ## Install all requirements needed for compiling mlrun docs
 	$(MLRUN_PYTHON_VENV_PIP_INSTALL) --upgrade $(MLRUN_PIP_NO_CACHE_FLAG) pip~=$(MLRUN_PIP_VERSION)
 	$(MLRUN_PYTHON_VENV_PIP_INSTALL) $(MLRUN_PIP_NO_CACHE_FLAG) -r docs/requirements.txt
-
-.PHONY: install-conda-requirements
-install-conda-requirements: ## Install all requirements needed for development with specific conda packages for arm64
-	conda install --yes --file conda-arm64-requirements-python311.txt
-	make install-requirements
 
 .PHONY: install-complete-requirements
 install-complete-requirements: ## Install all requirements needed for development and testing
@@ -249,7 +227,7 @@ endif
 	find ./docs/install/*.yaml -type f -print0 | xargs -0 sed -i '' -e 's/{TAG:-.*}/{TAG:-$(MLRUN_NEW_VERSION)}/g'
 
 .PHONY: update-version-file
-update-version-file: ## Update the version file
+update-version-file: install-automation-requirements ## Update the version file
 	python ./automation/version/version_file.py ensure --mlrun-version $(MLRUN_VERSION)
 
 .PHONY: generate-dockerignore
@@ -560,7 +538,6 @@ api: common-image-3.11 compile-schemas update-version-file ## Build mlrun-api do
 		--build-arg MLRUN_PYTHON_VERSION=$(MLRUN_PYTHON_VERSION) \
 		--build-arg MLRUN_UV_IMAGE=$(MLRUN_UV_IMAGE) \
 		--build-arg DOCKER_DEFAULT_PLATFORM=$(DOCKER_DEFAULT_PLATFORM) \
-		--build-arg IGUAZIO_PACKAGE_VERSION=$(IGUAZIO_PACKAGE_VERSION) \
 		--platform $(DOCKER_DEFAULT_PLATFORM) \
 		$(MLRUN_API_IMAGE_DOCKER_CACHE_FROM_FLAG) \
 		$(MLRUN_DOCKER_NO_CACHE_FLAG) \
@@ -593,7 +570,6 @@ build-test: common-image compile-schemas update-version-file ## Build test docke
 		--build-arg MLRUN_PIP_VERSION=$(MLRUN_PIP_VERSION) \
 		--build-arg MLRUN_UV_VERSION=$(MLRUN_UV_VERSION) \
 		--build-arg DOCKER_DEFAULT_PLATFORM=$(DOCKER_DEFAULT_PLATFORM) \
-		--build-arg IGUAZIO_PACKAGE_VERSION=$(IGUAZIO_PACKAGE_VERSION) \
 		--platform $(DOCKER_DEFAULT_PLATFORM) \
 		$(MLRUN_TEST_IMAGE_DOCKER_CACHE_FROM_FLAG) \
 		$(MLRUN_DOCKER_NO_CACHE_FLAG) \
@@ -647,6 +623,7 @@ test-dockerized: build-test ## Run mlrun tests in docker container
 		-e MLRUN_VERSION=$(MLRUN_VERSION) \
 		-e MLRUN_DOCKER_REGISTRY=$(MLRUN_DOCKER_REGISTRY) \
 		-e MLRUN_MYSQL_IMAGE=$(MLRUN_MYSQL_IMAGE) \
+		-e MLRUN_POSTGRES_IMAGE=$(MLRUN_POSTGRES_IMAGE) \
 		-v /tmp:/tmp \
 		-v $$COVERAGE_MOUNT_PATH:/mlrun/tests/coverage_reports \
 		-v /var/run/docker.sock:/var/run/docker.sock \
@@ -712,6 +689,7 @@ test-integration-dockerized: build-test api ## Run mlrun integration tests in do
 		-e MLRUN_VERSION=$(MLRUN_VERSION) \
 		-e MLRUN_DOCKER_REGISTRY=$(MLRUN_DOCKER_REGISTRY) \
 		-e MLRUN_MYSQL_IMAGE=$(MLRUN_MYSQL_IMAGE) \
+		-e MLRUN_POSTGRES_IMAGE=$(MLRUN_POSTGRES_IMAGE) \
 		--add-host=host.docker.internal:host-gateway \
 		$(MLRUN_TEST_IMAGE_NAME_TAGGED) make test-integration
 
@@ -722,6 +700,7 @@ test-integration: clean ## Run mlrun integration tests
 	COVERAGE_FILE=$${COVERAGE_FILE:-"tests/coverage_reports/integration_tests.coverage"} && \
 	$(SETUP_COVERAGE) && \
 	MLRUN_MYSQL_IMAGE=$(MLRUN_MYSQL_IMAGE) \
+	MLRUN_POSTGRES_IMAGE=$(MLRUN_POSTGRES_IMAGE) \
 	python $(COVERAGE_ADDITION) \
 		-m pytest -v \
 		--capture=no \
@@ -748,6 +727,7 @@ test-migrations-dockerized: build-test ## Run mlrun db migrations tests in docke
 		-e MLRUN_VERSION=$(MLRUN_VERSION) \
 		-e MLRUN_DOCKER_REGISTRY=$(MLRUN_DOCKER_REGISTRY) \
 		-e MLRUN_MYSQL_IMAGE=$(MLRUN_MYSQL_IMAGE) \
+		-e MLRUN_POSTGRES_IMAGE=$(MLRUN_POSTGRES_IMAGE) \
 		-v $$COVERAGE_MOUNT_PATH:/mlrun/tests/coverage_reports \
 		$(MLRUN_TEST_IMAGE_NAME_TAGGED) make RUN_COVERAGE=true test-migrations
 
@@ -756,6 +736,7 @@ test-migrations: clean ## Run mlrun db migrations tests
 	COVERAGE_FILE=$(COVERAGE_FILE) && \
 	COVERAGE_FILE=$${COVERAGE_FILE:-"tests/coverage_reports/migration_tests.coverage"} && \
 	export MLRUN_MYSQL_IMAGE=$(MLRUN_MYSQL_IMAGE) && \
+	export MLRUN_POSTGRES_IMAGE=$(MLRUN_POSTGRES_IMAGE) && \
 	export COVERAGE_FILE && \
 	$(SETUP_COVERAGE) && \
 	bash -c 'set -euo pipefail; \
@@ -804,7 +785,7 @@ test-system-open-source: update-version-file ## Run mlrun system tests with open
 
 .PHONY: test-package compile-schemas
 test-package: ## Run mlrun package tests
-	python ./automation/package_test/test.py run
+	MLRUN_PYTHON_PACKAGE_INSTALLER=$(MLRUN_PYTHON_PACKAGE_INSTALLER) python ./automation/package_test/test.py run
 
 .PHONY: test-go
 test-go-unit: ## Run mlrun go unit tests
@@ -982,7 +963,7 @@ endif
 	python -m pytest -v --capture=no --disable-warnings --durations=100 server/py/services/api/tests/unit/api/test_docs.py::test_save_openapi_json
 
 	# Run OpenAPI diff to check compatibility
-	docker run --rm -t -v $(MLRUN_BC_TESTS_OPENAPI_OUTPUT_PATH):/specs:ro openapitools/openapi-diff:latest /specs/mlrun_bc_base_oai.json /specs/mlrun_bc_head_oai.json --fail-on-incompatible
+	docker run --rm -t -v $(MLRUN_BC_TESTS_OPENAPI_OUTPUT_PATH):/specs:ro openapitools/openapi-diff:latest /specs/mlrun_bc_base_oai.json /specs/mlrun_bc_head_oai.json --fail-on-incompatible --config-prop incompatible.response.enum.increased:false
 
 
 .PHONY: release-notes
@@ -1096,14 +1077,16 @@ upgrade-mlrun-deps-lock: ## Upgrade mlrun-* locked requirements file
 		upgrade-mlrun-system-test-deps-lock
 
 
-.PHONY: coverage-combine
-coverage-combine: ## Combine all coverage reports, ignoring errors like missing or corrupted source files
+coverage-combine:
 	rm -f tests/coverage_reports/combined.coverage; \
-	UNIT_TEST_COVERAGE_PATHS=$${UNIT_TEST_COVERAGE_PATHS:-"tests/coverage_reports/unit_tests.coverage"}; \
-	COVERAGE_FILE=tests/coverage_reports/combined.coverage coverage combine --keep \
-	$$UNIT_TEST_COVERAGE_PATHS \
-	tests/coverage_reports/integration_tests.coverage \
-	tests/coverage_reports/migration_tests.coverage; \
+	coverage_files="$$(find tests/coverage_reports -type f -name '*.coverage' 2>/dev/null)"; \
+	if [ -z "$$coverage_files" ]; then \
+		echo "No coverage files found under tests/coverage_reports, nothing to combine."; \
+		exit 1; \
+	fi; \
+	echo "Combining coverage from:"; \
+	printf '  %s\n' $$coverage_files; \
+	COVERAGE_FILE=tests/coverage_reports/combined.coverage coverage combine --keep $$coverage_files; \
 	python -m coverage xml --ignore-errors --data-file=tests/coverage_reports/combined.coverage -o tests/coverage_reports/combined.xml; \
 	echo "Full coverage report:"; \
 	COVERAGE_FILE=tests/coverage_reports/combined.coverage coverage report -i

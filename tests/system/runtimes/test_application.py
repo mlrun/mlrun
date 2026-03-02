@@ -14,7 +14,9 @@
 
 import io
 import os
+import shutil
 import sys
+import tempfile
 
 import pytest
 from nuclio.auth import AuthInfo as NuclioAuthInfo
@@ -33,9 +35,13 @@ class TestApplicationRuntime(tests.system.base.TestMLRunSystem):
         super().custom_setup()
         self._vizro_app_code_filename = "vizro_app.py"
         self._function_with_delay_healthcheck = "function_with_delay_healthcheck.py"
+        self._simple_flask_app = "simple_flask_app.py"
+        self._source_archive = "source_archive.tar.gz"
         self._files_to_upload = [
             self._vizro_app_code_filename,
             self._function_with_delay_healthcheck,
+            self._simple_flask_app,
+            self._source_archive,
         ]
         self._source = os.path.join(self.remote_code_dir, self._vizro_app_code_filename)
 
@@ -110,8 +116,7 @@ class TestApplicationRuntime(tests.system.base.TestMLRunSystem):
     def test_deploy_application_from_project_source(self):
         self._upload_code_to_cluster()
 
-        # pull_at_runtime is not supported and should be overridden
-        self.project.set_source(self._source, pull_at_runtime=True)
+        self.project.set_source(self._source)
         self.project.save()
 
         self._logger.debug("Creating application")
@@ -199,12 +204,6 @@ class TestApplicationRuntime(tests.system.base.TestMLRunSystem):
         self._upload_code_to_cluster()
         self._logger.debug("Creating application")
         function = self._create_delay_health_check_application("delay-health-check-app")
-        self._logger.debug("Deploying application with readiness probe (will fail)")
-        # The deployment should fail because the readiness probe have default timeout_seconds
-        # and the /health endpoint sleeps for 20 seconds, causing the probe to timeout
-        with pytest.raises(mlrun.runtimes.utils.RunError, match="deployment failed"):
-            function.deploy(with_mlrun=False)
-
         # Add probes to the function - set timeout_seconds > 20 to allow health endpoint to respond
         self._logger.debug("Adding probes to function")
         function.set_probe(
@@ -215,14 +214,161 @@ class TestApplicationRuntime(tests.system.base.TestMLRunSystem):
             timeout_seconds=25,  # Wait 25 seconds (more than the 20 seconds sleep in /health)
         )
 
-        # Redeploy with probes
-        self._logger.debug("Redeploying application with probes")
+        # Deploy with probes
+        self._logger.debug("Deploying application with probes")
         function.deploy(with_mlrun=False)
 
         # Verify the application is running and healthy
         self._logger.debug("Validating application is healthy")
         response = function.invoke("/external", verify=False).content.decode("utf-8")
         assert response == "test message"
+
+    def test_deploy_application_with_source_reload(self):
+        """
+        Test that application source code can be updated and reloaded at runtime using the init container.
+        """
+        # Work on a temporary copy of the source to avoid mutating shared test assets
+        original_path = os.path.join(self.assets_path, self._simple_flask_app)
+
+        with tempfile.TemporaryDirectory(prefix="source_reload_test_") as temp_dir:
+            source_path = os.path.join(temp_dir, self._simple_flask_app)
+            shutil.copy(original_path, source_path)
+
+            function = self._create_simple_flask_application(
+                name="source-reload-app", source=source_path
+            )
+            function.set_probe(type="readiness", http_path="/health", period_seconds=2)
+
+            # First deploy - auto-uploads source as artifact
+            self._logger.debug("Deploying application with version-1 source")
+            function.deploy(with_mlrun=False)
+
+            # Invoke and verify version-1
+            response = function.invoke("/", verify=False)
+            assert response.content.decode("utf-8") == "version-1"
+
+            # Update source to version-2 by modifying the VERSION constant
+            self._logger.debug("Updating source to version-2")
+            with open(source_path) as f:
+                source_v2 = f.read().replace(
+                    'VERSION = "version-1"', 'VERSION = "version-2"'
+                )
+            with open(source_path, "w") as f:
+                f.write(source_v2)
+
+            # Redeploy - auto-uploads new source, init container loads it without image rebuild
+            image_before = function.status.application_image
+            self._logger.debug("Redeploying with version-2 source")
+            function.deploy(with_mlrun=False)
+
+            # Verify sidecar image was not rebuilt (only source changed)
+            assert function.status.application_image == image_before
+
+            # Invoke and verify version-2
+            response = function.invoke("/", verify=False)
+            assert response.content.decode("utf-8") == "version-2"
+
+    def test_deploy_application_with_git_source(self):
+        """
+        Test that application runtime uses init container to load Git source at runtime.
+        Verifies that:
+        1. Source is cloned from Git without being built into the image
+        2. Git repo files are accessible (both root and subdir)
+        3. Sidecar image is not rebuilt on redeployment
+        """
+        git_url = "git://github.com/mlrun/test-git-load.git#main"
+
+        self._logger.debug("Creating application with Git source")
+        function = self.project.set_function(
+            name="git-app",
+            kind="application",
+            image="python:3.11",
+        )
+        function.with_source_archive(
+            source=git_url,
+            pull_at_runtime=True,
+        )
+        function.spec.command = "python"
+        function.spec.args = ["-m", "http.server", "8050"]
+        function.set_internal_application_port(8050)
+        function.set_probe(type="readiness", http_path="/", period_seconds=2)
+
+        # First deploy
+        self._logger.debug("First deploy with Git source and pull_at_runtime=True")
+        function.deploy(with_mlrun=False)
+        assert function.status.state == "ready"
+
+        # Verify Git repo was cloned and files are accessible
+        response = function.invoke("/subdir/mylib.py", verify=False)
+        assert response.status_code == 200
+
+        # Verify a root level file is also accessible
+        response = function.invoke("/rootlib.py", verify=False)
+        assert response.status_code == 200
+
+        # Redeploy - sidecar image should not be rebuilt
+        image_before = function.status.application_image
+        self._logger.debug("Redeploying - sidecar build should be skipped")
+        function.deploy(with_mlrun=False)
+        assert function.status.state == "ready"
+        assert function.status.application_image == image_before
+
+        # Verify source is still accessible after redeploy
+        response = function.invoke("/subdir/mylib.py", verify=False)
+        assert response.status_code == 200
+
+        # force_build=True should trigger sidecar image build
+        self._logger.debug("Redeploying with force_build=True")
+        function.deploy(with_mlrun=False, force_build=True)
+        assert function.status.state == "ready"
+        assert function.status.application_image != image_before
+
+        # Verify source is still accessible after forced rebuild
+        response = function.invoke("/subdir/mylib.py", verify=False)
+        assert response.status_code == 200
+
+    def test_deploy_application_with_archive_source(self):
+        """
+        Test that application runtime uses init container to load archive source at runtime.
+        Verifies that:
+        1. Archive is extracted without being built into the image
+        2. Extracted files are accessible
+        3. Sidecar image is not rebuilt on redeployment
+        """
+        # Upload archive to remote storage so init container can access it
+        self._upload_code_to_cluster()
+        archive_url = os.path.join(self.remote_code_dir, self._source_archive)
+
+        self._logger.debug("Creating application with archive source")
+        function = self.project.set_function(
+            name="archive-app",
+            kind="application",
+            image="python:3.11",
+        )
+        function.with_source_archive(
+            source=archive_url,
+            pull_at_runtime=True,
+        )
+        function.spec.command = "python"
+        function.spec.args = ["-m", "http.server", "8050"]
+        function.set_internal_application_port(8050)
+        function.set_probe(type="readiness", http_path="/", period_seconds=2)
+
+        # First deploy
+        self._logger.debug("First deploy with archive source and pull_at_runtime=True")
+        function.deploy(with_mlrun=False)
+        assert function.status.state == "ready"
+
+        # Verify extracted archive files are accessible
+        response = function.invoke("/rootlib.py", verify=False)
+        assert response.status_code == 200
+
+        # Redeploy - sidecar image should not be rebuilt
+        image_before = function.status.application_image
+        self._logger.debug("Redeploying - sidecar build should be skipped")
+        function.deploy(with_mlrun=False)
+        assert function.status.state == "ready"
+        assert function.status.application_image == image_before
 
     def _create_vizro_application(
         self, name="vizro-app", app_image=None, with_repo: bool = False
@@ -274,31 +420,35 @@ class TestApplicationRuntime(tests.system.base.TestMLRunSystem):
         function.spec.args = [
             "-m",
             "flask",
+            "--app=function_with_delay_healthcheck",
             "run",
             "--host=0.0.0.0",
             "--port=5000",
-        ]
-        function.spec.env = [
-            {"name": "FLASK_APP", "value": "function_with_delay_healthcheck.py"}
         ]
         function.with_http(workers=1, trigger_name="application-http")
         delay_healthcheck_source = os.path.join(
             self.remote_code_dir, self._function_with_delay_healthcheck
         )
         function.with_source_archive(source=delay_healthcheck_source)
-        function.spec.config["spec.sidecars"] = [
-            {
-                "name": f"{function.metadata.name}-sidecar",
-                "image": f".mlrun/func-{self.project.metadata.name}-{function.metadata.name}:latest",
-                "ports": [
-                    {
-                        "containerPort": 5000,
-                        "name": "application-t-0",
-                        "protocol": "TCP",
-                    }
-                ],
-                "readinessProbe": {"httpGet": {"path": "/health", "port": 5000}},
-            }
-        ]
+        return function
 
+    def _create_simple_flask_application(self, name="simple-flask-app", source=None):
+        """Create a simple Flask application for testing source reload."""
+        source_path = source or os.path.join(self.assets_path, self._simple_flask_app)
+        function = self.project.set_function(
+            func=source_path,
+            name=name,
+            kind="application",
+            requirements=["Flask==3.0.0"],
+        )
+        function.set_internal_application_port(5000)
+        function.spec.command = "python"
+        function.spec.args = [
+            "-m",
+            "flask",
+            "--app=simple_flask_app",
+            "run",
+            "--host=0.0.0.0",
+            "--port=5000",
+        ]
         return function

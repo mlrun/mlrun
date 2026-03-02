@@ -153,15 +153,6 @@ class SystemTestPreparer:
     def run(self):
         self.connect_to_remote()
 
-        try:
-            logger.log("debug", "installing dev utilities")
-            self._install_dev_utilities()
-            logger.log("debug", "installing dev utilities - done")
-        except Exception as exp:
-            self._logger.log(
-                "error", "error on install dev utilities", exception=str(exp)
-            )
-
         # for sanity clean up before starting the run
         self.clean_up_remote_workdir()
 
@@ -482,29 +473,6 @@ class SystemTestPreparer:
             }
         )
 
-    def _install_dev_utilities(self):
-        list_uninstall = [
-            "dev_utilities.py",
-            "uninstall",
-            "--redis",
-            "--mysql",
-            "--redisinsight",
-            "--kafka",
-        ]
-        list_install = [
-            "dev_utilities.py",
-            "install",
-            "--redis",
-            "--mysql",
-            "--redisinsight",
-            "--kafka",
-            "--ipadd",
-            os.environ.get("IP_ADDR_PREFIX", "localhost"),
-        ]
-        self._run_command("rm", args=["-rf", "/home/iguazio/dev_utilities"])
-        self._run_command("python3", args=list_uninstall, workdir="/home/iguazio/")
-        self._run_command("python3", args=list_install, workdir="/home/iguazio/")
-
     def _download_provctl(self):
         # extract bucket name, object name from s3 file path
         # https://<bucket-name>.s3.amazonaws.com/<object-name>
@@ -795,29 +763,6 @@ class SystemTestPreparer:
         if stderr:
             raise RuntimeError(f"Failed getting service name. Error: {stderr}")
         return service_name.strip()
-
-    def _get_devutils_status(self):
-        out, err = "", ""
-        try:
-            out, err = self._run_command(
-                "python3",
-                [
-                    "/home/iguazio/dev_utilities.py",
-                    "status",
-                    "--redis",
-                    "--kafka",
-                    "--mysql",
-                    "--redisinsight",
-                    "--output",
-                    "json",
-                ],
-            )
-        except Exception as exc:
-            self._logger.log(
-                "warning", "Failed to enrich env", exc=exc, err=err, out=out
-            )
-
-        return json.loads(out or "{}")
 
     def _ensure_ssh_session_active(self):
         try:

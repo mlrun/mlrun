@@ -13,7 +13,7 @@
 # limitations under the License.
 
 from dataclasses import dataclass, field
-from typing import Any, Optional
+from typing import Any
 
 from kubernetes.client import V1VolumeMount
 
@@ -73,7 +73,7 @@ class DummyContainerOp:
     name: str
     image: str
     command: list[str] = field(default_factory=list)
-    file_outputs: Optional[dict[str, str]] = field(default_factory=dict)
+    file_outputs: dict[str, str] | None = field(default_factory=dict)
     kwargs: dict[str, Any] = field(default_factory=dict)
     pod_labels: dict[str, str] = field(default_factory=dict)
     pod_annotations: dict[str, str] = field(default_factory=dict)

@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import typing
 from abc import ABC, abstractmethod
 from datetime import datetime, timedelta
 
@@ -96,7 +95,7 @@ class DynamicTokenProvider(TokenProvider):
         return False
 
     @property
-    def authenticated_username(self) -> typing.Optional[str]:
+    def authenticated_username(self) -> str | None:
         """
         Extract the authenticated username from the JWT access token.
 
@@ -332,7 +331,7 @@ class IGTokenProvider(DynamicTokenProvider):
         super().__init__(token_endpoint=token_endpoint, timeout=timeout, max_retries=2)
 
     @property
-    def authenticated_user_id(self) -> typing.Optional[str]:
+    def authenticated_user_id(self) -> str | None:
         return mlrun.auth.utils.resolve_jwt_subject(self._token, raise_on_error=True)
 
     def fetch_token(self):
@@ -458,7 +457,7 @@ class IGTokenProvider(DynamicTokenProvider):
     @staticmethod
     def _get_token_lifetime_and_expiry(
         token: str,
-    ) -> tuple[int, typing.Optional[datetime]]:
+    ) -> tuple[int, datetime | None]:
         """
         Calculate the total lifetime and expiration time of the token.
 

@@ -14,7 +14,6 @@
 #
 
 from http import HTTPStatus
-from typing import Optional
 
 import fastapi
 from fastapi.concurrency import run_in_threadpool
@@ -53,7 +52,7 @@ async def store_secret_tokens(
 
 @router.get("/tokens", response_model=mlrun.common.schemas.ListSecretTokensResponse)
 async def list_secret_tokens(
-    username: Optional[str] = fastapi.Query(
+    username: str | None = fastapi.Query(
         default=None,
         description="Username to filter tokens. Use '*' to list all users' tokens (system-admin only).",
     ),
@@ -89,7 +88,7 @@ async def list_secret_tokens(
     response_model=mlrun.common.schemas.DeleteSecretTokensResponse,
 )
 async def delete_secret_tokens(
-    username: Optional[str] = fastapi.Query(
+    username: str | None = fastapi.Query(
         default=None,
         description="Username of the token owner. If None, deletes the caller's own tokens. "
         "System admins can delete tokens for other users.",
@@ -128,7 +127,7 @@ async def delete_secret_tokens(
 )
 async def delete_secret_token(
     name: str,
-    username: Optional[str] = fastapi.Query(
+    username: str | None = fastapi.Query(
         default=None,
         description="Username of the token owner. If None, deletes the caller's own token. "
         "System admins can delete tokens for other users.",
@@ -165,7 +164,7 @@ async def delete_secret_token(
 
 async def _resolve_target_username_for_list_secret_tokens(
     auth_info: mlrun.common.schemas.AuthInfo,
-    username: Optional[str],
+    username: str | None,
 ) -> str:
     """
     Resolve the target username for LIST token operations.
@@ -211,7 +210,7 @@ async def _resolve_target_username_for_list_secret_tokens(
 
 async def _resolve_target_username_for_delete_secret_tokens(
     auth_info: mlrun.common.schemas.AuthInfo,
-    username: Optional[str],
+    username: str | None,
 ) -> str:
     """
     Resolve the target username for DELETE token operations.

@@ -1015,8 +1015,7 @@ conda activate python39
 | ID      | Description                                                                                                                                                                                                                                      |
 |---------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | ML-1167 | Add support for graphs that split and merge (DAG), including a list of steps for the `after` argument in the `add_step()` method. See [Branching and merging steps](../serving/branch-merge.md). |
-| ML-2507 | Supports configuring of consumer group name for steps following QueueSteps. See 
-[Queue (streaming)](../serving/remote-execution.ipynb#queue-streaming).                                                                   |
+| ML-2507 | Supports configuring of consumer group name for steps following QueueSteps. See [Queues and streams](../serving/remote-execution.ipynb#queues-and-streams).|
 
 #### Storey 
 

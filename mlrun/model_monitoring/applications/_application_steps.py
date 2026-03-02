@@ -16,7 +16,7 @@ import collections
 import traceback
 from collections import OrderedDict
 from datetime import datetime
-from typing import Any, Optional, Union
+from typing import Any, Union
 
 import mlrun.common.schemas
 import mlrun.common.schemas.alert as alert_objects
@@ -164,7 +164,7 @@ class _PrepareMonitoringEvent(StepToDict):
 
 
 class _ApplicationErrorHandler(StepToDict):
-    def __init__(self, project: str, name: Optional[str] = None):
+    def __init__(self, project: str, name: str | None = None):
         self.project = project
         self.name = name or "ApplicationErrorHandler"
 

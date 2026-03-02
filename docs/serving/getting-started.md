@@ -1,5 +1,5 @@
-(use-cases-serving)=
-# Examples of serving graphs
+(getting-started)=
+# Getting started with serving graphs
 
 Learn how serving graphs can simplify complex workflows as illustrated in these examples.
 

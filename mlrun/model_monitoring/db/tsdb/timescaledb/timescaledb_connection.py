@@ -15,7 +15,7 @@
 import random
 import time
 from collections.abc import Callable
-from typing import Any, Optional, Union
+from typing import Any, Union
 
 import pandas as pd
 import psycopg
@@ -53,7 +53,7 @@ class Statement:
     def __init__(
         self,
         sql: str,
-        parameters: Optional[Union[tuple, list, dict]] = None,
+        parameters: Union[tuple, list, dict] | None = None,
         execute_many: bool = False,
     ):
         """
@@ -116,8 +116,8 @@ class TimescaleDBConnection:
         self._autocommit = autocommit
 
         # Connection pools (lazy initialization)
-        self._pool: Optional[ConnectionPool] = None
-        self._timescaledb_version: Optional[str] = None
+        self._pool: ConnectionPool | None = None
+        self._timescaledb_version: str | None = None
         self._version_checked: bool = False
 
     @property
@@ -191,7 +191,7 @@ class TimescaleDBConnection:
         self._version_checked = True
 
     @property
-    def timescaledb_version(self) -> Optional[str]:
+    def timescaledb_version(self) -> str | None:
         """Get the TimescaleDB version (triggers version check if not done)."""
         if not self._version_checked:
             self._check_timescaledb_version()
@@ -199,9 +199,9 @@ class TimescaleDBConnection:
 
     def run(
         self,
-        statements: Optional[Union[str, Statement, list[Union[str, Statement]]]] = None,
-        query: Optional[Union[str, Statement]] = None,
-    ) -> Optional[QueryResult]:
+        statements: Union[str, Statement, list[Union[str, Statement]]] | None = None,
+        query: Union[str, Statement] | None = None,
+    ) -> QueryResult | None:
         """
         Execute statements and optionally return query results with deadlock-aware retry logic.
 
@@ -239,7 +239,7 @@ class TimescaleDBConnection:
         return None
 
     def _normalize_statements(
-        self, statements: Optional[Union[str, Statement, list[Union[str, Statement]]]]
+        self, statements: Union[str, Statement, list[Union[str, Statement]]] | None
     ) -> list[Union[str, Statement]]:
         """Convert statements to a normalized list format."""
         if statements is None:
@@ -249,8 +249,8 @@ class TimescaleDBConnection:
     def _execute_operation(
         self,
         statements: list[Union[str, Statement]],
-        query: Optional[Union[str, Statement]],
-    ) -> Optional[QueryResult]:
+        query: Union[str, Statement] | None,
+    ) -> QueryResult | None:
         """Execute a single database operation (statements + optional query)."""
         with self.pool.connection() as conn:
             conn.autocommit = self._autocommit
@@ -299,9 +299,9 @@ class TimescaleDBConnection:
         pre_aggregate_manager: PreAggregateManager,
         pre_agg_query_builder: Callable[[], str],
         raw_query_builder: Callable[[], str],
-        interval: Optional[str] = None,
-        agg_funcs: Optional[list[str]] = None,
-        column_mapping_rules: Optional[dict[str, list[str]]] = None,
+        interval: str | None = None,
+        agg_funcs: list[str] | None = None,
+        column_mapping_rules: dict[str, list[str]] | None = None,
         debug_name: str = "query",
     ) -> pd.DataFrame:
         """
@@ -357,11 +357,9 @@ class TimescaleDBConnection:
 
     def _execute_with_retry(
         self,
-        cursor_operation_callable: Callable[
-            [psycopg.Cursor[Any]], Optional[QueryResult]
-        ],
+        cursor_operation_callable: Callable[[psycopg.Cursor[Any]], QueryResult | None],
         operation_name: str,
-    ) -> Optional[QueryResult]:
+    ) -> QueryResult | None:
         """
         Generic retry wrapper for database operations.
 

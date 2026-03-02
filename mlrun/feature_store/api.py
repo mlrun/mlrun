@@ -17,7 +17,7 @@ import importlib.util
 import pathlib
 import sys
 from datetime import datetime
-from typing import Any, Optional, Union
+from typing import Any, Union
 
 import pandas as pd
 
@@ -109,14 +109,14 @@ def ingest(
     mlrun_context: Union["mlrun.MLrunProject", "mlrun.MLClientCtx"],
     featureset: Union[FeatureSet, str] = None,
     source=None,
-    targets: Optional[list[DataTargetBase]] = None,
+    targets: list[DataTargetBase] | None = None,
     namespace=None,
     return_df: bool = True,
     infer_options: InferOptions = InferOptions.default(),
     run_config: RunConfig = None,
     spark_context=None,
     overwrite=None,
-) -> Optional[pd.DataFrame]:
+) -> pd.DataFrame | None:
     """Read local DataFrame, file, URL, or source into the feature store
     Ingest reads from the source, run the graph transformations, infers  metadata and stats
     and writes the results to the default of specified targets
@@ -185,7 +185,7 @@ def ingest(
 def _ingest(
     featureset: Union[FeatureSet, str] = None,
     source=None,
-    targets: Optional[list[DataTargetBase]] = None,
+    targets: list[DataTargetBase] | None = None,
     namespace=None,
     return_df: bool = True,
     infer_options: InferOptions = InferOptions.default(),
@@ -193,7 +193,7 @@ def _ingest(
     mlrun_context=None,
     spark_context=None,
     overwrite=None,
-) -> Optional[pd.DataFrame]:
+) -> pd.DataFrame | None:
     if isinstance(source, pd.DataFrame):
         source = _rename_source_dataframe_columns(source)
 
@@ -433,11 +433,11 @@ def _ingest(
 def _preview(
     featureset: FeatureSet,
     source,
-    entity_columns: Optional[list] = None,
+    entity_columns: list | None = None,
     namespace=None,
     options: InferOptions = None,
     verbose: bool = False,
-    sample_size: Optional[int] = None,
+    sample_size: int | None = None,
 ) -> pd.DataFrame:
     if isinstance(source, pd.DataFrame):
         source = _rename_source_dataframe_columns(source)
@@ -503,8 +503,8 @@ def _preview(
 def _run_ingestion_job(
     featureset: Union[FeatureSet, str],
     source: DataSource = None,
-    targets: Optional[list[DataTargetBase]] = None,
-    name: Optional[str] = None,
+    targets: list[DataTargetBase] | None = None,
+    name: str | None = None,
     infer_options: InferOptions = InferOptions.default(),
     run_config: RunConfig = None,
 ):
@@ -522,8 +522,8 @@ def _run_ingestion_job(
 def _deploy_ingestion_service_v2(
     featureset: Union[FeatureSet, str],
     source: DataSource = None,
-    targets: Optional[list[DataTargetBase]] = None,
-    name: Optional[str] = None,
+    targets: list[DataTargetBase] | None = None,
+    name: str | None = None,
     run_config: RunConfig = None,
     verbose=False,
 ) -> tuple[str, BaseRuntime]:
@@ -588,7 +588,7 @@ def _ingest_with_spark(
     spark=None,
     featureset: Union[FeatureSet, str] = None,
     source: BaseSourceDriver = None,
-    targets: Optional[list[BaseStoreTarget]] = None,
+    targets: list[BaseStoreTarget] | None = None,
     infer_options: InferOptions = InferOptions.default(),
     mlrun_context=None,
     namespace=None,
@@ -761,8 +761,8 @@ def _infer_from_static_df(
 def set_task_params(
     featureset: FeatureSet,
     source: DataSource = None,
-    targets: Optional[list[DataTargetBase]] = None,
-    parameters: Optional[dict] = None,
+    targets: list[DataTargetBase] | None = None,
+    parameters: dict | None = None,
     infer_options: InferOptions = InferOptions.Null,
     overwrite=None,
 ):

@@ -111,7 +111,7 @@ def _initialize_db_if_needed(engine: sqlalchemy.engine.Engine) -> bool:
 
 
 def _create_schema(
-    engine: typing.Optional[sqlalchemy.engine.Engine] = None,
+    engine: sqlalchemy.engine.Engine | None = None,
 ) -> None:
     if engine is None:
         engine = framework.db.sqldb.sql_session.get_engine()
@@ -883,7 +883,7 @@ def _ensure_function_kind_and_state(
 def _add_producer_uri_to_artifact(
     db: framework.db.sqldb.db.SQLDB,
     db_session: sqlalchemy.orm.Session,
-    chunk_size: typing.Optional[int] = None,
+    chunk_size: int | None = None,
 ):
     chunk_size = chunk_size or mlrun.mlconf.artifacts.artifact_migration_v9_batch_size
 
@@ -958,7 +958,7 @@ def _migrate_data(
 
 
 def _ensure_latest_tag_for_artifacts(
-    db_session: sqlalchemy.orm.Session, chunk_size: typing.Optional[int] = None
+    db_session: sqlalchemy.orm.Session, chunk_size: int | None = None
 ):
     chunk_size = chunk_size or mlrun.mlconf.artifacts.artifact_migration_v9_batch_size
 
@@ -1180,7 +1180,7 @@ def _init_system_id(db_session: sqlalchemy.orm.Session):
     mlrun.utils.logger.info("Initialized system ID", system_id=system_id)
 
 
-def _get_configured_system_id() -> typing.Optional[str]:
+def _get_configured_system_id() -> str | None:
     return mlrun.mlconf.system_id or None
 
 

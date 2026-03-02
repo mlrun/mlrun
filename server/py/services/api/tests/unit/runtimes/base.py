@@ -145,8 +145,8 @@ class TestRuntimeBase(services.api.tests.unit.conftest.MockedK8sHelper):
     def _create_project(
         self,
         client: fastapi.testclient.TestClient,
-        project_name: typing.Optional[str] = None,
-        default_function_node_selector: typing.Optional[dict] = None,
+        project_name: str | None = None,
+        default_function_node_selector: dict | None = None,
     ):
         services.api.tests.unit.api.utils.create_project(
             client=client,
@@ -308,8 +308,8 @@ class TestRuntimeBase(services.api.tests.unit.conftest.MockedK8sHelper):
 
     def _generate_security_context(
         self,
-        run_as_user: typing.Optional[int] = None,
-        run_as_group: typing.Optional[int] = None,
+        run_as_user: int | None = None,
+        run_as_group: int | None = None,
     ) -> k8s_client.V1SecurityContext:
         return k8s_client.V1SecurityContext(
             run_as_user=run_as_user,

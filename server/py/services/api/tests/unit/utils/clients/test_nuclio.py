@@ -516,9 +516,9 @@ def test_request_includes_context_id_header(
 
     def verify_context_header(request, context):
         # Verify the context ID header is present in the request
-        assert (
-            mlrun.common.schemas.HeaderNames.igz_ctx in request.headers
-        ), f"Expected {mlrun.common.schemas.HeaderNames.igz_ctx} header in request"
+        assert mlrun.common.schemas.HeaderNames.igz_ctx in request.headers, (
+            f"Expected {mlrun.common.schemas.HeaderNames.igz_ctx} header in request"
+        )
         assert request.headers[mlrun.common.schemas.HeaderNames.igz_ctx] == context_id
         context.status_code = http.HTTPStatus.OK.value
         return response_body
@@ -596,9 +596,9 @@ def test_request_without_context_id_when_not_set(
 
     def verify_no_context_header(request, context):
         # Header should not be present when context is None
-        assert (
-            mlrun.common.schemas.HeaderNames.igz_ctx not in request.headers
-        ), f"Did not expect {mlrun.common.schemas.HeaderNames.igz_ctx} header when context is not set"
+        assert mlrun.common.schemas.HeaderNames.igz_ctx not in request.headers, (
+            f"Did not expect {mlrun.common.schemas.HeaderNames.igz_ctx} header when context is not set"
+        )
         context.status_code = http.HTTPStatus.OK.value
         return response_body
 

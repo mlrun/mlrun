@@ -19,7 +19,6 @@ import os
 import re
 from io import StringIO
 from sys import stderr
-from typing import Optional
 
 import pandas as pd
 
@@ -450,7 +449,7 @@ def enrich_function_from_dict(function, function_dict):
 
 def resolve_owner(
     labels: dict,
-    owner_to_enrich: Optional[str] = None,
+    owner_to_enrich: str | None = None,
 ):
     """
     Resolve the owner label value.
@@ -485,7 +484,7 @@ def resolve_owner(
     return getpass.getuser()
 
 
-def _resolve_authenticated_username_from_token_provider() -> Optional[str]:
+def _resolve_authenticated_username_from_token_provider() -> str | None:
     """
     Attempt to resolve the authenticated username from the IG4 token provider.
 
@@ -509,8 +508,8 @@ def _resolve_authenticated_username_from_token_provider() -> Optional[str]:
 
 def enrich_run_labels(
     labels: dict,
-    labels_to_enrich: Optional[list[mlrun_constants.MLRunInternalLabels]] = None,
-    owner_to_enrich: Optional[str] = None,
+    labels_to_enrich: list[mlrun_constants.MLRunInternalLabels] | None = None,
+    owner_to_enrich: str | None = None,
 ):
     """
     Enrich the run labels with the internal labels and the labels enrichment extension.

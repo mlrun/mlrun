@@ -95,16 +95,16 @@ def test_get_generator(
 
     with expected_error:
         generator = mlrun.runtimes.generators.get_generator(run_spec, execution, None)
-        assert isinstance(
-            generator, expected_generator_class
-        ), f"unexpected generator type {type(generator)}"
+        assert isinstance(generator, expected_generator_class), (
+            f"unexpected generator type {type(generator)}"
+        )
 
         iterations = sum(
             1 for _ in generator.generate(mlrun.run.RunObject(spec=run_spec))
         )
-        assert (
-            iterations == expected_iterations
-        ), f"unexpected number of iterations {iterations}"
+        assert iterations == expected_iterations, (
+            f"unexpected number of iterations {iterations}"
+        )
         if strategy == "list":
             assert generator.df.keys().to_list() == ["p1", "p2"]
         elif strategy in ["grid", "random"]:

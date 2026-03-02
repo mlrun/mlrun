@@ -525,9 +525,9 @@ class TestOpenAIStreaming:
                 mock_async_stream,
             ):
                 response = server.test(body=BATCH_INPUT_DATA[0])
-            assert inspect.isgenerator(
-                response
-            ), f"Expected generator, got {type(response)}"
+            assert inspect.isgenerator(response), (
+                f"Expected generator, got {type(response)}"
+            )
             response = "".join(response)
             assert "Hello world" in response
         finally:

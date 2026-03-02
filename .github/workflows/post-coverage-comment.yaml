@@ -82,7 +82,7 @@ jobs:
             echo "<details>"
             echo "<summary>📂 Click to view full coverage details</summary>"
             echo ""
-            cat diff_coverage.md
+            cat diff_coverage.md | head -n 1500
             echo ""
             echo "</details>"
           } > final_comment.md

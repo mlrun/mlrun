@@ -13,13 +13,14 @@
 # limitations under the License.
 
 from datetime import datetime, timedelta
-from typing import Optional, Union
+from typing import Union
 
 import pandas as pd
 import v3io_frames.client
 
 import mlrun
 import mlrun.common.schemas.model_monitoring as mm_schemas
+import mlrun.model_monitoring.db.tsdb.base
 import mlrun.model_monitoring.db.tsdb.timescaledb.timescaledb_schema as timescaledb_schema
 import mlrun.utils
 from mlrun.model_monitoring.db.tsdb.timescaledb.utils.timescaledb_dataframe_processor import (
@@ -40,9 +41,9 @@ class TimescaleDBResultsQueries:
     def __init__(
         self,
         connection,  # Required parameter
-        project: Optional[str] = None,
+        project: str | None = None,
         pre_aggregate_manager=None,
-        tables: Optional[dict] = None,
+        tables: dict | None = None,
     ):
         """
         Initialize TimescaleDB results query handler.
@@ -60,8 +61,8 @@ class TimescaleDBResultsQueries:
     def get_drift_status(
         self,
         endpoint_ids: Union[str, list[str]],
-        start: Optional[datetime] = None,
-        end: Optional[datetime] = None,
+        start: datetime | None = None,
+        end: datetime | None = None,
         get_raw: bool = False,
     ) -> Union[pd.DataFrame, list[v3io_frames.client.RawFrame]]:
         """Get drift status for specified endpoints.
@@ -168,8 +169,8 @@ class TimescaleDBResultsQueries:
     def get_error_count(
         self,
         endpoint_ids: Union[str, list[str]],
-        start: Optional[datetime] = None,
-        end: Optional[datetime] = None,
+        start: datetime | None = None,
+        end: datetime | None = None,
     ) -> pd.DataFrame:
         """Get error count with optional pre-aggregate optimization."""
 
@@ -256,9 +257,9 @@ class TimescaleDBResultsQueries:
     def get_results_metadata(
         self,
         endpoint_id: Union[str, list[str]],
-        start: Optional[datetime] = None,
-        end: Optional[datetime] = None,
-        interval: Optional[str] = None,
+        start: datetime | None = None,
+        end: datetime | None = None,
+        interval: str | None = None,
     ) -> pd.DataFrame:
         """Get results metadata with optional pre-aggregate optimization."""
 
@@ -293,11 +294,11 @@ class TimescaleDBResultsQueries:
 
     def count_results_by_status(
         self,
-        start: Optional[Union[datetime, str]] = None,
-        end: Optional[Union[datetime, str]] = None,
-        endpoint_ids: Optional[Union[str, list[str]]] = None,
-        application_names: Optional[Union[str, list[str]]] = None,
-        result_status_list: Optional[list[int]] = None,
+        start: Union[datetime, str] | None = None,
+        end: Union[datetime, str] | None = None,
+        endpoint_ids: Union[str, list[str]] | None = None,
+        application_names: Union[str, list[str]] | None = None,
+        result_status_list: list[int] | None = None,
     ) -> dict[tuple[str, int], int]:
         """
         Read results status from the TSDB and return a dictionary of results statuses by application name.
@@ -395,7 +396,7 @@ class TimescaleDBResultsQueries:
         self,
         start: datetime,
         end: datetime,
-        interval: Optional[str] = None,
+        interval: str | None = None,
     ) -> mm_schemas.ModelEndpointDriftValues:
         """
         Get drift data aggregated by time intervals, showing the count of suspected and detected drift events.
@@ -410,10 +411,19 @@ class TimescaleDBResultsQueries:
                         If not provided, will be automatically determined based on query duration.
         :return: ModelEndpointDriftValues containing time-binned drift counts
         """
-        # Prepare time range and interval using helper
-        start, end, interval = TimescaleDBQueryBuilder.prepare_time_range_and_interval(
-            self._pre_aggregate_manager, start, end, interval
-        )
+        # Use V3IO-compatible fixed-threshold interval selection for drift data when
+        # no explicit interval is provided. This ensures consistency between TSDB backends
+        # and prevents over-counting when the UI aggregates fine-grained intervals into
+        # coarser display bars.
+        # ML-12076: Formula-based interval selection (targeting ~100 data points) caused
+        # inflated counts because the UI sums 15-minute buckets into hourly bars,
+        # counting the same endpoint multiple times per hour.
+        if interval is None:
+            start, end, interval = (
+                mlrun.model_monitoring.db.tsdb.base.TSDBConnector._prepare_aligned_start_end(
+                    start, end
+                )
+            )
 
         # Build status filter for drift-related statuses only
         suspected_status = mm_schemas.ResultStatusApp.potential_detection.value  # 1
@@ -524,12 +534,12 @@ class TimescaleDBResultsQueries:
     def read_results_data_impl(
         self,
         *,
-        endpoint_id: Optional[str] = None,
+        endpoint_id: str | None = None,
         start: datetime,
         end: datetime,
-        metrics: Optional[list[mm_schemas.ModelEndpointMonitoringMetric]] = None,
+        metrics: list[mm_schemas.ModelEndpointMonitoringMetric] | None = None,
         with_result_extra_data: bool = False,
-        timestamp_column: Optional[str] = None,
+        timestamp_column: str | None = None,
     ) -> pd.DataFrame:
         """Read results data from TimescaleDB (app_results table only) - returns DataFrame.
 

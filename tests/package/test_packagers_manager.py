@@ -15,12 +15,13 @@
 import os
 import shutil
 import tempfile
+import unittest.mock
 import zipfile
-from typing import Any, Optional, Union
+from typing import Any
 
 import pytest
 
-from mlrun import DataItem
+from mlrun import DataItem, LogHint
 from mlrun.artifacts import Artifact
 from mlrun.errors import MLRunInvalidArgumentError
 from mlrun.package import (
@@ -30,6 +31,7 @@ from mlrun.package import (
     Packager,
     PackagersManager,
 )
+from tests.package.assets import DummyDataItem
 
 
 class PackagerA(Packager):
@@ -51,27 +53,35 @@ class PackagerA(Packager):
     def is_packable(
         self,
         obj: Any,
-        artifact_type: Optional[str] = None,
-        configurations: Optional[dict] = None,
+        artifact_type: str | None = None,
+        configurations: dict | None = None,
     ) -> bool:
         return type(obj) is self.PACKABLE_OBJECT_TYPE and artifact_type == "result"
 
     def pack(
         self,
         obj: str,
-        key: Optional[str] = None,
-        artifact_type: Optional[str] = None,
-        configurations: Optional[dict] = None,
+        key: str | None = None,
+        artifact_type: str | None = None,
+        configurations: dict | None = None,
     ) -> dict:
         return {f"{key}_from_PackagerA": obj}
 
     def unpack(
         self,
         data_item: DataItem,
-        artifact_type: Optional[str] = None,
-        instructions: Optional[dict] = None,
+        artifact_type: str | None = None,
+        instructions: dict | None = None,
     ) -> str:
         pass
+
+    def can_bundle(
+        self, bundle_hint: type, collection_type: type[dict] | type[list]
+    ) -> bool:
+        return False
+
+    def can_unbundle(self, bundled_object: Any) -> bool:
+        return False
 
 
 class PackagerB(DefaultPackager):
@@ -154,17 +164,17 @@ class PackagerC(PackagerA):
     def pack(
         self,
         obj: float,
-        key: Optional[str] = None,
-        artifact_type: Optional[str] = None,
-        configurations: Optional[dict] = None,
+        key: str | None = None,
+        artifact_type: str | None = None,
+        configurations: dict | None = None,
     ) -> dict:
         return {key: round(obj, configurations["n_round"])}
 
     def unpack(
         self,
         data_item: DataItem,
-        artifact_type: Optional[str] = None,
-        instructions: Optional[dict] = None,
+        artifact_type: str | None = None,
+        instructions: dict | None = None,
     ) -> float:
         return data_item.key * 2
 
@@ -207,7 +217,7 @@ class NotAPackager:
     ],
 )
 def test_collect_packagers(
-    packagers_to_collect: list[str], validation: Union[list[type[Packager]], str]
+    packagers_to_collect: list[str], validation: list[type[Packager]] | str
 ):
     """
     Test the manager's `collect_packagers` method.
@@ -275,7 +285,7 @@ def test_packagers_priority(
     # Pack a string as a result:
     key = "some_key"
     packagers_manager.pack(
-        obj="some string", log_hint={"key": key, "artifact_type": "result"}
+        obj="some string", log_hint=LogHint(key=key, artifact_type="result")
     )
 
     # Make sure the correct packager packed the result by the suffix:
@@ -293,23 +303,25 @@ def test_clear_packagers_outputs():
     # Pack objects that will create temporary files and directories:
     packagers_manager.pack(
         obj="I'm a test.",
-        log_hint={"key": "a", "artifact_type": "b1", "fmt": "txt"},
+        log_hint=LogHint(key="a", artifact_type="b1", packing_kwargs={"fmt": "txt"}),
     )
     packagers_manager.pack(
         obj="I'm another test.",
-        log_hint={
-            "key": "b",
-            "artifact_type": "b2",
-            "amount_of_files": 3,
-        },
+        log_hint=LogHint(
+            key="b",
+            artifact_type="b2",
+            packing_kwargs={
+                "amount_of_files": 3,
+            },
+        ),
     )
 
     # Get the created files:
-    a_temp_dir = packagers_manager.artifacts[0].spec.unpackaging_instructions[
+    a_temp_dir = packagers_manager.artifacts[0][0].spec.unpackaging_instructions[
         "instructions"
     ]["temp_dir"]
     a_file = os.path.join(a_temp_dir, "a.txt")
-    b_temp_dir = packagers_manager.artifacts[1].spec.unpackaging_instructions[
+    b_temp_dir = packagers_manager.artifacts[1][0].spec.unpackaging_instructions[
         "instructions"
     ]["temp_dir"]
 
@@ -333,58 +345,86 @@ def test_clear_packagers_outputs():
     "key, obj, expected_results",
     [
         (
-            "*list_",
+            "*list",
             [0.12111, 0.56111],
-            {"list_0": 0.12, "list_1": 0.56},
+            {"list_0": 0.12111, "list_1": 0.56111},
         ),
         (
-            "*set_",
-            {0.12111, 0.56111},
-            {"set_0": 0.12, "set_1": 0.56},
-        ),
-        (
-            "*",
-            (0.12111, 0.56111),
-            {"0": 0.12, "1": 0.56},
-        ),
-        (
-            "*error",
-            0.12111,
-            "The log hint key '*error' has an iterable unpacking prefix ('*')",
-        ),
-        (
-            "**dict_",
+            "*dict",
             {"a": 0.12111, "b": 0.56111},
-            {"dict_a": 0.12, "dict_b": 0.56},
+            {"dict_a": 0.12111, "dict_b": 0.56111},
         ),
-        ("**", {"a": 0.12111, "b": 0.56111}, {"a": 0.12, "b": 0.56}),
         (
-            "**error",
-            0.12111,
-            "The log hint key '**error' has a dictionary unpacking prefix ('**')",
+            "*dict",
+            {
+                "a": [1.11, [2.22, 3.333, 4.4444], 5.55555],
+                "b": {"c": 6.23, "d": [7.77, 8.8888]},
+            },
+            {
+                "dict_a_0": 1.11,
+                "dict_a_1_0": 2.22,
+                "dict_a_1_1": 3.333,
+                "dict_a_1_2": 4.4444,
+                "dict_a_2": 5.55555,
+                "dict_b_c": 6.23,
+                "dict_b_d_0": 7.77,
+                "dict_b_d_1": 8.8888,
+            },
+        ),
+        (
+            "2*dict",
+            {
+                "a": [1.11, [2.22, 3.333, 4.4444], 5.55555],
+                "b": {"c": 6.23, "d": [7.77, 8.8888]},
+            },
+            {
+                "dict_a_0": 1.11,
+                "dict_a_1": [2.22, 3.333, 4.4444],
+                "dict_a_2": 5.55555,
+                "dict_b_c": 6.23,
+                "dict_b_d": [7.77, 8.8888],
+            },
+        ),
+        (
+            "1*dict",
+            {
+                "a": [1.11, [2.22, 3.333, 4.4444], 5.55555],
+                "b": {"c": 6.23, "d": [7.77, 8.8888]},
+            },
+            {
+                "dict_a": [1.11, [2.22, 3.333, 4.4444], 5.55555],
+                "dict_b": {"c": 6.23, "d": [7.77, 8.8888]},
+            },
         ),
     ],
 )
-def test_arbitrary_log_hint(
+def test_unbundling_log_hint(
     key: str,
-    obj: Union[list, dict, tuple, set],
-    expected_results: Union[dict[str, float], str],
+    obj: list | dict | tuple | set,
+    expected_results: dict[str, float] | str,
 ):
     """
-    Test the arbitrary log hint key prefixes "*" and "**".
+    Test the arbitrary log hint key prefix "*" for unbundling.
 
     :param key:              The key to use in the log hint
     :param obj:              The object to pack
     :param expected_results: The expected results that should be packed. A string means an error should be raised.
     """
-    # Prepare the test:
+    # Prepare the test - include packagers that support unbundling (dict, list, set, tuple):
     packagers_manager = PackagersManager()
-    packagers_manager.collect_packagers(packagers=[PackagerC])
+    packagers_manager.collect_packagers(
+        packagers=[
+            "mlrun.package.packagers.python_standard_library_packagers.DictPackager",
+            "mlrun.package.packagers.python_standard_library_packagers.ListPackager",
+            "mlrun.package.packagers.python_standard_library_packagers.SetPackager",
+            "mlrun.package.packagers.python_standard_library_packagers.TuplePackager",
+        ]
+    )
 
     # Pack an arbitrary amount of objects:
     try:
         packagers_manager.pack(
-            obj=obj, log_hint={"key": key, "artifact_type": "result", "n_round": 2}
+            obj=obj, log_hint=LogHint.parse_obj(obj=f"{key}: result")
         )
     except MLRunInvalidArgumentError as error:
         # Catch only if the expected results is a string, otherwise it is a legitimate exception:
@@ -396,15 +436,15 @@ def test_arbitrary_log_hint(
     # Validate multiple packages were packed:
     assert packagers_manager.results == expected_results
 
-
-class _DummyDataItem:
-    def __init__(self, key: str, is_artifact: bool = False):
-        self.key = key
-        self.artifact_url = ""
-        self._is_artifact = is_artifact
-
-    def get_artifact_type(self) -> bool:
-        return self._is_artifact
+    # Validate the bundle structure key:
+    assert (
+        list(
+            packagers_manager.get_bundles_results(
+                logged_outputs=packagers_manager.results
+            ).values()
+        )[0]
+        == obj
+    )
 
 
 @pytest.mark.parametrize(
@@ -412,12 +452,12 @@ class _DummyDataItem:
     [
         (
             0.5,
-            Union[int, bytes, float, int],
+            int | bytes | float | int,
             1.0,
         ),
         (
             0.5,
-            Union[int, bytes, int],
+            int | bytes | int,
             "Could not unpack data item with the hinted type",
         ),
     ],
@@ -425,7 +465,7 @@ class _DummyDataItem:
 def test_plural_type_hint_unpacking(
     data: Any,
     type_hint: Any,
-    expected_results: Union[Any, str],
+    expected_results: Any | str,
 ):
     """
     Test unpacking when plural type hint is given (for example: a union of types).
@@ -441,7 +481,7 @@ def test_plural_type_hint_unpacking(
     # Pack an arbitrary amount of objects:
     try:
         value = packagers_manager.unpack(
-            data_item=_DummyDataItem(key=data), type_hint=type_hint
+            data_item=DummyDataItem(key=data), type_hint=type_hint
         )
     except MLRunPackageUnpackingError as error:
         # Catch only if the expected results is a string, otherwise it is a legitimate exception:
@@ -452,3 +492,205 @@ def test_plural_type_hint_unpacking(
 
     # Validate multiple packages were packed:
     assert value == expected_results
+
+
+@pytest.mark.parametrize(
+    "tag, labels, extra_data, artifact_path",
+    [
+        # All fields set
+        (
+            "v1.0",
+            {"env": "test", "author": "pytest"},
+            {"description": "test", "version": 1},
+            "s3://my-bucket/custom-path",
+        ),
+        # Only tag
+        ("v2.0", None, {}, None),
+        # Only labels
+        ("", {"category": "unit-test"}, {}, None),
+        # Only extra_data
+        ("", None, {"note": "testing extra_data only"}, None),
+        # Only artifact_path
+        ("", None, {}, "s3://other-bucket/models"),
+        # Tag and labels
+        ("v3.0", {"env": "prod"}, {}, None),
+        # Tag and extra_data
+        ("v4.0", None, {"info": "tag with extra_data"}, None),
+        # Labels and extra_data
+        ("", {"type": "artifact"}, {"data": 123}, None),
+        # No metadata (all defaults)
+        ("", None, {}, None),
+    ],
+)
+def test_log_hint_artifact_metadata(
+    tag: str,
+    labels: dict[str, str] | None,
+    extra_data: dict | None,
+    artifact_path: str | None,
+):
+    """
+    Test that LogHint's tag, labels, extra_data, and artifact_path fields are properly applied to artifacts.
+
+    :param tag:           The tag to set on the LogHint.
+    :param labels:        The labels to set on the LogHint.
+    :param extra_data:    The extra_data to set on the LogHint.
+    :param artifact_path: The artifact_path to set on the LogHint.
+    """
+    # Prepare the test:
+    packagers_manager = PackagersManager()
+    packagers_manager.collect_packagers(packagers=[PackagerB])
+
+    # Pack an object with the given metadata:
+    packagers_manager.pack(
+        obj="Test content for artifact.",
+        log_hint=LogHint(
+            key="test_artifact",
+            artifact_type="b1",
+            tag=tag,
+            labels=labels,
+            extra_data=extra_data,
+            artifact_path=artifact_path,
+            packing_kwargs={"fmt": "txt"},
+        ),
+    )
+
+    # Verify the artifact was created with correct metadata:
+    assert len(packagers_manager.artifacts) == 1
+    artifact, logging_kwargs = packagers_manager.artifacts[0]
+
+    # Check tag (artifact.tag defaults to empty string if not set)
+    if tag:
+        assert artifact.tag == tag
+    else:
+        assert artifact.tag == "" or artifact.tag is None
+
+    # Check labels (should match exactly when set, be None or empty when not)
+    if labels:
+        assert artifact.labels == labels
+    else:
+        assert artifact.labels is None or artifact.labels == {}
+
+    # Check extra_data (should match exactly when set, be None or empty when not)
+    if extra_data:
+        assert artifact.extra_data == extra_data
+    else:
+        assert artifact.extra_data is None or artifact.extra_data == {}
+
+    # Check artifact_path (should be in logging_kwargs when set, empty dict when not)
+    if artifact_path:
+        assert logging_kwargs == {"artifact_path": artifact_path}
+    else:
+        assert logging_kwargs == {}
+
+    # Clean up temporary files:
+    temp_dir = artifact.spec.unpackaging_instructions["instructions"]["temp_dir"]
+    packagers_manager.clear_packagers_outputs()
+    shutil.rmtree(temp_dir, ignore_errors=True)
+
+
+def test_link_packages():
+    """
+    Test that linking artifacts correctly resolves ellipsis placeholders in extra_data.
+    """
+    # Prepare the test:
+    packagers_manager = PackagersManager()
+
+    # Create artifacts manually (avoids temp file cleanup complexity):
+    target_artifact = Artifact(key="target_artifact")
+    main_artifact = Artifact(key="main_artifact")
+    main_artifact.spec.extra_data = {
+        "target_artifact": ...,  # Link to artifact
+        "my_result": ...,  # Link to result from manager's results
+        "additional_result": ...,  # Link to additional_results
+        "nonexistent_key": ...,  # Missing - should be deleted
+        "static_value": "unchanged",  # Not a link
+    }
+
+    # Add artifacts and results to the manager:
+    packagers_manager._artifacts.extend([(target_artifact, {}), (main_artifact, {})])
+    packagers_manager._results["my_result"] = "linked_result_value"
+
+    # Call link_packages:
+    packagers_manager.link_packages(
+        additional_artifact_uris={},
+        additional_results={"additional_result": 100},
+    )
+
+    # Verify links were resolved:
+    # Link to artifact
+    assert main_artifact.spec.extra_data["target_artifact"] == target_artifact
+
+    # Link to result from manager's results
+    assert main_artifact.spec.extra_data["my_result"] == "linked_result_value"
+
+    # Link to additional_results
+    assert main_artifact.spec.extra_data["additional_result"] == 100
+
+    # Missing link should be deleted from extra_data
+    assert "nonexistent_key" not in main_artifact.spec.extra_data
+
+    # Static value unchanged
+    assert main_artifact.spec.extra_data["static_value"] == "unchanged"
+
+
+def test_link_packages_bidirectional():
+    """
+    Test that context artifacts can link to packager artifacts.
+    """
+    # Prepare the test:
+    packagers_manager = PackagersManager()
+
+    # Create a packager artifact:
+    packager_artifact = Artifact(key="packager_artifact")
+    packagers_manager._artifacts.append((packager_artifact, {}))
+    packagers_manager._results["packager_result"] = 42
+
+    # Create a context artifact with extra_data linking to packager artifacts:
+    context_artifact = Artifact(key="context_artifact")
+    context_artifact.spec.extra_data = {
+        "packager_artifact": ...,  # Link to packager artifact
+        "packager_result": ...,  # Link to packager result
+        "static_value": "unchanged",
+    }
+
+    # Mock get_store_resource to return the context artifact:
+    with unittest.mock.patch(
+        "mlrun.package.packagers_manager.get_store_resource",
+        return_value=context_artifact,
+    ):
+        packagers_manager.link_packages(
+            additional_artifact_uris={"context_artifact": "store://some/uri"},
+            additional_results={},
+        )
+
+    # Verify links were resolved for the context artifact:
+    assert context_artifact.spec.extra_data["packager_artifact"] == packager_artifact
+    assert context_artifact.spec.extra_data["packager_result"] == 42
+    assert context_artifact.spec.extra_data["static_value"] == "unchanged"
+
+
+def test_unbundling_fallback():
+    """
+    Test that packing a non-unbundle-able object with ``itemized=True`` falls back gracefully to single-object packing
+    without creating a phantom entry in ``_bundles``.
+    """
+    # Set up a PackagersManager with only PackagerA (packs strings, can't unbundle):
+    packagers_manager = PackagersManager()
+    packagers_manager.collect_packagers([PackagerA])
+
+    # Pack a string with itemized=True:
+    log_hint = LogHint(key="my_result", itemized=True)
+    packages = packagers_manager.pack(obj="hello", log_hint=log_hint)
+
+    # The object should be packed normally (fallback to default packager as artifact):
+    assert packages is not None
+    assert any(
+        artifact.key == "my_result" for artifact, _ in packagers_manager._artifacts
+    )
+
+    # No bundle should have been created — the key should NOT appear in _bundles:
+    assert "my_result" not in packagers_manager._bundles
+
+    # get_bundles_results should return empty and not crash:
+    bundles_results = packagers_manager.get_bundles_results(logged_outputs={})
+    assert bundles_results == {}

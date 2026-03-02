@@ -15,7 +15,6 @@
 import contextlib
 import time
 from pathlib import Path
-from typing import Optional
 from urllib.parse import urlparse
 
 from azure.storage.blob import BlobServiceClient
@@ -72,9 +71,7 @@ class AzureBlobStore(DataStore):
         1024 * 1024 * 8
     )  # for service_client property only, does not affect filesystem
 
-    def __init__(
-        self, parent, schema, name, endpoint="", secrets: Optional[dict] = None
-    ):
+    def __init__(self, parent, schema, name, endpoint="", secrets: dict | None = None):
         # Extract container from WASBS endpoint before calling super()
         self._container_from_endpoint = None
         if schema in ["wasbs", "wasb"] and endpoint and "@" in endpoint:

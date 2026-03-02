@@ -54,7 +54,7 @@ class ServerSideLauncher(launcher.BaseLauncher):
     def __init__(
         self,
         local: bool = False,
-        auth_info: Optional[mlrun.common.schemas.AuthInfo] = None,
+        auth_info: mlrun.common.schemas.AuthInfo | None = None,
         **kwargs,
     ):
         super().__init__(**kwargs)
@@ -68,34 +68,31 @@ class ServerSideLauncher(launcher.BaseLauncher):
     def launch(
         self,
         runtime: mlrun.runtimes.BaseRuntime,
-        task: Optional[
-            Union["mlrun.run.RunTemplate", "mlrun.run.RunObject", dict]
-        ] = None,
-        handler: Optional[str] = None,
-        name: Optional[str] = "",
-        project: Optional[str] = "",
-        params: Optional[dict] = None,
-        inputs: Optional[dict[str, str]] = None,
-        out_path: Optional[str] = "",
-        workdir: Optional[str] = "",
-        artifact_path: Optional[str] = "",
-        output_path: Optional[str] = "",
-        watch: Optional[bool] = True,
-        schedule: Optional[
-            Union[str, mlrun.common.schemas.schedule.ScheduleCronTrigger]
-        ] = None,
-        hyperparams: Optional[dict[str, list]] = None,
-        hyper_param_options: Optional[mlrun.model.HyperParamOptions] = None,
-        verbose: Optional[bool] = None,
-        scrape_metrics: Optional[bool] = None,
-        local_code_path: Optional[str] = None,
-        auto_build: Optional[bool] = None,
-        param_file_secrets: Optional[dict[str, str]] = None,
-        notifications: Optional[list[mlrun.model.Notification]] = None,
-        returns: Optional[list[Union[str, dict[str, str]]]] = None,
-        state_thresholds: Optional[dict[str, int]] = None,
-        reset_on_run: Optional[bool] = None,
-        retry: Optional[Union[mlrun.model.Retry, dict]] = None,
+        task: Union["mlrun.run.RunTemplate", "mlrun.run.RunObject", dict] | None = None,
+        handler: str | None = None,
+        name: str | None = "",
+        project: str | None = "",
+        params: dict | None = None,
+        inputs: dict[str, str | dict | list] | None = None,
+        out_path: str | None = "",
+        workdir: str | None = "",
+        artifact_path: str | None = "",
+        output_path: str | None = "",
+        watch: bool | None = True,
+        schedule: Union[str, mlrun.common.schemas.schedule.ScheduleCronTrigger]
+        | None = None,
+        hyperparams: dict[str, list] | None = None,
+        hyper_param_options: mlrun.model.HyperParamOptions | None = None,
+        verbose: bool | None = None,
+        scrape_metrics: bool | None = None,
+        local_code_path: str | None = None,
+        auto_build: bool | None = None,
+        param_file_secrets: dict[str, str] | None = None,
+        notifications: list[mlrun.model.Notification] | None = None,
+        returns: list[Union[str, dict[str, str]]] | None = None,
+        state_thresholds: dict[str, int] | None = None,
+        reset_on_run: bool | None = None,
+        retry: Union[mlrun.model.Retry, dict] | None = None,
     ) -> mlrun.run.RunObject:
         self.enrich_runtime(runtime, project)
 
@@ -202,7 +199,7 @@ class ServerSideLauncher(launcher.BaseLauncher):
     def enrich_runtime(
         self,
         runtime: "mlrun.runtimes.base.BaseRuntime",
-        project_name: Optional[str] = "",
+        project_name: str | None = "",
         full: bool = True,
         client_version: str = "",
     ):
@@ -285,9 +282,9 @@ class ServerSideLauncher(launcher.BaseLauncher):
         scrape_metrics=None,
         output_path=None,
         workdir=None,
-        notifications: Optional[list[mlrun.model.Notification]] = None,
-        state_thresholds: Optional[dict[str, int]] = None,
-        retry: Optional[Union[mlrun.model.Retry, dict]] = None,
+        notifications: list[mlrun.model.Notification] | None = None,
+        state_thresholds: dict[str, int] | None = None,
+        retry: Union[mlrun.model.Retry, dict] | None = None,
     ):
         run = super()._enrich_run(
             runtime=runtime,
@@ -622,7 +619,7 @@ class ServerSideLauncher(launcher.BaseLauncher):
 
     @staticmethod
     def _validate_state_thresholds(
-        state_thresholds: Optional[dict[str, str]] = None,
+        state_thresholds: dict[str, str] | None = None,
     ):
         """
         Validate the state thresholds
@@ -701,17 +698,15 @@ class ServerSideLauncher(launcher.BaseLauncher):
         if not (mlrun.mlconf.is_iguazio_v4_mode()):
             return
 
-        if object.spec.auth is None:
-            object.spec.auth = {}
-
         # Get the provided token name, if any
-        provided_token_name = object.spec.auth.get("token_name")
+        provided_token_name = (object.spec.auth or {}).get("token_name")
 
         # Use the token resolution logic that validates existence and expiration
         token_name = services.api.utils.helpers.resolve_auth_token_name(
             user_id=self._auth_info.user_id, provided_token_name=provided_token_name
         )
-        object.spec.auth["token_name"] = token_name
+
+        mlrun.utils.helpers.set_auth_token_name(object.spec, token_name)
 
 
 # Once this file is imported it will set the container server side launcher

@@ -18,7 +18,7 @@ import functools
 import re
 import time
 from collections.abc import Callable
-from typing import Optional, Union
+from typing import Union
 
 import semver
 from humanfriendly import InvalidTimespan, parse_timespan
@@ -74,7 +74,7 @@ def ensure_running_on_chief(function):
     return wrapper
 
 
-def time_string_to_seconds(time_str: str, min_time_str: str = "60s") -> Optional[int]:
+def time_string_to_seconds(time_str: str, min_time_str: str = "60s") -> int | None:
     if not time_str:
         return None
 
@@ -113,8 +113,8 @@ def extract_image_tag(image_reference):
 
 
 def is_request_from_leader(
-    projects_role: Optional[mlrun.common.schemas.ProjectsRole],
-    leader_name: Optional[str] = None,
+    projects_role: mlrun.common.schemas.ProjectsRole | None,
+    leader_name: str | None = None,
 ):
     leader_name = leader_name or mlrun.mlconf.httpdb.projects.leader
     if projects_role and projects_role.value == leader_name:
@@ -124,7 +124,7 @@ def is_request_from_leader(
 
 def string_to_timedelta(
     date_str: str, offset: int = 0, raise_on_error: bool = True
-) -> Optional[datetime.timedelta]:
+) -> datetime.timedelta | None:
     date_str = date_str.strip().lower()
     try:
         seconds = parse_timespan(date_str) + offset
@@ -171,7 +171,7 @@ def lru_cache_with_ttl(maxsize=128, typed=False, ttl_seconds=60):
 
 
 def set_scheduled_object_labels(
-    scheduled_object: Union[Optional[dict], Callable], labels: Optional[dict]
+    scheduled_object: Union[dict | None, Callable], labels: dict | None
 ) -> None:
     if not isinstance(scheduled_object, dict):
         return
@@ -181,10 +181,10 @@ def set_scheduled_object_labels(
 
 
 def merge_schedule_and_db_schedule_labels(
-    labels: Optional[dict],
-    scheduled_object: Union[Optional[dict], Callable],
-    db_schedule: Optional[mlrun.common.schemas.ScheduleRecord],
-) -> tuple[Optional[dict], Union[Optional[dict], Callable]]:
+    labels: dict | None,
+    scheduled_object: Union[dict | None, Callable],
+    db_schedule: mlrun.common.schemas.ScheduleRecord | None,
+) -> tuple[dict | None, Union[dict | None, Callable]]:
     """
     Merges the provided schedule labels and scheduled object labels with the labels
     from the database schedule. The method ensures that the scheduled object's labels
@@ -227,9 +227,9 @@ def merge_schedule_and_db_schedule_labels(
 
 
 def merge_schedule_and_schedule_object_labels(
-    labels: Optional[dict],
-    scheduled_object: Union[Optional[dict], Callable],
-) -> Optional[dict]:
+    labels: dict | None,
+    scheduled_object: Union[dict | None, Callable],
+) -> dict | None:
     """
     Merges the labels of the scheduled object, giving precedence to the scheduled object labels
     :param labels: The labels of a schedule

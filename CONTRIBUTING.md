@@ -72,7 +72,7 @@ conda activate mlrun
 
 Then, install the dependencies
 ```shell script
-make install-conda-requirements
+make install-requirements
 ```
 
 *Or*, alternatively, you may use native Python atop the ARM64 machine, but you will need to compile some dependencies.

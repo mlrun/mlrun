@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Optional
 
 import fastapi
 
@@ -39,7 +38,7 @@ def get_most_common_objects_report():
 def get_memory_usage_report(
     object_type: str,
     sample_size: int = 1,
-    start_index: Optional[int] = None,
+    start_index: int | None = None,
     create_graph: bool = False,
     max_depth: int = 3,
 ):

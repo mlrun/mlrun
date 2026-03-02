@@ -39,12 +39,13 @@ import mlrun.runtimes.nuclio.function
 import mlrun.runtimes.pod
 from mlrun import code_to_function, mlconf
 from mlrun.common.runtimes.constants import NuclioIngressAddTemplatedIngressModes
+from mlrun.common.runtimes.validators import validate_sidecar_probes
 from mlrun.platforms.iguazio import split_path
 from mlrun.utils import logger
 
 import services.api.crud.runtimes.nuclio.function
 import services.api.crud.runtimes.nuclio.helpers
-from services.api.api.endpoints.nuclio import _deploy_function, _validate_sidecar_probes
+from services.api.api.endpoints.nuclio import _deploy_function
 from services.api.tests.unit.conftest import APIK8sSecretsMock
 from services.api.tests.unit.runtimes.base import TestRuntimeBase
 from services.api.utils.functions import build_function
@@ -518,6 +519,51 @@ class TestNuclioRuntime(TestRuntimeBase):
             )
         )
         assert ingresses == []
+
+    @pytest.mark.parametrize("nuclio_support_async", [True, False])
+    def test_enrich_with_ingress_trigger_mode_field(
+        self, db: Session, client: TestClient, nuclio_support_async
+    ):
+        """
+        Test that enrich_function_with_ingress correctly sets the mode field in the trigger spec
+        based on nuclio version compatibility.
+        """
+        function = self._generate_runtime(self.runtime_kind)
+        (
+            function_name,
+            project_name,
+            config,
+        ) = services.api.crud.runtimes.nuclio.function._compile_function_config(
+            function
+        )
+        service_type = "NodePort"
+
+        with unittest.mock.patch(
+            "services.api.crud.runtimes.nuclio.helpers.validate_nuclio_version_compatibility",
+            return_value=nuclio_support_async,
+        ):
+            services.api.crud.runtimes.nuclio.helpers.enrich_function_with_ingress(
+                config, NuclioIngressAddTemplatedIngressModes.always, service_type
+            )
+
+        # Check that trigger was created
+        http_trigger = (
+            services.api.crud.runtimes.nuclio.helpers.resolve_function_http_trigger(
+                config["spec"]
+            )
+        )
+        assert http_trigger is not None
+
+        # Check mode field based on nuclio version support
+        if nuclio_support_async:
+            assert http_trigger.get("mode") == "sync"
+        else:
+            assert http_trigger.get("mode") is None
+
+        # Verify other trigger fields are set correctly
+        assert http_trigger.get("kind") == "http"
+        assert http_trigger.get("name") == "http"
+        assert http_trigger.get("maxWorkers") == 1
 
     def test_nuclio_config_spec_env(self, db: Session, client: TestClient):
         function = self._generate_runtime(self.runtime_kind)
@@ -2206,10 +2252,10 @@ class TestNuclioRuntime(TestRuntimeBase):
             },
         ]
 
-        _validate_sidecar_probes(sidecars)
+        validate_sidecar_probes(sidecars)
 
     def test_validate_sidecar_probes_invalid_configurations(self):
-        # Test various invalid probe configurations - should raise HTTPException
+        # Test various invalid probe configurations - should raise MLRunInvalidArgumentError
         invalid_sidecar_configs = [
             [
                 {
@@ -2239,13 +2285,11 @@ class TestNuclioRuntime(TestRuntimeBase):
         ]
 
         for sidecars in invalid_sidecar_configs:
-            with pytest.raises(HTTPException) as exception_result:
-                _validate_sidecar_probes(sidecars)
-
-            assert exception_result.value.status_code == HTTPStatus.BAD_REQUEST.value
-            assert "must have exactly one of" in str(
-                exception_result.value.detail.get("reason", "")
-            )
+            with pytest.raises(
+                mlrun.errors.MLRunInvalidArgumentError,
+                match="must have exactly one of",
+            ):
+                validate_sidecar_probes(sidecars)
 
     @pytest.mark.parametrize(
         "sidecars,expectation,is_valid",
@@ -2293,7 +2337,8 @@ class TestNuclioRuntime(TestRuntimeBase):
         Validates that:
         - Valid sidecar probes allow the function to be saved to DB
         - Invalid sidecar probes:
-          1. Raise specific HTTPException from _validate_sidecar_probes
+          1. validate_sidecar_probes raises MLRunInvalidArgumentError,
+             which _deploy_function converts to HTTPException
           2. No DB changes (save is not called)
         """
         function = self._generate_runtime(self.runtime_kind)
@@ -2333,7 +2378,7 @@ class TestNuclioRuntime(TestRuntimeBase):
                 assert exception_result is None
                 mock_db.assert_called_with(versioned=False)
             else:
-                # Verify HTTPException was raised by _validate_sidecar_probes
+                # Verify MLRunInvalidArgumentError was raised by validate_sidecar_probes
                 assert (
                     exception_result.value.status_code == HTTPStatus.BAD_REQUEST.value
                 )

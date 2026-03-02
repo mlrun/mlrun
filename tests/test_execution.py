@@ -108,9 +108,9 @@ def test_local_context(rundb_mock):
         run["status"]["artifact_uris"].get("xx")
     )
     assert artifact.spec.format == "z", "run/artifact attribute not updated in db"
-    assert artifact.spec.target_path.startswith(
-        out_path
-    ), "artifact not uploaded to subpath"
+    assert artifact.spec.target_path.startswith(out_path), (
+        "artifact not uploaded to subpath"
+    )
 
     db_artifact = db.read_artifact(artifact.db_key, project=project_name)
     assert db_artifact["spec"]["format"] == "z", "artifact attribute not updated in db"
@@ -119,9 +119,9 @@ def test_local_context(rundb_mock):
     assert run["spec"]["parameters"]["p2"] == "a string", "param not updated in db"
     assert run["status"]["results"]["accuracy"] == 16, "result not updated in db"
     assert run["metadata"]["labels"]["label-key"] == "label-value", "label not updated"
-    assert (
-        run["metadata"]["annotations"]["annotation-key"] == "annotation-value"
-    ), "annotation not updated"
+    assert run["metadata"]["annotations"]["annotation-key"] == "annotation-value", (
+        "annotation not updated"
+    )
 
     assert run["spec"]["inputs"]["input-key"] == "input-url", "input not updated"
 

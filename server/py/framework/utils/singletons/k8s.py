@@ -1702,9 +1702,10 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
 
         :param user_id: The user ID.
         :param token_name: If provided, fetch only this token (strict mode).
-                           If None, fetch all user tokens (auto-discovery mode).
+                           If None, fetch all user tokens.
         :return: List of token dicts with 'name' and 'token' keys, suitable for igz.yml.
-        :raises mlrun.errors.MLRunNotFoundError: If no tokens can be retrieved.
+        :raises mlrun.errors.MLRunNotFoundError: If a specific token (by name) is not found.
+        :raises mlrun.errors.MLRunBadRequestError: If no token name is provided and no tokens exist for the user.
         """
         if token_name:
             # Fetch single token by name
@@ -1716,8 +1717,8 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
         # Fetch all tokens
         all_tokens = self.list_user_token_secret_values(user_id)
         if not all_tokens:
-            raise mlrun.errors.MLRunNotFoundError(
-                f"No valid tokens found for user '{user_id}'"
+            raise mlrun.errors.MLRunBadRequestError(
+                f"No valid tokens found for user id '{user_id}'. "
             )
 
         return [{"name": t.name, "token": t.token} for t in all_tokens]

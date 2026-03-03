@@ -70,7 +70,7 @@ jobs:
           fi
 
           echo "Found PR number: ${PR_NUMBER}"
-          echo "number=${PR_NUMBER}" >> "$GITHUB_OUTPUT"
+          echo "pr_number=${PR_NUMBER}" >> "$GITHUB_OUTPUT"
 
       - name: Build coverage comment file
         shell: bash
@@ -90,7 +90,7 @@ jobs:
       - name: Post Comment to PR
         uses: thollander/actions-comment-pull-request@24bffb9b452ba05a4f3f77933840a6a841d1b32b
         with:
-          pr-number: ${{ steps.pr.outputs.number }}
+          pr-number: ${{ steps.pr.outputs.pr_number }}
           file-path: final_comment.md
           comment-tag: coverage_report
           mode: recreate

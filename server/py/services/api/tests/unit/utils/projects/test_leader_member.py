@@ -585,6 +585,7 @@ def test_delete_project_follower_failure(
 
 def test_delete_project_follower_explicit_order(
     db: sqlalchemy.orm.Session,
+    monkeypatch: pytest.MonkeyPatch,
     projects_leader: framework.utils.projects.leader.Member,
     nop_follower: framework.utils.projects.remotes.follower.Member,
     second_nop_follower: framework.utils.projects.remotes.follower.Member,
@@ -596,7 +597,11 @@ def test_delete_project_follower_explicit_order(
     def mock_failed_delete(*args, **kwargs):
         raise RuntimeError()
 
-    projects_leader._follower_operation_order = {"delete_project": ["nop2", "nop"]}
+    monkeypatch.setattr(
+        projects_leader,
+        "_follower_operation_order",
+        {"delete_project": ["nop2", "nop"]},
+    )
 
     project_name = "project-name"
     project = mlrun.common.schemas.Project(

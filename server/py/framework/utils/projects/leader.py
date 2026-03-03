@@ -49,8 +49,8 @@ class Member(
     # the specified order; unlisted followers are appended alphabetically after them.
     # This allows controlling execution order as more followers might be added in the future (e.g. ecliptOS).
     _follower_operation_order: dict[str, list[str]] = {
-        # Authorization (igz/Orca) last - if an earlier follower fails, the project
-        # retains its policies and remains accessible.
+        # Authorization (igz/Orca) last among the explicitly ordered followers - if an
+        # earlier follower fails, the project retains its policies and remains accessible.
         "delete_project": ["nuclio", "igz"],
     }
 

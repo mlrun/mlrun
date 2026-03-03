@@ -1021,6 +1021,11 @@ class ApplicationRuntime(nuclio_function.RemoteRuntime):
         ):
             self.from_image(reverse_proxy_image)
 
+            # from_image() clears build.source to prevent Nuclio from rebuilding from it, but the server needs
+            # build.source to configure the init container for runtime source loading
+            if self.spec.build.load_source_on_run and self.status.application_source:
+                self.spec.build.source = self.status.application_source
+
         self.status.sidecar_name = f"{self.metadata.name}-sidecar"
         self.with_sidecar(
             name=self.status.sidecar_name,

@@ -442,17 +442,6 @@ jobs:
           path: tests/coverage_reports/combined_diff.html
           retention-days: 30
 
-      - name: Read coverage report
-        id: read_report
-        if: github.event_name == 'pull_request'
-        run: |
-          # Read the file and escape it for GitHub Action outputs
-          {
-            echo 'REPORT_BODY<<EOF'
-            cat tests/coverage_reports/diff_coverage.md
-            echo 'EOF'
-          } >> "$GITHUB_ENV"
-
   label-oss-system-test-unknown:
     name: Label PR with Smoke Unknown
     if: github.event_name == 'pull_request'

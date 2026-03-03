@@ -1698,7 +1698,7 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
         token_name: str | None = None,
     ) -> list[dict[str, str]]:
         """
-        Return user token secret(s) formatted for igz.yml.
+        Fetch user token(s) from k8s secrets in igz.yml format.
 
         :param user_id: The user ID.
         :param token_name: If provided, fetch only this token (strict mode).

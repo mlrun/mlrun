@@ -94,4 +94,3 @@ jobs:
           file-path: final_comment.md
           comment-tag: coverage_report
           mode: recreate
-

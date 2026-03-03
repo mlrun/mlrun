@@ -13,8 +13,7 @@
 # limitations under the License.
 import datetime
 import http
-import typing
-from typing import Optional, Union
+from typing import Union
 
 import fastapi
 import semver
@@ -146,8 +145,8 @@ class Service(framework.service.Service):
         self,
         request: fastapi.Request,
         project: str,
-        page_size: typing.Optional[int],
-        offset: typing.Optional[int],
+        page_size: int | None,
+        offset: int | None,
         auth_info: mlrun.common.schemas.AuthInfo,
         db_session: sqlalchemy.orm.Session = None,
     ) -> dict[str, list[mlrun.common.schemas.AlertConfig]]:
@@ -448,13 +447,13 @@ class Service(framework.service.Service):
         self,
         request: fastapi.Request,
         project: str,
-        name: Optional[str],
-        since: Optional[str],
-        until: Optional[str],
-        entity: Optional[str],
-        severity: Optional[list[Union[mlrun.common.schemas.alert.AlertSeverity, str]]],
-        entity_kind: Optional[Union[mlrun.common.schemas.alert.EventEntityKind, str]],
-        event_kind: Optional[Union[mlrun.common.schemas.alert.EventKind, str]],
+        name: str | None,
+        since: str | None,
+        until: str | None,
+        entity: str | None,
+        severity: list[Union[mlrun.common.schemas.alert.AlertSeverity, str]] | None,
+        entity_kind: Union[mlrun.common.schemas.alert.EventEntityKind, str] | None,
+        event_kind: Union[mlrun.common.schemas.alert.EventKind, str] | None,
         page: int,
         page_size: int,
         page_token: str,
@@ -508,7 +507,7 @@ class Service(framework.service.Service):
         self,
         request: fastapi.Request,
         project: str,
-        name: Optional[str],
+        name: str | None,
         activation_id: int,
         auth_info: mlrun.common.schemas.AuthInfo,
         db_session: sqlalchemy.orm.Session = None,

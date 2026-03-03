@@ -2823,7 +2823,6 @@ class FlowStep(BaseStep):
 
                            * **overwrite**: If model endpoints with the same name exist, delete the `latest` one;
                              create a new model endpoint entry and set it as `latest`.
-
                            * **inplace** (default): If model endpoints with the same name exist, update the `latest`
                              entry;otherwise, create a new entry.
 

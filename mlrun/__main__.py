@@ -23,7 +23,6 @@ from ast import literal_eval
 from base64 import b64decode
 from os import environ, path, remove
 from pprint import pprint
-from typing import Optional
 
 import click
 import dotenv
@@ -53,6 +52,7 @@ from .run import (
     load_func_code,
     new_function,
 )
+from .runtime_configuration_context import RuntimeConfigurationContext
 from .runtimes import RemoteRuntime, RunError, RuntimeKinds, ServingRuntime
 from .secrets import SecretsStore
 from .utils import (
@@ -155,7 +155,7 @@ def main():
     "--func-url",
     "-f",
     default="",
-    help="path/url of function yaml or function " "yaml or db://<project>/<name>[:tag]",
+    help="path/url of function yaml or function yaml or db://<project>/<name>[:tag]",
 )
 @click.option("--task", default="", help="path/url to task yaml")
 @click.option(
@@ -207,6 +207,13 @@ def main():
     help="Override the loaded project name. This flag ensures awareness of loading an existing project yaml "
     "as a baseline for a new project with a different name",
 )
+@click.option(
+    "--runtime-config",
+    "-rc",
+    default=[],
+    multiple=True,
+    help="runtime configuration context values, e.g. --runtime-config auth_token_name=my-token",
+)
 def run(
     url,
     param,
@@ -251,6 +258,7 @@ def run(
     ensure_project,
     returns,
     allow_cross_project,
+    runtime_config,
 ):
     """Execute a task and inject parameters."""
 
@@ -408,7 +416,12 @@ def run(
     set_item(runobj.spec.hyper_param_options, hyper_param_strategy, "strategy")
     set_item(runobj.spec.hyper_param_options, selector, "selector")
 
-    set_item(runobj.spec, inputs, RunKeys.inputs, list2dict(inputs))
+    set_item(
+        runobj.spec,
+        inputs,
+        RunKeys.inputs,
+        {k: py_eval(v) for k, v in list2dict(inputs).items()},
+    )
     set_item(
         runobj.spec, returns, RunKeys.returns, [py_eval(value) for value in returns]
     )
@@ -447,14 +460,19 @@ def run(
             # and logs periodically
             # TODO: change watch to be a flag with more options (with_logs, wait_for_completion, etc.)
             watch = watch or None
-        resp = fn.run(
-            runobj,
-            watch=watch,
-            schedule=schedule,
-            local=local,
-            auto_build=auto_build,
-            project=project,
-        )
+
+        # Parse run_config into a dictionary for RuntimeConfigurationContext
+        runtime_config_dict = fill_params(runtime_config) if runtime_config else {}
+
+        with RuntimeConfigurationContext(**runtime_config_dict):
+            resp = fn.run(
+                runobj,
+                watch=watch,
+                schedule=schedule,
+                local=local,
+                auto_build=auto_build,
+                project=project,
+            )
         if resp and dump:
             print(resp.to_yaml())
     except RunError as err:
@@ -652,7 +670,7 @@ def build(
     "--func-url",
     "-f",
     default="",
-    help="path/url of function yaml or function " "yaml or db://<project>/<name>[:tag]",
+    help="path/url of function yaml or function yaml or db://<project>/<name>[:tag]",
 )
 @click.option("--project", "-p", default="", help="project name")
 @click.option("--model", "-m", multiple=True, help="model name and path (name=path)")
@@ -1327,22 +1345,34 @@ def show_or_set_config(
     "--project",
     "-p",
     default=None,
-    help="project name (extracted from URI if not provided)",
+    help="project name (used for store:// URIs)",
 )
 @click.option(
     "--target",
     "-t",
     default="/home/mlrun_code",
-    help="target directory to write the source file",
+    help="target directory to write the source",
 )
 def load_source(source_uri, project, target):
-    """Load source code artifact into target directory.
+    """Load source code into target directory.
 
     This is an internal CLI command used by init containers to prepare
     application source code before the sidecar container starts.
 
-    Example:
-        mlrun load-source store://artifacts/my-project/app.py -t /tmp/mlrun_code
+    Supported source types:
+
+    \b
+    - store:// URIs: Single-file artifacts from the MLRun artifact store
+    - git:// URLs: Git repositories (cloned to target directory)
+    - .zip files: ZIP archives (extracted to target directory)
+    - .tar.gz files: Tarball archives (extracted to target directory)
+
+    Examples:
+
+    \b
+        mlrun load-source store://artifacts/my-project/app.py -t /tmp/code
+        mlrun load-source git://github.com/org/repo.git#main -t /tmp/code
+        mlrun load-source https://example.com/source.tar.gz -t /tmp/code
     """
 
     try:
@@ -1416,7 +1446,7 @@ def dict_to_str(struct: dict):
 def func_url_to_runtime(
     func_url,
     ensure_project: bool = False,
-    allow_cross_project: Optional[bool] = None,
+    allow_cross_project: bool | None = None,
 ):
     try:
         if func_url.startswith("db://"):

@@ -116,9 +116,9 @@ class TestDatastoreProfilePostgreSQL:
         assert profile.host == "localhost"
         assert profile.port == 5432
         assert profile.database == "mydb"
-        assert (
-            profile.dsn() == dsn
-        ), "Converting the profile back to DSN did not work as expected"
+        assert profile.dsn() == dsn, (
+            "Converting the profile back to DSN did not work as expected"
+        )
 
     @staticmethod
     def test_url_encoding_special_characters() -> None:

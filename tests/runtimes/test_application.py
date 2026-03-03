@@ -21,6 +21,7 @@ import pytest
 import mlrun
 import mlrun.common.constants
 import mlrun.common.schemas
+import mlrun.errors
 import mlrun.runtimes
 import mlrun.utils
 from mlrun.common.runtimes.constants import ProbeTimeConfig, ProbeType
@@ -627,25 +628,6 @@ def test_set_probe_string_type():
     assert ProbeType.READINESS.key in sidecar
 
 
-def test_set_probe_no_http_path():
-    """Test setting probe without HTTP path (only timing parameters)"""
-    fn: mlrun.runtimes.ApplicationRuntime = mlrun.new_function(
-        "application-test", kind="application", image="mlrun/mlrun"
-    )
-
-    fn.set_probe(
-        type="readiness",
-        initial_delay_seconds=10,
-        period_seconds=5,
-    )
-
-    sidecar = fn._get_sidecar()
-    probe = sidecar[ProbeType.READINESS.key]
-    assert "httpGet" not in probe
-    assert probe[ProbeTimeConfig.INITIAL_DELAY_SECONDS.value] == 10
-    assert probe[ProbeTimeConfig.PERIOD_SECONDS.value] == 5
-
-
 def test_set_probe_multiple_probes():
     """Test setting multiple different probe types"""
     fn: mlrun.runtimes.ApplicationRuntime = mlrun.new_function(
@@ -995,6 +977,84 @@ def test_enrich_sidecar_probe_ports_no_probes():
     assert ProbeType.STARTUP.key not in sidecar
 
 
+def test_set_probe_without_health_check_raises_error():
+    """Test that setting a probe via config with no health check param raises an error"""
+    fn: mlrun.runtimes.ApplicationRuntime = mlrun.new_function(
+        "application-test", kind="application", image="mlrun/mlrun"
+    )
+
+    with pytest.raises(
+        mlrun.errors.MLRunInvalidArgumentError,
+        match="must have exactly one of.*httpGet.*exec.*tcpSocket.*grpc",
+    ):
+        fn.set_probe(
+            type="liveness",
+            config={
+                "initialDelaySeconds": 10,
+                "periodSeconds": 5,
+            },
+        )
+
+
+def test_set_probe_with_multiple_health_check_params_raises_error():
+    """Test that setting a probe with multiple health check keys raises an error"""
+    fn: mlrun.runtimes.ApplicationRuntime = mlrun.new_function(
+        "application-test", kind="application", image="mlrun/mlrun"
+    )
+
+    with pytest.raises(
+        mlrun.errors.MLRunInvalidArgumentError,
+        match="must have exactly one of.*httpGet.*exec.*tcpSocket.*grpc",
+    ):
+        fn.set_probe(
+            type="liveness",
+            config={
+                "httpGet": {"path": "/health", "port": 8080},
+                "exec": {"command": ["/bin/sh", "-c", "echo test"]},
+            },
+        )
+
+
+def test_set_probe_invalid_config_does_not_override_valid_probe():
+    """Test that a failed set_probe with invalid config does not modify a previously set valid probe"""
+    fn: mlrun.runtimes.ApplicationRuntime = mlrun.new_function(
+        "application-test", kind="application", image="mlrun/mlrun"
+    )
+
+    # Set a valid probe
+    fn.set_probe(
+        type="liveness",
+        config={
+            "httpGet": {"path": "/health", "port": 8080, "scheme": "HTTP"},
+            "initialDelaySeconds": 17,
+            "periodSeconds": 555,
+        },
+    )
+
+    # Attempt to set an invalid probe configuration
+    with pytest.raises(
+        mlrun.errors.MLRunInvalidArgumentError,
+        match="must have exactly one of.*httpGet.*exec.*tcpSocket.*grpc",
+    ):
+        fn.set_probe(
+            type="liveness",
+            config={
+                "httpGet": {"path": "/bad", "port": 9090},
+                "exec": {"command": ["/bin/sh", "-c", "echo bad"]},
+            },
+        )
+
+    # Verify the original valid probe remains unchanged
+    sidecar = fn._get_sidecar()
+    probe_after = sidecar[ProbeType.LIVENESS.key]
+    assert probe_after is not None
+    assert probe_after["httpGet"]["path"] == "/health"
+    assert probe_after["httpGet"]["port"] == 8080
+    assert probe_after["httpGet"]["scheme"] == "HTTP"
+    assert probe_after[ProbeTimeConfig.INITIAL_DELAY_SECONDS.value] == 17
+    assert probe_after[ProbeTimeConfig.PERIOD_SECONDS.value] == 555
+
+
 @pytest.mark.parametrize(
     "source,setup_file,expected",
     [
@@ -1054,7 +1114,7 @@ def test_upload_source_as_artifact(tmp_path):
     with unittest.mock.patch(
         "mlrun.get_or_create_project", return_value=mock_project
     ) as mock_get_project:
-        fn._upload_source_as_artifact()
+        original_path, artifact_uri = fn._upload_source_as_artifact()
 
     # Verify project was retrieved
     mock_get_project.assert_called_once_with("test-project")
@@ -1071,10 +1131,12 @@ def test_upload_source_as_artifact(tmp_path):
         },
     )
 
-    # Verify source was updated to the artifact URI
+    # Verify source was swapped to artifact URI and original path is returned for restore
     assert (
         fn.spec.build.source == "store://artifacts/test-project/application-test-source"
     )
+    assert original_path == str(source_file)
+    assert artifact_uri == "store://artifacts/test-project/application-test-source"
 
 
 @pytest.mark.parametrize(
@@ -1127,10 +1189,17 @@ def test_upload_source_as_artifact_no_project_error():
             fn._upload_source_as_artifact()
 
 
-def test_set_function_single_file_application(tmp_path):
-    # Test that set_function with single .py file works for application runtime
-    source_file = tmp_path / "handler.py"
-    source_file.write_text("def handler(): pass")
+@pytest.mark.parametrize(
+    "filename,content",
+    [
+        ("handler.py", "def handler(): pass"),
+        ("app.sh", "#!/bin/bash\necho hello"),
+        ("server.js", "console.log('hello')"),
+    ],
+)
+def test_set_function_single_file_application(tmp_path, filename, content):
+    source_file = tmp_path / filename
+    source_file.write_text(content)
 
     project = mlrun.get_or_create_project("test-proj", allow_cross_project=True)
     fn = project.set_function(

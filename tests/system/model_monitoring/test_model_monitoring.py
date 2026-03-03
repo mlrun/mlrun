@@ -20,7 +20,7 @@ import uuid
 from datetime import UTC, datetime, timedelta
 from random import choice, randint, uniform
 from time import monotonic, sleep
-from typing import Optional, Union
+from typing import Union
 from uuid import uuid4
 
 import fsspec
@@ -63,12 +63,12 @@ from . import TestMLRunSystemModelMonitoring
 def mock_random_endpoint(
     project_name: str,
     name: str,
-    function_name: Optional[str] = "function-1",
-    function_tag: Optional[str] = "v1",
-    model_path: Optional[str] = None,
+    function_name: str | None = "function-1",
+    function_tag: str | None = "v1",
+    model_path: str | None = None,
     add_labels=True,
     endpoint_type: EndpointType = EndpointType.NODE_EP,
-    mode: Optional[EndpointMode] = None,
+    mode: EndpointMode | None = None,
 ) -> mlrun.common.schemas.model_monitoring.ModelEndpoint:
     def random_labels():
         return {f"{choice(string.ascii_letters)}": randint(0, 100) for _ in range(1, 5)}
@@ -358,8 +358,8 @@ class TestModelEndpointsOperations(TestMLRunSystemModelMonitoring):
 
         endpoints_out = self.project.list_model_endpoints(latest_only=False).endpoints
         assert len(endpoints_out) == number_of_endpoints
-        created: Optional[datetime] = None
-        uid: Optional[str] = None
+        created: datetime | None = None
+        uid: str | None = None
         for mep in endpoints_out:
             if not created or mep.metadata.created < created:
                 created = mep.metadata.created
@@ -696,9 +696,9 @@ class TestModelEndpointsOperations(TestMLRunSystemModelMonitoring):
             .endpoints
         )
 
-        assert (
-            len(model_endpoints) == 2
-        ), f"Expected 2 endpoints, got {len(model_endpoints)}"
+        assert len(model_endpoints) == 2, (
+            f"Expected 2 endpoints, got {len(model_endpoints)}"
+        )
         assert (
             model_endpoints[0].metadata.name == "my-model-1"
             and model_endpoints[1].metadata.name == "my-model-2"
@@ -792,7 +792,7 @@ class TestBasicModelMonitoring(TestMLRunSystemModelMonitoring):
 
     project_name = "pr-basic-model-monitoring"
     # Set image to "<repo>/mlrun:<tag>" for local testing
-    image: Optional[str] = None
+    image: str | None = None
 
     @pytest.mark.timeout(540)
     def test_basic_model_monitoring(self) -> None:
@@ -1160,6 +1160,147 @@ class TestBasicModelMonitoring(TestMLRunSystemModelMonitoring):
         assert len(error_df) == 1
         error_dict = error_df.head(1).to_dict(orient="records")[0]
         assert error_dict["error_count"] == 1
+
+    @pytest.mark.timeout(480)
+    def test_monitoring_with_streaming_model_runner(self):
+        """Test that model monitoring correctly captures outputs from MRS with
+        both streaming and non-streaming models.
+
+        This test verifies that:
+        1. A Collector step is inserted between the streaming MRS and MM steps
+        2. The MonitoringPreProcessor aggregates the collected streaming chunks
+        3. Model endpoints are created and record monitoring events
+        4. TSDB predictions and parquet data are written correctly
+        5. Streaming and non-streaming models coexist in the same MRS
+        """
+        function_name = "streaming-mm-test"
+        streaming_endpoint = "streaming-model"
+        inc_endpoint_1 = "inc-model-1"
+        inc_endpoint_2 = "inc-model-2"
+
+        function = mlrun.code_to_function(
+            name=function_name,
+            kind="serving",
+            tag="latest",
+            project=self.project_name,
+            filename=str(self.assets_path / "models.py"),
+            image=self.image,
+        )
+        function.spec.replicas = 1
+
+        self.set_mm_credentials()
+
+        # Set up ModelRunnerStep with streaming + non-streaming models.
+        # Use MyModelSelector to select models via a "models" key in the
+        # request body, so we can target the streaming model alone or both
+        # non-streaming models together.
+        graph = function.set_topology("flow", engine="async")
+        model_runner_step = mlrun.serving.states.ModelRunnerStep(
+            name="model-runner",
+            model_runner_selector="MyModelSelector",
+        )
+        model_runner_step.add_model(
+            model_class="StreamingModel",
+            endpoint_name=streaming_endpoint,
+            execution_mechanism="naive",
+            num_chunks=3,
+        )
+        model_runner_step.add_model(
+            model_class="IncModel",
+            endpoint_name=inc_endpoint_1,
+            execution_mechanism="naive",
+            inc=1,
+        )
+        model_runner_step.add_model(
+            model_class="IncModel",
+            endpoint_name=inc_endpoint_2,
+            execution_mechanism="naive",
+            inc=2,
+        )
+        graph.to(model_runner_step, "runner").respond()
+
+        # Enable streaming and monitoring
+        function.set_streaming(enabled=True)
+        function.set_tracking()
+        self.project.enable_model_monitoring(
+            deploy_histogram_data_drift_app=False,
+            **({} if self.image is None else {"image": self.image}),
+        )
+
+        function.deploy()
+
+        # Invoke streaming model alone (mixing streaming + non-streaming is not
+        # supported and would raise StreamingError)
+        function.invoke("/", body={"prompt": "test", "models": streaming_endpoint})
+
+        # Invoke both non-streaming models together
+        function.invoke(
+            "/",
+            body={"n": 1, "models": f"{inc_endpoint_1},{inc_endpoint_2}"},
+        )
+
+        # Wait for monitoring data to be processed
+        sleep(180)
+
+        # Verify all three model endpoints were created
+        model_endpoints = (
+            mlrun.get_run_db().list_model_endpoints(self.project_name).endpoints
+        )
+        endpoint_names_found = [ep.metadata.name for ep in model_endpoints]
+        for expected_name in [
+            streaming_endpoint,
+            inc_endpoint_1,
+            inc_endpoint_2,
+        ]:
+            assert expected_name in endpoint_names_found, (
+                f"Expected endpoint '{expected_name}' not found. "
+                f"Found: {endpoint_names_found}"
+            )
+
+        # Verify last_request is set for all endpoints
+        for ep_name in [streaming_endpoint, inc_endpoint_1, inc_endpoint_2]:
+            mep = mlrun.get_run_db().get_model_endpoint(
+                name=ep_name,
+                project=self.project_name,
+                function_name=function_name,
+                function_tag="latest",
+                feature_analysis=True,
+                tsdb_metrics=True,
+            )
+            assert mep.status.last_request is not None, (
+                f"Expected last_request to be set for endpoint '{ep_name}'"
+            )
+
+        # Verify TSDB predictions table has records for all 3 endpoints
+        tsdb_client = mlrun.model_monitoring.get_tsdb_connector(
+            project=self.project_name, profile=self.mm_tsdb_profile
+        )
+        predictions = tsdb_client._get_records(
+            table=mm_constants.V3IOTSDBTables.PREDICTIONS,
+            start="now-50m",
+            end="now",
+        )
+        assert len(predictions) == 3
+
+        # Verify parquet predictions for the streaming endpoint
+        streaming_mep = mlrun.get_run_db().get_model_endpoint(
+            name=streaming_endpoint,
+            project=self.project_name,
+            function_name=function_name,
+            function_tag="latest",
+        )
+        v3io_df = pd.read_parquet(
+            f"v3io:///projects/{self.project_name}/artifacts/"
+            f"model-endpoints/parquet/key={streaming_mep.metadata.uid}"
+        )
+        assert len(v3io_df) == 1
+        v3io_dict = v3io_df.head(1).to_dict(orient="records")[0]
+        assert v3io_dict["endpoint_name"] == streaming_endpoint
+        assert (
+            v3io_dict["effective_sample_count"]
+            == v3io_dict["estimated_prediction_count"]
+            == 1
+        )
 
     def _assert_model_endpoint_tags_and_labels(
         self,
@@ -1617,7 +1758,7 @@ class TestBatchDrift(TestMLRunSystemModelMonitoring):
 
     project_name = "pr-batch-drift"
     # Set image to "<repo>/mlrun:<tag>" for local testing
-    image: Optional[str] = None
+    image: str | None = None
 
     def custom_setup(self):
         mlrun.runtimes.utils.global_context.set(None)
@@ -1774,7 +1915,7 @@ class TestModelMonitoringKafka(TestMLRunSystemModelMonitoring):
 
     project_name = "pr-kafka-model-monitoring"
     # Set image to "<repo>/mlrun:<tag>" for local testing
-    image: Optional[str] = None
+    image: str | None = None
 
     @pytest.mark.timeout(300)
     @pytest.mark.skipif(
@@ -1879,7 +2020,7 @@ class TestInferenceWithSpecialChars(TestMLRunSystemModelMonitoring):
     project_name = "pr-infer-special-chars"
     name_prefix = "infer-monitoring"
     # Set image to "<repo>/mlrun:<tag>" for local testing
-    image: Optional[str] = None
+    image: str | None = None
 
     @classmethod
     def custom_setup_class(cls) -> None:
@@ -1983,7 +2124,7 @@ class TestModelInferenceTSDBRecord(TestMLRunSystemModelMonitoring):
     project_name = "infer-model-tsdb"
     name_prefix = "infer-model-only"
     # Set image to "<repo>/mlrun:<tag>" for local testing
-    image: Optional[str] = None
+    image: str | None = None
 
     @classmethod
     def custom_setup_class(cls) -> None:
@@ -2028,12 +2169,12 @@ class TestModelInferenceTSDBRecord(TestMLRunSystemModelMonitoring):
         )
 
         assert not df.empty, "No TSDB data"
-        assert (
-            len(df) == 1
-        ), "Expects a single result from the histogram data drift app in the TSDB"
-        assert set(df.application_name) == {
-            "histogram-data-drift"
-        }, "The application name is different than expected"
+        assert len(df) == 1, (
+            "Expects a single result from the histogram data drift app in the TSDB"
+        )
+        assert set(df.application_name) == {"histogram-data-drift"}, (
+            "The application name is different than expected"
+        )
         assert df.endpoint_id.nunique() == 1, "Expects a single model endpoint"
         assert set(df.result_name) == {
             "general_drift",
@@ -2123,7 +2264,7 @@ class TestModelEndpointGetMetrics(TestMLRunSystemModelMonitoring):
     """Test get_model_endpoint_monitoring_metrics functionality."""
 
     project_name = "model-endpoint-get-metrics"
-    image: Optional[str] = None
+    image: str | None = None
 
     @staticmethod
     def _generate_event(
@@ -2370,9 +2511,9 @@ class TestModelMonitoringOverJob(TestMLRunSystemModelMonitoring):
             read_back_df = pd.read_parquet(
                 f"v3io:///projects/{self.project_name}/out.parquet"
             )
-            assert (
-                "extra" in read_back_df.columns
-            ), "Extra column was not added by model"
+            assert "extra" in read_back_df.columns, (
+                "Extra column was not added by model"
+            )
 
             model_endpoints = (
                 mlrun.get_run_db().list_model_endpoints(self.project_name).endpoints
@@ -2479,7 +2620,7 @@ class TestLLModelWithMonitoring(TestMLRunSystemModelMonitoring):
     """Test LLModel serving with model monitoring enabled."""
 
     project_name = "llmodel-monitoring-5"
-    image: Optional[str] = "mlrun/mlrun"
+    image: str | None = "mlrun/mlrun"
 
     def test_mep_with_remote_model(self):
         self.set_mm_credentials()
@@ -2559,6 +2700,7 @@ class TestLLModelWithMonitoring(TestMLRunSystemModelMonitoring):
         assert response["my-model-2"]["result"]["usage"] == {
             "prompt_tokens": 0,
             "completion_tokens": 0,
+            "total_tokens": 0,
         }
 
         assert (
@@ -2568,13 +2710,14 @@ class TestLLModelWithMonitoring(TestMLRunSystemModelMonitoring):
         assert response["my-model-3"]["usage"] == {
             "prompt_tokens": 0,
             "completion_tokens": 0,
+            "total_tokens": 0,
         }
 
         sleep(45)
         meps = self.project.list_model_endpoints(tsdb_metrics=True)
-        assert (
-            len(meps.endpoints) == 3
-        ), f"Expected 3 endpoints, got {len(meps.endpoints)}"
+        assert len(meps.endpoints) == 3, (
+            f"Expected 3 endpoints, got {len(meps.endpoints)}"
+        )
         mep_2: ModelEndpoint = self.project.list_model_endpoints(
             names="my-model-2"
         ).endpoints[0]

@@ -575,7 +575,10 @@ class NumPyNDArrayDictPackager(_NumPyNDArrayCollectionPackager):
             return False
 
         # Check the artifact type is supported:
-        if artifact_type and artifact_type not in self.get_supported_artifact_types():
+        if (
+            artifact_type
+            and artifact_type not in self.get_supported_packing_artifact_types()
+        ):
             return False
 
         # Check an edge case where the dictionary is empty (this packager will pack empty dictionaries only if given
@@ -660,7 +663,10 @@ class NumPyNDArrayListPackager(_NumPyNDArrayCollectionPackager):
             return False
 
         # Check the artifact type is supported:
-        if artifact_type and artifact_type not in self.get_supported_artifact_types():
+        if (
+            artifact_type
+            and artifact_type not in self.get_supported_packing_artifact_types()
+        ):
             return False
 
         # Check an edge case where the list is empty (this packager will pack empty lists only if given specific file

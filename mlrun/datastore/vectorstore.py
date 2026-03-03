@@ -14,7 +14,7 @@
 
 import inspect
 from collections.abc import Iterable
-from typing import Optional, Union
+from typing import Union
 
 from mlrun.artifacts import DocumentArtifact
 
@@ -93,7 +93,7 @@ class VectorStoreCollection:
         self,
         mlrun_context: Union["MlrunProject", "MLClientCtx"],  # noqa: F821
         vector_store: "VectorStore",  # noqa: F821
-        collection_name: Optional[str] = None,
+        collection_name: str | None = None,
     ):
         self._collection_impl = vector_store
         self._mlrun_context = mlrun_context

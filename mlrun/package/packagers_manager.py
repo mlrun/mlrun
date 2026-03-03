@@ -17,7 +17,6 @@ import inspect
 import os
 import shutil
 import traceback
-import warnings
 from typing import Any
 
 import mlrun.errors
@@ -31,9 +30,10 @@ from mlrun.package.errors import (
     MLRunPackageUnbundlingError,
     MLRunPackageUnpackingError,
 )
+from mlrun.package.log_hint import LogHint
 from mlrun.package.packager import Packager
 from mlrun.package.packagers.default_packager import DefaultPackager
-from mlrun.package.utils import LogHintKey, LogHintUtils, TypeHintUtils
+from mlrun.package.utils import TypeHintUtils
 from mlrun.utils import logger
 
 
@@ -58,20 +58,21 @@ class PackagersManager:
         # Initialize the packagers list (with the default packager in it):
         self._packagers: list[Packager] = []
 
-        # Set an artifacts list and results dictionary to collect all packed objects (will be used later to write extra
-        # data if noted by the user using the log hint key "extra_data")
-        self._artifacts: list[Artifact] = []
+        # Set an artifacts list (holding tuples of packed artifact and the `context.log_artifact` kwargs to use for it)
+        # and results dictionary to collect all packed objects (will be used later to write extra data if noted by the
+        # user using the log hint key "extra_data")
+        self._artifacts: list[tuple[Artifact, dict]] = []
         self._results = {}
 
         # Temporary holder for bundle structures results to update the store paths before logging them as results:
         self._bundles = {}
 
     @property
-    def artifacts(self) -> list[Artifact]:
+    def artifacts(self) -> list[tuple[Artifact, dict]]:
         """
         Get the artifacts that were packed by the manager.
 
-        :return: A list of artifacts.
+        :return: A list of tuples with the artifacts and their `context.log_artifact` method kwargs.
         """
         return self._artifacts
 
@@ -195,7 +196,7 @@ class PackagersManager:
     def pack(
         self,
         obj: Any,
-        log_hint: dict[str, str],
+        log_hint: LogHint,
     ) -> Artifact | dict | None | list[Artifact | dict | None]:
         """
         Pack an object using one of the manager's packagers.
@@ -220,43 +221,26 @@ class PackagersManager:
         :raise MLRunPackagePackingError:    If there was an error during the packing.
         :raise MLRunPackageUnbundlingError: If there was an error during the unbundling.
         """
-        # TODO: Remove in MLRun 1.13.0
-        if "**" in log_hint[LogHintKey.KEY]:
-            warnings.warn(
-                message=(
-                    "The '**' for packing dictionary items separately is replaced by a single '*', same as list. "
-                    "Please read the documentation on the new bundling and unbundling feature. Using '**' will be "
-                    "removed in MLRun 1.13.0. Currently replacing '**' with '*' automatically."
-                ),
-                category=FutureWarning,
-                stacklevel=2,
-            )
-            log_hint[LogHintKey.KEY] = log_hint[LogHintKey.KEY].replace("**", "*")
-
-        # Check if needed to unbundle:
-        log_hint_key, unbundle_level = LogHintUtils.extract_unbundling_from_key(
-            log_hint=log_hint[LogHintKey.KEY]
-        )
-
-        # Update the log hint key:
-        log_hint[LogHintKey.KEY] = log_hint_key
-
-        # A single object is required to be packaged:
         try:
-            if unbundle_level:
+            if log_hint.itemized:
+                # Multiple objects are required to be packaged as a bundle:
                 package, bundle_result = self._pack_bundle(
                     obj=obj,
                     log_hint=log_hint,
-                    unbundle_level=unbundle_level,
+                    unbundle_level=log_hint.itemized,
                 )
-                self._bundles[log_hint_key] = bundle_result
+                # Check if the bundle result is a dict or list - meaning it was unbundled successfully so we collect
+                # the bundle structure:
+                if isinstance(bundle_result, dict | list):
+                    self._bundles[log_hint.key] = bundle_result
             else:
+                # A single object is required to be packaged:
                 package = self._pack(
                     obj=obj, log_hint=log_hint.copy()
                 )  # Log hint is copied to preserve key for error.
         except Exception as exception:
             raise MLRunPackagePackingError(
-                f"An exception was raised during the packing of '{log_hint[LogHintKey.KEY]}': {exception}"
+                f"An exception was raised during the packing of '{log_hint.key}': {exception}"
             ) from exception
 
         return package
@@ -343,45 +327,89 @@ class PackagersManager:
         self,
         additional_artifact_uris: dict,
         additional_results: dict,
-    ):
+    ) -> set[Artifact]:
         """
         Link packages to each other according to the provided extra data and metrics spec keys. A future link is
         marked with ellipses (...). If no link is found, None is used and a warning is printed.
 
-        :param additional_artifact_uris:    Additional artifact URIs to link (should come from an `mlrun.MLClientCtx`).
-        :param additional_results:          Additional results to link (should come from an `mlrun.MLClientCtx`).
-        """
-        # Join the manager's artifacts and results with the additional ones to look for a link in all of them:
-        joined_results = {**additional_results, **self.results}
+        :param additional_artifact_uris: Additional artifact URIs to link (should come from an `mlrun.MLClientCtx`).
+        :param additional_results:       Additional results to link (should come from an `mlrun.MLClientCtx`).
 
-        # Go over the artifacts and link:
-        for artifact in self.artifacts:
+        :return: A set of the additional artifacts that require updates post linking (the packagers artifacts were not
+                 logged yet).
+        """
+        # Join the manager's results with the additional ones to look for a link in all of them:
+        all_results = {**additional_results, **self.results}
+
+        # Convert additional artifact URIs to artifacts:
+        additional_artifacts = []
+        for key, uri in (additional_artifact_uris or {}).items():
+            try:
+                artifact = get_store_resource(uri)
+                additional_artifacts.append(artifact)
+            except mlrun.errors.MLRunNotFoundError as exc:
+                logger.warn(
+                    f"Could not get artifact {key=} from URI when linking packages",
+                    exc=mlrun.errors.err_to_str(exc),
+                )
+
+        # Join all artifacts (packager artifacts + context artifacts):
+        all_artifacts = [
+            artifact for (artifact, _) in self.artifacts
+        ] + additional_artifacts
+
+        # Prepare a set for artifacts that require updates post linking:
+        artifacts_to_update = set()
+
+        # Go over all artifacts and link:
+        for artifact in all_artifacts:
             # Go over the extra data keys:
+            not_found_keys = []
             for key in artifact.spec.extra_data:
                 # Future link is marked with ellipses (...):
                 if artifact.spec.extra_data[key] is ...:
+                    # Collect it to post update if it's a context artifact:
+                    if artifact in additional_artifacts:
+                        artifacts_to_update.add(artifact)
                     # Look for an artifact or result with this key to link it:
                     extra_data = self._look_for_extra_data(
                         key=key,
-                        artifacts=self.artifacts,
-                        artifact_uris=additional_artifact_uris,
-                        results=joined_results,
+                        artifacts=all_artifacts,
+                        results=all_results,
                     )
                     # Print a warning if a link is missing:
                     if extra_data is None:
                         logger.warn(
                             f"Could not find {key} to link as extra data for {artifact.key}."
                         )
-                    # Link it (None will be used in case it was not found):
+                        not_found_keys.append(key)
+                        continue
+                    # Link it:
                     artifact.spec.extra_data[key] = extra_data
+            # Clean the not found keys from the spec to avoid confusion:
+            for key in not_found_keys:
+                artifact.spec.extra_data.pop(key)
             # Go over the metrics keys if available (`ModelArtifactSpec` has a metrics property that may be waiting for
             # values from logged results):
+            not_found_keys.clear()
             if hasattr(artifact.spec, "metrics"):
                 for key in artifact.spec.metrics:
                     # Future link is marked with ellipses (...):
                     if artifact.spec.metrics[key] is ...:
                         # Link it (None will be used in case it was not found):
-                        artifact.spec.metrics[key] = joined_results.get(key, None)
+                        metric = all_results.get(key, None)
+                        if metric is None:
+                            logger.warn(
+                                f"Could not find {key} to link as a metric for {artifact.key}."
+                            )
+                            not_found_keys.append(key)
+                            continue
+                        artifact.spec.metrics[key] = metric
+                # Clean the not found keys from the spec to avoid confusion:
+                for key in not_found_keys:
+                    artifact.spec.metrics.pop(key)
+
+        return artifacts_to_update
 
     def clear_packagers_outputs(self):
         """
@@ -574,10 +602,16 @@ class PackagersManager:
         return None
 
     def _pack_bundle(
-        self, obj: object, log_hint: dict, unbundle_level: bool | int
-    ) -> tuple[list[Artifact | dict | None], dict]:
+        self, obj: object, log_hint: LogHint, unbundle_level: bool | int
+    ) -> tuple[list[Artifact | dict | None], dict | str]:
         """
         Pack a bundle of objects using one of the manager's packagers.
+
+        Note: ``bundle_structure`` is a dict or list mirroring the unbundled object's structure with package keys as
+        leaves when actual unbundling occurred. When the object could not be unbundled, it is packed as a single object
+        and ``bundle_structure`` is a string (the log hint key). This string serves as a leaf value in recursive calls
+        but should **not** be stored in ``_bundles`` at the top level since no actual unbundling occurred — the packed
+        result / artifact is already collected normally in ``_results`` or ``_artifacts``.
 
         :param obj:            The objects bundle to pack as artifacts.
         :param log_hint:       The log hint to use.
@@ -594,7 +628,6 @@ class PackagersManager:
         # to return a list[object] | object from a function. In this case, the user may run with a log hint that would
         # start with * but only a single object will return - we don't want to fail on this, but rather pack it as a
         # single object):
-        log_hint_key = log_hint[LogHintKey.KEY]
         unbundled_object = None
         if unbundle_level:
             try:
@@ -605,18 +638,18 @@ class PackagersManager:
                 ):
                     raise unbundling_error
                 logger.debug(
-                    f"Unbundle level was not reached for '{log_hint_key}', but it cannot be unbundled (there is no "
+                    f"Unbundle level was not reached for '{log_hint.key}', but it cannot be unbundled (there is no "
                     f"packager that can unbundle it) so we continue to pack it as a single object."
                 )
 
         # If the object cannot be unbundled, pack it as a single object:
         if unbundled_object is None:
-            return [self._pack(obj=obj, log_hint=log_hint)], log_hint_key
+            return [self._pack(obj=obj, log_hint=log_hint)], log_hint.key
 
         # Unbundling was performed, create a log hint for each of the unbundled items:
         if isinstance(unbundled_object, dict):
             objects_to_pack = {
-                f"{log_hint_key}_{dict_key}": dict_obj
+                f"{log_hint.key}_{dict_key}": dict_obj
                 for dict_key, dict_obj in unbundled_object.items()
             }
             bundle_structure = {
@@ -627,7 +660,7 @@ class PackagersManager:
             }
         else:
             objects_to_pack = {
-                f"{log_hint_key}_{i}": obj_i for i, obj_i in enumerate(unbundled_object)
+                f"{log_hint.key}_{i}": obj_i for i, obj_i in enumerate(unbundled_object)
             }
             bundle_structure = list(objects_to_pack.keys())
 
@@ -644,7 +677,7 @@ class PackagersManager:
         ):
             # Edit the key in the log hint:
             per_key_log_hint = log_hint.copy()
-            per_key_log_hint[LogHintKey.KEY] = key
+            per_key_log_hint.key = key
             # Pack and collect the package:
             try:
                 currently_packaged, bundle_structure[i] = self._pack_bundle(
@@ -658,12 +691,12 @@ class PackagersManager:
                     packages.append(currently_packaged)
             except Exception as exception:
                 raise MLRunPackagePackingError(
-                    f"An exception was raised during the packing of '{per_key_log_hint}': {exception}"
+                    f"An exception was raised during the packing of '{per_key_log_hint.key}': {exception}"
                 ) from exception
 
         return packages, bundle_structure
 
-    def _pack(self, obj: Any, log_hint: dict) -> Artifact | dict | None:
+    def _pack(self, obj: Any, log_hint: LogHint) -> Artifact | dict | None:
         """
         Pack an object using one of the manager's packagers.
 
@@ -672,29 +705,34 @@ class PackagersManager:
 
         :return: The packaged artifact or result. None is returned if there was a problem while packing the object.
         """
-        # Get the artifact type (if user didn't pass any, the packager will use its configured default) and key:
-        artifact_type = log_hint.pop(LogHintKey.ARTIFACT_TYPE, None)
-        key = log_hint.pop(LogHintKey.KEY, None)
-
         # Get a packager:
         packager = self._get_packager_for_packing(
-            obj=obj, artifact_type=artifact_type, configurations=log_hint
+            obj=obj,
+            artifact_type=log_hint.artifact_type,
+            configurations=log_hint.packing_kwargs,
         )
         if packager is None:
             if self._default_packager.is_packable(
-                obj=obj, artifact_type=artifact_type, configurations=log_hint
+                obj=obj,
+                artifact_type=log_hint.artifact_type,
+                configurations=log_hint.packing_kwargs,
             ):
-                logger.info(f"Using the default packager to pack the object '{key}'")
+                logger.info(
+                    f"Using the default packager to pack the object '{log_hint.key}'"
+                )
                 packager = self._default_packager
             else:
                 raise MLRunPackagePackingError(
                     f"No packager was found for the combination of "
-                    f"'object_type={self._get_type_name(typ=type(obj))}' and 'artifact_type={artifact_type}'."
+                    f"'object_type={self._get_type_name(typ=type(obj))}' and 'artifact_type={log_hint.artifact_type}'."
                 )
 
         # Use the packager to pack the object:
         packed_object = packager.pack(
-            obj=obj, key=key, artifact_type=artifact_type, configurations=log_hint
+            obj=obj,
+            key=log_hint.key,
+            artifact_type=log_hint.artifact_type,
+            configurations=log_hint.packing_kwargs,
         )
 
         # If the packed object is a result, return it as is:
@@ -711,8 +749,8 @@ class PackagersManager:
             self._InstructionsNotesKey.PACKAGER_NAME: packager.__class__.__name__,
             self._InstructionsNotesKey.OBJECT_TYPE: self._get_type_name(typ=type(obj)),
             self._InstructionsNotesKey.ARTIFACT_TYPE: (
-                artifact_type
-                if artifact_type
+                log_hint.artifact_type
+                if log_hint.artifact_type
                 else packager.get_default_packing_artifact_type(obj=obj)
             ),
             self._InstructionsNotesKey.INSTRUCTIONS: instructions,
@@ -721,8 +759,31 @@ class PackagersManager:
         # Set the instructions in the artifact's spec:
         artifact.spec.unpackaging_instructions = unpackaging_instructions
 
+        # Add extra data to the artifact's spec if noted in the log hint:
+        if log_hint.tag:
+            artifact.tag = log_hint.tag
+        if log_hint.labels:
+            artifact.labels = log_hint.labels
+        if log_hint.extra_data:
+            artifact.extra_data = log_hint.extra_data
+        if log_hint.metrics:
+            if not hasattr(artifact.spec, "metrics"):
+                logger.warn(
+                    f"Metrics were provided in the log hint for '{log_hint.key}' but the artifact type "
+                    f"'{log_hint.artifact_type}' does not support metrics, so they were ignored. Make sure to use an "
+                    f"artifact type that supports metrics (for example, 'model') if you wish to log metrics. You can"
+                    f"also add them as extra data if needed."
+                )
+            else:
+                artifact.spec.metrics = log_hint.metrics
+
+        # Add logging kwargs from the log hint:
+        logging_kwargs = {}
+        if log_hint.artifact_path:
+            logging_kwargs["artifact_path"] = log_hint.artifact_path
+
         # Collect the artifact and return:
-        self._artifacts.append(artifact)
+        self._artifacts.append((artifact, logging_kwargs))
         return artifact
 
     def _unpack_package(
@@ -1056,31 +1117,17 @@ class PackagersManager:
     def _look_for_extra_data(
         key: str,
         artifacts: list[Artifact],
-        artifact_uris: dict,
         results: dict,
     ) -> Artifact | str | int | float | None:
         """
         Look for an extra data item (artifact or result) by given key. If not found, None is returned.
 
-        :param key:             Key to look for.
-        :param artifacts:       Artifacts to look in.
-        :param artifact_uris:   Artifacts URIs to look in.
-        :param results:         Results to look in.
+        :param key:       Key to look for.
+        :param artifacts: Artifacts to look in.
+        :param results:   Results to look in.
 
         :return: The artifact or result with the same key or None if not found.
         """
-        artifact_uris = artifact_uris or {}
-        for _key, uri in artifact_uris.items():
-            if key == _key:
-                try:
-                    return get_store_resource(uri)
-                except mlrun.errors.MLRunNotFoundError as exc:
-                    logger.warn(
-                        f"Artifact {key=} not found when looking for extra data",
-                        exc=mlrun.errors.err_to_str(exc),
-                    )
-                    return None
-
         # Look in the artifacts:
         for artifact in artifacts:
             if key == artifact.key:

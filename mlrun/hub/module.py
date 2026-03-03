@@ -14,7 +14,7 @@
 
 import warnings
 from pathlib import Path
-from typing import Optional, Union
+from typing import Union
 
 import yaml
 from deprecated import deprecated
@@ -36,13 +36,13 @@ class HubModule(HubAsset):
         name: str,
         version: str,
         kind: Union[HubModuleType, str],
-        description: Optional[str] = None,
-        categories: Optional[list] = None,
-        requirements: Optional[list] = None,
-        local_path: Optional[Path] = None,
-        filename: Optional[str] = None,
-        example: Optional[str] = None,
-        url: Optional[str] = None,
+        description: str | None = None,
+        categories: list | None = None,
+        requirements: list | None = None,
+        local_path: Path | None = None,
+        filename: str | None = None,
+        example: str | None = None,
+        url: str | None = None,
         **kwargs,  # catch all for unused args
     ):
         super().__init__(
@@ -66,7 +66,7 @@ class HubModule(HubAsset):
         category=FutureWarning,
     )
     def download_module_files(
-        self, local_path: Optional[str] = None, secrets: Optional[dict] = None
+        self, local_path: str | None = None, secrets: dict | None = None
     ):
         """
         Download this hub module’s files (code file and, if available, an example notebook) to the target directory
@@ -90,7 +90,7 @@ class HubModule(HubAsset):
 
     def download_files(
         self,
-        local_path: Optional[str] = None,
+        local_path: str | None = None,
         download_example: bool = True,
     ):
         """
@@ -119,8 +119,8 @@ class HubModule(HubAsset):
 def get_hub_module(
     url: str,
     download_files: bool = True,
-    secrets: Optional[dict] = None,
-    local_path: Optional[str] = None,
+    secrets: dict | None = None,
+    local_path: str | None = None,
 ) -> HubModule:
     """
     Get a hub-module object containing metadata of the requested module.
@@ -151,8 +151,8 @@ def get_hub_module(
 def import_module(
     url: str,
     install_requirements: bool = False,
-    secrets: Optional[dict] = None,
-    local_path: Optional[str] = None,
+    secrets: dict | None = None,
+    local_path: str | None = None,
 ):
     """
     Import a module from the hub to use directly.

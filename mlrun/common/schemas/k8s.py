@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import typing
 
 import pydantic.v1
 
@@ -20,9 +19,9 @@ import mlrun.common.types
 
 
 class ResourceSpec(pydantic.v1.BaseModel):
-    cpu: typing.Optional[str]
-    memory: typing.Optional[str]
-    gpu: typing.Optional[str]
+    cpu: str | None
+    memory: str | None
+    gpu: str | None
 
 
 class Resources(pydantic.v1.BaseModel):

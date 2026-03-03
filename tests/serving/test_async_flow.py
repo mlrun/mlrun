@@ -23,7 +23,7 @@ from copy import deepcopy
 from datetime import datetime
 from itertools import product
 from types import SimpleNamespace
-from typing import Optional, Union
+from typing import Union
 
 import pandas as pd
 import pytest
@@ -185,13 +185,13 @@ def test_on_error():
     finally:
         server.wait_for_completion()
     if isinstance(resp, dict):
-        assert (
-            resp["error"] and resp["origin_state"] == "Raiser"
-        ), f"error wasn't caught, resp={resp}"
+        assert resp["error"] and resp["origin_state"] == "Raiser", (
+            f"error wasn't caught, resp={resp}"
+        )
     else:
-        assert (
-            resp.error and resp.origin_state == "Raiser"
-        ), f"error wasn't caught, resp={resp}"
+        assert resp.error and resp.origin_state == "Raiser", (
+            f"error wasn't caught, resp={resp}"
+        )
 
 
 def test_push_error():
@@ -236,21 +236,21 @@ def test_batch():
 
             # check all timestamps in the batch are the same
             unique_ts = df["timestamp"].unique()
-            assert (
-                len(unique_ts) == 1
-            ), f"Batch {i} has multiple timestamps: {unique_ts}"
+            assert len(unique_ts) == 1, (
+                f"Batch {i} has multiple timestamps: {unique_ts}"
+            )
             batch_ts = unique_ts[0]
 
             # check timestamp order between batches
-            assert (
-                batch_ts > prev_ts
-            ), f"Batch {i} timestamp {batch_ts} not greater than previous {prev_ts}"
+            assert batch_ts > prev_ts, (
+                f"Batch {i} timestamp {batch_ts} not greater than previous {prev_ts}"
+            )
             prev_ts = batch_ts
 
 
 class MyModel(Model):
     def __init__(
-        self, inc: int, gpu_number: Optional[int] = None, err: bool = True, **kwargs
+        self, inc: int, gpu_number: int | None = None, err: bool = True, **kwargs
     ):
         super().__init__(**kwargs)
         self.inc = inc
@@ -640,9 +640,9 @@ def _test_model_runner_raise_error_output(
             if models is None or len(models) == 1:
                 assert "error" in body, f"Expected error field in body got {body}"
             else:
-                assert all(
-                    "error" in body.get(model) for model in models_with_error
-                ), f"Expected error field for each model in body got {body}"
+                assert all("error" in body.get(model) for model in models_with_error), (
+                    f"Expected error field for each model in body got {body}"
+                )
     else:
         if models is None or len(models) == 1:
             assert server.test(body={"n": 1}) == {"n": 2}
@@ -811,12 +811,12 @@ def test_model_runner_with_remote_model(execution_mechanism, notebook_usage):
     )
 
     graph.to(model_runner_step).to(async_model_runner_step).respond()
-    assert (
-        "my_endpoint" in graph.model_endpoints_names
-    ), "model endpoint name not in graph"
-    assert (
-        "my_async_endpoint" in graph.model_endpoints_names
-    ), "async model endpoint name not in graph"
+    assert "my_endpoint" in graph.model_endpoints_names, (
+        "model endpoint name not in graph"
+    )
+    assert "my_async_endpoint" in graph.model_endpoints_names, (
+        "async model endpoint name not in graph"
+    )
     # Mock needed since no artifact is saved in this test, so retrieval by URI isn't possible.
     # Mocked function used to verify artifact URI is passed correctly.
 
@@ -909,9 +909,9 @@ def test_model_runner_with_remote_shared_model():
         shared_model_name="my_model",
     )
     graph.to(model_runner_step).respond()
-    assert (
-        "my_endpoint" in graph.model_endpoints_names
-    ), "model endpoint name not in graph"
+    assert "my_endpoint" in graph.model_endpoints_names, (
+        "model endpoint name not in graph"
+    )
     # Mock needed since no artifact is saved in this test, so retrieval by URI isn't possible.
     # Mocked function used to verify artifact URI is passed correctly.
 
@@ -957,13 +957,13 @@ def test_add_model_after_adding_the_mrs_to_the_graph():
         model_artifact=model_artifact,
         execution_mechanism="naive",
     )
-    assert (
-        "my_endpoint" in graph.model_endpoints_names
-    ), "model endpoint name not in graph"
+    assert "my_endpoint" in graph.model_endpoints_names, (
+        "model endpoint name not in graph"
+    )
 
-    assert (
-        "my_endpoint-2" not in graph.model_endpoints_names
-    ), "model endpoint name not in graph"
+    assert "my_endpoint-2" not in graph.model_endpoints_names, (
+        "model endpoint name not in graph"
+    )
 
     model_runner_step_2.add_model(
         endpoint_name="my_endpoint-2",
@@ -972,13 +972,13 @@ def test_add_model_after_adding_the_mrs_to_the_graph():
         execution_mechanism="naive",
     )
 
-    assert (
-        "my_endpoint" in graph.model_endpoints_names
-    ), "model endpoint name not in graph"
+    assert "my_endpoint" in graph.model_endpoints_names, (
+        "model endpoint name not in graph"
+    )
 
-    assert (
-        "my_endpoint-2" in graph.model_endpoints_names
-    ), "model endpoint name not in graph"
+    assert "my_endpoint-2" in graph.model_endpoints_names, (
+        "model endpoint name not in graph"
+    )
 
 
 def test_get_local_model_path():
@@ -1358,13 +1358,13 @@ def test_configure_model_runner_step_max_threads_processes(concurrency: str):
     server = function.to_mock_server()
 
     if concurrency == "max_processes":
-        assert (
-            server.graph["my_model_runner"]._async_object.max_processes == 32
-        ), "Max processes not configured properly"
+        assert server.graph["my_model_runner"]._async_object.max_processes == 32, (
+            "Max processes not configured properly"
+        )
     elif concurrency == "max_threads":
-        assert (
-            server.graph["my_model_runner"]._async_object.max_threads == 48
-        ), "Max threads not configured properly"
+        assert server.graph["my_model_runner"]._async_object.max_threads == 48, (
+            "Max threads not configured properly"
+        )
     try:
         server.test(body={"n": 1})
     finally:
@@ -1642,6 +1642,10 @@ class StreamingModel(Model):
         for i in range(self.num_chunks):
             yield f"{body}_chunk_{i}"
 
+    async def predict_async(self, body: typing.Any, **kwargs) -> typing.Any:
+        for i in range(self.num_chunks):
+            yield f"{body}_chunk_{i}"
+
 
 class StreamingModelRunnerSelector(ModelRunnerSelector):
     """A selector that always picks the streaming_model."""
@@ -1650,35 +1654,12 @@ class StreamingModelRunnerSelector(ModelRunnerSelector):
         return ["streaming_model"]
 
 
-def test_model_runner_streaming_naive():
-    """Test that streaming models work with naive execution mechanism."""
-    function = mlrun.new_function("tests", kind="serving")
-    graph = function.set_topology("flow", engine="async")
-    model_runner_step = ModelRunnerStep(name="my_model_runner")
-    model_runner_step.add_model(
-        model_class="StreamingModel",
-        execution_mechanism="naive",
-        endpoint_name="streaming_model",
-        num_chunks=3,
-    )
-    graph.to(model_runner_step).to(
-        name="collector", class_name="storey.Collector"
-    ).respond()
-
-    server = function.to_mock_server()
-    try:
-        resp = server.test(body="test")
-        assert resp == ["test_chunk_0", "test_chunk_1", "test_chunk_2"]
-    finally:
-        server.wait_for_completion()
-
-
 @pytest.mark.parametrize(
     "execution_mechanism",
-    ["process_pool", "dedicated_process"],
+    ["naive", "thread_pool", "asyncio", "process_pool", "dedicated_process"],
 )
-def test_model_runner_streaming_process_based(execution_mechanism):
-    """Test that streaming models work with process-based execution mechanisms."""
+def test_model_runner_streaming(execution_mechanism):
+    """Test that streaming models work with all execution mechanisms."""
     function = mlrun.new_function("tests", kind="serving")
     graph = function.set_topology("flow", engine="async")
     model_runner_step = ModelRunnerStep(name="my_model_runner")

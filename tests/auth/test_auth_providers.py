@@ -47,7 +47,9 @@ def test_ig_token_provider_successful_flow(encoded_jwt_token):
     encoded_jwt, iat, exp = encoded_jwt_token
 
     with patch.object(
-        mlrun.auth.utils, "load_offline_token", return_value="offline-token"
+        mlrun.auth.utils,
+        "load_offline_token",
+        return_value=("offline-token", "offline-token-name"),
     ):
         with patch("mlrun.utils.HTTPSessionWithRetry") as mock_session:
             mock_session_instance = mock_session.return_value
@@ -307,9 +309,12 @@ def test_runtime_retry_succeeds_after_initial_failures(encoded_jwt_token, monkey
 
     monkeypatch.setenv("MLRUN_RUNTIME_KIND", "job")
     monkeypatch.setattr("mlrun.mlconf.httpdb.http.verify", True)
-    # Use a timeout longer than backoff (10 seconds) to allow retries
+    # Keep runtime retry behavior but avoid real sleep in tests.
     monkeypatch.setattr(
-        "mlrun.mlconf.auth_with_oauth_token.runtime_token_refresh_timeout", 30
+        "mlrun.mlconf.auth_with_oauth_token.runtime_token_refresh_timeout", 1
+    )
+    monkeypatch.setattr(
+        "mlrun.mlconf.auth_with_oauth_token.runtime_token_refresh_backoff", 0
     )
 
     provider = IGTokenProvider.__new__(IGTokenProvider)
@@ -318,7 +323,7 @@ def test_runtime_retry_succeeds_after_initial_failures(encoded_jwt_token, monkey
     provider._token_expiry_time = None
     provider._max_retries = 2
     provider._token_endpoint = "http://example.com"
-    provider._timeout = 5
+    provider._timeout = 1
 
     # Track number of calls
     call_count = [0]
@@ -327,9 +332,9 @@ def test_runtime_retry_succeeds_after_initial_failures(encoded_jwt_token, monkey
         call_count[0] += 1
         if call_count[0] <= 2:
             # First 2 calls return old/invalid token
-            return "old-invalid-token"
+            return "old-invalid-token", "old-token"
         # Third call returns new valid token
-        return "new-valid-token"
+        return "new-valid-token", "new-token"
 
     monkeypatch.setattr("mlrun.auth.utils.load_offline_token", mock_load_offline_token)
 

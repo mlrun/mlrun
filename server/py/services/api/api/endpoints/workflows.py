@@ -15,9 +15,7 @@
 import collections.abc
 import copy
 import traceback
-import typing
 from http import HTTPStatus
-from typing import Optional
 
 import fastapi
 from fastapi.concurrency import run_in_threadpool
@@ -56,10 +54,10 @@ async def submit_workflow(
         framework.api.deps.authenticate_request
     ),
     db_session: Session = fastapi.Depends(framework.api.deps.get_db_session),
-    client_version: Optional[str] = fastapi.Header(
+    client_version: str | None = fastapi.Header(
         None, alias=mlrun.common.schemas.HeaderNames.client_version
     ),
-    client_python_version: Optional[str] = fastapi.Header(
+    client_python_version: str | None = fastapi.Header(
         None, alias=mlrun.common.schemas.HeaderNames.python_version
     ),
 ):
@@ -276,7 +274,7 @@ def _is_requested_schedule(
 
 def _get_workflow_by_name(
     project: mlrun.common.schemas.ProjectOut, name: str
-) -> typing.Optional[dict]:
+) -> dict | None:
     """
     Getting workflow from project by name.
 

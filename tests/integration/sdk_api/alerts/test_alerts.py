@@ -518,9 +518,9 @@ class TestAlerts(tests.integration.sdk_api.base.TestMLRunIntegration):
         )
 
         drift_template = project.get_alert_template("DataDriftDetected")
-        assert not drift_template.templates_differ(
-            drift_system_template
-        ), "Templates are different"
+        assert not drift_template.templates_differ(drift_system_template), (
+            "Templates are different"
+        )
 
         all_system_templates = project.list_alert_templates()
         assert len(all_system_templates) == 3

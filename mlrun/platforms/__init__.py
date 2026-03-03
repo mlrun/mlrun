@@ -27,8 +27,8 @@ from .iguazio import (
 
 def watch_stream(
     url,
-    shard_ids: Optional[list] = None,
-    seek_to: Optional[str] = None,
+    shard_ids: list | None = None,
+    seek_to: str | None = None,
     interval=None,
     is_json=False,
     **kwargs,

@@ -28,7 +28,7 @@ class PipelineFormat(ObjectFormat, mlrun.common.types.StrEnum):
     summary = "summary"
 
     @staticmethod
-    def format_method(_format: str) -> typing.Optional[typing.Callable]:
+    def format_method(_format: str) -> typing.Callable | None:
         def _full(run: mlrun_pipelines.models.PipelineRun) -> dict:
             return run.to_dict()
 

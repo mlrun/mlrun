@@ -19,7 +19,7 @@ import traceback
 import typing
 from collections.abc import Callable
 from datetime import datetime, timedelta
-from typing import Any, Optional, Union
+from typing import Any, Union
 
 import fastapi.concurrency
 import humanfriendly
@@ -116,8 +116,8 @@ class Scheduler:
         kind: mlrun.common.schemas.ScheduleKinds,
         scheduled_object: Union[dict, Callable],
         cron_trigger: Union[str, mlrun.common.schemas.ScheduleCronTrigger],
-        labels: Optional[dict] = None,
-        concurrency_limit: Optional[int] = None,
+        labels: dict | None = None,
+        concurrency_limit: int | None = None,
     ):
         if isinstance(cron_trigger, str):
             cron_trigger = mlrun.common.schemas.ScheduleCronTrigger.from_crontab(
@@ -189,10 +189,10 @@ class Scheduler:
         auth_info: mlrun.common.schemas.AuthInfo,
         project: str,
         name: str,
-        scheduled_object: Optional[Union[dict, Callable]] = None,
+        scheduled_object: Union[dict, Callable] | None = None,
         cron_trigger: Union[str, mlrun.common.schemas.ScheduleCronTrigger] = None,
-        labels: Optional[dict] = None,
-        concurrency_limit: Optional[int] = None,
+        labels: dict | None = None,
+        concurrency_limit: int | None = None,
     ):
         if isinstance(cron_trigger, str):
             cron_trigger = mlrun.common.schemas.ScheduleCronTrigger.from_crontab(
@@ -253,14 +253,14 @@ class Scheduler:
     def list_schedules(
         self,
         db_session: Session,
-        project: typing.Optional[typing.Union[str, list[str]]] = None,
-        name: Optional[str] = None,
-        kind: Optional[str] = None,
-        labels: Optional[list[str]] = None,
+        project: typing.Union[str, list[str]] | None = None,
+        name: str | None = None,
+        kind: str | None = None,
+        labels: list[str] | None = None,
         include_last_run: bool = False,
         include_credentials: bool = False,
-        next_run_time_since: Optional[datetime] = None,
-        next_run_time_until: Optional[datetime] = None,
+        next_run_time_since: datetime | None = None,
+        next_run_time_until: datetime | None = None,
     ) -> mlrun.common.schemas.SchedulesOutput:
         db_schedules = get_db().list_schedules(
             db_session,
@@ -339,11 +339,11 @@ class Scheduler:
         project: str,
         name: str,
         kind: mlrun.common.schemas.ScheduleKinds = None,
-        scheduled_object: Optional[Union[dict, Callable]] = None,
+        scheduled_object: Union[dict, Callable] | None = None,
         cron_trigger: Union[str, mlrun.common.schemas.ScheduleCronTrigger] = None,
-        labels: Optional[dict] = None,
-        concurrency_limit: Optional[int] = None,
-        fn_kind: Optional[str] = None,
+        labels: dict | None = None,
+        concurrency_limit: int | None = None,
+        fn_kind: str | None = None,
     ):
         if isinstance(cron_trigger, str):
             cron_trigger = mlrun.common.schemas.ScheduleCronTrigger.from_crontab(
@@ -603,7 +603,7 @@ class Scheduler:
 
     def _get_schedule_secrets(
         self, project: str, name: str, include_username: bool = True
-    ) -> tuple[typing.Optional[str], typing.Optional[str]]:
+    ) -> tuple[str | None, str | None]:
         schedule_access_key_secret_key = (
             services.api.crud.Secrets().generate_client_project_secret_key(
                 services.api.crud.SecretsClientType.schedules,
@@ -649,7 +649,7 @@ class Scheduler:
         self,
         cron_trigger: mlrun.common.schemas.ScheduleCronTrigger,
         # accepting now from outside for testing purposes
-        now: Optional[datetime] = None,
+        now: datetime | None = None,
     ):
         """
         Enforce no more than one job per min_allowed_interval
@@ -760,7 +760,7 @@ class Scheduler:
         job_id: str,
         function: Callable,
         trigger: APSchedulerCronTrigger,
-        next_run_time: Optional[datetime] = None,
+        next_run_time: datetime | None = None,
         *args,
         **kwargs,
     ):
@@ -900,7 +900,7 @@ class Scheduler:
         schedule_name: str,
         schedule_concurrency_limit: int,
         auth_info: mlrun.common.schemas.AuthInfo,
-    ) -> tuple[Callable, Optional[Union[list, tuple]], Optional[dict]]:
+    ) -> tuple[Callable, Union[list, tuple] | None, dict | None]:
         """
         :return: a tuple (function, args, kwargs) to be used with the APScheduler.add_job
         """

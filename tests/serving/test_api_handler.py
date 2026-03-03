@@ -1742,6 +1742,18 @@ class TestAPIHandlerStep:
         ):
             step.do(event)
 
+    def test_run_no_path_in_context(self) -> None:
+        """Test running without path in context"""
+        config = APIHandlerConfig()
+        step = _APIHandlerStep(config=config)
+        event = MockEvent(body={"data": "test"}, method="GET")
+        event.path = None
+
+        with pytest.raises(
+            mlrun.errors.MLRunBadRequestError, match="Request path not found"
+        ):
+            step.do(event)
+
     def test_run_string_method_conversion(self) -> None:
         """Test running with string method that gets converted to HTTPMethod"""
         config = APIHandlerConfig()

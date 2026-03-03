@@ -1721,7 +1721,7 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
                 # Missing token during enrichment is a bad request,
                 # not a missing backend resource.
                 raise mlrun.errors.MLRunBadRequestError(
-                    f"Token '{token_name}' not found for user '{user_id}'."
+                    f"Token '{token_name}' not found for user id '{user_id}'."
                 ) from exc
 
             return [{"name": token_name, "token": token_value}]

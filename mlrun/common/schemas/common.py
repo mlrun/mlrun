@@ -20,26 +20,26 @@ import mlrun.errors
 
 
 class ImageBuilder(pydantic.v1.BaseModel):
-    functionSourceCode: typing.Optional[str] = None  # noqa: N815
-    codeEntryType: typing.Optional[str] = None  # noqa: N815
-    codeEntryAttributes: typing.Optional[str] = None  # noqa: N815
-    source: typing.Optional[str] = None
-    code_origin: typing.Optional[str] = None
-    origin_filename: typing.Optional[str] = None
-    image: typing.Optional[str] = None
-    base_image: typing.Optional[str] = None
-    commands: typing.Optional[list] = None
-    extra: typing.Optional[str] = None
-    extra_args: typing.Optional[dict] = None
-    builder_env: typing.Optional[dict] = None
-    secret: typing.Optional[str] = None
-    registry: typing.Optional[str] = None
-    load_source_on_run: typing.Optional[bool] = None
-    with_mlrun: typing.Optional[bool] = None
-    auto_build: typing.Optional[bool] = None
-    build_pod: typing.Optional[str] = None
-    requirements: typing.Optional[list] = None
-    source_code_target_dir: typing.Optional[str] = None
+    functionSourceCode: str | None = None  # noqa: N815
+    codeEntryType: str | None = None  # noqa: N815
+    codeEntryAttributes: str | None = None  # noqa: N815
+    source: str | None = None
+    code_origin: str | None = None
+    origin_filename: str | None = None
+    image: str | None = None
+    base_image: str | None = None
+    commands: list | None = None
+    extra: str | None = None
+    extra_args: dict | None = None
+    builder_env: dict | None = None
+    secret: str | None = None
+    registry: str | None = None
+    load_source_on_run: bool | None = None
+    with_mlrun: bool | None = None
+    auto_build: bool | None = None
+    build_pod: str | None = None
+    requirements: list | None = None
+    source_code_target_dir: str | None = None
 
     class Config:
         extra = pydantic.v1.Extra.allow
@@ -61,9 +61,7 @@ class LabelsModel(pydantic.v1.BaseModel):
         - If no labels are specified, the default is an empty list.
     """
 
-    labels: typing.Optional[
-        typing.Union[str, dict[str, typing.Optional[str]], list[str]]
-    ]
+    labels: typing.Union[str, dict[str, str | None], list[str]] | None
 
     @pydantic.v1.validator("labels")
     @classmethod

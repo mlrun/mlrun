@@ -199,6 +199,8 @@ redirects = {
     "install/kubernetes": "install-mlrun-ce/kubernetes-install.html",
     "install/aws-install": "install-mlrun-ce/aws-install.html",
     "install/remote": "setup-guide.html",
+    "serving/realtime-pipelines": "serving/writing-custom-steps.html",
+    "seerving/model-serving-get-started": "serving/getting-started.html",
 }
 
 smartquotes = False
@@ -206,6 +208,13 @@ smartquotes = False
 # Do not invert all images by default in dark mode
 inverter_all = False
 
+# Timeout (seconds) for a single request
+linkcheck_timeout = 120
+# Number of retries before marking a link broken
+linkcheck_retries = 5
+# Workers num(reduce if sites throttle CI)
+linkcheck_workers = 3
+# A list of regular expressions that match URIs that should not be checked when doing a linkcheck
 linkcheck_ignore = [
     # Ignore all the links to local files
     r"^(?!https?://).*",

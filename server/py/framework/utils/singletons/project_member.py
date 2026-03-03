@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import typing
 
 from mlrun import mlconf
 
@@ -21,7 +20,7 @@ import framework.utils.projects.leader
 import framework.utils.projects.member
 
 # TODO: something nicer
-project_member: typing.Optional[framework.utils.projects.member.Member] = None
+project_member: framework.utils.projects.member.Member | None = None
 
 
 def initialize_project_member():

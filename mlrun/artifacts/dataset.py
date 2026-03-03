@@ -14,7 +14,6 @@
 import os
 import pathlib
 from io import StringIO
-from typing import Optional
 
 import numpy as np
 import pandas as pd
@@ -148,16 +147,16 @@ class DatasetArtifact(Artifact):
 
     def __init__(
         self,
-        key: Optional[str] = None,
+        key: str | None = None,
         df=None,
-        preview: Optional[int] = None,
+        preview: int | None = None,
         format: str = "",  # TODO: should be changed to 'fmt'.
-        stats: Optional[bool] = None,
-        target_path: Optional[str] = None,
-        extra_data: Optional[dict] = None,
-        column_metadata: Optional[dict] = None,
+        stats: bool | None = None,
+        target_path: str | None = None,
+        extra_data: dict | None = None,
+        column_metadata: dict | None = None,
         ignore_preview_limits: bool = False,
-        label_column: Optional[str] = None,
+        label_column: str | None = None,
         **kwargs,
     ):
         format = (format or "").lower()
@@ -199,7 +198,7 @@ class DatasetArtifact(Artifact):
     def spec(self, spec):
         self._spec = self._verify_dict(spec, "spec", DatasetArtifactSpec)
 
-    def upload(self, artifact_path: Optional[str] = None):
+    def upload(self, artifact_path: str | None = None):
         """
         internal, upload to target store
         :param artifact_path: required only for when generating target_path from artifact hash
@@ -388,13 +387,13 @@ def get_df_stats(df):
 def update_dataset_meta(
     artifact,
     from_df=None,
-    schema: Optional[dict] = None,
-    header: Optional[list] = None,
-    preview: Optional[list] = None,
-    stats: Optional[dict] = None,
-    extra_data: Optional[dict] = None,
-    column_metadata: Optional[dict] = None,
-    labels: Optional[dict] = None,
+    schema: dict | None = None,
+    header: list | None = None,
+    preview: list | None = None,
+    stats: dict | None = None,
+    extra_data: dict | None = None,
+    column_metadata: dict | None = None,
+    labels: dict | None = None,
     ignore_preview_limits: bool = False,
 ):
     """Update dataset object attributes/metadata
@@ -468,7 +467,7 @@ def update_dataset_meta(
 
 def upload_dataframe(
     df, target_path, format, src_path=None, **kw
-) -> tuple[Optional[int], Optional[str]]:
+) -> tuple[int | None, str | None]:
     if src_path and os.path.isfile(src_path):
         mlrun.datastore.store_manager.object(url=target_path).upload(src_path)
         return (

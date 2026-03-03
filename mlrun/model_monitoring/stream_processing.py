@@ -41,9 +41,9 @@ class EventStreamProcessor:
         parquet_batching_max_events: int,
         parquet_batching_timeout_secs: int,
         parquet_target: str,
-        aggregate_windows: typing.Optional[list[str]] = None,
+        aggregate_windows: list[str] | None = None,
         aggregate_period: str = "5m",
-        model_monitoring_access_key: typing.Optional[str] = None,
+        model_monitoring_access_key: str | None = None,
     ):
         # General configurations, mainly used for the storey steps in the future serving graph
         self.project = project
@@ -71,10 +71,10 @@ class EventStreamProcessor:
         self,
         tsdb_batching_max_events: int = 10,
         tsdb_batching_timeout_secs: int = 60 * 5,  # Default 5 minutes
-        v3io_access_key: typing.Optional[str] = None,
-        v3io_framesd: typing.Optional[str] = None,
-        v3io_api: typing.Optional[str] = None,
-        model_monitoring_access_key: typing.Optional[str] = None,
+        v3io_access_key: str | None = None,
+        v3io_framesd: str | None = None,
+        v3io_api: str | None = None,
+        model_monitoring_access_key: str | None = None,
     ):
         # Get the V3IO configurations
         self.v3io_framesd = v3io_framesd or mlrun.mlconf.v3io_framesd
@@ -212,8 +212,7 @@ class EventStreamProcessor:
                 "storey.Filter",
                 "ForwardNOP",
                 after="filter_none",
-                _fn="(isinstance(event, dict) and event.get('kind', "
-                ") == 'nop_event')",
+                _fn="(isinstance(event, dict) and event.get('kind', ) == 'nop_event')",
             )
 
             # flatten the events
@@ -378,11 +377,13 @@ class ProcessEndpointEvent(mlrun.feature_store.steps.MapClass):
         # and use them for retrieving the endpoint_id
         function_uri = full_event.body.get(EventFieldType.FUNCTION_URI)
         if not is_not_none(function_uri, [EventFieldType.FUNCTION_URI]):
-            return None
+            full_event.body = None
+            return full_event
 
         model = full_event.body.get(EventFieldType.MODEL)
         if not is_not_none(model, [EventFieldType.MODEL]):
-            return None
+            full_event.body = None
+            return full_event
 
         endpoint_id = event[EventFieldType.ENDPOINT_ID]
 
@@ -409,7 +410,8 @@ class ProcessEndpointEvent(mlrun.feature_store.steps.MapClass):
             field=timestamp,
             dict_path=["when"],
         ):
-            return None
+            full_event.body = None
+            return full_event
 
         if endpoint_id not in self.first_request:
             # Set time for the first request of the current endpoint
@@ -420,25 +422,23 @@ class ProcessEndpointEvent(mlrun.feature_store.steps.MapClass):
             field=request_id,
             dict_path=["request", "id"],
         ):
-            return None
-        if not self.is_valid(
-            validation_function=is_not_none,
-            field=latency,
-            dict_path=["microsec"],
-        ):
-            return None
+            full_event.body = None
+            return full_event
+        # Note: latency (microsec) can be None for streaming responses
         if not self.is_valid(
             validation_function=is_not_none,
             field=features,
             dict_path=["request", "inputs"],
         ):
-            return None
+            full_event.body = None
+            return full_event
         if not self.is_valid(
             validation_function=is_not_none,
             field=predictions,
             dict_path=["resp", "outputs"],
         ):
-            return None
+            full_event.body = None
+            return full_event
 
         # Convert timestamp to a datetime object
         timestamp_obj = datetime.datetime.fromisoformat(timestamp)
@@ -790,8 +790,6 @@ class MapFeatureNames(mlrun.feature_store.steps.MapClass):
 
         """
         event[mapping_dictionary] = {}
-        diff = len(named_iters) - len(values_iters)
-        values_iters += [None] * diff
         for name, value in zip(named_iters, values_iters):
             event[name] = value
             event[mapping_dictionary][name] = value

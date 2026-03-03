@@ -17,7 +17,6 @@ import datetime
 import functools
 import http
 import json
-import typing
 import unittest.mock
 
 import deepdiff
@@ -1061,9 +1060,9 @@ def _verify_request_cookie(headers: dict, session: str):
         f'{mlrun.common.schemas.CookieNames.iguazio}=j:{{"sid": "{session}"}}'
     )
     if cookie_header := set(headers.keys()).intersection({"Cookie", "cookie"}):
-        assert (
-            headers.get(list(cookie_header)[0]) == expected_session_value
-        ), cookie_header
+        assert headers.get(list(cookie_header)[0]) == expected_session_value, (
+            cookie_header
+        )
     elif mlrun.common.schemas.HeaderNames.cookies in headers:
         # in async client we get the `cookies` key while it contains the cookies in form of a dict
         # use requests to construct it back to a string as expected above
@@ -1168,9 +1167,9 @@ def _generate_project(
 def _build_project_response(
     iguazio_client,
     project: mlrun.common.schemas.Project,
-    job_id: typing.Optional[str] = None,
-    operational_status: typing.Optional[mlrun.common.schemas.ProjectState] = None,
-    owner_access_key: typing.Optional[str] = None,
+    job_id: str | None = None,
+    operational_status: mlrun.common.schemas.ProjectState | None = None,
+    owner_access_key: str | None = None,
     with_mlrun_project: bool = False,
 ):
     body = {

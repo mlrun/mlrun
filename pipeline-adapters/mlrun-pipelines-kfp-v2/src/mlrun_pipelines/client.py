@@ -29,8 +29,8 @@ class Client:
     def __new__(
         cls,
         logger: "mlrun.utils.logger.Logger",
-        url: typing.Optional[str] = None,
-        namespace: typing.Optional[str] = None,
+        url: str | None = None,
+        namespace: str | None = None,
     ):
         return mlrun_pipelines.utils.get_client(
             logger=logger, url=url, namespace=namespace

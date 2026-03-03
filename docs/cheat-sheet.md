@@ -403,12 +403,15 @@ fn.with_node_selection(node_selector={"app.iguazio.com/lifecycle": "non-preempti
 
 Docs: [Nuclio Triggers](https://github.com/nuclio/nuclio-jupyter/blob/master/nuclio/triggers.py)
 
+#### HTTP
+
 By default, Nuclio deploys a default HTTP trigger if the function doesn't have one. This is because users typically want to invoke functions through HTTP. 
 However, we provide a way to disable the default HTTP trigger using:
 `function.disable_default_http_trigger()`
 ```{admonition} Note
 
-`disable_default_http_trigger` is supported from Nuclio 1.13.1.
+- `disable_default_http_trigger` is supported from Nuclio 1.13.1.
+- RabbitMQ is supported from 
 ```
 
 Also, you can explicitly enable the default HTTP trigger creation with:
@@ -434,6 +437,23 @@ serve.add_v3io_stream_trigger(
     shards=1,
 )
 
+# RabbitMQ stream trigger
+
+function.add_rabbitmq_trigger(
+    url="amqp://rabbitmq-host:5672",
+    exchange_name="my-exchange",
+    queue_name="my-queue",
+    username="user",
+    password="pass",
+)
+# or with topics (routing keys):
+
+function.add_rabbitmq_trigger(
+    url="amqp://rabbitmq-host:5672",
+    exchange_name="my-exchange",
+    topics=["key1", "key2"],
+)
+
 # Kafka stream trigger
 serve.add_trigger(
     name="kafka",
@@ -445,6 +465,7 @@ serve.add_trigger(
         initial_offset="earliest",
     ),
 )
+
 
 # Cron trigger
 serve.add_trigger("cron_interval", spec=nuclio.CronTrigger(interval="10s"))
@@ -1113,7 +1134,7 @@ feature_service = fvec.get_online_feature_service().feature_service.get(
 ```
 
 ## Real-time pipelines
-Docs: {ref}`serving-graph`, {ref}`model-serve-get-started`, {ref}`use-cases-serving`, {ref}`building-graphs`, {ref}`deploying-graphs`, {ref}`demos-serving`, {ref}`advanced-graph-cfg`.
+Docs: {ref}`serving-graph`, {ref}`basic-example`, {ref}`getting-started`, {ref}`building-graphs`, {ref}`deploying-graphs`, {ref}`demos-serving`, {ref}`advanced-graph-cfg`.
 
 ### Definitions
 
@@ -1128,7 +1149,7 @@ Graphs have two modes (topologies):
 
 ### Simple graph
 
-Docs: [Real-time serving pipelines getting started](./serving/getting-started.ipynb#getting-started)
+Docs: {ref}`basic-example`
 
 Define Python file(s) to orchestrate
 ```python
@@ -1178,7 +1199,7 @@ project.deploy_function(fn)
 
 ### Simple model serving router
 
-Docs: [Example of a simple model serving router](./serving/use-cases.md#example-of-a-simple-model-serving-router)
+Docs: [Example of a simple model serving router](./serving/getting-started.md#example-of-a-simple-model-serving-router)
 
 ```python
 # load the sklearn model serving function and add models to it

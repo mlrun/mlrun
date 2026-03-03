@@ -94,12 +94,12 @@ class DBInterface(ABC):
     def list_distinct_runs_uids(
         self,
         session,
-        project: Optional[str] = None,
-        requested_logs_modes: Optional[list[bool]] = None,
+        project: str | None = None,
+        requested_logs_modes: list[bool] | None = None,
         only_uids: bool = False,
-        last_update_time_from: Optional[datetime.datetime] = None,
-        states: Optional[list[str]] = None,
-        specific_uids: Optional[list[str]] = None,
+        last_update_time_from: datetime.datetime | None = None,
+        states: list[str] | None = None,
+        specific_uids: list[str] | None = None,
     ):
         pass
 
@@ -126,28 +126,28 @@ class DBInterface(ABC):
         self,
         session,
         project: typing.Union[str, list[str]],
-        name: Optional[str] = None,
-        uid: Optional[Union[str, list[str]]] = None,
-        labels: Optional[Union[str, list[str]]] = None,
-        states: Optional[list[str]] = None,
+        name: str | None = None,
+        uid: Union[str, list[str]] | None = None,
+        labels: Union[str, list[str]] | None = None,
+        states: list[str] | None = None,
         sort: bool = True,
         iter: bool = False,
-        start_time_from: Optional[datetime.datetime] = None,
-        start_time_to: Optional[datetime.datetime] = None,
-        last_update_time_from: Optional[datetime.datetime] = None,
-        last_update_time_to: Optional[datetime.datetime] = None,
-        end_time_from: Optional[datetime.datetime] = None,
-        end_time_to: Optional[datetime.datetime] = None,
+        start_time_from: datetime.datetime | None = None,
+        start_time_to: datetime.datetime | None = None,
+        last_update_time_from: datetime.datetime | None = None,
+        last_update_time_to: datetime.datetime | None = None,
+        end_time_from: datetime.datetime | None = None,
+        end_time_to: datetime.datetime | None = None,
         partition_by: mlrun.common.schemas.RunPartitionByField = None,
         rows_per_partition: int = 1,
         partition_sort_by: mlrun.common.schemas.SortField = None,
         partition_order: mlrun.common.schemas.OrderType = mlrun.common.schemas.OrderType.desc,
         max_partitions: int = 0,
-        requested_logs: Optional[bool] = None,
+        requested_logs: bool | None = None,
         return_as_run_structs: bool = True,
         with_notifications: bool = False,
-        offset: Optional[int] = None,
-        limit: Optional[int] = None,
+        offset: int | None = None,
+        limit: int | None = None,
     ) -> mlrun.lists.RunList:
         pass
 
@@ -227,8 +227,8 @@ class DBInterface(ABC):
         project,
         tag="",
         iter=None,
-        producer_id: Optional[str] = None,
-        uid: Optional[str] = None,
+        producer_id: str | None = None,
+        uid: str | None = None,
         raise_on_not_found: bool = True,
         format_: mlrun.common.formatters.ArtifactFormat = mlrun.common.formatters.ArtifactFormat.full,
     ):
@@ -242,29 +242,27 @@ class DBInterface(ABC):
         name="",
         tag="",
         labels=None,
-        since: Optional[datetime.datetime] = None,
-        until: Optional[datetime.datetime] = None,
+        since: datetime.datetime | None = None,
+        until: datetime.datetime | None = None,
         kind=None,
         category: mlrun.common.schemas.ArtifactCategories = None,
-        iter: Optional[int] = None,
+        iter: int | None = None,
         best_iteration: bool = False,
         as_records: bool = False,
-        uid: Optional[str] = None,
-        producer_id: Optional[str] = None,
-        producer_uri: Optional[str] = None,
+        uid: str | None = None,
+        producer_id: str | None = None,
+        producer_uri: str | None = None,
         most_recent: bool = False,
-        parent_uri: typing.Optional[str] = None,
+        parent_uri: str | None = None,
         format_: mlrun.common.formatters.ArtifactFormat = mlrun.common.formatters.ArtifactFormat.full,
-        offset: Optional[int] = None,
-        limit: Optional[int] = None,
-        partition_by: Optional[mlrun.common.schemas.ArtifactPartitionByField] = None,
-        rows_per_partition: Optional[int] = 1,
-        partition_sort_by: Optional[
-            mlrun.common.schemas.SortField
-        ] = mlrun.common.schemas.SortField.updated,
-        partition_order: Optional[
-            mlrun.common.schemas.OrderType
-        ] = mlrun.common.schemas.OrderType.desc,
+        offset: int | None = None,
+        limit: int | None = None,
+        partition_by: mlrun.common.schemas.ArtifactPartitionByField | None = None,
+        rows_per_partition: int | None = 1,
+        partition_sort_by: mlrun.common.schemas.SortField
+        | None = mlrun.common.schemas.SortField.updated,
+        partition_order: mlrun.common.schemas.OrderType
+        | None = mlrun.common.schemas.OrderType.desc,
     ) -> typing.Union[list, mlrun.lists.ArtifactList]:
         pass
 
@@ -315,10 +313,10 @@ class DBInterface(ABC):
         key: str,
         project: str,
         tag: str = "",
-        iter: Optional[str] = None,
-        producer_id: Optional[str] = None,
-        uid: Optional[str] = None,
-    ) -> Optional[dict[str, Any]]:
+        iter: str | None = None,
+        producer_id: str | None = None,
+        uid: str | None = None,
+    ) -> dict[str, Any] | None:
         """
         Validate whether an artifact can be safely removed from the system.
 
@@ -356,10 +354,10 @@ class DBInterface(ABC):
         self,
         session,
         project: str,
-        name: Optional[str] = None,
-        tag: Optional[str] = None,
-        hash_key: Optional[str] = None,
-        format_: Optional[str] = None,
+        name: str | None = None,
+        tag: str | None = None,
+        hash_key: str | None = None,
+        format_: str | None = None,
     ):
         pass
 
@@ -378,17 +376,17 @@ class DBInterface(ABC):
         self,
         session,
         project: Union[str, list[str]],
-        name: Optional[str] = None,
-        tag: Optional[str] = None,
-        kind: Optional[str] = None,
-        labels: Optional[list[str]] = None,
-        states: Optional[list[mlrun.common.schemas.FunctionState]] = None,
-        hash_key: Optional[str] = None,
+        name: str | None = None,
+        tag: str | None = None,
+        kind: str | None = None,
+        labels: list[str] | None = None,
+        states: list[mlrun.common.schemas.FunctionState] | None = None,
+        hash_key: str | None = None,
         format_: mlrun.common.formatters.FunctionFormat = mlrun.common.formatters.FunctionFormat.full,
-        offset: Optional[int] = None,
-        limit: Optional[int] = None,
-        since: Optional[datetime.datetime] = None,
-        until: Optional[datetime.datetime] = None,
+        offset: int | None = None,
+        limit: int | None = None,
+        since: datetime.datetime | None = None,
+        until: datetime.datetime | None = None,
     ):
         pass
 
@@ -399,8 +397,8 @@ class DBInterface(ABC):
         name,
         updates: dict,
         project: str,
-        tag: Optional[str] = None,
-        hash_key: Optional[str] = None,
+        tag: str | None = None,
+        hash_key: str | None = None,
     ):
         pass
 
@@ -427,8 +425,8 @@ class DBInterface(ABC):
         scheduled_object: Any,
         cron_trigger: mlrun.common.schemas.ScheduleCronTrigger,
         concurrency_limit: int,
-        labels: Optional[dict] = None,
-        next_run_time: Optional[datetime.datetime] = None,
+        labels: dict | None = None,
+        next_run_time: datetime.datetime | None = None,
     ):
         pass
 
@@ -440,10 +438,10 @@ class DBInterface(ABC):
         name: str,
         scheduled_object: Any = None,
         cron_trigger: mlrun.common.schemas.ScheduleCronTrigger = None,
-        labels: Optional[dict] = None,
-        last_run_uri: Optional[str] = None,
-        concurrency_limit: Optional[int] = None,
-        next_run_time: Optional[datetime.datetime] = None,
+        labels: dict | None = None,
+        last_run_uri: str | None = None,
+        concurrency_limit: int | None = None,
+        next_run_time: datetime.datetime | None = None,
     ):
         pass
 
@@ -455,10 +453,10 @@ class DBInterface(ABC):
         kind: mlrun.common.schemas.ScheduleKinds = None,
         scheduled_object: Any = None,
         cron_trigger: mlrun.common.schemas.ScheduleCronTrigger = None,
-        labels: Optional[dict] = None,
-        last_run_uri: Optional[str] = None,
-        concurrency_limit: Optional[int] = None,
-        next_run_time: Optional[datetime.datetime] = None,
+        labels: dict | None = None,
+        last_run_uri: str | None = None,
+        concurrency_limit: int | None = None,
+        next_run_time: datetime.datetime | None = None,
     ):
         pass
 
@@ -466,13 +464,13 @@ class DBInterface(ABC):
     def list_schedules(
         self,
         session,
-        project: Optional[Union[str, list[str]]] = None,
-        name: Optional[str] = None,
-        labels: Optional[list[str]] = None,
+        project: Union[str, list[str]] | None = None,
+        name: str | None = None,
+        labels: list[str] | None = None,
         kind: mlrun.common.schemas.ScheduleKinds = None,
-        next_run_time_since: Optional[datetime.datetime] = None,
-        next_run_time_until: Optional[datetime.datetime] = None,
-        limit: typing.Optional[int] = None,
+        next_run_time_since: datetime.datetime | None = None,
+        next_run_time_until: datetime.datetime | None = None,
+        limit: int | None = None,
     ) -> list[mlrun.common.schemas.ScheduleRecord]:
         pass
 
@@ -512,11 +510,11 @@ class DBInterface(ABC):
     def list_projects(
         self,
         session,
-        owner: Optional[str] = None,
+        owner: str | None = None,
         format_: mlrun.common.formatters.ProjectFormat = mlrun.common.formatters.ProjectFormat.full,
-        labels: Optional[list[str]] = None,
+        labels: list[str] | None = None,
         state: mlrun.common.schemas.ProjectState = None,
-        names: Optional[list[str]] = None,
+        names: list[str] | None = None,
     ) -> mlrun.common.schemas.ProjectsOutput:
         pass
 
@@ -524,8 +522,8 @@ class DBInterface(ABC):
     def get_project(
         self,
         session,
-        name: Optional[str] = None,
-        project_id: Optional[int] = None,
+        name: str | None = None,
+        project_id: int | None = None,
     ) -> mlrun.common.schemas.Project:
         pass
 
@@ -593,10 +591,10 @@ class DBInterface(ABC):
     def list_project_summaries(
         self,
         session,
-        owner: Optional[str] = None,
-        labels: Optional[list[str]] = None,
+        owner: str | None = None,
+        labels: list[str] | None = None,
         state: mlrun.common.schemas.ProjectState = None,
-        names: Optional[list[str]] = None,
+        names: list[str] | None = None,
     ):
         pass
 
@@ -635,8 +633,8 @@ class DBInterface(ABC):
         session,
         project: str,
         name: str,
-        tag: Optional[str] = None,
-        uid: Optional[str] = None,
+        tag: str | None = None,
+        uid: str | None = None,
     ) -> mlrun.common.schemas.FeatureSet:
         pass
 
@@ -645,10 +643,10 @@ class DBInterface(ABC):
         self,
         session,
         project: str,
-        name: Optional[str] = None,
-        tag: Optional[str] = None,
-        entities: Optional[list[str]] = None,
-        labels: Optional[list[str]] = None,
+        name: str | None = None,
+        tag: str | None = None,
+        entities: list[str] | None = None,
+        labels: list[str] | None = None,
     ) -> mlrun.common.schemas.FeaturesOutputV2:
         pass
 
@@ -657,9 +655,9 @@ class DBInterface(ABC):
         self,
         session,
         project: str,
-        name: Optional[str] = None,
-        tag: Optional[str] = None,
-        labels: Optional[list[str]] = None,
+        name: str | None = None,
+        tag: str | None = None,
+        labels: list[str] | None = None,
     ) -> mlrun.common.schemas.EntitiesOutputV2:
         pass
 
@@ -668,12 +666,12 @@ class DBInterface(ABC):
         self,
         session,
         project: str,
-        name: Optional[str] = None,
-        tag: Optional[str] = None,
-        state: Optional[str] = None,
-        entities: Optional[list[str]] = None,
-        features: Optional[list[str]] = None,
-        labels: Optional[list[str]] = None,
+        name: str | None = None,
+        tag: str | None = None,
+        state: str | None = None,
+        entities: list[str] | None = None,
+        features: list[str] | None = None,
+        labels: list[str] | None = None,
         partition_by: mlrun.common.schemas.FeatureStorePartitionByField = None,
         rows_per_partition: int = 1,
         partition_sort_by: mlrun.common.schemas.SortField = None,
@@ -726,8 +724,8 @@ class DBInterface(ABC):
         session,
         project: str,
         name: str,
-        tag: Optional[str] = None,
-        uid: Optional[str] = None,
+        tag: str | None = None,
+        uid: str | None = None,
     ) -> mlrun.common.schemas.FeatureVector:
         pass
 
@@ -736,10 +734,10 @@ class DBInterface(ABC):
         self,
         session,
         project: str,
-        name: Optional[str] = None,
-        tag: Optional[str] = None,
-        state: Optional[str] = None,
-        labels: Optional[list[str]] = None,
+        name: str | None = None,
+        tag: str | None = None,
+        state: str | None = None,
+        labels: list[str] | None = None,
         partition_by: mlrun.common.schemas.FeatureStorePartitionByField = None,
         rows_per_partition: int = 1,
         partition_sort_by: mlrun.common.schemas.SortField = None,
@@ -826,9 +824,9 @@ class DBInterface(ABC):
         name: str,
         project: str,
         state: str = mlrun.common.schemas.BackgroundTaskState.running,
-        timeout: Optional[int] = None,
-        error: Optional[str] = None,
-        labels: Optional[dict[str, str]] = None,
+        timeout: int | None = None,
+        error: str | None = None,
+        labels: dict[str, str] | None = None,
     ):
         pass
 
@@ -857,11 +855,11 @@ class DBInterface(ABC):
         session,
         project: str,
         background_task_exceeded_timeout_func,
-        states: Optional[list[str]] = None,
-        created_from: Optional[datetime.datetime] = None,
-        created_to: Optional[datetime.datetime] = None,
-        last_update_time_from: Optional[datetime.datetime] = None,
-        last_update_time_to: Optional[datetime.datetime] = None,
+        states: list[str] | None = None,
+        created_from: datetime.datetime | None = None,
+        created_to: datetime.datetime | None = None,
+        last_update_time_from: datetime.datetime | None = None,
+        last_update_time_to: datetime.datetime | None = None,
     ) -> list[mlrun.common.schemas.BackgroundTask]:
         pass
 
@@ -902,10 +900,10 @@ class DBInterface(ABC):
     def list_alerts(
         self,
         session,
-        project: typing.Optional[typing.Union[str, list[str]]] = None,
+        project: typing.Union[str, list[str]] | None = None,
         exclude_updated: bool = False,
-        limit: typing.Optional[int] = None,
-        offset: typing.Optional[int] = None,
+        limit: int | None = None,
+        offset: int | None = None,
     ) -> list[mlrun.common.schemas.AlertConfig]:
         pass
 
@@ -914,7 +912,7 @@ class DBInterface(ABC):
         self,
         session,
         project: str,
-        chunk_size: typing.Optional[int] = None,
+        chunk_size: int | None = None,
     ) -> list[int]:
         pass
 
@@ -984,11 +982,11 @@ class DBInterface(ABC):
         session,
         project: str,
         name: str,
-        last_updated: typing.Optional[datetime.datetime],
-        count: typing.Optional[int] = None,
+        last_updated: datetime.datetime | None,
+        count: int | None = None,
         active: bool = False,
-        obj: typing.Optional[dict] = None,
-        alert_id: typing.Optional[int] = None,
+        obj: dict | None = None,
+        alert_id: int | None = None,
     ):
         pass
 
@@ -1025,10 +1023,9 @@ class DBInterface(ABC):
         session,
         activation_id: int,
         activation_time: datetime.datetime,
-        number_of_events: Optional[int] = None,
-        notifications_states: Optional[
-            list[mlrun.common.schemas.NotificationState]
-        ] = None,
+        number_of_events: int | None = None,
+        notifications_states: list[mlrun.common.schemas.NotificationState]
+        | None = None,
         update_reset_time: bool = False,
     ):
         pass
@@ -1038,19 +1035,17 @@ class DBInterface(ABC):
         self,
         session,
         projects_with_creation_time: list[tuple[str, datetime.datetime]],
-        name: Optional[str] = None,
-        since: Optional[datetime.datetime] = None,
-        until: Optional[datetime.datetime] = None,
-        entity: Optional[str] = None,
-        severity: Optional[
-            list[Union[mlrun.common.schemas.alert.AlertSeverity, str]]
-        ] = None,
-        entity_kind: Optional[
-            Union[mlrun.common.schemas.alert.EventEntityKind, str]
-        ] = None,
-        event_kind: Optional[Union[mlrun.common.schemas.alert.EventKind, str]] = None,
-        offset: typing.Optional[int] = None,
-        limit: typing.Optional[int] = None,
+        name: str | None = None,
+        since: datetime.datetime | None = None,
+        until: datetime.datetime | None = None,
+        entity: str | None = None,
+        severity: list[Union[mlrun.common.schemas.alert.AlertSeverity, str]]
+        | None = None,
+        entity_kind: Union[mlrun.common.schemas.alert.EventEntityKind, str]
+        | None = None,
+        event_kind: Union[mlrun.common.schemas.alert.EventKind, str] | None = None,
+        offset: int | None = None,
+        limit: int | None = None,
     ) -> list[mlrun.common.schemas.AlertActivation]:
         pass
 
@@ -1085,8 +1080,8 @@ class DBInterface(ABC):
         self,
         session,
         project: str,
-        name: Optional[str] = None,
-        run_uid: Optional[str] = None,
+        name: str | None = None,
+        run_uid: str | None = None,
         commit: bool = True,
     ):
         pass
@@ -1113,7 +1108,7 @@ class DBInterface(ABC):
         session,
         profile: str,
         project: str,
-    ) -> Optional[mlrun.common.schemas.DatastoreProfile]:
+    ) -> mlrun.common.schemas.DatastoreProfile | None:
         pass
 
     def delete_datastore_profile(
@@ -1159,11 +1154,11 @@ class DBInterface(ABC):
     def list_paginated_query_cache_record(
         self,
         session,
-        key: Optional[str] = None,
-        user: Optional[str] = None,
-        function: Optional[str] = None,
-        last_accessed_before: Optional[datetime.datetime] = None,
-        order_by: Optional[mlrun.common.schemas.OrderType] = None,
+        key: str | None = None,
+        user: str | None = None,
+        function: str | None = None,
+        last_accessed_before: datetime.datetime | None = None,
+        order_by: mlrun.common.schemas.OrderType | None = None,
         as_query: bool = False,
     ):
         raise NotImplementedError
@@ -1206,8 +1201,8 @@ class DBInterface(ABC):
         self,
         session,
         key: str,
-        timestamp: typing.Optional[datetime.datetime] = None,
-        max_window_size_seconds: typing.Optional[int] = None,
+        timestamp: datetime.datetime | None = None,
+        max_window_size_seconds: int | None = None,
     ):
         pass
 
@@ -1255,9 +1250,9 @@ class DBInterface(ABC):
         session,
         project: str,
         name: str,
-        function_name: Optional[str] = None,
-        function_tag: typing.Optional[str] = None,
-        uid: typing.Optional[str] = None,
+        function_name: str | None = None,
+        function_tag: str | None = None,
+        uid: str | None = None,
     ) -> mlrun.common.schemas.ModelEndpoint:
         """
         Get a model endpoint by project, name and uid.
@@ -1279,9 +1274,9 @@ class DBInterface(ABC):
         project: str,
         name: str,
         attributes: dict,
-        function_name: Optional[str] = None,
-        function_tag: typing.Optional[str] = None,
-        uid: typing.Optional[str] = None,
+        function_name: str | None = None,
+        function_tag: str | None = None,
+        uid: str | None = None,
     ) -> str:
         """
         Update a model endpoint by project, name and uid.
@@ -1321,21 +1316,21 @@ class DBInterface(ABC):
         self,
         session,
         project: str,
-        names: typing.Optional[list[str]] = None,
-        function_name: typing.Optional[str] = None,
-        function_tag: typing.Optional[str] = None,
-        model_name: typing.Optional[str] = None,
-        model_tag: typing.Optional[str] = None,
-        top_level: typing.Optional[bool] = None,
-        modes: typing.Optional[list[mlrun.common.schemas.EndpointMode]] = None,
-        labels: typing.Optional[list[str]] = None,
-        start: typing.Optional[datetime.datetime] = None,
-        end: typing.Optional[datetime.datetime] = None,
-        uids: typing.Optional[list[str]] = None,
+        names: list[str] | None = None,
+        function_name: str | None = None,
+        function_tag: str | None = None,
+        model_name: str | None = None,
+        model_tag: str | None = None,
+        top_level: bool | None = None,
+        modes: list[mlrun.common.schemas.EndpointMode] | None = None,
+        labels: list[str] | None = None,
+        start: datetime.datetime | None = None,
+        end: datetime.datetime | None = None,
+        uids: list[str] | None = None,
         latest_only: bool = False,
-        offset: typing.Optional[int] = None,
-        limit: typing.Optional[int] = None,
-        order_by: typing.Optional[str] = None,
+        offset: int | None = None,
+        limit: int | None = None,
+        order_by: str | None = None,
         as_dict: bool = False,
     ) -> Union[
         mlrun.common.schemas.ModelEndpointList,
@@ -1374,9 +1369,9 @@ class DBInterface(ABC):
         session,
         project: str,
         name: str,
-        function_name: Optional[str] = None,
-        function_tag: typing.Optional[str] = None,
-        uid: typing.Optional[str] = None,
+        function_name: str | None = None,
+        function_tag: str | None = None,
+        uid: str | None = None,
     ) -> None:
         """
         Delete a model endpoint by project, name and uid.
@@ -1395,7 +1390,7 @@ class DBInterface(ABC):
         self,
         session,
         project: str,
-        uids: typing.Optional[list[str]] = None,
+        uids: list[str] | None = None,
     ) -> None:
         """
         Delete model endpoints across projects and names.
@@ -1409,7 +1404,7 @@ class DBInterface(ABC):
         self,
         session,
         project: str,
-        uids: typing.Optional[list[str]] = None,
+        uids: list[str] | None = None,
     ) -> None:
         """
         Delete multiple feature sets.
@@ -1429,7 +1424,7 @@ class DBInterface(ABC):
         self,
         session: sqlalchemy.orm.Session,
         table_name: str,
-    ) -> Optional[mlrun.common.schemas.partition_interval.PartitionInterval]:
+    ) -> mlrun.common.schemas.partition_interval.PartitionInterval | None:
         """
         Retrieve the partition interval registered for a specific table, if any.
 

@@ -903,6 +903,8 @@ def setup_ce(
         "argoWorkflows.controller.metricsConfig.enabled=false",
         "--set",
         "kube-prometheus-stack.enabled=false",
+        "--set",
+        f"kafka.rbac.operatorNamespace={admin_namespace}",
     ]
     if mlrun_install_extra_values:
         for key, value in mlrun_install_extra_values.items():
@@ -968,7 +970,7 @@ def upgrade_images(
                 allow_dev_versions=dev_versions,
             ).lstrip("v")
 
-    registry_url = f"{docker_registry}/{user}"
+    registry_url = f"{docker_registry}/{user}" if user else docker_registry
     run_command(
         ["helm", "dependency", "build"],
         cwd=charts,

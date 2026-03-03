@@ -16,7 +16,6 @@ import hashlib
 import re
 from dataclasses import dataclass, field
 from enum import Enum, IntEnum
-from typing import Optional
 
 import mlrun.common.constants
 import mlrun.common.helpers
@@ -345,6 +344,10 @@ class MonitoringFunctionNames(MonitoringStrEnum):
     WRITER = "model-monitoring-writer"
 
 
+class MonitoringAlertNames(MonitoringStrEnum):
+    LAG_DETECTED = "monitoring-lag-detected"
+
+
 class V3IOTSDBTables(MonitoringStrEnum):
     APP_RESULTS = "app-results"
     METRICS = "metrics"
@@ -364,8 +367,8 @@ class TimescaleDBTables(MonitoringStrEnum):
 class FunctionURI:
     project: str
     function: str
-    tag: Optional[str] = None
-    hash_key: Optional[str] = None
+    tag: str | None = None
+    hash_key: str | None = None
 
     @classmethod
     def from_string(cls, function_uri):
@@ -383,7 +386,7 @@ class FunctionURI:
 @dataclass
 class VersionedModel:
     model: str
-    version: Optional[str]
+    version: str | None
 
     @classmethod
     def from_string(cls, model):

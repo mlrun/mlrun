@@ -16,9 +16,11 @@ import os
 from base64 import b64decode
 from copy import deepcopy
 from http import HTTPMethod
-from typing import Optional, Union
+from typing import Union
 
 import nuclio
+from jsonpath_ng import parse as jsonpath_parse
+from jsonpath_ng.exceptions import JsonPathLexerError, JsonPathParserError
 from nuclio import KafkaTrigger
 from nuclio.triggers import NuclioTrigger
 
@@ -57,11 +59,32 @@ serving_subkind = "serving_v2"
 class APIHandlerConfig(mlrun.model.ModelObj):
     """Configuration for API handler in serving graph"""
 
-    _dict_fields = ["enabled", "endpoints"]
+    _dict_fields = ["enabled", "endpoints", "body_map", "include_url_info"]
 
-    def __init__(self, enabled: bool = True, endpoints: dict[str, dict] | None = None):
+    def __init__(
+        self,
+        enabled: bool = True,
+        endpoints: dict[str, dict] | None = None,
+        body_map: dict[str, str] | None = None,
+        include_url_info: bool = False,
+    ):
         self.enabled = enabled
         self._endpoints = endpoints or {}
+        self._body_map = body_map or {}
+        self.include_url_info = include_url_info
+
+    @property
+    def body_map(self) -> dict[str, str]:
+        """Get the body_map configuration as a dictionary."""
+        return self._body_map
+
+    @body_map.setter
+    def body_map(self, value: dict[str, str] | None) -> None:
+        """Set the body_map configuration from a dictionary."""
+        self._body_map = {}
+        if value:
+            for parameter_name, json_path in value.items():
+                self.add_body_mapping(parameter_name, json_path)
 
     @property
     def endpoints(self) -> dict[str, dict]:
@@ -92,25 +115,93 @@ class APIHandlerConfig(mlrun.model.ModelObj):
                 f"Invalid endpoint key format '{endpoint_key}'. Expected 'METHOD:path'"
             ) from e
 
-    def get_endpoint_config(self, method: HTTPMethod, path: str) -> dict | None:
+    @staticmethod
+    def _normalize_path(path: str) -> str:
+        """Normalize path to ensure it starts with a forward slash.
+
+        :param path: URL path to normalize
+        :return: Normalized path with leading slash
+        """
+        if not path.startswith("/"):
+            return f"/{path}"
+        return path
+
+    @staticmethod
+    def _validate_path(path: str) -> None:
+        """Validate an endpoint path for structural correctness.
+
+        Currently enforces wildcard ``*`` rules:
+
+        * ``*`` may only appear once.
+        * ``*`` must be the last character in the path.
+
+        :param path: Normalized path (with leading ``/``) to validate.
+        :raises mlrun.errors.MLRunValueError: If the path contains an invalid ``*`` pattern.
+        """
+        star_count = path.count("*")
+        if star_count == 0:
+            return
+        # We know there is a wildcard, validate its position and count
+        if path[-1] != "*":
+            raise mlrun.errors.MLRunValueError(
+                f"Invalid endpoint path '{path}': "
+                f"wildcard '*' must be at the end of the path"
+            )
+        if star_count > 1:
+            raise mlrun.errors.MLRunValueError(
+                f"Invalid endpoint path '{path}': "
+                f"wildcard '*' must appear only once at the end of the path"
+            )
+
+    @staticmethod
+    def _validate_http_method(http_method: HTTPMethod | str) -> HTTPMethod:
+        """Validate and normalize the provided HTTP method.
+
+        :param http_method: HTTP method to validate (HTTPMethod enum or string)
+        :return: Normalized HTTPMethod enum value
+        :raises mlrun.errors.MLRunInvalidArgumentError: If method is not a valid HTTPMethod or string
+        """
+        if isinstance(http_method, HTTPMethod):
+            return http_method
+        if isinstance(http_method, str):
+            try:
+                return HTTPMethod(http_method.upper())
+            except ValueError:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    f"Invalid HTTP method string '{http_method}'. "
+                    f"Valid values are: {', '.join(m.value for m in HTTPMethod)}"
+                ) from None
+        # Not HTTPMethod or str - reject with helpful error
+        raise mlrun.errors.MLRunInvalidArgumentError(
+            f"http_method must be an HTTPMethod enum or string, got {type(http_method).__name__} "
+            f"with value '{http_method}'. Valid values are: {', '.join(m.value for m in HTTPMethod)}"
+        )
+
+    def get_endpoint_config(self, method: HTTPMethod | str, path: str) -> dict | None:
         """Get endpoint configuration for a specific method and path."""
+        method = self._validate_http_method(method)
+        path = self._normalize_path(path)
         endpoint_key = serving_utils._combine_serving_endpoint_key(method, path)
         return self._endpoints.get(endpoint_key)
 
     def add_endpoint_handler(
         self,
         path: str,
-        http_method: HTTPMethod = HTTPMethod.POST,
+        http_method: HTTPMethod | str = HTTPMethod.POST,
         action: schemas.serving.APIHandlerAction = schemas.serving.APIHandlerAction.ALLOW,
         description: str | None = None,
     ) -> None:
         """Add an endpoint handler configuration.
 
-        :param path: URL path for the endpoint (e.g., '/v1/models')
-        :param http_method: HTTP method for the endpoint
+        :param path: URL path for the endpoint (e.g., '/v1/models' or '/api/v1/*')
+        :param http_method: HTTP method for the endpoint (HTTPMethod enum or string like 'GET', 'POST')
         :param action: Action to take for this endpoint (:py:class:`~mlrun.common.schemas.serving.APIHandlerAction`)
         :param description: Optional description of the endpoint
+        :raises mlrun.errors.MLRunValueError: If the path contains an invalid wildcard ``*`` pattern
         """
+        http_method = self._validate_http_method(http_method)
+        path = self._normalize_path(path)
+        self._validate_path(path)
         endpoint_key = serving_utils._combine_serving_endpoint_key(http_method, path)
 
         # Warn if overriding an existing endpoint
@@ -131,21 +222,71 @@ class APIHandlerConfig(mlrun.model.ModelObj):
     def remove_endpoint_handler(
         self,
         path: str,
-        http_method: HTTPMethod = HTTPMethod.POST,
+        http_method: HTTPMethod | str = HTTPMethod.POST,
     ) -> None:
         """Remove an endpoint handler configuration.
 
         :param path: URL path for the endpoint to remove
-        :param http_method: HTTP method for the endpoint to remove
+        :param http_method: HTTP method for the endpoint to remove (HTTPMethod enum or string like 'GET', 'POST')
         """
+        http_method = self._validate_http_method(http_method)
+        path = self._normalize_path(path)
         endpoint_key = serving_utils._combine_serving_endpoint_key(http_method, path)
         self._endpoints.pop(endpoint_key, None)
+
+    def add_body_mapping(self, parameter_name: str, json_path: str) -> None:
+        """Add a JSONPath body mapping for extracting request parameters.
+
+        Maps a JSONPath expression to a parameter name. When a request is received,
+        the JSONPath will be evaluated against the request body and the result
+        will be passed as a named parameter to the handler function.
+
+        :param parameter_name: Name of the parameter to pass to the handler
+        :param json_path: JSONPath expression to extract the value from request body
+                         (e.g., '$.user.name' or '$.items[*].id')
+        :raises mlrun.errors.MLRunValueError: If json_path is not a valid JSONPath expression
+
+        Example::
+
+            config = APIHandlerConfig()
+            config.add_body_mapping("user_name", "$.user.name")
+            config.add_body_mapping("user_email", "$.user.contact.email")
+            config.add_body_mapping(
+                "item_ids", "$.items[*].id"
+            )  # Multiple matches return list
+        """
+        # Validate JSONPath expression by parsing it
+        try:
+            jsonpath_parse(json_path)
+        except (JsonPathLexerError, JsonPathParserError) as exc:
+            raise mlrun.errors.MLRunValueError(
+                f"Invalid JSON path expression for parameter '{parameter_name}': "
+                f"'{json_path}'. Error: {exc}"
+            ) from exc
+
+        # Warn if overriding an existing mapping
+        if parameter_name in self._body_map:
+            logger.warning(
+                "Overriding existing body mapping",
+                parameter_name=parameter_name,
+                old_json_path=self._body_map[parameter_name],
+                new_json_path=json_path,
+            )
+
+        self._body_map[parameter_name] = json_path
+
+    def remove_body_mapping(self, parameter_name: str) -> None:
+        """Remove a body mapping by parameter name.
+
+        :param parameter_name: Name of the parameter mapping to remove
+        """
+        self._body_map.pop(parameter_name, None)
 
 
 def new_v2_model_server(
     name,
     model_class: str,
-    models: Optional[dict] = None,
+    models: dict | None = None,
     filename="",
     protocol="",
     image="",
@@ -248,8 +389,9 @@ class ServingSpec(nuclio_function.NuclioSpec):
         model_endpoint_creation_task_name=None,
         serving_spec=None,
         auth=None,
-        streaming: Optional[bool] = None,
+        streaming: bool | None = None,
         api_handler_config: APIHandlerConfig | None = None,
+        env_from=None,
     ):
         super().__init__(
             command=command,
@@ -264,6 +406,7 @@ class ServingSpec(nuclio_function.NuclioSpec):
             volumes=volumes,
             volume_mounts=volume_mounts,
             env=env,
+            env_from=env_from,
             resources=resources,
             config=config,
             base_spec=base_spec,
@@ -354,7 +497,7 @@ class ServingRuntime(nuclio_function.RemoteRuntime):
         engine=None,
         exist_ok=False,
         allow_cyclic: bool = False,
-        max_iterations: Optional[int] = None,
+        max_iterations: int | None = None,
         **class_args,
     ) -> Union[RootFlowStep, RouterStep]:
         """set the serving graph topology (router/flow) and root class or params
@@ -426,9 +569,9 @@ class ServingRuntime(nuclio_function.RemoteRuntime):
 
     def set_tracking(
         self,
-        stream_path: Optional[str] = None,
+        stream_path: str | None = None,
         sampling_percentage: float = 100,
-        stream_args: Optional[dict] = None,
+        stream_args: dict | None = None,
         enable_tracking: bool = True,
     ) -> None:
         """Apply on your serving function to monitor a deployed model, including real-time dashboards to detect drift
@@ -444,7 +587,9 @@ class ServingRuntime(nuclio_function.RemoteRuntime):
         Example::
 
             # initialize a new serving function
-            serving_fn = mlrun.import_function("hub://v2-model-server", new_name="serving")
+            serving_fn = mlrun.import_function(
+                "hub://v2-model-server", new_name="serving"
+            )
             # apply model monitoring
             serving_fn.set_tracking()
 
@@ -545,16 +690,15 @@ class ServingRuntime(nuclio_function.RemoteRuntime):
     def add_model(
         self,
         key: str,
-        model_path: Optional[str] = None,
-        class_name: Optional[str] = None,
-        model_url: Optional[str] = None,
-        handler: Optional[str] = None,
-        router_step: Optional[str] = None,
-        child_function: Optional[str] = None,
-        creation_strategy: Optional[
-            schemas.ModelEndpointCreationStrategy
-        ] = schemas.ModelEndpointCreationStrategy.INPLACE,
-        outputs: Optional[list[str]] = None,
+        model_path: str | None = None,
+        class_name: str | None = None,
+        model_url: str | None = None,
+        handler: str | None = None,
+        router_step: str | None = None,
+        child_function: str | None = None,
+        creation_strategy: schemas.ModelEndpointCreationStrategy
+        | None = schemas.ModelEndpointCreationStrategy.INPLACE,
+        outputs: list[str] | None = None,
         **class_args,
     ):
         """Add ml model and/or route to the function.
@@ -737,7 +881,7 @@ class ServingRuntime(nuclio_function.RemoteRuntime):
                         stream.path, group=group, shards=stream.shards, **trigger_args
                     )
 
-    def _deploy_function_refs(self, builder_env: Optional[dict] = None):
+    def _deploy_function_refs(self, builder_env: dict | None = None):
         """set metadata and deploy child functions"""
         for function_ref in self._spec.function_refs.values():
             logger.info(f"deploy child function {function_ref.name} ...")
@@ -816,7 +960,7 @@ class ServingRuntime(nuclio_function.RemoteRuntime):
         project="",
         tag="",
         verbose=False,
-        builder_env: Optional[dict] = None,
+        builder_env: dict | None = None,
         force_build: bool = False,
     ):
         """deploy model serving function to a local/remote cluster
@@ -933,7 +1077,7 @@ class ServingRuntime(nuclio_function.RemoteRuntime):
         current_function="*",
         track_models=False,
         workdir=None,
-        stream_profile: Optional[ds_profile.DatastoreProfile] = None,
+        stream_profile: ds_profile.DatastoreProfile | None = None,
         **kwargs,
     ) -> GraphServer:
         """create mock server object for local testing/emulation
@@ -977,6 +1121,7 @@ class ServingRuntime(nuclio_function.RemoteRuntime):
             api_handler_config=self.spec.api_handler_config,
             **kwargs,
         )
+        server.streaming = self.spec.streaming
         server.init_states(
             context=None,
             namespace=namespace,
@@ -988,11 +1133,14 @@ class ServingRuntime(nuclio_function.RemoteRuntime):
 
         server.graph = add_system_steps_to_graph(
             server.project,
-            server.graph,
+            deepcopy(server.graph),
             self.spec.track_models,
             server.context,
             self.spec,
         )
+
+        # Update context.root to point to the new graph
+        server.context.root = server.graph
 
         if workdir:
             os.chdir(old_workdir)
@@ -1005,7 +1153,9 @@ class ServingRuntime(nuclio_function.RemoteRuntime):
 
         example::
 
-            serving_fn = mlrun.new_function("serving", image="mlrun/mlrun", kind="serving")
+            serving_fn = mlrun.new_function(
+                "serving", image="mlrun/mlrun", kind="serving"
+            )
             serving_fn.add_model(
                 "my-classifier",
                 model_path=model_path,
@@ -1032,9 +1182,7 @@ class ServingRuntime(nuclio_function.RemoteRuntime):
         )
         self._mock_server = self.to_mock_server()
 
-    def to_job(
-        self, func_name: Optional[str] = None
-    ) -> "kubejob_runtime.KubejobRuntime":
+    def to_job(self, func_name: str | None = None) -> "kubejob_runtime.KubejobRuntime":
         """Convert this ServingRuntime to a KubejobRuntime, so that the graph can be run as a standalone job.
 
         :param func_name: Optional custom name for the job function. If not provided, automatically

@@ -61,7 +61,7 @@ TimescaleDB and Kafka are part of the default CE installations for model monitor
   - `Brokers`: kafka-stream.<namespace>.svc.cluster.local:9092
   
   ### Configuring data store profiles
-  The connections are managed by using [data store profiles](../store/datastore.md#data-store-profiles). Data store profiles manage the connection credentials securely.
+  The connections are managed by using [data store profiles](../store/datastore.md#datastore-profiles). Data store profiles manage the connection credentials securely.
   ```python
   from mlrun.datastore.datastore_profile import (
       DatastoreProfileKafkaStream,

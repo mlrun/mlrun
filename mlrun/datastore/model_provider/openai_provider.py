@@ -616,3 +616,8 @@ class OpenAIProvider(ModelProvider):
             token = self._extract_stream_token(chunk)
             if token:
                 yield token
+
+    def dummy_func(self):
+        x = 1
+        x+= 2
+        print(x+3)

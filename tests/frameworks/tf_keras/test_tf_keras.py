@@ -26,7 +26,6 @@ try:
     from mlrun.frameworks.tf_keras import TFKerasModelHandler, apply_mlrun
     from mlrun.frameworks.tf_keras.utils import is_keras_3
 except ImportError:
-
     # just so pytest doesn't fail
     def is_keras_3():
         return False

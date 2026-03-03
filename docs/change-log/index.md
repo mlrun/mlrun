@@ -438,7 +438,7 @@ To upgrade the MLRun server:
 #### Data store
 | ID      | Description                                                                             |
 |---------|-----------------------------------------------------------------------------------------|
-| ML-5726 | Add support for [Hadoop/hdfs datastore](../store/datastore.md#hdfs-data-store-profile). |
+| ML-5726 | Add support for [Hadoop/hdfs datastore](../store/datastore.md#hdfs-datastore-profile). |
 
 #### Notifications
 | ID      | Description                                                                                                                                          |
@@ -614,7 +614,7 @@ To upgrade the MLRun server:
 | ID      | Description                                                                                                                                                                      |
 |---------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | ML-3618 | Integrate MLflow: seamlessly integrate and transfer logs from MLflow to MLRun. Tech Preview.                           |
-| ML-4343 | Datastore profiles (for managing datastore credentials) now support Azure, DBFS, GCS, Kafka, and S3. See [Using data store profiles](../store/datastore.md#data-store-profiles). |
+| ML-4343 | Datastore profiles (for managing datastore credentials) now support Azure, DBFS, GCS, Kafka, and S3. See [Using datastore profiles](../store/datastore.md#datastore-profiles). |
 
 #### Feature store
 | ID      | Description                                                                                                                                                         |
@@ -731,7 +731,7 @@ To upgrade the MLRun server:
 #### Data store
 | ID     | Description                                                                                                                                                                                                     |
 |----------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-|ML-2296| Add ability to manage Redis datastore credentials with datastore profiles. See [Using data store profiles](../store/datastore.md#data-store-profiles), [view in Git](https://github.com/mlrun/mlrun/pull/3936). |
+|ML-2296| Add ability to manage Redis datastore credentials with datastore profiles. See [Using datastore profiles](../store/datastore.md#datastore-profiles), [view in Git](https://github.com/mlrun/mlrun/pull/3936). |
 |ML-3500| Support for DBFS data store (Databricks file system). See [Databricks file system](../store/datastore.md#databricks-file-system), [view in Git](https://github.com/mlrun/mlrun/pull/3626).                      |
 
 #### Feature store

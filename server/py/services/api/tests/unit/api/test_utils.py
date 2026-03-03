@@ -2229,12 +2229,12 @@ def test_resolve_auth_token_name_success(
 
 
 def test_resolve_auth_token_name_k8s_error_token_not_found(mock_k8s_helper):
-    """Test that k8s 404 error propagates when a specific token is not found."""
+    """Test that k8s 400 error propagates when a specific token is not found."""
     mock_k8s_helper.get_user_secret_tokens_as_igz_yml_data.side_effect = (
-        mlrun.errors.MLRunNotFoundError("Token not found")
+        mlrun.errors.MLRunBadRequestError("Token not found")
     )
 
-    with pytest.raises(mlrun.errors.MLRunNotFoundError, match="Token not found"):
+    with pytest.raises(mlrun.errors.MLRunBadRequestError, match="Token not found"):
         services.api.utils.helpers.resolve_auth_token_name(
             provided_token_name="my-token", user_id="test-user"
         )

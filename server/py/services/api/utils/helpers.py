@@ -86,8 +86,7 @@ def resolve_auth_token_name(
     :param username: The username for which the token is being resolved.
     :param provided_token_name: Specific token to validate, or None to resolve from existing user tokens.
     :return: The resolved token name.
-    :raises MLRunNotFoundError: If a specific token doesn't exist or is invalid.
-    :raises MLRunBadRequestError: If no valid tokens found for the user (auth token required).
+    :raises MLRunBadRequestError: If the provided token is not found or no valid tokens exist for the user.
     """
     k8s_helper = framework.utils.singletons.k8s.get_k8s_helper()
     secret_tokens = k8s_helper.get_user_secret_tokens_as_igz_yml_data(

@@ -1092,13 +1092,13 @@ def test_get_user_secret_tokens_as_igz_yml_data_single_token(k8s_helper):
 
 
 def test_get_user_secret_tokens_as_igz_yml_data_single_token_not_found(k8s_helper):
-    """Test that MLRunNotFoundError is raised when requested token doesn't exist."""
+    """Test that MLRunBadRequestError is raised when requested token doesn't exist."""
     user_id = "test-user-id"
     token_name = "missing-token"
 
     k8s_helper.list_secrets = mock.MagicMock(return_value=None)
 
-    with pytest.raises(mlrun.errors.MLRunNotFoundError):
+    with pytest.raises(mlrun.errors.MLRunBadRequestError):
         k8s_helper.get_user_secret_tokens_as_igz_yml_data(
             user_id=user_id, token_name=token_name
         )

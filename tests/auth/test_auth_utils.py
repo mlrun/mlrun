@@ -671,3 +671,175 @@ def test_resolve_jwt_username_invalid_token():
         "not-a-valid-jwt", raise_on_error=False
     )
     assert result is None
+
+
+@pytest.mark.parametrize(
+    "secret_tokens_factory, authenticated_id, skip_invalid, expected_valid_names, should_raise",
+    [
+        # skip_invalid=True: invalid JWT token is skipped, valid one is kept
+        (
+            lambda: [
+                mlrun.common.schemas.SecretToken(
+                    name="valid_token",
+                    token=_create_jwt_token({"sub": "user-123", "exp": 9999999999}),
+                ),
+                mlrun.common.schemas.SecretToken(
+                    name="invalid_token",
+                    token="not-a-valid-jwt",
+                ),
+            ],
+            "user-123",
+            True,
+            ["valid_token"],
+            False,
+        ),
+        # skip_invalid=True: invalid token first, valid token second — valid one still kept
+        (
+            lambda: [
+                mlrun.common.schemas.SecretToken(
+                    name="bad_token",
+                    token="corrupted-jwt-data",
+                ),
+                mlrun.common.schemas.SecretToken(
+                    name="good_token",
+                    token=_create_jwt_token({"sub": "user-123", "exp": 9999999999}),
+                ),
+            ],
+            "user-123",
+            True,
+            ["good_token"],
+            False,
+        ),
+        # skip_invalid=True: token missing 'exp' claim is skipped
+        (
+            lambda: [
+                mlrun.common.schemas.SecretToken(
+                    name="no_exp",
+                    token=_create_jwt_token({"sub": "user-123"}, add_defaults=False),
+                ),
+                mlrun.common.schemas.SecretToken(
+                    name="good_token",
+                    token=_create_jwt_token({"sub": "user-123", "exp": 9999999999}),
+                ),
+            ],
+            "user-123",
+            True,
+            ["good_token"],
+            False,
+        ),
+        # skip_invalid=True: token missing 'sub' claim is skipped
+        (
+            lambda: [
+                mlrun.common.schemas.SecretToken(
+                    name="no_sub",
+                    token=_create_jwt_token({"exp": 9999999999}, add_defaults=False),
+                ),
+                mlrun.common.schemas.SecretToken(
+                    name="good_token",
+                    token=_create_jwt_token({"sub": "user-123", "exp": 9999999999}),
+                ),
+            ],
+            "user-123",
+            True,
+            ["good_token"],
+            False,
+        ),
+        # skip_invalid=True: all tokens invalid — returns empty dict
+        (
+            lambda: [
+                mlrun.common.schemas.SecretToken(
+                    name="bad1",
+                    token="not-a-jwt",
+                ),
+                mlrun.common.schemas.SecretToken(
+                    name="bad2",
+                    token="also-not-a-jwt",
+                ),
+            ],
+            "user-123",
+            True,
+            [],
+            False,
+        ),
+        # skip_invalid=True: wrong user token is skipped (with filter_by_authenticated_id
+        # handled separately, this tests the user mismatch raise path)
+        (
+            lambda: [
+                mlrun.common.schemas.SecretToken(
+                    name="wrong_user",
+                    token=_create_jwt_token({"sub": "other-user", "exp": 9999999999}),
+                ),
+                mlrun.common.schemas.SecretToken(
+                    name="good_token",
+                    token=_create_jwt_token({"sub": "user-123", "exp": 9999999999}),
+                ),
+            ],
+            "user-123",
+            True,
+            ["good_token"],
+            False,
+        ),
+        # skip_invalid=False (default): invalid JWT raises immediately
+        (
+            lambda: [
+                mlrun.common.schemas.SecretToken(
+                    name="valid_token",
+                    token=_create_jwt_token({"sub": "user-123", "exp": 9999999999}),
+                ),
+                mlrun.common.schemas.SecretToken(
+                    name="invalid_token",
+                    token="not-a-valid-jwt",
+                ),
+            ],
+            "user-123",
+            False,
+            None,
+            True,
+        ),
+    ],
+)
+def test_extract_and_validate_tokens_info_skip_invalid(
+    secret_tokens_factory,
+    authenticated_id,
+    skip_invalid,
+    expected_valid_names,
+    should_raise,
+):
+    """Test that skip_invalid=True skips bad tokens instead of raising."""
+    secret_tokens = secret_tokens_factory()
+
+    if should_raise:
+        with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
+            mlrun.auth.utils.extract_and_validate_tokens_info(
+                secret_tokens,
+                authenticated_id=authenticated_id,
+                skip_invalid=skip_invalid,
+            )
+    else:
+        result = mlrun.auth.utils.extract_and_validate_tokens_info(
+            secret_tokens,
+            authenticated_id=authenticated_id,
+            skip_invalid=skip_invalid,
+        )
+        assert list(result.keys()) == expected_valid_names
+
+
+def test_load_and_prepare_secret_tokens_skips_invalid(tmp_path, monkeypatch):
+    """Test that load_and_prepare_secret_tokens skips invalid tokens from igz.yml
+    and still returns the valid ones (simulates the import mlrun flow)."""
+    valid_jwt = _create_jwt_token({"sub": "user-123", "exp": 9999999999})
+    tokens = [
+        {"name": "good_token", "token": valid_jwt},
+        {"name": "bad_token", "token": "corrupted-jwt-data"},
+    ]
+
+    content = {"secretTokens": tokens}
+    path = _write_file(tmp_path, "tokens.yml", content)
+    monkeypatch.setattr(config.auth_with_oauth_token, "token_file", path)
+
+    secret_tokens = mlrun.auth.utils.load_and_prepare_secret_tokens(
+        auth_user_id="user-123"
+    )
+    assert len(secret_tokens) == 1
+    assert secret_tokens[0].name == "good_token"
+    assert secret_tokens[0].token == valid_jwt

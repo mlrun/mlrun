@@ -202,8 +202,11 @@ graph.to(name="PrintEvent", handler="print_event").to(
     name="PrintEventLog", handler="print_event_log", function="log-ds")
 
 graph.plot(rankdir="LR")
-addr_serving = fn_seving.deploy()
+```
+<br><img src="../_static/images/serving-graph-kafka-queue-flows.svg" alt="graph-flow" width="800"/><br>
 
+```Python
+addr_serving = fn_seving.deploy()
 events = [{"int": 2, "x2": 2 * 2} ]
 payload = {"records": events}
 result = fn_seving.invoke("", body=payload)

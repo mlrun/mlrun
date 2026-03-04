@@ -881,6 +881,43 @@ class TestNuclioRuntime(TestMLRunSystemModelMonitoring):
             f"running serving async mode took {timing} seconds should be < 7"
         )
 
+    def test_invoke_head_method_does_not_raise(self) -> None:
+        """Regression test for ML-12228.
+
+        HTTP HEAD responses carry no body (RFC 9110 §9.3.2).  Nuclio strips
+        the body but keeps ``Content-Type: application/json``.  Before the fix,
+        ``RemoteRuntime.invoke()`` unconditionally called
+        ``json.loads(resp.content)`` when that header was present, crashing
+        with ``JSONDecodeError`` on the empty body.
+
+        After the fix (guard: ``if data and ...``), invoking with HEAD returns
+        ``b""`` instead of raising.
+        """
+        code_path = str(self.assets_path / "echo_handler.py")
+
+        self._logger.debug("Creating nuclio function for ML-12228 repro")
+        function = mlrun.code_to_function(
+            name="ml12228-head-repro",
+            kind="nuclio",
+            project=self.project_name,
+            filename=code_path,
+            image=self.image,
+            handler="handler",
+        )
+
+        self._logger.debug("Deploying function")
+        function.deploy()
+
+        # POST: body present, JSON parsed normally.
+        self._logger.debug("Invoking POST – should return parsed JSON")
+        result = function.invoke("/", body={"data": "ml12228"})
+        assert result == {"echo": {"data": "ml12228"}}
+
+        # HEAD: body stripped by HTTP; invoke() must return b"" without raising.
+        self._logger.debug("Invoking HEAD – must not raise (ML-12228 fix)")
+        result = function.invoke("/", method="HEAD")
+        assert result == b""
+
 
 @tests.system.base.TestMLRunSystem.skip_test_if_env_not_configured
 @pytest.mark.enterprise

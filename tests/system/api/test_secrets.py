@@ -353,7 +353,7 @@ class TestKubernetesProjectSecrets(TestMLRunSystem):
                 # Run with only a partial list of secret keys. Validate that only specified secrets are accessible
                 "task": mlrun.new_task().with_secrets("kubernetes", ["secret1"]),
                 "params": list(secrets.keys()),
-                "expected": {"secret1": secrets["secret1"], "SECRET2": "None"},
+                "expected": {"secret1": secrets["secret1"], "SECRET2": None},
             },
         ]
 

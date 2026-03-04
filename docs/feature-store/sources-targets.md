@@ -285,7 +285,7 @@ The combination of a NoSQL target with the storey engine does not support featur
 ```{admonition} Note
 RedisNoSql target is currently in Tech Preview status.
 ```
-See also [Redis data store profile](#redisnosql-data-store-profile).
+See also [Redis datastore profile](#redisnosql-datastore-profile).
 
 The Redis online target is called, in MLRun, `RedisNoSqlTarget`. The functionality of the `RedisNoSqlTarget` is identical to the `NoSqlTarget` except for:
 - The RedisNoSqlTarget accepts the path parameter in the form: `<redis|rediss>://<host>[:port]`
@@ -305,7 +305,7 @@ To use the Redis online target store, you can either change the default to be pa
 explicitly each time with the path parameter, for example:</br>
 `RedisNoSqlTarget(path ="redis://1.2.3.4:6379")`
 
-### RedisNoSql data store profile
+### RedisNoSql datastore profile
 ```python
 profile = DatastoreProfileRedis(
     name="profile-name",

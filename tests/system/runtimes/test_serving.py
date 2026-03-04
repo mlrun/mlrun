@@ -126,7 +126,7 @@ class TestServingAPIHandler(tests.system.base.TestMLRunSystem):
         self._logger.debug("Testing forbidden API handler endpoint")
         with pytest.raises(
             RuntimeError,
-            match=r"MLRunBadRequestError: Access forbidden to GET /api/v1/admin",
+            match=r"MLRunAccessDeniedError: Access forbidden to GET /api/v1/admin",
         ):
             function.invoke(
                 path="/api/v1/admin", method="GET", body={"test": "restricted"}

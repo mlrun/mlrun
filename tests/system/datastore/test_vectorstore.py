@@ -46,7 +46,8 @@ config_file_path = os.path.join(here, "../env.yml")
 config = {}
 if os.path.exists(config_file_path):
     with open(config_file_path) as yaml_file:
-        config = yaml.safe_load(yaml_file)
+        env = yaml.safe_load(yaml_file)
+        config = env if isinstance(env, dict) else {}
 
 
 @pytest.mark.skipif(

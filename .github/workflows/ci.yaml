@@ -410,8 +410,32 @@ jobs:
           diff-cover tests/coverage_reports/combined.xml \
           --compare-branch origin/development \
           --show-uncovered \
-          --html-report tests/coverage_reports/combined_diff.html
-      - name: Upload coverage diff report
+          --html-report tests/coverage_reports/combined_diff.html \
+          --markdown-report tests/coverage_reports/diff_coverage.md
+
+      - name: Add coverage to job summary
+        if: github.event_name == 'pull_request'
+        run: |
+          {
+            echo "## 📊 Diff Coverage Report"
+            echo ""
+            echo "<details>"
+            echo "<summary>📂 Click to view full coverage details</summary>"
+            echo ""
+            cat tests/coverage_reports/diff_coverage.md
+            echo ""
+            echo "</details>"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload markdown coverage report for PR comment
+        if: github.event_name == 'pull_request'
+        uses: actions/upload-artifact@v7
+        with:
+          name: coverage-markdown-report
+          path: tests/coverage_reports/diff_coverage.md
+          retention-days: 30
+
+      - name: Upload coverage html diff report
         uses: actions/upload-artifact@v7
         with:
           name: coverage_combined_diff_report_${{ matrix.python-version }}_${{ github.run_id }}.html

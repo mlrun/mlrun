@@ -161,6 +161,7 @@ All steps are supported by the storey engine.
 - [VotingEnsemble](#votingensemble)
 - [QueryByKey](#querybykey)
 - [RemoteStep](#remotestep)
+- [RemoteFunctionStep](#remotefunctionstep)
 - [ONNXModelServer](#onnxmodelserver)
 - [PyTorchModelServer](#pytorchmodelserver)
 - [SKLearnModelServer](#sklearnmodelserver)
@@ -182,6 +183,11 @@ All steps are supported by the storey engine.
 - Use Case: 
 - Example:
  
+### RemoteFunctionStep
+- Description: Calls remote functions. See {py:class}`~mlrun.serving.remote.RemoteFunctionStep`.
+- Use Case: 
+- Example:
+
 ### ONNXModelServer
 - Description: A model serving class for serving ONYX Models. A sub-class of the  V2ModelServer class. See {py:class}`~mlrun.frameworks.onnx.ONNXModelServer`.
 - Use Case: 
@@ -205,4 +211,4 @@ All steps are supported by the storey engine.
 ### XGBModelServer
 - Description: See {py:class}`~mlrun.frameworks.xgboost.XGBModelServer`.
 - Use Case: 
-- Example:ß
+- Example:

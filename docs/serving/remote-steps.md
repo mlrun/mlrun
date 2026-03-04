@@ -12,6 +12,7 @@ See the full parameter list in {py:class}`~mlrun.serving.remote.RemoteStep`.
 ## Examples
 Using the `async` engine to trigger an external heavy process, such as a service generating a test using model and storing it in a DB would look similar to:
 ```Python
+from mlrun.serving.remote import RemoteStep
 flow = function.set_topology("flow", engine="async")
 flow.to(name="step1", handler="func1").to(
     RemoteStep(name="remote_echo", url="<func-url>")).to(

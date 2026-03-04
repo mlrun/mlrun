@@ -12,15 +12,15 @@ See the full parameter list in {py:class}`~mlrun.serving.remote.RemoteStep`.
 ## Examples
 Using the `async` engine to trigger an external heavy process, such as a service generating a test using model and storing it in a DB would look similar to:
 ```Python
-flow = function.get_model_prediction("flow", engine="sync")
+flow = function.set_topology("flow", engine="async")
 flow.to(name="step1", handler="func1").to(
-    RemoteStep(name="prediction",url="http://someservice/path")).to(
+    RemoteStep(name="remote_echo", url="<func-url>")).to(
     name="laststep", handler="func2").respond()
 ```
 
 A typical example using the `sync` engine would be to get a prediction from a model:
 ```Python
-flow = function.set_topology("flow", engine="async")
+flow = function.get_model_prediction("flow", engine="sync")
 flow.to(name="step1", handler="func1").to(
     RemoteStep(name="prediction", url="<func-url>")).to(
     name="laststep", handler="func2").respond()
@@ -30,6 +30,6 @@ Example pipeline using an MLRun function URI, for example to get inference from 
 ```Python
 flow = function.set_topology("flow", engine="async")
 flow.to(name="step1", handler="func1").to(
-    RemoteStep(name="prediction", url="http://someservice/path")).to(
+    RemoteStep(name="prediction", url="<func-url>")).to(
     name="laststep", handler="func2").respond()
 ```

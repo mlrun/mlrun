@@ -1,0 +1,96 @@
+# Copyright 2026 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+name: Post Coverage Comment
+
+on:
+  workflow_run:
+    workflows: ["CI"]
+    types:
+      - completed
+
+jobs:
+  post_coverage_comment:
+    runs-on: ubuntu-latest
+    if: >
+      github.event.workflow_run.event == 'pull_request' &&
+      github.event.workflow_run.conclusion == 'success'
+    permissions:
+      pull-requests: write
+      actions: read
+    steps:
+      - name: Download coverage artifact
+        uses: dawidd6/action-download-artifact@2536c51d3d126276eb39f74d6bc9c72ac6ef30d3
+        with:
+          name: coverage-markdown-report
+          workflow_conclusion: success
+          run_id: ${{ github.event.workflow_run.id }}
+          path: coverage_artifacts
+
+
+      - name: Locate coverage file
+        id: file
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [ ! -f "coverage_artifacts/diff_coverage.md" ]; then
+            echo "Error: diff_coverage.md not found in coverage_artifacts/"
+            ls -R coverage_artifacts || true
+            exit 1
+          fi
+
+          cp coverage_artifacts/diff_coverage.md diff_coverage.md
+          echo "Found coverage file at: coverage_artifacts/diff_coverage.md"
+
+      - name: Get PR number
+        id: pr
+        shell: bash
+        env:
+          PULL_REQUESTS_JSON: ${{ toJSON(github.event.workflow_run.pull_requests) }}
+        run: |
+          set -euo pipefail
+
+          PR_NUMBER=$(echo "${PULL_REQUESTS_JSON}" | jq -r '.[0].number // empty')
+
+          if [ -z "${PR_NUMBER}" ] || [ "${PR_NUMBER}" = "null" ]; then
+            echo "Error: No PR number found in workflow_run payload"
+            exit 1
+          fi
+
+          echo "Found PR number: ${PR_NUMBER}"
+          echo "pr_number=${PR_NUMBER}" >> "$GITHUB_OUTPUT"
+
+      - name: Build coverage comment file
+        shell: bash
+        run: |
+          set -euo pipefail
+          {
+            echo "## 📊 Diff Coverage Report"
+            echo ""
+            echo "<details>"
+            echo "<summary>📂 Click to view full coverage details</summary>"
+            echo ""
+            cat diff_coverage.md | head -n 1500
+            echo ""
+            echo "</details>"
+          } > final_comment.md
+
+      - name: Post Comment to PR
+        uses: thollander/actions-comment-pull-request@24bffb9b452ba05a4f3f77933840a6a841d1b32b
+        with:
+          pr-number: ${{ steps.pr.outputs.pr_number }}
+          file-path: final_comment.md
+          comment-tag: coverage_report
+          mode: recreate

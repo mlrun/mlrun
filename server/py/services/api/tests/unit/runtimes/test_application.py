@@ -269,24 +269,21 @@ class TestApplicationRuntime(TestRuntimeBase):
         )
 
     @pytest.mark.parametrize(
-        "workdir,expected_workdir,expected_pythonpath",
+        "workdir,expected_resolved_dir",
         [
             # Relative workdir - joined with default target dir
             (
                 "app_runtime_git",
-                f"{mlrun.common.constants.DEFAULT_SOURCE_CODE_TARGET_DIR}/app_runtime_git",
                 f"{mlrun.common.constants.DEFAULT_SOURCE_CODE_TARGET_DIR}/app_runtime_git",
             ),
             # Absolute workdir - used as-is
             (
                 "/opt/myapp",
                 "/opt/myapp",
-                "/opt/myapp",
             ),
             # No workdir - defaults to target dir
             (
                 None,
-                mlrun.common.constants.DEFAULT_SOURCE_CODE_TARGET_DIR,
                 mlrun.common.constants.DEFAULT_SOURCE_CODE_TARGET_DIR,
             ),
         ],
@@ -296,8 +293,7 @@ class TestApplicationRuntime(TestRuntimeBase):
         db: Session,
         client: TestClient,
         workdir,
-        expected_workdir,
-        expected_pythonpath,
+        expected_resolved_dir,
     ):
         """Verify that workdir is applied to the sidecar's workingDir and PYTHONPATH."""
         function = self._generate_runtime(self.runtime_kind)
@@ -312,11 +308,11 @@ class TestApplicationRuntime(TestRuntimeBase):
 
         sidecars = function.spec.config.get("spec.sidecars", [])
         assert len(sidecars) == 1
-        assert sidecars[0].get("workingDir") == expected_workdir
+        assert sidecars[0].get("workingDir") == expected_resolved_dir
 
         sidecar_env = sidecars[0].get("env", [])
         pythonpath = next(e for e in sidecar_env if e.get("name") == "PYTHONPATH")
-        assert pythonpath["value"] == expected_pythonpath
+        assert pythonpath["value"] == expected_resolved_dir
 
     @pytest.mark.parametrize(
         "source,load_source_on_run",

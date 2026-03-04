@@ -292,7 +292,7 @@ def test_load_secret_tokens_from_file_invalid(tmp_path, content, monkeypatch):
                     token=_create_jwt_token({"sub": "user-123", "exp": 9999999999}),
                 ),
             ],
-            mlrun.errors.MLRunInvalidArgumentError,
+            mlrun.errors.MLRunRuntimeError,
         ),
         # Duplicate token names
         (
@@ -306,7 +306,7 @@ def test_load_secret_tokens_from_file_invalid(tmp_path, content, monkeypatch):
                     token=_create_jwt_token({"sub": "user-123", "exp": 9999999999}),
                 ),
             ],
-            mlrun.errors.MLRunInvalidArgumentError,
+            mlrun.errors.MLRunRuntimeError,
         ),
         # Invalid JWT token (not a valid JWT)
         (
@@ -393,7 +393,7 @@ def _write_file(tmp_path, name: str, content) -> str:
 
 
 @pytest.mark.parametrize(
-    "token_1, token_2, should_raise, expected_err_msg, expected_token_1, expected_token_2, authenticated_id",
+    "token_1, token_2, expected_error_class, expected_err_msg, expected_token_1, expected_token_2, authenticated_id",
     [
         # Valid tokens with different names
         (
@@ -407,7 +407,7 @@ def _write_file(tmp_path, name: str, content) -> str:
                 "token_payload": {"sub": "user-123", "exp": 9999999999},
                 "add_defaults": True,
             },
-            False,
+            None,
             None,
             {"sub": "user-123", "exp": 9999999999},
             {"sub": "user-123", "exp": 9999999999},
@@ -425,7 +425,7 @@ def _write_file(tmp_path, name: str, content) -> str:
                 "token_payload": {"sub": "user-123", "exp": 9999999999},
                 "add_defaults": True,
             },
-            True,
+            mlrun.errors.MLRunInvalidArgumentError,
             "Offline token 'token1' is missing the 'exp' (expiration) claim",
             None,
             None,
@@ -443,7 +443,7 @@ def _write_file(tmp_path, name: str, content) -> str:
                 "token_payload": {"sub": "user-123", "exp": 9999999999},
                 "add_defaults": True,
             },
-            True,
+            mlrun.errors.MLRunInvalidArgumentError,
             "Offline token 'token1' is missing the 'sub' (subject) claim",
             None,
             None,
@@ -461,7 +461,7 @@ def _write_file(tmp_path, name: str, content) -> str:
                 "token_payload": {"sub": "different-user", "exp": 9999999999},
                 "add_defaults": True,
             },
-            True,
+            mlrun.errors.MLRunInvalidArgumentError,
             "Offline token 'token1' does not match the authenticated user ID. Stored tokens can only belong to the"
             " authenticated user.",
             None,
@@ -480,7 +480,7 @@ def _write_file(tmp_path, name: str, content) -> str:
                 "token_payload": {"sub": "user-123", "exp": 9999999999},
                 "add_defaults": True,
             },
-            True,
+            mlrun.errors.MLRunRuntimeError,
             "Duplicate token name 'token1' found in request payload, only first occurrence is synced to the backend.",
             None,
             None,
@@ -498,7 +498,7 @@ def _write_file(tmp_path, name: str, content) -> str:
                 "token_payload": {"sub": "user-123", "exp": 9999999999},
                 "add_defaults": True,
             },
-            True,
+            mlrun.errors.MLRunRuntimeError,
             "Token with invalid name found in request payload",
             None,
             None,
@@ -509,7 +509,7 @@ def _write_file(tmp_path, name: str, content) -> str:
 def test_extract_and_validate_tokens_info(
     token_1,
     token_2,
-    should_raise,
+    expected_error_class,
     expected_err_msg,
     expected_token_1,
     expected_token_2,
@@ -530,10 +530,8 @@ def test_extract_and_validate_tokens_info(
         ),
     ]
 
-    if should_raise:
-        with pytest.raises(
-            mlrun.errors.MLRunInvalidArgumentError, match=re.escape(expected_err_msg)
-        ):
+    if expected_error_class:
+        with pytest.raises(expected_error_class, match=re.escape(expected_err_msg)):
             mlrun.auth.utils.extract_and_validate_tokens_info(
                 secret_tokens, authenticated_id
             )

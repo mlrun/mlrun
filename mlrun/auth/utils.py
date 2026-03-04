@@ -351,10 +351,10 @@ def extract_and_validate_tokens_info(
                 )
             else:
                 message = "Token with invalid name found in request payload"
-            if skip_invalid:
-                mlrun.utils.logger.warning(message)
-                continue
-            raise mlrun.errors.MLRunInvalidArgumentError(message)
+            mlrun.utils.helpers.raise_or_log_error(
+                message, raise_on_error=not skip_invalid
+            )
+            continue
     return token_values
 
 

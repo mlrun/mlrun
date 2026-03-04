@@ -895,9 +895,9 @@ class TestNuclioRuntime(TestMLRunSystemModelMonitoring):
         """
         code_path = str(self.assets_path / "echo_handler.py")
 
-        self._logger.debug("Creating nuclio function for ML-12228 repro")
+        self._logger.debug("Creating nuclio function")
         function = mlrun.code_to_function(
-            name="ml12228-head-repro",
+            name="nuclio-head-repro",
             kind="nuclio",
             project=self.project_name,
             filename=code_path,
@@ -910,11 +910,11 @@ class TestNuclioRuntime(TestMLRunSystemModelMonitoring):
 
         # POST: body present, JSON parsed normally.
         self._logger.debug("Invoking POST – should return parsed JSON")
-        result = function.invoke("/", body={"data": "ml12228"})
-        assert result == {"echo": {"data": "ml12228"}}
+        result = function.invoke("/", body={"data": "hello"})
+        assert result == {"echo": {"data": "hello"}}
 
         # HEAD: body stripped by HTTP; invoke() must return b"" without raising.
-        self._logger.debug("Invoking HEAD – must not raise (ML-12228 fix)")
+        self._logger.debug("Invoking HEAD – must not raise")
         result = function.invoke("/", method="HEAD")
         assert result == b""
 

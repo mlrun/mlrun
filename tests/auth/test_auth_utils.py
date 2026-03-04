@@ -825,8 +825,8 @@ def test_extract_and_validate_tokens_info_skip_invalid(
 
 
 def test_load_and_prepare_secret_tokens_skips_invalid(tmp_path, monkeypatch):
-    """Test that load_and_prepare_secret_tokens skips invalid tokens from igz.yml
-    and still returns the valid ones (simulates the import mlrun flow)."""
+    """Test that load_and_prepare_secret_tokens with raise_on_error=False skips
+    invalid tokens and still returns the valid ones (simulates the import mlrun flow)."""
     valid_jwt = _create_jwt_token({"sub": "user-123", "exp": 9999999999})
     tokens = [
         {"name": "good_token", "token": valid_jwt},
@@ -838,7 +838,8 @@ def test_load_and_prepare_secret_tokens_skips_invalid(tmp_path, monkeypatch):
     monkeypatch.setattr(config.auth_with_oauth_token, "token_file", path)
 
     secret_tokens = mlrun.auth.utils.load_and_prepare_secret_tokens(
-        auth_user_id="user-123"
+        auth_user_id="user-123",
+        raise_on_error=False,
     )
     assert len(secret_tokens) == 1
     assert secret_tokens[0].name == "good_token"

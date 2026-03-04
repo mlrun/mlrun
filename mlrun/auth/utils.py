@@ -247,8 +247,9 @@ def load_and_prepare_secret_tokens(
       3. Translate validated token dictionaries into SecretToken objects.
 
     :param auth_user_id: The user ID to filter the tokens by.
-    :param raise_on_error: Whether to raise exceptions or log warnings on failure
-                           in any of the steps (loading, validation, translation).
+    :param raise_on_error: Whether to raise exceptions or log warnings on failure.
+                           Also controls whether invalid tokens are skipped
+                           (``skip_invalid=not raise_on_error``).
     :return: List of SecretToken objects.
     :rtype: list[mlrun.common.schemas.SecretToken]
     """
@@ -263,7 +264,7 @@ def load_and_prepare_secret_tokens(
         ],
         authenticated_id=auth_user_id,
         filter_by_authenticated_id=True,
-        skip_invalid=True,
+        skip_invalid=not raise_on_error,
     )
     secret_tokens = _translate_secret_tokens(
         validated_tokens, raise_on_error=raise_on_error
@@ -343,9 +344,17 @@ def extract_and_validate_tokens_info(
                     continue
                 raise
         else:
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                f"Invalid or duplicate token name '{secret_token.name}' found in request payload"
-            )
+            if secret_token.name:
+                message = (
+                    f"Duplicate token name '{secret_token.name}' found in request payload, "
+                    "only first occurrence is synced to the backend."
+                )
+            else:
+                message = "Token with invalid name found in request payload"
+            if skip_invalid:
+                mlrun.utils.logger.warning(message)
+                continue
+            raise mlrun.errors.MLRunInvalidArgumentError(message)
     return token_values
 
 

@@ -3405,7 +3405,7 @@ class RootFlowStep(FlowStep):
             event loop to continue running while waiting for a response.
 
             * **shared_executor**:
-            
+
             Reuses an external executor (typically managed by the flow or context) to execute
             the runnable. Should be used only if you have multiple `ParallelExecution` in the same flow and
             especially useful when:
@@ -3418,7 +3418,7 @@ class RootFlowStep(FlowStep):
             memory and hardware accelerators.
 
             * **naive**:
-            
+
             To run in the main event loop. This is appropriate only for trivial computation and/or file
             I/O. It means that the runnable will not actually be run in parallel to anything else.
 

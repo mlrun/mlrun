@@ -773,7 +773,11 @@ def _should_fetch_source_code(
     :param function: The function object
     :return: True if init container is needed, False otherwise
     """
-    source = function.spec.build.source
+    # build.source may be empty after from_image() clears it on redeploy.
+    # fall back to status.application_source which preserves the original source URI.
+    source = function.spec.build.source or getattr(
+        function.status, "application_source", None
+    )
     if not source:
         return False
 
@@ -813,7 +817,9 @@ def _configure_source_loader_init_container(
     :param client_version: Client version for resolving the init container image
     :param client_python_version: Client Python version for resolving the init container image
     """
-    source = function.spec.build.source
+    source = function.spec.build.source or getattr(
+        function.status, "application_source", None
+    )
     workdir = function.spec.workdir
     target_dir = (
         function.spec.build.source_code_target_dir

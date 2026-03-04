@@ -15,6 +15,7 @@
 import asyncio
 import json
 from copy import copy
+from typing import Union
 
 import aiohttp
 import requests
@@ -26,6 +27,7 @@ import mlrun.common.schemas
 import mlrun.config
 import mlrun.platforms
 import mlrun.utils.async_http
+from mlrun.common.helpers import parse_versioned_object_uri
 from mlrun.errors import err_to_str
 from mlrun.utils import dict_to_json, logger
 
@@ -536,3 +538,77 @@ class MLRunAPIRemoteStep(RemoteStep):
         self.fill_placeholders = self.fill_placeholders or False
         self.rundb = mlrun.get_run_db()
         self.url = self.rundb.get_base_api_url(self.path)
+
+
+class RemoteFunctionStep(RemoteStep):
+    """
+    Graph step implementation for invoking functions remotely.
+    :param fn: Either an `mlrun.runtimes.RemoteRuntime` object or
+    a string URI in the form `function_name` or `project_name/function_name`.
+    :param project_name: Optional project name containing the function. If not provided,
+    the project name will be derived automatically according to the following order:
+    1. Extracted from the function URI (if specified as 'project_name/function_name')
+    2. Taken from the `project_name` parameter
+    3. Inferred from the current runtime or graph execution context
+    """
+
+    def __init__(
+        self,
+        fn: Union[mlrun.runtimes.RemoteRuntime, str, None] = None,
+        project_name: str = "",
+        **kwargs,
+    ):
+        super().__init__(url="", **kwargs)
+        self.rundb = None
+        self.fn = fn
+        self.project_name = project_name
+
+    def post_init(self, mode="sync", **kwargs) -> None:
+        self.rundb = mlrun.get_run_db()
+        if not isinstance(self.fn, (mlrun.runtimes.RemoteRuntime, str)):
+            raise mlrun.errors.MLRunInvalidArgumentTypeError(
+                "Parameter 'fn' must be of type mlrun.runtimes.RemoteRuntime or str."
+            )
+
+        if not self.fn:
+            raise mlrun.errors.MLRunRuntimeError(
+                "Parameter 'fn' have to be initialized."
+            )
+
+        if isinstance(self.fn, str):
+            project, uri, tag, hash_key = parse_versioned_object_uri(self.fn)
+
+            if self.project_name and project:
+                if self.project_name != project:
+                    raise mlrun.errors.MLRunRuntimeError(
+                        "Project name can only be set once: either in 'project_name' or in the function URI."
+                    )
+
+            project = project or self.project_name or mlrun.mlconf.active_project
+
+            try:
+                self.fn = self.rundb.get_function(
+                    name=uri, project=project, tag=tag, hash_key=hash_key
+                )
+                if isinstance(self.fn, dict):
+                    self.fn = mlrun.runtimes.RemoteRuntime.from_dict(self.fn)
+
+            except mlrun.MLRunNotFoundError as e:
+                raise e
+
+        if not isinstance(self.fn, mlrun.runtimes.RemoteRuntime):
+            raise mlrun.errors.MLRunRuntimeError(
+                f"Failed reading function '{self.fn}' from DB\n"
+                "Verify that the function URI is correct and that the function is stored properly."
+            )
+
+        url = self.fn.get_url()
+
+        if not url:
+            raise mlrun.errors.MLRunRuntimeError(
+                f"Could not determine the function URL for '{self.fn.metadata.name}'. \n"
+                "Make sure the function is deployed and reachable."
+            )
+
+        self.url = url
+        super().post_init(mode=mode, **kwargs)

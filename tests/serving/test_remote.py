@@ -14,6 +14,8 @@
 
 import re
 import time
+from unittest.mock import MagicMock
+from urllib.parse import urlparse
 
 import pytest
 from werkzeug.wrappers import Request, Response
@@ -420,3 +422,41 @@ def test_parallel_remote_retry(httpserver):
         "/1": retries + 1,
         "/0": retries + 1,
     }, "didnt retry properly"
+
+
+@pytest.mark.parametrize("engine", ["sync", "async"])
+def test_remote_function_step(rundb_mock, httpserver, engine):
+    from mlrun.serving.remote import RemoteFunctionStep
+
+    httpserver.expect_request("/cat", method="GET").respond_with_json({"cat": "ok"})
+    nuclio_url = httpserver.url_for("/cat")
+    nuclio_url = urlparse(nuclio_url).netloc + urlparse(nuclio_url).path
+
+    function_name = "nuclio-fn-test"
+    project = "test-proj"
+
+    fn = mlrun.new_function(
+        function_name, project=project, kind="nuclio", image="mlrun/mlrun"
+    )
+    fn.metadata.project = project
+    fn.status.state = "ready"
+    fn.status.address = nuclio_url
+
+    rundb_mock.get_function = MagicMock(return_value=fn.to_dict())
+    mlrun.get_run_db = MagicMock(return_value=rundb_mock)
+
+    step = RemoteFunctionStep(fn=function_name, project_name=project)
+
+    function = mlrun.new_function(name="test-nuclio-remote-step", kind="serving")
+    flow = function.set_topology("flow", engine=engine)
+    flow.to(name="s1", handler="echo").to(step).to(name="s3", handler="echo").respond()
+
+    server = function.to_mock_server()
+
+    try:
+        resp = server.test()
+    except Exception as e:
+        raise e
+    finally:
+        server.wait_for_completion()
+    assert resp == {"cat": "ok"}

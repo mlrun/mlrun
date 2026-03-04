@@ -2771,8 +2771,8 @@ stack-data==0.6.3 \
     --hash=sha256:836a778de4fec4dcd1dcd89ed8abff8a221f58308462e1c4aa2a3cf30148f0b9 \
     --hash=sha256:d5558e0c25a4cb0853cddad3d77da9891a08cb85dd9f9f91b9f8cd66e511e695
     # via ipython
-storey==1.11.18 \
-    --hash=sha256:47da9550fe32cd223f6d245649b8a445aadff3914242939406b8222accda3626
+storey==1.11.20 \
+    --hash=sha256:11a66a222d7fb00e7af7a7936d5b5a7950f8728ad2eb423012925a9f1c9a3cf1
     # via -r requirements.txt
 strip-hints==0.1.13 \
     --hash=sha256:1feaebde61269ba0dea1e7f093df7ff9d4df4980cce7e3c22ed6d86ae43dbd06 \

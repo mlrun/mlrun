@@ -3415,7 +3415,7 @@ class RootFlowStep(FlowStep):
             * **naive**:
             To run in the main event loop. This is appropriate only for trivial computation and/or file
             I/O. It means that the runnable will not actually be run in parallel to anything else.
-            
+
         :param model_artifact:      model artifact or mlrun model artifact uri
         :param inputs:              list of the model inputs (e.g. features) ,if provided will override the inputs
                                     that been configured in the model artifact, please note that those inputs need

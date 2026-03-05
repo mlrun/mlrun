@@ -4187,7 +4187,8 @@ class MlrunProject(ModelObj):
             )
 
         :param function:        name of the function (in the project) or function object
-        :param handler:         name of the function handler
+        :param handler:         name of the function handler, for serving functions handler should not be provided as
+                                the default handler is defined in the serving spec.
         :param name:            execution name
         :param params:          input parameters (dict)
         :param hyperparams:     hyper parameters

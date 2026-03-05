@@ -4,12 +4,10 @@
 API handlers perform preprocessing on serving graphs invoked by HTTP triggers to add, for example, runtime configuration and administration handlers that perform modifications on the graphs.
 API handlers: 
 - Support industry-defined API schemas, such as OpenAI interface for LLMs served by the graph
-- Implement the v2 KFServing REST API (https://kserve.github.io/website/0.8/modelserving/inference_api/)
 - Implement admin APIs for the serving graph, without having to re-deploy them, such as:
   - Enabling and disabling model monitoring on the graph
 
 API handlers support Nuclio functions whose trigger is a HTTP trigger, and the mock server.
-
 
 ## Overview
 When the `GraphServer receives` an event with an API handler, and prior to actually sending it to the graph, it evalauates whether the event was sent to a user-configured allowed paths. If yes, it:

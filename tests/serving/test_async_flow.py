@@ -68,6 +68,12 @@ class _DummyStreamRaiser:
         raise ValueError("DummyStreamRaiser raises an error")
 
 
+def extract_batch_bodies(event):
+    event_bodies = [sub_event.body for sub_event in event.body]
+    event.body = event_bodies
+    return event
+
+
 def append_and_return(lst, event):
     body = event.body
     body["timestamp"] = datetime.now()
@@ -214,8 +220,10 @@ def test_batch():
     function = mlrun.new_function("tests", kind="serving", project="x")
     graph = function.set_topology("flow", engine="async")
     graph.to("storey.Batch", "my_batching", max_events=3, flush_after_seconds=1).to(
-        "storey.ToDataFrame", "my_to_df", index="my_int"
-    ).to("storey.Reduce", initial_value=[], fn=append_and_return, full_event=True)
+        "storey.Map", "map_batch", fn=extract_batch_bodies, full_event=True
+    ).to("storey.ToDataFrame", "my_to_df", index="my_int").to(
+        "storey.Reduce", initial_value=[], fn=append_and_return, full_event=True
+    )
     # Reduce is used to get a single result in wait_for_completion (termination result in storey)
     server = function.to_mock_server()
 

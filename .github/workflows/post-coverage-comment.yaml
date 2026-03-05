@@ -57,20 +57,28 @@ jobs:
       - name: Get PR number
         id: pr
         shell: bash
-        env:
-          PULL_REQUESTS_JSON: ${{ toJSON(github.event.workflow_run.pull_requests) }}
         run: |
           set -euo pipefail
 
-          PR_NUMBER=$(echo "${PULL_REQUESTS_JSON}" | jq -r '.[0].number // empty')
+          # Define variables for readability
+          REPO="${{ github.repository }}"
+          HEAD_OWNER="${{ github.event.workflow_run.head_repository.owner.login }}"
+          HEAD_BRANCH="${{ github.event.workflow_run.head_branch }}"
 
-          if [ -z "${PR_NUMBER}" ] || [ "${PR_NUMBER}" = "null" ]; then
-            echo "Error: No PR number found in workflow_run payload"
+          echo "Searching for PR from $HEAD_OWNER:$HEAD_BRANCH in $REPO..."
+
+          # Use the API to find the PR number
+          PR_NUMBER=$(curl -s -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/${REPO}/pulls?head=${HEAD_OWNER}:${HEAD_BRANCH}" \
+            | jq -r '.[0].number // empty')
+
+          if [ -z "$PR_NUMBER" ] || [ "$PR_NUMBER" = "null" ]; then
+            echo "Error: Could not find a PR number"
             exit 1
           fi
 
-          echo "Found PR number: ${PR_NUMBER}"
-          echo "pr_number=${PR_NUMBER}" >> "$GITHUB_OUTPUT"
+          echo "Found PR number: $PR_NUMBER"
+          echo "pr_number=$PR_NUMBER" >> "$GITHUB_OUTPUT"
 
       - name: Build coverage comment file
         shell: bash

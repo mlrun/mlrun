@@ -470,52 +470,17 @@ def test_remote_function_step(rundb_mock, httpserver, engine):
 # ---------------------------------------------------------------------------
 
 
-def test_invoke_head_returns_empty_bytes() -> None:
-    """HEAD responses have no body; invoke() must return b"" without raising."""
-    fn = _make_nuclio_fn()
-    fn._http_session = MagicMock()
-    fn._http_session.request.return_value = _mock_response(b"", "application/json")
-
-    result = fn.invoke("/", method="HEAD")
-    assert result == b""
-
-
-def test_invoke_post_returns_parsed_json() -> None:
-    """Non-empty JSON body is parsed correctly."""
-    fn = _make_nuclio_fn()
-    fn._http_session = MagicMock()
-    fn._http_session.request.return_value = _mock_response(
-        b'{"echo": "hello"}', "application/json"
-    )
-
-    result = fn.invoke("/", body={"data": "hello"})
-    assert result == {"echo": "hello"}
-
-
-def test_invoke_non_json_content_type_returns_bytes() -> None:
-    """Responses with non-JSON content-type are returned as raw bytes."""
-    fn = _make_nuclio_fn()
-    fn._http_session = MagicMock()
-    fn._http_session.request.return_value = _mock_response(b"plain text", "text/plain")
-
-    result = fn.invoke("/", method="GET")
-    assert result == b"plain text"
-
-
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
-
-
-def _make_nuclio_fn() -> mlrun.runtimes.RemoteRuntime:
+@pytest.fixture
+def nuclio_fn() -> mlrun.runtimes.RemoteRuntime:
     fn = cast(
         mlrun.runtimes.RemoteRuntime, mlrun.new_function("test-nuclio", kind="nuclio")
     )
     fn.status.address = "http://localhost:8080"
+    fn._http_session = MagicMock()
     return fn
 
 
-def _mock_response(
+def mock_response(
     content: bytes,
     content_type: str,
     status: HTTPStatus = HTTPStatus.OK,
@@ -527,3 +492,39 @@ def _mock_response(
     resp.headers = {"content-type": content_type}
     resp.text = content.decode("utf-8", errors="replace")
     return resp
+
+
+def test_invoke_head_returns_empty_bytes(
+    nuclio_fn: mlrun.runtimes.RemoteRuntime,
+) -> None:
+    """HEAD responses have no body; invoke() must return b"" without raising."""
+    nuclio_fn._http_session.request.return_value = mock_response(
+        b"", "application/json"
+    )
+
+    result = nuclio_fn.invoke("/", method="HEAD")
+    assert result == b""
+
+
+def test_invoke_post_returns_parsed_json(
+    nuclio_fn: mlrun.runtimes.RemoteRuntime,
+) -> None:
+    """Non-empty JSON body is parsed correctly."""
+    nuclio_fn._http_session.request.return_value = mock_response(
+        b'{"echo": "hello"}', "application/json"
+    )
+
+    result = nuclio_fn.invoke("/", body={"data": "hello"})
+    assert result == {"echo": "hello"}
+
+
+def test_invoke_non_json_content_type_returns_bytes(
+    nuclio_fn: mlrun.runtimes.RemoteRuntime,
+) -> None:
+    """Responses with non-JSON content-type are returned as raw bytes."""
+    nuclio_fn._http_session.request.return_value = mock_response(
+        b"plain text", "text/plain"
+    )
+
+    result = nuclio_fn.invoke("/", method="GET")
+    assert result == b"plain text"

@@ -54,20 +54,20 @@ It also supports automated alerts for model exceptions, enabling proactive maint
 * Nuclio - https://github.com/nuclio/nuclio
 * Jupyter - https://github.com/jupyter/notebook (+MLRun integrated)
 * MPI Operator - https://github.com/kubeflow/mpi-operator
-* MinIO - https://github.com/minio/minio/tree/master/helm/minio
+* SeaweedFS https://github.com/seaweedfs/seaweedfs
 * Spark Operator - https://github.com/GoogleCloudPlatform/spark-on-k8s-operator
 * Prometheus stack - https://github.com/prometheus-community/helm-charts
   - Prometheus
   - Grafana
 * MLRun Model monitoring - 
-  - Kafka - https://github.com/bitnami/charts/tree/main/bitnami/kafka
+  - Kafka - Strimzi: Apache Kafka on Kubernetes - https://strimzi.io/
   - TimescaleDB - https://docs.timescale.com/self-hosted/latest/install/
 * KFP Pipelines - https://github.com/kubeflow/pipelines
 
 ## Storage resources
 When installing the MLRun Community Edition, several storage resources are created:
 
-- **PVs via default configured storage class**: Holds the file system of the stacks pods, including the MySQL database of MLRun, MinIO for artifacts and Pipelines Storage and more. 
+- **PVs via default configured storage class**: Holds the file system of the stacks pods, including the MySQL database of MLRun, SeaweedFS for artifacts and Pipelines Storage and more. 
 These are not deleted when the stack is uninstalled, which allows upgrading without losing data.
 
    See also MLRun data store [documentation](../store/datastore.md).

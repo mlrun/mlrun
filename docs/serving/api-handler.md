@@ -7,18 +7,16 @@ API handlers:
 - Implement the v2 KFServing REST API (https://kserve.github.io/website/0.8/modelserving/inference_api/)
 - Implement admin APIs for the serving graph, without having to re-deploy them, such as:
   - Enabling and disabling model monitoring on the graph
-  - Adding/removing models in real-time
 
 API handlers support Nuclio functions whose trigger is a HTTP trigger, and the mock server.
 
 
 ## Overview
-When the GraphServer receives an event with an API handler, and prior to actually sending it to the graph, it evalauates whether the event was sent to a user-configured allowed paths. If yes, it:
-- Sends the event to either the root graph step, or another step named in the configuration, as shown in the diagram.
-- Executes a method on the event. This is used for administrative operations. Once the admin operation is completed, a response is sent back to the user.
+When the `GraphServer receives` an event with an API handler, and prior to actually sending it to the graph, it evalauates whether the event was sent to a user-configured allowed paths. If yes, it:
+- Sends the event to either the root graph step, or another step named in the configuration.
 - Can also API handler can perform additional (optional) manipulations on the event body (data), for example, to extract relevant fields from specific paths in the JSON input, and construct the event to be sent to the graph based on the transformations defined by the user.
 
-If the event was sent to an invalid path, it fails the request.
+If the event was sent to an invalid path, it fails the request with the relevant HTTP error.
 
 
 ## SDK
@@ -34,7 +32,7 @@ Path expressions
 - If multiple matches exist, the one that is most specific is chosen. For example, if `/v1/completion/*` is set to `allow`, and `/v1/completion/bad` is set to `fail` - calling `/v1/completion/bad` fails the request due to its being more specific.
 
 Body mapping  
-- JSONPath may be producing multiple results. For example, in the canonical book store sample, looking for `$['store']['book'][*]['title']` results in all the titles of all the books in the store. The handler should handle this situation and place the results in the field specified as a list of values.
+- JSONPath may be producing multiple results. For example, in the canonical book store sample, looking for `$['store']['book'][*]['title']` results in all the titles of all the books in the store. The handler places the results in the field specified as a list of values.
 - If the JSONPath search returns a complex object, for example looking for `$['store']['book'][0]` which returns the entire dictionary of the first book (not just the title as above), the results should be placed as-is into the field selected, such that the full result dict is in the field (or a list of these dict results, given previous point).
 
 URL information mapping 
@@ -54,3 +52,65 @@ In a Jupyter plot of a graph there are indications that an API handler exists wi
 ## Usage
 
 ## Examples
+
+
+
+```python
+project = mlrun.get_or_create_project("serving-fn-1", context="./serving-fn-1")
+
+# mlrun: start-code
+
+# Define a function to handle inputs
+def print_input_handler(event):
+    print(f"Received input: {event}")
+    print(f"Input type: {type(event)}")
+    return event
+
+# mlrun: end-code
+
+# Demonstrate automatic API handler injection
+from mlrun.common.schemas.serving import APIHandlerAction
+from mlrun.runtimes.nuclio.serving import APIHandlerConfig
+from http import HTTPMethod
+
+# Create a new serving function with API handler config
+serving_fn_auto = project.set_function(
+    name="serving-with-api-handler",
+    kind="serving",
+    image="dev-snapshot.artifactory.iguazeng.com/jond/mlrun:feb-5-4",
+)
+
+# Set up API handler configuration
+api_config = APIHandlerConfig()
+api_config.add_endpoint_handler(
+    "/health", HTTPMethod.GET, APIHandlerAction.ALLOW, "Health check endpoint"
+)
+api_config.add_endpoint_handler(
+    "/predict", HTTPMethod.POST, APIHandlerAction.ALLOW, "Prediction endpoint"
+)
+api_config.add_endpoint_handler(
+    "/admin", HTTPMethod.GET, APIHandlerAction.FORBID, "Admin endpoint - forbidden"
+)
+
+# Set the API handler config on the function - this will automatically add APIHandlerStep
+serving_fn_auto.set_api_handler_config(api_config)
+
+# Set up the graph topology with sync engine - APIHandlerStep will be automatically injected
+auto_graph = serving_fn_auto.set_topology("flow", engine="sync")
+auto_graph.to(name="echo", handler="(event)").respond()
+
+# print("Graph structure with automatic API handler:")
+# auto_graph.plot()
+
+serving_fn_auto.to_dict()
+
+serving_fn_auto.spec.api_handler_config
+
+serving_fn_auto.save()
+
+serving_fn_auto.deploy()
+
+serving_fn_auto.invoke("/health", method="GET")
+
+serving_fn_auto.spec.api_handler_config
+```

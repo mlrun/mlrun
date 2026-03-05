@@ -257,16 +257,15 @@ def test_kafka_consumer_group_uses_topic_name(
 )
 @patch(
     "services.api.crud.model_monitoring.deployment.MonitoringDeployment"
-    "._consumer_group_has_offsets",
-    return_value=False,
+    "._migrate_consumer_group_offsets",
 )
-def test_kafka_upgrade_sets_latest_offset(
-    has_offsets_mock: Mock,
+def test_kafka_upgrade_calls_offset_migration(
+    migrate_offsets_mock: Mock,
     create_topics_mock: Mock,
     monitoring_deployment: mm_dep.MonitoringDeployment,
 ) -> None:
-    """ML-11979: On upgrade (topic exists, new consumer group has no
-    offsets), initial_offset should be set to 'latest'."""
+    """ML-11979: On upgrade (topic already exists), offset migration
+    should be called for the stream function."""
     kafka_profile = DatastoreProfileKafkaStream(
         name="test-kafka-profile",
         brokers=["localhost:9092"],
@@ -282,9 +281,10 @@ def test_kafka_upgrade_sets_latest_offset(
         ignore_stream_already_exists_failure=True,
     )
 
-    has_offsets_mock.assert_called_once()
-    trigger_attrs = fn.spec.config["spec.triggers.kafka"]["attributes"]
-    assert trigger_attrs["initialOffset"] == "latest"
+    migrate_offsets_mock.assert_called_once()
+    call_kwargs = migrate_offsets_mock.call_args.kwargs
+    assert call_kwargs["old_group"] == kafka_profile.group
+    assert call_kwargs["new_group"] == call_kwargs["topic"]
 
 
 @patch(
@@ -293,15 +293,15 @@ def test_kafka_upgrade_sets_latest_offset(
 )
 @patch(
     "services.api.crud.model_monitoring.deployment.MonitoringDeployment"
-    "._consumer_group_has_offsets",
+    "._migrate_consumer_group_offsets",
 )
-def test_kafka_existing_non_stream_topic_skips_group_check(
-    has_offsets_mock: Mock,
+def test_kafka_existing_non_stream_topic_skips_migration(
+    migrate_offsets_mock: Mock,
     create_topics_mock: Mock,
     monitoring_deployment: mm_dep.MonitoringDeployment,
 ) -> None:
     """Non-stream functions (writer, controller, apps) should not
-    check consumer group offsets when their topic already exists."""
+    trigger offset migration when their topic already exists."""
     kafka_profile = DatastoreProfileKafkaStream(
         name="test-kafka-profile",
         brokers=["localhost:9092"],
@@ -317,4 +317,4 @@ def test_kafka_existing_non_stream_topic_skips_group_check(
         ignore_stream_already_exists_failure=True,
     )
 
-    has_offsets_mock.assert_not_called()
+    migrate_offsets_mock.assert_not_called()

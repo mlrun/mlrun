@@ -4251,6 +4251,14 @@ class MlrunProject(ModelObj):
             )
         output_path = output_path or artifact_path
 
+        if (
+            isinstance(function, mlrun.runtimes.KubejobRuntime)
+            and function.serving_spec
+        ) and handler is not None:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "handler cannot be specified when running a KubeJobRuntime with a serving spec"
+            )
+
         # remove this filter once the artifact_path parameter is deprecated in 1.12.0
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", category=FutureWarning)

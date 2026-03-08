@@ -75,7 +75,7 @@ Common failure categories and what to inspect:
 
 | Failure Type | What to Check |
 |---|---|
-| **Function deploy timeout** | Nuclio function pods, nuclio-controller logs, function CRDs |
+| **Function deploy timeout** | Nuclio function pods, nuclio-dashboard logs nuclio-controller logs, function CRDs |
 | **Run/job failure** | Job pods, mlrun-api logs, runtime pod logs |
 | **Connection error** | MLRun API pod health, ingress status, network policies |
 | **Authentication error** | Auth config, token validity, user permissions |
@@ -114,11 +114,16 @@ kubectl --kubeconfig "${KUBECONFIG}" -n "${NAMESPACE}" logs -l app.kubernetes.io
 # Nuclio function CRDs
 kubectl --kubeconfig "${KUBECONFIG}" -n "${NAMESPACE}" get nucliofunctions
 
-# Nuclio controller logs
+# Nuclio dashboard/controller logs
 kubectl --kubeconfig "${KUBECONFIG}" -n "${NAMESPACE}" logs -l app.kubernetes.io/name=nuclio-controller --tail=100
+kubectl --kubeconfig "${KUBECONFIG}" -n "${NAMESPACE}" logs -l app.kubernetes.io/name=nuclio-dashboard --tail=100
+
+# Describe the function deployment
+kubectl --kubeconfig "${KUBECONFIG}" -n "${NAMESPACE}" describe deployment `kubectl --kubeconfig "${KUBECONFIG}" -n "${NAMESPACE}" descride deployment | grep "<function-name>" | awk '{print $1}'`
 
 # Specific function pod (if function name is known)
 kubectl --kubeconfig "${KUBECONFIG}" -n "${NAMESPACE}" get pods | grep "<function-name>"
+
 kubectl --kubeconfig "${KUBECONFIG}" -n "${NAMESPACE}" logs <pod-name> --tail=100
 ```
 

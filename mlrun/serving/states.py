@@ -1897,11 +1897,9 @@ class ModelRunner(storey.ParallelExecution):
         #  fall to default behavior of routing to all valid outlets
         all_outlets = list(self._name_to_outlet.keys())
         if is_batched:
-            if (error_raiser := f"{self.name}_error_raise") in all_outlets:
-                all_outlets.remove(error_raiser)
+            all_outlets.remove(f"{self.name}_error_raise")
         else:
-            if (unpacker := f"{self.name}_unpacker") in all_outlets:
-                all_outlets.remove(unpacker)
+            all_outlets.remove(f"{self.name}_unpacker")
         return all_outlets
 
     def _is_error(self, event: Union[dict, list]) -> bool:

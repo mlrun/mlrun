@@ -188,7 +188,31 @@ child.spec.build.commands = [
 graph.plot()
 ```
 
-Currently queues support Iguazio V3IO and Kafka streams.
+## Example of serving function using Kafka queue and serving child function
+
+```Python
+graph = fn_seving.set_topology("flow", engine="async")
+fn_child = fn_seving.add_child_function("nuclio-log-ds", "nuclio_log_dataset.py", "mlrun/mlrun")
+
+graph.to(name="PrintEvent", handler="print_event").to(
+    name="ExtendEvent",class_name="storey.Extend", _fn='({"extend": "something"})').to(
+    name="PrintExEvent", handler="print_event").to(
+    ">>", "OutputStream", path=topic_out, kafka_brokers=brokers).to(
+    name="Log-ds", function="log-ds",handler="save_record").to(
+    name="PrintEventLog", handler="print_event_log", function="log-ds")
+
+graph.plot(rankdir="LR")
+```
+<br><img src="../_static/images/serving-graph-kafka-queue-flows.svg" alt="graph-flow" width="800"/><br>
+
+```Python
+addr_serving = fn_seving.deploy()
+events = [{"int": 2, "x2": 2 * 2} ]
+payload = {"records": events}
+result = fn_seving.invoke("", body=payload)
+```
+
+Currently, queues support Iguazio V3IO and Kafka streams.
 ## Data and feature engineering (using the feature store)
 
 You can build a feature set transformation using serving graphs.

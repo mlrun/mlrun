@@ -14,6 +14,7 @@
 
 import asyncio
 import base64
+import os
 import shlex
 
 import nuclio
@@ -772,7 +773,11 @@ def _should_fetch_source_code(
     :param function: The function object
     :return: True if init container is needed, False otherwise
     """
-    source = function.spec.build.source
+    # build.source may be empty after from_image() clears it on redeploy.
+    # fall back to status.application_source which preserves the original source URI.
+    source = function.spec.build.source or getattr(
+        function.status, "application_source", None
+    )
     if not source:
         return False
 
@@ -812,7 +817,10 @@ def _configure_source_loader_init_container(
     :param client_version: Client version for resolving the init container image
     :param client_python_version: Client Python version for resolving the init container image
     """
-    source = function.spec.build.source
+    source = function.spec.build.source or getattr(
+        function.status, "application_source", None
+    )
+    workdir = function.spec.workdir
     target_dir = (
         function.spec.build.source_code_target_dir
         or mlrun.common.constants.DEFAULT_SOURCE_CODE_TARGET_DIR
@@ -845,6 +853,7 @@ def _configure_source_loader_init_container(
         volume_name=volume_name,
         volume_mount=volume_mount,
         target_dir=target_dir,
+        workdir=workdir,
     )
 
     logger.debug(
@@ -853,6 +862,7 @@ def _configure_source_loader_init_container(
         function=function.metadata.name,
         source=source,
         target_dir=target_dir,
+        workdir=function.spec.workdir,
     )
 
 
@@ -929,6 +939,7 @@ def _patch_sidecar_for_source(
     volume_name: str,
     volume_mount: dict,
     target_dir: str,
+    workdir: str | None = None,
 ):
     """
     Patch sidecar container with volume mount, workingDir, and PYTHONPATH.
@@ -936,25 +947,41 @@ def _patch_sidecar_for_source(
     :param sidecar: The sidecar container dict
     :param volume_name: Name of the source volume
     :param volume_mount: Volume mount configuration
-    :param target_dir: Target directory for source code
+    :param target_dir: Target directory where source code is extracted
+    :param workdir: Working directory relative to target_dir (e.g. 'subdir') or absolute path
+                    on the container filesystem. When set, the sidecar runs from this directory
+                    instead of the target_dir root.
     """
     # Add volume mount idempotently
     sidecar_mounts = sidecar.setdefault("volumeMounts", [])
     if not any(vm.get("name") == volume_name for vm in sidecar_mounts):
         sidecar_mounts.append(volume_mount)
 
-    sidecar["workingDir"] = target_dir
+    # Resolve the effective working directory for the sidecar.
+    # workdir can be relative (joined with target_dir) or absolute (used as-is).
+    if workdir:
+        if os.path.isabs(workdir):
+            resolved_workdir = workdir
+        else:
+            resolved_workdir = os.path.join(target_dir, workdir)
+    else:
+        resolved_workdir = target_dir
 
-    # Set PYTHONPATH to include target directory so the sidecar can import modules from
-    # the source code loaded by the init container. If PYTHONPATH already exists, prepend
-    # target_dir to preserve user's custom paths while ensuring our source dir takes priority.
+    sidecar["workingDir"] = resolved_workdir
+
+    # Set PYTHONPATH so the sidecar can import modules from the source directory.
+    # If PYTHONPATH already exists (user-defined), prepend our path to preserve theirs.
     sidecar_env = sidecar.setdefault("env", [])
     pythonpath_env = next(
         (e for e in sidecar_env if e.get("name") == "PYTHONPATH"), None
     )
     if pythonpath_env:
         existing_path = pythonpath_env.get("value", "")
-        if target_dir not in existing_path.split(":"):
-            pythonpath_env["value"] = f"{target_dir}:{existing_path}"
+        if resolved_workdir not in existing_path.split(":"):
+            pythonpath_env["value"] = (
+                f"{resolved_workdir}:{existing_path}"
+                if existing_path
+                else resolved_workdir
+            )
     else:
-        sidecar_env.append({"name": "PYTHONPATH", "value": target_dir})
+        sidecar_env.append({"name": "PYTHONPATH", "value": resolved_workdir})

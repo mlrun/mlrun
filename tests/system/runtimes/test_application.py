@@ -257,12 +257,12 @@ class TestApplicationRuntime(tests.system.base.TestMLRunSystem):
                 f.write(source_v2)
 
             # Redeploy - auto-uploads new source, init container loads it without image rebuild
-            image_before = function.status.application_image
+            build_pod_before = function.status.build_pod
             self._logger.debug("Redeploying with version-2 source")
             function.deploy(with_mlrun=False)
 
-            # Verify sidecar image was not rebuilt (only source changed)
-            assert function.status.application_image == image_before
+            # Verify sidecar image was not rebuilt (only source changed, no new build pod)
+            assert function.status.build_pod == build_pod_before
 
             # Invoke and verify version-2
             response = function.invoke("/", verify=False)
@@ -275,6 +275,7 @@ class TestApplicationRuntime(tests.system.base.TestMLRunSystem):
         1. Source is cloned from Git without being built into the image
         2. Git repo files are accessible (both root and subdir)
         3. Sidecar image is not rebuilt on redeployment
+        4. Workdir changes the sidecar's working directory to a subdirectory
         """
         git_url = "git://github.com/mlrun/test-git-load.git#main"
 
@@ -307,25 +308,44 @@ class TestApplicationRuntime(tests.system.base.TestMLRunSystem):
         assert response.status_code == 200
 
         # Redeploy - sidecar image should not be rebuilt
-        image_before = function.status.application_image
+        build_pod_before = function.status.build_pod
         self._logger.debug("Redeploying - sidecar build should be skipped")
         function.deploy(with_mlrun=False)
         assert function.status.state == "ready"
-        assert function.status.application_image == image_before
+        assert function.status.build_pod == build_pod_before
 
         # Verify source is still accessible after redeploy
         response = function.invoke("/subdir/mylib.py", verify=False)
         assert response.status_code == 200
 
-        # force_build=True should trigger sidecar image build
+        # force_build=True should trigger sidecar image build (new build pod created)
         self._logger.debug("Redeploying with force_build=True")
         function.deploy(with_mlrun=False, force_build=True)
         assert function.status.state == "ready"
-        assert function.status.application_image != image_before
+        assert function.status.build_pod != build_pod_before
 
         # Verify source is still accessible after forced rebuild
         response = function.invoke("/subdir/mylib.py", verify=False)
         assert response.status_code == 200
+
+        # Redeploy with workdir='subdir' - sidecar should now serve from
+        # /home/mlrun_code/subdir/ instead of /home/mlrun_code/
+        self._logger.debug("Redeploying with workdir='subdir'")
+        function.with_source_archive(
+            source=git_url,
+            workdir="subdir",
+            pull_at_runtime=True,
+        )
+        function.deploy(with_mlrun=False)
+        assert function.status.state == "ready"
+
+        # mylib.py is now at root path (served from subdir/)
+        response = function.invoke("/mylib.py", verify=False)
+        assert response.status_code == 200
+
+        # rootlib.py is no longer accessible (working dir is subdir, not repo root)
+        response = function.invoke("/rootlib.py", verify=False)
+        assert response.status_code == 404
 
     def test_deploy_application_with_archive_source(self):
         """
@@ -364,11 +384,11 @@ class TestApplicationRuntime(tests.system.base.TestMLRunSystem):
         assert response.status_code == 200
 
         # Redeploy - sidecar image should not be rebuilt
-        image_before = function.status.application_image
+        build_pod_before = function.status.build_pod
         self._logger.debug("Redeploying - sidecar build should be skipped")
         function.deploy(with_mlrun=False)
         assert function.status.state == "ready"
-        assert function.status.application_image == image_before
+        assert function.status.build_pod == build_pod_before
 
     def _create_vizro_application(
         self, name="vizro-app", app_image=None, with_repo: bool = False

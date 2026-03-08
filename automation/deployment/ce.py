@@ -180,6 +180,11 @@ def cli():
     is_flag=True,
     help="Skip validation of the registry URL",
 )
+@click.option(
+    "--helm-timeout",
+    default=None,
+    help="Helm timeout (e.g. '15m0s'). Overrides the default 5-minute helm timeout.",
+)
 @add_options(common_options)
 @add_options(common_deployment_options)
 def deploy(
@@ -211,6 +216,7 @@ def deploy(
     minikube: bool = False,
     upgrade: bool = False,
     set_: list[str] | None = None,
+    helm_timeout: str | None = None,
 ):
     deployer = CommunityEditionDeployer(
         namespace=namespace,
@@ -244,6 +250,7 @@ def deploy(
         sqlite=sqlite,
         upgrade=upgrade,
         custom_values=set_,
+        helm_timeout=helm_timeout,
     )
 
 

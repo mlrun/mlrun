@@ -225,10 +225,10 @@ class BaseStep(ModelObj):
 
         When setting the error_handler on the graph object, the graph completes after the error handler execution.
 
-        example::
+         **Example**::
 
-            # in the below example, an 'error_catcher' step is set as the error_handler of the 'raise' step:
-            # in case of error/raise in 'raise' step, the handle_error will be run. after that,
+            # Set an 'error_catcher' step as the error_handler of the 'raise' step:
+            # in case of error/raise in 'raise' step, the handle_error will be run. After that,
             # the 'echo' step will be run.
 
             graph = function.set_topology('flow', engine='async')
@@ -371,7 +371,7 @@ class BaseStep(ModelObj):
     ):
         """add a step right after this step and return the new step
 
-        example::
+        **Example**::
 
             # a 4-step pipeline ending with a stream:
             graph.to('URLDownloader')
@@ -449,9 +449,9 @@ class BaseStep(ModelObj):
     def cycle_to(self, step_names: Union[str, list[str]]):
         """create a cycle in the graph to the specified step names
 
-        example::
+        **Example**::
 
-            in the below example, a cycle is created from 'step3' to 'step1':
+            # Create a cycle from 'step3' to 'step1':
             graph.to('step1')\
                  .to('step2')\
                  .to('step3')\
@@ -491,13 +491,16 @@ class BaseStep(ModelObj):
 
         :return: the last step added to the flow
 
-        example::
+        **Example**::
 
-            The below code sets the downstream nodes of step1 by using a list of steps (provided to `set_flow()`) and a
-            single step (provided to `to()`), resulting in the graph (step1 -> step2 -> step3 -> step4).
-            Notice that using `force=True` is required in case step1 already had downstream nodes (e.g. if the existing
-            graph is step1 -> step2_old) and that following the execution of this code the existing downstream steps
-            are removed. If the intention is to split the graph (and not to overwrite), please use `to()`.
+            # The code below sets the downstream nodes of step1 by using a list of steps (provided to
+            # `set_flow()`) and a
+            # single step (provided to `to()`), resulting in the graph (step1 ->
+            # step2 -> step3 -> step4).
+            # Notice that using `force=True` is required in case step1 already had downstream nodes
+            # (e.g. if the existing
+            # graph is step1 -> step2_old) and that following the execution of this code the existing downstream steps
+            # are removed. If the intention is to split the graph (and not to overwrite), use `to()`.
 
             step1.set_flow(
                 [
@@ -1370,7 +1373,7 @@ class Model(storey.ParallelExecutionRunnable, ModelObj):
             - dict: Dictionary of extra data items.
         :rtype: tuple
 
-        :example:
+        **Example**::
 
             def load(self):
                 model_file, extra_data = self.get_local_model_path(suffix=".pkl")
@@ -1752,7 +1755,7 @@ class ModelRunnerSelector(ModelObj):
 
     Return `None` from either method to use default behavior (all models / all outlets).
 
-    Example::
+    **Example**::
 
         class ToolSelector(ModelRunnerSelector):
             def select_outlets(self, event):
@@ -1966,7 +1969,7 @@ class ModelRunnerStep(MonitoredStep):
     """
     Runs multiple Models on each event.
 
-    example::
+    **Example**::
 
         model_runner_step = ModelRunnerStep(name="my_model_runner")
         model_runner_step.add_model(..., model_class=MyModel(name="my_model"))
@@ -2790,7 +2793,7 @@ class FlowStep(BaseStep):
 
         use after/before to insert into a specific location
 
-        example::
+        **Example**::
 
             graph = fn.set_topology("flow", exist_ok=True)
             graph.add_step(class_name="Chain", name="s1")
@@ -2818,14 +2821,13 @@ class FlowStep(BaseStep):
                             to event["y"] resulting in {"x": 5, "y": <result>}
         :param model_endpoint_creation_strategy: Strategy for creating or updating the model endpoint:
 
-                            * **overwrite**: If model endpoints with the same name exist, delete the `latest` one;
-                                create a new model endpoint entry and set it as `latest`.
+                           * **overwrite**: If model endpoints with the same name exist, delete the `latest` one;
+                             create a new model endpoint entry and set it as `latest`.
+                           * **inplace** (default): If model endpoints with the same name exist, update the `latest`
+                             entry;otherwise, create a new entry.
 
-                            * **inplace** (default): If model endpoints with the same name exist, update the `latest`
-                                entry; otherwise, create a new entry.
-
-                            * **archive**: If model endpoints with the same name exist, preserve them;
-                              create a new model endpoint with the same name and set it to `latest`.
+                           * **archive**: If model endpoints with the same name exist, preserve them;
+                             create a new model endpoint with the same name and set it to `latest`.
 
         :param cycle_to:    list of step names to create a cycle to (for cyclic graphs)
         :param max_iterations: maximum number of iterations for this step in case of a cycle graph
@@ -3381,34 +3383,44 @@ class RootFlowStep(FlowStep):
                                     outputs will be overridden with UsageResponseKeys fields.
         :param execution_mechanism: Parallel execution mechanism to be used to execute this model. Must be one of:
 
-            * **process_pool**: To run in a separate process from a process pool. This is appropriate for CPU or GPU
-                intensive tasks as they would otherwise block the main process by holding Python's Global Interpreter
-                Lock (GIL).
+             * **process_pool**:
 
-            * **dedicated_process**: To run in a separate dedicated process. This is appropriate for CPU or GPU
-                intensive tasks that also require significant Runnable-specific initialization (e.g. a large model).
+            To run in a separate process from a process pool. This is appropriate for CPU or GPU
+            intensive tasks as they would otherwise block the main process by holding Python's Global Interpreter
+            Lock (GIL).
 
-            * **thread_pool**: To run in a separate thread. This is appropriate for blocking I/O tasks, as they would
-                otherwise block the main event loop thread.
+            * **dedicated_process**:
 
-            * **asyncio**: To run in an asyncio task. This is appropriate for I/O tasks that use asyncio, allowing the
-                event loop to continue running while waiting for a response.
+            To run in a separate dedicated process. This is appropriate for CPU or GPU
+            intensive tasks that also require significant Runnable-specific initialization (e.g. a large model).
 
-            * **shared_executor**:  Reuses an external executor (typically managed by the flow or context) to execute
-                the runnable. Should be used only if you have multiple `ParallelExecution` in the same flow and
-                especially useful when:
+            * **thread_pool**:
 
-                - You want to share a heavy resource like a large model loaded onto a GPU.
+            To run in a separate thread. This is appropriate for blocking I/O tasks, as they would
+            otherwise block the main event loop thread.
 
-                - You want to centralize task scheduling or coordination for multiple lightweight tasks.
+            * **asyncio**:
 
-                - You aim to minimize overhead from creating new executors or processes/threads per runnable.
+            To run in an asyncio task. This is appropriate for I/O tasks that use asyncio, allowing the
+            event loop to continue running while waiting for a response.
 
-                The runnable is expected to be pre-initialized and reused across events, enabling efficient use of
-                memory and hardware accelerators.
+            * **shared_executor**:
 
-            * **naive**: To run in the main event loop. This is appropriate only for trivial computation and/or file
-                I/O. It means that the runnable will not actually be run in parallel to anything else.
+            Reuses an external executor (typically managed by the flow or context) to execute
+            the runnable. Should be used only if you have multiple `ParallelExecution` in the same flow and
+            especially useful when:
+
+            - You want to share a heavy resource like a large model loaded onto a GPU.
+            - You want to centralize task scheduling or coordination for multiple lightweight tasks.
+            - You aim to minimize overhead from creating new executors or processes/threads per runnable.
+
+            The runnable is expected to be pre-initialized and reused across events, enabling efficient use of
+            memory and hardware accelerators.
+
+            * **naive**:
+
+            To run in the main event loop. This is appropriate only for trivial computation and/or file
+            I/O. It means that the runnable will not actually be run in parallel to anything else.
 
         :param model_artifact:      model artifact or mlrun model artifact uri
         :param inputs:              list of the model inputs (e.g. features) ,if provided will override the inputs

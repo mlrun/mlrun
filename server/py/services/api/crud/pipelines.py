@@ -127,7 +127,15 @@ class Pipelines(
     def delete_pipelines_runs(
         self, db_session: sqlalchemy.orm.Session, project_name: str
     ):
-        _, _, project_pipeline_runs = self.list_pipelines(
+        # Retry listing pipelines to handle transient KFP connection errors
+        # (e.g. "invalid connection" from KFP's internal DB pool)
+        _, _, project_pipeline_runs = mlrun.utils.helpers.retry_until_successful(
+            backoff=2,
+            timeout=60,
+            logger=mlrun.utils.logger,
+            verbose=True,
+            _function=self.list_pipelines,
+            fatal_exceptions=(mlrun.errors.MLRunInvalidArgumentError,),
             db_session=db_session,
             project=project_name,
             format_=mlrun.common.formatters.PipelineFormat.metadata_only,
@@ -198,7 +206,7 @@ class Pipelines(
                         experiment_id,
                     )
                 )
-            for future in concurrent.futures.as_completed(delete_run_futures):
+            for future in concurrent.futures.as_completed(delete_experiment_futures):
                 delete_experiment_exception = future.exception()
                 if delete_experiment_exception is not None:
                     experiments_failed += 1
@@ -642,6 +650,7 @@ class Pipelines(
             env_var_names=["MLRUN_AUTH_SESSION", "V3IO_ACCESS_KEY"],
             secrets_store=services.api.crud.Secrets(),
             auth_secret_name=auth_secret_name,
+            auth_info=auth_info,
         )
         pipeline_file = tempfile.NamedTemporaryFile(suffix=content_type)
         with open(pipeline_file.name, "wb") as fp:

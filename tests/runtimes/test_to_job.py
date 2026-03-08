@@ -272,3 +272,39 @@ def test_to_job_backward_compatibility():
     assert local_fn.metadata.name == long_name
     job = local_fn.to_job()
     assert job.metadata.name == long_name  # Name unchanged
+
+
+def test_run_function_with_job_from_serving_fails_with_handler():
+    """Test that run_function raises error when handler is specified for a job from serving function.
+
+    When a serving function is converted to a job via to_job(), the job retains a serving_spec.
+    Running such a job with a custom handler should fail because the serving spec already
+    defines the default handler (execute_graph).
+    """
+    # Create a serving function
+    serving_fn = mlrun.new_function(name="test-serving", kind="serving")
+    serving_fn.spec.image = "mlrun/mlrun"  # Set an image to avoid build requirements
+
+    # Set up a simple graph
+    graph = serving_fn.set_topology("flow", engine="async")
+    graph.to(name="step1", handler="handler")
+
+    # Convert to job - this creates a KubejobRuntime with serving_spec
+    job = serving_fn.to_job()
+
+    # Verify the job has a serving_spec
+    assert job.serving_spec is not None, (
+        "Job should have a serving_spec from the serving function"
+    )
+    assert job.kind == "job", f"Job should have kind='job', got '{job.kind}'"
+
+    # Create a project to use run_function
+    project = mlrun.new_project("test-project", save=False)
+    project.set_function(job, "test-job")
+
+    # Running with a handler should raise MLRunInvalidArgumentError
+    with pytest.raises(
+        mlrun.errors.MLRunInvalidArgumentError,
+        match="handler cannot be specified when running a KubeJobRuntime with a serving spec",
+    ):
+        project.run_function(job, handler="custom_handler", local=True)

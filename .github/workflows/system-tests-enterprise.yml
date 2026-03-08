@@ -139,8 +139,7 @@ jobs:
       with:
         enable-cache: true
         python-version: 3.11
-        cache-dependency-glob: |
-          **/*requirements*.txt
+        cache-dependency-glob: "**/*requirements*.txt"
 
     - name: Copy state branch file from remote
       run: |
@@ -411,8 +410,7 @@ jobs:
       with:
         enable-cache: true
         python-version: 3.11
-        cache-dependency-glob: |
-          **/*requirements*.txt
+        cache-dependency-glob: "**/*requirements*.txt"
 
     - uses: actions/download-artifact@v8
       with:

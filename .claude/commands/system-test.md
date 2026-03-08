@@ -31,7 +31,8 @@ Parse the arguments as follows:
 ## Steps
 
 1. **Validate environment**:
-   - Check that `tests/system/env.yml` exists and contains the following **required** variables (uncommented, with non-empty values): `MLRUN_DBPATH`, `V3IO_ACCESS_KEY`, `MLRUN_IGUAZIO_API_URL`, `V3IO_API`. If any are missing or empty, warn the user and list what's missing.
+   - Check that `tests/system/env.yml` exists and contains the **required** variable `MLRUN_DBPATH` (uncommented, with a non-empty value). If missing or empty, warn the user.
+   - The following variables are **only required for enterprise tests** (tests marked with `@pytest.mark.enterprise`): `V3IO_ACCESS_KEY`, `MLRUN_IGUAZIO_API_URL`, `V3IO_API`. Only warn about these if the user is running enterprise tests (via `--enterprise` flag or auto-inferred enterprise marker).
    - If `MLRUN_DBPATH` contains `vmdev` (a dev environment with self-signed certs), verify that `MLRUN_HTTPDB__HTTP__VERIFY` is set to `false`. If it's missing or not `false`, warn the user that SSL certificate errors will occur and suggest adding `MLRUN_HTTPDB__HTTP__VERIFY: false` to `env.yml`.
    - If `env.yml` doesn't exist at all, also check if `MLRUN_DBPATH` is set as an environment variable. Warn the user if neither is configured and ask if they want to proceed anyway.
 
@@ -48,7 +49,7 @@ Parse the arguments as follows:
    - If NOT found, do not add any marker flag (run as a regular test).
    - This step is skipped when targeting a component directory or full file (too broad to infer).
 
-5. **Build the pytest command**:
+4. **Build the pytest command**:
 
 ```bash
 python -m pytest -v \
@@ -66,7 +67,7 @@ Where:
 - `KEYWORD_FLAGS`: `-k "<expression>"` if `-k` was provided
 - Prepend `MLRUN_SYSTEM_TESTS_CLEAN_RESOURCES=false` if `--no-clean`
 
-6. **Run the test** display run command to the user and execute the test. Display:
+5. **Run the test** display run command to the user and execute the test. Display:
    - The full pytest command
    - What test target was resolved
    - Any special flags applied

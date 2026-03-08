@@ -321,4 +321,3 @@ def test_run_function_with_job_from_serving_fails_with_handler(
         else:
             project = mlrun.new_project("test-project", save=False)
             project.run_function(job, handler="custom_handler", local=True)
-

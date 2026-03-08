@@ -43,7 +43,7 @@ author = "Iguazio"
 docstring-code-format = true
 
 [tool.uv]
-required-version = ">=0.7.14"
+required-version = ">=0.10.9"
 
 [tool.uv.pip]
 python-version = "3.11"

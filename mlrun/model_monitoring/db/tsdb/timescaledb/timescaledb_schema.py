@@ -94,6 +94,7 @@ class TimescaleDBSchema:
         schema: str | None = None,
         chunk_time_interval: str = "1 day",
         indexes: list[str] | None = None,
+        unique_indexes: list[str] | None = None,
     ):
         self.table_name = f"{table_name}_{project.replace('-', '_')}"
         self.columns = columns
@@ -101,6 +102,7 @@ class TimescaleDBSchema:
         self.schema = schema or _MODEL_MONITORING_SCHEMA
         self.chunk_time_interval = chunk_time_interval
         self.indexes = indexes or []
+        self.unique_indexes = unique_indexes or []
         self.project = project
 
     def full_name(self) -> str:
@@ -129,6 +131,22 @@ class TimescaleDBSchema:
             index_name = f"idx_{self.table_name}_{index_columns.replace(',', '_').replace(' ', '_')}"
             queries.append(
                 f"CREATE INDEX IF NOT EXISTS {index_name} "
+                f"ON {self.full_name()} ({index_columns});"
+            )
+        return queries
+
+    def _create_unique_indexes_query(self) -> list[str]:
+        """Create unique indexes for the table.
+
+        Unique indexes on TimescaleDB hypertables must include the time
+        partitioning column. They enable deduplication when combined with
+        INSERT ... ON CONFLICT DO NOTHING on the write path.
+        """
+        queries = []
+        for index_columns in self.unique_indexes:
+            index_name = f"uq_{self.table_name}_{index_columns.replace(',', '_').replace(' ', '_')}"
+            queries.append(
+                f"CREATE UNIQUE INDEX IF NOT EXISTS {index_name} "
                 f"ON {self.full_name()} ({index_columns});"
             )
         return queries
@@ -462,6 +480,12 @@ class Predictions(TimescaleDBSchema):
             mm_schemas.WriterEvent.END_INFER_TIME,
             f"{mm_schemas.WriterEvent.END_INFER_TIME}, {mm_schemas.WriterEvent.ENDPOINT_ID}",
         ]
+        # Unique index on (endpoint_id, end_infer_time) enables deduplication
+        # of prediction records from Kafka at-least-once delivery.
+        # TimescaleDB requires unique indexes to include the time partitioning column.
+        unique_indexes = [
+            f"{mm_schemas.WriterEvent.ENDPOINT_ID}, {mm_schemas.WriterEvent.END_INFER_TIME}",
+        ]
         super().__init__(
             table_name=table_name,
             columns=columns,
@@ -469,6 +493,7 @@ class Predictions(TimescaleDBSchema):
             schema=schema,
             project=project,
             indexes=indexes,
+            unique_indexes=unique_indexes,
         )
 
 

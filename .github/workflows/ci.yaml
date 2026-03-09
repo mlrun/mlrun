@@ -261,10 +261,11 @@ jobs:
       with:
           python-version: ${{ matrix.python-version }}
           enable-cache: true
+          cache-dependency-glob: "**/*requirements*.txt"
 
     - name: Install automation scripts dependencies and add mlrun to dev packages
       run: |
-        uv venv venv --seed
+        uv venv venv --seed --clear
         source venv/bin/activate
         make install-automation-requirements
         uv pip install -e .

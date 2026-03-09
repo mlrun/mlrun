@@ -244,7 +244,7 @@ async def test_project_permissions_update_when_exists(
         ({}, False, True),
     ],
 )
-async def test_patch_project_permission_routing(
+async def test_project_permissions_patch_owner_routing(
     monkeypatch: pytest.MonkeyPatch,
     patch_body: dict,
     expect_mgmt_check: bool,
@@ -287,7 +287,7 @@ async def test_patch_project_permission_routing(
 
 
 @pytest.mark.asyncio
-async def test_owner_patch_denied_raises_access_denied(monkeypatch: pytest.MonkeyPatch):
+async def test_project_permissions_patch_owner_denied(monkeypatch: pytest.MonkeyPatch):
     """When mgmt owner permission is denied, the endpoint should raise."""
     auth_info = mlrun.common.schemas.AuthInfo()
     auth_verifier = framework.utils.auth.verifier.AuthVerifier()

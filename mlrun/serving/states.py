@@ -2780,11 +2780,11 @@ class FlowStep(BaseStep):
                             to event["y"] resulting in {"x": 5, "y": <result>}
         :param model_endpoint_creation_strategy: Strategy for creating or updating the model endpoint:
 
-                             * **overwrite**: If model endpoints with the same name exist, delete the `latest` one;
-                                create a new model endpoint entry and set it as `latest`.
+                            * **overwrite**: If model endpoints with the same name exist, delete the `latest` one;
+                              create a new model endpoint entry and set it as `latest`.
 
                             * **inplace** (default): If model endpoints with the same name exist, update the `latest`
-                                entry; otherwise, create a new entry.
+                              entry; otherwise, create a new entry.
 
                             * **archive**: If model endpoints with the same name exist, preserve them;
                               create a new model endpoint with the same name and set it to `latest`.
@@ -3336,40 +3336,31 @@ class RootFlowStep(FlowStep):
     ) -> None:
         """
         Add a shared model to the graph, this model will be available to all the ModelRunners in the graph
+
         :param name:                Name of the shared model (should be unique in the graph)
         :param model_class:         Model class name. If LLModel is chosen
-        (either by name `LLModel` or by its full path, e.g. mlrun.serving.states.LLModel),
-        outputs will be overridden with UsageResponseKeys fields.
+                                    (either by name `LLModel` or by its full path, e.g. mlrun.serving.states.LLModel),
+                                    outputs will be overridden with UsageResponseKeys fields.
         :param execution_mechanism: Parallel execution mechanism to be used to execute this model. Must be one of:
 
-            * **process_pool**: To run in a separate process from a process pool. This is appropriate for CPU or GPU
-                intensive tasks as they would otherwise block the main process by holding Python's Global Interpreter
-                Lock (GIL).
+                            * **process_pool**: To run in a separate process from a process pool. This is appropriate
+                              for CPU or GPU intensive tasks as they would otherwise block the main process by holding
+                              Python's Global Interpreter Lock (GIL).
 
-            * **dedicated_process**: To run in a separate dedicated process. This is appropriate for CPU or GPU
-                intensive tasks that also require significant Runnable-specific initialization (e.g. a large model).
+                            * **dedicated_process**: To run in a separate dedicated process. This is appropriate for CPU
+                              or GPU intensive tasks that also require significant Runnable-specific initialization
+                              (e.g. a large model).
 
-            * **thread_pool**: To run in a separate thread. This is appropriate for blocking I/O tasks, as they would
-                otherwise block the main event loop thread.
+                            * **thread_pool**: To run in a separate thread. This is appropriate for blocking I/O tasks,
+                              as they would otherwise block the main event loop thread.
 
-            * **asyncio**: To run in an asyncio task. This is appropriate for I/O tasks that use asyncio, allowing the
-                event loop to continue running while waiting for a response.
+                            * **asyncio**: To run in an asyncio task. This is appropriate for I/O tasks that use
+                              asyncio, allowing the event loop to continue running while waiting for a response.
 
-            * **shared_executor**:  Reuses an external executor (typically managed by the flow or context) to execute
-                the runnable. Should be used only if you have multiple `ParallelExecution` in the same flow and
-                especially useful when:
+                            * **naive**: To run in the main event loop. This is appropriate only for trivial computation
+                              and/or file I/O. It means that the runnable will not actually be run in parallel to
+                              anything else.
 
-                - You want to share a heavy resource like a large model loaded onto a GPU.
-
-                - You want to centralize task scheduling or coordination for multiple lightweight tasks.
-
-                - You aim to minimize overhead from creating new executors or processes/threads per runnable.
-
-                The runnable is expected to be pre-initialized and reused across events, enabling efficient use of
-                memory and hardware accelerators.
-
-            * **naive**: To run in the main event loop. This is appropriate only for trivial computation and/or file
-                I/O. It means that the runnable will not actually be run in parallel to anything else.
 
         :param model_artifact:      model artifact or mlrun model artifact uri
         :param inputs:              list of the model inputs (e.g. features) ,if provided will override the inputs

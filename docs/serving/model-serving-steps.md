@@ -10,7 +10,7 @@ Learn about the ModelRunnerStep and other steps used when serving models.
 
 ### Description
 
-The {py:class}`~mlrun.serving.ModelRunnerStep` gives you an advanced way to run multiple models on each event with control 
+The {py:class}`~mlrun.serving.states.ModelRunnerStep` gives you an advanced way to run multiple models on each event with control 
 over how they are executed in terms of concurrency and parallelism. For example, it supports
 running models in a multi-process or a multi-threaded paradigm, and it supports having a dedicated process for a given
 model (useful when the model has a long startup time or requires a lot of resources). Different execution mechanisms can be
@@ -32,6 +32,10 @@ ModelRunnerStep is used to execute and manage individual steps within a machine 
 - Integrating model steps into automated CI/CD pipelines for machine learning.
 - Monitoring and logging the performance and outputs of each step for debugging and optimization.
 - Enabling modular and reusable components in ML workflows, allowing teams to update or swap out steps independently.
+
+### ModelRunnerStep and batching
+
+
 
 ### SDK
 - {py:meth}`~mlrun.serving.ModelRunnerStep.add_model`: adds a model to the model runner and configures its execution.

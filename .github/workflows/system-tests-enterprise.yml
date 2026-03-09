@@ -139,8 +139,7 @@ jobs:
       with:
         enable-cache: true
         python-version: 3.11
-        cache-dependency-glob: |
-          **/*requirements*.txt
+        cache-dependency-glob: "**/*requirements*.txt"
 
     - name: Copy state branch file from remote
       run: |
@@ -206,7 +205,7 @@ jobs:
 
     - name: Install automation scripts dependencies
       run: |
-        uv venv venv --seed
+        uv venv venv --seed --clear
         . venv/bin/activate
         make install-automation-requirements
 
@@ -411,8 +410,7 @@ jobs:
       with:
         enable-cache: true
         python-version: 3.11
-        cache-dependency-glob: |
-          **/*requirements*.txt
+        cache-dependency-glob: "**/*requirements*.txt"
 
     - uses: actions/download-artifact@v8
       with:
@@ -439,7 +437,7 @@ jobs:
         # https://github.com/git/git/commit/8959555cee7ec045958f9b6dd62e541affb7e7d9
         # ensure mlrun git is safe to use
         git config --global --add safe.directory "$GITHUB_WORKSPACE"
-        uv venv venv --seed
+        uv venv venv --seed --clear
         . venv/bin/activate
         MLRUN_VERSION="${{ needs.prepare-system-tests-enterprise-ci.outputs.mlrunVersion }}" \
           make install-requirements install-complete-requirements update-version-file

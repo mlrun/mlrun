@@ -190,7 +190,7 @@ jobs:
       run: |
         sudo apt-get update
         sudo apt-get install --yes build-essential libpq-dev libffi-dev libssl-dev python3-dev pkg-config curl jq make
-        uv venv venv --seed
+        uv venv venv --seed --clear
         source venv/bin/activate
         make install-requirements install-complete-requirements install-automation-requirements
 

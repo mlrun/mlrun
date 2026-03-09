@@ -271,10 +271,13 @@ jobs:
           persist-credentials: false
       - name: Create tutorials tar
         run: |
-          wget -c https://raw.githubusercontent.com/v3io/tutorials/refs/heads/development/welcome.ipynb -P docs
-          wget -c https://raw.githubusercontent.com/v3io/tutorials/refs/heads/development/README.md -P docs
-          tar -cvf mlrun-tutorials.tar docs/tutorials docs/README.md docs/welcome.ipynb
-          rm -rf docs/welcome.ipynb docs/README.md
+          git clone --depth 1 --branch development https://github.com/v3io/tutorials.git /tmp/tutorials
+          cp /tmp/tutorials/welcome.ipynb docs/
+          cp /tmp/tutorials/README.md docs/
+          mkdir -p docs/assets/images
+          cp -r /tmp/tutorials/assets/images docs/assets
+          tar -cvf mlrun-tutorials.tar docs/tutorials docs/README.md docs/welcome.ipynb docs/assets/images
+          rm -rf docs/welcome.ipynb docs/README.md docs/assets/images /tmp/tutorials
       - name: Add tutorials tar to release
         uses: ncipollo/release-action@b7eabc95ff50cbeeedec83973935c8f306dfcd0b # 1.20.0
         with:

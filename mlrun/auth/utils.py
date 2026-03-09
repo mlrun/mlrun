@@ -247,8 +247,9 @@ def load_and_prepare_secret_tokens(
       3. Translate validated token dictionaries into SecretToken objects.
 
     :param auth_user_id: The user ID to filter the tokens by.
-    :param raise_on_error: Whether to raise exceptions or log warnings on failure
-                           in any of the steps (loading, validation, translation).
+    :param raise_on_error: Whether to raise exceptions or log warnings on failure.
+                           Also controls whether invalid tokens are skipped
+                           (``skip_invalid=not raise_on_error``).
     :return: List of SecretToken objects.
     :rtype: list[mlrun.common.schemas.SecretToken]
     """
@@ -263,6 +264,7 @@ def load_and_prepare_secret_tokens(
         ],
         authenticated_id=auth_user_id,
         filter_by_authenticated_id=True,
+        skip_invalid=not raise_on_error,
     )
     secret_tokens = _translate_secret_tokens(
         validated_tokens, raise_on_error=raise_on_error
@@ -274,12 +276,16 @@ def extract_and_validate_tokens_info(
     secret_tokens: list[mlrun.common.schemas.SecretToken],
     authenticated_id: str,
     filter_by_authenticated_id: bool = False,
+    skip_invalid: bool = False,
 ) -> dict[str, dict[str, typing.Any]]:
     """
     Extract and validate tokens info from a list of SecretToken objects.
 
     :param secret_tokens: List of SecretToken objects.
     :param authenticated_id: The authenticated user ID.
+    :param filter_by_authenticated_id: Whether to filter tokens by the authenticated user ID.
+    :param skip_invalid: If True, skip tokens that fail decoding/validation instead of raising.
+                         Useful for client-side flows where partial success is acceptable.
     :return: Dictionary of token info with the token name as the key and the token as the value.
     """
     token_values = {}
@@ -288,48 +294,67 @@ def extract_and_validate_tokens_info(
 
         # Validate name is provided and not duplicate
         if secret_token.name and secret_token.name not in token_values:
-            # The token is expected to be a refresh token which we cannot verify ourselves, we verify it separately
-            # via orca when exchanging it for an access token. We decode it here without verification to extract its
-            # claims.
-            decoded_token = _decode_token_unverified(secret_token.token)
+            try:
+                # The token is expected to be a refresh token which we cannot verify ourselves, we verify it separately
+                # via orca when exchanging it for an access token. We decode it here without verification to extract its
+                # claims.
+                decoded_token = _decode_token_unverified(secret_token.token)
 
-            # Validate token expiration existence
-            if not decoded_token.get(Claims.EXPIRATION):
-                raise mlrun.errors.MLRunInvalidArgumentError(
-                    f"Offline token '{token_name}' is missing the 'exp' (expiration) claim"
-                )
-            # Validate token subject existence
-            if not decoded_token.get(Claims.SUBJECT):
-                raise mlrun.errors.MLRunInvalidArgumentError(
-                    f"Offline token '{token_name}' is missing the 'sub' (subject) claim"
-                )
+                # Validate token expiration existence
+                if not decoded_token.get(Claims.EXPIRATION):
+                    raise mlrun.errors.MLRunInvalidArgumentError(
+                        f"Offline token '{token_name}' is missing the 'exp' (expiration) claim"
+                    )
+                # Validate token subject existence
+                if not decoded_token.get(Claims.SUBJECT):
+                    raise mlrun.errors.MLRunInvalidArgumentError(
+                        f"Offline token '{token_name}' is missing the 'sub' (subject) claim"
+                    )
 
-            # Validate token belongs to the authenticated user
-            token_sub = decoded_token.get(Claims.SUBJECT)
-            if token_sub != authenticated_id:
-                # just ignore the token as it doesn't belong to the authenticated user
-                if filter_by_authenticated_id:
+                # Validate token belongs to the authenticated user
+                token_sub = decoded_token.get(Claims.SUBJECT)
+                if token_sub != authenticated_id:
+                    # just ignore the token as it doesn't belong to the authenticated user
+                    if filter_by_authenticated_id:
+                        continue
+                    mlrun.utils.logger.warning(
+                        "Offline token subject does not match the authenticated user",
+                        token_name=token_name,
+                        token_sub=token_sub,
+                        user_id=authenticated_id,
+                    )
+                    raise mlrun.errors.MLRunInvalidArgumentError(
+                        f"Offline token '{token_name}' does not match the authenticated user ID. "
+                        "Stored tokens can only belong to the authenticated user."
+                    )
+
+                # Store token info
+                token_values[secret_token.name] = {
+                    "token_exp": decoded_token.get(Claims.EXPIRATION),
+                    "token": secret_token.token,
+                }
+            except mlrun.errors.MLRunInvalidArgumentError as exc:
+                if skip_invalid:
+                    mlrun.utils.logger.warning(
+                        "Failed to validate token, skipping. "
+                        "The token will not be synced to the backend",
+                        token_name=token_name,
+                        error=mlrun.errors.err_to_str(exc),
+                    )
                     continue
-                mlrun.utils.logger.warning(
-                    "Offline token subject does not match the authenticated user",
-                    token_name=token_name,
-                    token_sub=token_sub,
-                    user_id=authenticated_id,
-                )
-                raise mlrun.errors.MLRunInvalidArgumentError(
-                    f"Offline token '{token_name}' does not match the authenticated user ID. "
-                    "Stored tokens can only belong to the authenticated user."
-                )
-
-            # Store token info
-            token_values[secret_token.name] = {
-                "token_exp": decoded_token.get(Claims.EXPIRATION),
-                "token": secret_token.token,
-            }
+                raise
         else:
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                f"Invalid or duplicate token name '{secret_token.name}' found in request payload"
+            if secret_token.name:
+                message = (
+                    f"Duplicate token name '{secret_token.name}' found in request payload, "
+                    "only first occurrence is synced to the backend."
+                )
+            else:
+                message = "Token with invalid name found in request payload"
+            mlrun.utils.helpers.raise_or_log_error(
+                message, raise_on_error=not skip_invalid
             )
+            continue
     return token_values
 
 

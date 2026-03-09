@@ -277,7 +277,7 @@ jobs:
           mkdir -p docs/assets/images
           cp -r /tmp/tutorials/assets/images docs/assets
           tar -cvf mlrun-tutorials.tar docs/tutorials docs/README.md docs/welcome.ipynb docs/assets/images
-          rm -rf docs/welcome.ipynb docs/README.md docs/assets/images
+          rm -rf docs/welcome.ipynb docs/README.md docs/assets/images /tmp/tutorials
       - name: Add tutorials tar to release
         uses: ncipollo/release-action@b7eabc95ff50cbeeedec83973935c8f306dfcd0b # 1.20.0
         with:

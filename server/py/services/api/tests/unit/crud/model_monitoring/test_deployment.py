@@ -283,7 +283,7 @@ def test_kafka_upgrade_calls_offset_migration(
 
     migrate_offsets_mock.assert_called_once()
     call_kwargs = migrate_offsets_mock.call_args.kwargs
-    assert call_kwargs["old_group"] == kafka_profile.group
+    assert call_kwargs["old_group"] == "serving"
     assert call_kwargs["new_group"] == call_kwargs["topic"]
 
 

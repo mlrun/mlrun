@@ -1465,7 +1465,6 @@ class TestNuclioAPIGateways(tests.system.base.TestMLRunSystem):
             filename=filename,
             name=f"nuclio-mlrun-{suffix}",
             kind="nuclio",
-            image="python:3.9",
             handler="handler",
         )
         fn.spec.replicas = replicas

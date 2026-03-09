@@ -1495,6 +1495,7 @@ class TestProject(TestMLRunSystem):
         }
 
     @pytest.mark.enterprise
+    @pytest.mark.skip(reason="Runs only on system with preemptible nodes")
     def test_project_default_function_node_selector_using_igz_mgmt(self):
         project_label_name, project_label_val = "kubernetes.io/arch", "amd64"
 

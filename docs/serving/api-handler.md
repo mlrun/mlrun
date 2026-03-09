@@ -16,24 +16,25 @@ When the `GraphServer receives` an event with an API handler, and prior to actua
 
 If the event was sent to an invalid path, it fails the request with the relevant HTTP error.
 
-
 ## SDK
-The `set_api_handler_config` accepts the full configuration. You cannot add/remove paths and mappings directly on the serving runtime. 
-
-
-
-
+The {py:meth}`~mlrun.runtimes.ServingRuntime.set_api_handler_config` accepts the full configuration. You cannot add or remove paths and mappings directly on the serving runtime. 
 
 ### Guidelines
-Path expressions
+**Path expressions**
 - Paths are generally assumed to be a specific path, unless globs (*) are used. For example setting a /v1/completion/* path matches any path that starts with `/v1/completion/`, but using `/v1/completion` only meets this specific path.
-- If multiple matches exist, the one that is most specific is chosen. For example, if `/v1/completion/*` is set to `allow`, and `/v1/completion/bad` is set to `fail` - calling `/v1/completion/bad` fails the request due to its being more specific.
+- Paths can include params, for example, `/api/{version}/chat`, where version is a path parameter.
+- If multiple matches exist, the priority is 
+  1. Specific paths, for example `/api/v1/allowed` 
+  2. Paths with params, for example `/api/{version}}/allowed` 
+  3. Paths with stars, for example `/api/*` 
+  
+  Inside the paths with param or star, the priority is by insertion order, not the most specific match.
 
-Body mapping  
+**Body mapping**
 - JSONPath may be producing multiple results. For example, in the canonical book store sample, looking for `$['store']['book'][*]['title']` results in all the titles of all the books in the store. The handler places the results in the field specified as a list of values.
 - If the JSONPath search returns a complex object, for example looking for `$['store']['book'][0]` which returns the entire dictionary of the first book (not just the title as above), the results should be placed as-is into the field selected, such that the full result dict is in the field (or a list of these dict results, given previous point).
 
-URL information mapping 
+**URL information mapping**
 - By default, the API handler adds information to the event about the URL used, and any query params provided. This complements the mapping of the body structure, and allows passing any important information passed in query params or the URL itself. For example, the OpenAI chat-completion API is `GET .../v1/chat/completions/{completion_id}`, then the `completion_id` needs to be available for processing.
 - To support that, the API handler parses the URL and splits it to its components, placing it in a field called `mlrun_url_path_segments` (the `mlrun_` denotes a system-provided field). For example, in the URL for chat completion, the parts are [“v1”,”chat”,”completions”,<completion id>]. This allows the graph steps to use this information to extract any information needed.
 - In addition, any query params are also placed in an event field called `mlrun_url_query_params`. This is a dictionary mapping from param name to its value(s). For example, the OpenAI get-chat-messages call supports a limit param (among others), so a call to - `GET .../v1/chat/completions/{completion_id}/messages?limit=10` sets the value of this field to {“limit”: 10}. Of course, this field is optional, and its value could be empty if no query params are used.

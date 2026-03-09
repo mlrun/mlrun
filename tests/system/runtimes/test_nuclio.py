@@ -44,7 +44,7 @@ from tests.system.runtimes.assets.function_with_model import DummyModel, MyModel
 class TestNuclioRuntime(TestMLRunSystemModelMonitoring):
     project_name = "test-nuclio-runtime"
 
-    image: str = "mlrun/mlrun"
+    image: str = "artifactory.iguazeng.com:10557/roys/mlrun:1.11.0"
 
     def test_deploy_function_with_error_handler(self):
         code_path = str(self.assets_path / "function-with-catcher.py")
@@ -779,6 +779,16 @@ class TestNuclioRuntime(TestMLRunSystemModelMonitoring):
         assert resp["tool_a"] == 2
         assert resp["tool_b"] == 2
 
+    @staticmethod
+    def _test_timing_per_thread(function, time_limit: int):
+        start = time.time()
+        function.invoke(path="/", body={"inputs": [[1, 2], [1, 2]]})
+        end = time.time()
+        timing = end - start
+        assert timing < time_limit, (
+            f"running nuclio async mode took {timing} seconds should be < {time_limit}"
+        )
+
     def test_async_http_mode(self):
         code_path = str(self.assets_path / "async_nuclio_func.py")
 
@@ -799,20 +809,19 @@ class TestNuclioRuntime(TestMLRunSystemModelMonitoring):
         function.deploy()
 
         self._logger.debug("Triggering nuclio function")
-        start = time.time()
         with ThreadPoolExecutor(max_workers=100) as executor:
             # Submit tasks
             futures = [
-                executor.submit(function.invoke, path="/", body=[i]) for i in range(100)
+                executor.submit(
+                    self._test_timing_per_thread,
+                    function=function,
+                    time_limit=7,
+                )
+                for _ in range(100)
             ]
             # Retrieve results as they complete
             for future in as_completed(futures):
                 future.result()
-        end = time.time()
-        timing = end - start
-        assert timing < 7, (
-            f"running nuclio async mode took {timing} seconds should be < 7"
-        )
 
     @pytest.mark.parametrize("with_code", [True, False])
     def test_async_http_mode_serving_graph(self, with_code):
@@ -868,9 +877,11 @@ class TestNuclioRuntime(TestMLRunSystemModelMonitoring):
             # Submit tasks
             futures = [
                 executor.submit(
-                    async_function.invoke, path="/", body={"inputs": [[1, 2], [1, 2]]}
+                    self._test_timing_per_thread,
+                    function=async_function,
+                    time_limit=7,
                 )
-                for i in range(16)
+                for _ in range(16)
             ]
             # Retrieve results as they complete
             for future in as_completed(futures):

@@ -241,6 +241,7 @@ async def test_project_permissions_update_when_exists(
         ({"spec": {"owner": "new_owner"}}, True, False),
         ({"spec": {"description": "updated"}}, False, True),
         ({"spec": {"owner": "new_owner", "description": "updated"}}, True, True),
+        ({"metadata": {"labels": {"key": "val"}}}, False, True),
         ({}, False, True),
     ],
 )

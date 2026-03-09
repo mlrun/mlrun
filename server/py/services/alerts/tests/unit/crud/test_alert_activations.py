@@ -14,8 +14,11 @@
 
 import pytest
 
+import mlrun.common.schemas
+import mlrun.common.schemas.alert as alert_objects
 from mlrun.common.schemas import (
     AlertNotification,
+    Event,
     Notification,
     NotificationState,
     NotificationSummary,
@@ -141,3 +144,71 @@ def _normalize_error_messages(state):
         prefix, errors = state["err"].split("Errors: ")
         state["err"] = f"{prefix}Errors: {', '.join(sorted(errors.split(', ')))}"
     return state
+
+
+def _make_alert_and_event(
+    project="my-project",
+    summary="Lag in project {{project}}.",
+    entity_id="my-project.writer.0",
+):
+    """Helper to build a minimal AlertConfig and Event for _prepare_notification_args tests."""
+    entity_kind = alert_objects.EventEntityKind.MODEL_MONITORING_INFRA
+    alert = mlrun.common.schemas.AlertConfig(
+        project=project,
+        name="monitoring-lag-detected",
+        summary=summary,
+        severity=alert_objects.AlertSeverity.MEDIUM,
+        entities=alert_objects.EventEntities(
+            kind=entity_kind, project=project, ids=[entity_id]
+        ),
+        trigger=alert_objects.AlertTrigger(
+            events=[alert_objects.EventKind.MODEL_MONITORING_LAG_DETECTED]
+        ),
+        notifications=[
+            AlertNotification(notification=Notification(name="n", kind="slack"))
+        ],
+    )
+    event_data = Event(
+        kind=alert_objects.EventKind.MODEL_MONITORING_LAG_DETECTED,
+        entity=alert_objects.EventEntities(
+            kind=entity_kind, project=project, ids=[entity_id]
+        ),
+    )
+    return alert, event_data
+
+
+class TestPrepareNotificationArgs:
+    """Tests for AlertNotificationPusher._prepare_notification_args (ML-12248)."""
+
+    def test_message_resolves_project_placeholder(self):
+        """When no custom notification message is set, the fallback message
+        must resolve {{project}} instead of leaving it literal."""
+        alert, event_data = _make_alert_and_event(
+            project="lag-detection-tutorial",
+            summary="Model monitoring lag detected in project {{project}}.",
+        )
+        notification_object = Notification(name="n", kind="slack")
+
+        message, _ = (
+            framework.utils.notifications.notification_pusher.AlertNotificationPusher._prepare_notification_args(
+                alert, notification_object, event_data
+            )
+        )
+
+        assert (
+            message
+            == "Model monitoring lag detected in project lag-detection-tutorial."
+        )
+
+    def test_custom_notification_message_used_as_is(self):
+        """When the notification has its own message, use it directly."""
+        alert, event_data = _make_alert_and_event()
+        notification_object = Notification(name="n", kind="slack", message="custom msg")
+
+        message, _ = (
+            framework.utils.notifications.notification_pusher.AlertNotificationPusher._prepare_notification_args(
+                alert, notification_object, event_data
+            )
+        )
+
+        assert message == ": custom msg"

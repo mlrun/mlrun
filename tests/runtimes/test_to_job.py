@@ -284,7 +284,7 @@ def test_run_function_with_job_from_serving_fails_with_handler(
 ):
     """Test that run_function raises error when handler is specified for a job from serving function.
 
-    When a serving function is converted to a job via to_job(), the job retains a serving_spec.
+    When a serving function is deployed to a job via to_job(), the job contains a serving_spec.
     Running such a job with a custom handler should fail because the serving spec already
     defines the default handler (execute_graph).
 
@@ -292,7 +292,8 @@ def test_run_function_with_job_from_serving_fails_with_handler(
     - project.run_function (use_operations_run_function=False)
     - operations.run_function directly (use_operations_run_function=True)
     """
-    from mlrun.projects.operations import run_function as operations_run_function
+    if use_operations_run_function:
+        from mlrun.projects.operations import run_function as operations_run_function
 
     # Create a serving function
     serving_fn = mlrun.new_function(name="test-serving", kind="serving")
@@ -302,7 +303,7 @@ def test_run_function_with_job_from_serving_fails_with_handler(
     graph = serving_fn.set_topology("flow", engine="async")
     graph.to(name="step1", handler="handler")
 
-    # Convert to job - this creates a KubejobRuntime with serving_spec
+    # Deploy to job - this creates a KubejobRuntime with serving_spec
     job = serving_fn.to_job()
 
     # Verify the job has a serving_spec

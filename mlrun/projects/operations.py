@@ -188,8 +188,10 @@ def run_function(
     :return: MLRun RunObject or PipelineNodeWrapper
     """
     if (
-        isinstance(function, mlrun.runtimes.KubejobRuntime) and function.serving_spec
-    ) and handler is not None:
+        isinstance(function, mlrun.runtimes.KubejobRuntime)
+        and function.serving_spec
+        and handler is not None
+    ):
         raise mlrun.errors.MLRunInvalidArgumentError(
             "handler cannot be specified when running a KubeJobRuntime with a serving spec"
         )

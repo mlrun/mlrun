@@ -19,7 +19,7 @@ If the event was sent to an invalid path, it fails the request with the relevant
 ## SDK
 The {py:meth}`~mlrun.runtimes.ServingRuntime.set_api_handler_config` accepts the full configuration. You cannot add or remove paths and mappings directly on the serving runtime. 
 
-### Guidelines
+## Guidelines
 **Path expressions**
 - Paths are generally assumed to be a specific path, unless globs (*) are used. For example setting a /v1/completion/* path matches any path that starts with `/v1/completion/`, but using `/v1/completion` only meets this specific path.
 - Paths can include params, for example, `/api/{version}/chat`, where version is a path parameter.

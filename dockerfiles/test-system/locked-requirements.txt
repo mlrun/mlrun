@@ -4512,8 +4512,8 @@ statsmodels==0.14.6 \
     --hash=sha256:f4ff0649a2df674c7ffb6fa1a06bffdb82a6adf09a48e90e000a15a6aaa734b0 \
     --hash=sha256:fe76140ae7adc5ff0e60a3f0d56f4fffef484efa803c3efebf2fcd734d72ecb5
     # via evidently
-storey==1.11.20 \
-    --hash=sha256:11a66a222d7fb00e7af7a7936d5b5a7950f8728ad2eb423012925a9f1c9a3cf1
+storey==1.11.21 \
+    --hash=sha256:b58e760b20baf77e93d1491c1d5a4bb14f51282af8e3de7c80e17a30579dd5ea
     # via -r requirements.txt
 strip-hints==0.1.13 \
     --hash=sha256:1feaebde61269ba0dea1e7f093df7ff9d4df4980cce7e3c22ed6d86ae43dbd06 \

@@ -149,12 +149,14 @@ def _normalize_error_messages(state):
 class TestPrepareNotificationArgs:
     """Tests for AlertNotificationPusher._prepare_notification_args (ML-12248)."""
 
-    def test_message_resolves_project_placeholder(self):
+    def test_message_resolves_all_placeholders(self):
         """When no custom notification message is set, the fallback message
-        must resolve {{project}} instead of leaving it literal."""
-        alert, event_data = self._make_alert_and_event(
+        must resolve all template placeholders ({{project}}, {{name}}, {{entity}})."""
+        alert, event_data = self._create_alert_and_event(
             project="lag-detection-tutorial",
-            summary="Model monitoring lag detected in project {{project}}.",
+            name="my-lag-alert",
+            summary="Alert {{name}} in project {{project}}, entity {{entity}}.",
+            entity_id="lag-detection-tutorial.writer.0",
         )
         notification_object = Notification(name="n", kind="slack")
 
@@ -164,14 +166,14 @@ class TestPrepareNotificationArgs:
             )
         )
 
-        assert (
-            message
-            == "Model monitoring lag detected in project lag-detection-tutorial."
+        assert message == (
+            "Alert my-lag-alert in project lag-detection-tutorial, "
+            "entity lag-detection-tutorial.writer.0."
         )
 
     def test_custom_notification_message_used_as_is(self):
         """When the notification has its own message, use it directly."""
-        alert, event_data = self._make_alert_and_event()
+        alert, event_data = self._create_alert_and_event()
         notification_object = Notification(name="n", kind="slack", message="custom msg")
 
         message, _ = (
@@ -183,8 +185,9 @@ class TestPrepareNotificationArgs:
         assert message == ": custom msg"
 
     @staticmethod
-    def _make_alert_and_event(
+    def _create_alert_and_event(
         project="my-project",
+        name="monitoring-lag-detected",
         summary="Lag in project {{project}}.",
         entity_id="my-project.writer.0",
     ):
@@ -192,7 +195,7 @@ class TestPrepareNotificationArgs:
         entity_kind = alert_objects.EventEntityKind.MODEL_MONITORING_INFRA
         alert = mlrun.common.schemas.AlertConfig(
             project=project,
-            name="monitoring-lag-detected",
+            name=name,
             summary=summary,
             severity=alert_objects.AlertSeverity.MEDIUM,
             entities=alert_objects.EventEntities(

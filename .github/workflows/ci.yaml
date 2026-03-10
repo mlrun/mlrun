@@ -55,7 +55,7 @@ jobs:
         cache: pip
     - name: Install dependencies
       run: |
-        python -m pip install --upgrade pip~=25.0
+        python -m pip install --upgrade pip~=26.0
         pip install -r dev-requirements.txt
     - name: Lint
       run: make lint
@@ -261,10 +261,11 @@ jobs:
       with:
           python-version: ${{ matrix.python-version }}
           enable-cache: true
+          cache-dependency-glob: "**/*requirements*.txt"
 
     - name: Install automation scripts dependencies and add mlrun to dev packages
       run: |
-        uv venv venv --seed
+        uv venv venv --seed --clear
         source venv/bin/activate
         make install-automation-requirements
         uv pip install -e .

@@ -7020,6 +7020,9 @@ class SQLDB(DBInterface):
             run_name = alert_data.entities.ids[0]
             run_uid = event_data.value_dict.get("uid")
             entity_id = f"{run_name}.{run_uid}" if run_uid else run_name
+        elif alert_data.entities.ids[0] == "*":
+            # Wildcard alert — use the actual entity_id from the event
+            entity_id = event_data.entity.ids[0]
         else:
             entity_id = alert_data.entities.ids[0]
 

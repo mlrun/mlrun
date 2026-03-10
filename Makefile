@@ -77,13 +77,19 @@ SETUP_COVERAGE = if [ "$(RUN_COVERAGE)" = "true" ]; then \
 		echo "Error: COVERAGE_FILE must end with .coverage" >&2; \
 		exit 1; \
 		;; \
-	esac \
+	esac; \
+	export COVERAGE_PROCESS_START=$(PWD)/pyproject.toml; \
 fi
 
 PRINT_COVERAGE_REPORT = if [ "$(RUN_COVERAGE)" = "true" ]; then \
     	echo "coverage report $$COVERAGE_FILE :"; \
 		COVERAGE_FILE=$$COVERAGE_FILE coverage report; \
 	fi
+
+COMBINE_COVERAGE = if [ "$(RUN_COVERAGE)" = "true" ]; then \
+	echo "Combining coverage files matching $${COVERAGE_FILE}.*" ; \
+	COVERAGE_FILE=$$COVERAGE_FILE coverage combine $${COVERAGE_FILE}.* ; \
+fi
 
 # Verify the mount point to avoid deleting essential paths
 SETUP_COVERAGE_MOUNTING = if [ "$(RUN_COVERAGE)" = "true" ]; then \
@@ -660,7 +666,7 @@ test: clean ## Run mlrun tests
 	python \
 		-X faulthandler \
 		$(COVERAGE_ADDITION) \
-		-m pytest -v \
+		-m pytest -v -s \
 		--capture=no \
 		--disable-warnings \
 		--durations=100 \
@@ -670,6 +676,7 @@ test: clean ## Run mlrun tests
 		--forked \
 		-rf \
 		$$UNIT_TESTS_PATH && \
+	$(COMBINE_COVERAGE) && \
 	$(PRINT_COVERAGE_REPORT) ;
 
 

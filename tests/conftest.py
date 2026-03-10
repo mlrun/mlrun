@@ -256,3 +256,44 @@ def db_engine(
     logger.info("Wiping database", db_type=db_type)
     _wipe_database(engine)
     yield engine
+
+# ---------------------------------------------------------------------------
+# Forked-process coverage support
+# When pytest-forked forks a child process, sitecustomize.py is NOT re-run,
+# so coverage is not started automatically.  We detect this situation via
+# COVERAGE_PROCESS_START and start/stop coverage manually around each test.
+# ---------------------------------------------------------------------------
+
+
+def _coverage_active() -> bool:
+    """Return True if a coverage tracer is already installed on this thread."""
+    import sys
+
+    tracer = getattr(sys, "gettrace", lambda: None)()
+    if tracer is None:
+        return False
+    # coverage installs a CTracer or PyTracer whose module is coverage.*
+    return getattr(type(tracer), "__module__", "").startswith("coverage")
+
+
+def pytest_runtest_call(item):
+    """If running inside a forked child process, ensure coverage is active."""
+    print("my_print  condition", file=stderr)
+    if os.environ.get("COVERAGE_PROCESS_START") and not _coverage_active():
+        import coverage
+        print("my_print starting coverage in forked child process", file=stderr)
+        cov = coverage.Coverage(
+            config_file=os.environ["COVERAGE_PROCESS_START"],
+            data_file=os.environ.get("COVERAGE_FILE"),
+            data_suffix=True,
+        )
+        cov.start()
+        item._coverage_forked = cov
+
+
+def pytest_runtest_teardown(item, nextitem):
+    """Stop and save coverage that was started in the forked child."""
+    cov = getattr(item, "_coverage_forked", None)
+    if cov is not None:
+        cov.stop()
+        cov.save()

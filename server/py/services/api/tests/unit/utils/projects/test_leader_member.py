@@ -15,6 +15,7 @@
 import typing
 import unittest.mock
 
+import aioresponses
 import pytest
 import sqlalchemy.orm
 
@@ -23,6 +24,8 @@ import mlrun.config
 import mlrun.errors
 from mlrun.utils import logger
 
+import framework.utils.auth.providers.opa
+import framework.utils.auth.verifier
 import framework.utils.projects.leader
 import framework.utils.projects.remotes.follower
 import framework.utils.singletons.project_member
@@ -683,6 +686,103 @@ def test_get_project(
     project = projects_leader.get_project(None, project_name)
     assert project.metadata.name == project_name
     assert project.spec.description == project_description
+
+
+@pytest.mark.asyncio
+async def test_ensure_project_populates_opa_owner_cache_across_replicas(
+    db: sqlalchemy.orm.Session,
+    projects_leader: framework.utils.projects.leader.Member,
+    leader_follower: framework.utils.projects.remotes.follower.Member,
+):
+    """
+    Simulates the multi-replica OPA manifest propagation race
+
+    1. "API A" creates a project (project stored in DB with owner)
+    2. "API B" receives a follow-up request (e.g. set_secrets)
+       - OPA sidecar on B has NO manifest (always denies)
+       - ensure_project fetches project from DB, sees owner matches, populates local cache
+       - query_permissions hits cache → bypasses OPA → succeeds
+
+    We simulate "empty OPA manifest" by configuring OPA to always return {"result": false}.
+    """
+    project_name = "test-cross-replica-project"
+    owner_username = "project-creator"
+    owner_user_id = "user-id-123"
+
+    # --- Step 1: "API A" creates the project (stored in shared DB with owner) ---
+    project = mlrun.common.schemas.Project(
+        metadata=mlrun.common.schemas.ProjectMetadata(name=project_name),
+        spec=mlrun.common.schemas.ProjectSpec(owner=owner_username),
+    )
+    auth_info = mlrun.common.schemas.AuthInfo(
+        username=owner_username,
+        user_id=owner_user_id,
+    )
+    projects_leader.create_project(None, project, auth_info=auth_info)
+
+    # Verify project is in "DB" (nop follower) with owner set
+    stored = leader_follower.get_project(None, project_name)
+    assert stored.spec.owner == owner_username
+
+    # --- Step 2: "API B" — fresh OPA provider, empty manifest (always denies) ---
+    api_url = "http://127.0.0.1:8181"
+    permission_query_path = "/v1/data/service/authz/allow"
+    mlrun.mlconf.httpdb.authorization.opa.address = api_url
+    mlrun.mlconf.httpdb.authorization.opa.permission_query_path = permission_query_path
+    mlrun.mlconf.httpdb.authorization.opa.log_level = 10
+    mlrun.mlconf.httpdb.authorization.mode = "opa"
+
+    opa_provider = framework.utils.auth.providers.opa.Provider()
+    opa_provider.__init__()
+
+    # Verify OPA denies (no manifest) BEFORE ensure_project
+    with aioresponses.aioresponses() as aiohttp_mock:
+        aiohttp_mock.post(
+            f"{api_url}{permission_query_path}",
+            payload={"result": False},
+        )
+        with pytest.raises(mlrun.errors.MLRunAccessDeniedError):
+            await opa_provider.query_permissions(
+                f"/resources/projects/{project_name}/functions",
+                mlrun.common.schemas.AuthorizationAction.create,
+                auth_info,
+            )
+
+    # --- Step 3: ensure_project on "API B" — fetches from DB, populates cache ---
+    projects_leader.ensure_project(None, project_name, auth_info=auth_info)
+
+    # --- Step 4: OPA query now succeeds via cache — no OPA call made ---
+    with aioresponses.aioresponses() as aiohttp_mock:
+        # OPA still configured to deny, but cache should bypass it entirely
+        allowed = await opa_provider.query_permissions(
+            f"/resources/projects/{project_name}/functions",
+            mlrun.common.schemas.AuthorizationAction.create,
+            auth_info,
+        )
+        assert allowed is True
+        # OPA was never called — the cache handled it
+        aiohttp_mock.assert_not_called()
+
+    # --- Step 5: Verify non-owner is NOT cached (security check) ---
+    non_owner_auth = mlrun.common.schemas.AuthInfo(
+        username="other-user",
+        user_id="other-user-id",
+    )
+    projects_leader.ensure_project(None, project_name, auth_info=non_owner_auth)
+
+    with aioresponses.aioresponses() as aiohttp_mock:
+        aiohttp_mock.post(
+            f"{api_url}{permission_query_path}",
+            payload={"result": False},
+        )
+        with pytest.raises(mlrun.errors.MLRunAccessDeniedError):
+            await opa_provider.query_permissions(
+                f"/resources/projects/{project_name}/functions",
+                mlrun.common.schemas.AuthorizationAction.create,
+                non_owner_auth,
+            )
+
+    await opa_provider._sessions.async_close()
 
 
 def _assert_project_not_in_followers(followers, name):

@@ -70,7 +70,7 @@ endif
 
 SETUP_COVERAGE = if [ "$(RUN_COVERAGE)" = "true" ]; then \
 	case "$$COVERAGE_FILE" in *.coverage) \
-		rm -rf $$COVERAGE_FILE && \
+		rm -rf $$COVERAGE_FILE.* && \
 		mkdir -p $$(dirname $$COVERAGE_FILE) ;\
 		;; \
 	  *) \
@@ -643,6 +643,7 @@ test-dockerized: build-test ## Run mlrun tests in docker container
 test: clean ## Run mlrun tests
 	# TODO: Remove ignored tests for Python 3.11 compatibility with KFP 2
 	set -e ; \
+	mkdir -p tests/coverage_reports; \
 	COMMON_IGNORE_TEST_FLAGS=$$(echo "\
 	--ignore=tests/integration \
 	--ignore=server/py/services/api/tests/integration \
@@ -662,11 +663,12 @@ test: clean ## Run mlrun tests
 	fi && \
 	COVERAGE_FILE=$(COVERAGE_FILE) && \
 	COVERAGE_FILE=$${COVERAGE_FILE:-"tests/coverage_reports/unit_tests.coverage"} && \
+	$(SETUP_COVERAGE)
 	$(SETUP_COVERAGE) && \
 	python \
 		-X faulthandler \
 		$(COVERAGE_ADDITION) \
-		-m pytest -v -s \
+		-m pytest -v \
 		--capture=no \
 		--disable-warnings \
 		--durations=100 \
@@ -676,10 +678,32 @@ test: clean ## Run mlrun tests
 		--forked \
 		-rf \
 		$$UNIT_TESTS_PATH && \
-	$(COMBINE_COVERAGE) && \
 	$(PRINT_COVERAGE_REPORT) ;
 
-
+test-forked:
+	rm -rf tests/coverage_reports && mkdir -p tests/coverage_reports
+	$(eval COV_DATA  := tests/coverage_reports/helpers.coverage)
+	$(eval HTML_DIR  := tests/coverage_reports/htmlcov)
+	$(eval HTML_REPORT := $(HTML_DIR)/index.html)
+	COVERAGE_PROCESS_START=$(PWD)/pyproject.toml \
+	COVERAGE_FILE=$(COV_DATA) \
+	python \
+		-X faulthandler \
+		-m coverage run \
+		--data-file=$(COV_DATA) \
+		-m pytest -v \
+		--capture=no \
+		--disable-warnings \
+		--durations=100 \
+		--forked \
+		-rf \
+		tests/utils/test_helpers.py::test_dummy_func2
+	COVERAGE_FILE=$(COV_DATA) python -m coverage combine
+	COVERAGE_FILE=$(COV_DATA) python -m coverage html \
+		--include="mlrun/utils/helpers.py" \
+		-d $(HTML_DIR)
+	@echo "\n✅  HTML report ready → $(HTML_DIR)"
+	open $(HTML_DIR)/z_5d83566b8150e7ce_helpers_py.html
 
 .PHONY: test-integration-dockerized
 test-integration-dockerized: build-test api ## Run mlrun integration tests in docker container, some tests require the api image to be built

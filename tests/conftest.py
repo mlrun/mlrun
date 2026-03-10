@@ -13,6 +13,7 @@
 # limitations under the License.
 import logging
 import os
+import sys
 import traceback
 import typing
 from datetime import datetime
@@ -257,6 +258,7 @@ def db_engine(
     _wipe_database(engine)
     yield engine
 
+
 # ---------------------------------------------------------------------------
 # Forked-process coverage support
 # When pytest-forked forks a child process, sitecustomize.py is NOT re-run,
@@ -265,23 +267,20 @@ def db_engine(
 # ---------------------------------------------------------------------------
 
 
-def _coverage_active() -> bool:
-    """Return True if a coverage tracer is already installed on this thread."""
-    import sys
-
-    tracer = getattr(sys, "gettrace", lambda: None)()
-    if tracer is None:
-        return False
-    # coverage installs a CTracer or PyTracer whose module is coverage.*
-    return getattr(type(tracer), "__module__", "").startswith("coverage")
-
-
 def pytest_runtest_call(item):
     """If running inside a forked child process, ensure coverage is active."""
-    print("my_print  condition", file=stderr)
+    # os.fork() does NOT trigger sitecustomize in the child, so coverage
+    # is not automatically started. We detect we're in a child by checking
+    # COVERAGE_PROCESS_START and start it manually here.
     if os.environ.get("COVERAGE_PROCESS_START") and not _coverage_active():
         import coverage
-        print("my_print starting coverage in forked child process", file=stderr)
+
+        open(
+            Path(__file__).absolute().parent
+            / "coverage_reports"
+            / "indicator_condition.txt",
+            "a",
+        ).close()
         cov = coverage.Coverage(
             config_file=os.environ["COVERAGE_PROCESS_START"],
             data_file=os.environ.get("COVERAGE_FILE"),
@@ -292,8 +291,17 @@ def pytest_runtest_call(item):
 
 
 def pytest_runtest_teardown(item, nextitem):
-    """Stop and save coverage that was started in the forked child."""
+    """Stop and save coverage that was started in forked child."""
     cov = getattr(item, "_coverage_forked", None)
     if cov is not None:
         cov.stop()
         cov.save()
+
+
+def _coverage_active():
+    """Return True if coverage is already tracing."""
+    import coverage
+
+    return isinstance(
+        getattr(sys, "gettrace", lambda: None)(), coverage.Coverage.__class__
+    )

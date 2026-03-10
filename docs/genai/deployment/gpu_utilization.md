@@ -26,7 +26,7 @@ In deep learning models, attention mechanisms are used to focus on different par
 ### Async mode
 ```
 {admonition} Note
-Requires Nuclio 1.15.3 and higher.
+Requires Nuclio 1.15.3 or higher.
 ```
 MLRun can process events asynchronously within a batch, sending a response as soon as the event completes. For example, a data pipeline sends multiple events (e.g., customer data for personalization) to the GenAI model. The system processes each event asynchronously, and events to complete independently of one another. Responses are sent back to the pipeline as soon as they are ready, without waiting for the entire batch to complete. Throughput is maximized, and bottlenecks are minimized.
 
@@ -79,9 +79,10 @@ Disable async mode by:
 -  Set `async_spec=None` when calling `with_http` to reset the modes to its default configurations 
 
 ### Batching
-Batching improves GPU utilization and reduces per-request overhead. 
-GPUs utilization is higher when executing several tasks in parallel rather than per request. This results in a higher memory
-requirement and some increase in latency, but usually that cost is less significant compared to the GPU.
+
+Processing multiple inputs simultaneously is far more efficient than sequential execution, resulting in faster inference and optimal GPU utilization.
+
+GPUs utilization is higher when executing several tasks in parallel rather than per request. Parallel execution requires a higher memory and causes some increase in latency, but the resulting cost is usually less significant compared to the GPU.
 GPU is an expensive resource and is underutilized if all requests are processed in sequence. 
 
 A typical use case: you submit a batch of text samples for classification (e.g., sentiment analysis or topic detection).
@@ -114,6 +115,8 @@ Disable batch mode by:
    batching_spec = mlrun.runtimes.nuclio.function.BatchSpec(enabled=False)
    ```
 -  Set `batching_spec=None` when calling `with_http` to reset the modes to its default configurations 
+
+See how to use batching in a serving graph in {ref}`hf-model-image-classification`.
 
 ### GPU allocation
 

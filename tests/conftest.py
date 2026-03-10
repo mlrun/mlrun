@@ -261,26 +261,19 @@ def db_engine(
 
 # ---------------------------------------------------------------------------
 # Forked-process coverage support
-# When pytest-forked forks a child process, sitecustomize.py is NOT re-run,
-# so coverage is not started automatically.  We detect this situation via
-# COVERAGE_PROCESS_START and start/stop coverage manually around each test.
+# Pytest-forked isolates test execution in new processes, which can prevent
+# coverage from automatically attaching to the child. We use the
+# COVERAGE_PROCESS_START environment variable to force the tracer to
+# initialize in the forked process, ensuring that coverage data is captured
+# correctly across process boundaries.
 # ---------------------------------------------------------------------------
 
 
 def pytest_runtest_call(item):
     """If running inside a forked child process, ensure coverage is active."""
-    # os.fork() does NOT trigger sitecustomize in the child, so coverage
-    # is not automatically started. We detect we're in a child by checking
-    # COVERAGE_PROCESS_START and start it manually here.
     if os.environ.get("COVERAGE_PROCESS_START") and not _coverage_active():
         import coverage
 
-        open(
-            Path(__file__).absolute().parent
-            / "coverage_reports"
-            / "indicator_condition.txt",
-            "a",
-        ).close()
         cov = coverage.Coverage(
             config_file=os.environ["COVERAGE_PROCESS_START"],
             data_file=os.environ.get("COVERAGE_FILE"),

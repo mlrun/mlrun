@@ -780,7 +780,7 @@ class TestNuclioRuntime(TestMLRunSystemModelMonitoring):
         assert resp["tool_b"] == 2
 
     @staticmethod
-    def _test_timing_per_thread(function, time_limit: int):
+    def check_invocation_time_less_than(function, time_limit: int):
         start = time.time()
         function.invoke(path="/", body={"inputs": [[1, 2], [1, 2]]})
         end = time.time()
@@ -813,7 +813,7 @@ class TestNuclioRuntime(TestMLRunSystemModelMonitoring):
             # Submit tasks
             futures = [
                 executor.submit(
-                    self._test_timing_per_thread,
+                    self.check_invocation_time_less_than,
                     function=function,
                     time_limit=7,
                 )
@@ -877,7 +877,7 @@ class TestNuclioRuntime(TestMLRunSystemModelMonitoring):
             # Submit tasks
             futures = [
                 executor.submit(
-                    self._test_timing_per_thread,
+                    self.check_invocation_time_less_than,
                     function=async_function,
                     time_limit=7,
                 )

@@ -24,7 +24,8 @@ All steps are supported by the storey engine.
 
 ### ChoiceByField
 - Description: Routes events to downstream steps based on an event field that contains the step name or names. See {py:class}`~mlrun.serving.steps.ChoiceByField`.
-- Use case: Use this step when routing decisions in a serving graph should be determined dynamically based on a field in the event. <br>Instead of subclassing a choice step and implementing custom routing logic, the user can add a field to the event containing the name (or names) of the downstream step(s) to route to.<br>
+- Use case: Use this step when routing decisions in a serving graph should be determined dynamically based on a field in the event.
+Instead of subclassing a choice step and implementing custom routing logic, you can add a field to the event containing the name (or names) of the downstream step(s) to route to.
 The value of the configured field can be either:
     * a string – the event will be forwarded to the corresponding outlet.
     * a list or tuple of strings – the event will be forwarded to all specified outlets.

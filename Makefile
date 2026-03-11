@@ -664,6 +664,7 @@ test: clean ## Run mlrun tests
 	COVERAGE_FILE=$(COVERAGE_FILE) && \
 	COVERAGE_FILE=$${COVERAGE_FILE:-"tests/coverage_reports/unit_tests.coverage"} && \
 	$(SETUP_COVERAGE) && \
+	COVERAGE_FILE=$$COVERAGE_FILE \
 	python \
 		-X faulthandler \
 		$(COVERAGE_ADDITION) \
@@ -707,6 +708,7 @@ test-integration: clean ## Run mlrun integration tests
 	$(SETUP_COVERAGE) && \
 	MLRUN_MYSQL_IMAGE=$(MLRUN_MYSQL_IMAGE) \
 	MLRUN_POSTGRES_IMAGE=$(MLRUN_POSTGRES_IMAGE) \
+	COVERAGE_FILE=$$COVERAGE_FILE \
 	python $(COVERAGE_ADDITION) \
 		-m pytest -v \
 		--capture=no \
@@ -716,6 +718,7 @@ test-integration: clean ## Run mlrun integration tests
 		tests/integration \
 		server/py/services/api/tests/integration \
 		tests/rundb/test_httpdb.py && \
+	$(COMBINE_COVERAGE) && \
 	$(PRINT_COVERAGE_REPORT);
 
 .PHONY: test-migrations-dockerized
@@ -751,6 +754,7 @@ test-migrations: clean ## Run mlrun db migrations tests
 	    -rf "$(ROOT_DIR)/server/py/services/api/migrations/tests" \
 	    2>&1 | tee migration_tests.log' ; \
 	exit_code=$$? ; \
+	$(COMBINE_COVERAGE) && \
 	$(PRINT_COVERAGE_REPORT) ; \
 	exit $$exit_code
 

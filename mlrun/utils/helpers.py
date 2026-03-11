@@ -2723,7 +2723,13 @@ def set_auth_token_name(spec, token_name: str | None):
         spec.auth["token_name"] = token_name
 
 
-def dummy_funct2():
+def covered_dummy_function():
     x = 1
     x += 10
+    return x
+
+
+def missing_dummy_function():
+    x = 2
+    x += 20
     return x

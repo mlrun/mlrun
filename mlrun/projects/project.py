@@ -4187,7 +4187,8 @@ class MlrunProject(ModelObj):
             )
 
         :param function:        name of the function (in the project) or function object
-        :param handler:         name of the function handler
+        :param handler:         name of the function handler. should not be set for serving graph deployed as job,
+                                as in this case the handler is predefined
         :param name:            execution name
         :param params:          input parameters (dict)
         :param hyperparams:     hyper parameters

@@ -441,15 +441,6 @@ class MonitoringDeployment:
         topic = mlrun.common.model_monitoring.helpers.get_kafka_topic(
             project=self.project, function_name=function_name
         )
-        if kafka_profile.group is not None:
-            logger.warning(
-                "Kafka profile 'group' is ignored for model monitoring;"
-                " using topic name as consumer group to prevent"
-                " cross-project rebalance storms",
-                project=self.project,
-                configured_group=kafka_profile.group,
-                effective_group=topic,
-            )
         profile_attributes = kafka_profile.attributes()
         stream_source = mlrun.datastore.sources.KafkaSource(
             brokers=kafka_profile.brokers,

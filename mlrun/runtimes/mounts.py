@@ -570,23 +570,24 @@ def set_env_vars_from_secret(
     set_env_from_secret(), and when mounting all keys via set_env_from_secret_ref().
 
     Supports auto-mount-params in two forms:
-    - Comma-delimited string: e.g. keys="key1,key2,key3" (no JSON decoding).
+    - Semicolon-delimited string: e.g. keys="key1;key2;key3" (used when passing keys
+      via ``storage.auto_mount_params``, where commas separate top-level parameters).
     - List of strings: e.g. keys=["key1", "key2", "key3"] (when params are base64-encoded JSON).
 
     Usage::
 
         function.apply(set_env_vars_from_secret("my-secret"))  # mount all keys
         function.apply(set_env_vars_from_secret("my-secret", keys=["KEY1", "KEY2"]))
-        function.apply(set_env_vars_from_secret("my-secret", keys="KEY1,KEY2,KEY3"))
+        function.apply(set_env_vars_from_secret("my-secret", keys="KEY1;KEY2;KEY3"))
 
     :param secret_name: Kubernetes secret name.
-    :param keys: Optional. Secret data keys to expose as env vars. Either a comma-delimited
-        string (e.g. "key1,key2,key3") or a list of strings. If omitted, all keys in the
+    :param keys: Optional. Secret data keys to expose as env vars. Either a semicolon-delimited
+        string (e.g. "key1;key2;key3") or a list of strings. If omitted, all keys in the
         secret are mounted as environment variables.
     """
 
     if isinstance(keys, str):
-        keys_list = [k.strip() for k in keys.split(",") if k.strip()]
+        keys_list = [k.strip() for k in keys.split(";") if k.strip()]
     elif keys is not None:
         keys_list = [k if isinstance(k, str) else str(k) for k in keys]
     else:

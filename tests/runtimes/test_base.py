@@ -309,6 +309,30 @@ class TestAutoMount:
         self._execute_run(runtime)
         rundb_mock.assert_env_variables(expected_env)
 
+    @pytest.mark.parametrize(
+        "params_string, expected",
+        [
+            (
+                "secret_name=my_secret,keys=key1;key2;key3",
+                {"secret_name": "my_secret", "keys": "key1;key2;key3"},
+            ),
+            (
+                "secret_name=my_secret",
+                {"secret_name": "my_secret"},
+            ),
+            (
+                "secret_name=my_secret,keys=single_key",
+                {"secret_name": "my_secret", "keys": "single_key"},
+            ),
+        ],
+    )
+    def test_get_storage_auto_mount_params_with_semicolon_keys(
+        self, params_string, expected
+    ):
+        mlconf.storage.auto_mount_params = params_string
+        result = mlconf.get_storage_auto_mount_params()
+        assert result == expected
+
     def _create_temp_requirements_file(self, requirements):
         with tempfile.NamedTemporaryFile(
             delete=False, dir=self._temp_dir, suffix=".txt"

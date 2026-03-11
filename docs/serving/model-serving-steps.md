@@ -33,10 +33,6 @@ ModelRunnerStep is used to execute and manage individual steps within a machine 
 - Monitoring and logging the performance and outputs of each step for debugging and optimization.
 - Enabling modular and reusable components in ML workflows, allowing teams to update or swap out steps independently.
 
-### ModelRunnerStep and batching
-
-
-
 ### SDK
 - {py:meth}`~mlrun.serving.ModelRunnerStep.add_model`: adds a model to the model runner and configures its execution.
 - {py:meth}`~mlrun.serving.ModelRunnerStep.add_shared_model_proxy`: Adds a proxy model to the ModelRunnerStep. 
@@ -97,8 +93,32 @@ model_runner_step.add_model(
 
 graph.to(model_runner_step).respond()
 ```     
-### Batching mode
 
+### Batching
+Ezample of batching using `ModelRunnerStep`. See a full flow in {ref}`hf-model-serving-graph`.
+
+```
+graph = function.set_topology("flow", engine="async")
+step = graph.to(
+    "storey.Batch",
+    "my_batching",
+    max_events=2,
+    flush_after_seconds=4,
+    full_event=True,
+)
+model_runner_step = ModelRunnerStep(name="my_model_runner")
+model_runner_step.add_model(
+    model_class="mlrun.serving.states.LLModel",
+    endpoint_name="my_endpoint",
+    execution_mechanism="dedicated_process",
+    model_artifact=llm_prompt_artifact,
+    result_path="output",
+)
+step = step.to(model_runner_step)
+step.to("storey.FlatMap", _fn="(event.body)", full_event=True).respond()
+
+print("Serving graph configured with dedicated_process execution mechanism")
+```
 
 ### Streaming
 

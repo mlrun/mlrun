@@ -45,7 +45,6 @@ class TestApplicationRuntime(tests.system.base.TestMLRunSystem):
         ]
         self._source = os.path.join(self.remote_code_dir, self._vizro_app_code_filename)
 
-    @pytest.mark.yacoub
     def test_deploy_application(self):
         self._upload_code_to_cluster()
 
@@ -90,7 +89,6 @@ class TestApplicationRuntime(tests.system.base.TestMLRunSystem):
             == f".mlrun/func-{self.project.metadata.name}-{function.metadata.name}:latest"
         )
 
-    @pytest.mark.yacoub
     def test_deploy_application_from_image(self):
         self._logger.debug("Creating first application")
         function, source = self._create_vizro_application(name="first-app")
@@ -115,7 +113,6 @@ class TestApplicationRuntime(tests.system.base.TestMLRunSystem):
         # make sure the build was skipped
         assert "(info) Skipping build" in output
 
-    @pytest.mark.yacoub
     def test_deploy_application_from_project_source(self):
         self._upload_code_to_cluster()
 
@@ -226,7 +223,6 @@ class TestApplicationRuntime(tests.system.base.TestMLRunSystem):
         response = function.invoke("/external", verify=False).content.decode("utf-8")
         assert response == "test message"
 
-    @pytest.mark.yacoub
     def test_deploy_application_with_source_reload(self):
         """
         Test that application source code can be updated and reloaded at runtime using the init container.
@@ -272,7 +268,6 @@ class TestApplicationRuntime(tests.system.base.TestMLRunSystem):
             response = function.invoke("/", verify=False)
             assert response.content.decode("utf-8") == "version-2"
 
-    @pytest.mark.yacoub
     def test_deploy_application_with_git_source(self):
         """
         Test that application runtime uses init container to load Git source at runtime.
@@ -352,7 +347,6 @@ class TestApplicationRuntime(tests.system.base.TestMLRunSystem):
         response = function.invoke("/rootlib.py", verify=False)
         assert response.status_code == 404
 
-    @pytest.mark.yacoub
     def test_deploy_application_with_archive_source(self):
         """
         Test that application runtime uses init container to load archive source at runtime.

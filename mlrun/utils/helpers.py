@@ -2722,7 +2722,8 @@ def set_auth_token_name(spec, token_name: str | None):
             spec.auth = {}
         spec.auth["token_name"] = token_name
 
+
 def dummy_funct2():
     x = 1
-    x+=10
+    x += 10
     return x

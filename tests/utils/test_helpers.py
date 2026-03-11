@@ -33,6 +33,7 @@ from mlrun.datastore.store_resources import parse_store_uri
 from mlrun.utils import logger
 from mlrun.utils.helpers import (
     StorePrefix,
+    dummy_funct2,
     enrich_image_url,
     ensure_batch_job_suffix,
     extend_hub_uri_if_needed,
@@ -56,7 +57,7 @@ from mlrun.utils.helpers import (
     validate_tag_name,
     validate_v3io_stream_consumer_group,
     verify_field_regex,
-    verify_list_items_type, dummy_funct2,
+    verify_list_items_type,
 )
 
 STORE_PREFIX = "store://{kind}/dummy-project/dummy-db-key"
@@ -2139,6 +2140,7 @@ def test_set_auth_token_name_works_with_nuclio_spec():
     spec = mlrun.runtimes.nuclio.function.NuclioSpec()
     set_auth_token_name(spec, "my-token")
     assert spec.auth["token_name"] == "my-token"
+
 
 def test_dummy_func2():
     assert dummy_funct2() == 11

@@ -143,12 +143,17 @@ async def patch_project(
         framework.api.deps.get_db_session
     ),
 ):
-    # skip permission check if it's the leader in iguazio v3 mode
-    if (
-        mlrun.mlconf.is_iguazio_v4_mode()
-        or not framework.utils.helpers.is_request_from_leader(auth_info.projects_role)
-    ):
+    # In IG4 mode, apply fine-grained permission checks
+    # In IG3 mode, skip the check when the request comes from the leader; otherwise fall back to the standard
+    # project-update permission to preserve backward compatibility.
+    if mlrun.mlconf.is_iguazio_v4_mode():
         await _verify_patch_project_permissions(name, project, auth_info)
+    elif not framework.utils.helpers.is_request_from_leader(auth_info.projects_role):
+        await framework.utils.auth.verifier.AuthVerifier().query_project_permissions(
+            name,
+            mlrun.common.schemas.AuthorizationAction.update,
+            auth_info,
+        )
     project, is_running_in_background = await run_in_threadpool(
         get_project_member().patch_project,
         db_session,

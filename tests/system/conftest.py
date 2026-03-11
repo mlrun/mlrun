@@ -52,7 +52,13 @@ def _collect_pod_logs_on_failure(item: Function) -> None:
 
     This helps debug test failures by showing logs from relevant pods
     (project-specific pods and system pods like mlrun-api).
+
+    Only runs for tests marked with @pytest.mark.collect_pod_logs.
     """
+    # Only collect logs for tests that opt-in via marker
+    if not item.get_closest_marker("collect_pod_logs"):
+        return
+
     try:
         test_instance = item.instance
         if test_instance is None:

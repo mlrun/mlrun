@@ -62,6 +62,58 @@ def leader_follower(
     return projects_leader._leader_follower
 
 
+@pytest.mark.parametrize(
+    "method_name",
+    [
+        "create_project",
+        "store_project",
+    ],
+)
+@pytest.mark.parametrize(
+    "explicit_owner, auth_user, expected_owner",
+    [
+        (None, "auth-user", "auth-user"),
+        ("explicit-owner", "auth-user", "explicit-owner"),
+        ("explicit-owner", "explicit-owner", "explicit-owner"),
+    ],
+)
+def test_project_owner_from_auth_info_only_when_missing(
+    projects_leader: framework.utils.projects.leader.Member,
+    method_name: str,
+    explicit_owner: str | None,
+    auth_user: str,
+    expected_owner: str,
+):
+    project = mlrun.common.schemas.Project(
+        metadata=mlrun.common.schemas.ProjectMetadata(name="project-name"),
+        spec=mlrun.common.schemas.ProjectSpec(
+            description="some description",
+            owner=explicit_owner,
+        ),
+    )
+    auth_info = mlrun.common.schemas.AuthInfo(username=auth_user)
+
+    if method_name == "create_project":
+        created_project, _ = projects_leader.create_project(
+            None,
+            project,
+            auth_info=auth_info,
+        )
+        project_out = created_project
+    elif method_name == "store_project":
+        stored_project, _ = projects_leader.store_project(
+            None,
+            project.metadata.name,
+            project,
+            auth_info=auth_info,
+        )
+        project_out = stored_project
+    else:
+        raise ValueError(f"Unexpected method name: {method_name}")
+
+    assert project_out.spec.owner == expected_owner
+
+
 def test_projects_sync_follower_project_adoption(
     db: sqlalchemy.orm.Session,
     projects_leader: framework.utils.projects.leader.Member,
@@ -529,6 +581,47 @@ def test_delete_project_follower_failure(
 
     # deletion from leader should happen only after successful deletion from followers so ensure project still in leader
     _assert_project_in_followers([leader_follower], project)
+
+
+def test_delete_project_follower_explicit_order(
+    db: sqlalchemy.orm.Session,
+    monkeypatch: pytest.MonkeyPatch,
+    projects_leader: framework.utils.projects.leader.Member,
+    nop_follower: framework.utils.projects.remotes.follower.Member,
+    second_nop_follower: framework.utils.projects.remotes.follower.Member,
+    leader_follower: framework.utils.projects.remotes.follower.Member,
+):
+    # _follower_operation_order defines an explicit order for delete_project.
+    # Setting nop2 before nop and making nop2 fail proves it runs first:
+    # nop and the leader should still have the project.
+    def mock_failed_delete(*args, **kwargs):
+        raise RuntimeError()
+
+    monkeypatch.setattr(
+        projects_leader,
+        "_follower_operation_order",
+        {"delete_project": ["nop2", "nop"]},
+    )
+
+    project_name = "project-name"
+    project = mlrun.common.schemas.Project(
+        metadata=mlrun.common.schemas.ProjectMetadata(name=project_name),
+    )
+    projects_leader.create_project(
+        None,
+        project,
+    )
+    _assert_project_in_followers(
+        [leader_follower, nop_follower, second_nop_follower], project
+    )
+
+    second_nop_follower.delete_project = mock_failed_delete
+
+    with pytest.raises(RuntimeError):
+        projects_leader.delete_project(None, project_name)
+
+    # nop2 runs first (explicit order) and fails, so nop and leader should be untouched
+    _assert_project_in_followers([leader_follower, nop_follower], project)
 
 
 def test_list_projects(

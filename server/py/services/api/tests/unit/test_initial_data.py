@@ -13,7 +13,6 @@
 # limitations under the License.
 
 import string
-import typing
 import unittest.mock
 
 import pytest
@@ -686,9 +685,9 @@ def test_ensure_latest_tag_for_artifacts():
     artifacts = db.list_artifacts(
         db_session, project=project1, name=key1, tag="latest", as_records=True
     )
-    assert (
-        len(artifacts) == 3
-    ), f"Expected 3 artifacts with latest tag, found {len(artifacts)}"
+    assert len(artifacts) == 3, (
+        f"Expected 3 artifacts with latest tag, found {len(artifacts)}"
+    )
 
     # Verify that artifact from the previous run (run1) wasn't tagged as latest
     with pytest.raises(mlrun.errors.MLRunNotFoundError):
@@ -740,9 +739,9 @@ def test_migrate_monitoring_functions_labels():
             assert key not in func_labels, f"{func_name} has an unexpected label"
 
 
-def _initialize_db_without_schema() -> (
-    tuple[framework.db.sqldb.db.SQLDB, sqlalchemy.orm.Session]
-):
+def _initialize_db_without_schema() -> tuple[
+    framework.db.sqldb.db.SQLDB, sqlalchemy.orm.Session
+]:
     dsn = "sqlite:///:memory:?check_same_thread=false"
     mlrun.mlconf.httpdb.dsn = dsn
     framework.db.sqldb.sql_session._init_engine(dsn=dsn)
@@ -753,9 +752,9 @@ def _initialize_db_without_schema() -> (
     return db, db_session
 
 
-def _initialize_db_without_migrations() -> (
-    tuple[framework.db.sqldb.db.SQLDB, sqlalchemy.orm.Session]
-):
+def _initialize_db_without_migrations() -> tuple[
+    framework.db.sqldb.db.SQLDB, sqlalchemy.orm.Session
+]:
     dsn = "sqlite:///:memory:?check_same_thread=false"
     mlrun.mlconf.httpdb.dsn = dsn
     framework.db.sqldb.sql_session._init_engine(dsn=dsn)
@@ -772,9 +771,9 @@ def _insert_function(
     db_session,
     fn_name,
     project: str,
-    function_kind: typing.Optional[str] = "remote",
-    function_state: typing.Optional[str] = "ready",
-    labels: typing.Optional[dict] = None,
+    function_kind: str | None = "remote",
+    function_state: str | None = "ready",
+    labels: dict | None = None,
 ):
     function_body = {
         "metadata": {"name": fn_name},

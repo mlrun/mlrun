@@ -45,6 +45,15 @@ class Member(
     project_member.Member,
     metaclass=mlrun.utils.singleton.AbstractSingleton,
 ):
+    # Explicit follower execution order per operation. When defined, followers run in
+    # the specified order; unlisted followers are appended alphabetically after them.
+    # This allows controlling execution order as more followers might be added in the future (e.g. ecliptOS).
+    _follower_operation_order: dict[str, list[str]] = {
+        # Authorization (igz/Orca) last among the explicitly ordered followers - if an
+        # earlier follower fails, the project retains its policies and remains accessible.
+        "delete_project": ["nuclio", "igz"],
+    }
+
     def initialize(self):
         logger.info("Initializing projects leader")
         self._initialize_followers()
@@ -70,12 +79,13 @@ class Member(
         auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
         wait_for_completion: bool = True,
         commit_before_get: bool = False,
-    ) -> tuple[typing.Optional[mlrun.common.schemas.ProjectOut], bool]:
-        self._enrich_and_validate(project)
+    ) -> tuple[mlrun.common.schemas.ProjectOut | None, bool]:
+        self._enrich_and_validate(project, auth_info)
         self._run_on_all_followers(
             True, "create_project", db_session, project, auth_info
         )
-        return self.get_project(db_session, project.metadata.name), False
+        project = self.get_project(db_session, project.metadata.name)
+        return project, False
 
     def store_project(
         self,
@@ -84,8 +94,8 @@ class Member(
         project: mlrun.common.schemas.Project,
         auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
         wait_for_completion: bool = True,
-    ) -> tuple[typing.Optional[mlrun.common.schemas.ProjectOut], bool]:
-        self._enrich_and_validate(project)
+    ) -> tuple[mlrun.common.schemas.ProjectOut | None, bool]:
+        self._enrich_and_validate(project, auth_info)
         self._validate_body_and_path_names_matches(name, project)
         self._run_on_all_followers(
             True, "store_project", db_session, name, project, auth_info
@@ -115,8 +125,8 @@ class Member(
         deletion_strategy: mlrun.common.schemas.DeletionStrategy = mlrun.common.schemas.DeletionStrategy.default(),
         auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
         wait_for_completion: bool = True,
-        background_task_name: typing.Optional[str] = None,
-        model_monitoring_access_key: typing.Optional[str] = None,
+        background_task_name: str | None = None,
+        model_monitoring_access_key: str | None = None,
     ) -> bool:
         self._projects_in_deletion.add(name)
         try:
@@ -141,11 +151,11 @@ class Member(
         self,
         db_session: sqlalchemy.orm.Session,
         auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
-        owner: typing.Optional[str] = None,
+        owner: str | None = None,
         format_: mlrun.common.formatters.ProjectFormat = mlrun.common.formatters.ProjectFormat.full,
-        labels: typing.Optional[list[str]] = None,
+        labels: list[str] | None = None,
         state: mlrun.common.schemas.ProjectState = None,
-        names: typing.Optional[list[str]] = None,
+        names: list[str] | None = None,
     ) -> mlrun.common.schemas.ProjectsOutput:
         return self._leader_follower.list_projects(
             db_session, auth_info, owner, format_, labels, state, names
@@ -155,10 +165,10 @@ class Member(
         self,
         db_session: sqlalchemy.orm.Session,
         auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
-        owner: typing.Optional[str] = None,
-        labels: typing.Optional[list[str]] = None,
+        owner: str | None = None,
+        labels: list[str] | None = None,
         state: mlrun.common.schemas.ProjectState = None,
-        names: typing.Optional[list[str]] = None,
+        names: list[str] | None = None,
     ) -> mlrun.common.schemas.ProjectSummariesOutput:
         return await self._leader_follower.list_project_summaries(
             db_session, auth_info, owner, labels, state, names
@@ -388,6 +398,19 @@ class Member(
             project.metadata.labels, raise_on_failure=False
         )
 
+    def _get_ordered_followers(
+        self, method: str
+    ) -> list[tuple[str, "framework.utils.projects.remotes.follower.Member"]]:
+        explicit_order = self._follower_operation_order.get(method)
+        if not explicit_order:
+            return sorted(self._followers.items())
+
+        order_map = {name: i for i, name in enumerate(explicit_order)}
+        return sorted(
+            self._followers.items(),
+            key=lambda item: (order_map.get(item[0], len(explicit_order)), item[0]),
+        )
+
     def _run_on_all_followers(
         self, leader_first: bool, method: str, *args, **kwargs
     ) -> tuple[typing.Any, dict[str, typing.Any]]:
@@ -397,7 +420,7 @@ class Member(
         # TODO: do it concurrently
         follower_responses = {
             follower_name: getattr(follower, method)(*args, **kwargs)
-            for follower_name, follower in sorted(self._followers.items())
+            for follower_name, follower in self._get_ordered_followers(method)
         }
         if not leader_first:
             leader_response = getattr(self._leader_follower, method)(*args, **kwargs)
@@ -437,12 +460,21 @@ class Member(
             raise ValueError(f"Unknown follower name: {name}")
         return followers_classes_map[name]()
 
-    def _enrich_and_validate(self, project: mlrun.common.schemas.Project):
-        self._enrich_project(project)
+    def _enrich_and_validate(
+        self,
+        project: mlrun.common.schemas.Project,
+        auth_info: mlrun.common.schemas.AuthInfo | None = None,
+    ):
+        self._enrich_project(project, auth_info)
         self._validate_project(project)
 
     @staticmethod
-    def _enrich_project(project: mlrun.common.schemas.Project):
+    def _enrich_project(
+        project: mlrun.common.schemas.Project,
+        auth_info: mlrun.common.schemas.AuthInfo | None = None,
+    ):
+        if auth_info and project.spec.owner is None:
+            project.spec.owner = auth_info.username
         project.status.state = project.spec.desired_state
 
     @staticmethod

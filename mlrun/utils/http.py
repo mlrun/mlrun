@@ -25,6 +25,25 @@ from ..errors import err_to_str
 from . import logger
 
 
+class DummyCookieJar(requests.cookies.RequestsCookieJar):
+    """
+    Cookie jar that doesn't store any cookies.
+
+    This prevents identity leakage by ensuring cookies from authentication services
+    are not stored or sent in subsequent requests. Note that this does NOT affect
+    reading incoming cookies from request headers - you can still access request.cookies
+    or request.headers.get('Cookie') to read cookies sent TO your service.
+    """
+
+    def set_cookie(self, cookie, *args, **kwargs):
+        """Override to prevent storing cookies"""
+        pass
+
+    def __setitem__(self, name, value):
+        """Override to prevent storing cookies"""
+        pass
+
+
 class HTTPSessionWithRetry(requests.Session):
     """
     Extend requests.Session to add retry logic on both error statuses and certain exceptions.
@@ -90,6 +109,9 @@ class HTTPSessionWithRetry(requests.Session):
         self.verbose = verbose
         self._logger = logger.get_child("http-client")
         self._retry_methods = self._resolve_retry_methods(retry_on_post, retry_on_put)
+
+        # Disable cookie storage to prevent identity leakage
+        self.cookies = DummyCookieJar()
 
         if retry_on_status:
             self._http_adapter = requests.adapters.HTTPAdapter(

@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import abc
-from typing import Optional
 
 from kubernetes import client
 from sqlalchemy.orm import Session
@@ -108,8 +107,8 @@ class AbstractMPIJobRuntimeHandler(KubeRuntimeHandler, abc.ABC):
             namespace
         )
         try:
-            resp = framework.utils.singletons.k8s.get_k8s_helper().crdapi.get_namespaced_custom_object(
-                mpi_group, mpi_version, namespace, mpi_plural, name
+            resp = framework.utils.singletons.k8s.get_k8s_helper().get_crd(
+                mpi_group, mpi_version, mpi_plural, namespace, name
             )
         except client.exceptions.ApiException as exc:
             logger.warning(
@@ -158,11 +157,11 @@ class AbstractMPIJobRuntimeHandler(KubeRuntimeHandler, abc.ABC):
             namespace
         )
         try:
-            resp = framework.utils.singletons.k8s.get_k8s_helper().crdapi.create_namespaced_custom_object(
+            resp = framework.utils.singletons.k8s.get_k8s_helper().create_crd(
                 mpi_group,
                 mpi_version,
+                mpi_plural,
                 namespace=namespace,
-                plural=mpi_plural,
                 body=job,
             )
             name = mlrun.utils.helpers.get_in(resp, "metadata.name", "unknown")
@@ -193,9 +192,9 @@ class AbstractMPIJobRuntimeHandler(KubeRuntimeHandler, abc.ABC):
         uid: str,
         name: str,
         run_state: str,
-        run: Optional[dict] = None,
+        run: dict | None = None,
         search_run: bool = True,
-        runtime_resource: Optional[dict] = None,
+        runtime_resource: dict | None = None,
     ) -> tuple[bool, str, dict]:
         _, run_state, run = super()._ensure_run_state(
             db,

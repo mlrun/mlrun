@@ -5,7 +5,7 @@ requires = [
 
 [tool.ruff]
 target-version = "py311"
-required-version = ">=0.8.0"
+required-version = ">=0.15.2"
 
 [tool.ruff.lint]
 extend-select = [
@@ -43,7 +43,7 @@ author = "Iguazio"
 docstring-code-format = true
 
 [tool.uv]
-required-version = ">=0.7.14"
+required-version = ">=0.10.9"
 
 [tool.uv.pip]
 python-version = "3.11"
@@ -63,6 +63,9 @@ timeout = 1800  # 30 minutes per test
 log_cli = true
 log_level = "DEBUG"
 asyncio_mode = "auto"
+markers = [
+    "collect_pod_logs: collect pod logs on test failure for debugging",
+]
 
 [tool.importlinter]
 root_packages = [

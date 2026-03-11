@@ -15,7 +15,6 @@
 import threading
 import time
 from datetime import datetime
-from typing import Optional
 
 import pytest
 
@@ -35,8 +34,8 @@ class TestTimescaleDBOperationsManagerIntegration:
         result_status: int = 1,
         result_kind: int = 2,
         result_extra_data: str = '{"confidence": 0.9}',
-        end_time: Optional[datetime] = None,
-        start_time: Optional[datetime] = None,
+        end_time: datetime | None = None,
+        start_time: datetime | None = None,
     ) -> dict:
         """Factory method for creating result event data."""
         if end_time is None:
@@ -62,8 +61,8 @@ class TestTimescaleDBOperationsManagerIntegration:
         application_name: str = "performance_monitoring",
         metric_name: str = "accuracy",
         metric_value: float = 0.95,
-        end_time: Optional[datetime] = None,
-        start_time: Optional[datetime] = None,
+        end_time: datetime | None = None,
+        start_time: datetime | None = None,
     ) -> dict:
         """Factory method for creating metric event data."""
         if end_time is None:
@@ -82,7 +81,7 @@ class TestTimescaleDBOperationsManagerIntegration:
 
     @staticmethod
     def _verify_table_data(
-        connection, table, expected_count: int, where_clause: Optional[str] = None
+        connection, table, expected_count: int, where_clause: str | None = None
     ) -> list:
         """Helper method for verifying table data."""
         query = f"SELECT COUNT(*) FROM {table.full_name()}"
@@ -91,9 +90,9 @@ class TestTimescaleDBOperationsManagerIntegration:
 
         result = connection.run(query=query)
         actual_count = result.data[0][0]
-        assert (
-            actual_count == expected_count
-        ), f"Expected {expected_count} records, got {actual_count}"
+        assert actual_count == expected_count, (
+            f"Expected {expected_count} records, got {actual_count}"
+        )
         return result.data
 
     @staticmethod
@@ -161,6 +160,56 @@ class TestTimescaleDBOperationsManagerIntegration:
             """
         )
         assert len(result.data) == 4
+
+    def test_predictions_unique_index_created(self, query_test_helper):
+        """Test that a unique index on (endpoint_id, end_infer_time) is created on the predictions table."""
+        connection = query_test_helper.connection
+        tables = query_test_helper.operations_handler.tables
+        predictions_table = tables[mm_schemas.TimescaleDBTables.PREDICTIONS]
+        schema_name = predictions_table.schema
+
+        # Query actual unique indexes and their column order from pg catalog
+        result = connection.run(
+            query=f"""
+            SELECT ic.relname AS index_name,
+                   array_agg(a.attname ORDER BY array_position(ix.indkey, a.attnum)) AS columns
+            FROM pg_index ix
+            JOIN pg_class t ON t.oid = ix.indrelid
+            JOIN pg_class ic ON ic.oid = ix.indexrelid
+            JOIN pg_namespace n ON n.oid = t.relnamespace
+            JOIN pg_attribute a ON a.attrelid = t.oid AND a.attnum = ANY(ix.indkey)
+            WHERE n.nspname = '{schema_name}'
+              AND t.relname = '{predictions_table.table_name}'
+              AND ix.indisunique = true
+              AND NOT ix.indisprimary
+            GROUP BY ic.relname
+            """
+        )
+
+        # Exactly one unique index on predictions
+        assert len(result.data) == 1
+        _, columns = result.data[0]
+        assert columns == ["endpoint_id", "end_infer_time"]
+
+        # Verify other tables have no unique indexes
+        for table_type in [
+            mm_schemas.TimescaleDBTables.METRICS,
+            mm_schemas.TimescaleDBTables.APP_RESULTS,
+            mm_schemas.TimescaleDBTables.ERRORS,
+        ]:
+            table = tables[table_type]
+            other_result = connection.run(
+                query=f"""
+                SELECT COUNT(*) FROM pg_index ix
+                JOIN pg_class t ON t.oid = ix.indrelid
+                JOIN pg_namespace n ON n.oid = t.relnamespace
+                WHERE n.nspname = '{schema_name}'
+                  AND t.relname = '{table.table_name}'
+                  AND ix.indisunique = true
+                  AND NOT ix.indisprimary
+                """
+            )
+            assert other_result.data[0][0] == 0
 
     def test_create_tables_with_pre_aggregates(self, query_test_helper_with_aggregates):
         """Test table creation with pre-aggregate configuration."""
@@ -629,9 +678,9 @@ class TestTimescaleDBOperationsManagerIntegration:
         )
         record_count = result.data[0][0]
         expected_min = len(results)  # At least 1 record per successful worker
-        assert (
-            record_count >= expected_min
-        ), f"Expected at least {expected_min} records, got {record_count}"
+        assert record_count >= expected_min, (
+            f"Expected at least {expected_min} records, got {record_count}"
+        )
 
     def test_aggregate_deletion_statements_generation(self, query_test_helper):
         """Test generation of aggregate deletion statements for endpoint cleanup."""
@@ -682,8 +731,7 @@ class TestTimescaleDBOperationsManagerIntegration:
         for stmt in statements:
             sql = stmt.sql
             assert sql.endswith("WHERE endpoint_id = %s"), (
-                f"DELETE statement should end with 'WHERE endpoint_id = %s', "
-                f"got: {sql}"
+                f"DELETE statement should end with 'WHERE endpoint_id = %s', got: {sql}"
             )
 
         # Also test with multiple endpoints (uses ANY(%s) syntax)
@@ -758,9 +806,9 @@ class TestTimescaleDBOperationsManagerIntegration:
             (row[0] for row in cagg_result.data if "_cagg_" in row[0]),
             None,
         )
-        assert (
-            predictions_cagg is not None
-        ), "Expected to find a predictions continuous aggregate"
+        assert predictions_cagg is not None, (
+            "Expected to find a predictions continuous aggregate"
+        )
 
         # Delete records for test_endpoint including aggregates
         operations_handler.delete_tsdb_records([test_endpoint], include_aggregates=True)
@@ -809,9 +857,9 @@ class TestTimescaleDBOperationsManagerIntegration:
                 application_name="", endpoint_ids=test_endpoints
             )
         )
-        assert isinstance(
-            empty_app_statements, list
-        ), "Should handle empty application name"
+        assert isinstance(empty_app_statements, list), (
+            "Should handle empty application name"
+        )
 
         # Should handle empty endpoint list gracefully
         empty_endpoints_statements = (
@@ -819,9 +867,9 @@ class TestTimescaleDBOperationsManagerIntegration:
                 application_name=test_application, endpoint_ids=[]
             )
         )
-        assert isinstance(
-            empty_endpoints_statements, list
-        ), "Should handle empty endpoint list"
+        assert isinstance(empty_endpoints_statements, list), (
+            "Should handle empty endpoint list"
+        )
 
         # Cleanup
         operations_handler.delete_tsdb_resources()
@@ -847,13 +895,13 @@ class TestTimescaleDBOperationsManagerIntegration:
         SELECT table_name FROM information_schema.tables
         WHERE table_schema = '{schema_name}'
         AND table_type = 'BASE TABLE'
-        AND table_name LIKE '%{project_id.replace('-', '_')}%'
+        AND table_name LIKE '%{project_id.replace("-", "_")}%'
         """
         result = connection.run(query=table_query)
         initial_table_count = len(result.data)
-        assert (
-            initial_table_count > 0
-        ), "Should have created some tables for this project"
+        assert initial_table_count > 0, (
+            "Should have created some tables for this project"
+        )
 
         # Test the cleanup process
         operations_handler.delete_tsdb_resources()
@@ -861,9 +909,9 @@ class TestTimescaleDBOperationsManagerIntegration:
         # Verify resources are cleaned up - check project-specific tables
         result_after = connection.run(query=table_query)
         final_table_count = len(result_after.data)
-        assert (
-            final_table_count == 0
-        ), f"All project tables should be deleted, but found {final_table_count} for project {project_id}"
+        assert final_table_count == 0, (
+            f"All project tables should be deleted, but found {final_table_count} for project {project_id}"
+        )
 
     def test_schema_cleanup_edge_cases(self, query_test_helper):
         """Test edge cases in schema and resource cleanup."""
@@ -888,12 +936,12 @@ class TestTimescaleDBOperationsManagerIntegration:
         table_query = f"""
         SELECT table_name FROM information_schema.tables
         WHERE table_schema = '{schema_name}' AND table_type = 'BASE TABLE'
-        AND table_name LIKE '%{project_id.replace('-', '_')}%'
+        AND table_name LIKE '%{project_id.replace("-", "_")}%'
         """
         result = connection.run(query=table_query)
-        assert (
-            len(result.data) == 0
-        ), "Should have no tables after cleanup for this project"
+        assert len(result.data) == 0, (
+            "Should have no tables after cleanup for this project"
+        )
 
 
 if __name__ == "__main__":

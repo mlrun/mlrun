@@ -41,15 +41,15 @@ def test_extras_requirement_file_aligned():
     extras_requirements_file_specifiers_map = _parse_requirement_specifiers_list(
         extras_requirements_file_specifiers
     )
-    # Since these packages are only present in the mlrun-kfp image, and also can't coexist with each other,
-    # we exclude them from the comparison
-    # mlflow is only present in test image
+    # we exclude packages that are opt-in by mlrun from the comparison,
+    # i.e. they are not present in the extras-requirements.txt file
     excluded_packages = [
         "mlrun_pipelines_kfp_v1_8",
         "mlrun_pipelines_kfp_v1_8[kfp]",
         "pytest-mock-resources[postgres]",
         "mlrun_pipelines_kfp_v2",
         "mlflow",
+        "iguazio",
     ]
     for package in excluded_packages:
         if package in setup_py_extras_requirements_specifiers_map:
@@ -128,7 +128,7 @@ def test_requirement_specifiers_convention():
 
     ignored_invalid_map = {
         # See comment near requirement for why we're limiting to patch changes only for all of these
-        "storey": {"~=1.11.4"},
+        "storey": {"~=1.11.21"},
         "pydantic": {">=1.10.15", ">=1,<2"},
         "nuclio-sdk": {">=0.5"},
         "scipy": {"~=1.16.3"},
@@ -136,6 +136,8 @@ def test_requirement_specifiers_convention():
         "gitpython": {"~=3.1, >=3.1.41"},
         "jinja2": {"~=3.1, >=3.1.6"},
         "pyopenssl": {">=23"},
+        # requests currently expects chardet < 6 when chardet is present
+        "chardet": {"<6"},
         # used in tests
         "aioresponses": {"~=0.7"},
         "testcontainers[k3s]": {"~=4.10.0"},
@@ -163,9 +165,9 @@ def test_requirement_specifiers_convention():
         else:
             missing_requirements.append(ignored_requirement_name)
 
-    assert (
-        missing_requirements == []
-    ), f"The following requirements are needlessly ignored: {missing_requirements}"
+    assert missing_requirements == [], (
+        f"The following requirements are needlessly ignored: {missing_requirements}"
+    )
 
     assert invalid_requirement_specifiers_map == {}
 
@@ -205,9 +207,9 @@ def test_requirement_specifiers_inconsistencies():
             all_keys_verified.remove(inconsistent_requirement_name)
 
     assert inconsistent_specifiers_map == {}
-    assert (
-        len(all_keys_verified) == 0
-    ), f"Keys not verified: {all_keys_verified}, remove them from dictionary"
+    assert len(all_keys_verified) == 0, (
+        f"Keys not verified: {all_keys_verified}, remove them from dictionary"
+    )
 
 
 def test_requirement_from_remote():
@@ -321,9 +323,9 @@ def _parse_requirement_specifiers_list(
             else specific_module_regex
         )
         match = re.fullmatch(regex, requirement_specifier)
-        assert (
-            match is not None
-        ), f"Requirement specifier did not matched regex. {requirement_specifier}"
+        assert match is not None, (
+            f"Requirement specifier did not matched regex. {requirement_specifier}"
+        )
         gd = match.groupdict()
         extras = gd.get("requirementExtra")
         if extras:

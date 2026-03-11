@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import typing
 
 from fastapi import APIRouter, Depends, Header
 
@@ -26,10 +25,10 @@ router = APIRouter()
 
 @framework.utils.helpers.lru_cache_with_ttl(maxsize=32, ttl_seconds=60 * 5)
 def get_cached_client_spec(
-    client_version: typing.Optional[str] = Header(
+    client_version: str | None = Header(
         None, alias=mlrun.common.schemas.HeaderNames.client_version
     ),
-    client_python_version: typing.Optional[str] = Header(
+    client_python_version: str | None = Header(
         None, alias=mlrun.common.schemas.HeaderNames.python_version
     ),
 ) -> mlrun.common.schemas.ClientSpec:

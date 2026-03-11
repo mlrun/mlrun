@@ -13,7 +13,6 @@
 # limitations under the License.
 
 import pathlib
-import typing
 
 import alembic.command
 import alembic.config
@@ -52,7 +51,7 @@ class AlembicUtil:
             return True
         return current_revision == self._initial_revision
 
-    def _get_current_revision(self) -> typing.Optional[str]:
+    def _get_current_revision(self) -> str | None:
         # create separate config in order to catch the stdout
         catch_stdout_config = alembic.config.Config(self._alembic_config_path)
         catch_stdout_config.print_stdout = self._save_output

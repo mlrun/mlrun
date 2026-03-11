@@ -14,7 +14,7 @@
 
 from abc import ABC, abstractmethod
 from datetime import datetime, timedelta
-from typing import ClassVar, Literal, Optional, Union
+from typing import ClassVar, Literal, Union
 
 import pandas as pd
 import pydantic.v1
@@ -116,7 +116,7 @@ class TSDBConnector(ABC):
 
     @abstractmethod
     def delete_application_records(
-        self, application_name: str, endpoint_ids: Optional[list[str]] = None
+        self, application_name: str, endpoint_ids: list[str] | None = None
     ) -> None:
         """
         Delete application records from the TSDB for the given model endpoints or all if ``None``.
@@ -213,9 +213,9 @@ class TSDBConnector(ABC):
         endpoint_id: str,
         start: datetime,
         end: datetime,
-        aggregation_window: Optional[str] = None,
-        agg_funcs: Optional[list[str]] = None,
-        limit: Optional[int] = None,
+        aggregation_window: str | None = None,
+        agg_funcs: list[str] | None = None,
+        limit: int | None = None,
     ) -> Union[
         mm_schemas.ModelEndpointMonitoringMetricValues,
         mm_schemas.ModelEndpointMonitoringMetricNoData,
@@ -243,8 +243,8 @@ class TSDBConnector(ABC):
     def get_last_request(
         self,
         endpoint_ids: Union[str, list[str]],
-        start: Optional[datetime] = None,
-        end: Optional[datetime] = None,
+        start: datetime | None = None,
+        end: datetime | None = None,
     ) -> Union[pd.DataFrame, dict[str, float]]:
         """
         Fetches data from the predictions TSDB table and returns the most recent request
@@ -264,8 +264,8 @@ class TSDBConnector(ABC):
     def get_drift_status(
         self,
         endpoint_ids: Union[str, list[str]],
-        start: Optional[datetime] = None,
-        end: Optional[datetime] = None,
+        start: datetime | None = None,
+        end: datetime | None = None,
         get_raw: bool = False,
     ) -> Union[pd.DataFrame, list[v3io_frames.client.RawFrame]]:
         """
@@ -287,8 +287,8 @@ class TSDBConnector(ABC):
     def get_metrics_metadata(
         self,
         endpoint_id: Union[str, list[str]],
-        start: Optional[datetime] = None,
-        end: Optional[datetime] = None,
+        start: datetime | None = None,
+        end: datetime | None = None,
     ) -> pd.DataFrame:
         """
         Fetches distinct metrics metadata from the metrics TSDB table for a specified model endpoints.
@@ -305,8 +305,8 @@ class TSDBConnector(ABC):
     def get_results_metadata(
         self,
         endpoint_id: Union[str, list[str]],
-        start: Optional[datetime] = None,
-        end: Optional[datetime] = None,
+        start: datetime | None = None,
+        end: datetime | None = None,
     ) -> pd.DataFrame:
         """
         Fetches distinct results metadata from the app-results TSDB table for a specified model endpoints.
@@ -323,8 +323,8 @@ class TSDBConnector(ABC):
     def get_error_count(
         self,
         endpoint_ids: Union[str, list[str]],
-        start: Optional[datetime] = None,
-        end: Optional[datetime] = None,
+        start: datetime | None = None,
+        end: datetime | None = None,
         get_raw: bool = False,
     ) -> Union[pd.DataFrame, list[v3io_frames.client.RawFrame]]:
         """
@@ -344,8 +344,8 @@ class TSDBConnector(ABC):
     def get_avg_latency(
         self,
         endpoint_ids: Union[str, list[str]],
-        start: Optional[datetime] = None,
-        end: Optional[datetime] = None,
+        start: datetime | None = None,
+        end: datetime | None = None,
         get_raw: bool = False,
     ) -> Union[pd.DataFrame, list[v3io_frames.client.RawFrame]]:
         """
@@ -365,11 +365,11 @@ class TSDBConnector(ABC):
     @abstractmethod
     def count_results_by_status(
         self,
-        start: Optional[Union[datetime, str]] = None,
-        end: Optional[Union[datetime, str]] = None,
-        endpoint_ids: Optional[Union[str, list[str]]] = None,
-        application_names: Optional[Union[str, list[str]]] = None,
-        result_status_list: Optional[list[int]] = None,
+        start: Union[datetime, str] | None = None,
+        end: Union[datetime, str] | None = None,
+        endpoint_ids: Union[str, list[str]] | None = None,
+        application_names: Union[str, list[str]] | None = None,
+        result_status_list: list[int] | None = None,
     ) -> dict[tuple[str, int], int]:
         """
         Read results status from the TSDB and return a dictionary of results statuses by application name.
@@ -395,9 +395,9 @@ class TSDBConnector(ABC):
     @abstractmethod
     def count_processed_model_endpoints(
         self,
-        start: Optional[Union[datetime, str]] = None,
-        end: Optional[Union[datetime, str]] = None,
-        application_names: Optional[Union[str, list[str]]] = None,
+        start: Union[datetime, str] | None = None,
+        end: Union[datetime, str] | None = None,
+        application_names: Union[str, list[str]] | None = None,
     ) -> dict[str, int]:
         """
         Count the number of processed model endpoints within a given time range for specific applications.
@@ -411,9 +411,9 @@ class TSDBConnector(ABC):
     @abstractmethod
     def calculate_latest_metrics(
         self,
-        start: Optional[Union[datetime, str]] = None,
-        end: Optional[Union[datetime, str]] = None,
-        application_names: Optional[Union[str, list[str]]] = None,
+        start: Union[datetime, str] | None = None,
+        end: Union[datetime, str] | None = None,
+        application_names: Union[str, list[str]] | None = None,
     ) -> list[
         Union[mm_schemas.ApplicationResultRecord, mm_schemas.ApplicationMetricRecord]
     ]:
@@ -447,7 +447,7 @@ class TSDBConnector(ABC):
     def add_basic_metrics(
         self,
         model_endpoint_objects: list[mlrun.common.schemas.ModelEndpoint],
-        metric_list: Optional[list[str]] = None,
+        metric_list: list[str] | None = None,
     ) -> list[mlrun.common.schemas.ModelEndpoint]:
         raise NotImplementedError()
 

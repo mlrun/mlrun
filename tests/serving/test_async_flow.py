@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import asyncio
 import os
 import pathlib
 import shutil
@@ -22,10 +23,11 @@ from copy import deepcopy
 from datetime import datetime
 from itertools import product
 from types import SimpleNamespace
-from typing import Optional, Union
+from typing import Union
 
 import pandas as pd
 import pytest
+import storey
 
 import mlrun
 import mlrun.common.schemas as schemas
@@ -40,6 +42,7 @@ from mlrun.serving import (  # noqa: F401
     ModelSelector,
     RouterStep,
 )
+from mlrun.serving.server import GraphServer
 from mlrun.serving.states import GraphError
 from mlrun.utils import logger
 from tests.conftest import results
@@ -63,6 +66,12 @@ from tests.serving.demo_states import (  # noqa: F401
 class _DummyStreamRaiser:
     def push(self, data):
         raise ValueError("DummyStreamRaiser raises an error")
+
+
+def extract_batch_bodies(event):
+    event_bodies = [sub_event.body for sub_event in event.body]
+    event.body = event_bodies
+    return event
 
 
 def append_and_return(lst, event):
@@ -109,9 +118,10 @@ def test_async_basic():
     server = function.to_mock_server()
     server.context.visits = {}
     logger.info(f"\nAsync Flow:\n{flow.to_yaml()}")
-    resp = server.test(body=[])
-
-    server.wait_for_completion()
+    try:
+        resp = server.test(body=[])
+    finally:
+        server.wait_for_completion()
     assert resp == ["s1", "s2", "s5"], "flow result is incorrect"
     assert server.context.visits == {
         "s1": 1,
@@ -181,13 +191,13 @@ def test_on_error():
     finally:
         server.wait_for_completion()
     if isinstance(resp, dict):
-        assert (
-            resp["error"] and resp["origin_state"] == "Raiser"
-        ), f"error wasn't caught, resp={resp}"
+        assert resp["error"] and resp["origin_state"] == "Raiser", (
+            f"error wasn't caught, resp={resp}"
+        )
     else:
-        assert (
-            resp.error and resp.origin_state == "Raiser"
-        ), f"error wasn't caught, resp={resp}"
+        assert resp.error and resp.origin_state == "Raiser", (
+            f"error wasn't caught, resp={resp}"
+        )
 
 
 def test_push_error():
@@ -210,8 +220,10 @@ def test_batch():
     function = mlrun.new_function("tests", kind="serving", project="x")
     graph = function.set_topology("flow", engine="async")
     graph.to("storey.Batch", "my_batching", max_events=3, flush_after_seconds=1).to(
-        "storey.ToDataFrame", "my_to_df", index="my_int"
-    ).to("storey.Reduce", initial_value=[], fn=append_and_return, full_event=True)
+        "storey.Map", "map_batch", fn=extract_batch_bodies, full_event=True
+    ).to("storey.ToDataFrame", "my_to_df", index="my_int").to(
+        "storey.Reduce", initial_value=[], fn=append_and_return, full_event=True
+    )
     # Reduce is used to get a single result in wait_for_completion (termination result in storey)
     server = function.to_mock_server()
 
@@ -232,21 +244,21 @@ def test_batch():
 
             # check all timestamps in the batch are the same
             unique_ts = df["timestamp"].unique()
-            assert (
-                len(unique_ts) == 1
-            ), f"Batch {i} has multiple timestamps: {unique_ts}"
+            assert len(unique_ts) == 1, (
+                f"Batch {i} has multiple timestamps: {unique_ts}"
+            )
             batch_ts = unique_ts[0]
 
             # check timestamp order between batches
-            assert (
-                batch_ts > prev_ts
-            ), f"Batch {i} timestamp {batch_ts} not greater than previous {prev_ts}"
+            assert batch_ts > prev_ts, (
+                f"Batch {i} timestamp {batch_ts} not greater than previous {prev_ts}"
+            )
             prev_ts = batch_ts
 
 
 class MyModel(Model):
     def __init__(
-        self, inc: int, gpu_number: Optional[int] = None, err: bool = True, **kwargs
+        self, inc: int, gpu_number: int | None = None, err: bool = True, **kwargs
     ):
         super().__init__(**kwargs)
         self.inc = inc
@@ -636,9 +648,9 @@ def _test_model_runner_raise_error_output(
             if models is None or len(models) == 1:
                 assert "error" in body, f"Expected error field in body got {body}"
             else:
-                assert all(
-                    "error" in body.get(model) for model in models_with_error
-                ), f"Expected error field for each model in body got {body}"
+                assert all("error" in body.get(model) for model in models_with_error), (
+                    f"Expected error field for each model in body got {body}"
+                )
     else:
         if models is None or len(models) == 1:
             assert server.test(body={"n": 1}) == {"n": 2}
@@ -807,12 +819,12 @@ def test_model_runner_with_remote_model(execution_mechanism, notebook_usage):
     )
 
     graph.to(model_runner_step).to(async_model_runner_step).respond()
-    assert (
-        "my_endpoint" in graph.model_endpoints_names
-    ), "model endpoint name not in graph"
-    assert (
-        "my_async_endpoint" in graph.model_endpoints_names
-    ), "async model endpoint name not in graph"
+    assert "my_endpoint" in graph.model_endpoints_names, (
+        "model endpoint name not in graph"
+    )
+    assert "my_async_endpoint" in graph.model_endpoints_names, (
+        "async model endpoint name not in graph"
+    )
     # Mock needed since no artifact is saved in this test, so retrieval by URI isn't possible.
     # Mocked function used to verify artifact URI is passed correctly.
 
@@ -905,9 +917,9 @@ def test_model_runner_with_remote_shared_model():
         shared_model_name="my_model",
     )
     graph.to(model_runner_step).respond()
-    assert (
-        "my_endpoint" in graph.model_endpoints_names
-    ), "model endpoint name not in graph"
+    assert "my_endpoint" in graph.model_endpoints_names, (
+        "model endpoint name not in graph"
+    )
     # Mock needed since no artifact is saved in this test, so retrieval by URI isn't possible.
     # Mocked function used to verify artifact URI is passed correctly.
 
@@ -953,13 +965,13 @@ def test_add_model_after_adding_the_mrs_to_the_graph():
         model_artifact=model_artifact,
         execution_mechanism="naive",
     )
-    assert (
-        "my_endpoint" in graph.model_endpoints_names
-    ), "model endpoint name not in graph"
+    assert "my_endpoint" in graph.model_endpoints_names, (
+        "model endpoint name not in graph"
+    )
 
-    assert (
-        "my_endpoint-2" not in graph.model_endpoints_names
-    ), "model endpoint name not in graph"
+    assert "my_endpoint-2" not in graph.model_endpoints_names, (
+        "model endpoint name not in graph"
+    )
 
     model_runner_step_2.add_model(
         endpoint_name="my_endpoint-2",
@@ -968,13 +980,13 @@ def test_add_model_after_adding_the_mrs_to_the_graph():
         execution_mechanism="naive",
     )
 
-    assert (
-        "my_endpoint" in graph.model_endpoints_names
-    ), "model endpoint name not in graph"
+    assert "my_endpoint" in graph.model_endpoints_names, (
+        "model endpoint name not in graph"
+    )
 
-    assert (
-        "my_endpoint-2" in graph.model_endpoints_names
-    ), "model endpoint name not in graph"
+    assert "my_endpoint-2" in graph.model_endpoints_names, (
+        "model endpoint name not in graph"
+    )
 
 
 def test_get_local_model_path():
@@ -1083,6 +1095,7 @@ def test_shared_llm_with_model_runner(raise_exception, shared, model_uri, llm):
                 assert resp["outputs"]["usage"] == {
                     "prompt_tokens": 0,
                     "completion_tokens": 0,
+                    "total_tokens": 0,
                 }
             else:
                 assert resp["default_config"] == {"model_version": "4"}
@@ -1353,15 +1366,17 @@ def test_configure_model_runner_step_max_threads_processes(concurrency: str):
     server = function.to_mock_server()
 
     if concurrency == "max_processes":
-        assert (
-            server.graph["my_model_runner"]._async_object.max_processes == 32
-        ), "Max processes not configured properly"
+        assert server.graph["my_model_runner"]._async_object.max_processes == 32, (
+            "Max processes not configured properly"
+        )
     elif concurrency == "max_threads":
-        assert (
-            server.graph["my_model_runner"]._async_object.max_threads == 48
-        ), "Max threads not configured properly"
-    server.test(body={"n": 1})
-    server.wait_for_completion()
+        assert server.graph["my_model_runner"]._async_object.max_threads == 48, (
+            "Max threads not configured properly"
+        )
+    try:
+        server.test(body={"n": 1})
+    finally:
+        server.wait_for_completion()
 
 
 @pytest.mark.parametrize(
@@ -1473,6 +1488,34 @@ def test_cyclic_to_first_step(method):
         server.wait_for_completion()
 
 
+# ML-11938
+@pytest.mark.parametrize("method", ["add_step", "to"])
+def test_cyclic_from_last_step(method):
+    function = mlrun.new_function("tests", kind="serving", project="x")
+    graph = function.set_topology("flow", engine="async", allow_cyclic=True)
+
+    if method == "to":
+        graph.to(class_name="Counter", name="count").to(
+            name="route", class_name="Route", cycle_to="count", end="Complete"
+        ).respond()
+    else:
+        graph.add_step(name="count", class_name="Counter")
+        graph.add_step(
+            name="route",
+            class_name="Route",
+            cycle_to="count",
+            after="count",
+            end="Complete",
+        ).respond()
+
+    server = function.to_mock_server()
+    try:
+        resp = server.test(body={"counter": 1})
+        assert resp["counter"] == 5
+    finally:
+        server.wait_for_completion()
+
+
 @pytest.mark.parametrize("method", ["add_step", "to"])
 @pytest.mark.parametrize("max_iter", ["local", "global"])
 def test_max_iter_of_cyclic_graph(method, max_iter):
@@ -1516,6 +1559,29 @@ def test_max_iter_of_cyclic_graph(method, max_iter):
         server.wait_for_completion()
 
 
+def test_default_max_iter_of_cyclic_graph():
+    function = mlrun.new_function("tests", kind="serving", project="x")
+    graph = function.set_topology(
+        "flow",
+        engine="async",
+        allow_cyclic=True,
+    )
+    graph.to(name="start", class_name="Echo").to(class_name="Counter", name="count").to(
+        name="route",
+        class_name="Route",
+        cycle_to="count",
+    ).to(name="end", class_name="Echo").respond()
+
+    expected_error = r"Max iterations exceeded in step 'count'"
+
+    server = function.to_mock_server()
+    try:
+        with pytest.raises(RuntimeError, match=rf"{expected_error}"):
+            server.test(body={"counter": -300})
+    finally:
+        server.wait_for_completion()
+
+
 def test_mrs_with_tools_routing():
     function = mlrun.new_function("tests", kind="serving")
     graph = function.set_topology("flow", engine="async", allow_cyclic=True)
@@ -1538,5 +1604,177 @@ def test_mrs_with_tools_routing():
         assert resp["counter"] == 5
         assert resp["tool_a"] == 2
         assert resp["tool_b"] == 2
+    finally:
+        server.wait_for_completion()
+
+
+def test_invalid_cyclic_graph_definitions():
+    function = mlrun.new_function("tests", kind="serving", project="x")
+    graph = function.set_topology("flow", engine="async", allow_cyclic=False)
+
+    with pytest.raises(
+        GraphError, match="cyclic graphs are not allowed, enable allow_cyclic"
+    ):
+        graph.to(name="start", class_name="Echo").to(
+            class_name="Counter", name="count"
+        ).to(name="route", class_name="Route", cycle_to="count").to(
+            name="end", class_name="Echo"
+        ).respond()
+
+    function_sync = mlrun.new_function("tests-sync", kind="serving", project="x")
+    with pytest.raises(
+        mlrun.errors.MLRunInvalidArgumentError,
+        match=r"Cyclic graphs are not supported with sync engine, please use async engine",
+    ):
+        function_sync.set_topology("flow", engine="sync", allow_cyclic=True)
+
+    graph = function_sync.set_topology("flow", engine="sync")
+    with pytest.raises(
+        mlrun.errors.MLRunInvalidArgumentError,
+        match=r"Cyclic graphs are not supported with sync engine, please use async engine",
+    ):
+        graph.allow_cyclic = True
+
+
+# Streaming Model Tests
+
+
+class StreamingModel(Model):
+    """A model that returns streaming results (generator)."""
+
+    def __init__(self, num_chunks: int = 3, **kwargs):
+        super().__init__(**kwargs)
+        self.num_chunks = num_chunks
+
+    def predict(self, body: typing.Any, **kwargs) -> typing.Any:
+        for i in range(self.num_chunks):
+            yield f"{body}_chunk_{i}"
+
+    async def predict_async(self, body: typing.Any, **kwargs) -> typing.Any:
+        for i in range(self.num_chunks):
+            yield f"{body}_chunk_{i}"
+
+
+class StreamingModelRunnerSelector(ModelRunnerSelector):
+    """A selector that always picks the streaming_model."""
+
+    def select_models(self, event, available_models):
+        return ["streaming_model"]
+
+
+@pytest.mark.parametrize(
+    "execution_mechanism",
+    ["naive", "thread_pool", "asyncio", "process_pool", "dedicated_process"],
+)
+def test_model_runner_streaming(execution_mechanism):
+    """Test that streaming models work with all execution mechanisms."""
+    function = mlrun.new_function("tests", kind="serving")
+    graph = function.set_topology("flow", engine="async")
+    model_runner_step = ModelRunnerStep(name="my_model_runner")
+    model_runner_step.add_model(
+        model_class="StreamingModel",
+        execution_mechanism=execution_mechanism,
+        endpoint_name="streaming_model",
+        num_chunks=3,
+    )
+    graph.to(model_runner_step).to(
+        name="collector", class_name="storey.Collector"
+    ).respond()
+
+    server = function.to_mock_server()
+    try:
+        resp = server.test(body="test")
+        assert resp == ["test_chunk_0", "test_chunk_1", "test_chunk_2"]
+    finally:
+        server.wait_for_completion()
+
+
+def test_model_runner_streaming_with_selector():
+    """Test that streaming works when a model selector is used."""
+    function = mlrun.new_function("tests", kind="serving")
+    graph = function.set_topology("flow", engine="async")
+    model_runner_step = ModelRunnerStep(
+        name="my_model_runner", model_runner_selector="StreamingModelRunnerSelector"
+    )
+    model_runner_step.add_model(
+        model_class="StreamingModel",
+        execution_mechanism="naive",
+        endpoint_name="streaming_model",
+        num_chunks=3,
+    )
+    graph.to(model_runner_step).to(
+        name="collector", class_name="storey.Collector"
+    ).respond()
+
+    server = function.to_mock_server()
+    try:
+        resp = server.test(body="test")
+        assert resp == ["test_chunk_0", "test_chunk_1", "test_chunk_2"]
+    finally:
+        server.wait_for_completion()
+
+
+def test_model_runner_streaming_with_collector():
+    """Test that streaming results can be collected into a list."""
+    function = mlrun.new_function("tests", kind="serving")
+    graph = function.set_topology("flow", engine="async")
+    model_runner_step = ModelRunnerStep(name="my_model_runner")
+    model_runner_step.add_model(
+        model_class="StreamingModel",
+        execution_mechanism="naive",
+        endpoint_name="streaming_model",
+        num_chunks=5,
+    )
+    graph.to(model_runner_step).to(
+        name="collector", class_name="storey.Collector"
+    ).respond()
+
+    server = function.to_mock_server()
+    try:
+        resp = server.test(body="data")
+        assert resp == [
+            "data_chunk_0",
+            "data_chunk_1",
+            "data_chunk_2",
+            "data_chunk_3",
+            "data_chunk_4",
+        ]
+    finally:
+        server.wait_for_completion()
+
+
+@pytest.mark.asyncio
+async def test_async_graph_no_responder_json_serializable():
+    """Test that async graph without responder returns JSON-serializable response.
+
+    Regression test for ML-12080: async graphs ending without a responder were
+    returning Event objects instead of dicts, causing JSON serialization failures.
+
+    This test initializes the server with is_mock=False to mimic actual serving.
+    """
+
+    function = mlrun.new_function("test-no-responder", kind="serving")
+    graph = function.set_topology("flow", engine="async")
+    # Simple step, no responder - simulates fire-and-forget (e.g., pushing to queue)
+    graph.to(name="step1", class_name="Echo")
+
+    # Create server and initialize with is_mock=False to exercise deployed code path
+    server = GraphServer.from_dict(function.spec.to_dict())
+    server.init_states(context=None, namespace=globals(), is_mock=False)
+    server.init_object(globals())
+
+    event = storey.Event(body={"test": "data"})
+
+    try:
+        # Run the graph - for async without responder, this returns a coroutine
+        response = server.run(event)
+
+        if asyncio.iscoroutine(response):
+            # Await the coroutine - before fix, this returned an Event object
+            response = await response
+
+        # Verify it's the body, not an Event object
+        assert isinstance(response, dict), f"Expected dict, got {type(response)}"
+        assert "id" in response, f"Expected 'id' key in response: {response}"
     finally:
         server.wait_for_completion()

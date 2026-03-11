@@ -34,7 +34,7 @@ from datetime import UTC, datetime, timedelta, timezone
 from importlib import import_module, reload
 from os import path
 from types import ModuleType
-from typing import Any, Optional
+from typing import Any
 from urllib.parse import urlparse
 
 import git
@@ -288,7 +288,7 @@ def validate_function_name(name: str) -> None:
 
 
 def validate_builder_source(
-    source: str, pull_at_runtime: bool = False, workdir: Optional[str] = None
+    source: str, pull_at_runtime: bool = False, workdir: str | None = None
 ):
     if pull_at_runtime or not source:
         return
@@ -424,8 +424,8 @@ def verify_field_list_of_type(
 def verify_dict_items_type(
     name: str,
     dictionary: dict,
-    expected_keys_types: Optional[list] = None,
-    expected_values_types: Optional[list] = None,
+    expected_keys_types: list | None = None,
+    expected_values_types: list | None = None,
 ):
     if dictionary:
         if not isinstance(dictionary, dict):
@@ -442,7 +442,7 @@ def verify_dict_items_type(
             ) from exc
 
 
-def verify_list_items_type(list_, expected_types: Optional[list] = None):
+def verify_list_items_type(list_, expected_types: list | None = None):
     if list_ and expected_types:
         list_items_types = set(map(type, list_))
         expected_types = set(expected_types)
@@ -511,8 +511,8 @@ def normalize_name(name: str):
 
 
 def ensure_batch_job_suffix(
-    function_name: typing.Optional[str],
-) -> tuple[typing.Optional[str], bool, str]:
+    function_name: str | None,
+) -> tuple[str | None, bool, str]:
     """
     Ensure that a function name has the batch job suffix appended to prevent database collision.
 
@@ -857,7 +857,7 @@ def generate_artifact_uri(
     return artifact_uri
 
 
-def remove_tag_from_artifact_uri(uri: str) -> Optional[str]:
+def remove_tag_from_artifact_uri(uri: str) -> str | None:
     """
     Remove the `:<tag>` part from a URI with pattern:
     [store://][<project>/]<key>[#<iter>][:<tag>][@<tree>][^<uid>]
@@ -880,6 +880,26 @@ def remove_tag_from_artifact_uri(uri: str) -> Optional[str]:
 
 def check_if_hub_uri(uri: str) -> bool:
     return uri.startswith(hub_prefix)
+
+
+def lock_hub_uri_version(uri: str, locked_version: str) -> str:
+    """
+    If hub URI has no tag or uses ':latest', replace/add the given version.
+    Otherwise, return the URI unchanged.
+    """
+    name = uri.removeprefix(hub_prefix)
+    if ":" in name:
+        path, tag = name.rsplit(":", 1)
+    else:
+        path, tag = name, "latest"
+    if tag == "latest":
+        logger.info(
+            f"Hub URI '{uri}' does not specify a version (or uses 'latest'). "
+            f"The step will be pinned to version '{locked_version}'."
+        )
+        tag = locked_version
+
+    return f"{hub_prefix}{path}:{tag}"
 
 
 def extend_hub_uri_if_needed(
@@ -974,7 +994,7 @@ def gen_html_table(header, rows=None):
     return style + '<table class="tg">\n' + out + "</table>\n\n"
 
 
-def _convert_python_package_version_to_image_tag(version: typing.Optional[str]):
+def _convert_python_package_version_to_image_tag(version: str | None):
     return (
         version.replace("+", "-").replace("0.0.0-", "") if version is not None else None
     )
@@ -982,8 +1002,8 @@ def _convert_python_package_version_to_image_tag(version: typing.Optional[str]):
 
 def enrich_image_url(
     image_url: str,
-    client_version: Optional[str] = None,
-    client_python_version: Optional[str] = None,
+    client_version: str | None = None,
+    client_python_version: str | None = None,
 ) -> str:
     image_url = image_url.strip()
 
@@ -1071,7 +1091,7 @@ def enrich_image_url(
 
 
 def resolve_image_tag_suffix(
-    mlrun_version: Optional[str] = None, python_version: Optional[str] = None
+    mlrun_version: str | None = None, python_version: str | None = None
 ) -> str:
     """
     Resolves what suffix to be appended to the image tag
@@ -1108,7 +1128,7 @@ def get_docker_repository_or_default(repository: str) -> str:
     return repository
 
 
-def get_parsed_docker_registry() -> tuple[Optional[str], Optional[str]]:
+def get_parsed_docker_registry() -> tuple[str | None, str | None]:
     # according to https://stackoverflow.com/questions/37861791/how-are-docker-image-names-parsed
     docker_registry = config.httpdb.builder.docker_registry or ""
     first_slash_index = docker_registry.find("/")
@@ -1278,8 +1298,8 @@ def get_runs_url(project: str) -> str:
 
 def get_model_endpoint_url(
     project: str,
-    model_name: Optional[str] = None,
-    model_endpoint_id: Optional[str] = None,
+    model_name: str | None = None,
+    model_endpoint_id: str | None = None,
 ) -> str:
     """
     Generate the URL for a specific model endpoint.
@@ -1300,7 +1320,7 @@ def get_model_endpoint_url(
 
 def get_workflow_url(
     project: str,
-    id: Optional[str] = None,
+    id: str | None = None,
 ) -> str:
     """
     Generate the URL for a specific workflow.
@@ -1489,7 +1509,7 @@ def get_function(function, namespaces, reload_modules: bool = False):
 def get_handler_extended(
     handler_path: str,
     context=None,
-    class_args: Optional[dict] = None,
+    class_args: dict | None = None,
     namespaces=None,
     reload_modules: bool = False,
 ):
@@ -1528,7 +1548,7 @@ def get_handler_extended(
     return getattr(instance, handler_path)
 
 
-def datetime_from_iso(time_str: str) -> Optional[datetime]:
+def datetime_from_iso(time_str: str) -> datetime | None:
     if not time_str:
         return
     dt = parser.isoparse(time_str)
@@ -1538,13 +1558,13 @@ def datetime_from_iso(time_str: str) -> Optional[datetime]:
     return dt.astimezone(UTC)
 
 
-def datetime_to_iso(time_obj: Optional[datetime]) -> Optional[str]:
+def datetime_to_iso(time_obj: datetime | None) -> str | None:
     if not time_obj:
         return
     return time_obj.isoformat()
 
 
-def enrich_datetime_with_tz_info(timestamp_string) -> Optional[datetime]:
+def enrich_datetime_with_tz_info(timestamp_string) -> datetime | None:
     if not timestamp_string:
         return timestamp_string
 
@@ -1574,7 +1594,7 @@ def has_timezone(timestamp):
         return False
 
 
-def format_datetime(dt: datetime, fmt: Optional[str] = None) -> str:
+def format_datetime(dt: datetime, fmt: str | None = None) -> str:
     if dt is None:
         return ""
 
@@ -2058,7 +2078,7 @@ def merge_dicts_with_precedence(*dicts: dict) -> dict:
 def validate_component_version_compatibility(
     component_name: typing.Literal["iguazio", "nuclio", "mlrun-client"],
     *min_versions: str,
-    mlrun_client_version: Optional[str] = None,
+    mlrun_client_version: str | None = None,
 ):
     """
     :param component_name: Name of the component to validate compatibility for.
@@ -2175,9 +2195,8 @@ def _reload(module, max_recursion_depth):
 def run_with_retry(
     retry_count: int,
     func: typing.Callable,
-    retry_on_exceptions: Optional[
-        typing.Union[type[Exception], tuple[type[Exception]]]
-    ] = None,
+    retry_on_exceptions: typing.Union[type[Exception], tuple[type[Exception]]]
+    | None = None,
     *args,
     **kwargs,
 ):
@@ -2211,7 +2230,7 @@ def run_with_retry(
     raise last_exception
 
 
-def join_urls(base_url: Optional[str], path: Optional[str]) -> str:
+def join_urls(base_url: str | None, path: str | None) -> str:
     """
     Joins a base URL with a path, ensuring proper handling of slashes.
 
@@ -2225,7 +2244,7 @@ def join_urls(base_url: Optional[str], path: Optional[str]) -> str:
     return f"{base_url.rstrip('/')}/{path.lstrip('/')}" if path else base_url
 
 
-def warn_on_deprecated_image(image: Optional[str]):
+def warn_on_deprecated_image(image: str | None):
     """
     Warn if the provided image is the deprecated 'mlrun/ml-base' image.
     This image is deprecated as of 1.10.0 and will be removed in 1.12.0.
@@ -2409,7 +2428,7 @@ class Workflow:
     @staticmethod
     def _get_workflow_manifest(
         workflow_id: str,
-    ) -> typing.Optional[mlrun_pipelines.models.PipelineManifest]:
+    ) -> mlrun_pipelines.models.PipelineManifest | None:
         kfp_client = mlrun_pipelines.utils.get_client(
             logger=logger,
             url=mlrun.mlconf.kfp_url,
@@ -2433,7 +2452,7 @@ def as_dict(data: typing.Union[dict, str]) -> dict:
 
 
 def encode_user_code(
-    user_code: typing.Union[str, bytes], max_len_warning: typing.Optional[int] = None
+    user_code: typing.Union[str, bytes], max_len_warning: int | None = None
 ) -> str:
     max_len_warning = max_len_warning or config.function.spec.source_code_max_bytes
     if isinstance(user_code, str):
@@ -2473,6 +2492,9 @@ def get_data_from_path(
         return output_data
     elif isinstance(data, dict):
         return get_data_from_dict(path, data)
+    elif path is None:
+        # Scalar data (e.g. aggregated streaming string) with no path -- return as-is
+        return data
     else:
         raise mlrun.errors.MLRunInvalidArgumentError(
             "Expected data be of type dict or list"
@@ -2505,7 +2527,7 @@ def is_valid_port(port: int, raise_on_error: bool = False) -> bool:
     return False
 
 
-def set_data_by_path(
+def _set_data_in_dict(
     path: typing.Union[str, list[str], None], data: dict, value
 ) -> None:
     if path is None:
@@ -2527,6 +2549,41 @@ def set_data_by_path(
         raise mlrun.errors.MLRunInvalidArgumentError(
             "Expected path to be of type str or list of str"
         )
+
+
+def set_data_by_path(
+    path: typing.Union[str, list[str], None],
+    data: typing.Union[dict, list[dict]],
+    value,
+) -> None:
+    """
+    Set a value at the specified path in a dictionary or list of dictionaries.
+    Modifies the input data in-place. Supports both single dict and batch (list of dicts) scenarios.
+
+    Args:
+        path: Where to set the value - str (single key), list[str] (nested path), or None (merge dict).
+        data: Target dict or list of dicts to modify.
+        value: Value to set. For list of dicts, use a list to distribute values element-wise.
+
+    Raises:
+        ValueError: When path is None and value is not a dictionary.
+        MLRunInvalidArgumentError: When path type is invalid or list lengths don't match.
+    """
+    # Handle list of dicts: if data is a list and value is a list, distribute values
+    if isinstance(data, list) and isinstance(value, list):
+        if len(value) != len(data):
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"Value list length ({len(value)}) must match data list length ({len(data)})"
+            )
+        # Check if all items in data are dicts
+        if all(isinstance(item, dict) for item in data):
+            # Distribute each value to the corresponding dict in the list
+            for i, item in enumerate(data):
+                _set_data_in_dict(path, item, value[i])
+            return
+
+    # Standard dict handling
+    _set_data_in_dict(path, data, value)
 
 
 def _normalize_requirements(reqs: typing.Union[str, list[str], None]) -> list[str]:
@@ -2625,3 +2682,42 @@ def is_async_serving_graph(function_spec) -> bool:
         return True
 
     return False
+
+
+def attach_authorization_namespace_prefix(
+    resource: str,
+    namespace: mlrun.common.schemas.AuthorizationResourceNamespace = (
+        mlrun.common.schemas.AuthorizationResourceNamespace.resources
+    ),
+) -> str:
+    """
+    Attach the authorization namespace prefix to the resource.
+
+    :param resource: The resource string to attach the namespace prefix to.
+    :param namespace: The namespace to attach the prefix to.
+        Defaults to `mlrun.common.schemas.AuthorizationResourceNamespace.resources`.
+    :returns: The resource string with the namespace prefix attached.
+    """
+    if namespace == mlrun.common.schemas.AuthorizationResourceNamespace.resources:
+        namespace_prefix = config.httpdb.authorization.namespaces.resources
+    else:
+        namespace_prefix = config.httpdb.authorization.namespaces.mgmt
+
+    if namespace_prefix:
+        resource = f"/{namespace_prefix}{resource}"
+    return resource
+
+
+def set_auth_token_name(spec, token_name: str | None):
+    """
+    Set the auth token name on a spec object for runtime handler secret mounting.
+
+    Works with any spec object that has an `auth` attribute (e.g., RunSpec, KubeResourceSpec).
+
+    :param spec: Spec object with an `auth` attribute.
+    :param token_name: Name of the authentication token to use. If None/empty, no action is taken.
+    """
+    if token_name:
+        if not spec.auth:
+            spec.auth = {}
+        spec.auth["token_name"] = token_name

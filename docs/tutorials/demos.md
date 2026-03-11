@@ -15,6 +15,5 @@ These end-to-end demos demonstrate how to use the Iguazio AI platform, MLRun, an
 
 |Demo|Description|
 |-----------------------------------|---------------------------------------------------------------------------------------------|
-|<b>[Fraud Prevention (Feature Store)](https://github.com/mlrun/demo-fraud)</b>|This demo shows the usage of MLRun and the feature store. Fraud prevention specifically is a challenge as it requires processing raw transaction and events in real-time and being able to quickly respond and block transactions before they occur. Consider, for example, a case where you would like to evaluate the average transaction amount. When training the model, it is common to take a DataFrame and just calculate the average. However, when dealing with real-time/online scenarios, this average has to be calculated incrementally.|
 |<b>[Banking Agent Demo](https://github.com/mlrun/demo-banking-agent/blob/main/README.md)|This demo showcases a modular, production-grade banking customer service chatbot. It combines traditional machine learning (churn propensity) and large language models (LLMs) in a single, observable inference pipeline. The system features conditional routing based on guardrails (banking topic and toxicity filtering), and dynamically adapts model behavior using conversation history, sentiment, and churn risk.|
 

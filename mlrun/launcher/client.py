@@ -12,15 +12,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import abc
-from typing import Optional
 
 import IPython.display
 
+import mlrun
 import mlrun.common.constants as mlrun_constants
 import mlrun.errors
 import mlrun.launcher.base as launcher
 import mlrun.lists
 import mlrun.model
+import mlrun.runtime_configuration_context
 import mlrun.runtimes
 import mlrun.utils
 import mlrun.utils.version
@@ -34,7 +35,7 @@ class ClientBaseLauncher(launcher.BaseLauncher, abc.ABC):
     def enrich_runtime(
         self,
         runtime: "mlrun.runtimes.base.BaseRuntime",
-        project_name: Optional[str] = "",
+        project_name: str | None = "",
         full: bool = True,
         client_version: str = "",
     ):
@@ -78,11 +79,15 @@ class ClientBaseLauncher(launcher.BaseLauncher, abc.ABC):
         mlrun.runtimes.utils.enrich_run_labels(
             run.metadata.labels, [mlrun_constants.MLRunInternalLabels.owner]
         )
-        if run.spec.output_path:
-            run.spec.output_path = run.spec.output_path.replace(
-                "{{run.user}}",
-                run.metadata.labels[mlrun_constants.MLRunInternalLabels.owner],
-            )
+
+        # Set the auth token name from RuntimeConfiguration context manager (if used)
+        auth_token_name = mlrun.runtime_configuration_context.RuntimeConfigurationContext.get_auth_token_name()
+        mlrun.utils.helpers.set_auth_token_name(run.spec, auth_token_name)
+
+        run.spec.output_path = mlrun.runtimes.utils.resolve_run_user_template(
+            run.spec.output_path,
+            run.metadata.labels.get(mlrun_constants.MLRunInternalLabels.owner),
+        )
         db = runtime._get_db()
         if db and runtime.kind != "handler":
             struct = runtime.to_dict()

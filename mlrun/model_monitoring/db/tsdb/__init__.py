@@ -28,7 +28,6 @@ class ObjectTSDBFactory(enum.Enum):
     """Enum class to handle the different TSDB connector type values for storing real time metrics"""
 
     v3io_tsdb = "v3io-tsdb"
-    tdengine = "tdengine"
     timescaledb = "postgresql"
 
     def to_tsdb_connector(
@@ -42,9 +41,9 @@ class ObjectTSDBFactory(enum.Enum):
         """
 
         if self == self.v3io_tsdb:
-            if mlrun.mlconf.is_ce_mode():
+            if not mlrun.mlconf.is_using_v3io():
                 raise mlrun.errors.MLRunInvalidArgumentError(
-                    f"{self.v3io_tsdb} is not supported in CE mode."
+                    f"{self.v3io_tsdb} is not supported."
                 )
 
             from .v3io.v3io_connector import V3IOTSDBConnector
@@ -55,11 +54,6 @@ class ObjectTSDBFactory(enum.Enum):
             from .timescaledb.timescaledb_connector import TimescaleDBConnector
 
             return TimescaleDBConnector(project=project, profile=profile, **kwargs)
-
-        if self == self.tdengine:
-            from .tdengine.tdengine_connector import TDEngineConnector
-
-            return TDEngineConnector(project=project, profile=profile, **kwargs)
 
         raise mlrun.errors.MLRunInvalidMMStoreTypeError("Code should not reach here")
 
@@ -76,8 +70,8 @@ class ObjectTSDBFactory(enum.Enum):
 
 def get_tsdb_connector(
     project: str,
-    secret_provider: typing.Optional[typing.Callable[[str], str]] = None,
-    profile: typing.Optional[mlrun.datastore.datastore_profile.DatastoreProfile] = None,
+    secret_provider: typing.Callable[[str], str] | None = None,
+    profile: mlrun.datastore.datastore_profile.DatastoreProfile | None = None,
 ) -> TSDBConnector:
     """
     Get TSDB connector object.
@@ -97,10 +91,6 @@ def get_tsdb_connector(
     kwargs = {}
     if isinstance(profile, mlrun.datastore.datastore_profile.DatastoreProfileV3io):
         tsdb_connector_type = mlrun.common.schemas.model_monitoring.TSDBTarget.V3IO_TSDB
-    elif isinstance(
-        profile, mlrun.datastore.datastore_profile.DatastoreProfileTDEngine
-    ):
-        tsdb_connector_type = mlrun.common.schemas.model_monitoring.TSDBTarget.TDEngine
     elif isinstance(
         profile, mlrun.datastore.datastore_profile.DatastoreProfilePostgreSQL
     ):

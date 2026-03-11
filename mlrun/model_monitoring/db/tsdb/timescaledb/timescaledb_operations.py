@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Optional
 
 import psycopg
 
@@ -59,8 +58,8 @@ class TimescaleDBOperationsManager:
         self,
         project: str,
         connection: TimescaleDBConnection,
-        pre_aggregate_config: Optional[PreAggregateConfig] = None,
-        profile: Optional[DatastoreProfilePostgreSQL] = None,
+        pre_aggregate_config: PreAggregateConfig | None = None,
+        profile: DatastoreProfilePostgreSQL | None = None,
     ):
         """
         Initialize operations handler with a shared connection.
@@ -145,7 +144,7 @@ class TimescaleDBOperationsManager:
             admin_connection.close()
 
     def create_tables(
-        self, pre_aggregate_config: Optional[PreAggregateConfig] = None
+        self, pre_aggregate_config: PreAggregateConfig | None = None
     ) -> None:
         config = pre_aggregate_config or self._pre_aggregate_config
 
@@ -180,6 +179,7 @@ class TimescaleDBOperationsManager:
 
             # Create indexes
             statements.extend(table._create_indexes_query())
+            statements.extend(table._create_unique_indexes_query())
 
             # Create pre-aggregate tables if config provided
             if config:
@@ -228,7 +228,7 @@ class TimescaleDBOperationsManager:
         placeholders = ", ".join(["%s"] * len(columns))
 
         insert_sql = f"""
-            INSERT INTO {table.full_name()} ({', '.join(columns)})
+            INSERT INTO {table.full_name()} ({", ".join(columns)})
             VALUES ({placeholders})
         """
 
@@ -391,7 +391,7 @@ class TimescaleDBOperationsManager:
                 FROM information_schema.tables
                 WHERE table_schema = %s
                 AND table_type IN ('BASE TABLE', 'VIEW')
-                AND ({' OR '.join(pattern_conditions)})
+                AND ({" OR ".join(pattern_conditions)})
                 ORDER BY table_name
                 """,
                 tuple(parameters),
@@ -480,7 +480,7 @@ class TimescaleDBOperationsManager:
                 FROM information_schema.tables
                 WHERE table_schema = %s
                 AND table_type = 'BASE TABLE'
-                AND ({' OR '.join(pattern_conditions)})
+                AND ({" OR ".join(pattern_conditions)})
                 ORDER BY table_name
                 """,
                 tuple([schema_name] + parameters[1:]),
@@ -501,7 +501,7 @@ class TimescaleDBOperationsManager:
                 SELECT view_name as table_name
                 FROM timescaledb_information.continuous_aggregates
                 WHERE view_schema = %s
-                AND ({' OR '.join(view_pattern_conditions)})
+                AND ({" OR ".join(view_pattern_conditions)})
                 ORDER BY view_name
                 """,
                 tuple(view_parameters),
@@ -621,7 +621,7 @@ class TimescaleDBOperationsManager:
             )
 
     def delete_application_records(
-        self, application_name: str, endpoint_ids: Optional[list[str]] = None
+        self, application_name: str, endpoint_ids: list[str] | None = None
     ) -> None:
         """
         Delete application records from TimescaleDB for the given model endpoints or all if endpoint_ids is None.
@@ -708,7 +708,7 @@ class TimescaleDBOperationsManager:
         )
 
     def _get_aggregate_delete_statements_by_application(
-        self, application_name: str, endpoint_ids: Optional[list[str]] = None
+        self, application_name: str, endpoint_ids: list[str] | None = None
     ) -> list[Statement]:
         """
         Get parameterized DELETE statements for aggregate tables filtered by application name.

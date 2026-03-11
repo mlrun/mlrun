@@ -135,7 +135,13 @@ than a configurable threshold (minimum 5 minutes).
 
 Enable lag detection by passing `lag_threshold` and `lag_event_cooldown` (both in minutes,
 both optional) to {py:meth}`~mlrun.projects.MlrunProject.enable_model_monitoring`, then
-register a notification with {py:meth}`~mlrun.projects.MlrunProject.set_model_monitoring_lag_alert`:
+register a notification with {py:meth}`~mlrun.projects.MlrunProject.set_model_monitoring_lag_alert`.
+
+When omitted, both values are computed from the server-side config
+(`model_endpoint_monitoring.lag_detection`):
+
+- **`lag_threshold`** = `min(default_lag_threshold_minutes, base_period)`
+- **`lag_event_cooldown`** = `min(default_lag_event_cooldown_minutes, base_period // 2)`
 
 ```py
 project.enable_model_monitoring(

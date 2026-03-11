@@ -78,7 +78,7 @@ SETUP_COVERAGE = if [ "$(RUN_COVERAGE)" = "true" ]; then \
 		exit 1; \
 		;; \
 	esac; \
-	export COVERAGE_PROCESS_START=$(PWD)/pyproject.toml; \
+	export COVERAGE_PROCESS_START=$(ROOT_DIR)pyproject.toml; \
 fi
 
 PRINT_COVERAGE_REPORT = if [ "$(RUN_COVERAGE)" = "true" ]; then \

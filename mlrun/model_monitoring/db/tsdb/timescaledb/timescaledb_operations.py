@@ -179,6 +179,7 @@ class TimescaleDBOperationsManager:
 
             # Create indexes
             statements.extend(table._create_indexes_query())
+            statements.extend(table._create_unique_indexes_query())
 
             # Create pre-aggregate tables if config provided
             if config:

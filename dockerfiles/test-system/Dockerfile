@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 ARG MLRUN_PYTHON_VERSION=3.11
-ARG MLRUN_PIP_VERSION=25.0
+ARG MLRUN_PIP_VERSION=26.0
 ARG MLRUN_UV_IMAGE=ghcr.io/astral-sh/uv:latest
 ARG DOCKER_DEFAULT_PLATFORM=linux/amd64
 

@@ -596,5 +596,10 @@ class TimescaleDBResultsQueries:
 
         if not with_result_extra_data:
             df[mm_schemas.ResultData.RESULT_EXTRA_DATA] = ""
+        elif mm_schemas.ResultData.RESULT_EXTRA_DATA in df.columns:
+            # ML-11777: Convert NULL back to "{}" for backwards compatibility
+            df[mm_schemas.ResultData.RESULT_EXTRA_DATA] = df[
+                mm_schemas.ResultData.RESULT_EXTRA_DATA
+            ].fillna("{}")
 
         return df

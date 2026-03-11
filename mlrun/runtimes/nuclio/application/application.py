@@ -1134,7 +1134,16 @@ class ApplicationRuntime(nuclio_function.RemoteRuntime):
                   deploy() uses these to restore the local path in a finally block.
         """
         source = self.spec.build.source
-        if not source or not self._is_single_local_file(source):
+        if not source or not self._is_local_path(source):
+            return None, None
+
+        if not os.path.isfile(source):
+            # On redeploy the remote artifact from the previous deploy is still available
+            if not getattr(self.status, "application_source", None):
+                raise mlrun.errors.MLRunNotFoundError(
+                    f"Source file not found: '{source}'. "
+                    "The file must exist locally to be uploaded as a source artifact."
+                )
             return None, None
 
         project_name = self.metadata.project
@@ -1175,14 +1184,8 @@ class ApplicationRuntime(nuclio_function.RemoteRuntime):
         return source, artifact.uri
 
     @staticmethod
-    def _is_single_local_file(source: str) -> bool:
-        # Skip if the source is already a store URI
+    def _is_local_path(source: str) -> bool:
+        """Check if source looks like a local filesystem path (not a URL or store URI)."""
         if mlrun.datastore.is_store_uri(source):
             return False
-
-        # Skip if it's a remote URL (not a relative/local path)
-        if not (is_relative_path(source) or os.path.isabs(source)):
-            return False
-
-        # Check if it's a local file (not a directory)
-        return os.path.isfile(source)
+        return is_relative_path(source) or os.path.isabs(source)

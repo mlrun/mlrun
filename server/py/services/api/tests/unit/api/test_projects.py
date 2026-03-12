@@ -234,6 +234,82 @@ async def test_project_permissions_update_when_exists(
     query_global.assert_not_awaited()
 
 
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "patch_body, expect_mgmt_check, expect_regular_check",
+    [
+        ({"spec": {"owner": "new_owner"}}, True, False),
+        ({"spec": {"description": "updated"}}, False, True),
+        ({"spec": {"owner": "new_owner", "description": "updated"}}, True, True),
+        ({"metadata": {"labels": {"key": "val"}}}, False, True),
+        ({}, False, True),
+    ],
+)
+async def test_project_permissions_patch_owner_routing(
+    monkeypatch: pytest.MonkeyPatch,
+    patch_body: dict,
+    expect_mgmt_check: bool,
+    expect_regular_check: bool,
+) -> None:
+    """Verify the correct permission checks are invoked based on patch contents."""
+    auth_info = mlrun.common.schemas.AuthInfo()
+    auth_verifier = framework.utils.auth.verifier.AuthVerifier()
+    query_project = AsyncMock()
+    query_resource = AsyncMock()
+    monkeypatch.setattr(auth_verifier, "query_project_permissions", query_project)
+    monkeypatch.setattr(
+        auth_verifier, "query_project_resource_permissions", query_resource
+    )
+
+    await projects_endpoints._verify_patch_project_permissions(
+        PERMISSIONS_PROJECT_NAME, patch_body, auth_info
+    )
+
+    if expect_mgmt_check:
+        query_resource.assert_awaited_once_with(
+            mlrun.common.schemas.AuthorizationResourceTypes.project_owner,
+            PERMISSIONS_PROJECT_NAME,
+            "",
+            mlrun.common.schemas.AuthorizationAction.update,
+            auth_info,
+            resource_namespace=mlrun.common.schemas.AuthorizationResourceNamespace.mgmt,
+        )
+    else:
+        query_resource.assert_not_awaited()
+
+    if expect_regular_check:
+        query_project.assert_awaited_once_with(
+            PERMISSIONS_PROJECT_NAME,
+            mlrun.common.schemas.AuthorizationAction.update,
+            auth_info,
+        )
+    else:
+        query_project.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_project_permissions_patch_owner_denied(monkeypatch: pytest.MonkeyPatch):
+    """When mgmt owner permission is denied, the endpoint should raise."""
+    auth_info = mlrun.common.schemas.AuthInfo()
+    auth_verifier = framework.utils.auth.verifier.AuthVerifier()
+    monkeypatch.setattr(
+        auth_verifier,
+        "query_project_resource_permissions",
+        AsyncMock(
+            side_effect=mlrun.errors.MLRunAccessDeniedError(
+                "Not allowed to update owner"
+            )
+        ),
+    )
+
+    with pytest.raises(mlrun.errors.MLRunAccessDeniedError):
+        await projects_endpoints._verify_patch_project_permissions(
+            PERMISSIONS_PROJECT_NAME,
+            {"spec": {"owner": "new_owner"}},
+            auth_info,
+        )
+
+
 @pytest.fixture()
 def mock_process_model_monitoring_secret() -> collections.abc.Iterator[None]:
     with unittest.mock.patch(

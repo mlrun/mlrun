@@ -272,3 +272,53 @@ def test_to_job_backward_compatibility():
     assert local_fn.metadata.name == long_name
     job = local_fn.to_job()
     assert job.metadata.name == long_name  # Name unchanged
+
+
+@pytest.mark.parametrize(
+    "use_operations_run_function",
+    [False, True],
+    ids=["project.run_function", "operations.run_function"],
+)
+def test_run_function_with_job_from_serving_fails_with_handler(
+    use_operations_run_function,
+):
+    """Test that run_function raises error when handler is specified for a job from serving function.
+
+    When a serving function is deployed to a job via to_job(), the job contains a serving_spec.
+    Running such a job with a custom handler should fail because the serving spec already
+    defines the default handler (execute_graph).
+
+    This test validates both:
+    - project.run_function (use_operations_run_function=False)
+    - operations.run_function directly (use_operations_run_function=True)
+    """
+    if use_operations_run_function:
+        from mlrun.projects.operations import run_function as operations_run_function
+
+    # Create a serving function
+    serving_fn = mlrun.new_function(name="test-serving", kind="serving")
+    serving_fn.spec.image = "mlrun/mlrun"  # Set an image to avoid build requirements
+
+    # Set up a simple graph
+    graph = serving_fn.set_topology("flow", engine="async")
+    graph.to(name="step1", handler="handler")
+
+    # Deploy to job - this creates a KubejobRuntime with serving_spec
+    job = serving_fn.to_job()
+
+    # Verify the job has a serving_spec
+    assert job.serving_spec is not None, (
+        "Job should have a serving_spec from the serving function"
+    )
+    assert job.kind == "job", f"Job should have kind='job', got '{job.kind}'"
+
+    # Running with a handler should raise MLRunInvalidArgumentError
+    with pytest.raises(
+        mlrun.errors.MLRunInvalidArgumentError,
+        match="handler cannot be specified when running a KubeJobRuntime with a serving spec",
+    ):
+        if use_operations_run_function:
+            operations_run_function(job, handler="custom_handler", local=True)
+        else:
+            project = mlrun.new_project("test-project", save=False)
+            project.run_function(job, handler="custom_handler", local=True)

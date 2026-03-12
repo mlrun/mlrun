@@ -187,6 +187,15 @@ def run_function(
                             If not provided, the default backoff delay is 30 seconds.
     :return: MLRun RunObject or PipelineNodeWrapper
     """
+    if (
+        isinstance(function, mlrun.runtimes.KubejobRuntime)
+        and function.serving_spec
+        and handler is not None
+    ):
+        raise mlrun.errors.MLRunInvalidArgumentError(
+            "handler cannot be specified when running a KubeJobRuntime with a serving spec"
+        )
+
     if artifact_path:
         warnings.warn(
             "'artifact_path' parameter is deprecated in 1.10.0 and will be removed in 1.12.0, "

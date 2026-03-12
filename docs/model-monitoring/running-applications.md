@@ -19,6 +19,7 @@ You can also import model monitoring applications from the [MLRun hub](https://w
 
 - [Overview](#overview)
 - [Usage](#usage)
+- [Lag detection alerts](#lag-detection-alerts)
 
 ## Overview
 
@@ -125,3 +126,32 @@ data written by the application (identified with `func_name`) for the specified 
 
 The `"skip_overlap"` value allows to pass potential overlaps, but with a later start time for the new
 data (ignoring the overlap data) so that it coincides with the `start` time of the already written data.
+
+## Lag detection alerts
+
+The monitoring writer may fall behind when processing many endpoints. **Lag detection**
+generates an alert when the writer processes events whose inference timestamps are older
+than a configurable threshold (minimum 5 minutes).
+
+Enable lag detection by passing `lag_threshold` and `lag_event_cooldown` (both in minutes,
+both optional) to {py:meth}`~mlrun.projects.MlrunProject.enable_model_monitoring`, then
+register a notification with {py:meth}`~mlrun.projects.MlrunProject.set_model_monitoring_lag_alert`:
+
+```py
+project.enable_model_monitoring(
+    base_period=10,
+    lag_threshold=15,  # fire a lag event if writer is 15+ min behind
+    lag_event_cooldown=10,  # minimum interval between consecutive lag events per worker
+)
+
+project.set_model_monitoring_lag_alert(
+    notifications=mlrun.common.schemas.Notification(
+        kind="slack",
+        name="lag-slack",
+        secret_params={"webhook": "https://hooks.slack.com/..."},
+    )
+)
+```
+
+To remove the alert, call `project.delete_model_monitoring_lag_alert()`.
+Note that `disable_model_monitoring(delete_resources=True)` also removes the lag alert.

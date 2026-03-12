@@ -1113,7 +1113,8 @@ def my_func(context):
             (True, [], True),
             (False, ["some command"], False),
             (False, ["python -m pip install pip"], False),
-            (True, ["python -m pip install --upgrade pip~=22.0"], False),
+            # when user asks for a specific pip version, we don't upgrade it
+            (True, ["python -m pip install --upgrade pip~=25.0"], False),
             (True, ["python -m pip install --upgrade pandas"], True),
         ],
     )

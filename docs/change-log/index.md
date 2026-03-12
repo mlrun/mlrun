@@ -34,15 +34,15 @@ See a full description of KFP, Python, and the workflow engines in {ref}`local-r
 |ML-9209|MLRun supports the Kubernetes readinessProbe and livenessProbe for application runtimes. See [Configure sidecar Kubernetes proble](../runtimes/application.ipynb#configure-sidecar-kubernetes-probes), {py:meth}`~mlrun.runtimes.ApplicationRuntime.set_probe`, and {py:meth}`~mlrun.runtimes.ApplicationRuntime.delete_probe`.|
 |ML-9695|Application runtimes now support deploying from a single Python file without packaging into directories/archives; and pull-at-runtime for Git repositories or source archives. See [Application runtimes examples](../runtimes/application.ipynb#usage-examples).|
 |ML-9754|You can expose multiple ports for application and Nuclio runtimes. See [Expose multiple ports](../runtimes/application.ipynb#expose-multiple-ports) and .|
-|ML-5967|The application runtime now supports loading a single code file and pull at runtime. See [Deploy an application from a single Python file](../runtimes/application.ipynb##deploy-an-application-from-a-single-python-file) and [Pull at runtime from Git and source archives](../runtimes/application.ipynb#pull-at-runtime-from-git-and-source-archives).|
+|ML-5967|The application runtime now supports loading a single code file and pull at runtime. See [Deploy an application from a single Python file](../runtimes/application.ipynb#deploy-an-application-from-a-single-python-file) and [Pull at runtime from Git and source archives](../runtimes/application.ipynb#pull-at-runtime-from-git-and-source-archives).|
 |ML-9209|You can set a Application readinessProbe and a livenessProbe for the sidecar container. See [Configure sidecar Kubernetes probes](../runtimes/application.ipynb#configure-sidecar-kubernetes-probes).|
 
 ### Serving Graph
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
 |ML-7879|Serving graphs now support consuming messages from RabbitMQ queues and topic-based routing. See {py:meth}`~mlrun.runtimes.RemoteRuntime.add_rabbitmq_trigger`, {ref}`graph-ha-cfg`. |
-|ML-10753|MLRun supports cyclic serving graphs. See [Cyclic graph example](../serving/use-cases.md#exanple-of-a-cyclic-graph) and {py:meth}`~mlrun.serving.states.BaseStep.cycle_to`.|
-|ML-9565|Serving graphs now support API handlers, used to expose endpoints and interfaces. See [API handler](../serving-api-handler.md).|
+|ML-10753|MLRun supports cyclic serving graphs. See [Cyclic graph example](../serving/use-cases.md#example-of-a-cyclic-graph) and {py:meth}`~mlrun.serving.states.BaseStep.cycle_to`.|
+|ML-9565|Serving graphs now support API handlers, used to expose endpoints and interfaces. See [API handler](../serving/api-handler.md).|
 
 
 ### Model monitoring

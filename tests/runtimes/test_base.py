@@ -309,6 +309,64 @@ class TestAutoMount:
         self._execute_run(runtime)
         rundb_mock.assert_env_variables(expected_env)
 
+    @pytest.mark.parametrize(
+        "params_string, expected",
+        [
+            (
+                "secret_name=my_secret,keys=key1;key2;key3",
+                {"secret_name": "my_secret", "keys": "key1;key2;key3"},
+            ),
+            (
+                "secret_name=my_secret",
+                {"secret_name": "my_secret"},
+            ),
+            (
+                "secret_name=my_secret,keys=single_key",
+                {"secret_name": "my_secret", "keys": "single_key"},
+            ),
+        ],
+    )
+    def test_get_storage_auto_mount_params_with_semicolon_keys(
+        self, params_string, expected
+    ):
+        mlconf.storage.auto_mount_params = params_string
+        result = mlconf.get_storage_auto_mount_params()
+        assert result == expected
+
+    @pytest.mark.parametrize("with_keys", [True, False])
+    def test_auto_mount_secret_env(self, with_keys, rundb_mock):
+        secret_name = "my-test-secret"
+        keys = ["KEY_A", "KEY_B", "KEY_C"]
+
+        mlconf.storage.auto_mount_type = "secret_env"
+
+        # Simple string params (semicolons separate keys to avoid conflict
+        # with the comma delimiter used by auto_mount_params)
+        if with_keys:
+            mlconf.storage.auto_mount_params = (
+                f"secret_name={secret_name},keys={';'.join(keys)}"
+            )
+        else:
+            mlconf.storage.auto_mount_params = f"secret_name={secret_name}"
+
+        # Generate the runtime and execute the run
+        # then verify that the expected environment variables were set from the secret
+        runtime = self._generate_runtime()
+        self._execute_run(runtime)
+        rundb_mock.assert_env_from_secret(secret_name, keys if with_keys else [])
+
+        # Try with base64-encoded JSON params
+        rundb_mock.reset()
+        params_dict = {"secret_name": secret_name}
+        if with_keys:
+            params_dict["keys"] = keys
+        mlconf.storage.auto_mount_params = base64.b64encode(
+            json.dumps(params_dict).encode()
+        )
+        runtime = self._generate_runtime()
+        self._execute_run(runtime)
+        rundb_mock.assert_env_from_secret(secret_name, keys if with_keys else [])
+
     def _create_temp_requirements_file(self, requirements):
         with tempfile.NamedTemporaryFile(
             delete=False, dir=self._temp_dir, suffix=".txt"

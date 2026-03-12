@@ -2633,10 +2633,15 @@ class MlrunProject(ModelObj):
         :param fetch_credentials_from_sys_config: Deprecated. If true, fetch the credentials from the project
                                                   configuration.
         :param lag_threshold:                     Duration in minutes that will be considered as lag in the writer.
-                                                  Must be at least ``min_lag_threshold_minutes`` from config.
-                                                  Default computed server-side from config and ``base_period``.
+                                                  Must be at least
+                                                  ``model_endpoint_monitoring.lag_detection.min_lag_threshold_minutes``
+                                                  from config. When not provided, computed as
+                                                  ``min(default_lag_threshold_minutes, base_period)``
+                                                  (see ``model_endpoint_monitoring.lag_detection`` in config).
         :param lag_event_cooldown:                Duration in minutes between consecutive lag events per worker.
-                                                  Default computed server-side from config and ``base_period``.
+                                                  When not provided, computed as
+                                                  ``min(default_lag_event_cooldown_minutes, base_period // 2)``
+                                                  (see ``model_endpoint_monitoring.lag_detection`` in config).
         """
         if fetch_credentials_from_sys_config:
             warnings.warn(

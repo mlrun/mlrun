@@ -209,6 +209,14 @@ class BaseStep(ModelObj):
                 self.after.append(name)
         return self
 
+    @property
+    def max_iterations(self):
+        return self._max_iterations
+
+    @max_iterations.setter
+    def max_iterations(self, max_iterations: int):
+        self._max_iterations = max_iterations
+
     def error_handler(
         self,
         name: str | None = None,
@@ -3337,14 +3345,6 @@ class RootFlowStep(FlowStep):
         self._shared_max_processes = None
         self._shared_max_threads = None
         self._pool_factor = None
-
-    @property
-    def max_iterations(self) -> int:
-        return self._max_iterations
-
-    @max_iterations.setter
-    def max_iterations(self, max_iterations: int):
-        self._max_iterations = max_iterations
 
     @property
     def allow_cyclic(self) -> bool:

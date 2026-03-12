@@ -945,12 +945,7 @@ class TaskStep(BaseStep):
                 )
 
             body = _extract_input_data(self.input_path, event.body)
-            if isinstance(body, _MappedBody):
-                # body_map-transformed bodies are unpacked as **kwargs
-                # so handler signatures like def fun(book: str) work
-                result = self._handler(**body, **kwargs)
-            else:
-                result = self._handler(body, *args, **kwargs)
+            result = _MappedBodyAwareHandler(self._handler)(body, *args, **kwargs)
             event.body = _update_result_body(self.result_path, event.body, result)
         except Exception as exc:
             if self._on_error_handler:
@@ -4034,6 +4029,41 @@ def params_to_step(
     return name, step
 
 
+class _MappedBodyAwareHandler:
+    """Unpack _MappedBody as **kwargs before calling a step handler.
+
+    _MappedBody (and its subclass _RequestContext) is a dict produced by
+    _APIHandlerStep.do() when body_map is configured.  It signals that the dict
+    should be spread as keyword arguments so handler signatures like
+    ``def fn(message: str)`` work correctly.
+
+    Implemented as a named class rather than a closure so instances remain
+    picklable for storey's multiprocessing (max_processes) mode.
+
+    Use ``__call__`` for the sync path (TaskStep.run()) and ``async_call`` for
+    the async path (_init_async_objects).  Passing the bound ``async_call``
+    method to storey.Map lets asyncio.iscoroutinefunction detect it correctly
+    without resorting to private-API sentinels.
+    """
+
+    def __init__(self, handler):
+        self._fn = handler
+
+    def __call__(self, body, *args, **kwargs):
+        if isinstance(body, _MappedBody):
+            # *args intentionally omitted: _MappedBody handlers use keyword-only
+            # signatures (e.g. def fn(message: str)), and the only callers
+            # (GraphServer.run → RootFlowStep.run, and storey.Map) never pass
+            # extra positional arguments.
+            return self._fn(**body, **kwargs)
+        return self._fn(body, *args, **kwargs)
+
+    async def async_call(self, body, *args, **kwargs):
+        if isinstance(body, _MappedBody):
+            return await self._fn(**body, **kwargs)
+        return await self._fn(body, *args, **kwargs)
+
+
 def _init_async_objects(context, steps, root):
     try:
         import storey
@@ -4137,8 +4167,14 @@ def _init_async_objects(context, steps, root):
                         f"Step '{step.name}' does not have a handler that can be called"
                     )
                 # if regular class, wrap with storey Map
+                wrapped = _MappedBodyAwareHandler(step._handler)
+                if inspect.iscoroutinefunction(step._handler):
+                    # Pass the bound async method so asyncio.iscoroutinefunction detects it correctly
+                    handler = wrapped.async_call
+                else:
+                    handler = wrapped
                 step._async_object = storey.Map(
-                    step._handler,
+                    handler,
                     full_event=step.full_event or step._call_with_event,
                     input_path=step.input_path,
                     result_path=step.result_path,

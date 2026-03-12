@@ -288,7 +288,9 @@ def pytest_runtest_teardown(item, nextitem):
     cov = getattr(item, "_coverage_forked", None)
     if cov is not None:
         cov.stop()
-        cov.save()
+        # Save the data only if there is some; otherwise we might get a "No data was collected" error
+        if cov._collector and cov._collector.data:
+            cov.save()
 
 
 def _coverage_active():

@@ -13,7 +13,6 @@
 # limitations under the License.
 import logging
 import os
-import sys
 import traceback
 import typing
 from datetime import datetime
@@ -33,6 +32,11 @@ import sqlalchemy.orm
 
 import mlrun.common.db.dialects
 import mlrun.utils
+from tests.coverage_hooks import (  # noqa: F401
+    is_coverage_active,
+    pytest_runtest_call,
+    pytest_runtest_teardown,
+)
 
 tests_root_directory = Path(__file__).absolute().parent
 results = tests_root_directory / "test_results"
@@ -257,46 +261,3 @@ def db_engine(
     logger.info("Wiping database", db_type=db_type)
     _wipe_database(engine)
     yield engine
-
-
-# ---------------------------------------------------------------------------
-# Forked-process coverage support
-# Pytest-forked isolates test execution in new processes, which can prevent
-# coverage from automatically attaching to the child. We use the
-# COVERAGE_PROCESS_START environment variable to force the tracer to
-# initialize in the forked process, ensuring that coverage data is captured
-# correctly across process boundaries.
-# ---------------------------------------------------------------------------
-
-
-def pytest_runtest_call(item):
-    """If running inside a forked child process, ensure coverage is active."""
-    if os.environ.get("COVERAGE_PROCESS_START") and not _coverage_active():
-        import coverage
-
-        cov = coverage.Coverage(
-            config_file=os.environ["COVERAGE_PROCESS_START"],
-            data_file=os.environ.get("COVERAGE_FILE"),
-            data_suffix=True,
-        )
-        cov.start()
-        item._coverage_forked = cov
-
-
-def pytest_runtest_teardown(item, nextitem):
-    """Stop and save coverage that was started in forked child."""
-    cov = getattr(item, "_coverage_forked", None)
-    if cov is not None:
-        cov.stop()
-        # Save the data only if there is some; otherwise we might get a "No data was collected" error
-        if cov._collector and cov._collector.data:
-            cov.save()
-
-
-def _coverage_active():
-    """Return True if coverage is already tracing."""
-    import coverage
-
-    return isinstance(
-        getattr(sys, "gettrace", lambda: None)(), coverage.Coverage.__class__
-    )

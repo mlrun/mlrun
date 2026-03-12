@@ -15,7 +15,6 @@
 import base64
 import json
 import pathlib
-import typing
 import unittest.mock
 from contextlib import nullcontext as does_not_raise
 from http import HTTPStatus
@@ -111,9 +110,9 @@ def test_submit_run_sync(db: Session, client: TestClient):
             db, project, submit_job_body["task"]["metadata"]["name"]
         )
     )
-    assert (
-        updated_schedule.cron_trigger.to_crontab() == "0 1 * * *"
-    ), "schedule was not updated"
+    assert updated_schedule.cron_trigger.to_crontab() == "0 1 * * *", (
+        "schedule was not updated"
+    )
 
 
 def test_submit_run_sync_schedule_with_function_overrides(
@@ -2229,26 +2228,27 @@ def test_resolve_auth_token_name_success(
     assert call_args[0][2] == provided_token_name  # token_name
 
 
-@pytest.mark.parametrize(
-    "provided_token_name,error_message,expected_match",
-    [
-        # Provided token not found in k8s
-        ("my-token", "Token not found", "Token not found"),
-        # No tokens found for user (auto-discovery)
-        (None, "No tokens found for user 'test-user'", "No tokens found"),
-    ],
-)
-def test_resolve_auth_token_name_k8s_error(
-    mock_k8s_helper, provided_token_name, error_message, expected_match
-):
-    """Test that k8s errors propagate correctly."""
+def test_resolve_auth_token_name_k8s_error_token_not_found(mock_k8s_helper):
+    """Test that k8s 400 error propagates when a specific token is not found."""
     mock_k8s_helper.get_user_secret_tokens_as_igz_yml_data.side_effect = (
-        mlrun.errors.MLRunNotFoundError(error_message)
+        mlrun.errors.MLRunBadRequestError("Token not found")
     )
 
-    with pytest.raises(mlrun.errors.MLRunNotFoundError, match=expected_match):
+    with pytest.raises(mlrun.errors.MLRunBadRequestError, match="Token not found"):
         services.api.utils.helpers.resolve_auth_token_name(
-            provided_token_name=provided_token_name, user_id="test-user"
+            provided_token_name="my-token", user_id="test-user"
+        )
+
+
+def test_resolve_auth_token_name_k8s_error_no_tokens(mock_k8s_helper):
+    """Test that k8s 400 error propagates when no token name is provided and no tokens exist."""
+    mock_k8s_helper.get_user_secret_tokens_as_igz_yml_data.side_effect = (
+        mlrun.errors.MLRunBadRequestError("No tokens found for user 'test-user'")
+    )
+
+    with pytest.raises(mlrun.errors.MLRunBadRequestError, match="No tokens found"):
+        services.api.utils.helpers.resolve_auth_token_name(
+            provided_token_name=None, user_id="test-user"
         )
 
 
@@ -2390,10 +2390,10 @@ def test_resolve_project_service_account_details(
         project: str,
         provider: mlrun.common.schemas.SecretProviderName,
         secret_key: str,
-        token: typing.Optional[str] = None,
+        token: str | None = None,
         allow_secrets_from_k8s: bool = False,
         allow_internal_secrets: bool = False,
-        key_map_secret_key: typing.Optional[str] = None,
+        key_map_secret_key: str | None = None,
     ):
         return {
             "allowed": allowed_secret,

@@ -16,7 +16,7 @@ import os
 from ast import literal_eval
 from collections.abc import Callable
 from os import environ
-from typing import Optional, Union
+from typing import Union
 
 import mlrun.auth.utils
 import mlrun.utils.helpers
@@ -160,9 +160,9 @@ class SecretsStore:
 def get_secret_or_env(
     key: str,
     secret_provider: Union[dict, SecretsStore, Callable, None] = None,
-    default: Optional[str] = None,
-    prefix: Optional[str] = None,
-) -> Optional[str]:
+    default: str | None = None,
+    prefix: str | None = None,
+) -> str | None:
     """Retrieve value of a secret, either from a user-provided secret store, or from environment variables.
     The function will retrieve a secret value, attempting to find it according to the following order:
 
@@ -227,7 +227,7 @@ def get_secret_or_env(
 
 def _find_value_in_json_env_lists(
     secret_name: str,
-) -> Optional[str]:
+) -> str | None:
     """
     Scan all environment variables. If any env var contains a JSON-encoded list
     of dicts shaped like {'name': str, 'value': str|None, 'value_from': ...},
@@ -280,8 +280,17 @@ def sync_secret_tokens() -> None:
     from mlrun.db import get_run_db
 
     secret_tokens = mlrun.auth.utils.load_and_prepare_secret_tokens(
-        auth_user_id=get_run_db().token_provider.authenticated_user_id
+        auth_user_id=get_run_db().token_provider.authenticated_user_id,
+        raise_on_error=False,
     )
+
+    if not secret_tokens:
+        raise mlrun.errors.MLRunRuntimeError(
+            "Authentication succeeded, but tokens were not synced to the backend "
+            "since no valid tokens were found after validation. "
+            "Check your token file for malformed, expired, or mismatched tokens: "
+            f"{mlrun.mlconf.auth_with_oauth_token.token_file}"
+        )
 
     # The log_warning=False flag ensures the SDK doesn't log
     # unnecessary warnings about local file updates, since

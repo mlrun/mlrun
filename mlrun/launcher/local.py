@@ -15,7 +15,7 @@ import os
 import pathlib
 from collections.abc import Callable
 from os import environ
-from typing import Optional, Union
+from typing import Union
 
 import mlrun.common.constants as mlrun_constants
 import mlrun.common.schemas.schedule
@@ -46,34 +46,31 @@ class ClientLocalLauncher(launcher.ClientBaseLauncher):
     def launch(
         self,
         runtime: "mlrun.runtimes.BaseRuntime",
-        task: Optional[
-            Union["mlrun.run.RunTemplate", "mlrun.run.RunObject", dict]
-        ] = None,
-        handler: Optional[Union[str, Callable]] = None,
-        name: Optional[str] = "",
-        project: Optional[str] = "",
-        params: Optional[dict] = None,
-        inputs: Optional[dict[str, str | list | dict]] = None,
-        out_path: Optional[str] = "",
-        workdir: Optional[str] = "",
-        artifact_path: Optional[str] = "",
-        output_path: Optional[str] = "",
-        watch: Optional[bool] = True,
-        schedule: Optional[
-            Union[str, mlrun.common.schemas.schedule.ScheduleCronTrigger]
-        ] = None,
-        hyperparams: Optional[dict[str, list]] = None,
-        hyper_param_options: Optional[mlrun.model.HyperParamOptions] = None,
-        verbose: Optional[bool] = None,
-        scrape_metrics: Optional[bool] = None,
-        local_code_path: Optional[str] = None,
-        auto_build: Optional[bool] = None,
-        param_file_secrets: Optional[dict[str, str]] = None,
-        notifications: Optional[list[mlrun.model.Notification]] = None,
-        returns: Optional[list[Union[str, dict[str, str]]]] = None,
-        state_thresholds: Optional[dict[str, int]] = None,
-        reset_on_run: Optional[bool] = None,
-        retry: Optional[Union[mlrun.model.Retry, dict]] = None,
+        task: Union["mlrun.run.RunTemplate", "mlrun.run.RunObject", dict] | None = None,
+        handler: Union[str, Callable] | None = None,
+        name: str | None = "",
+        project: str | None = "",
+        params: dict | None = None,
+        inputs: dict[str, str | list | dict] | None = None,
+        out_path: str | None = "",
+        workdir: str | None = "",
+        artifact_path: str | None = "",
+        output_path: str | None = "",
+        watch: bool | None = True,
+        schedule: Union[str, mlrun.common.schemas.schedule.ScheduleCronTrigger]
+        | None = None,
+        hyperparams: dict[str, list] | None = None,
+        hyper_param_options: mlrun.model.HyperParamOptions | None = None,
+        verbose: bool | None = None,
+        scrape_metrics: bool | None = None,
+        local_code_path: str | None = None,
+        auto_build: bool | None = None,
+        param_file_secrets: dict[str, str] | None = None,
+        notifications: list[mlrun.model.Notification] | None = None,
+        returns: list[Union[str, dict[str, str]]] | None = None,
+        state_thresholds: dict[str, int] | None = None,
+        reset_on_run: bool | None = None,
+        retry: Union[mlrun.model.Retry, dict] | None = None,
     ) -> "mlrun.run.RunObject":
         # do not allow local function to be scheduled
         if schedule is not None:
@@ -137,7 +134,7 @@ class ClientLocalLauncher(launcher.ClientBaseLauncher):
     def _execute(
         self,
         runtime: "mlrun.runtimes.BaseRuntime",
-        run: Optional[Union["mlrun.run.RunTemplate", "mlrun.run.RunObject"]] = None,
+        run: Union["mlrun.run.RunTemplate", "mlrun.run.RunObject"] | None = None,
     ):
         if (
             "V3IO_USERNAME" in os.environ
@@ -213,12 +210,12 @@ class ClientLocalLauncher(launcher.ClientBaseLauncher):
         self,
         runtime: "mlrun.runtimes.BaseRuntime",
         run: "mlrun.run.RunObject",
-        local_code_path: Optional[str] = None,
-        project: Optional[str] = "",
-        name: Optional[str] = "",
-        workdir: Optional[str] = "",
-        handler: Optional[str] = None,
-        reset_on_run: Optional[bool] = None,
+        local_code_path: str | None = None,
+        project: str | None = "",
+        name: str | None = "",
+        workdir: str | None = "",
+        handler: str | None = None,
+        reset_on_run: bool | None = None,
     ):
         project = project or runtime.metadata.project
         function_name = name or runtime.metadata.name

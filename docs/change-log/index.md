@@ -501,7 +501,7 @@ To upgrade the MLRun server:
 #### Data store
 | ID      | Description                                                                             |
 |---------|-----------------------------------------------------------------------------------------|
-| ML-5726 | Add support for [Hadoop/hdfs datastore](../store/datastore.md#hdfs-data-store-profile). |
+| ML-5726 | Add support for [Hadoop/hdfs datastore](../store/datastore.md#hdfs-datastore-profile). |
 
 #### Notifications
 | ID      | Description                                                                                                                                          |
@@ -677,7 +677,7 @@ To upgrade the MLRun server:
 | ID      | Description                                                                                                                                                                      |
 |---------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | ML-3618 | Integrate MLflow: seamlessly integrate and transfer logs from MLflow to MLRun. Tech Preview.                           |
-| ML-4343 | Datastore profiles (for managing datastore credentials) now support Azure, DBFS, GCS, Kafka, and S3. See [Using data store profiles](../store/datastore.md#data-store-profiles). |
+| ML-4343 | Datastore profiles (for managing datastore credentials) now support Azure, DBFS, GCS, Kafka, and S3. See [Using datastore profiles](../store/datastore.md#datastore-profiles). |
 
 #### Feature store
 | ID      | Description                                                                                                                                                         |
@@ -794,7 +794,7 @@ To upgrade the MLRun server:
 #### Data store
 | ID     | Description                                                                                                                                                                                                     |
 |----------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-|ML-2296| Add ability to manage Redis datastore credentials with datastore profiles. See [Using data store profiles](../store/datastore.md#data-store-profiles), [view in Git](https://github.com/mlrun/mlrun/pull/3936). |
+|ML-2296| Add ability to manage Redis datastore credentials with datastore profiles. See [Using datastore profiles](../store/datastore.md#datastore-profiles), [view in Git](https://github.com/mlrun/mlrun/pull/3936). |
 |ML-3500| Support for DBFS data store (Databricks file system). See [Databricks file system](../store/datastore.md#databricks-file-system), [view in Git](https://github.com/mlrun/mlrun/pull/3626).                      |
 
 #### Feature store
@@ -1078,8 +1078,7 @@ conda activate python39
 | ID      | Description                                                                                                                                                                                                                                      |
 |---------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | ML-1167 | Add support for graphs that split and merge (DAG), including a list of steps for the `after` argument in the `add_step()` method. See [Branching and merging steps](../serving/branch-merge.md). |
-| ML-2507 | Supports configuring of consumer group name for steps following QueueSteps. See 
-[Queue (streaming)](../serving/remote-execution.ipynb#queue-streaming).                                                                   |
+| ML-2507 | Supports configuring of consumer group name for steps following QueueSteps. See [Queues and streams](../serving/remote-execution.ipynb#queues-and-streams).|
 
 #### Storey 
 

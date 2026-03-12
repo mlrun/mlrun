@@ -18,10 +18,8 @@ import datetime
 import http
 import json.decoder
 import os
-import typing
 import unittest.mock
 from http import HTTPStatus
-from typing import Optional
 from unittest.mock import AsyncMock, Mock
 from uuid import uuid4
 
@@ -234,6 +232,82 @@ async def test_project_permissions_update_when_exists(
     )
     query_project.assert_awaited_once_with(project_name, action, auth_info)
     query_global.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "patch_body, expect_mgmt_check, expect_regular_check",
+    [
+        ({"spec": {"owner": "new_owner"}}, True, False),
+        ({"spec": {"description": "updated"}}, False, True),
+        ({"spec": {"owner": "new_owner", "description": "updated"}}, True, True),
+        ({"metadata": {"labels": {"key": "val"}}}, False, True),
+        ({}, False, True),
+    ],
+)
+async def test_project_permissions_patch_owner_routing(
+    monkeypatch: pytest.MonkeyPatch,
+    patch_body: dict,
+    expect_mgmt_check: bool,
+    expect_regular_check: bool,
+) -> None:
+    """Verify the correct permission checks are invoked based on patch contents."""
+    auth_info = mlrun.common.schemas.AuthInfo()
+    auth_verifier = framework.utils.auth.verifier.AuthVerifier()
+    query_project = AsyncMock()
+    query_resource = AsyncMock()
+    monkeypatch.setattr(auth_verifier, "query_project_permissions", query_project)
+    monkeypatch.setattr(
+        auth_verifier, "query_project_resource_permissions", query_resource
+    )
+
+    await projects_endpoints._verify_patch_project_permissions(
+        PERMISSIONS_PROJECT_NAME, patch_body, auth_info
+    )
+
+    if expect_mgmt_check:
+        query_resource.assert_awaited_once_with(
+            mlrun.common.schemas.AuthorizationResourceTypes.project_owner,
+            PERMISSIONS_PROJECT_NAME,
+            "",
+            mlrun.common.schemas.AuthorizationAction.update,
+            auth_info,
+            resource_namespace=mlrun.common.schemas.AuthorizationResourceNamespace.mgmt,
+        )
+    else:
+        query_resource.assert_not_awaited()
+
+    if expect_regular_check:
+        query_project.assert_awaited_once_with(
+            PERMISSIONS_PROJECT_NAME,
+            mlrun.common.schemas.AuthorizationAction.update,
+            auth_info,
+        )
+    else:
+        query_project.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_project_permissions_patch_owner_denied(monkeypatch: pytest.MonkeyPatch):
+    """When mgmt owner permission is denied, the endpoint should raise."""
+    auth_info = mlrun.common.schemas.AuthInfo()
+    auth_verifier = framework.utils.auth.verifier.AuthVerifier()
+    monkeypatch.setattr(
+        auth_verifier,
+        "query_project_resource_permissions",
+        AsyncMock(
+            side_effect=mlrun.errors.MLRunAccessDeniedError(
+                "Not allowed to update owner"
+            )
+        ),
+    )
+
+    with pytest.raises(mlrun.errors.MLRunAccessDeniedError):
+        await projects_endpoints._verify_patch_project_permissions(
+            PERMISSIONS_PROJECT_NAME,
+            {"spec": {"owner": "new_owner"}},
+            auth_info,
+        )
 
 
 @pytest.fixture()
@@ -1948,19 +2022,19 @@ def _assert_db_resources_in_project(
                 "You excluded an object from the regular handling but forgot to add special handling"
             )
         if assert_no_resources:
-            assert (
-                number_of_cls_records == 0
-            ), f"Table {cls.__tablename__} records were found"
+            assert number_of_cls_records == 0, (
+                f"Table {cls.__tablename__} records were found"
+            )
         else:
-            assert (
-                number_of_cls_records > 0
-            ), f"Table {cls.__tablename__} records were not found"
+            assert number_of_cls_records > 0, (
+                f"Table {cls.__tablename__} records were not found"
+            )
         table_name_records_count_map[cls.__tablename__] = number_of_cls_records
     return table_name_records_count_map
 
 
 def _list_project_names_and_assert(
-    client: TestClient, expected_names: list[str], params: Optional[dict] = None
+    client: TestClient, expected_names: list[str], params: dict | None = None
 ):
     params = params or {}
     params["format"] = mlrun.common.formatters.ProjectFormat.name_only
@@ -1982,7 +2056,7 @@ def _list_project_names_and_assert(
 def _assert_project_response(
     expected_project: mlrun.common.schemas.Project,
     response,
-    extra_exclude: Optional[dict] = None,
+    extra_exclude: dict | None = None,
 ):
     project = mlrun.common.schemas.Project(**response.json())
     _assert_project(expected_project, project, extra_exclude)
@@ -2026,7 +2100,7 @@ def _assert_project_summary(
 def _assert_project(
     expected_project: mlrun.common.schemas.Project,
     project: mlrun.common.schemas.Project,
-    extra_exclude: Optional[dict] = None,
+    extra_exclude: dict | None = None,
 ):
     exclude = {"id": ..., "metadata": {"created"}, "status": {"state"}}
     if extra_exclude:
@@ -2181,10 +2255,10 @@ def _create_run(
     run_uid: str,
     run_name: str,
     kind: str,
-    state: typing.Optional[str] = None,
-    start_time: typing.Optional[datetime.datetime] = None,
-    parameters: typing.Optional[dict] = None,
-    iteration: typing.Optional[int] = None,
+    state: str | None = None,
+    start_time: datetime.datetime | None = None,
+    parameters: dict | None = None,
+    iteration: int | None = None,
 ):
     """Helper function to create a single run."""
     run = {
@@ -2241,7 +2315,7 @@ def _create_hyperparam_runs(
     param_name: str,
     values: list,
     state: str,
-    start_time: typing.Optional[datetime.datetime] = None,
+    start_time: datetime.datetime | None = None,
     iteration_start: int = 1,
 ):
     """Create hyperparameter runs with different parameter values."""
@@ -2266,7 +2340,7 @@ def _create_schedule(
     client: TestClient,
     project_name,
     cron_trigger: mlrun.common.schemas.ScheduleCronTrigger,
-    labels: Optional[dict] = None,
+    labels: dict | None = None,
 ):
     if not labels:
         labels = {}

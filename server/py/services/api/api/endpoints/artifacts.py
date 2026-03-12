@@ -13,7 +13,6 @@
 # limitations under the License.
 
 from http import HTTPStatus
-from typing import Optional
 
 from fastapi import APIRouter, Depends, Query, Request
 from fastapi.concurrency import run_in_threadpool
@@ -200,10 +199,10 @@ async def delete_artifact(
 
 @router.get("/projects/{project}/artifacts")
 async def list_artifacts(
-    project: Optional[str] = None,
-    name: Optional[str] = None,
-    tag: Optional[str] = None,
-    kind: Optional[str] = None,
+    project: str | None = None,
+    name: str | None = None,
+    tag: str | None = None,
+    kind: str | None = None,
     category: mlrun.common.schemas.ArtifactCategories = None,
     labels: list[str] = Query([], alias="label"),
     iter: int = Query(None, ge=0),
@@ -267,7 +266,7 @@ async def list_artifacts(
 
 @router.delete("/projects/{project}/artifacts")
 async def delete_artifacts(
-    project: Optional[str] = None,
+    project: str | None = None,
     name: str = "",
     tag: str = "",
     labels: list[str] = Query([], alias="label"),
@@ -287,10 +286,10 @@ async def delete_artifacts(
 
 
 async def _delete_artifacts(
-    project: Optional[str] = None,
-    name: Optional[str] = None,
-    tag: Optional[str] = None,
-    labels: Optional[list[str]] = None,
+    project: str | None = None,
+    name: str | None = None,
+    tag: str | None = None,
+    labels: list[str] | None = None,
     auth_info: mlrun.common.schemas.AuthInfo = None,
     db_session: Session = None,
 ):

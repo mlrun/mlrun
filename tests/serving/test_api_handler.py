@@ -1059,10 +1059,8 @@ class TestAPIHandlerMockServer:
         finally:
             server.wait_for_completion()
 
-    def test_api_handler_parameter_conflict_error(
-        self,
-    ) -> None:
-        """Test that parameter conflicts from multiple sources raise error"""
+    def test_api_handler_body_map_path_conflict_at_init(self) -> None:
+        """Test that body_map vs path template conflicts are caught at init time"""
 
         def handler(**kwargs):
             return {"id": kwargs.get("id")}
@@ -1084,14 +1082,47 @@ class TestAPIHandlerMockServer:
         graph = fn.set_topology("flow", engine="sync")
         graph.to(name="handler", handler=handler).respond()
 
+        # Conflict should be raised at mock server init, not at request time
+        with pytest.raises(
+            mlrun.errors.MLRunValueError,
+            match="Configuration conflict.*body_map parameter.*id.*overlap with path template",
+        ):
+            fn.to_mock_server()
+
+    def test_api_handler_parameter_conflict_error(
+        self,
+    ) -> None:
+        """Test that parameter conflicts from multiple sources raise error at request time"""
+
+        def handler(**kwargs):
+            return {"limit": kwargs.get("limit")}
+
+        fn = cast(
+            ServingRuntime,
+            mlrun.new_function("test-param-conflict", kind="serving"),
+        )
+
+        config = APIHandlerConfig()
+        # Use a path template with 'category' (no body_map overlap) so init passes,
+        # but the query string at request time will conflict with 'limit' from path.
+        config.add_endpoint_handler(
+            "/items/{category}/{limit}",
+            HTTPMethod.GET,
+            APIHandlerAction.ALLOW,
+        )
+        fn.set_api_handler_config(config)
+
+        graph = fn.set_topology("flow", engine="sync")
+        graph.to(name="handler", handler=handler).respond()
+
         server = fn.to_mock_server()
         try:
-            # Should raise 400 Bad Request due to parameter conflict
+            # Should raise 400 Bad Request due to runtime parameter conflict
+            # (path 'limit' = "50" vs query 'limit' = "100")
             with pytest.raises(RuntimeError, match="400.*Parameter name conflict"):
                 server.test(
-                    "/items/path-id",
-                    method="POST",
-                    body={"identifier": "body-id"},
+                    "/items/electronics/50?limit=100",
+                    method="GET",
                 )
         finally:
             server.wait_for_completion()
@@ -1644,164 +1675,106 @@ class TestAPIHandlerStep:
             APIHandlerAction.ALLOW,
         )
 
-        context = MagicMock()
-        mock_event = MagicMock()
-        mock_event.method = HTTPMethod.GET
-        mock_event.path = "/api/resource/42"
-        context.current_event = mock_event
-
         step = _APIHandlerStep(config=config)
-        step.context = context
+        event = MockEvent(body={"data": "test"}, method="GET", path="/api/resource/42")
 
         with pytest.raises(mlrun.errors.MLRunNotFoundError, match="Endpoint not found"):
-            step.do({"data": "test"})
+            step.do(event)
 
     def test_run_allowed_endpoint(self) -> None:
         """Test running with allowed endpoint"""
         config = APIHandlerConfig()
         config.add_endpoint_handler("/test", HTTPMethod.GET, APIHandlerAction.ALLOW)
 
-        # Create a mock context with current_event
-        context = MagicMock()
-        mock_event = MagicMock()
-        mock_event.method = HTTPMethod.GET
-        mock_event.path = "/test"
-        context.current_event = mock_event
-
         step = _APIHandlerStep(config=config)
-        step.context = context
+        event = MockEvent(body={"data": "test"}, method="GET", path="/test")
 
-        result = step.do({"data": "test"})
-        assert result == {"data": "test"}
+        result = step.do(event)
+        assert result.body == {"data": "test"}
 
     def test_run_forbidden_endpoint(self) -> None:
         """Test running with forbidden endpoint"""
         config = APIHandlerConfig()
         config.add_endpoint_handler("/admin", HTTPMethod.POST, APIHandlerAction.FORBID)
 
-        # Create a mock context with current_event
-        context = MagicMock()
-        mock_event = MagicMock()
-        mock_event.method = HTTPMethod.POST
-        mock_event.path = "/admin"
-        context.current_event = mock_event
-
         step = _APIHandlerStep(config=config)
-        step.context = context
+        event = MockEvent(body={"data": "test"}, method="POST", path="/admin")
 
         with pytest.raises(
             mlrun.errors.MLRunAccessDeniedError, match="Access forbidden"
         ):
-            step.do({"data": "test"})
+            step.do(event)
 
     def test_run_method_not_allowed(self) -> None:
         """Test that wrong HTTP method for existing endpoint returns 405"""
         config = APIHandlerConfig()
-        # Endpoint exists for POST, but we'll try GET
         config.add_endpoint_handler(
             "/resource", HTTPMethod.POST, APIHandlerAction.ALLOW
         )
 
-        # Create a mock context with current_event
-        context = MagicMock()
-        mock_event = MagicMock()
-        mock_event.method = HTTPMethod.GET
-        mock_event.path = "/resource"
-        context.current_event = mock_event
-
         step = _APIHandlerStep(config=config)
-        step.context = context
+        event = MockEvent(body={"data": "test"}, method="GET", path="/resource")
 
         with pytest.raises(
             mlrun.errors.MLRunMethodNotAllowedError, match="Method not allowed"
         ):
-            step.do({"data": "test"})
+            step.do(event)
 
     def test_run_no_matching_endpoint(self) -> None:
         """Test running with no matching endpoint"""
         config = APIHandlerConfig()
         config.add_endpoint_handler("/test", HTTPMethod.GET, APIHandlerAction.ALLOW)
 
-        # Create a mock context with current_event
-        context = MagicMock()
-        mock_event = MagicMock()
-        mock_event.method = HTTPMethod.POST
-        mock_event.path = "/nonexistent"
-        context.current_event = mock_event
-
         step = _APIHandlerStep(config=config)
-        step.context = context
+        event = MockEvent(body={"data": "test"}, method="POST", path="/nonexistent")
 
         with pytest.raises(mlrun.errors.MLRunNotFoundError, match="Endpoint not found"):
-            step.do({"data": "test"})
+            step.do(event)
 
-    def test_run_no_method_in_context(self) -> None:
-        """Test running without method in context"""
+    def test_run_no_method_in_event(self) -> None:
+        """Test running without method in event"""
         config = APIHandlerConfig()
-        context = MagicMock()
-        mock_event = MagicMock()
-        mock_event.method = None
-        mock_event.path = "/test"
-        context.current_event = mock_event
-
         step = _APIHandlerStep(config=config)
-        step.context = context
+        event = MockEvent(body={"data": "test"}, path="/test")
 
         with pytest.raises(
             mlrun.errors.MLRunBadRequestError, match="HTTP method not found"
         ):
-            step.do({"data": "test"})
+            step.do(event)
 
     def test_run_no_path_in_context(self) -> None:
         """Test running without path in context"""
         config = APIHandlerConfig()
-        context = MagicMock()
-        mock_event = MagicMock()
-        mock_event.method = HTTPMethod.GET
-        mock_event.path = None
-        context.current_event = mock_event
-
         step = _APIHandlerStep(config=config)
-        step.context = context
+        event = MockEvent(body={"data": "test"}, method="GET")
+        event.path = None
 
         with pytest.raises(
             mlrun.errors.MLRunBadRequestError, match="Request path not found"
         ):
-            step.do({"data": "test"})
+            step.do(event)
 
     def test_run_string_method_conversion(self) -> None:
         """Test running with string method that gets converted to HTTPMethod"""
         config = APIHandlerConfig()
         config.add_endpoint_handler("/test", HTTPMethod.GET, APIHandlerAction.ALLOW)
 
-        context = MagicMock()
-        mock_event = MagicMock()
-        mock_event.method = "get"  # lowercase string
-        mock_event.path = "/test"
-        context.current_event = mock_event
-
         step = _APIHandlerStep(config=config)
-        step.context = context
+        event = MockEvent(body={"data": "test"}, method="get", path="/test")
 
-        result = step.do({"data": "test"})
-        assert result == {"data": "test"}
+        result = step.do(event)
+        assert result.body == {"data": "test"}
 
     def test_run_invalid_method_string(self) -> None:
         """Test running with invalid method string"""
         config = APIHandlerConfig()
-        context = MagicMock()
-        mock_event = MagicMock()
-        mock_event.method = "INVALID"
-        mock_event.path = "/test"
-        context.current_event = mock_event
-
         step = _APIHandlerStep(config=config)
-        step.context = context
+        event = MockEvent(body={"data": "test"}, method="INVALID", path="/test")
 
         with pytest.raises(
             mlrun.errors.MLRunBadRequestError, match="Unsupported HTTP method"
         ):
-            step.do({"data": "test"})
+            step.do(event)
 
     def test_run_body_map_with_missing_body(self) -> None:
         """Test that body_map with missing/non-dict body raises 422 error"""
@@ -1809,21 +1782,14 @@ class TestAPIHandlerStep:
         config.body_map = {"$.name": "user_name"}
         config.add_endpoint_handler("/test", HTTPMethod.POST, APIHandlerAction.ALLOW)
 
-        context = MagicMock()
-        mock_event = MagicMock()
-        mock_event.method = HTTPMethod.POST
-        mock_event.path = "/test"
-        mock_event.body = None
-        context.current_event = mock_event
-
         step = _APIHandlerStep(config=config)
-        step.context = context
+        event = MockEvent(body=None, method="POST", path="/test")
 
         with pytest.raises(
             mlrun.errors.MLRunUnprocessableEntityError,
             match="body_map configured but request body is not a dict",
         ):
-            step.do(mock_event)
+            step.do(event)
 
 
 class TestAddAPIHandlerStepToGraph:
@@ -2082,25 +2048,6 @@ class TestExtractQueryParams:
         normalized_path, params = handler._extract_query_params(event, "/api/users")
         assert normalized_path == "/api/users"
         assert params == {"id": ["1", "2", "3"], "single": "value"}
-
-    def test_extract_query_params_from_context_event_fields(self) -> None:
-        """Test extracting query params from context.current_event.fields"""
-        config = APIHandlerConfig()
-        context = GraphContext()
-
-        # Create a mock current_event in context
-        mock_event = MagicMock()
-        mock_event.fields = {"limit": ["10"], "filter": ["active"]}
-        context.current_event = mock_event
-
-        handler = _APIHandlerStep(config=config, context=context)
-
-        # Event without fields
-        event = MockEvent(path="/api/users", method="GET")
-
-        normalized_path, params = handler._extract_query_params(event, "/api/users")
-        assert normalized_path == "/api/users"
-        assert params == {"limit": "10", "filter": "active"}
 
     def test_extract_query_params_empty_fields_list(self) -> None:
         """Test extracting query params when event.fields has empty list"""

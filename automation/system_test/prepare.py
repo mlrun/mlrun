@@ -74,28 +74,28 @@ class SystemTestPreparer:
 
     def __init__(
         self,
-        mlrun_version: typing.Optional[str] = None,
-        override_image_registry: typing.Optional[str] = None,
-        mlrun_commit: typing.Optional[str] = None,
-        mlrun_ui_version: typing.Optional[str] = None,
-        data_cluster_ip: typing.Optional[str] = None,
-        data_cluster_ssh_username: typing.Optional[str] = None,
-        data_cluster_ssh_password: typing.Optional[str] = None,
-        github_access_token: typing.Optional[str] = None,
-        provctl_download_url: typing.Optional[str] = None,
-        username: typing.Optional[str] = None,
-        access_key: typing.Optional[str] = None,
-        aws_access_key_id: typing.Optional[str] = None,
-        aws_secret_access_key: typing.Optional[str] = None,
-        aws_oidc_access_token: typing.Optional[str] = None,
-        iguazio_version: typing.Optional[str] = None,
-        slack_webhook_url: typing.Optional[str] = None,
+        mlrun_version: str | None = None,
+        override_image_registry: str | None = None,
+        mlrun_commit: str | None = None,
+        mlrun_ui_version: str | None = None,
+        data_cluster_ip: str | None = None,
+        data_cluster_ssh_username: str | None = None,
+        data_cluster_ssh_password: str | None = None,
+        github_access_token: str | None = None,
+        provctl_download_url: str | None = None,
+        username: str | None = None,
+        access_key: str | None = None,
+        aws_access_key_id: str | None = None,
+        aws_secret_access_key: str | None = None,
+        aws_oidc_access_token: str | None = None,
+        iguazio_version: str | None = None,
+        slack_webhook_url: str | None = None,
         debug: bool = False,
-        branch: typing.Optional[str] = None,
-        mlrun_dbpath: typing.Optional[str] = None,
-        kubeconfig_content: typing.Optional[str] = None,
-        openai_base_url: typing.Optional[str] = None,
-        openai_api_key: typing.Optional[str] = None,
+        branch: str | None = None,
+        mlrun_dbpath: str | None = None,
+        kubeconfig_content: str | None = None,
+        openai_base_url: str | None = None,
+        openai_api_key: str | None = None,
     ):
         self._logger = logger
         self._debug = debug
@@ -115,7 +115,7 @@ class SystemTestPreparer:
         self._aws_access_key_id = aws_access_key_id
         self._aws_secret_access_key = aws_secret_access_key
         self._aws_oidc_access_token = aws_oidc_access_token
-        self._ssh_client: typing.Optional[paramiko.SSHClient] = None
+        self._ssh_client: paramiko.SSHClient | None = None
         self._mlrun_dbpath = mlrun_dbpath
 
         self._env_config: dict[str, Union[str, None, dict]] = {
@@ -153,15 +153,6 @@ class SystemTestPreparer:
     def run(self):
         self.connect_to_remote()
 
-        try:
-            logger.log("debug", "installing dev utilities")
-            self._install_dev_utilities()
-            logger.log("debug", "installing dev utilities - done")
-        except Exception as exp:
-            self._logger.log(
-                "error", "error on install dev utilities", exception=str(exp)
-            )
-
         # for sanity clean up before starting the run
         self.clean_up_remote_workdir()
 
@@ -186,15 +177,15 @@ class SystemTestPreparer:
     def _run_command(
         self,
         command: str,
-        args: typing.Optional[list] = None,
-        workdir: typing.Optional[str] = None,
-        stdin: typing.Optional[str] = None,
+        args: list | None = None,
+        workdir: str | None = None,
+        stdin: str | None = None,
         live: bool = True,
         suppress_errors: bool = False,
         local: bool = False,
         detach: bool = False,
         verbose: bool = True,
-        suppress_error_strings: typing.Optional[list] = None,
+        suppress_error_strings: list | None = None,
     ) -> (bytes, bytes):
         workdir = workdir or str(self.Constants.workdir)
         stdout, stderr, exit_status = "", "", 0
@@ -278,9 +269,9 @@ class SystemTestPreparer:
     def _run_command_remotely(
         self,
         command: str,
-        args: typing.Optional[list] = None,
-        workdir: typing.Optional[str] = None,
-        stdin: typing.Optional[str] = None,
+        args: list | None = None,
+        workdir: str | None = None,
+        stdin: str | None = None,
         live: bool = True,
         detach: bool = False,
         verbose: bool = True,
@@ -358,6 +349,8 @@ class SystemTestPreparer:
         # enrichment can be done only if ssh client is initialized
         if self._ssh_client:
             self._enrich_env()
+        else:
+            self._enrich_oss_env()
         serialized_env_config = self._serialize_env_config()
         with open(filepath, "w") as f:
             f.write(serialized_env_config)
@@ -414,14 +407,6 @@ class SystemTestPreparer:
         )
 
     def _enrich_env(self):
-        devutils_outputs = self._get_devutils_status()
-        if "redis" in devutils_outputs:
-            self._logger.log("debug", "Enriching env with redis info")
-            # uncomment when url is accessible from outside the cluster
-            # self._env_config["MLRUN_REDIS__URL"] = f"redis://{devutils_outputs['redis']['app_url']}"
-            # self._env_config["REDIS_USER"] = devutils_outputs["redis"]["username"]
-            # self._env_config["REDIS_PASSWORD"] = devutils_outputs["redis"]["password"]
-
         api_url_host = self._get_ingress_host("datanode-dashboard")
         framesd_host = self._get_ingress_host("framesd")
         v3io_api_host = self._get_ingress_host("webapi")
@@ -435,14 +420,10 @@ class SystemTestPreparer:
         self._env_config["V3IO_API"] = f"https://{v3io_api_host}"
         self._env_config["MLRUN_DBPATH"] = f"https://{mlrun_api_url}"
 
-        # Since the prepare script is shared across branches, two MM configs are set.
-        # Remove the deprecated config when we stop testing 1.7.x.
+        # running system tests in a lab environment where TLS verification may be disabled.
+        self._env_config["MLRUN_HTTPDB__HTTP__VERIFY"] = "false"
 
-        # MM infra for < 1.8.0
-        self._env_config["MLRUN_MODEL_ENDPOINT_MONITORING__TSDB_CONNECTION"] = "v3io"
-        self._env_config["MLRUN_MODEL_ENDPOINT_MONITORING__STREAM_CONNECTION"] = "v3io"
-
-        # MM infra for >= 1.8.0
+        # MM infra
         self._env_config["mlrun_model_monitoring_tsdb_profile"] = json.dumps(
             {
                 "type": "v3io",
@@ -458,28 +439,27 @@ class SystemTestPreparer:
             }
         )
 
-    def _install_dev_utilities(self):
-        list_uninstall = [
-            "dev_utilities.py",
-            "uninstall",
-            "--redis",
-            "--mysql",
-            "--redisinsight",
-            "--kafka",
-        ]
-        list_install = [
-            "dev_utilities.py",
-            "install",
-            "--redis",
-            "--mysql",
-            "--redisinsight",
-            "--kafka",
-            "--ipadd",
-            os.environ.get("IP_ADDR_PREFIX", "localhost"),
-        ]
-        self._run_command("rm", args=["-rf", "/home/iguazio/dev_utilities"])
-        self._run_command("python3", args=list_uninstall, workdir="/home/iguazio/")
-        self._run_command("python3", args=list_install, workdir="/home/iguazio/")
+    def _enrich_oss_env(self):
+        """Add model monitoring profiles for OSS/CE deployments."""
+        self._env_config["mlrun_model_monitoring_tsdb_profile"] = json.dumps(
+            {
+                "type": "postgresql",
+                "name": "mm-tsdb-profile",
+                "user": "postgres",
+                "password": "postgres",
+                "host": "timescaledb",
+                "port": 5432,
+                "database": "postgres",
+            }
+        )
+        self._env_config["mlrun_model_monitoring_stream_profile"] = json.dumps(
+            {
+                "type": "kafka_stream",
+                "name": "mm-stream-profile",
+                "brokers": "kafka-stream:9092",
+                "topics": [],
+            }
+        )
 
     def _download_provctl(self):
         # extract bucket name, object name from s3 file path
@@ -564,8 +544,8 @@ class SystemTestPreparer:
         command_name: str,
         max_retries: int = 60,
         interval: int = 10,
-        suppress_error_strings: typing.Optional[list] = None,
-        ps_verification: typing.Optional[str] = None,
+        suppress_error_strings: list | None = None,
+        ps_verification: str | None = None,
     ):
         def exec_ps_verification():
             if ps_verification:
@@ -772,29 +752,6 @@ class SystemTestPreparer:
             raise RuntimeError(f"Failed getting service name. Error: {stderr}")
         return service_name.strip()
 
-    def _get_devutils_status(self):
-        out, err = "", ""
-        try:
-            out, err = self._run_command(
-                "python3",
-                [
-                    "/home/iguazio/dev_utilities.py",
-                    "status",
-                    "--redis",
-                    "--kafka",
-                    "--mysql",
-                    "--redisinsight",
-                    "--output",
-                    "json",
-                ],
-            )
-        except Exception as exc:
-            self._logger.log(
-                "warning", "Failed to enrich env", exc=exc, err=err, out=out
-            )
-
-        return json.loads(out or "{}")
-
     def _ensure_ssh_session_active(self):
         try:
             self._ssh_client.exec_command("ls > /dev/null")
@@ -980,11 +937,11 @@ def env(
 
 def run_command(
     command: str,
-    args: typing.Optional[list] = None,
-    workdir: typing.Optional[str] = None,
-    stdin: typing.Optional[str] = None,
+    args: list | None = None,
+    workdir: str | None = None,
+    stdin: str | None = None,
     live: bool = True,
-    log_file_handler: typing.Optional[typing.IO[str]] = None,
+    log_file_handler: typing.IO[str] | None = None,
 ) -> (str, str, int):
     if workdir:
         command = f"cd {workdir}; " + command
@@ -1012,7 +969,7 @@ def run_command(
 
 def _handle_command_stdout(
     stdout_stream: typing.IO[bytes],
-    log_file_handler: typing.Optional[typing.IO[str]] = None,
+    log_file_handler: typing.IO[str] | None = None,
     live: bool = True,
 ) -> str:
     def _write_to_log_file(text: bytes):

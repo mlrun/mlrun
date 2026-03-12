@@ -73,14 +73,14 @@ class TestServingAPIHandler(tests.system.base.TestMLRunSystem):
         )
 
         # Check that the API handler config is set correctly in the function spec
-        assert (
-            function.spec.api_handler_config is not None
-        ), "API handler config should be set in function spec"
+        assert function.spec.api_handler_config is not None, (
+            "API handler config should be set in function spec"
+        )
         # Convert back to APIHandlerConfig for comparison
         spec_config = APIHandlerConfig.from_dict(function.spec.api_handler_config)
-        assert (
-            spec_config.endpoints == config.endpoints
-        ), "API handler endpoints should match the config set"
+        assert spec_config.endpoints == config.endpoints, (
+            "API handler endpoints should match the config set"
+        )
         self._logger.debug(
             "API handler config correctly set in function spec",
             endpoints=spec_config.endpoints,
@@ -126,7 +126,7 @@ class TestServingAPIHandler(tests.system.base.TestMLRunSystem):
         self._logger.debug("Testing forbidden API handler endpoint")
         with pytest.raises(
             RuntimeError,
-            match=r"MLRunBadRequestError: Access forbidden to GET /api/v1/admin",
+            match=r"MLRunAccessDeniedError: Access forbidden to GET /api/v1/admin",
         ):
             function.invoke(
                 path="/api/v1/admin", method="GET", body={"test": "restricted"}
@@ -190,9 +190,9 @@ class TestServingAPIHandler(tests.system.base.TestMLRunSystem):
         # Verify the mapped values were extracted correctly
         assert response is not None, "Handler should return a response"
         assert response["name"] == "Alice Smith", "user_name should be extracted"
-        assert (
-            response["email"] == "alice@example.com"
-        ), "user_email should be extracted from nested path"
+        assert response["email"] == "alice@example.com", (
+            "user_email should be extracted from nested path"
+        )
         assert response["titles"] == [
             "MLOps Handbook",
             "Python Guide",
@@ -239,12 +239,12 @@ class TestServingAPIHandler(tests.system.base.TestMLRunSystem):
 
         # Verify the path and query params were extracted correctly
         assert response is not None, "Handler should return a response"
-        assert (
-            response["category"] == "electronics"
-        ), "category path param should be extracted"
-        assert (
-            response["item_id"] == "laptop-123"
-        ), "item_id path param should be extracted"
+        assert response["category"] == "electronics", (
+            "category path param should be extracted"
+        )
+        assert response["item_id"] == "laptop-123", (
+            "item_id path param should be extracted"
+        )
         assert response["limit"] == "10", "limit query param should be string"
         # See NUC-7459 - multiple matches should be returned as list
         # assert response["tags"] == ["new", "featured", "sale"], "tags query param should be list"
@@ -285,9 +285,9 @@ class TestServingAPIHandler(tests.system.base.TestMLRunSystem):
             body={},
         )
         assert response is not None, "Handler should return a response"
-        assert (
-            response["matched_path"] == "/api/wildcard/v1/data"
-        ), "mlrun_request_path should reflect the exact request path"
+        assert response["matched_path"] == "/api/wildcard/v1/data", (
+            "mlrun_request_path should reflect the exact request path"
+        )
 
         # Verify a different nested path also routes correctly
         self._logger.debug("Invoking /api/wildcard/users/42")
@@ -296,8 +296,8 @@ class TestServingAPIHandler(tests.system.base.TestMLRunSystem):
             method="POST",
             body={},
         )
-        assert (
-            response2["matched_path"] == "/api/wildcard/users/42"
-        ), "mlrun_request_path should reflect the request path for a different sub-path"
+        assert response2["matched_path"] == "/api/wildcard/users/42", (
+            "mlrun_request_path should reflect the request path for a different sub-path"
+        )
 
         self._logger.info("Wildcard path API handler test passed")

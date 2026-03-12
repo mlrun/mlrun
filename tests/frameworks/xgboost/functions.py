@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Optional
 
 import xgboost as xgb
 from sklearn.multiclass import OneVsRestClassifier
@@ -30,7 +29,7 @@ class XGBoostFunctions(MLFunctions):
     def train(
         context: mlrun.MLClientCtx,
         algorithm_functionality: str,
-        model_name: Optional[str] = None,
+        model_name: str | None = None,
     ):
         algorithm_functionality = AlgorithmFunctionality(algorithm_functionality)
         model = XGBoostFunctions.get_model(

@@ -14,9 +14,8 @@
 
 import asyncio
 import base64
+import os
 import shlex
-import typing
-from typing import Optional
 
 import nuclio
 import nuclio.utils
@@ -47,9 +46,9 @@ from services.api.crud.runtimes.nuclio.helpers import pure_nuclio_deployed_restr
 def deploy_nuclio_function(
     function: mlrun.runtimes.nuclio.function.RemoteRuntime,
     auth_info: mlrun.common.schemas.AuthInfo = None,
-    client_version: typing.Optional[str] = None,
-    builder_env: typing.Optional[dict] = None,
-    client_python_version: typing.Optional[str] = None,
+    client_version: str | None = None,
+    builder_env: dict | None = None,
+    client_python_version: str | None = None,
 ):
     """Deploys a nuclio function.
 
@@ -192,7 +191,7 @@ async def delete_nuclio_functions_in_batches(
         function: str,
         _semaphore: asyncio.Semaphore,
         k8s_helper_: framework.utils.singletons.k8s.K8sHelper,
-    ) -> typing.Optional[tuple[str, str]]:
+    ) -> tuple[str, str] | None:
         async with _semaphore:
             try:
                 await nuclio_client.delete_function(name=function, project_name=project)
@@ -234,8 +233,8 @@ async def delete_nuclio_functions_in_batches(
 
 def _compile_function_config(
     function: mlrun.runtimes.nuclio.function.RemoteRuntime,
-    client_version: typing.Optional[str] = None,
-    client_python_version: typing.Optional[str] = None,
+    client_version: str | None = None,
+    client_python_version: str | None = None,
     builder_env=None,
     auth_info=None,
 ):
@@ -381,7 +380,7 @@ def _apply_escaped_config(config, parent_key, items: dict):
 
 
 def _enrich_config_spec(
-    function, auth_info: Optional[mlrun.common.schemas.AuthInfo] = None
+    function, auth_info: mlrun.common.schemas.AuthInfo | None = None
 ):
     # Add secret configurations to function's pod spec, if secret sources were added.
     # Needs to be here, since it adds env params, which are handled in the next lines.
@@ -642,6 +641,13 @@ def _set_misc_specs(function, nuclio_spec):
             "spec.disableDefaultHTTPTrigger", function.spec.disable_default_http_trigger
         )
 
+    # Nuclio supports spec.envFrom (mount all keys from secrets/configmaps)
+    if function.spec.env_from:
+        nuclio_spec.set_config(
+            "spec.envFrom",
+            mlrun.runtimes.pod.sanitize_attribute(function.spec.env_from),
+        )
+
 
 def _set_source_code_and_handler(function, config):
     if not function.spec.build.source:
@@ -697,7 +703,7 @@ def _set_function_name(function, config, project, tag):
 def _add_secrets_config_to_function_spec(
     function: mlrun.runtimes.nuclio.function.RemoteRuntime,
     token_name: str,
-    auth_info: Optional[mlrun.common.schemas.AuthInfo] = None,
+    auth_info: mlrun.common.schemas.AuthInfo | None = None,
 ):
     handler = services.api.runtime_handlers.BaseRuntimeHandler
     if function.kind in [
@@ -767,7 +773,11 @@ def _should_fetch_source_code(
     :param function: The function object
     :return: True if init container is needed, False otherwise
     """
-    source = function.spec.build.source
+    # build.source may be empty after from_image() clears it on redeploy.
+    # fall back to status.application_source which preserves the original source URI.
+    source = function.spec.build.source or getattr(
+        function.status, "application_source", None
+    )
     if not source:
         return False
 
@@ -785,8 +795,8 @@ def _should_fetch_source_code(
 def _configure_source_loader_init_container(
     function: mlrun.runtimes.nuclio.function.RemoteRuntime,
     sidecar: dict,
-    client_version: typing.Optional[str] = None,
-    client_python_version: typing.Optional[str] = None,
+    client_version: str | None = None,
+    client_python_version: str | None = None,
 ):
     """
     Configure an init container for Application runtime to load source code at runtime.
@@ -807,7 +817,10 @@ def _configure_source_loader_init_container(
     :param client_version: Client version for resolving the init container image
     :param client_python_version: Client Python version for resolving the init container image
     """
-    source = function.spec.build.source
+    source = function.spec.build.source or getattr(
+        function.status, "application_source", None
+    )
+    workdir = function.spec.workdir
     target_dir = (
         function.spec.build.source_code_target_dir
         or mlrun.common.constants.DEFAULT_SOURCE_CODE_TARGET_DIR
@@ -840,6 +853,7 @@ def _configure_source_loader_init_container(
         volume_name=volume_name,
         volume_mount=volume_mount,
         target_dir=target_dir,
+        workdir=workdir,
     )
 
     logger.debug(
@@ -848,6 +862,7 @@ def _configure_source_loader_init_container(
         function=function.metadata.name,
         source=source,
         target_dir=target_dir,
+        workdir=function.spec.workdir,
     )
 
 
@@ -856,8 +871,8 @@ def _build_source_loader_init_container(
     source: str,
     target_dir: str,
     volume_mount: dict,
-    client_version: typing.Optional[str] = None,
-    client_python_version: typing.Optional[str] = None,
+    client_version: str | None = None,
+    client_python_version: str | None = None,
 ) -> dict:
     """
     Build the init container spec for loading source code.
@@ -924,6 +939,7 @@ def _patch_sidecar_for_source(
     volume_name: str,
     volume_mount: dict,
     target_dir: str,
+    workdir: str | None = None,
 ):
     """
     Patch sidecar container with volume mount, workingDir, and PYTHONPATH.
@@ -931,25 +947,41 @@ def _patch_sidecar_for_source(
     :param sidecar: The sidecar container dict
     :param volume_name: Name of the source volume
     :param volume_mount: Volume mount configuration
-    :param target_dir: Target directory for source code
+    :param target_dir: Target directory where source code is extracted
+    :param workdir: Working directory relative to target_dir (e.g. 'subdir') or absolute path
+                    on the container filesystem. When set, the sidecar runs from this directory
+                    instead of the target_dir root.
     """
     # Add volume mount idempotently
     sidecar_mounts = sidecar.setdefault("volumeMounts", [])
     if not any(vm.get("name") == volume_name for vm in sidecar_mounts):
         sidecar_mounts.append(volume_mount)
 
-    sidecar["workingDir"] = target_dir
+    # Resolve the effective working directory for the sidecar.
+    # workdir can be relative (joined with target_dir) or absolute (used as-is).
+    if workdir:
+        if os.path.isabs(workdir):
+            resolved_workdir = workdir
+        else:
+            resolved_workdir = os.path.join(target_dir, workdir)
+    else:
+        resolved_workdir = target_dir
 
-    # Set PYTHONPATH to include target directory so the sidecar can import modules from
-    # the source code loaded by the init container. If PYTHONPATH already exists, prepend
-    # target_dir to preserve user's custom paths while ensuring our source dir takes priority.
+    sidecar["workingDir"] = resolved_workdir
+
+    # Set PYTHONPATH so the sidecar can import modules from the source directory.
+    # If PYTHONPATH already exists (user-defined), prepend our path to preserve theirs.
     sidecar_env = sidecar.setdefault("env", [])
     pythonpath_env = next(
         (e for e in sidecar_env if e.get("name") == "PYTHONPATH"), None
     )
     if pythonpath_env:
         existing_path = pythonpath_env.get("value", "")
-        if target_dir not in existing_path.split(":"):
-            pythonpath_env["value"] = f"{target_dir}:{existing_path}"
+        if resolved_workdir not in existing_path.split(":"):
+            pythonpath_env["value"] = (
+                f"{resolved_workdir}:{existing_path}"
+                if existing_path
+                else resolved_workdir
+            )
     else:
-        sidecar_env.append({"name": "PYTHONPATH", "value": target_dir})
+        sidecar_env.append({"name": "PYTHONPATH", "value": resolved_workdir})

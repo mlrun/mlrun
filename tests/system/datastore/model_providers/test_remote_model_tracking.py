@@ -88,17 +88,17 @@ class TestMockModelProviderTracking(
         assert list(row["label_names"]) == ["answer", "usage"]
 
         for key in expected_input:
-            assert (
-                row[key] == expected_input[key]
-            ), f"Field {key} mismatch: {row[key]} != {expected_input[key]}"
+            assert row[key] == expected_input[key], (
+                f"Field {key} mismatch: {row[key]} != {expected_input[key]}"
+            )
 
         assert "mock model provider" in row["answer"].lower()
 
         # Only check item counter if expected_counter is provided (for batch invocations)
         if expected_counter is not None:
-            assert (
-                f"(Item {expected_counter})" in row["answer"]
-            ), f"Expected '(Item {expected_counter})' in answer"
+            assert f"(Item {expected_counter})" in row["answer"], (
+                f"Expected '(Item {expected_counter})' in answer"
+            )
 
         assert isinstance(row["usage"], dict)
         assert row["usage"]["prompt_tokens"] == 0
@@ -123,9 +123,9 @@ class TestMockModelProviderTracking(
         # All rows in same batch must have same timestamp and latency
         for field in ["timestamp", "latency"]:
             values = batch_group[field].unique()
-            assert (
-                len(values) == 1
-            ), f"Batch {batch_id}: expected same {field} for all rows, got {len(values)} different values"
+            assert len(values) == 1, (
+                f"Batch {batch_id}: expected same {field} for all rows, got {len(values)} different values"
+            )
 
     def _verify_direct_batch_parquet_rows(
         self, batch_group, endpoint_name, expected_inputs

@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import datetime
-from typing import Optional, Union
+from typing import Union
 
 import sqlalchemy.orm
 
@@ -38,7 +38,7 @@ class Functions(
         db_session: sqlalchemy.orm.Session,
         function: dict,
         name: str,
-        project: Optional[str] = None,
+        project: str | None = None,
         tag: str = "",
         versioned: bool = False,
         auth_info: mlrun.common.schemas.AuthInfo = None,
@@ -73,10 +73,10 @@ class Functions(
         self,
         db_session: sqlalchemy.orm.Session,
         name: str,
-        project: Optional[str] = None,
+        project: str | None = None,
         tag: str = "",
         hash_key: str = "",
-        format_: Optional[str] = None,
+        format_: str | None = None,
     ) -> dict:
         return framework.utils.singletons.db.get_db().get_function(
             db_session,
@@ -100,18 +100,18 @@ class Functions(
     def list_functions(
         self,
         db_session: sqlalchemy.orm.Session,
-        project: Optional[Union[str, list[str]]] = None,
-        name: Optional[str] = None,
-        tag: Optional[str] = None,
-        kind: Optional[str] = None,
-        labels: Optional[list[str]] = None,
-        states: Optional[list[str]] = None,
-        hash_key: Optional[str] = None,
-        offset: Optional[int] = None,
-        limit: Optional[int] = None,
+        project: Union[str, list[str]] | None = None,
+        name: str | None = None,
+        tag: str | None = None,
+        kind: str | None = None,
+        labels: list[str] | None = None,
+        states: list[str] | None = None,
+        hash_key: str | None = None,
+        offset: int | None = None,
+        limit: int | None = None,
         format_: mlrun.common.formatters.FunctionFormat = None,
-        since: Optional[datetime.datetime] = None,
-        until: Optional[datetime.datetime] = None,
+        since: datetime.datetime | None = None,
+        until: datetime.datetime | None = None,
     ) -> list:
         if labels is None:
             labels = []

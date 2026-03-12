@@ -25,9 +25,9 @@ from .object import ObjectKind, ObjectStatus
 
 class ProjectMetadata(pydantic.v1.BaseModel):
     name: str
-    created: typing.Optional[datetime.datetime] = None
-    labels: typing.Optional[dict] = {}
-    annotations: typing.Optional[dict] = {}
+    created: datetime.datetime | None = None
+    labels: dict | None = {}
+    annotations: dict | None = {}
 
     class Config:
         extra = pydantic.v1.Extra.allow
@@ -57,50 +57,50 @@ class ProjectState(mlrun.common.types.StrEnum):
 
 
 class ProjectStatus(ObjectStatus):
-    state: typing.Optional[ProjectState]
+    state: ProjectState | None
 
 
 class ProjectSpec(pydantic.v1.BaseModel):
-    description: typing.Optional[str] = None
-    owner: typing.Optional[str] = None
-    goals: typing.Optional[str] = None
-    params: typing.Optional[dict] = {}
-    functions: typing.Optional[list] = []
-    workflows: typing.Optional[list] = []
-    artifacts: typing.Optional[list] = []
-    artifact_path: typing.Optional[str] = None
-    conda: typing.Optional[str] = None
-    source: typing.Optional[str] = None
-    subpath: typing.Optional[str] = None
-    origin_url: typing.Optional[str] = None
-    desired_state: typing.Optional[ProjectDesiredState] = ProjectDesiredState.online
-    custom_packagers: typing.Optional[list[tuple[str, bool]]] = None
-    default_image: typing.Optional[str] = None
-    build: typing.Optional[ImageBuilder] = None
-    default_function_node_selector: typing.Optional[dict] = {}
+    description: str | None = None
+    owner: str | None = None
+    goals: str | None = None
+    params: dict | None = {}
+    functions: list | None = []
+    workflows: list | None = []
+    artifacts: list | None = []
+    artifact_path: str | None = None
+    conda: str | None = None
+    source: str | None = None
+    subpath: str | None = None
+    origin_url: str | None = None
+    desired_state: ProjectDesiredState | None = ProjectDesiredState.online
+    custom_packagers: list[tuple[str, bool]] | None = None
+    default_image: str | None = None
+    build: ImageBuilder | None = None
+    default_function_node_selector: dict | None = {}
 
     class Config:
         extra = pydantic.v1.Extra.allow
 
 
 class ProjectSpecOut(pydantic.v1.BaseModel):
-    description: typing.Optional[str] = None
-    owner: typing.Optional[str] = None
-    goals: typing.Optional[str] = None
-    params: typing.Optional[dict] = {}
-    functions: typing.Optional[list] = []
-    workflows: typing.Optional[list] = []
-    artifacts: typing.Optional[list] = []
-    artifact_path: typing.Optional[str] = None
-    conda: typing.Optional[str] = None
-    source: typing.Optional[str] = None
-    subpath: typing.Optional[str] = None
-    origin_url: typing.Optional[str] = None
-    desired_state: typing.Optional[ProjectDesiredState] = ProjectDesiredState.online
-    custom_packagers: typing.Optional[list[tuple[str, bool]]] = None
-    default_image: typing.Optional[str] = None
+    description: str | None = None
+    owner: str | None = None
+    goals: str | None = None
+    params: dict | None = {}
+    functions: list | None = []
+    workflows: list | None = []
+    artifacts: list | None = []
+    artifact_path: str | None = None
+    conda: str | None = None
+    source: str | None = None
+    subpath: str | None = None
+    origin_url: str | None = None
+    desired_state: ProjectDesiredState | None = ProjectDesiredState.online
+    custom_packagers: list[tuple[str, bool]] | None = None
+    default_image: str | None = None
     build: typing.Any = None
-    default_function_node_selector: typing.Optional[dict] = {}
+    default_function_node_selector: dict | None = {}
 
     class Config:
         extra = pydantic.v1.Extra.allow
@@ -141,7 +141,7 @@ class ProjectSummary(pydantic.v1.BaseModel):
     pipelines_completed_recent_count: int = 0
     pipelines_failed_recent_count: int = 0
     pipelines_running_count: int = 0
-    updated: typing.Optional[datetime.datetime] = None
+    updated: datetime.datetime | None = None
     endpoint_alerts_count: int = 0
     job_alerts_count: int = 0
     other_alerts_count: int = 0

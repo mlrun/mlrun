@@ -511,9 +511,9 @@ class TestStreamingGenerator:
         server = function.to_mock_server()
         try:
             result = server.test("/", body="test")
-            assert inspect.isgenerator(
-                result
-            ), "test() should return a generator for streaming"
+            assert inspect.isgenerator(result), (
+                "test() should return a generator for streaming"
+            )
 
             chunks = list(result)
             assert chunks == ["test_chunk_0", "test_chunk_1", "test_chunk_2"]

@@ -62,9 +62,9 @@ def test_partition_interval_yearweek_matches_mysql_yearweek_mode_1(
         {"date_str": date_str},
     ).scalar_one()
 
-    assert (
-        python_value == mysql_value
-    ), f"{date_str}: python={python_value}, mysql={mysql_value}"
+    assert python_value == mysql_value, (
+        f"{date_str}: python={python_value}, mysql={mysql_value}"
+    )
 
 
 @pytest.mark.integration

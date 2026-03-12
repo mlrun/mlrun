@@ -20,6 +20,7 @@ import nuclio
 import nuclio.auth
 
 import mlrun.common.constants
+import mlrun.common.runtimes.validators
 import mlrun.common.schemas as schemas
 import mlrun.datastore
 import mlrun.errors
@@ -88,6 +89,7 @@ class ApplicationSpec(nuclio_function.NuclioSpec):
         internal_application_port=None,
         application_ports=None,
         auth=None,
+        env_from=None,
     ):
         super().__init__(
             command=command,
@@ -102,6 +104,7 @@ class ApplicationSpec(nuclio_function.NuclioSpec):
             volumes=volumes,
             volume_mounts=volume_mounts,
             env=env,
+            env_from=env_from,
             resources=resources,
             config=config,
             base_spec=base_spec,
@@ -246,9 +249,7 @@ class ApplicationStatus(nuclio_function.NuclioStatus):
         self.application_source = application_source or None
         self.sidecar_name = sidecar_name or None
         self.api_gateway_name = api_gateway_name or None
-        self.api_gateway: typing.Optional[nuclio_api_gateway.APIGateway] = (
-            api_gateway or None
-        )
+        self.api_gateway: nuclio_api_gateway.APIGateway | None = api_gateway or None
         self.url = url or None
 
 
@@ -376,6 +377,11 @@ class ApplicationRuntime(nuclio_function.RemoteRuntime):
             }
         )
 
+        # Validate the probe configuration before storing
+        mlrun.common.runtimes.validators.validate_sidecar_probes(
+            [{type.key: probe_config}]
+        )
+
         # Store probe configuration in the sidecar
         sidecar = self._set_sidecar(self._get_sidecar_name())
         sidecar[type.key] = probe_config
@@ -405,11 +411,11 @@ class ApplicationRuntime(nuclio_function.RemoteRuntime):
 
     def with_sidecar(
         self,
-        name: typing.Optional[str] = None,
-        image: typing.Optional[str] = None,
-        ports: typing.Optional[typing.Union[int, list[int]]] = None,
-        command: typing.Optional[str] = None,
-        args: typing.Optional[list[str]] = None,
+        name: str | None = None,
+        image: str | None = None,
+        ports: typing.Union[int, list[int]] | None = None,
+        command: str | None = None,
+        args: list[str] | None = None,
     ):
         # wraps with_sidecar just to set the application ports
         super().with_sidecar(
@@ -493,7 +499,7 @@ class ApplicationRuntime(nuclio_function.RemoteRuntime):
         project="",
         tag="",
         verbose=False,
-        builder_env: typing.Optional[dict] = None,
+        builder_env: dict | None = None,
         force_build: bool = False,
         with_mlrun=None,
         skip_deployed=False,
@@ -600,7 +606,7 @@ class ApplicationRuntime(nuclio_function.RemoteRuntime):
         source,
         workdir=None,
         pull_at_runtime: bool = False,
-        target_dir: typing.Optional[str] = None,
+        target_dir: str | None = None,
     ):
         """load the code from git/tar/zip archive at build or runtime
 
@@ -654,15 +660,15 @@ class ApplicationRuntime(nuclio_function.RemoteRuntime):
 
     def create_api_gateway(
         self,
-        name: typing.Optional[str] = None,
-        path: typing.Optional[str] = None,
+        name: str | None = None,
+        path: str | None = None,
         direct_port_access: bool = False,
         authentication_mode: schemas.APIGatewayAuthenticationMode = None,
-        authentication_creds: typing.Optional[tuple[str, str]] = None,
-        ssl_redirect: typing.Optional[bool] = None,
+        authentication_creds: tuple[str, str] | None = None,
+        ssl_redirect: bool | None = None,
         set_as_default: bool = False,
-        gateway_timeout: typing.Optional[int] = None,
-        port: typing.Optional[int] = None,
+        gateway_timeout: int | None = None,
+        port: int | None = None,
     ):
         """
         Create the application API gateway. Once the application is deployed, the API gateway can be created.
@@ -782,13 +788,13 @@ class ApplicationRuntime(nuclio_function.RemoteRuntime):
     def invoke(
         self,
         path: str = "",
-        body: typing.Optional[typing.Union[str, bytes, dict, list]] = None,
-        method: typing.Optional[str] = None,
-        headers: typing.Optional[dict] = None,
+        body: typing.Union[str, bytes, dict, list] | None = None,
+        method: str | None = None,
+        headers: dict | None = None,
         force_external_address: bool = False,
         auth_info: schemas.AuthInfo = None,
-        mock: typing.Optional[bool] = None,
-        credentials: typing.Optional[tuple[str, str]] = None,
+        mock: bool | None = None,
+        credentials: tuple[str, str] | None = None,
         **http_client_kwargs,
     ):
         self._sync_api_gateway()
@@ -900,7 +906,7 @@ class ApplicationRuntime(nuclio_function.RemoteRuntime):
 
     def _build_application_image(
         self,
-        builder_env: typing.Optional[dict] = None,
+        builder_env: dict | None = None,
         force_build: bool = False,
         watch=True,
         with_mlrun=None,
@@ -1128,7 +1134,16 @@ class ApplicationRuntime(nuclio_function.RemoteRuntime):
                   deploy() uses these to restore the local path in a finally block.
         """
         source = self.spec.build.source
-        if not source or not self._is_single_local_file(source):
+        if not source or not self._is_local_path(source) or os.path.isdir(source):
+            return None, None
+
+        if not os.path.isfile(source):
+            # On redeploy the remote artifact from the previous deploy is still available
+            if not getattr(self.status, "application_source", None):
+                raise mlrun.errors.MLRunNotFoundError(
+                    f"Source file not found: '{source}'. "
+                    "The file must exist locally to be uploaded as a source artifact."
+                )
             return None, None
 
         project_name = self.metadata.project
@@ -1169,14 +1184,8 @@ class ApplicationRuntime(nuclio_function.RemoteRuntime):
         return source, artifact.uri
 
     @staticmethod
-    def _is_single_local_file(source: str) -> bool:
-        # Skip if the source is already a store URI
+    def _is_local_path(source: str) -> bool:
+        """Check if source looks like a local filesystem path (not a URL or store URI)."""
         if mlrun.datastore.is_store_uri(source):
             return False
-
-        # Skip if it's a remote URL (not a relative/local path)
-        if not (is_relative_path(source) or os.path.isabs(source)):
-            return False
-
-        # Check if it's a local file (not a directory)
-        return os.path.isfile(source)
+        return is_relative_path(source) or os.path.isabs(source)

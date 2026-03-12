@@ -123,7 +123,7 @@ class Client(BaseClient, project_follower.Member):
         )
 
     def revoke_offline_token(
-        self, token: str, request_headers: typing.Optional[dict[str, str]] = None
+        self, token: str, request_headers: dict[str, str] | None = None
     ) -> None:
         """
         Revoke an offline token in Iguazio.
@@ -186,7 +186,7 @@ class Client(BaseClient, project_follower.Member):
         self,
         igz_yml_content: str,
         user_id: str,
-        token_name: typing.Optional[str] = None,
+        token_name: str | None = None,
     ) -> str:
         """
         Use the iguazio SDK to resolve/validate a token from igz.yml content.
@@ -360,11 +360,11 @@ class Client(BaseClient, project_follower.Member):
         self,
         session: sqlalchemy.orm.Session,
         auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
-        owner: typing.Optional[str] = None,
+        owner: str | None = None,
         format_: mlrun.common.formatters.ProjectFormat = mlrun.common.formatters.ProjectFormat.full,
-        labels: typing.Optional[list[str]] = None,
+        labels: list[str] | None = None,
         state: mlrun.common.schemas.ProjectState = None,
-        names: typing.Optional[list[str]] = None,
+        names: list[str] | None = None,
     ) -> mlrun.common.schemas.ProjectsOutput:
         # TODO: This is a placeholder implementation, as it is used for project sync. Implement this method as needed
         #       when we support the project sync functionality with Iguazio 4.
@@ -374,10 +374,10 @@ class Client(BaseClient, project_follower.Member):
         self,
         session: sqlalchemy.orm.Session,
         auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
-        owner: typing.Optional[str] = None,
-        labels: typing.Optional[list[str]] = None,
+        owner: str | None = None,
+        labels: list[str] | None = None,
         state: mlrun.common.schemas.ProjectState = None,
-        names: typing.Optional[list[str]] = None,
+        names: list[str] | None = None,
     ) -> mlrun.common.schemas.ProjectSummariesOutput:
         raise NotImplementedError("Listing project summaries is not supported")
 
@@ -423,7 +423,7 @@ class Client(BaseClient, project_follower.Member):
 
     def _extract_response_error(
         self, response: httpx.Response
-    ) -> tuple[typing.Optional[str], typing.Optional[str]]:
+    ) -> tuple[str | None, str | None]:
         """
         Extracts 'errorMessage' and 'ctx' from an Iguazio HTTP response.
 
@@ -465,9 +465,7 @@ class Client(BaseClient, project_follower.Member):
     def _verify_session_http_method(self) -> str:
         return mlrun.common.types.HTTPMethod.GET
 
-    def _prepare_request_kwargs(
-        self, session: typing.Optional[str], path: str, *, kwargs: dict
-    ):
+    def _prepare_request_kwargs(self, session: str | None, path: str, *, kwargs: dict):
         """
         Prepare headers for session verification request.
         Must include either an Authorization header or an _oauth2_proxy cookie.
@@ -491,7 +489,7 @@ class Client(BaseClient, project_follower.Member):
         callback: typing.Callable[..., typing.Any],
         exception_type: type[Exception],
         failure_message: str,
-        auth_headers: typing.Optional[dict[str, str]] = None,
+        auth_headers: dict[str, str] | None = None,
     ) -> typing.Any:
         try:
             headers = auth_headers or self._service_account_token_client.auth_headers
@@ -521,10 +519,10 @@ class Client(BaseClient, project_follower.Member):
             )
             raise exception_type(failure_message) from exc
 
-    def _extract_ctx(self, response_body: dict) -> typing.Optional[str]:
+    def _extract_ctx(self, response_body: dict) -> str | None:
         return response_body.get("status", {}).get("ctx")
 
-    def _extract_error_message(self, response_body: dict) -> typing.Optional[str]:
+    def _extract_error_message(self, response_body: dict) -> str | None:
         return response_body.get("status", {}).get("errorMessage")
 
     @staticmethod

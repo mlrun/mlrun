@@ -15,7 +15,7 @@
 from collections import Counter
 from collections.abc import Iterator
 from datetime import UTC, datetime, timedelta
-from typing import Any, Optional
+from typing import Any
 from unittest.mock import Mock, patch
 
 import pandas as pd
@@ -135,13 +135,13 @@ def metric_event() -> dict[str, Any]:
     ],
 )
 def test_tsdb_query(
-    endpoint_id: Optional[str],
-    names: Optional[list[tuple[str, str]]],
+    endpoint_id: str | None,
+    names: list[tuple[str, str]] | None,
     table_path: str,
     expected_query: str,
-    columns: Optional[list[str]],
-    application_names: Optional[list[str]],
-    group_by_columns: Optional[list[str]],
+    columns: list[str] | None,
+    application_names: list[str] | None,
+    group_by_columns: list[str] | None,
 ) -> None:
     assert (
         V3IOTSDBConnector._get_sql_query(
@@ -579,12 +579,12 @@ def test_get_drift_data():
     )
     assert drift_over_time is not None
     assert len(drift_over_time.values) == 2, "Drift over time should have two values"
-    assert (
-        drift_over_time.values[0].count_suspected == 1
-    ), "Drift over time should have one detected drift"
-    assert (
-        drift_over_time.values[1].count_detected == 1
-    ), "Drift over time should not have potential drift"
+    assert drift_over_time.values[0].count_suspected == 1, (
+        "Drift over time should have one detected drift"
+    )
+    assert drift_over_time.values[1].count_detected == 1, (
+        "Drift over time should not have potential drift"
+    )
 
 
 @pytest.mark.usefixtures("_mock_frames_client_extended")

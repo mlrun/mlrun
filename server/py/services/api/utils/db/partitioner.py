@@ -13,7 +13,6 @@
 # limitations under the License.
 import math
 from datetime import UTC, datetime, timedelta
-from typing import Optional
 
 from sqlalchemy.orm import Session
 
@@ -29,7 +28,7 @@ import framework.utils.singletons.db
 class DBPartitioner:
     def __init__(
         self,
-        buffer_multiplier_override: Optional[float] = None,
+        buffer_multiplier_override: float | None = None,
     ):
         """
         Initialize the partition manager.

@@ -62,15 +62,15 @@ class Pipelines(
     def list_pipelines(
         self,
         db_session: sqlalchemy.orm.Session,
-        project: typing.Optional[typing.Union[str, list[str]]] = None,
-        namespace: typing.Optional[str] = None,
-        sort_by: typing.Optional[str] = None,
-        page_token: typing.Optional[str] = None,
-        filter_json: typing.Optional[str] = None,
-        name_contains: typing.Optional[str] = None,
+        project: typing.Union[str, list[str]] | None = None,
+        namespace: str | None = None,
+        sort_by: str | None = None,
+        page_token: str | None = None,
+        filter_json: str | None = None,
+        name_contains: str | None = None,
         format_: mlrun.common.formatters.PipelineFormat = mlrun.common.formatters.PipelineFormat.metadata_only,
-        page_size: typing.Optional[int] = None,
-    ) -> tuple[int, typing.Optional[int], list[dict]]:
+        page_size: int | None = None,
+    ) -> tuple[int, int | None, list[dict]]:
         if format_ == mlrun.common.formatters.PipelineFormat.summary:
             # we don't support summary format in list pipelines since the returned runs doesn't include the workflow
             # manifest status that includes the nodes section we use to generate the DAG.
@@ -127,7 +127,15 @@ class Pipelines(
     def delete_pipelines_runs(
         self, db_session: sqlalchemy.orm.Session, project_name: str
     ):
-        _, _, project_pipeline_runs = self.list_pipelines(
+        # Retry listing pipelines to handle transient KFP connection errors
+        # (e.g. "invalid connection" from KFP's internal DB pool)
+        _, _, project_pipeline_runs = mlrun.utils.helpers.retry_until_successful(
+            backoff=2,
+            timeout=60,
+            logger=mlrun.utils.logger,
+            verbose=True,
+            _function=self.list_pipelines,
+            fatal_exceptions=(mlrun.errors.MLRunInvalidArgumentError,),
             db_session=db_session,
             project=project_name,
             format_=mlrun.common.formatters.PipelineFormat.metadata_only,
@@ -198,7 +206,7 @@ class Pipelines(
                         experiment_id,
                     )
                 )
-            for future in concurrent.futures.as_completed(delete_run_futures):
+            for future in concurrent.futures.as_completed(delete_experiment_futures):
                 delete_experiment_exception = future.exception()
                 if delete_experiment_exception is not None:
                     experiments_failed += 1
@@ -222,7 +230,7 @@ class Pipelines(
         self,
         run_id: str,
         project: str,
-        namespace: typing.Optional[str] = None,
+        namespace: str | None = None,
     ) -> mlrun_pipelines.models.PipelineRun:
         """
         Get a Kubeflow Pipeline (KFP) run by its ID.
@@ -266,8 +274,8 @@ class Pipelines(
     def get_formatted_pipeline(
         self,
         run_id: str,
-        project: typing.Optional[str] = None,
-        namespace: typing.Optional[str] = None,
+        project: str | None = None,
+        namespace: str | None = None,
         format_: mlrun.common.formatters.PipelineFormat = mlrun.common.formatters.PipelineFormat.summary,
     ) -> dict:
         kfp_client = self._initialize_kfp_client(namespace)
@@ -291,7 +299,7 @@ class Pipelines(
         db_session: sqlalchemy.orm.Session,
         run_id: str,
         project: str,
-    ) -> tuple[typing.Optional[mlrun.model.RunObject], str]:
+    ) -> tuple[mlrun.model.RunObject | None, str]:
         """
         Given any KFP pipeline run UID (whether the very first run or a retry),
         resolve back to the *original* workflow‐runner RunObject and its workflow ID.
@@ -321,13 +329,13 @@ class Pipelines(
                 with_notifications=True,
             )
 
-        def _first_or_none(labels: list[str]) -> typing.Optional[mlrun.model.RunObject]:
+        def _first_or_none(labels: list[str]) -> mlrun.model.RunObject | None:
             runs = _list_runs(labels)
             return runs.to_objects()[0] if runs else None
 
         def _get_original_workflow(
             workflow_id: str,
-        ) -> typing.Optional[mlrun.model.RunObject]:
+        ) -> mlrun.model.RunObject | None:
             """Find a workflow‐runner run by its workflow_id."""
             labels = [
                 f"{workflow_id_label}={workflow_id}",
@@ -359,7 +367,7 @@ class Pipelines(
         self,
         run_id: str,
         project: str,
-        namespace: typing.Optional[str] = None,
+        namespace: str | None = None,
     ) -> str:
         """
         Retry a Kubeflow Pipeline (KFP) run.
@@ -410,8 +418,8 @@ class Pipelines(
         project: mlrun.common.schemas.ProjectOut,
         original_runner: mlrun.run.RunObject,
         auth_info: mlrun.common.schemas.AuthInfo,
-        client_version: typing.Optional[str] = None,
-        rerun_index: typing.Optional[int] = None,
+        client_version: str | None = None,
+        rerun_index: int | None = None,
     ):
         """
         Re-run a completed KFP pipeline by launching an MLRun RerunRunner job.
@@ -554,7 +562,7 @@ class Pipelines(
         self,
         run_id: str,
         project: str,
-        namespace: typing.Optional[str] = None,
+        namespace: str | None = None,
     ) -> str:
         """
         Terminate a Kubeflow Pipeline (KFP) run.
@@ -603,8 +611,8 @@ class Pipelines(
         run_name: str,
         content_type: str,
         data: bytes,
-        arguments: typing.Optional[dict] = None,
-        auth_info: typing.Optional[mlrun.common.schemas.AuthInfo] = None,
+        arguments: dict | None = None,
+        auth_info: mlrun.common.schemas.AuthInfo | None = None,
     ):
         if arguments is None:
             arguments = {}
@@ -642,6 +650,7 @@ class Pipelines(
             env_var_names=["MLRUN_AUTH_SESSION", "V3IO_ACCESS_KEY"],
             secrets_store=services.api.crud.Secrets(),
             auth_secret_name=auth_secret_name,
+            auth_info=auth_info,
         )
         pipeline_file = tempfile.NamedTemporaryFile(suffix=content_type)
         with open(pipeline_file.name, "wb") as fp:
@@ -680,7 +689,7 @@ class Pipelines(
 
     @staticmethod
     def _initialize_kfp_client(
-        namespace: typing.Optional[str] = None,
+        namespace: str | None = None,
     ) -> mlrun_pipelines.client.Client:
         if namespace is None:
             namespace = mlrun.mlconf.namespace
@@ -703,7 +712,7 @@ class Pipelines(
         self,
         run: mlrun_pipelines.models.PipelineRun,
         format_: mlrun.common.formatters.PipelineFormat,
-        kfp_client: typing.Optional[mlrun_pipelines.client.Client] = None,
+        kfp_client: mlrun_pipelines.client.Client | None = None,
     ) -> dict:
         run.project = self._resolve_project_from_pipeline(run)
         if self._is_run_in_unsuccessful_status(run) and kfp_client is not None:
@@ -721,7 +730,7 @@ class Pipelines(
         format_: mlrun.common.formatters.PipelineFormat = mlrun.common.formatters.PipelineFormat.metadata_only,
         *,
         max_workers: int = 32,
-        queue_size: typing.Optional[int] = None,
+        queue_size: int | None = None,
     ) -> list[dict]:
         """
         Submit formatting tasks concurrently and emit results in discovery order.
@@ -856,7 +865,7 @@ class Pipelines(
         """
         return {
             **notification,
-            "name": f"{notification.get('name','')} – Retry #{rerun_index}",
+            "name": f"{notification.get('name', '')} – Retry #{rerun_index}",
         }
 
     def _filter_runs_by_name(

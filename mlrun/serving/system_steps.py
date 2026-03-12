@@ -15,7 +15,7 @@ import random
 import typing
 from copy import copy
 from datetime import timedelta
-from typing import Any, Optional, Union
+from typing import Any, Union
 
 import numpy as np
 import storey
@@ -116,7 +116,7 @@ class MonitoringPreProcessor(storey.MapClass):
 
         return result
 
-    def _aggregate_metrics(self, metrics_list: list) -> Optional[dict]:
+    def _aggregate_metrics(self, metrics_list: list) -> dict | None:
         """
         Aggregate metrics from multiple chunks by summing numeric values.
         """
@@ -286,8 +286,8 @@ class MonitoringPreProcessor(storey.MapClass):
     def get_listed_data(
         self,
         raw_data: typing.Union[dict, list],
-        data_path: Optional[Union[list[str], str]] = None,
-        schema: Optional[list[str]] = None,
+        data_path: Union[list[str], str] | None = None,
+        schema: list[str] | None = None,
     ):
         """Get data from a path and transpose it by keys if dict is provided."""
         new_schema = None
@@ -341,8 +341,8 @@ class MonitoringPreProcessor(storey.MapClass):
 
     @staticmethod
     def _extract_error_from_batched_event(
-        event, model: Optional[str] = None
-    ) -> Optional[str]:
+        event, model: str | None = None
+    ) -> str | None:
         """
         Extract error from a batched event.
 
@@ -375,7 +375,7 @@ class MonitoringPreProcessor(storey.MapClass):
 
     @staticmethod
     def transpose_by_key(
-        data: dict, schema: Optional[Union[str, list[str]]] = None
+        data: dict, schema: Union[str, list[str]] | None = None
     ) -> tuple[Union[list[Any], list[list[Any]]], list[str]]:
         """
         Transpose values from a dictionary by keys.
@@ -687,7 +687,7 @@ class SamplingStep(storey.MapClass):
 
     def __init__(
         self,
-        sampling_percentage: Optional[float] = 100.0,
+        sampling_percentage: float | None = 100.0,
         **kwargs,
     ):
         super().__init__(**kwargs)

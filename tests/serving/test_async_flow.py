@@ -23,7 +23,7 @@ from copy import deepcopy
 from datetime import datetime
 from itertools import product
 from types import SimpleNamespace
-from typing import Optional, Union
+from typing import Union
 
 import pandas as pd
 import pytest
@@ -66,6 +66,12 @@ from tests.serving.demo_states import (  # noqa: F401
 class _DummyStreamRaiser:
     def push(self, data):
         raise ValueError("DummyStreamRaiser raises an error")
+
+
+def extract_batch_bodies(event):
+    event_bodies = [sub_event.body for sub_event in event.body]
+    event.body = event_bodies
+    return event
 
 
 def append_and_return(lst, event):
@@ -185,13 +191,13 @@ def test_on_error():
     finally:
         server.wait_for_completion()
     if isinstance(resp, dict):
-        assert (
-            resp["error"] and resp["origin_state"] == "Raiser"
-        ), f"error wasn't caught, resp={resp}"
+        assert resp["error"] and resp["origin_state"] == "Raiser", (
+            f"error wasn't caught, resp={resp}"
+        )
     else:
-        assert (
-            resp.error and resp.origin_state == "Raiser"
-        ), f"error wasn't caught, resp={resp}"
+        assert resp.error and resp.origin_state == "Raiser", (
+            f"error wasn't caught, resp={resp}"
+        )
 
 
 def test_push_error():
@@ -214,8 +220,10 @@ def test_batch():
     function = mlrun.new_function("tests", kind="serving", project="x")
     graph = function.set_topology("flow", engine="async")
     graph.to("storey.Batch", "my_batching", max_events=3, flush_after_seconds=1).to(
-        "storey.ToDataFrame", "my_to_df", index="my_int"
-    ).to("storey.Reduce", initial_value=[], fn=append_and_return, full_event=True)
+        "storey.Map", "map_batch", fn=extract_batch_bodies, full_event=True
+    ).to("storey.ToDataFrame", "my_to_df", index="my_int").to(
+        "storey.Reduce", initial_value=[], fn=append_and_return, full_event=True
+    )
     # Reduce is used to get a single result in wait_for_completion (termination result in storey)
     server = function.to_mock_server()
 
@@ -236,21 +244,21 @@ def test_batch():
 
             # check all timestamps in the batch are the same
             unique_ts = df["timestamp"].unique()
-            assert (
-                len(unique_ts) == 1
-            ), f"Batch {i} has multiple timestamps: {unique_ts}"
+            assert len(unique_ts) == 1, (
+                f"Batch {i} has multiple timestamps: {unique_ts}"
+            )
             batch_ts = unique_ts[0]
 
             # check timestamp order between batches
-            assert (
-                batch_ts > prev_ts
-            ), f"Batch {i} timestamp {batch_ts} not greater than previous {prev_ts}"
+            assert batch_ts > prev_ts, (
+                f"Batch {i} timestamp {batch_ts} not greater than previous {prev_ts}"
+            )
             prev_ts = batch_ts
 
 
 class MyModel(Model):
     def __init__(
-        self, inc: int, gpu_number: Optional[int] = None, err: bool = True, **kwargs
+        self, inc: int, gpu_number: int | None = None, err: bool = True, **kwargs
     ):
         super().__init__(**kwargs)
         self.inc = inc
@@ -640,9 +648,9 @@ def _test_model_runner_raise_error_output(
             if models is None or len(models) == 1:
                 assert "error" in body, f"Expected error field in body got {body}"
             else:
-                assert all(
-                    "error" in body.get(model) for model in models_with_error
-                ), f"Expected error field for each model in body got {body}"
+                assert all("error" in body.get(model) for model in models_with_error), (
+                    f"Expected error field for each model in body got {body}"
+                )
     else:
         if models is None or len(models) == 1:
             assert server.test(body={"n": 1}) == {"n": 2}
@@ -811,12 +819,12 @@ def test_model_runner_with_remote_model(execution_mechanism, notebook_usage):
     )
 
     graph.to(model_runner_step).to(async_model_runner_step).respond()
-    assert (
-        "my_endpoint" in graph.model_endpoints_names
-    ), "model endpoint name not in graph"
-    assert (
-        "my_async_endpoint" in graph.model_endpoints_names
-    ), "async model endpoint name not in graph"
+    assert "my_endpoint" in graph.model_endpoints_names, (
+        "model endpoint name not in graph"
+    )
+    assert "my_async_endpoint" in graph.model_endpoints_names, (
+        "async model endpoint name not in graph"
+    )
     # Mock needed since no artifact is saved in this test, so retrieval by URI isn't possible.
     # Mocked function used to verify artifact URI is passed correctly.
 
@@ -909,9 +917,9 @@ def test_model_runner_with_remote_shared_model():
         shared_model_name="my_model",
     )
     graph.to(model_runner_step).respond()
-    assert (
-        "my_endpoint" in graph.model_endpoints_names
-    ), "model endpoint name not in graph"
+    assert "my_endpoint" in graph.model_endpoints_names, (
+        "model endpoint name not in graph"
+    )
     # Mock needed since no artifact is saved in this test, so retrieval by URI isn't possible.
     # Mocked function used to verify artifact URI is passed correctly.
 
@@ -957,13 +965,13 @@ def test_add_model_after_adding_the_mrs_to_the_graph():
         model_artifact=model_artifact,
         execution_mechanism="naive",
     )
-    assert (
-        "my_endpoint" in graph.model_endpoints_names
-    ), "model endpoint name not in graph"
+    assert "my_endpoint" in graph.model_endpoints_names, (
+        "model endpoint name not in graph"
+    )
 
-    assert (
-        "my_endpoint-2" not in graph.model_endpoints_names
-    ), "model endpoint name not in graph"
+    assert "my_endpoint-2" not in graph.model_endpoints_names, (
+        "model endpoint name not in graph"
+    )
 
     model_runner_step_2.add_model(
         endpoint_name="my_endpoint-2",
@@ -972,13 +980,13 @@ def test_add_model_after_adding_the_mrs_to_the_graph():
         execution_mechanism="naive",
     )
 
-    assert (
-        "my_endpoint" in graph.model_endpoints_names
-    ), "model endpoint name not in graph"
+    assert "my_endpoint" in graph.model_endpoints_names, (
+        "model endpoint name not in graph"
+    )
 
-    assert (
-        "my_endpoint-2" in graph.model_endpoints_names
-    ), "model endpoint name not in graph"
+    assert "my_endpoint-2" in graph.model_endpoints_names, (
+        "model endpoint name not in graph"
+    )
 
 
 def test_get_local_model_path():
@@ -1358,13 +1366,13 @@ def test_configure_model_runner_step_max_threads_processes(concurrency: str):
     server = function.to_mock_server()
 
     if concurrency == "max_processes":
-        assert (
-            server.graph["my_model_runner"]._async_object.max_processes == 32
-        ), "Max processes not configured properly"
+        assert server.graph["my_model_runner"]._async_object.max_processes == 32, (
+            "Max processes not configured properly"
+        )
     elif concurrency == "max_threads":
-        assert (
-            server.graph["my_model_runner"]._async_object.max_threads == 48
-        ), "Max threads not configured properly"
+        assert server.graph["my_model_runner"]._async_object.max_threads == 48, (
+            "Max threads not configured properly"
+        )
     try:
         server.test(body={"n": 1})
     finally:

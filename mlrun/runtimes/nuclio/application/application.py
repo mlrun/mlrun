@@ -1134,7 +1134,7 @@ class ApplicationRuntime(nuclio_function.RemoteRuntime):
                   deploy() uses these to restore the local path in a finally block.
         """
         source = self.spec.build.source
-        if not source or not self._is_local_path(source):
+        if not source or not self._is_local_path(source) or os.path.isdir(source):
             return None, None
 
         if not os.path.isfile(source):

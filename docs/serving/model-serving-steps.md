@@ -10,13 +10,14 @@ Learn about the ModelRunnerStep and other steps used when serving models.
 
 ### Description
 
-The {py:class}`~mlrun.serving.states.ModelRunnerStep` gives you an advanced way to run multiple models on each event with control 
+The {py:class}`~mlrun.serving.ModelRunnerStep` gives you an advanced way to run multiple models on each event with control 
 over how they are executed in terms of concurrency and parallelism. For example, it supports
 running models in a multi-process or a multi-threaded paradigm, and it supports having a dedicated process for a given
 model (useful when the model has a long startup time or requires a lot of resources). Different execution mechanisms can be
 used for different models within the same step. ModelRunnerStep supports a shared
-model that is invoked from multiple steps in one graph. Model endpoints represent the models themselves, not the steps.
-See [Basic code examples](#basic-code-examples) and {py:meth}`~mlrun.serving.ModelRunnerStep.add_model`.
+model that is invoked from multiple steps in one graph. Model endpoints resresent the models themselves, not the steps.
+See [Basic code examples](#basic-code-examples) and {py:meth}`mlrun.serving.ModelRunnerStep.add_model`.
+
 
 ModelRunnerSteps have model endpoints, and can therefore be monitored. The input and output of each step are user-configurable. See {py:meth}`mlrun.serving.ModelRunnerStep.add_model`.
 
@@ -95,7 +96,7 @@ graph.to(model_runner_step).respond()
 ```     
 
 ### Batching
-Ezample of batching using `ModelRunnerStep`. See a full flow in {ref}`hf-model-serving-graph`.
+Example of batching using `ModelRunnerStep`. See a full flow in {ref}`hf-model-serving-graph`.
 
 ```
 graph = function.set_topology("flow", engine="async")

@@ -651,18 +651,6 @@ class Artifact(ModelObj):
     def generate_target_path(self, artifact_path, producer):
         return generate_target_path(self, artifact_path, producer)
 
-    @staticmethod
-    def covered_artifact_dummy_function():
-        x = 1
-        x += 10
-        return x
-
-    @staticmethod
-    def missing_artifact_dummy_function():
-        x = 2
-        x += 20
-        return x
-
 
 class DirArtifactSpec(ArtifactSpec):
     _dict_fields = [

@@ -33,7 +33,6 @@ from mlrun.datastore.store_resources import parse_store_uri
 from mlrun.utils import logger
 from mlrun.utils.helpers import (
     StorePrefix,
-    covered_dummy_function,
     enrich_image_url,
     ensure_batch_job_suffix,
     extend_hub_uri_if_needed,
@@ -2140,7 +2139,3 @@ def test_set_auth_token_name_works_with_nuclio_spec():
     spec = mlrun.runtimes.nuclio.function.NuclioSpec()
     set_auth_token_name(spec, "my-token")
     assert spec.auth["token_name"] == "my-token"
-
-
-def test_covered_dummy_function():
-    assert covered_dummy_function() == 11

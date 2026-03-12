@@ -3036,6 +3036,3 @@ class TestArtifacts(TestDatabaseBase):
             kind=mlrun.common.schemas.ObjectKind.project,
         )
         self._db.create_project(self._db_session, project)
-
-    def test_covered_artifact_dummy_function(self):
-        assert Artifact.covered_artifact_dummy_function() == 11

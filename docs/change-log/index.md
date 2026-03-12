@@ -3,7 +3,7 @@
 
 The change log lists updates per version, open issues, limitations, and deprecations.
 - [v1.11.0](#v1110)
-- [v1.10.1](#v1101) | [v1.10.0](#v1100)
+- [v1.10.2](#v1102) | [v1.10.1](#v1101) | [v1.10.0](#v1100)
 - [v1.9.2](#v192) | [v1.9.1](#v191) | [v1.9.0](#v190)
 - [v1.8.0](#v180)
 - [v1.7.2](#v172-16-january-2025) | [v1.7.1](#v171-2-december-2024) | [v1.7.0](#v170-1-november-2024)
@@ -25,24 +25,33 @@ Upgrading these three MLRun dependencies spans several releases.  The upgrades a
 - Python: from 3.9 to 3.11. Completed in v1.11.0.
 
 See a full description of KFP, Python, and the workflow engines in {ref}`local-remote`. Specific changes are listed under the relevant versions.
+
 ## v1.11.0 
 
 ### Runtimes
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
 |ML-9209|MLRun supports the Kubernetes readinessProbe and livenessProbe for application runtimes. See [Configure sidecar Kubernetes proble](../runtimes/application.ipynb#configure-sidecar-kubernetes-probes), {py:meth}`~mlrun.runtimes.ApplicationRuntime.set_probe`, and {py:meth}`~mlrun.runtimes.ApplicationRuntime.delete_probe`.|
-|ML-9695|Application runtimes now support deploying from a single Python file without packaging into directories/archives; and pull-at-runtime for Git repositories or source archives. See [Application runtimes examples](../runtimes/application.ipynb#usage-examples).
+|ML-9695|Application runtimes now support deploying from a single Python file without packaging into directories/archives; and pull-at-runtime for Git repositories or source archives. See [Application runtimes examples](../runtimes/application.ipynb#usage-examples).|
+|ML-9754|You can expose multiple ports for application and Nuclio runtimes. See [Expose multiple ports](../runtimes/application.ipynb#expose-multiple-ports) and .|
+|ML-5967|The application runtime now supports loading a single code file and pull at runtime. See [Deploy an application from a single Python file](../runtimes/application.ipynb##deploy-an-application-from-a-single-python-file) and [Pull at runtime from Git and source archives](../runtimes/application.ipynb#pull-at-runtime-from-git-and-source-archives).|
+|ML-9209|You can set a Application readinessProbe and a livenessProbe for the sidecar container. See [Configure sidecar Kubernetes probes](../runtimes/application.ipynb#configure-sidecar-kubernetes-probes).|
 
 ### Serving Graph
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
 |ML-7879|Serving graphs now support consuming messages from RabbitMQ queues and topic-based routing. See {py:meth}`~mlrun.runtimes.RemoteRuntime.add_rabbitmq_trigger`, {ref}`graph-ha-cfg`. |
-|ML-10753|MLRun supports cyclic serving graphs. See [Cyclic graph example](../serving/use-cases.md#exanple-of-a-cyclic-graph), {py:meth}`BaseStep to() <~mlrun.serving.states.BaseStep.to>`, {py:meth}`QueueStep to()<~mlrun.serving.QueueStep.to>`, and {py:meth}`~mlrun.serving.states.BaseStep.cycle_to`.|
+|ML-10753|MLRun supports cyclic serving graphs. See [Cyclic graph example](../serving/use-cases.md#exanple-of-a-cyclic-graph) and {py:meth}`~mlrun.serving.states.BaseStep.cycle_to`.|
+|ML-9565|Serving graphs now support API handlers, used to expose endpoints and interfaces. See [API handler](../serving-api-handler.md).|
+
 
 ### Model monitoring
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
 |ML-10919|Model monitoring supports TimescaleDB PostgreSQL `17` with TimescaleDB extensionas a TSDB platform. See [Configuring data store profiles](../install-mlrun-ce/mlrun-ce-development-notes.md#configuring-data-store-profiles) and {py:meth}`~mlrun.projects.MlrunProject.set_model_monitoring_credentials`.|
+|ML-9954|You can now generate an alert when lags are detected in writer/applications. See [Lag detection alerts](../model-monitoring/running-applications.md#lag-detection-alerts).|
+
+###
 
 ### UI
 | ID    |Description                                                                 |
@@ -57,9 +66,18 @@ See a full description of KFP, Python, and the workflow engines in {ref}`local-r
 |ML-11482|TDEngine is deprecated. Model monitoring data in TDEngine is not migrated. |
 
 
+### Documentation
+| ID    |Description                                                                 |
+|-------|----------------------------------------------------------------------------|
+|NA|Reorganized and updated the serving graph documentation. See [Real-time serving pipelines (graphs)](../serving/serving-graph.md).|
+|NA|The new [Profiles page](../store/profiles.md) describes provider profiles and source/target profiles.|
+|NA|New pages describing [Packagers](/concepts/packagers/index.md) and how to use them.|
+|NA|Reorganized and updated the [CE instalation guide](../install-mlrun-ce/index.md).
+
 ### Deprecations
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
+|ML-10919|TDEngine was replaced with TimescaleDB. Model monitoring data in TDEngine is not migrated|
 
 ### Closed issues
 | ID    |Description                                                                 |

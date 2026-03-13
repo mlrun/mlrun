@@ -62,6 +62,15 @@ class AzureBlobStore(DataStore):
     - SAS Token (connection_string or storage_options)
     - OAuth/Azure AD (storage_options: client_id, client_secret, tenant_id)
 
+    Accepted env-var names (in priority order):
+    - account_name / AZURE_STORAGE_ACCOUNT_NAME / AZURE_STORAGE_ACCOUNT
+    - account_key / AZURE_STORAGE_ACCOUNT_KEY / AZURE_STORAGE_ACCESS_KEY
+    - connection_string / AZURE_STORAGE_CONNECTION_STRING
+    - client_id / AZURE_STORAGE_CLIENT_ID / AZURE_CLIENT_ID
+    - client_secret / AZURE_STORAGE_CLIENT_SECRET / AZURE_CLIENT_SECRET
+    - tenant_id / AZURE_STORAGE_TENANT_ID / AZURE_TENANT_ID
+    - sas_token / AZURE_STORAGE_SAS_TOKEN
+
     """
 
     using_bucket = True
@@ -90,17 +99,22 @@ class AzureBlobStore(DataStore):
         if not self._storage_options:
             res = dict(
                 account_name=self._get_secret_or_env("account_name")
-                or self._get_secret_or_env("AZURE_STORAGE_ACCOUNT_NAME"),
+                or self._get_secret_or_env("AZURE_STORAGE_ACCOUNT_NAME")
+                or self._get_secret_or_env("AZURE_STORAGE_ACCOUNT"),
                 account_key=self._get_secret_or_env("account_key")
-                or self._get_secret_or_env("AZURE_STORAGE_ACCOUNT_KEY"),
+                or self._get_secret_or_env("AZURE_STORAGE_ACCOUNT_KEY")
+                or self._get_secret_or_env("AZURE_STORAGE_ACCESS_KEY"),
                 connection_string=self._get_secret_or_env("connection_string")
                 or self._get_secret_or_env("AZURE_STORAGE_CONNECTION_STRING"),
                 tenant_id=self._get_secret_or_env("tenant_id")
-                or self._get_secret_or_env("AZURE_STORAGE_TENANT_ID"),
+                or self._get_secret_or_env("AZURE_STORAGE_TENANT_ID")
+                or self._get_secret_or_env("AZURE_TENANT_ID"),
                 client_id=self._get_secret_or_env("client_id")
-                or self._get_secret_or_env("AZURE_STORAGE_CLIENT_ID"),
+                or self._get_secret_or_env("AZURE_STORAGE_CLIENT_ID")
+                or self._get_secret_or_env("AZURE_CLIENT_ID"),
                 client_secret=self._get_secret_or_env("client_secret")
-                or self._get_secret_or_env("AZURE_STORAGE_CLIENT_SECRET"),
+                or self._get_secret_or_env("AZURE_STORAGE_CLIENT_SECRET")
+                or self._get_secret_or_env("AZURE_CLIENT_SECRET"),
                 sas_token=self._get_secret_or_env("sas_token")
                 or self._get_secret_or_env("AZURE_STORAGE_SAS_TOKEN"),
                 credential=self._get_secret_or_env("credential"),

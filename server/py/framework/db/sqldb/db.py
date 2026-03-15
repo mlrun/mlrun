@@ -3472,17 +3472,33 @@ class SQLDB(DBInterface):
         self,
         session: Session,
         owner: str | None = None,
-        format_: mlrun.common.formatters.ProjectFormat = mlrun.common.formatters.ProjectFormat.full,
+        format_: framework.utils.project_formats.ProjectFormatType = mlrun.common.formatters.ProjectFormat.full,
         labels: list[str] | None = None,
         state: mlrun.common.schemas.ProjectState = None,
         names: list[str] | None = None,
     ) -> mlrun.common.schemas.ProjectsOutput:
-        query = self._query(session, Project, owner=owner, state=state)
+
+        query: sqlalchemy.orm.query.Query = None
+        query_class = Project
 
         # if format is name_only, we don't need to query the full project object, we can just query the name
         # and return it as a list of strings
         if format_ == mlrun.common.formatters.ProjectFormat.name_only:
-            query = self._query(session, Project.name, owner=owner, state=state)
+            query_class = Project.name
+
+        # if format is a custom selection, we need to query the specific columns
+        elif isinstance(format_, framework.utils.project_formats.ProjectFormatCustomSelection):
+            columns_to_load = [getattr(Project, c) for c in format_.columns]
+
+            # if we query for owner, state - we must have it on our format class
+            for field in owner, state:
+                if field and getattr(Project, field) in columns_to_load:
+                    query_class = (Project, getattr(Project, field))
+
+            query_class = (Project, *columns_to_load)
+        
+        # query the projects
+        query = self._query(session, query_class, owner=owner, state=state)
 
         # attach filters to the query
         if labels:
@@ -3498,6 +3514,16 @@ class SQLDB(DBInterface):
             if format_ == mlrun.common.formatters.ProjectFormat.name_only:
                 # can't use formatter as we haven't queried the entire object anyway
                 projects.append(project_record.name)
+            elif isinstance(
+                format_, framework.utils.project_formats.ProjectFormatCustomSelection
+            ):
+                # pass-through: no formatting for custom column selection
+                projects.append(
+                    mlrun.common.formatters.ProjectFormat.format_obj(
+                        self._transform_project_record_to_schema(project_record),
+                        mlrun.common.formatters.ProjectFormat.full,
+                    )
+                )
             else:
                 projects.append(
                     mlrun.common.formatters.ProjectFormat.format_obj(

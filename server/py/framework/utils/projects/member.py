@@ -50,7 +50,10 @@ class Member(abc.ABC):
             # while avoiding the overhead of fetching large fields (functions, workflows, artifacts)
             project = self.get_project(
                 db_session,
-                format_=mlrun.common.formatters.ProjectFormat.minimal,
+                format_=framework.utils.project_formats.ProjectFormatCustomSelection([
+                    framework.utils.project_formats.ProjectFormatCustom.name,
+                    framework.utils.project_formats.ProjectFormatCustom.owner,
+                ]),
                 auth_info=auth_info,
                 from_leader=False,
                 name=name,
@@ -131,7 +134,7 @@ class Member(abc.ABC):
         name: str,
         auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
         from_leader: bool = False,
-        format_: mlrun.common.formatters.ProjectFormat = mlrun.common.formatters.ProjectFormat.full,
+        format_: framework.utils.project_formats.ProjectFormatType = mlrun.common.formatters.ProjectFormat.full,
     ) -> mlrun.common.schemas.ProjectOutput:
         pass
 
@@ -141,7 +144,7 @@ class Member(abc.ABC):
         db_session: sqlalchemy.orm.Session,
         auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
         owner: str | None = None,
-        format_: mlrun.common.formatters.ProjectFormat = mlrun.common.formatters.ProjectFormat.full,
+        format_: framework.utils.project_formats.ProjectFormatType = mlrun.common.formatters.ProjectFormat.full,
         labels: list[str] | None = None,
         state: mlrun.common.schemas.ProjectState = None,
         names: list[str] | None = None,

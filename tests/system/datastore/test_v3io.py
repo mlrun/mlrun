@@ -93,6 +93,11 @@ class TestV3ioDataStore(TestMLRunSystem):
         self.run_dir_url = f"{prefix_path}{self.run_dir}"
         object_file = f"/file_{uuid.uuid4()}.txt"
         self.object_url = f"{self.run_dir_url}{object_file}"
+
+        v3io_url = self._get_v3io_url_without_scheme()
+        self.v3io_api_run_dir_url = f"v3io://{v3io_url}{self.run_dir}"
+        self.v3io_api_object_url = f"{self.v3io_api_run_dir_url}{object_file}"
+
         register_temporary_client_datastore_profile(self.profile)
 
         # We give priority to profiles, then to secrets, and finally to environment variables.
@@ -110,6 +115,15 @@ class TestV3ioDataStore(TestMLRunSystem):
     @staticmethod
     def _skip_set_environment():
         return True
+
+    @staticmethod
+    def _get_v3io_url_without_scheme():
+        v3io_url = os.environ["V3IO_API"]
+        if v3io_url.startswith("http://"):
+            v3io_url = v3io_url[len("http://"):]
+        elif v3io_url.startswith("https://"):
+            v3io_url = v3io_url[len("https://"):]
+        return v3io_url
 
     @pytest.mark.parametrize(
         "file_size", [4 * 1024 * 1024, 20 * 1024 * 1024]

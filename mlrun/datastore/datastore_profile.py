@@ -290,6 +290,7 @@ class DatastoreProfileRabbitMQ(DatastoreProfile):
 class DatastoreProfileV3io(DatastoreProfile):
     type: str = pydantic.v1.Field("v3io")
     v3io_access_key: str | None = None
+    v3io_api: str | None = None
     _private_attributes = "v3io_access_key"
 
     def url(self, subpath):
@@ -300,6 +301,8 @@ class DatastoreProfileV3io(DatastoreProfile):
         res = {}
         if self.v3io_access_key:
             res["V3IO_ACCESS_KEY"] = self.v3io_access_key
+        if self.v3io_api:
+            res["V3IO_API"] = self.v3io_api
         return res
 
 

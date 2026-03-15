@@ -315,12 +315,9 @@ class KafkaParameters:
 
 
 def parse_url(url):
-    if url and url.startswith("v3io://") and not url.startswith("v3io:///"):
-        url = url.replace("v3io://", "v3io:///", 1)
     parsed_url = urlparse(url)
     schema = parsed_url.scheme.lower()
     endpoint = parsed_url.hostname
-
     # Special handling for WASBS URLs to preserve container information
     if schema in ["wasbs", "wasb"] and parsed_url.netloc and "@" in parsed_url.netloc:
         # For wasbs://container@host format, preserve the full netloc as endpoint
@@ -337,6 +334,8 @@ def parse_url(url):
         endpoint = netloc[
             hostname_index_in_netloc : hostname_index_in_netloc + len(lower_hostname)
         ]
+        if schema == "v3io" and not endpoint.startswith("http"):
+            endpoint = f"https://{endpoint}"
         if parsed_url.port:
             endpoint += f":{parsed_url.port}"
     return schema, endpoint, parsed_url

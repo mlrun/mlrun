@@ -35,7 +35,7 @@ V3IO_DEFAULT_UPLOAD_CHUNK_SIZE = 1024 * 1024 * 10
 class V3ioStore(DataStore):
     def __init__(self, parent, schema, name, endpoint="", secrets: dict | None = None):
         super().__init__(parent, name, schema, endpoint, secrets=secrets)
-        self.endpoint = self.endpoint or mlrun.mlconf.v3io_api
+        self.endpoint = self.endpoint or self._get_secret_or_env("V3IO_API") or mlrun.mlconf.v3io_api
 
         self.headers = None
         self.secure = self.kind == "v3ios"
@@ -92,7 +92,7 @@ class V3ioStore(DataStore):
     def get_storage_options(self):
         res = dict(
             v3io_access_key=self._get_secret_or_env("V3IO_ACCESS_KEY"),
-            v3io_api=mlrun.mlconf.v3io_api,
+            v3io_api=self.url if self.endpoint else mlrun.mlconf.v3io_api,
         )
         return self._sanitize_options(res)
 

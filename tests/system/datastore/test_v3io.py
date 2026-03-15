@@ -38,6 +38,7 @@ Transport.set_connection_timeout(300)
 @TestMLRunSystem.skip_test_if_env_not_configured
 @pytest.mark.enterprise
 @pytest.mark.parametrize("use_datastore_profile", [True, False])
+@pytest.mark.parametrize("v3io_api_in_url", [True, False])
 class TestV3ioDataStore(TestMLRunSystem):
     test_dir = "/bigdata/v3io_tests"
     test_dir_url = f"v3io://{test_dir}"
@@ -48,6 +49,7 @@ class TestV3ioDataStore(TestMLRunSystem):
     def setup_class(cls):
         super().setup_class()
         cls.token = os.environ.get("V3IO_ACCESS_KEY")
+        cls.v3io_api = os.environ.get("V3IO_API")
         assets_path = str(cls.get_assets_path())
         cls.test_file_path = os.path.join(assets_path, "test.txt")
         test_parquet_path = os.path.join(assets_path, "test_data.parquet")
@@ -68,8 +70,13 @@ class TestV3ioDataStore(TestMLRunSystem):
         }
         with open(cls.test_file_path) as f:
             cls.test_string = f.read()
-        cls.profile = DatastoreProfileV3io(
+        cls.basic_profile = DatastoreProfileV3io(
             name=cls.profile_name, v3io_access_key=cls.token
+        )
+        cls.v3io_api_profile = DatastoreProfileV3io(
+            name=cls.profile_name,
+            v3io_access_key=cls.token,
+            v3io_api=cls.v3io_api,
         )
 
     @classmethod
@@ -80,26 +87,36 @@ class TestV3ioDataStore(TestMLRunSystem):
             dir_data_item._store.rm(path=cls.test_dir, recursive=True)
         except Exception:
             cls._logger.warning(
-                f"failed to delete test directory {cls.test_dir_url} in test_v3io.py."
-            )
+                f"failed to delete test directory {cls.test_dir_url} in test_v3io.py.")
         super().teardown_class()
 
     @pytest.fixture(autouse=True)
-    def setup_before_each_test(self, use_datastore_profile):
+    def setup_before_each_test(self, use_datastore_profile, v3io_api_in_url):
         prefix_path = (
             f"ds://{self.profile_name}" if use_datastore_profile else "v3io://"
         )
         mlrun.datastore.store_manager.reset_secrets()
-        self.run_dir_url = f"{prefix_path}{self.run_dir}"
         object_file = f"/file_{uuid.uuid4()}.txt"
-        self.object_url = f"{self.run_dir_url}{object_file}"
 
         v3io_url = self._get_v3io_url_without_scheme()
         self.v3io_api_run_dir_url = f"v3io://{v3io_url}{self.run_dir}"
         self.v3io_api_object_url = f"{self.v3io_api_run_dir_url}{object_file}"
 
-        register_temporary_client_datastore_profile(self.profile)
+        self.profile = self.v3io_api_profile if v3io_api_in_url else self.basic_profile
 
+        if v3io_api_in_url:
+            if use_datastore_profile:
+                self.run_dir_url = f"ds://{self.profile_name}{self.run_dir}"
+                self.object_url = f"{self.run_dir_url}{object_file}"
+            else:
+                self.run_dir_url = f"v3io://{v3io_url}{self.run_dir}"
+            os.environ["V3IO_API"] = "dummy-v3io-api"
+        else:
+            self.run_dir_url = f"{prefix_path}{self.run_dir}"
+            os.environ["V3IO_API"] = self.v3io_api
+
+        self.object_url = f"{self.run_dir_url}{object_file}"
+        register_temporary_client_datastore_profile(self.profile)
         # We give priority to profiles, then to secrets, and finally to environment variables.
         # We want to ensure that we test these priorities in the correct order.
         if use_datastore_profile:
@@ -128,7 +145,9 @@ class TestV3ioDataStore(TestMLRunSystem):
     @pytest.mark.parametrize(
         "file_size", [4 * 1024 * 1024, 20 * 1024 * 1024]
     )  # 4MB and 20MB
-    def test_v3io_large_object_upload(self, tmp_path, file_size):
+    def test_v3io_large_object_upload(self, tmp_path, file_size, v3io_api_in_url):
+        if v3io_api_in_url:
+            pytest.skip("v3io_api_in_url not relevant for large object tests")
         tempfile_1_path = os.path.join(tmp_path, "tempfile_1")
         tempfile_2_path = os.path.join(tmp_path, "tempfile_2")
         cmp_command = ["cmp", tempfile_1_path, tempfile_2_path]
@@ -195,7 +214,9 @@ class TestV3ioDataStore(TestMLRunSystem):
             f"total time of test_v3io_large_object_upload {time.monotonic() - first_start_time}"
         )
 
-    def test_v3io_large_object_put(self):
+    def test_v3io_large_object_put(self, v3io_api_in_url):
+        if v3io_api_in_url:
+            pytest.skip("v3io_api_in_url not relevant for large object tests")
         file_size = 20 * 1024 * 1024  # 20MB
         generated_buffer = os.urandom(file_size)
         data_item = mlrun.run.get_dataitem(self.object_url)

@@ -227,8 +227,8 @@ The value of the configured field can be either:
 - Description: Calls remote functions. See {py:class}`~mlrun.serving.remote.RemoteFunctionStep`.
 - Use Case: Use this step when you want to invoke an **existing function deployed in MLRun** as part of a serving graph without manually specifying its HTTP endpoint.<br>
 The step accepts a function name or URI, retrieves the function object from MLRun, and automatically resolves the function’s invocation URL.<br> This simplifies integration between serving graphs and previously deployed functions, especially when the endpoint address may change between environments.<br>
-The remote function may belong to a different project but must expose an **HTTP trigger**.<br>
-When the step executes, the incoming event is forwarded to the remote function via its resolved HTTP endpoint.
+The remote function may belong to a different project. The function must expose an **HTTP trigger**.<br>
+When the step executes, the incoming event is forwarded to the remote function via its resolved HTTP endpoint. The remote function response is forwarded to the next step in the graph.
 - Example: 
     ```
     # Reference an existing Nuclio function

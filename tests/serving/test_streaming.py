@@ -25,7 +25,7 @@ import mlrun.errors
 from mlrun.datastore.model_provider.mock_model_provider import MockModelProvider
 from mlrun.datastore.model_provider.model_provider import ModelProvider
 from mlrun.runtimes.nuclio.serving import ServingSpec
-from mlrun.serving import Model
+from mlrun.serving import Model, ModelRunnerSelector, ModelRunnerStep
 from mlrun.serving.server import (
     v2_serving_handler,
     v2_serving_streaming_handler,
@@ -266,6 +266,29 @@ class FailingIntermediateStep:
         return f"{x}_processed"
 
 
+class StreamingModel(Model):
+    """A model that returns streaming results (generator)."""
+
+    def __init__(self, num_chunks: int = 3, **kwargs):
+        super().__init__(**kwargs)
+        self.num_chunks = num_chunks
+
+    def predict(self, body, **kwargs):
+        for i in range(self.num_chunks):
+            yield f"{body}_chunk_{i}"
+
+    async def predict_async(self, body, **kwargs):
+        for i in range(self.num_chunks):
+            yield f"{body}_chunk_{i}"
+
+
+class MultipleStreamingModelsSelector(ModelRunnerSelector):
+    """A selector that selects multiple streaming models based on event body."""
+
+    def select_models(self, event, available_models):
+        return event.body.get("models")
+
+
 class TestStreamingEndToEnd:
     """End-to-end tests for streaming in serving graphs."""
 
@@ -372,6 +395,56 @@ class TestStreamingErrors:
             # The mock server catches StreamingError and re-raises as RuntimeError
             with pytest.raises(RuntimeError, match="Streaming on top of streaming"):
                 server.test("/", body="test")
+        finally:
+            server.wait_for_completion()
+
+    @pytest.mark.parametrize(
+        "execution_mechanism",
+        ["naive", "thread_pool", "asyncio", "process_pool", "dedicated_process"],
+    )
+    def test_multiple_streaming_models_in_model_runner_raises_error(
+        self, execution_mechanism
+    ):
+        """Test that selecting multiple streaming models in ModelRunnerStep raises an error.
+
+        Streaming is only supported when a single runnable is selected. When multiple
+        streaming models are selected via ModelRunnerSelector, storey raises a
+        StreamingError which is propagated as a RuntimeError by the mock server.
+        """
+        function = mlrun.new_function("test", kind="serving")
+        graph = function.set_topology("flow", engine="async")
+        model_runner_step = ModelRunnerStep(
+            name="my_model_runner",
+            model_runner_selector="tests.serving.test_streaming.MultipleStreamingModelsSelector",
+        )
+        model_runner_step.add_model(
+            model_class="tests.serving.test_streaming.StreamingModel",
+            execution_mechanism=execution_mechanism,
+            endpoint_name="streaming_model_1",
+            num_chunks=3,
+        )
+        model_runner_step.add_model(
+            model_class="tests.serving.test_streaming.StreamingModel",
+            execution_mechanism=execution_mechanism,
+            endpoint_name="streaming_model_2",
+            num_chunks=3,
+        )
+        graph.to(model_runner_step).to(
+            name="collector", class_name="storey.Collector"
+        ).respond()
+
+        server = function.to_mock_server()
+        try:
+            with pytest.raises(
+                RuntimeError,
+                match="Streaming is not supported when multiple runnables are selected",
+            ):
+                server.test(
+                    body={
+                        "inputs": "test",
+                        "models": ["streaming_model_1", "streaming_model_2"],
+                    }
+                )
         finally:
             server.wait_for_completion()
 

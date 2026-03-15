@@ -60,7 +60,7 @@ The value of the configured field can be either:
         print(f"sum is : {event['sum']}")
         return event
 
-    graph.add_step(name="router", handler="router")
+    graph.add_step(name="router", handler="choose_route")
     graph.add_step(class_name=ChoiceByField("route"), name="routing", after=["router"])
     graph.add_step(name="dict", handler="handle_dict", after=["routing"])
     graph.add_step(name="list", handler="handle_list", after=["routing"])

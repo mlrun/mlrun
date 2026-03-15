@@ -96,6 +96,7 @@ import framework.constants
 import framework.db.session
 import framework.db.sqldb.base
 import framework.utils.helpers
+import framework.utils.project_formats
 from framework.db.base import DBInterface
 from framework.db.sqldb.helpers import (
     MemoizationCache,

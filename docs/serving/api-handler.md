@@ -10,7 +10,7 @@ API handlers:
 API handlers support Nuclio functions whose trigger is a HTTP trigger, and the mock server.
 
 ## Overview
-When the `GraphServer receives` an event with an API handler, and prior to actually sending it to the graph, it evalauates whether the event was sent to a user-configured allowed paths. If yes, it:
+When the `GraphServer` receives an event with an API handler, and prior to actually sending it to the graph, it evalauates whether the event was sent to a user-configured allowed paths. If yes, it:
 - Sends the event to either the root graph step, or another step named in the configuration.
 - Can also API handler can perform additional (optional) manipulations on the event body (data), for example, to extract relevant fields from specific paths in the JSON input, and construct the event to be sent to the graph based on the transformations defined by the user.
 
@@ -48,3 +48,49 @@ In a Jupyter plot of a graph there are indications that an API handler exists wi
 
 ## Examples
 
+```python
+project = mlrun.get_or_create_project("serving-fn", context="./serving-fn")
+
+# mlrun: start-code
+# Define a function to handle inputs
+def print_input_handler(event):
+    print(f"Received input: {event}")
+    print(f"Input type: {type(event)}")
+    return event
+# mlrun: end-code
+
+# Demonstrate automatic API handler injection
+from mlrun.common.schemas.serving import APIHandlerAction
+from mlrun.runtimes.nuclio.serving import APIHandlerConfig
+from http import HTTPMethod
+
+# Create a new serving function with API handler config
+serving_fn_auto = project.set_function(
+    name="serving-with-api-handler",
+    kind="serving",
+    image="mlrun:mlrun",
+)
+
+# Set up API handler configuration
+api_config = APIHandlerConfig()
+api_config.add_endpoint_handler(
+    "/health", HTTPMethod.GET, APIHandlerAction.ALLOW, "Health check endpoint"
+)
+api_config.add_endpoint_handler(
+    "/predict", HTTPMethod.POST, APIHandlerAction.ALLOW, "Prediction endpoint"
+)
+
+serving_fn_auto.to_dict()
+
+serving_fn_auto.spec.api_handler_config
+
+serving_fn_auto.save()
+
+serving_fn_auto.deploy()
+
+serving_fn_auto.invoke("/health", method="GET")
+
+serving_fn_auto.invoke("/admin", method="GET", body="test")
+
+serving_fn_auto.spec.api_handler_config
+```

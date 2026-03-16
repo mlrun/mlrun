@@ -24,8 +24,48 @@ All steps are supported by the storey engine.
 
 ### ChoiceByField
 - Description: Routes events to downstream steps based on an event field that contains the step name or names. See {py:class}`~mlrun.serving.steps.ChoiceByField`.
-- Use case:
+- Use case: Use this step when routing decisions in a serving graph should be determined dynamically based on a field in the event.
+Instead of subclassing a choice step and implementing custom routing logic, you can add a field to the event containing the name (or names) of the downstream step(s) to route to.
+The value of the configured field can be either:
+    * a string – the event will be forwarded to the corresponding outlet.
+    * a list or tuple of strings – the event will be forwarded to all specified outlets.
+
+    This simplifies conditional routing logic by separating decision logic (a previous step that sets the field) from routing logic (handled by ChoiceByField).
 - Example:
+    ```
+    # Create a serving function
+    serving_fn = mlrun.new_function("choice-example", kind="serving")
+
+    graph = serving_fn.set_topology("flow")
+
+    # Step that decides the route and adds it to the event
+    def choose_route(event):
+        if isinstance(event["value"], dict):
+            event["route"] = "dict"
+        elif isinstance(event["value"],list):
+            event["route"] = "list"
+        else:
+            raise AttributeError("Key 'route' in event must be either dict or list")
+        return event
+
+    def handle_dict(event):
+        event["sum"] = sum(event["value"].values())
+        return event
+
+    def handle_list(event):
+        event["sum"] = sum(event["value"])
+        return event
+        
+    def pprint(event):
+        print(f"sum is : {event['sum']}")
+        return event
+
+    graph.add_step(name="router", handler="choose_route")
+    graph.add_step(class_name=ChoiceByField("route"), name="routing", after=["router"])
+    graph.add_step(name="dict", handler="handle_dict", after=["routing"])
+    graph.add_step(name="list", handler="handle_list", after=["routing"])
+    graph.add_step(name="pprint", handler="pprint", after=["dict", "list"]).respond()
+    ```
 
 
 ## Event operation steps 
@@ -185,8 +225,22 @@ All steps are supported by the storey engine.
  
 ### RemoteFunctionStep
 - Description: Calls remote functions. See {py:class}`~mlrun.serving.remote.RemoteFunctionStep`.
-- Use Case: 
-- Example:
+- Use Case: Use this step when you want to invoke an **existing function deployed in MLRun** as part of a serving graph without manually specifying its HTTP endpoint.<br>
+The step accepts a function name or URI, retrieves the function object from MLRun, and automatically resolves the function’s invocation URL.<br> This simplifies integration between serving graphs and previously deployed functions, especially when the endpoint address may change between environments.<br>
+The remote function may belong to a different project. The function must expose an **HTTP trigger**.<br>
+When the step executes, the incoming event is forwarded to the remote function via its resolved HTTP endpoint. The remote function response is forwarded to the next step in the graph.
+- Example: 
+    ```
+    # Reference an existing Nuclio function
+    step = RemoteFunctionStep(fn="my-nuclio-function", project_name="my-project")
+
+    # Create a serving function
+    serving_fn = mlrun.new_function(name="serving-graph", kind="serving")
+
+    # Build the serving graph
+    graph = serving_fn.set_topology("flow")
+    graph.to(step).respond()
+    ```
 
 ### ONNXModelServer
 - Description: A model serving class for serving ONYX Models. A sub-class of the  V2ModelServer class. See {py:class}`~mlrun.frameworks.onnx.ONNXModelServer`.

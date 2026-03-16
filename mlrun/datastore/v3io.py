@@ -53,6 +53,8 @@ class V3ioStore(DataStore):
         elif self.endpoint.startswith("http://"):
             self.endpoint = self.endpoint[len("http://") :]
             self.secure = False
+        else:
+            self.secure = True
         self.client = v3io.dataplane.Client(access_key=token, endpoint=self.url)
         self.object = self.client.object
         self.auth = None

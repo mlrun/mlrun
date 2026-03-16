@@ -334,8 +334,6 @@ def parse_url(url):
         endpoint = netloc[
             hostname_index_in_netloc : hostname_index_in_netloc + len(lower_hostname)
         ]
-        if schema == "v3io" and not endpoint.startswith("http"):
-            endpoint = f"https://{endpoint}"
         if parsed_url.port:
             endpoint += f":{parsed_url.port}"
     return schema, endpoint, parsed_url

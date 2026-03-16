@@ -306,14 +306,15 @@ def test_verify_data_stores_are_not_cached_in_api_when_not_needed():
     assert obj3._store._secrets == {}
 
 
-def test_verify_data_stores_are_cached_when_not_api():
+@pytest.mark.parametrize("system_endpoint", ["some-system", None])
+def test_verify_data_stores_are_cached_when_not_api(system_endpoint):
     user1_secrets = {"V3IO_ACCESS_KEY": "user1-access-key"}
-    user1_objpath = "v3io://some-system/some-dir/user1"
+    user1_objpath = f"v3io://{system_endpoint}/some-dir/user1"
 
     user2_secrets = {"V3IO_ACCESS_KEY": "user2-access-key"}
-    user2_objpath = "v3io://some-system/some-dir/user2"
+    user2_objpath = f"v3io://{system_endpoint}/some-dir/user2"
 
-    user3_objpath = "v3io://some-system/some-dir/user3"
+    user3_objpath = f"v3io://{system_endpoint}/some-dir/user3"
     store = mlrun.datastore.datastore.StoreManager(
         secrets={"V3IO_ACCESS_KEY": "api-access-key"}
     )
@@ -330,7 +331,7 @@ def test_verify_data_stores_are_cached_when_not_api():
     # if no secrets provided then store is cached
     obj3 = store.object(url=user3_objpath)
     assert len(store._stores) == 1
-    assert store._stores["v3io://"] is not None
+    assert store._stores[f"v3io://{system_endpoint}"] is not None
     assert obj3._store._secrets == {}
 
     # if secrets provided then store is not cached
@@ -339,7 +340,7 @@ def test_verify_data_stores_are_cached_when_not_api():
     assert obj2._store._secrets == user2_secrets
     # the store is not cached so the secrets are not updated, because this is the same store type as the one cached,
     # so we verify that the secrets are not updated
-    assert store._stores["v3io://"]._secrets == {}
+    assert store._stores[f"v3io://{system_endpoint}"]._secrets == {}
 
 
 def test_object_from_empty_url():

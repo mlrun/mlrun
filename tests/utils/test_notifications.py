@@ -1734,6 +1734,18 @@ class TestMailNotification:
                     "password": "pass",
                 },
             ),
+            (
+                "multiline_message",
+                {},
+                "Run failed\nRetries attempted: 3\nRetry limit reached",
+                "info",
+                {
+                    "subject": "[info] Run failed Retries attempted: 3 Retry limit reached",
+                    "body": MOCKED_HTML,
+                    "username": None,
+                    "password": None,
+                },
+            ),
         ],
     )
     async def test_push(self, name, params, message, severity, expected):

@@ -640,6 +640,27 @@ class TestNuclioRuntime(TestMLRunSystemModelMonitoring):
 
         function.deploy()
 
+        # Verify max_iterations is preserved after get_function
+        retrieved_function = mlrun.get_run_db().get_function(
+            function.metadata.name, self.project_name
+        )
+        retrieved_graph = retrieved_function.get("spec", {}).get("graph", {})
+
+        # Check graph-level max_iterations
+        expected_graph_max_iter = 1 if max_iter == "global" else 10
+        assert retrieved_graph.get("max_iterations") == expected_graph_max_iter, (
+            f"Graph max_iterations mismatch: expected {expected_graph_max_iter}, "
+            f"got {retrieved_graph.get('max_iterations')}"
+        )
+
+        # Check step-level max_iterations for 'route' step
+        route_step = retrieved_graph.get("steps", {}).get("route", {})
+        expected_step_max_iter = 1 if max_iter == "local" else None
+        assert route_step.get("max_iterations") == expected_step_max_iter, (
+            f"Step 'route' max_iterations mismatch: expected {expected_step_max_iter}, "
+            f"got {route_step.get('max_iterations')}"
+        )
+
         if max_iter == "local":
             expected_error = r"Max iterations exceeded in step 'route'"
         else:

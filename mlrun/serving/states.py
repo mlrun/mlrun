@@ -997,6 +997,7 @@ class MonitoringApplicationStep(TaskStep):
         responder: bool | None = None,
         input_path: str | None = None,
         result_path: str | None = None,
+        max_iterations: int | None = None,
     ):
         super().__init__(
             class_name=class_name,
@@ -1009,6 +1010,7 @@ class MonitoringApplicationStep(TaskStep):
             responder=responder,
             input_path=input_path,
             result_path=result_path,
+            max_iterations=max_iterations,
         )
 
 
@@ -1031,6 +1033,7 @@ class ErrorStep(TaskStep):
         responder: bool | None = None,
         input_path: str | None = None,
         result_path: str | None = None,
+        max_iterations: int | None = None,
     ):
         super().__init__(
             class_name=class_name,
@@ -1043,6 +1046,7 @@ class ErrorStep(TaskStep):
             responder=responder,
             input_path=input_path,
             result_path=result_path,
+            max_iterations=max_iterations,
         )
         self.before = None
         self.base_step = None
@@ -1066,6 +1070,7 @@ class RouterStep(TaskStep):
         function: str | None = None,
         input_path: str | None = None,
         result_path: str | None = None,
+        max_iterations: int | None = None,
     ):
         super().__init__(
             class_name,
@@ -1075,6 +1080,7 @@ class RouterStep(TaskStep):
             function=function,
             input_path=input_path,
             result_path=result_path,
+            max_iterations=max_iterations,
         )
         self._routes: ObjectDict = None
         self.routes = routes
@@ -2645,9 +2651,10 @@ class QueueStep(BaseStep, StepToDict):
         shards: int | None = None,
         retention_in_hours: int | None = None,
         trigger_args: dict | None = None,
+        max_iterations: int | None = None,
         **options,
     ):
-        super().__init__(name, after)
+        super().__init__(name, after, max_iterations=max_iterations)
         self.path = path
         self.shards = shards
         self.retention_in_hours = retention_in_hours
@@ -3674,6 +3681,7 @@ class HubTaskStep(TaskStep):
         | None = schemas.ModelEndpointCreationStrategy.SKIP,
         endpoint_type: schemas.EndpointType | None = schemas.EndpointType.NODE_EP,
         requirements: list | None = None,
+        max_iterations: int | None = None,
     ):
         super().__init__(
             class_name=class_name,
@@ -3688,6 +3696,7 @@ class HubTaskStep(TaskStep):
             result_path=result_path,
             model_endpoint_creation_strategy=model_endpoint_creation_strategy,
             endpoint_type=endpoint_type,
+            max_iterations=max_iterations,
         )
         self.hub_step_class_name = hub_step_class_name
         self.requirements = requirements

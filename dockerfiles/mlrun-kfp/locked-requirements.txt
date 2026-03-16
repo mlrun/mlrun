@@ -208,9 +208,9 @@ avro==1.12.1 \
     --hash=sha256:970475dd6457924533966fe761be607c759d5a48390cc8fbed472f7c9a8868f2 \
     --hash=sha256:c5b8dd2dd4c10816f0dc127cc29cfd43b5e405cf7e6840e89460a024bf3d098d
     # via -r extras-requirements.txt
-azure-core==1.38.2 \
-    --hash=sha256:074806c75cf239ea284a33a66827695ef7aeddac0b4e19dda266a93e4665ead9 \
-    --hash=sha256:67562857cb979217e48dc60980243b61ea115b77326fa93d83b729e7ff0482e7
+azure-core==1.38.3 \
+    --hash=sha256:a7931fd445cb4af8802c6f39c6a326bbd1e34b115846550a8245fa656ead6f8e \
+    --hash=sha256:bf59d29765bf4748ab9edf25f98a30b7ea9797f43e367c06d846a30b29c1f845
     # via
     #   -r extras-requirements.txt
     #   adlfs
@@ -221,9 +221,9 @@ azure-datalake-store==0.0.53 \
     --hash=sha256:05b6de62ee3f2a0a6e6941e6933b792b800c3e7f6ffce2fc324bc19875757393 \
     --hash=sha256:a30c902a6e360aa47d7f69f086b426729784e71c536f330b691647a51dc42b2b
     # via adlfs
-azure-identity==1.25.2 \
-    --hash=sha256:030dbaa720266c796221c6cdbd1999b408c079032c919fef725fcc348a540fe9 \
-    --hash=sha256:1b40060553d01a72ba0d708b9a46d0f61f56312e215d8896d836653ffdc6753d
+azure-identity==1.25.3 \
+    --hash=sha256:ab23c0d63015f50b630ef6c6cf395e7262f439ce06e5d07a64e874c724f8d9e6 \
+    --hash=sha256:f4d0b956a8146f30333e071374171f3cfa7bdb8073adb8c3814b65567aa7447c
     # via
     #   -r extras-requirements.txt
     #   adlfs
@@ -828,9 +828,9 @@ google-api-python-client==1.12.11 \
     --hash=sha256:1b4bd42a46321e13c0542a9e4d96fa05d73626f07b39f83a73a947d70ca706a9 \
     --hash=sha256:7e0a1a265c8d3088ee1987778c72683fcb376e32bada8d7767162bd9c503fd9b
     # via kfp
-google-auth==2.49.0 \
-    --hash=sha256:9cc2d9259d3700d7a257681f81052db6737495a1a46b610597f4b8bafe5286ae \
-    --hash=sha256:f893ef7307f19cf53700b7e2f61b5a6affe3aa0edf9943b13788920ab92d8d87
+google-auth==2.49.1 \
+    --hash=sha256:16d40da1c3c5a0533f57d268fe72e0ebb0ae1cc3b567024122651c045d879b64 \
+    --hash=sha256:195ebe3dca18eddd1b3db5edc5189b76c13e96f29e73043b923ebcf3f1a860f7
     # via
     #   databricks-sdk
     #   gcsfs
@@ -2142,9 +2142,7 @@ pyarrow==17.0.0 \
 pyasn1==0.6.2 \
     --hash=sha256:1eb26d860996a18e9b6ed05e7aae0e9fc21619fcee6af91cca9bad4fbea224bf \
     --hash=sha256:9b59a2b25ba7e4f8197db7686c09fb33e658b98339fadb826e9512629017833b
-    # via
-    #   pyasn1-modules
-    #   rsa
+    # via pyasn1-modules
 pyasn1-modules==0.4.2 \
     --hash=sha256:29253a9207ce32b64c3ac6600edc75368f98473906e8fd1043bd6b5b1de2c14a \
     --hash=sha256:677091de870a80aae844b1ca6134f54652fa2c8c5a52aa396440ac3106e941e6
@@ -2244,9 +2242,9 @@ pygments==2.19.2 \
     #   ipython
     #   nbconvert
     #   rich
-pyjwt==2.11.0 \
-    --hash=sha256:35f95c1f0fbe5d5ba6e43f00271c275f7a1a4db1dab27bf708073b75318ea623 \
-    --hash=sha256:94a6bde30eb5c8e04fee991062b534071fd1439ef58d2adc9ccb823e7bcd0469
+pyjwt==2.12.1 \
+    --hash=sha256:28ca37c070cad8ba8cd9790cd940535d40274d22f80ab87f3ac6a713e6e8454c \
+    --hash=sha256:c74a7a2adf861c04d002db713dd85f84beb242228e671280bf709d765b03672b
     # via
     #   -r requirements.txt
     #   msal
@@ -2624,10 +2622,6 @@ rpds-py==0.30.0 \
     # via
     #   jsonschema
     #   referencing
-rsa==4.9.1 \
-    --hash=sha256:68635866661c6836b8d39430f97a996acbd61bfa49406748ea243539fe239762 \
-    --hash=sha256:e7bdbfdb5497da4c07dfd35530e1a902659db6ff241e39d9953cad06ebd0ae75
-    # via google-auth
 s3fs==2025.7.0 \
     --hash=sha256:5e7f9ec0cad7745155e3eb86fae15b1481fa29946bf5b3a4ce3a60701ce6022d \
     --hash=sha256:b6b2d3f84b6aa1c2ba5e62e39dd9410cf54f10a2cce1ea6db1ba0d1a6bcce685

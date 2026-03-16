@@ -190,9 +190,8 @@ class MailNotification(base.NotificationBase):
 
     @staticmethod
     def _sanitize_subject(subject: str) -> str:
-        # Email headers must not contain CR/LF. Collapse any whitespace sequence so multiline notification messages
-        # can still produce a valid subject.
-        return " ".join(subject.split())
+        # Keep only the first line for the email subject.
+        return subject.splitlines()[0].strip()
 
     @staticmethod
     def _enrich_params(params):

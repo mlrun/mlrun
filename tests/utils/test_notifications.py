@@ -1735,12 +1735,13 @@ class TestMailNotification:
                 },
             ),
             (
+                # The Subject should take only the first line of the message
                 "multiline_message",
                 {},
                 "Run failed\nRetries attempted: 3\nRetry limit reached",
                 "info",
                 {
-                    "subject": "[info] Run failed Retries attempted: 3 Retry limit reached",
+                    "subject": "[info] Run failed",
                     "body": MOCKED_HTML,
                     "username": None,
                     "password": None,

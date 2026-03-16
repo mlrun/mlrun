@@ -110,7 +110,9 @@ class Member(project_follower.Member):
 
         # Custom column selection returns full projects as-is (no formatting needed)
         # since nop_follower holds in-memory objects, not DB records
-        if isinstance(format_, framework.utils.project_formats.ProjectFormatCustomSelection):
+        if isinstance(
+            format_, framework.utils.project_formats.ProjectFormatCustomSelection
+        ):
             return mlrun.common.schemas.ProjectsOutput(projects=projects)
 
         return mlrun.common.schemas.ProjectsOutput(

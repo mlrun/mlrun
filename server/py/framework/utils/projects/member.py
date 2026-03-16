@@ -51,10 +51,12 @@ class Member(abc.ABC):
             # while avoiding the overhead of fetching large fields (functions, workflows, artifacts)
             project = self.get_project(
                 db_session,
-                format_=framework.utils.project_formats.ProjectFormatCustomSelection([
-                    framework.utils.project_formats.ProjectFormatCustom.name,
-                    framework.utils.project_formats.ProjectFormatCustom.owner,
-                ]),
+                format_=framework.utils.project_formats.ProjectFormatCustomSelection(
+                    [
+                        framework.utils.project_formats.ProjectFormatCustom.name,
+                        framework.utils.project_formats.ProjectFormatCustom.owner,
+                    ]
+                ),
                 auth_info=auth_info,
                 from_leader=False,
                 name=name,

@@ -20,6 +20,7 @@ Not exposed in mlrun.common so the client/SDK does not depend on them.
 import typing
 
 import mlrun.common.formatters
+import mlrun.common.schemas
 
 
 class ProjectFormatCustom:
@@ -27,6 +28,8 @@ class ProjectFormatCustom:
     Selectable project columns for custom format.
     Values match Project DB column names so callers can build a custom selection
     and add only selected fields to the DB query.
+
+    Adding columns here requiring mapping them below under ProjectFormatCustomSelection.build()
     """
 
     name = "name"
@@ -58,6 +61,17 @@ class ProjectFormatCustomSelection:
 
     def __contains__(self, column: str) -> bool:
         return column in self.columns
+
+    def build(self, project_dict: dict) -> mlrun.common.schemas.Project:
+        return mlrun.common.schemas.Project(
+            metadata=mlrun.common.schemas.ProjectMetadata(
+                name=project_dict.get("name"),
+                created=project_dict.get("created"),
+            ),
+            spec=mlrun.common.schemas.ProjectSpec(
+                owner=project_dict.get("owner"),
+            ),
+        )
 
 
 # Type for format_ parameter: either a named format or a custom column selection.

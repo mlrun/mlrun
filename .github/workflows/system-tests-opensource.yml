@@ -214,7 +214,7 @@ jobs:
     - name: Check and cleanup any previous K3S installation
       uses: ./.github/actions/cleanup-k3s
 
-    - uses: jupyterhub/action-k3s-helm@6389a7f2a11343ea6b469628c6e7b3afa961db24 # 4.0.1
+    - uses: jupyterhub/action-k3s-helm@502a9ff4d816dad543e359971fe2c3128d0f4c6e # 4.1.0
       name: "Start a local k8s cluster"
       with:
         # - k3s versions at https://github.com/k3s-io/k3s/tags

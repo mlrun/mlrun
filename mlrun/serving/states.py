@@ -762,8 +762,9 @@ class TaskStep(BaseStep):
         model_endpoint_creation_strategy: schemas.ModelEndpointCreationStrategy
         | None = schemas.ModelEndpointCreationStrategy.SKIP,
         endpoint_type: schemas.EndpointType | None = schemas.EndpointType.NODE_EP,
+        max_iterations: int | None = None,
     ):
-        super().__init__(name, after)
+        super().__init__(name, after, max_iterations=max_iterations)
         self.class_name = class_name
         self.class_args = class_args or {}
         self.handler = handler

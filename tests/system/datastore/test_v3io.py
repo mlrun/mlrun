@@ -49,7 +49,7 @@ class TestV3ioDataStore(TestMLRunSystem):
     def setup_class(cls):
         super().setup_class()
         cls.token = os.environ.get("V3IO_ACCESS_KEY")
-        cls.v3io_api = os.environ.get("V3IO_API")
+        cls.v3io_api = mlrun.mlconf.v3io_api
         assets_path = str(cls.get_assets_path())
         cls.test_file_path = os.path.join(assets_path, "test.txt")
         test_parquet_path = os.path.join(assets_path, "test_data.parquet")
@@ -87,7 +87,8 @@ class TestV3ioDataStore(TestMLRunSystem):
             dir_data_item._store.rm(path=cls.test_dir, recursive=True)
         except Exception:
             cls._logger.warning(
-                f"failed to delete test directory {cls.test_dir_url} in test_v3io.py.")
+                f"failed to delete test directory {cls.test_dir_url} in test_v3io.py."
+            )
         super().teardown_class()
 
     @pytest.fixture(autouse=True)
@@ -105,13 +106,15 @@ class TestV3ioDataStore(TestMLRunSystem):
         self.profile = self.v3io_api_profile if v3io_api_in_url else self.basic_profile
 
         if v3io_api_in_url:
+            mlrun.mlconf.v3io_api = "not_exist_v3io_api"
             if use_datastore_profile:
                 self.run_dir_url = f"ds://{self.profile_name}{self.run_dir}"
                 self.object_url = f"{self.run_dir_url}{object_file}"
             else:
                 self.run_dir_url = f"v3io://{v3io_url}{self.run_dir}"
-            os.environ["V3IO_API"] = "dummy-v3io-api"
+            os.environ["V3IO_API"] = "not_exist_v3io_api"
         else:
+            mlrun.config.v3io_api = self.v3io_api
             self.run_dir_url = f"{prefix_path}{self.run_dir}"
             os.environ["V3IO_API"] = self.v3io_api
 
@@ -137,9 +140,9 @@ class TestV3ioDataStore(TestMLRunSystem):
     def _get_v3io_url_without_scheme():
         v3io_url = os.environ["V3IO_API"]
         if v3io_url.startswith("http://"):
-            v3io_url = v3io_url[len("http://"):]
+            v3io_url = v3io_url[len("http://") :]
         elif v3io_url.startswith("https://"):
-            v3io_url = v3io_url[len("https://"):]
+            v3io_url = v3io_url[len("https://") :]
         return v3io_url
 
     @pytest.mark.parametrize(

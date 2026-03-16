@@ -35,7 +35,11 @@ V3IO_DEFAULT_UPLOAD_CHUNK_SIZE = 1024 * 1024 * 10
 class V3ioStore(DataStore):
     def __init__(self, parent, schema, name, endpoint="", secrets: dict | None = None):
         super().__init__(parent, name, schema, endpoint, secrets=secrets)
-        self.endpoint = self.endpoint or self._get_secret_or_env("V3IO_API") or mlrun.mlconf.v3io_api
+        self.endpoint = (
+            self.endpoint
+            or self._get_secret_or_env("V3IO_API")
+            or mlrun.mlconf.v3io_api
+        )
 
         self.headers = None
         self.secure = self.kind == "v3ios"
@@ -236,3 +240,33 @@ class V3ioStore(DataStore):
                 to_rm.add(p)
         for p in reversed(list(sorted(to_rm))):
             file_system.rm_file(p)
+
+    def as_df(
+        self,
+        url,
+        subpath,
+        columns=None,
+        df_module=None,
+        format="",
+        start_time=None,
+        end_time=None,
+        time_column=None,
+        additional_filters=None,
+        **kwargs,
+    ):
+        # remove the endpoint from the URL (if present), since the base class
+        # will add it back and the v3io filesystem expects the URL without it.
+        if url:
+            url = url.replace(self.endpoint, "", 1)
+        return super().as_df(
+            url=url,
+            subpath=subpath,
+            columns=columns,
+            df_module=df_module,
+            format=format,
+            start_time=start_time,
+            end_time=end_time,
+            time_column=time_column,
+            additional_filters=additional_filters,
+            **kwargs,
+        )

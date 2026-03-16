@@ -2443,9 +2443,17 @@ class TestFeatureStore(TestMLRunSystem):
     @TestMLRunSystem.skip_test_if_env_not_configured
     @pytest.mark.enterprise
     @pytest.mark.parametrize("use_ds_profile", [True, False])
-    def test_overwrite_specified_nosql_path(self, use_ds_profile):
+    @pytest.mark.parametrize("use_full_url", [True, False])
+    def test_overwrite_specified_nosql_path(self, use_ds_profile, use_full_url):
         df1 = pd.DataFrame({"name": ["ABC", "DEF", "GHI"], "value": [1, 2, 3]})
         df2 = pd.DataFrame({"name": ["JKL", "MNO", "PQR"], "value": [4, 5, 6]})
+
+        v3io_url = mlrun.mlconf.v3io_api
+        if v3io_url.startswith("http://"):
+            v3io_url = v3io_url[len("http://") :]
+        elif v3io_url.startswith("https://"):
+            v3io_url = v3io_url[len("https://") :]
+
         if use_ds_profile:
             profile = DatastoreProfileV3io(
                 name="v3io_profile", v3io_access_key=os.getenv("V3IO_ACCESS_KEY")
@@ -2453,7 +2461,8 @@ class TestFeatureStore(TestMLRunSystem):
             register_temporary_client_datastore_profile(profile)
             targets = [NoSqlTarget(path="ds://v3io_profile/bigdata/overwrite-spec")]
         else:
-            targets = [NoSqlTarget(path="v3io:///bigdata/overwrite-spec")]
+            v3io_path = f"v3io://{v3io_url}/bigdata/overwrite-spec"
+            targets = [NoSqlTarget(path=v3io_path)]
 
         fset = fstore.FeatureSet(
             name="overwrite-spec-path", entities=[fstore.Entity("name")]

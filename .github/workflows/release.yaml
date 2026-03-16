@@ -79,7 +79,7 @@ jobs:
     steps:
       - name: Generate GitHub App token
         id: mlrun-app-token
-        uses: actions/create-github-app-token@v2
+        uses: actions/create-github-app-token@v3
         with:
           app-id: ${{ secrets.GH_APP_ID }}
           private-key: ${{ secrets.GH_APP_PRIVATE_KEY }}
@@ -137,7 +137,7 @@ jobs:
 
         # the condition is here and not on job because some other jobs "needs" this job to be done (and not skipped)
         if: ${{ !contains(github.event.inputs.skip_images, 'ui') }}
-        uses: actions/create-github-app-token@v2
+        uses: actions/create-github-app-token@v3
         with:
           app-id: ${{ secrets.GH_APP_ID }}
           private-key: ${{ secrets.GH_APP_PRIVATE_KEY }}
@@ -171,7 +171,7 @@ jobs:
     steps:
       - name: Generate GitHub App token
         id: mlrun-app-token
-        uses: actions/create-github-app-token@v2
+        uses: actions/create-github-app-token@v3
         with:
           app-id: ${{ secrets.GH_APP_ID }}
           private-key: ${{ secrets.GH_APP_PRIVATE_KEY }}
@@ -197,7 +197,7 @@ jobs:
     steps:
       - name: Generate GitHub App token for mlrun repo
         id: mlrun-app-token
-        uses: actions/create-github-app-token@v2
+        uses: actions/create-github-app-token@v3
         with:
           app-id: ${{ secrets.GH_APP_ID }}
           private-key: ${{ secrets.GH_APP_PRIVATE_KEY }}
@@ -211,7 +211,7 @@ jobs:
       - name: Generate GitHub App Token for ui repo
         if: github.event.inputs.skip_create_tag_release != 'true'
         id: ui-release-app-token
-        uses: actions/create-github-app-token@v2
+        uses: actions/create-github-app-token@v3
         with:
           app-id: ${{ secrets.GH_APP_ID }}
           private-key: ${{ secrets.GH_APP_PRIVATE_KEY }}
@@ -238,7 +238,7 @@ jobs:
     steps:
       - name: Generate GitHub App token for mlrun repo
         id: mlrun-app-token
-        uses: actions/create-github-app-token@v2
+        uses: actions/create-github-app-token@v3
         with:
           app-id: ${{ secrets.GH_APP_ID }}
           private-key: ${{ secrets.GH_APP_PRIVATE_KEY }}
@@ -261,7 +261,7 @@ jobs:
     steps:
       - name: Generate GitHub App token
         id: mlrun-app-token
-        uses: actions/create-github-app-token@v2
+        uses: actions/create-github-app-token@v3
         with:
           app-id: ${{ secrets.GH_APP_ID }}
           private-key: ${{ secrets.GH_APP_PRIVATE_KEY }}
@@ -294,7 +294,7 @@ jobs:
     steps:
       - name: Generate GitHub App token
         id: mlrun-app-token
-        uses: actions/create-github-app-token@v2
+        uses: actions/create-github-app-token@v3
         with:
           app-id: ${{ secrets.GH_APP_ID }}
           private-key: ${{ secrets.GH_APP_PRIVATE_KEY }}
@@ -341,7 +341,7 @@ jobs:
     steps:
       - name: Generate GitHub App token
         id: mlrun-app-token
-        uses: actions/create-github-app-token@v2
+        uses: actions/create-github-app-token@v3
         with:
           app-id: ${{ secrets.GH_APP_ID }}
           private-key: ${{ secrets.GH_APP_PRIVATE_KEY }}

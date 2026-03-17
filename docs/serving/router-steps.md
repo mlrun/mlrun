@@ -16,7 +16,7 @@ The `*` prefix indicates a router class (not a simple processing step).
 
 ## Router
 ### Description
-{py:class}`~mlrun.serving.RouterStep' implements routing logic for running child routes.
+{py:class}`~mlrun.serving.RouterStep` implements routing logic for running child routes.
 
 ### Use Case
 
@@ -65,10 +65,10 @@ fn = mlrun.code_to_function(
 
 graph = fn.set_topology("flow")
 
-# 1. Preprocessing
+# Preprocessing
 graph.add_step("PreProcess", class_name="PreProcessClass")
 
-# 2. Voting
+# Voting
 models_path = "https://s3.wasabisys.com/iguazio/models/iris/model.pkl"
 path1 = models_path
 path2 = models_path
@@ -81,10 +81,10 @@ router = graph.add_step(
 router.add_route("m1", class_name="ClassifierModel", model_path=path1)
 router.add_route("m2", class_name="ClassifierModel", model_path=path2)
 
-# 3. Postprocess
+# Postprocess
 graph.add_step("PostProcess", class_name="PostProcessClass", after="enricher").respond()
 
-# 4. Local test
+# Local test
 server = fn.to_mock_server()
 result = server.test(body={"user_id": 123, "inputs": [0.1, 0.2, 0.3]})
 print(result)

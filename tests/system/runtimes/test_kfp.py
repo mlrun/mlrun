@@ -175,7 +175,7 @@ class TestKFP(tests.system.base.TestMLRunSystem):
         db = mlrun.get_run_db()
         run = db.get_pipeline(run_id, project=self.project_name)
 
-        assert run["run"].get("error") == "Error (exit code 1)"
+        assert run["run"].get("error") == "main: Error (exit code 1)"
 
     # TODO - uncomment when system tests is bumped to kfp 2.0+ (IGZ 3.7+)
     @pytest.mark.skip(reason="Not supported in kfp<2.0")

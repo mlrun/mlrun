@@ -305,17 +305,7 @@ class _APIHandlerStep(mlrun.serving.states.TaskStep):
 
         # If no query params in path, try event.fields (real Nuclio HTTP events)
         if not query_params:
-            nuclio_fields = None
-            if hasattr(event, "fields") and event.fields:
-                nuclio_fields = event.fields
-            elif (
-                self.context
-                and hasattr(self.context, "current_event")
-                and hasattr(self.context.current_event, "fields")
-                and self.context.current_event.fields
-            ):
-                nuclio_fields = self.context.current_event.fields
-
+            nuclio_fields = getattr(event, "fields", None)
             if nuclio_fields:
                 # Nuclio fields are dict[str, list[str]]
                 # Convert to our format: single value → str, multiple values → list
@@ -339,23 +329,8 @@ class _APIHandlerStep(mlrun.serving.states.TaskStep):
         :return: Original event or RequestContext with extracted parameters
         """
         try:
-            # In MLRun serving framework, the actual event metadata is available in the context
-            # while the event parameter here is typically the body content
-            method = None
-            path = None
-
-            # Check the event object directly
-            if hasattr(event, "method"):
-                method = event.method
-            if hasattr(event, "path"):
-                path = event.path
-
-            # Fallback to context if available
-            if (method is None or path is None) and self.context:
-                if hasattr(self.context, "current_event"):
-                    original_event = self.context.current_event
-                    method = method or getattr(original_event, "method", None)
-                    path = path or getattr(original_event, "path", None)
+            method = getattr(event, "method", None)
+            path = getattr(event, "path", None)
 
             # Validate that we have both method and path
             if method is None:

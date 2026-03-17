@@ -90,6 +90,9 @@ automation/patch_igz/patch[_-]env*.yml
 !automation/patch_igz/patch[_-]env_template.yml
 
 
+# Claude Code configuration files
+.claude/*
+
 # Local playground dir
 playground
 

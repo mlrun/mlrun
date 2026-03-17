@@ -1,5 +1,5 @@
 (models)=
-# Model Artifacts
+# Model artifacts
 You can work with models that are [stored locally](#locally-hosted-models) and [remotely](#remote-models).
 
 **In this section**

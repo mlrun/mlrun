@@ -143,11 +143,12 @@ async def patch_project(
         framework.api.deps.get_db_session
     ),
 ):
-    # skip permission check if it's the leader in iguazio v3 mode
-    if (
-        mlrun.mlconf.is_iguazio_v4_mode()
-        or not framework.utils.helpers.is_request_from_leader(auth_info.projects_role)
-    ):
+    # In IG4 mode, apply fine-grained permission checks
+    # In IG3 mode, skip the check when the request comes from the leader; otherwise fall back to the standard
+    # project-update permission to preserve backward compatibility.
+    if mlrun.mlconf.is_iguazio_v4_mode():
+        await _verify_patch_project_permissions(name, project, auth_info)
+    elif not framework.utils.helpers.is_request_from_leader(auth_info.projects_role):
         await framework.utils.auth.verifier.AuthVerifier().query_project_permissions(
             name,
             mlrun.common.schemas.AuthorizationAction.update,
@@ -558,6 +559,60 @@ async def load_project(
         project=project,
     )
     return {"data": run.to_dict()}
+
+
+async def _verify_patch_project_permissions(
+    project_name: str,
+    project_patch: dict,
+    auth_info: mlrun.common.schemas.AuthInfo,
+):
+    """Apply fine-grained permission checks for project patch requests.
+
+    If the patch modifies spec.owner, verify the caller has management-level owner-update permission
+      (/mgmt/projects/{project}/owner – update).
+    If the patch modifies any other project properties, verify the caller has the regular resource-level
+    project-update permission
+      (/resources/projects/{project} – update).
+    If both kinds of changes are present, both checks must pass.
+    """
+    auth_verifier = framework.utils.auth.verifier.AuthVerifier()
+    modifies_owner = _patch_modifies_owner(project_patch)
+    modifies_other = _patch_modifies_non_owner_fields(project_patch)
+
+    if modifies_owner:
+        await auth_verifier.query_project_resource_permissions(
+            mlrun.common.schemas.AuthorizationResourceTypes.project_owner,
+            project_name,
+            "",
+            mlrun.common.schemas.AuthorizationAction.update,
+            auth_info,
+            resource_namespace=mlrun.common.schemas.AuthorizationResourceNamespace.mgmt,
+        )
+
+    # Run the regular resource-level check when non-owner fields are touched, or as a fallback when the patch doesn't
+    # modify the owner either (e.g. empty body), so that no request bypasses permission verification entirely.
+    if modifies_other or not modifies_owner:
+        await auth_verifier.query_project_permissions(
+            project_name,
+            mlrun.common.schemas.AuthorizationAction.update,
+            auth_info,
+        )
+
+
+def _patch_modifies_owner(project_patch: dict) -> bool:
+    """Check whether the patch dict modifies spec.owner."""
+    return "owner" in project_patch.get("spec", {})
+
+
+def _patch_modifies_non_owner_fields(project_patch: dict) -> bool:
+    """Check whether the patch dict contains fields beyond spec.owner."""
+    # Any top-level key other than "spec" is a non-owner modification.
+    for key in project_patch:
+        if key != "spec":
+            return True
+    # Only "spec" at top level — check whether spec itself contains keys beyond "owner"
+    spec = project_patch.get("spec", {})
+    return any(key != "owner" for key in spec)
 
 
 async def _ensure_project_create_or_update_permissions(

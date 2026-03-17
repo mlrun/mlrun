@@ -1145,7 +1145,7 @@ class RemoteRuntime(KubeResource):
             raise RuntimeError(f"bad function response {resp.status_code}: {resp.text}")
 
         data = resp.content
-        if resp.headers["content-type"] == "application/json":
+        if data and resp.headers["content-type"] == "application/json":
             data = json.loads(data)
         return data
 

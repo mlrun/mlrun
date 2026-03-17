@@ -242,7 +242,8 @@ class TestMLRunSystem:
     @classmethod
     def _get_env_from_file(cls) -> dict:
         with cls.env_file_path.open() as f:
-            return yaml.safe_load(f)
+            env = yaml.safe_load(f)
+        return env if isinstance(env, dict) else {}
 
     @classmethod
     def _setup_env(cls, env: dict):

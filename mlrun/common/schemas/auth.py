@@ -69,6 +69,7 @@ class AuthorizationResourceTypes(mlrun.common.types.StrEnum):
     datastore_profile = "datastore-profile"
     api_gateway = "api-gateway"
     project_summaries = "project-summaries"
+    project_owner = "project-owner"
     tokens = "tokens"
 
     def to_resource_string(
@@ -110,6 +111,7 @@ class AuthorizationResourceTypes(mlrun.common.types.StrEnum):
             # workflow define how to run a pipeline and can be considered as the specification of a pipeline.
             AuthorizationResourceTypes.workflow: "/projects/{project_name}/workflows/{resource_name}",
             AuthorizationResourceTypes.api_gateway: "/projects/{project_name}/api-gateways/{resource_name}",
+            AuthorizationResourceTypes.project_owner: "/projects/{project_name}/owner",
             AuthorizationResourceTypes.tokens: "/user_secrets/tokens",
         }[self].format(project_name=project_name, resource_name=resource_name)
 

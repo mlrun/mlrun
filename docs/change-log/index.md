@@ -417,7 +417,7 @@ To upgrade the MLRun server:
 #### Runtimes
 | ID    | Description                                                                                                                                |
 |-------|--------------------------------------------------------------------------------------------------------------------------------------------|
-|ML-2652| Supports [creating an API gateway using the MLRun SDK](../concepts/nuclio-real-time-functions.ipynb#api-gateway).                          |
+|ML-2652| Supports [creating an API gateway using the MLRun SDK](../concepts/nuclio-real-time-functions.ipynb#create-and-manage-api-gateways-using-the-sdk).                          |
 |ML-4601| New {ref}`application runtime <application>` where you can provide an image (for example, a web-app) that runs as a Kubernetes deployment. |
 
 #### Workflows

@@ -606,6 +606,49 @@ class TestNuclioRuntime(TestMLRunSystemModelMonitoring):
             function.invoke(path="/", body={"counter": -5})
 
     @pytest.mark.parametrize(
+        "max_iter",
+        ["local", "global"],
+    )
+    def test_max_iter_of_cyclic_graph(self, max_iter):
+        """Test max_iterations parameter for cyclic graphs at local and global levels.
+
+        When max_iter is "local", the max_iterations is set on the Route step itself.
+        When max_iter is "global", the max_iterations is set in set_topology().
+        """
+        code_path = str(self.assets_path / "cyclic_function.py")
+        function = mlrun.code_to_function(
+            name=f"cyclic-max-iter-{max_iter}",
+            kind="serving",
+            project=self.project_name,
+            filename=code_path,
+            image=self.image,
+        )
+        graph = function.set_topology(
+            "flow",
+            engine="async",
+            allow_cyclic=True,
+            max_iterations=1 if max_iter == "global" else 10,
+        )
+        graph.to(name="start", class_name="Echo").to(
+            class_name="Counter", name="count"
+        ).to(
+            name="route",
+            class_name="Route",
+            cycle_to="count",
+            max_iterations=1 if max_iter == "local" else None,
+        ).to(name="end", class_name="Echo").respond()
+
+        function.deploy()
+
+        if max_iter == "local":
+            expected_error = r"Max iterations exceeded in step 'route'"
+        else:
+            expected_error = r"Max iterations exceeded in step 'count'"
+
+        with pytest.raises(RuntimeError, match=rf"{expected_error}"):
+            function.invoke(path="/", body={"counter": 1})
+
+    @pytest.mark.parametrize(
         "execution_mechanism",
         ("naive", "thread_pool", "asyncio", "process_pool", "dedicated_process"),
     )
@@ -779,6 +822,16 @@ class TestNuclioRuntime(TestMLRunSystemModelMonitoring):
         assert resp["tool_a"] == 2
         assert resp["tool_b"] == 2
 
+    @staticmethod
+    def check_invocation_time_less_than(function, time_limit: int):
+        start = time.time()
+        function.invoke(path="/", body={"inputs": [[1, 2], [1, 2]]})
+        end = time.time()
+        timing = end - start
+        assert timing < time_limit, (
+            f"running nuclio async mode took {timing} seconds should be < {time_limit}"
+        )
+
     def test_async_http_mode(self):
         code_path = str(self.assets_path / "async_nuclio_func.py")
 
@@ -799,20 +852,19 @@ class TestNuclioRuntime(TestMLRunSystemModelMonitoring):
         function.deploy()
 
         self._logger.debug("Triggering nuclio function")
-        start = time.time()
         with ThreadPoolExecutor(max_workers=100) as executor:
             # Submit tasks
             futures = [
-                executor.submit(function.invoke, path="/", body=[i]) for i in range(100)
+                executor.submit(
+                    self.check_invocation_time_less_than,
+                    function=function,
+                    time_limit=7,
+                )
+                for _ in range(100)
             ]
             # Retrieve results as they complete
             for future in as_completed(futures):
                 future.result()
-        end = time.time()
-        timing = end - start
-        assert timing < 7, (
-            f"running nuclio async mode took {timing} seconds should be < 7"
-        )
 
     @pytest.mark.parametrize("with_code", [True, False])
     def test_async_http_mode_serving_graph(self, with_code):
@@ -868,9 +920,11 @@ class TestNuclioRuntime(TestMLRunSystemModelMonitoring):
             # Submit tasks
             futures = [
                 executor.submit(
-                    async_function.invoke, path="/", body={"inputs": [[1, 2], [1, 2]]}
+                    self.check_invocation_time_less_than,
+                    function=async_function,
+                    time_limit=7,
                 )
-                for i in range(16)
+                for _ in range(16)
             ]
             # Retrieve results as they complete
             for future in as_completed(futures):
@@ -880,6 +934,43 @@ class TestNuclioRuntime(TestMLRunSystemModelMonitoring):
         assert timing < 7, (
             f"running serving async mode took {timing} seconds should be < 7"
         )
+
+    def test_invoke_head_method_does_not_raise(self) -> None:
+        """Regression test for ML-12228.
+
+        HTTP HEAD responses carry no body (RFC 9110 §9.3.2).  Nuclio strips
+        the body but keeps ``Content-Type: application/json``.  Before the fix,
+        ``RemoteRuntime.invoke()`` unconditionally called
+        ``json.loads(resp.content)`` when that header was present, crashing
+        with ``JSONDecodeError`` on the empty body.
+
+        After the fix (guard: ``if data and ...``), invoking with HEAD returns
+        ``b""`` instead of raising.
+        """
+        code_path = str(self.assets_path / "echo_handler.py")
+
+        self._logger.debug("Creating nuclio function")
+        function = mlrun.code_to_function(
+            name="nuclio-head-repro",
+            kind="nuclio",
+            project=self.project_name,
+            filename=code_path,
+            image=self.image,
+            handler="handler",
+        )
+
+        self._logger.debug("Deploying function")
+        function.deploy()
+
+        # POST: body present, JSON parsed normally.
+        self._logger.debug("Invoking POST – should return parsed JSON")
+        result = function.invoke("/", body={"data": "hello"})
+        assert result == {"echo": {"data": "hello"}}
+
+        # HEAD: body stripped by HTTP; invoke() must return b"" without raising.
+        self._logger.debug("Invoking HEAD – must not raise")
+        result = function.invoke("/", method="HEAD")
+        assert result == b""
 
 
 @tests.system.base.TestMLRunSystem.skip_test_if_env_not_configured
@@ -1428,7 +1519,6 @@ class TestNuclioAPIGateways(tests.system.base.TestMLRunSystem):
             filename=filename,
             name=f"nuclio-mlrun-{suffix}",
             kind="nuclio",
-            image="python:3.9",
             handler="handler",
         )
         fn.spec.replicas = replicas

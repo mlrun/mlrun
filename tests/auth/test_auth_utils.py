@@ -292,7 +292,7 @@ def test_load_secret_tokens_from_file_invalid(tmp_path, content, monkeypatch):
                     token=_create_jwt_token({"sub": "user-123", "exp": 9999999999}),
                 ),
             ],
-            mlrun.errors.MLRunInvalidArgumentError,
+            mlrun.errors.MLRunRuntimeError,
         ),
         # Duplicate token names
         (
@@ -306,7 +306,7 @@ def test_load_secret_tokens_from_file_invalid(tmp_path, content, monkeypatch):
                     token=_create_jwt_token({"sub": "user-123", "exp": 9999999999}),
                 ),
             ],
-            mlrun.errors.MLRunInvalidArgumentError,
+            mlrun.errors.MLRunRuntimeError,
         ),
         # Invalid JWT token (not a valid JWT)
         (
@@ -393,7 +393,7 @@ def _write_file(tmp_path, name: str, content) -> str:
 
 
 @pytest.mark.parametrize(
-    "token_1, token_2, should_raise, expected_err_msg, expected_token_1, expected_token_2, authenticated_id",
+    "token_1, token_2, expected_error_class, expected_err_msg, expected_token_1, expected_token_2, authenticated_id",
     [
         # Valid tokens with different names
         (
@@ -407,7 +407,7 @@ def _write_file(tmp_path, name: str, content) -> str:
                 "token_payload": {"sub": "user-123", "exp": 9999999999},
                 "add_defaults": True,
             },
-            False,
+            None,
             None,
             {"sub": "user-123", "exp": 9999999999},
             {"sub": "user-123", "exp": 9999999999},
@@ -425,7 +425,7 @@ def _write_file(tmp_path, name: str, content) -> str:
                 "token_payload": {"sub": "user-123", "exp": 9999999999},
                 "add_defaults": True,
             },
-            True,
+            mlrun.errors.MLRunInvalidArgumentError,
             "Offline token 'token1' is missing the 'exp' (expiration) claim",
             None,
             None,
@@ -443,7 +443,7 @@ def _write_file(tmp_path, name: str, content) -> str:
                 "token_payload": {"sub": "user-123", "exp": 9999999999},
                 "add_defaults": True,
             },
-            True,
+            mlrun.errors.MLRunInvalidArgumentError,
             "Offline token 'token1' is missing the 'sub' (subject) claim",
             None,
             None,
@@ -461,7 +461,7 @@ def _write_file(tmp_path, name: str, content) -> str:
                 "token_payload": {"sub": "different-user", "exp": 9999999999},
                 "add_defaults": True,
             },
-            True,
+            mlrun.errors.MLRunInvalidArgumentError,
             "Offline token 'token1' does not match the authenticated user ID. Stored tokens can only belong to the"
             " authenticated user.",
             None,
@@ -480,8 +480,8 @@ def _write_file(tmp_path, name: str, content) -> str:
                 "token_payload": {"sub": "user-123", "exp": 9999999999},
                 "add_defaults": True,
             },
-            True,
-            "Invalid or duplicate token name 'token1' found in request payload",
+            mlrun.errors.MLRunRuntimeError,
+            "Duplicate token name 'token1' found in request payload, only first occurrence is synced to the backend.",
             None,
             None,
             "user-123",
@@ -498,8 +498,8 @@ def _write_file(tmp_path, name: str, content) -> str:
                 "token_payload": {"sub": "user-123", "exp": 9999999999},
                 "add_defaults": True,
             },
-            True,
-            "Invalid or duplicate token name '' found in request payload",
+            mlrun.errors.MLRunRuntimeError,
+            "Token with invalid name found in request payload",
             None,
             None,
             "user-123",
@@ -509,7 +509,7 @@ def _write_file(tmp_path, name: str, content) -> str:
 def test_extract_and_validate_tokens_info(
     token_1,
     token_2,
-    should_raise,
+    expected_error_class,
     expected_err_msg,
     expected_token_1,
     expected_token_2,
@@ -530,10 +530,8 @@ def test_extract_and_validate_tokens_info(
         ),
     ]
 
-    if should_raise:
-        with pytest.raises(
-            mlrun.errors.MLRunInvalidArgumentError, match=re.escape(expected_err_msg)
-        ):
+    if expected_error_class:
+        with pytest.raises(expected_error_class, match=re.escape(expected_err_msg)):
             mlrun.auth.utils.extract_and_validate_tokens_info(
                 secret_tokens, authenticated_id
             )
@@ -671,3 +669,176 @@ def test_resolve_jwt_username_invalid_token():
         "not-a-valid-jwt", raise_on_error=False
     )
     assert result is None
+
+
+@pytest.mark.parametrize(
+    "secret_tokens_factory, authenticated_id, skip_invalid, expected_valid_names, should_raise",
+    [
+        # skip_invalid=True: invalid JWT token is skipped, valid one is kept
+        (
+            lambda: [
+                mlrun.common.schemas.SecretToken(
+                    name="valid_token",
+                    token=_create_jwt_token({"sub": "user-123", "exp": 9999999999}),
+                ),
+                mlrun.common.schemas.SecretToken(
+                    name="invalid_token",
+                    token="not-a-valid-jwt",
+                ),
+            ],
+            "user-123",
+            True,
+            ["valid_token"],
+            False,
+        ),
+        # skip_invalid=True: invalid token first, valid token second — valid one still kept
+        (
+            lambda: [
+                mlrun.common.schemas.SecretToken(
+                    name="bad_token",
+                    token="corrupted-jwt-data",
+                ),
+                mlrun.common.schemas.SecretToken(
+                    name="good_token",
+                    token=_create_jwt_token({"sub": "user-123", "exp": 9999999999}),
+                ),
+            ],
+            "user-123",
+            True,
+            ["good_token"],
+            False,
+        ),
+        # skip_invalid=True: token missing 'exp' claim is skipped
+        (
+            lambda: [
+                mlrun.common.schemas.SecretToken(
+                    name="no_exp",
+                    token=_create_jwt_token({"sub": "user-123"}, add_defaults=False),
+                ),
+                mlrun.common.schemas.SecretToken(
+                    name="good_token",
+                    token=_create_jwt_token({"sub": "user-123", "exp": 9999999999}),
+                ),
+            ],
+            "user-123",
+            True,
+            ["good_token"],
+            False,
+        ),
+        # skip_invalid=True: token missing 'sub' claim is skipped
+        (
+            lambda: [
+                mlrun.common.schemas.SecretToken(
+                    name="no_sub",
+                    token=_create_jwt_token({"exp": 9999999999}, add_defaults=False),
+                ),
+                mlrun.common.schemas.SecretToken(
+                    name="good_token",
+                    token=_create_jwt_token({"sub": "user-123", "exp": 9999999999}),
+                ),
+            ],
+            "user-123",
+            True,
+            ["good_token"],
+            False,
+        ),
+        # skip_invalid=True: all tokens invalid — returns empty dict
+        (
+            lambda: [
+                mlrun.common.schemas.SecretToken(
+                    name="bad1",
+                    token="not-a-jwt",
+                ),
+                mlrun.common.schemas.SecretToken(
+                    name="bad2",
+                    token="also-not-a-jwt",
+                ),
+            ],
+            "user-123",
+            True,
+            [],
+            False,
+        ),
+        # skip_invalid=True: wrong user token is skipped (with filter_by_authenticated_id
+        # handled separately, this tests the user mismatch raise path)
+        (
+            lambda: [
+                mlrun.common.schemas.SecretToken(
+                    name="wrong_user",
+                    token=_create_jwt_token({"sub": "other-user", "exp": 9999999999}),
+                ),
+                mlrun.common.schemas.SecretToken(
+                    name="good_token",
+                    token=_create_jwt_token({"sub": "user-123", "exp": 9999999999}),
+                ),
+            ],
+            "user-123",
+            True,
+            ["good_token"],
+            False,
+        ),
+        # skip_invalid=False (default): invalid JWT raises immediately
+        (
+            lambda: [
+                mlrun.common.schemas.SecretToken(
+                    name="valid_token",
+                    token=_create_jwt_token({"sub": "user-123", "exp": 9999999999}),
+                ),
+                mlrun.common.schemas.SecretToken(
+                    name="invalid_token",
+                    token="not-a-valid-jwt",
+                ),
+            ],
+            "user-123",
+            False,
+            None,
+            True,
+        ),
+    ],
+)
+def test_extract_and_validate_tokens_info_skip_invalid(
+    secret_tokens_factory,
+    authenticated_id,
+    skip_invalid,
+    expected_valid_names,
+    should_raise,
+):
+    """Test that skip_invalid=True skips bad tokens instead of raising."""
+    secret_tokens = secret_tokens_factory()
+
+    if should_raise:
+        with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
+            mlrun.auth.utils.extract_and_validate_tokens_info(
+                secret_tokens,
+                authenticated_id=authenticated_id,
+                skip_invalid=skip_invalid,
+            )
+    else:
+        result = mlrun.auth.utils.extract_and_validate_tokens_info(
+            secret_tokens,
+            authenticated_id=authenticated_id,
+            skip_invalid=skip_invalid,
+        )
+        assert list(result.keys()) == expected_valid_names
+
+
+def test_load_and_prepare_secret_tokens_skips_invalid(tmp_path, monkeypatch):
+    """Test that load_and_prepare_secret_tokens with raise_on_error=False skips
+    invalid tokens and still returns the valid ones (simulates the import mlrun flow)."""
+    valid_jwt = _create_jwt_token({"sub": "user-123", "exp": 9999999999})
+    tokens = [
+        {"name": "good_token", "token": valid_jwt},
+        {"name": "bad_token", "token": "corrupted-jwt-data"},
+    ]
+
+    content = {"secretTokens": tokens}
+    path = _write_file(tmp_path, "tokens.yml", content)
+    monkeypatch.setattr(config.auth_with_oauth_token, "token_file", path)
+
+    secret_tokens = mlrun.auth.utils.load_and_prepare_secret_tokens(
+        auth_user_id="user-123",
+        raise_on_error=False,
+    )
+    assert len(secret_tokens) == 1
+    assert secret_tokens[0].name == "good_token"
+    assert secret_tokens[0].token == valid_jwt

@@ -755,9 +755,7 @@ def test_store_secret_tokens_duplicate_names():
         ),
     ]
 
-    with pytest.raises(
-        mlrun.errors.MLRunInvalidArgumentError, match="Invalid or duplicate token name"
-    ):
+    with pytest.raises(mlrun.errors.MLRunRuntimeError, match="Duplicate token name"):
         services.api.crud.Secrets().store_secret_tokens(
             secret_tokens,
             mlrun.common.schemas.AuthInfo(

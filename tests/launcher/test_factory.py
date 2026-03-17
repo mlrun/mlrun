@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import typing
+import warnings
 
 import pytest
 
@@ -59,9 +60,24 @@ def test_create_client_launcher(
         mlrun.launcher.local.ClientLocalLauncher,
     ],
 ):
-    launcher = mlrun.launcher.factory.LauncherFactory().create_launcher(
-        is_remote, local=local
+
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        launcher = mlrun.launcher.factory.LauncherFactory().create_launcher(
+            is_remote, local=local
+        )
+
+    unexpected = [
+        w
+        for w in caught
+        if issubclass(w.category, UserWarning)
+        and "Unexpected run keyword argument" in str(w.message)
+    ]
+    assert not unexpected, (
+        f"Spurious warning(s) for is_remote={is_remote}, local={local}: "
+        f"{[str(w.message) for w in unexpected]}"
     )
+
     assert type(launcher) is expected_instance
 
     if local:

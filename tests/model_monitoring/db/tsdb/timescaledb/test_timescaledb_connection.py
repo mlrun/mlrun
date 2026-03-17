@@ -285,9 +285,14 @@ class TestTimescaleDBConnectionPoolTimeout:
         mlrun.config.config.model_endpoint_monitoring.tsdb.connection_pool_timeout = 90
 
         try:
-            with patch(
-                "mlrun.model_monitoring.db.tsdb.timescaledb.timescaledb_connection.ConnectionPool"
-            ) as mock_pool_class:
+            with (
+                patch(
+                    "mlrun.model_monitoring.db.tsdb.timescaledb.timescaledb_connection.ConnectionPool"
+                ) as mock_pool_class,
+                patch(
+                    "mlrun.model_monitoring.db.tsdb.timescaledb.timescaledb_connection.psycopg.connect"
+                ),
+            ):
                 conn = TimescaleDBConnection(
                     dsn="postgres://test:test@localhost:5432/test",
                     max_connections=5,
@@ -309,3 +314,26 @@ class TestTimescaleDBConnectionPoolTimeout:
             mlrun.config.config.model_endpoint_monitoring.tsdb.connection_pool_timeout
         )
         assert default_timeout == 120
+
+    def test_bad_credentials_fail_fast(self, connection_string):
+        """run() with bad credentials fails in seconds, not 120s (ML-12229).
+
+        We derive the bad DSN from connection_string rather than hardcoding one
+        because the host must be *reachable*.  A bogus host (e.g. 127.0.0.1:15432)
+        fails instantly on TCP connect-refused, which doesn't reproduce the real
+        bug: the pool retrying bad credentials against a live server for 120s.
+        """
+        import time
+        from urllib.parse import urlparse, urlunparse
+
+        parsed = urlparse(connection_string)
+        bad_dsn = urlunparse(
+            parsed._replace(netloc=f"baduser:badpass@{parsed.hostname}:{parsed.port}")
+        )
+        conn = TimescaleDBConnection(dsn=bad_dsn)
+        start = time.monotonic()
+        with pytest.raises(mlrun.errors.MLRunRuntimeError, match="Failed to connect"):
+            conn.run(query="SELECT 1")
+        elapsed = time.monotonic() - start
+        assert elapsed < 15, f"Bad credentials took {elapsed:.1f}s, expected <15s"
+        assert conn._pool is None

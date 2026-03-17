@@ -55,7 +55,7 @@ jobs:
         cache: pip
     - name: Install dependencies
       run: |
-        python -m pip install --upgrade pip~=25.0
+        python -m pip install --upgrade pip~=26.0
         pip install -r dev-requirements.txt
     - name: Lint
       run: make lint
@@ -257,14 +257,15 @@ jobs:
       with:
         python-version: ${{ matrix.python-version }}
 
-    - uses: astral-sh/setup-uv@5a095e7a2014a4212f075830d4f7277575a9d098 # 7.3.1
+    - uses: astral-sh/setup-uv@e06108dd0aef18192324c70427afc47652e63a82 # 7.5.0
       with:
           python-version: ${{ matrix.python-version }}
           enable-cache: true
+          cache-dependency-glob: "**/*requirements*.txt"
 
     - name: Install automation scripts dependencies and add mlrun to dev packages
       run: |
-        uv venv venv --seed
+        uv venv venv --seed --clear
         source venv/bin/activate
         make install-automation-requirements
         uv pip install -e .

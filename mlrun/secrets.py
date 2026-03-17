@@ -280,8 +280,17 @@ def sync_secret_tokens() -> None:
     from mlrun.db import get_run_db
 
     secret_tokens = mlrun.auth.utils.load_and_prepare_secret_tokens(
-        auth_user_id=get_run_db().token_provider.authenticated_user_id
+        auth_user_id=get_run_db().token_provider.authenticated_user_id,
+        raise_on_error=False,
     )
+
+    if not secret_tokens:
+        raise mlrun.errors.MLRunRuntimeError(
+            "Authentication succeeded, but tokens were not synced to the backend "
+            "since no valid tokens were found after validation. "
+            "Check your token file for malformed, expired, or mismatched tokens: "
+            f"{mlrun.mlconf.auth_with_oauth_token.token_file}"
+        )
 
     # The log_warning=False flag ensures the SDK doesn't log
     # unnecessary warnings about local file updates, since

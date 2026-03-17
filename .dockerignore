@@ -68,3 +68,4 @@ kubeconfig*
 # AI markdown files
 CLAUDE.md
 AGENTS.md
+.claude

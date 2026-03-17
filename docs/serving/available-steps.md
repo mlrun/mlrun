@@ -70,7 +70,6 @@ The value of the configured field can be either:
 
 ## Event operation steps 
 
-- [DataItem](#dataitem)
 - [Extend](#extend)
 - [FlatMap](#flatmap)
 - [Flatten](#flatten)
@@ -82,11 +81,6 @@ The value of the configured field can be either:
 - [Reduce](#storey-reduce)
 - [SendToHttp](#sendtohttp)
 - [ReduceToDataFrame](#reducetodataframe)
-
-### DataItem
-- Description: Data input/output class abstracting access to various local/remote data sources. See {py:class}`~mlrun.datastore.DataItem`.
-- Use case:
-- Example:
 
 ### Extend
 - Description: Adds fields to each incoming event. See {py:class}`~storey.transformations.Extend`.
@@ -200,13 +194,8 @@ The value of the configured field can be either:
 
 - [VotingEnsemble](#votingensemble)
 - [QueryByKey](#querybykey)
-- [RemoteStep](#remotestep)
-- [RemoteFunctionStep](#remotefunctionstep)
-- [ONNXModelServer](#onnxmodelserver)
-- [PyTorchModelServer](#pytorchmodelserver)
-- [SKLearnModelServer](#sklearnmodelserver)
-- [TFKerasModelServer](#tfkerasmodelserver)
-- [XGBModelServer](#xgbmodelserver)
+
+
     
 ### VotingEnsemble
 - Description: An ensemble machine learning model that combines the prediction of several models. See {py:class}`~mlrun.serving.routers.VotingEnsemble`.
@@ -218,51 +207,3 @@ The value of the configured field can be either:
 - Use Case: 
 - Example:
 
-### RemoteStep
-- Description: Calls remote endpoints. See {py:class}`~mlrun.serving.remote.RemoteStep`.
-- Use Case: 
-- Example:
- 
-### RemoteFunctionStep
-- Description: Calls remote functions. See {py:class}`~mlrun.serving.remote.RemoteFunctionStep`.
-- Use Case: Use this step when you want to invoke an **existing function deployed in MLRun** as part of a serving graph without manually specifying its HTTP endpoint.<br>
-The step accepts a function name or URI, retrieves the function object from MLRun, and automatically resolves the function’s invocation URL.<br> This simplifies integration between serving graphs and previously deployed functions, especially when the endpoint address may change between environments.<br>
-The remote function may belong to a different project. The function must expose an **HTTP trigger**.<br>
-When the step executes, the incoming event is forwarded to the remote function via its resolved HTTP endpoint. The remote function response is forwarded to the next step in the graph.
-- Example: 
-    ```
-    # Reference an existing Nuclio function
-    step = RemoteFunctionStep(fn="my-nuclio-function", project_name="my-project")
-
-    # Create a serving function
-    serving_fn = mlrun.new_function(name="serving-graph", kind="serving")
-
-    # Build the serving graph
-    graph = serving_fn.set_topology("flow")
-    graph.to(step).respond()
-    ```
-
-### ONNXModelServer
-- Description: A model serving class for serving ONYX Models. A sub-class of the  V2ModelServer class. See {py:class}`~mlrun.frameworks.onnx.ONNXModelServer`.
-- Use Case: 
-- Example:
-
-### PyTorchModelServer
-- Description: A model serving class for serving PyTorch Models. A sub-class of the  V2ModelServer class. See {py:class}`~mlrun.frameworks.pytorch.PyTorchModelServer`.
-- Use Case: 
-- Example:
-
-### SKLearnModelServer
-- Description: A model serving class for serving Sklearn Models. A sub-class of the V2ModelServer class. See {py:class}`~mlrun.frameworks.sklearn.SKLearnModelServer`.
-- Use Case: 
-- Example:
-
-### TFKerasModelServer 
-- Description: A model serving class for serving TFKeras Models. A sub-class of the V2ModelServer class. See {py:class}`~mlrun.frameworks.tf_keras.TFKerasModelServer`.
-- Use Case: 
-- Example:
-
-### XGBModelServer
-- Description: See {py:class}`~mlrun.frameworks.xgboost.XGBModelServer`.
-- Use Case: 
-- Example:

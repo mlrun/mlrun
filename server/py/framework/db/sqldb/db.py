@@ -96,6 +96,7 @@ import framework.constants
 import framework.db.session
 import framework.db.sqldb.base
 import framework.utils.helpers
+import framework.utils.project_formats
 from framework.db.base import DBInterface
 from framework.db.sqldb.helpers import (
     MemoizationCache,
@@ -3472,17 +3473,29 @@ class SQLDB(DBInterface):
         self,
         session: Session,
         owner: str | None = None,
-        format_: mlrun.common.formatters.ProjectFormat = mlrun.common.formatters.ProjectFormat.full,
+        format_: framework.utils.project_formats.ProjectFormatType = mlrun.common.formatters.ProjectFormat.full,
         labels: list[str] | None = None,
         state: mlrun.common.schemas.ProjectState = None,
         names: list[str] | None = None,
     ) -> mlrun.common.schemas.ProjectsOutput:
-        query = self._query(session, Project, owner=owner, state=state)
 
-        # if format is name_only, we don't need to query the full project object, we can just query the name
-        # and return it as a list of strings
-        if format_ == mlrun.common.formatters.ProjectFormat.name_only:
-            query = self._query(session, Project.name, owner=owner, state=state)
+        # if format is a custom selection, query only the requested columns
+        # bypassing the full ORM model load and pickle deserialization
+        if isinstance(
+            format_, framework.utils.project_formats.ProjectFormatCustomSelection
+        ):
+            columns_to_load = [getattr(Project, c) for c in format_.columns]
+            query = session.query(*columns_to_load)
+            if owner:
+                query = query.filter(Project.owner == owner)
+            if state:
+                query = query.filter(Project.state == state)
+        else:
+            # name_only queries just the name column, everything else queries the full ORM model
+            query_class = Project
+            if format_ == mlrun.common.formatters.ProjectFormat.name_only:
+                query_class = Project.name
+            query = self._query(session, query_class, owner=owner, state=state)
 
         # attach filters to the query
         if labels:
@@ -3498,6 +3511,18 @@ class SQLDB(DBInterface):
             if format_ == mlrun.common.formatters.ProjectFormat.name_only:
                 # can't use formatter as we haven't queried the entire object anyway
                 projects.append(project_record.name)
+            elif isinstance(
+                format_, framework.utils.project_formats.ProjectFormatCustomSelection
+            ):
+                # Build a minimal Project schema from the raw column values
+                # without going through pickle deserialization
+                row = (
+                    project_record._mapping
+                    if hasattr(project_record, "_mapping")
+                    else project_record
+                )
+                project_dict = {c: getattr(row, c, None) for c in format_.columns}
+                projects.append(format_.build(project_dict))
             else:
                 projects.append(
                     mlrun.common.formatters.ProjectFormat.format_obj(

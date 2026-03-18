@@ -144,7 +144,7 @@ default_config = {
         },
         "projects": {
             "summaries": {
-                "cache_interval": "30",
+                "cache_interval": "60",
             },
         },
     },
@@ -542,7 +542,7 @@ default_config = {
             "nuclio_project_deletion_verification_interval": "5 seconds",
             "summaries": {
                 # Number of days back to include when calculating the project pipeline summary.
-                "list_pipelines_time_period_in_days": 7,
+                "list_pipelines_time_period_in_days": 2,
             },
             "resource_deletion_batch_size": 10000,
         },

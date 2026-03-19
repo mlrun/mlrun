@@ -31,6 +31,7 @@ import kubernetes as k8s
 import orjson
 import yaml
 
+import mlrun.common.schemas
 import mlrun_pipelines.common.client
 import mlrun_pipelines.common.models
 import mlrun_pipelines.models
@@ -470,6 +471,7 @@ class Client(
             )
             candidate_experiments = self._get_candidate_experiments_for_projects(
                 project_names=project_names,
+                page_size=page_size,
             )
             candidate_experiment_ids = [
                 experiment.id for experiment in candidate_experiments
@@ -719,18 +721,23 @@ class Client(
             raise error
 
     def _get_candidate_experiments_for_projects(
-        self,
-        project_names: typing.Union[list[str], str],
+        self, project_names: typing.Union[list[str], str], page_size: int
     ) -> list[kfp_server_api.ApiExperiment]:
         """
-        Retrieve an experiment by project name.
-        This method searches for an experiment whose name matches the project name,
-        allowing for a dash-prefixed match (e.g., "myproject-").
+        Retrieve candidate experiments by project name with pagination.
+
+        This method searches for experiments whose name matches the project name
+        (substring filter), then filters to those starting with the project name.
+        Handles KFP API pagination to ensure all matching experiments are found.
+
         :param project_names: The names of the projects to search for.
+        :param page_size: The number of experiments to return per page.
         :return: A list of ApiExperiment objects representing the found experiments.
-        :raises ValueError: If no experiment is found with the specified project name.
         """
         matching_experiments = []
+        page_size = (
+            page_size or mlrun.common.schemas.PipelinesPagination.default_page_size
+        )
 
         for project_name in project_names:
             filter_json = orjson.dumps(
@@ -745,13 +752,21 @@ class Client(
                 }
             ).decode()
 
-            experiments = (
-                self._experiment_api.list_experiment(filter=filter_json).experiments
-                or []
-            )
-            for experiment in experiments:
-                if experiment.name.startswith(project_name):
-                    matching_experiments.append(experiment)
+            current_page_token = None
+
+            while current_page_token is not False:
+                response = self._experiment_api.list_experiment(
+                    filter=filter_json,
+                    page_token=current_page_token,
+                    page_size=page_size,
+                )
+                experiments = response.experiments or []
+                matching_experiments.extend(
+                    exp for exp in experiments if exp.name.startswith(project_name)
+                )
+
+                current_page_token = response.next_page_token or False
+
         return matching_experiments
 
     def _create_job_config(

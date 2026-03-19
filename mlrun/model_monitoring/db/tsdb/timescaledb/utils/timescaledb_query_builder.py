@@ -163,6 +163,9 @@ class TimescaleDBQueryBuilder:
         """
         Combine multiple filter conditions with AND operator.
 
+        Each filter is wrapped in parentheses to ensure correct SQL operator
+        precedence when individual filters contain OR expressions.
+
         :param filters: List of filter condition strings
         :return: Combined filter string or None if no filters
         """
@@ -170,7 +173,7 @@ class TimescaleDBQueryBuilder:
             return (
                 valid_filters[0]
                 if len(valid_filters) == 1
-                else " AND ".join(valid_filters)
+                else " AND ".join(f"({f})" for f in valid_filters)
             )
         else:
             return None

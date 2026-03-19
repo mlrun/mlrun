@@ -70,6 +70,7 @@ The value of the configured field can be either:
 
 ## Event operation steps 
 
+- [Collector](#collector)
 - [Extend](#extend)
 - [FlatMap](#flatmap)
 - [Flatten](#flatten)
@@ -81,6 +82,10 @@ The value of the configured field can be either:
 - [Reduce](#storey-reduce)
 - [SendToHttp](#sendtohttp)
 - [ReduceToDataFrame](#reducetodataframe)
+
+### Collector
+- Description: Collects streaming chunks and emits a single event once all chunks for a stream are received. (It acts as a no-op passthrough for non-streaming events.) See [HTTP streaming step](../serving/model-serving-steps.html#http-streaming-step) and {py:class}`~storey.transformations.Collector`.
+
 
 ### Extend
 - Description: Adds fields to each incoming event. See {py:class}`~storey.transformations.Extend`.

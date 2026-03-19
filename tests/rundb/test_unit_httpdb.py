@@ -362,3 +362,53 @@ def test_restricted_methods_in_wrong_mode(monkeypatch, method_name):
     assert "This method is only supported in an Iguazio V4 system" in str(
         exc_info.value
     )
+
+
+@pytest.mark.parametrize(
+    "server_image_by_kind,expected_image_by_kind",
+    [
+        # Server provides custom images for a subset of kinds
+        (
+            {"job": "custom/job-image", "serving": "custom/serving-image"},
+            {"job": "custom/job-image", "serving": "custom/serving-image", "nuclio": "mlrun/mlrun"},
+        ),
+        # Server provides custom images for all kinds
+        (
+            {
+                "job": "custom/job-image",
+                "serving": "custom/serving-image",
+                "nuclio": "custom/nuclio-image",
+            },
+            {
+                "job": "custom/job-image",
+                "serving": "custom/serving-image",
+                "nuclio": "custom/nuclio-image",
+            },
+        ),
+        # Server does not override (returns None)
+        (
+            None,
+            {"job": "mlrun/mlrun", "serving": "mlrun/mlrun", "nuclio": "mlrun/mlrun"},
+        ),
+    ],
+)
+def test_client_spec_default_image_by_kind_enrichment(
+    requests_mock,
+    server_image_by_kind,
+    expected_image_by_kind,
+):
+    mlrun.mlconf.function_defaults.image_by_kind = {
+        "job": "mlrun/mlrun",
+        "serving": "mlrun/mlrun",
+        "nuclio": "mlrun/mlrun",
+    }
+
+    requests_mock.get(
+        "https://fake-url/api/v1/client-spec",
+        json={"version": "v1.1.0", "default_image_by_kind": server_image_by_kind},
+    )
+
+    db = mlrun.db.httpdb.HTTPRunDB("https://fake-url")
+    db.connect()
+
+    assert mlrun.mlconf.function_defaults.image_by_kind.to_dict() == expected_image_by_kind

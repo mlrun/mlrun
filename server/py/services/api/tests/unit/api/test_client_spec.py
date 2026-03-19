@@ -307,3 +307,46 @@ def test_client_spec_does_not_include_oauth_config_when_not_iguazio_v4_mode(
 
     assert response_body.get("oauth_external_token_endpoint") is None
     assert response_body.get("oauth_internal_token_endpoint") is None
+
+
+def test_client_spec_includes_default_image_by_kind_when_configured(
+    db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
+) -> None:
+    # Set custom image_by_kind values (different from defaults)
+    custom_job_image = "custom/job-image"
+    custom_serving_image = "custom/serving-image"
+    mlrun.mlconf.function_defaults.image_by_kind = {
+        "job": custom_job_image,
+        "serving": custom_serving_image,
+        "nuclio": "mlrun/mlrun",  # keep default
+    }
+    services.api.api.endpoints.client_spec.get_cached_client_spec.cache_clear()
+
+    response = client.get("client-spec")
+    assert response.status_code == http.HTTPStatus.OK.value
+    response_body = response.json()
+
+    # Should include the custom values
+    assert response_body["default_image_by_kind"] is not None
+    assert response_body["default_image_by_kind"]["job"] == custom_job_image
+    assert response_body["default_image_by_kind"]["serving"] == custom_serving_image
+    assert response_body["default_image_by_kind"]["nuclio"] == "mlrun/mlrun"
+
+
+def test_client_spec_excludes_default_image_by_kind_when_default(
+    db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
+) -> None:
+    # Set image_by_kind to default values
+    mlrun.mlconf.function_defaults.image_by_kind = {
+        "job": "mlrun/mlrun",
+        "serving": "mlrun/mlrun",
+        "nuclio": "mlrun/mlrun",
+    }
+    services.api.api.endpoints.client_spec.get_cached_client_spec.cache_clear()
+
+    response = client.get("client-spec")
+    assert response.status_code == http.HTTPStatus.OK.value
+    response_body = response.json()
+
+    # Should be None when values match defaults
+    assert response_body["default_image_by_kind"] is None

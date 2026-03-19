@@ -141,6 +141,9 @@ class ClientSpec(
             ),
             oauth_internal_token_endpoint=oauth_internal_token_endpoint,
             oauth_external_token_endpoint=oauth_external_token_endpoint,
+            default_image_by_kind=self._get_config_value_if_not_default(
+                "function_defaults.image_by_kind"
+            ),
         )
 
     @staticmethod

@@ -215,6 +215,10 @@ def test_apply_and_create_kafka_source(
     assert (
         fn.spec.base_spec.get("metadata", {}).get("annotations") == nuclio_annotations
     ), "The set annotations are different than expected"
+    assert fn.spec.custom_scaling_metric_specs[0]["resource"]["target"] == {
+        "type": "AverageValue",
+        "averageValue": "400m",
+    }
 
 
 @patch("mlrun.datastore.sources.KafkaSource.create_topics")
@@ -318,3 +322,34 @@ def test_kafka_existing_non_stream_topic_skips_migration(
     )
 
     migrate_offsets_mock.assert_not_called()
+
+
+@patch("mlrun.datastore.sources.KafkaSource.create_topics")
+def test_kafka_source_no_hpa_target_when_not_configured(
+    create_topics_mock: Mock,
+    monitoring_deployment: mm_dep.MonitoringDeployment,
+) -> None:
+    """ML-11991: When target_cpu is empty, custom_scaling_metric_specs
+    should remain at its default (empty list)."""
+    kafka_profile = DatastoreProfileKafkaStream(
+        name="test-kafka-profile",
+        brokers=["localhost:9092"],
+        topics=[],
+    )
+
+    fn = mlrun.runtimes.ServingRuntime()
+    stream_args = mlrun.mlconf.model_endpoint_monitoring.serving_stream
+    original_target_cpu = stream_args.kafka.target_cpu
+    try:
+        stream_args.kafka.target_cpu = ""
+        monitoring_deployment._apply_and_create_kafka_source(
+            kafka_profile=kafka_profile,
+            function=fn,
+            function_name="model-monitoring-stream",
+            stream_args=stream_args,
+            ignore_stream_already_exists_failure=True,
+        )
+    finally:
+        stream_args.kafka.target_cpu = original_target_cpu
+
+    assert fn.spec.custom_scaling_metric_specs == []

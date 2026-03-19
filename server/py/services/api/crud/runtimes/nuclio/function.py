@@ -641,6 +641,12 @@ def _set_misc_specs(function, nuclio_spec):
             "spec.disableDefaultHTTPTrigger", function.spec.disable_default_http_trigger
         )
 
+    if function.spec.custom_scaling_metric_specs:
+        nuclio_spec.set_config(
+            "spec.customScalingMetricSpecs",
+            function.spec.custom_scaling_metric_specs,
+        )
+
     # Nuclio supports spec.envFrom (mount all keys from secrets/configmaps)
     if function.spec.env_from:
         nuclio_spec.set_config(

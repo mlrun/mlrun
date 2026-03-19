@@ -386,6 +386,7 @@ class ServingSpec(nuclio_function.NuclioSpec):
         add_templated_ingress_host_mode=None,
         state_thresholds=None,
         disable_default_http_trigger=None,
+        custom_scaling_metric_specs=None,
         model_endpoint_creation_task_name=None,
         serving_spec=None,
         auth=None,
@@ -433,6 +434,7 @@ class ServingSpec(nuclio_function.NuclioSpec):
             service_type=service_type,
             add_templated_ingress_host_mode=add_templated_ingress_host_mode,
             disable_default_http_trigger=disable_default_http_trigger,
+            custom_scaling_metric_specs=custom_scaling_metric_specs,
             serving_spec=serving_spec,
             auth=auth,
         )

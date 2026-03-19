@@ -121,7 +121,7 @@ Your applications are now available in your local browser:
 - Nuclio - `http://<host-machine-address>:30050`
 - MLRun UI - `http://<host-machine-address>:30060`
 - MLRun API (external) - `http://<host-machine-address>:30070`
-- Seaweed API - `http://<host-machine-address>:`
+- Seaweed API - `http://<host-machine-address>:30094`
 - Seaweed UI - `http://<host-machine-address>:23646`
 - Pipeline UI - `http://<host-machine-address>:30100`
 - Grafana UI - `http://<host-machine-address>:30110`

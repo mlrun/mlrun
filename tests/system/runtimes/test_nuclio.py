@@ -673,14 +673,15 @@ class TestNuclioRuntime(TestMLRunSystemModelMonitoring):
         # Both branches merge into a single responder
         graph = function.set_topology("flow", engine="async")
         model_runner_step = ModelRunnerStep(name="model_runner")
+        num_chunks = 3
         model_runner_step.add_model(
             model_class="StreamingModel",
             execution_mechanism=execution_mechanism,
             endpoint_name="streaming_model",
-            num_chunks=3,
+            num_chunks=num_chunks,
         )
         choice = graph.to(name="choice", class_name="StreamingChoice")
-        choice.to(name="step", class_name="StreamingStep", num_chunks=3)
+        choice.to(name="step", class_name="StreamingStep", num_chunks=num_chunks)
         choice.to(model_runner_step)
         graph.add_step(
             name="responder",
@@ -702,7 +703,10 @@ class TestNuclioRuntime(TestMLRunSystemModelMonitoring):
 
         chunks = list(resp.iter_content(decode_unicode=True, chunk_size=1024))
         self._logger.info(f"StreamingStep chunks: {chunks}")
-        assert chunks == ["test_chunk_0", "test_chunk_1", "test_chunk_2"]
+        # The number of chunks returned is anywhere between 1 and the number of chunks that reach the responder step,
+        # subject to Nuclio's flush mechanism
+        assert 1 <= len(chunks) <= num_chunks
+        assert "".join(chunks) == "test_chunk_0test_chunk_1test_chunk_2"
 
         # Test 2: ModelRunnerStep path (generator predict() method)
         self._logger.info("Testing ModelRunnerStep path...")
@@ -715,7 +719,10 @@ class TestNuclioRuntime(TestMLRunSystemModelMonitoring):
 
         chunks = list(resp.iter_content(decode_unicode=True, chunk_size=1024))
         self._logger.info(f"ModelRunnerStep chunks: {chunks}")
-        assert chunks == ["test_chunk_0", "test_chunk_1", "test_chunk_2"]
+        # The number of chunks returned is anywhere between 1 and the number of chunks that reach the responder step,
+        # subject to Nuclio's flush mechanism
+        assert 1 <= len(chunks) <= num_chunks
+        assert "".join(chunks) == "test_chunk_0test_chunk_1test_chunk_2"
 
     def test_stream_response_termination_on_error(self):
         """

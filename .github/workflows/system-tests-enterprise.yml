@@ -337,6 +337,7 @@ jobs:
     runs-on: [ self-hosted, Linux, mlrun-igz-ci ]
     container:
       image: gcr.io/iguazio/python:3.11
+      options: --network host
     # let's not run this on every fork, change to your fork when developing
     if: github.repository == 'mlrun/mlrun' || github.event_name == 'workflow_dispatch'
     strategy:

@@ -402,6 +402,25 @@ class BaseRuntimeHandler(ABC):
         runtime.spec.update_vols_and_mounts(volumes, volume_mounts)
 
     @staticmethod
+    def _has_user_set_plain_env(
+        runtime: mlrun.runtimes.pod.KubeResource, name: str
+    ) -> bool:
+        """Check if user explicitly set a plain-value env var (not from a secret).
+
+        Returns True only for env vars with a plain .value (user-set), not for
+        secret-injected vars that have .value_from. This distinction is critical
+        to preserve the project > global secret priority (ML-12330).
+        """
+        for env_var in runtime.spec.env:
+            if isinstance(env_var, dict):
+                if env_var.get("name") == name:
+                    return env_var.get("value") is not None
+            else:
+                if getattr(env_var, "name", None) == name:
+                    return getattr(env_var, "value", None) is not None
+        return False
+
+    @staticmethod
     def add_k8s_secrets_to_spec(
         secrets,
         runtime: mlrun.runtimes.pod.KubeResource,
@@ -432,7 +451,9 @@ class BaseRuntimeHandler(ABC):
                     if encode_key_names
                     else key
                 )
-                runtime.set_env_from_secret(env_var_name, global_secret_name, key)
+                # Don't override user-provided plain env vars (ML-12330)
+                if not BaseRuntimeHandler._has_user_set_plain_env(runtime, env_var_name):
+                    runtime.set_env_from_secret(env_var_name, global_secret_name, key)
 
         # the secrets param may be an empty dictionary (asking for all secrets of that project) -
         # it's a different case than None (not asking for project secrets at all).
@@ -470,7 +491,9 @@ class BaseRuntimeHandler(ABC):
 
         for key, env_var_name in secrets.items():
             if key in existing_secret_keys:
-                runtime.set_env_from_secret(env_var_name, secret_name, key)
+                # Don't override user-provided plain env vars (ML-12330)
+                if not BaseRuntimeHandler._has_user_set_plain_env(runtime, env_var_name):
+                    runtime.set_env_from_secret(env_var_name, secret_name, key)
 
         # Keep a list of the variables that relate to secrets, so that the MLRun context (when using nuclio:mlrun)
         # can be initialized with those env variables as secrets

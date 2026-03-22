@@ -371,6 +371,8 @@ def auto_mount(
     - k8s PVC volume when both pvc_name and volume_mount_path are set
     - k8s PVC volume when env var is set: MLRUN_PVC_MOUNT=<pvc-name>:<mount-path>
     - k8s PVC volume if it's configured as the auto mount type
+    - S3 credentials when configured as the auto mount type
+    - Secret-based env vars when configured as the auto mount type
     - iguazio v3io volume when V3IO_ACCESS_KEY and V3IO_USERNAME env vars are set
 
     """
@@ -388,6 +390,10 @@ def auto_mount(
     # parameters may still be declared - use them in that case.
     if config.storage.auto_mount_type == "pvc":
         return mount_pvc(**config.get_storage_auto_mount_params())
+    if config.storage.auto_mount_type == "s3":
+        return mount_s3(**config.get_storage_auto_mount_params())
+    if config.storage.auto_mount_type == "secret_env":
+        return set_env_vars_from_secret(**config.get_storage_auto_mount_params())
     if "V3IO_ACCESS_KEY" in os.environ:
         return mount_v3io(name=volume_name or "v3io")
 

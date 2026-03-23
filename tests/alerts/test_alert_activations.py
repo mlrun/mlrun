@@ -18,6 +18,7 @@ from datetime import UTC
 import pytest
 
 import mlrun.common.schemas
+import mlrun.common.schemas.project
 
 
 @pytest.fixture
@@ -138,6 +139,32 @@ def test_aggregate_by_severity(sample_alert_activations):
         (mlrun.common.schemas.alert.AlertSeverity.LOW): 3,
         (mlrun.common.schemas.alert.AlertSeverity.MEDIUM): 1,
     }
+
+
+def test_all_entity_kinds_have_project_summary_counter():
+    """Ensure every EventEntityKind has a corresponding *_alerts_count field in ProjectSummary.
+
+    If a new EventEntityKind is added without a matching counter, this test will fail,
+    reminding the developer to update _calculate_alert_activations_counters and ProjectSummary.
+    """
+    entity_kind_to_counter_field = {
+        mlrun.common.schemas.alert.EventEntityKind.MODEL_ENDPOINT_RESULT: "endpoint_alerts_count",
+        mlrun.common.schemas.alert.EventEntityKind.JOB: "job_alerts_count",
+        mlrun.common.schemas.alert.EventEntityKind.MODEL_MONITORING_APPLICATION: "application_alerts_count",
+        mlrun.common.schemas.alert.EventEntityKind.MODEL_MONITORING_INFRA: "infra_alerts_count",
+    }
+    all_entity_kinds = set(mlrun.common.schemas.alert.EventEntityKind)
+    mapped_entity_kinds = set(entity_kind_to_counter_field.keys())
+    assert all_entity_kinds == mapped_entity_kinds, (
+        f"EventEntityKind values not mapped to ProjectSummary counter fields: "
+        f"{all_entity_kinds - mapped_entity_kinds}. "
+        f"Update _calculate_alert_activations_counters in db.py and ProjectSummary schema."
+    )
+    summary_fields = set(mlrun.common.schemas.project.ProjectSummary.__fields__.keys())
+    for entity_kind, counter_field in entity_kind_to_counter_field.items():
+        assert counter_field in summary_fields, (
+            f"Counter field '{counter_field}' for {entity_kind} missing from ProjectSummary"
+        )
 
 
 def test_aggregate_by_event_and_entity_kind(sample_alert_activations):

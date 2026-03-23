@@ -474,7 +474,8 @@ class Projects(
             project_to_running_runs_count,
             project_to_endpoint_alerts_count,
             project_to_job_alerts_count,
-            project_to_other_alerts_count,
+            project_to_application_alerts_count,
+            project_to_infra_alerts_count,
             project_to_datasets_count,
             project_to_documents_count,
             project_to_llm_prompts_count,
@@ -533,7 +534,10 @@ class Projects(
                         project_name, 0
                     ),
                     job_alerts_count=project_to_job_alerts_count.get(project_name, 0),
-                    other_alerts_count=project_to_other_alerts_count.get(
+                    application_alerts_count=project_to_application_alerts_count.get(
+                        project_name, 0
+                    ),
+                    infra_alerts_count=project_to_infra_alerts_count.get(
                         project_name, 0
                     ),
                     datasets_count=project_to_datasets_count.get(project_name, 0),

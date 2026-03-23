@@ -317,11 +317,11 @@ def test_clear_packagers_outputs():
     )
 
     # Get the created files:
-    a_temp_dir = packagers_manager.artifacts[0].spec.unpackaging_instructions[
+    a_temp_dir = packagers_manager.artifacts[0][0].spec.unpackaging_instructions[
         "instructions"
     ]["temp_dir"]
     a_file = os.path.join(a_temp_dir, "a.txt")
-    b_temp_dir = packagers_manager.artifacts[1].spec.unpackaging_instructions[
+    b_temp_dir = packagers_manager.artifacts[1][0].spec.unpackaging_instructions[
         "instructions"
     ]["temp_dir"]
 
@@ -495,41 +495,46 @@ def test_plural_type_hint_unpacking(
 
 
 @pytest.mark.parametrize(
-    "tag, labels, extra_data",
+    "tag, labels, extra_data, artifact_path",
     [
         # All fields set
         (
             "v1.0",
             {"env": "test", "author": "pytest"},
             {"description": "test", "version": 1},
+            "s3://my-bucket/custom-path",
         ),
         # Only tag
-        ("v2.0", None, {}),
+        ("v2.0", None, {}, None),
         # Only labels
-        ("", {"category": "unit-test"}, {}),
+        ("", {"category": "unit-test"}, {}, None),
         # Only extra_data
-        ("", None, {"note": "testing extra_data only"}),
+        ("", None, {"note": "testing extra_data only"}, None),
+        # Only artifact_path
+        ("", None, {}, "s3://other-bucket/models"),
         # Tag and labels
-        ("v3.0", {"env": "prod"}, {}),
+        ("v3.0", {"env": "prod"}, {}, None),
         # Tag and extra_data
-        ("v4.0", None, {"info": "tag with extra_data"}),
+        ("v4.0", None, {"info": "tag with extra_data"}, None),
         # Labels and extra_data
-        ("", {"type": "artifact"}, {"data": 123}),
+        ("", {"type": "artifact"}, {"data": 123}, None),
         # No metadata (all defaults)
-        ("", None, {}),
+        ("", None, {}, None),
     ],
 )
 def test_log_hint_artifact_metadata(
     tag: str,
     labels: dict[str, str] | None,
     extra_data: dict | None,
+    artifact_path: str | None,
 ):
     """
-    Test that LogHint's tag, labels, and extra_data fields are properly applied to artifacts.
+    Test that LogHint's tag, labels, extra_data, and artifact_path fields are properly applied to artifacts.
 
-    :param tag:        The tag to set on the LogHint.
-    :param labels:     The labels to set on the LogHint.
-    :param extra_data: The extra_data to set on the LogHint.
+    :param tag:           The tag to set on the LogHint.
+    :param labels:        The labels to set on the LogHint.
+    :param extra_data:    The extra_data to set on the LogHint.
+    :param artifact_path: The artifact_path to set on the LogHint.
     """
     # Prepare the test:
     packagers_manager = PackagersManager()
@@ -544,13 +549,14 @@ def test_log_hint_artifact_metadata(
             tag=tag,
             labels=labels,
             extra_data=extra_data,
+            artifact_path=artifact_path,
             packing_kwargs={"fmt": "txt"},
         ),
     )
 
     # Verify the artifact was created with correct metadata:
     assert len(packagers_manager.artifacts) == 1
-    artifact = packagers_manager.artifacts[0]
+    artifact, logging_kwargs = packagers_manager.artifacts[0]
 
     # Check tag (artifact.tag defaults to empty string if not set)
     if tag:
@@ -569,6 +575,12 @@ def test_log_hint_artifact_metadata(
         assert artifact.extra_data == extra_data
     else:
         assert artifact.extra_data is None or artifact.extra_data == {}
+
+    # Check artifact_path (should be in logging_kwargs when set, empty dict when not)
+    if artifact_path:
+        assert logging_kwargs == {"artifact_path": artifact_path}
+    else:
+        assert logging_kwargs == {}
 
     # Clean up temporary files:
     temp_dir = artifact.spec.unpackaging_instructions["instructions"]["temp_dir"]
@@ -595,7 +607,7 @@ def test_link_packages():
     }
 
     # Add artifacts and results to the manager:
-    packagers_manager._artifacts.extend([target_artifact, main_artifact])
+    packagers_manager._artifacts.extend([(target_artifact, {}), (main_artifact, {})])
     packagers_manager._results["my_result"] = "linked_result_value"
 
     # Call link_packages:
@@ -630,7 +642,7 @@ def test_link_packages_bidirectional():
 
     # Create a packager artifact:
     packager_artifact = Artifact(key="packager_artifact")
-    packagers_manager._artifacts.append(packager_artifact)
+    packagers_manager._artifacts.append((packager_artifact, {}))
     packagers_manager._results["packager_result"] = 42
 
     # Create a context artifact with extra_data linking to packager artifacts:
@@ -655,3 +667,30 @@ def test_link_packages_bidirectional():
     assert context_artifact.spec.extra_data["packager_artifact"] == packager_artifact
     assert context_artifact.spec.extra_data["packager_result"] == 42
     assert context_artifact.spec.extra_data["static_value"] == "unchanged"
+
+
+def test_unbundling_fallback():
+    """
+    Test that packing a non-unbundle-able object with ``itemized=True`` falls back gracefully to single-object packing
+    without creating a phantom entry in ``_bundles``.
+    """
+    # Set up a PackagersManager with only PackagerA (packs strings, can't unbundle):
+    packagers_manager = PackagersManager()
+    packagers_manager.collect_packagers([PackagerA])
+
+    # Pack a string with itemized=True:
+    log_hint = LogHint(key="my_result", itemized=True)
+    packages = packagers_manager.pack(obj="hello", log_hint=log_hint)
+
+    # The object should be packed normally (fallback to default packager as artifact):
+    assert packages is not None
+    assert any(
+        artifact.key == "my_result" for artifact, _ in packagers_manager._artifacts
+    )
+
+    # No bundle should have been created — the key should NOT appear in _bundles:
+    assert "my_result" not in packagers_manager._bundles
+
+    # get_bundles_results should return empty and not crash:
+    bundles_results = packagers_manager.get_bundles_results(logged_outputs={})
+    assert bundles_results == {}

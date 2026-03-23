@@ -142,7 +142,8 @@ def kfp_client_mock(monkeypatch):
             experiments=[
                 ApiExperiment(name="some-project"),
                 ApiExperiment(name="another"),
-            ]
+            ],
+            next_page_token=None,
         )
     )
     mock_experiment_api.api_client = mock.Mock()

@@ -19,7 +19,7 @@ Data stores are referred to using the schema prefix (e.g. `s3://my-bucket/path`)
 
 **In this section**
 - [Storage credentials and parameters](#storage-credentials-and-parameters)
-- [Data store profiles](#data-store-profiles)
+- [Datastore profiles](#datastore-profiles)
 - [Alibaba Cloud Object Storage Service (OSS)](#alibaba-cloud-object-storage-service-oss)
 - [Azure data store](#azure-data-store)
 - [Databricks file system](#databricks-file-system)
@@ -41,7 +41,7 @@ Therefore, before executing jobs that require access to storage credentials, the
 by assigning environment variables to the MLRun runtime itself, assigning secrets to it, or placing 
 the variables in project-secrets.
 
-You can also use [data store profiles](#data-store-profiles) to provide credentials.
+You can also use [datastore profiles](#datastore-profiles) to provide credentials.
 
 ```{warning}
 Passing secrets as environment variables to runtimes is discouraged, as they are exposed in the pod spec.
@@ -82,22 +82,22 @@ db.create_project_secrets(project=project_name, provider="kubernetes", secrets=s
 remote_run = func.run(name="aws_func", inputs={"source_url": source_url})
 ```
   
-## Data store profiles
+## Datastore profiles
 
 ```{admonition} Note
 Datastore profiles are not part of a project export/import.
 ```
 
-You can use a data store profile to manage datastore credentials. A data store profile 
+You can use a datastore profile to manage datastore credentials. A datastore profile 
 holds all the information required to address an external data source, including credentials. 
 You can create 
 multiple profiles for one datasource. For example, 
 two different Redis data stores with different credentials. Targets, sources, and artifacts, 
-can all use the data store profile by using the `ds://<profile-name>` convention.
+can all use the datastore profile by using the `ds://<profile-name>` convention.
 After you create a profile object, you make it available on remote pods by calling 
 `project.register_datastore_profile`.
 
-Create a data store profile in the context of a project. Example of creating a Redis datastore profile:
+Create a datastore profile in the context of a project. Example of creating a Redis datastore profile:
 1. Create the profile, for example:<br>
    `profile = DatastoreProfileRedis(name="profile-name", endpoint_url="redis://11.22.33.44:6379", username="user", password="password")`
     The username and password parameters are optional. 
@@ -125,7 +125,7 @@ More options:
     ```
 
 ```{admonition} Note
-Data store profiles do not support: v3io (datastore, or source/target), snowflake source, DBFS for spark runtimes, Dask runtime.
+Datastore profiles do not support: Snowflake source, Dask runtime.
 ```
 
 See also:
@@ -166,7 +166,7 @@ limited functionality and cannot be used to access Azure Data Lake storage objec
 authentication methods that use the `fsspec` mechanism. 
 ```
 
-### Azure data store profile
+### Azure datastore profile
 ```python
 profile = DatastoreProfileAzureBlob(
     name="profile-name", connection_string=connection_string
@@ -221,7 +221,7 @@ Not supported by the spark and remote-spark runtimes.
 * `DATABRICKS_TOKEN` &mdash; Databricks access token. 
    Perform [Databricks personal access token authentication](https://docs.databricks.com/aws/en/dev-tools/auth/pat).
    
-### DBFS data store profile
+### DBFS datastore profile
 
 ```python
 profile = DatastoreProfileDBFS(
@@ -250,7 +250,7 @@ may contain the contents of this file. If configured in the function pod, MLRun 
 and points `GOOGLE_APPLICATION_CREDENTIALS` at it. An exception is `BigQuerySource`, which passes `GCP_CREDENTIALS`'s
 contents directly to the query engine.
 
-### GCS data store profile
+### GCS datastore profile
 
 ```python
 profile = DatastoreProfileGCS(
@@ -278,7 +278,7 @@ The code prioritizes `gcp_credentials` over `credentials_path`.
 MLRun supports HDFS only with datastore profiles, and not with env-vars.
 
 
-### HDFS data store profile
+### HDFS datastore profile
 
 ```python
 profile = DatastoreProfileHdfs(name="profile-name")
@@ -299,7 +299,7 @@ import os
 os.environ["HADOOP_USER_NAME"] = "..."
 ```
 
-An example of registering an HDFS data store profile and using it as described in [Data store profiles](#data-store-profiles):
+An example of registering an HDFS datastore profile and using it as described in [Datastore profiles](#datastore-profiles):
 ```python
 DatastoreProfileHdfs(
     name="my-hdfs",
@@ -343,7 +343,7 @@ feature_set.ingest(..., run_config=run_config)
   file. This option should be used for local development where AWS credentials already exist (created by `aws` CLI, for
   example)
   
-### S3 data store profile
+### S3 datastore profile
 
 ```python
 profile = DatastoreProfileS3(name="profile-name")
@@ -376,7 +376,7 @@ In some cases, the V3IO configuration needs to be overridden. The following para
 * `V3IO_USERNAME` &mdash; The user-name authenticating with V3IO. While not strictly required when using an access-key to 
 authenticate, it is used in several use-cases, such as resolving paths to the home-directory.
 
-### V3IO data store profile
+### V3IO datastore profile
 ```python
 profile = DatastoreProfileV3io(
     name="test_profile", v3io_access_key="12345678-1234-1234-1234-123456789012"
@@ -392,7 +392,7 @@ ParquetTarget(path="ds://test_profile/container/path/to/parquet.pq")
 - `v3io_access_key` &mdash; Optional. Access key to the remote Iguazio cluster. If not provided, the default is value is taken from the environment variable "V3IO_ACCESS_KEY". For privacy reasons, it's tagged as a private attribute.
 
 
-% ## Adding a data store profile Return to doc when there are personas
+% ## Adding a datastore profile Return to doc when there are personas
 
 % If you already have a functioning datastore, integrating it with a datastore profile is straightforward. Follow these steps:
 % 1. Derive a new datastore profile class from the `DatastoreProfile` class. During this process, specify the datastore profile type. 

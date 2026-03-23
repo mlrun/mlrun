@@ -21,6 +21,7 @@ import pytest
 import mlrun
 import mlrun.common.constants
 import mlrun.common.schemas
+import mlrun.errors
 import mlrun.runtimes
 import mlrun.utils
 from mlrun.common.runtimes.constants import ProbeTimeConfig, ProbeType
@@ -627,25 +628,6 @@ def test_set_probe_string_type():
     assert ProbeType.READINESS.key in sidecar
 
 
-def test_set_probe_no_http_path():
-    """Test setting probe without HTTP path (only timing parameters)"""
-    fn: mlrun.runtimes.ApplicationRuntime = mlrun.new_function(
-        "application-test", kind="application", image="mlrun/mlrun"
-    )
-
-    fn.set_probe(
-        type="readiness",
-        initial_delay_seconds=10,
-        period_seconds=5,
-    )
-
-    sidecar = fn._get_sidecar()
-    probe = sidecar[ProbeType.READINESS.key]
-    assert "httpGet" not in probe
-    assert probe[ProbeTimeConfig.INITIAL_DELAY_SECONDS.value] == 10
-    assert probe[ProbeTimeConfig.PERIOD_SECONDS.value] == 5
-
-
 def test_set_probe_multiple_probes():
     """Test setting multiple different probe types"""
     fn: mlrun.runtimes.ApplicationRuntime = mlrun.new_function(
@@ -995,20 +977,98 @@ def test_enrich_sidecar_probe_ports_no_probes():
     assert ProbeType.STARTUP.key not in sidecar
 
 
+def test_set_probe_without_health_check_raises_error():
+    """Test that setting a probe via config with no health check param raises an error"""
+    fn: mlrun.runtimes.ApplicationRuntime = mlrun.new_function(
+        "application-test", kind="application", image="mlrun/mlrun"
+    )
+
+    with pytest.raises(
+        mlrun.errors.MLRunInvalidArgumentError,
+        match="must have exactly one of.*httpGet.*exec.*tcpSocket.*grpc",
+    ):
+        fn.set_probe(
+            type="liveness",
+            config={
+                "initialDelaySeconds": 10,
+                "periodSeconds": 5,
+            },
+        )
+
+
+def test_set_probe_with_multiple_health_check_params_raises_error():
+    """Test that setting a probe with multiple health check keys raises an error"""
+    fn: mlrun.runtimes.ApplicationRuntime = mlrun.new_function(
+        "application-test", kind="application", image="mlrun/mlrun"
+    )
+
+    with pytest.raises(
+        mlrun.errors.MLRunInvalidArgumentError,
+        match="must have exactly one of.*httpGet.*exec.*tcpSocket.*grpc",
+    ):
+        fn.set_probe(
+            type="liveness",
+            config={
+                "httpGet": {"path": "/health", "port": 8080},
+                "exec": {"command": ["/bin/sh", "-c", "echo test"]},
+            },
+        )
+
+
+def test_set_probe_invalid_config_does_not_override_valid_probe():
+    """Test that a failed set_probe with invalid config does not modify a previously set valid probe"""
+    fn: mlrun.runtimes.ApplicationRuntime = mlrun.new_function(
+        "application-test", kind="application", image="mlrun/mlrun"
+    )
+
+    # Set a valid probe
+    fn.set_probe(
+        type="liveness",
+        config={
+            "httpGet": {"path": "/health", "port": 8080, "scheme": "HTTP"},
+            "initialDelaySeconds": 17,
+            "periodSeconds": 555,
+        },
+    )
+
+    # Attempt to set an invalid probe configuration
+    with pytest.raises(
+        mlrun.errors.MLRunInvalidArgumentError,
+        match="must have exactly one of.*httpGet.*exec.*tcpSocket.*grpc",
+    ):
+        fn.set_probe(
+            type="liveness",
+            config={
+                "httpGet": {"path": "/bad", "port": 9090},
+                "exec": {"command": ["/bin/sh", "-c", "echo bad"]},
+            },
+        )
+
+    # Verify the original valid probe remains unchanged
+    sidecar = fn._get_sidecar()
+    probe_after = sidecar[ProbeType.LIVENESS.key]
+    assert probe_after is not None
+    assert probe_after["httpGet"]["path"] == "/health"
+    assert probe_after["httpGet"]["port"] == 8080
+    assert probe_after["httpGet"]["scheme"] == "HTTP"
+    assert probe_after[ProbeTimeConfig.INITIAL_DELAY_SECONDS.value] == 17
+    assert probe_after[ProbeTimeConfig.PERIOD_SECONDS.value] == 555
+
+
 @pytest.mark.parametrize(
-    "source,setup_file,expected",
+    "source,expected",
     [
-        ("local_file.py", True, True),
-        ("directory_path", False, False),
-        ("", False, False),
-        ("store://artifacts/project/file", False, False),
-        ("https://example.com/file.py", False, False),
-        ("git://github.com/repo.git", False, False),
-        ("/non/existent/path.py", False, False),
+        ("local_file.py", True),
+        ("/absolute/path/file.py", True),
+        ("relative/path/file.py", True),
+        ("", False),
+        ("store://artifacts/project/file", False),
+        ("https://example.com/file.py", False),
+        ("git://github.com/repo.git", False),
     ],
 )
-def test_is_single_local_file(tmp_path, source, setup_file, expected):
-    # Test _is_single_local_file identifies local files vs remote/invalid sources.
+def test_is_local_path(source, expected):
+    """Verify local paths are distinguished from remote URLs and store URIs."""
     func_name = "application-test"
     fn: mlrun.runtimes.ApplicationRuntime = mlrun.new_function(
         func_name,
@@ -1016,18 +1076,37 @@ def test_is_single_local_file(tmp_path, source, setup_file, expected):
         image="mlrun/mlrun",
     )
 
-    if setup_file:
-        # Create a temporary file for local file case
-        file_path = tmp_path / source
-        file_path.write_text("def handler(): pass")
-        test_source = str(file_path)
-    elif source == "directory_path":
-        # Use tmp_path as directory
-        test_source = str(tmp_path)
-    else:
-        test_source = source
+    assert fn._is_local_path(source) is expected
 
-    assert fn._is_single_local_file(test_source) is expected
+
+def test_upload_source_as_artifact_missing_file_first_deploy(tmp_path):
+    """First deploy with a non-existent local source should raise a clear error."""
+    fn: mlrun.runtimes.ApplicationRuntime = mlrun.new_function(
+        "application-test",
+        kind="application",
+        image="mlrun/mlrun",
+        project="test-project",
+    )
+    fn.spec.build.source = str(tmp_path / "nonexistent-file.py")
+
+    with pytest.raises(mlrun.errors.MLRunNotFoundError, match="Source file not found"):
+        fn._upload_source_as_artifact()
+
+
+def test_upload_source_as_artifact_missing_file_redeploy(tmp_path):
+    """Redeploy with deleted local file should skip upload when remote artifact already exists."""
+    fn: mlrun.runtimes.ApplicationRuntime = mlrun.new_function(
+        "application-test",
+        kind="application",
+        image="mlrun/mlrun",
+        project="test-project",
+    )
+    fn.spec.build.source = str(tmp_path / "deleted-file.py")
+    fn.status.application_source = "store://artifacts/test-project/app-source:latest"
+
+    original_path, artifact_uri = fn._upload_source_as_artifact()
+    assert original_path is None
+    assert artifact_uri is None
 
 
 def test_upload_source_as_artifact(tmp_path):

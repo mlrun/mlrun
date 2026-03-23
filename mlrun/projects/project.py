@@ -2633,10 +2633,15 @@ class MlrunProject(ModelObj):
         :param fetch_credentials_from_sys_config: Deprecated. If true, fetch the credentials from the project
                                                   configuration.
         :param lag_threshold:                     Duration in minutes that will be considered as lag in the writer.
-                                                  Must be at least ``min_lag_threshold_minutes`` from config.
-                                                  Default computed server-side from config and ``base_period``.
+                                                  Must be at least
+                                                  ``model_endpoint_monitoring.lag_detection.min_lag_threshold_minutes``
+                                                  from config. When not provided, computed as
+                                                  ``min(default_lag_threshold_minutes, base_period)``
+                                                  (see ``model_endpoint_monitoring.lag_detection`` in config).
         :param lag_event_cooldown:                Duration in minutes between consecutive lag events per worker.
-                                                  Default computed server-side from config and ``base_period``.
+                                                  When not provided, computed as
+                                                  ``min(default_lag_event_cooldown_minutes, base_period // 2)``
+                                                  (see ``model_endpoint_monitoring.lag_detection`` in config).
         """
         if fetch_credentials_from_sys_config:
             warnings.warn(
@@ -4044,6 +4049,20 @@ class MlrunProject(ModelObj):
         """
         db = mlrun.db.get_run_db(secrets=self._secrets)
 
+        stream_profile = db.get_datastore_profile(stream_profile_name, self.name)
+        if (
+            isinstance(
+                stream_profile,
+                mlrun.datastore.datastore_profile.DatastoreProfileKafkaStream,
+            )
+            and stream_profile.group is not None
+        ):
+            logger.warning(
+                "Kafka profile 'group' is ignored for model monitoring;"
+                " the consumer group is set to the topic name"
+                " to prevent cross-project rebalance storms",
+            )
+
         db.set_model_monitoring_credentials(
             project=self.name,
             credentials={
@@ -4187,7 +4206,8 @@ class MlrunProject(ModelObj):
             )
 
         :param function:        name of the function (in the project) or function object
-        :param handler:         name of the function handler
+        :param handler:         name of the function handler. should not be set for serving graph deployed as job,
+                                as in this case the handler is predefined
         :param name:            execution name
         :param params:          input parameters (dict)
         :param hyperparams:     hyper parameters

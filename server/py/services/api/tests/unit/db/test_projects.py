@@ -23,6 +23,7 @@ import mlrun.common.schemas
 import mlrun.config
 import mlrun.errors
 
+import framework.utils.project_formats
 from framework.db.sqldb.models import Project
 from framework.tests.unit.db.common_fixtures import TestDatabaseBase
 
@@ -380,6 +381,84 @@ class TestProjects(TestDatabaseBase):
             project.metadata.name,
             project_2.metadata.name,
         ] == projects_output.projects
+
+    def test_list_projects_custom_selection_name_and_owner(self):
+        """
+        Verify that ProjectFormatCustomSelection queries only the requested
+        columns from the DB and returns a minimal Project schema with
+        metadata.name and spec.owner — without loading the full pickle blob.
+        """
+        project_name = "custom-sel-project"
+        owner = "the-owner"
+        self._db.create_project(
+            self._db_session,
+            mlrun.common.schemas.Project(
+                metadata=mlrun.common.schemas.ProjectMetadata(
+                    name=project_name,
+                    labels={"env": "test"},
+                ),
+                spec=mlrun.common.schemas.ProjectSpec(
+                    description="heavy description",
+                    owner=owner,
+                    artifacts=[{"key": "value"}],
+                    workflows=[{"key": "value"}],
+                    functions=[{"key": "value"}],
+                ),
+            ),
+        )
+
+        custom_format = framework.utils.project_formats.ProjectFormatCustomSelection(
+            [
+                framework.utils.project_formats.ProjectFormatCustom.name,
+                framework.utils.project_formats.ProjectFormatCustom.owner,
+            ]
+        )
+        projects_output = self._db.list_projects(
+            self._db_session,
+            format_=custom_format,
+            names=[project_name],
+        )
+
+        assert len(projects_output.projects) == 1
+        project = projects_output.projects[0]
+
+        # Requested columns are populated
+        assert project.metadata.name == project_name
+        assert project.spec.owner == owner
+
+        # Fields NOT in the custom selection should be empty/default —
+        # proving we didn't deserialize the full pickle blob
+        assert project.spec.description is None or project.spec.description == ""
+        assert not project.spec.artifacts
+        assert not project.spec.workflows
+        assert not project.spec.functions
+        assert not project.metadata.labels
+
+    def test_list_projects_custom_selection_filters_by_name(self):
+        """Verify names= filter works with custom selection format."""
+        for name in ["proj-a", "proj-b", "proj-c"]:
+            self._db.create_project(
+                self._db_session,
+                mlrun.common.schemas.Project(
+                    metadata=mlrun.common.schemas.ProjectMetadata(name=name),
+                    spec=mlrun.common.schemas.ProjectSpec(owner=f"owner-{name}"),
+                ),
+            )
+
+        custom_format = framework.utils.project_formats.ProjectFormatCustomSelection(
+            [
+                framework.utils.project_formats.ProjectFormatCustom.name,
+                framework.utils.project_formats.ProjectFormatCustom.owner,
+            ]
+        )
+        projects_output = self._db.list_projects(
+            self._db_session,
+            format_=custom_format,
+            names=["proj-a", "proj-c"],
+        )
+
+        returned_names = {p.metadata.name for p in projects_output.projects}
+        assert returned_names == {"proj-a", "proj-c"}
 
     def _generate_and_insert_pre_060_record(self, project_name: str):
         pre_060_record = Project(name=project_name)

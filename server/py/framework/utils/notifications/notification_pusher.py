@@ -211,7 +211,9 @@ class AlertNotificationPusher(_NotificationPusherBase):
         notification_object: mlrun.common.schemas.Notification,
         event_data: mlrun.common.schemas.Event,
     ):
-        message, severity = self._prepare_notification_args(alert, notification_object)
+        message, severity = self._prepare_notification_args(
+            alert, notification_object, event_data
+        )
         logger.debug(
             "Pushing async notification",
             notification=notification_object,
@@ -255,11 +257,12 @@ class AlertNotificationPusher(_NotificationPusherBase):
     def _prepare_notification_args(
         alert: mlrun.common.schemas.AlertConfig,
         notification_object: mlrun.common.schemas.Notification,
+        event_data: mlrun.common.schemas.Event,
     ):
         message = (
             f": {notification_object.message}"
             if notification_object.message
-            else alert.summary
+            else mlrun.utils.helpers.format_alert_summary(alert, event_data)
         )
 
         severity = alert.severity

@@ -739,6 +739,38 @@ class RunDBMock:
         for key, value in expected_env_dict.items():
             assert env_dict[key] == value
 
+    def assert_env_from_secret(self, secret_name, keys, function_name=None):
+        """Assert that env vars are mounted from a k8s secret.
+
+        When ``keys`` is non-empty, each key should appear as an env var with
+        ``valueFrom.secretKeyRef``.  When ``keys`` is empty, the whole secret
+        should be mounted via ``envFrom.secretRef``.
+        """
+        function = self._get_function_internal(function_name)
+        if keys:
+            env_list = function["spec"]["env"]
+            env_dict = {
+                item["name"]: item.get("valueFrom")
+                for item in env_list
+                if "valueFrom" in item
+            }
+            for key in keys:
+                assert key in env_dict, (
+                    f"Expected env var {key} from secret {secret_name}, "
+                    f"got: {list(env_dict.keys())}"
+                )
+                assert env_dict[key] == {
+                    "secretKeyRef": {"key": key, "name": secret_name}
+                }
+        else:
+            env_from = function["spec"].get("env_from", [])
+            secret_refs = [
+                item["secretRef"]["name"] for item in env_from if "secretRef" in item
+            ]
+            assert secret_name in secret_refs, (
+                f"Expected envFrom secretRef for {secret_name}, got: {secret_refs}"
+            )
+
     def verify_authorization(
         self,
         authorization_verification_input: mlrun.common.schemas.AuthorizationVerificationInput,

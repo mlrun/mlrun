@@ -45,6 +45,15 @@ class Member(
     project_member.Member,
     metaclass=mlrun.utils.singleton.AbstractSingleton,
 ):
+    # Explicit follower execution order per operation. When defined, followers run in
+    # the specified order; unlisted followers are appended alphabetically after them.
+    # This allows controlling execution order as more followers might be added in the future (e.g. ecliptOS).
+    _follower_operation_order: dict[str, list[str]] = {
+        # Authorization (igz/Orca) last among the explicitly ordered followers - if an
+        # earlier follower fails, the project retains its policies and remains accessible.
+        "delete_project": ["nuclio", "igz"],
+    }
+
     def initialize(self):
         logger.info("Initializing projects leader")
         self._initialize_followers()
@@ -134,7 +143,7 @@ class Member(
         name: str,
         auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
         from_leader: bool = False,
-        format_: mlrun.common.formatters.ProjectFormat = mlrun.common.formatters.ProjectFormat.full,
+        format_: framework.utils.project_formats.ProjectFormatType = mlrun.common.formatters.ProjectFormat.full,
     ) -> mlrun.common.schemas.ProjectOut:
         return self._leader_follower.get_project(db_session, name, auth_info)
 
@@ -143,7 +152,7 @@ class Member(
         db_session: sqlalchemy.orm.Session,
         auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
         owner: str | None = None,
-        format_: mlrun.common.formatters.ProjectFormat = mlrun.common.formatters.ProjectFormat.full,
+        format_: framework.utils.project_formats.ProjectFormatType = mlrun.common.formatters.ProjectFormat.full,
         labels: list[str] | None = None,
         state: mlrun.common.schemas.ProjectState = None,
         names: list[str] | None = None,
@@ -389,6 +398,19 @@ class Member(
             project.metadata.labels, raise_on_failure=False
         )
 
+    def _get_ordered_followers(
+        self, method: str
+    ) -> list[tuple[str, "framework.utils.projects.remotes.follower.Member"]]:
+        explicit_order = self._follower_operation_order.get(method)
+        if not explicit_order:
+            return sorted(self._followers.items())
+
+        order_map = {name: i for i, name in enumerate(explicit_order)}
+        return sorted(
+            self._followers.items(),
+            key=lambda item: (order_map.get(item[0], len(explicit_order)), item[0]),
+        )
+
     def _run_on_all_followers(
         self, leader_first: bool, method: str, *args, **kwargs
     ) -> tuple[typing.Any, dict[str, typing.Any]]:
@@ -398,7 +420,7 @@ class Member(
         # TODO: do it concurrently
         follower_responses = {
             follower_name: getattr(follower, method)(*args, **kwargs)
-            for follower_name, follower in sorted(self._followers.items())
+            for follower_name, follower in self._get_ordered_followers(method)
         }
         if not leader_first:
             leader_response = getattr(self._leader_follower, method)(*args, **kwargs)

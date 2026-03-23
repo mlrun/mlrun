@@ -120,10 +120,14 @@ class TimescaleDBConnection:
         self._timescaledb_version: str | None = None
         self._version_checked: bool = False
 
+    # Maximum seconds for the initial connectivity pre-check (ML-12229).
+    _CONNECTIVITY_CHECK_TIMEOUT = 10
+
     @property
     def pool(self) -> ConnectionPool:
         """Get or create the synchronous connection pool."""
         if self._pool is None:
+            self._verify_connectivity()
             self._pool = ConnectionPool(
                 conninfo=self._dsn,
                 min_size=self._min_connections,
@@ -133,6 +137,21 @@ class TimescaleDBConnection:
                 ),
             )
         return self._pool
+
+    def _verify_connectivity(self) -> None:
+        """Quick connection test so bad credentials / unreachable hosts fail
+        fast instead of waiting for the full pool timeout (ML-12229)."""
+        try:
+            with psycopg.connect(
+                self._dsn,
+                connect_timeout=self._CONNECTIVITY_CHECK_TIMEOUT,
+                autocommit=True,
+            ) as conn:
+                conn.execute("SELECT 1")
+        except psycopg.Error as e:
+            raise mlrun.errors.MLRunRuntimeError(
+                f"Failed to connect to TimescaleDB: {e}"
+            ) from e
 
     def close(self) -> None:
         """Close the connection pool if it exists."""

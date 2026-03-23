@@ -184,7 +184,7 @@ class Venv:
             "Installing extra",
             extra=extra,
         )
-        self.install_package("pip~=25.0.0", upgrade=True)
+        self.install_package("pip~=26.0", upgrade=True)
         self.install_package(f".{extra}")
 
     def install_package(self, package, upgrade=False):

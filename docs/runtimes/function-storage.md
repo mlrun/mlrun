@@ -19,12 +19,17 @@ The common types of shared storage are:
 storage through paths such as `v3io:///projects/my_projects/file.csv`. To enable this type of access, several
 environment variables need to be configured in the pod that provide the v3io API URL and access keys.
 2. `v3io` storage through FUSE mount &mdash; Some tools cannot utilize the `v3io` API to access it and need basic filesystem
-semantics. For that purpose, `v3io` provides a FUSE (Filesystem in user-space) driver that can be used to mount `v3io` 
-containers as specific paths in the pod itself. For example `/User`. To enable this, several specific volume mount 
+semantics. For that purpose, `v3io` provides a FUSE (Filesystem in user-space) driver that can be used to mount `v3io`
+containers as specific paths in the pod itself. For example `/User`. To enable this, several specific volume mount
 configurations need to be applied to the pod spec.
 3. NFS storage access &mdash; When MLRun is deployed as open-source, independent of Iguazio, the deployment automatically adds
 a pod running NFS storage. To access this NFS storage through pods, a kubernetes `pvc` mount is needed.
-4. Others &mdash; As use-cases evolve, other cases of storage access may be needed. This will require various configurations 
+4. S3-compatible object storage &mdash; When MLRun is deployed on Kubernetes without Iguazio (for example on IG4 systems
+using MinIO), S3 credentials need to be injected into pods as environment variables so that functions can access object
+storage. MLRun supports this via the `s3` auto-mount type, which reads credentials from a Kubernetes secret and sets
+the standard AWS environment variables (`AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, and optionally
+`AWS_ENDPOINT_URL_S3`) on each pod.
+5. Others &mdash; As use-cases evolve, other cases of storage access may be needed. This will require various configurations
 to be applied to function execution pods.
 
 MLRun attempts to offload this storage configuration task from the user by automatically applying the most common 
@@ -65,10 +70,18 @@ The following code demonstrates how to apply the `v3io` FUSE driver by default:
     mlrun.mlconf.storage.auto_mount_type = "v3io_fuse"
 
 Each of the auto-mount supported methods applies a specific modifier function. The supported methods are:
-* `v3io_credentials` &mdash; apply `v3io` credentials needed for `v3io` API usage. Applies the 
+* `v3io_credentials` &mdash; apply `v3io` credentials needed for `v3io` API usage. Applies the
 {py:meth}`~mlrun.platforms.v3io_cred` modifier.
 * `v3io_fuse` &mdash; create Fuse driver mount. Applies the {py:meth}`~mlrun.platforms.mount_v3io` modifier.
 * `pvc` &mdash; create a `pvc` mount. Applies the {py:meth}`~mlrun.platforms.mount_pvc` modifier.
+* `s3` &mdash; inject S3 credentials as environment variables from a Kubernetes secret. Applies the
+{py:meth}`~mlrun.platforms.mount_s3` modifier. Use this for S3-compatible object storage (AWS S3, MinIO) on
+Kubernetes deployments without Iguazio v3io. Requires `secret_name` in `auto_mount_params` pointing to a secret
+that contains `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` keys (and optionally `AWS_ENDPOINT_URL_S3` for
+non-AWS endpoints).
+* `secret_env` &mdash; inject arbitrary Kubernetes secret keys as environment variables into pods. Applies the
+{py:meth}`~mlrun.platforms.set_env_vars_from_secret` modifier. Use this to expose any secret as pod environment
+variables. Requires `secret_name` and `secret_keys` in `auto_mount_params`.
 * `auto` &mdash; the default auto-mount logic as described above (either `v3io_credentials` or `pvc`).
 * `none` &mdash; perform no auto-mount (same as using `disable_auto_mount = True`).
 
@@ -91,4 +104,11 @@ parameters or strings that contain special characters:
 
     pvc_params_str = base64.b64encode(json.dumps(pvc_params).encode())
     mlrun.mlconf.storage.auto_mount_params = pvc_params_str
+
+The following code demonstrates how to configure S3-compatible object storage (for example MinIO on an IG4 system):
+
+    import mlrun.mlconf
+
+    mlrun.mlconf.storage.auto_mount_type = "s3"
+    mlrun.mlconf.storage.auto_mount_params = "secret_name=minio-credentials,endpoint_url=http://minio.iguazio.svc:9000"
 

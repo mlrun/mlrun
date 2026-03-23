@@ -497,6 +497,7 @@ class MonitoringDeployment:
             function.with_annotations(nuclio_annotations)
         function.spec.min_replicas = stream_args.kafka.min_replicas
         function.spec.max_replicas = stream_args.kafka.max_replicas
+        self._set_scaling_metric_specs(function, stream_args.kafka)
 
     # TODO: Remove in 1.13.0 — one-time offset migration from the old
     # shared consumer group to per-topic groups (ML-11979).
@@ -687,6 +688,32 @@ class MonitoringDeployment:
         )
         function.spec.min_replicas = stream_args.v3io.min_replicas
         function.spec.max_replicas = stream_args.v3io.max_replicas
+
+    @staticmethod
+    def _set_scaling_metric_specs(
+        function: mlrun.runtimes.ServingRuntime,
+        stream_config: mlrun.config.Config,
+    ) -> None:
+        """Set absolute CPU HPA target on the function if configured.
+
+        When ``target_cpu`` is set (e.g. ``"400m"``), the Nuclio HPA is
+        configured with an absolute ``AverageValue`` metric instead of the
+        default percentage-based ``Utilization``.  This avoids spurious
+        autoscaling caused by brief CPU spikes on low-request pods.
+        """
+        if getattr(stream_config, "target_cpu", ""):
+            function.spec.custom_scaling_metric_specs = [
+                {
+                    "type": "Resource",
+                    "resource": {
+                        "name": "cpu",
+                        "target": {
+                            "type": "AverageValue",
+                            "averageValue": stream_config.target_cpu,
+                        },
+                    },
+                }
+            ]
 
     def _initial_model_monitoring_stream_processing_function(
         self,

@@ -124,6 +124,7 @@ class NuclioSpec(KubeResourceSpec):
         "service_type",
         "add_templated_ingress_host_mode",
         "disable_default_http_trigger",
+        "custom_scaling_metric_specs",
         "auth",
     ]
 
@@ -168,6 +169,7 @@ class NuclioSpec(KubeResourceSpec):
         add_templated_ingress_host_mode=None,
         state_thresholds=None,
         disable_default_http_trigger=None,
+        custom_scaling_metric_specs=None,
         serving_spec=None,
         graph=None,
         parameters=None,
@@ -228,6 +230,7 @@ class NuclioSpec(KubeResourceSpec):
         self.max_replicas = max_replicas or 4
 
         self.disable_default_http_trigger = disable_default_http_trigger
+        self.custom_scaling_metric_specs = custom_scaling_metric_specs or []
 
         # When True it will set Nuclio spec.noBaseImagesPull to False (negative logic)
         # indicate that the base image should be pulled from the container registry (not cached)

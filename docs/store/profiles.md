@@ -51,7 +51,7 @@ project.register_datastore_profile(profile)
 
 See also:
 - {py:class}`~mlrun.datastore.datastore_profile.HuggingFaceProfile`
-- {ref}`hf-model-serving-graph`
+- {ref}`hf-model-batch-serving-graph`
 
 ## Source and target profiles
 

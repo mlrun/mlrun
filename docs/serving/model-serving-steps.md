@@ -146,7 +146,7 @@ Example:
 }
 ```
 ### Example with batching
-Example of batching using `ModelRunnerStep`. See a full flow in {ref}`hf-model-serving-graph`.
+Example of batching using `ModelRunnerStep`. See a full flow in {ref}`hf-model-batch-serving-graph`.
 
 ```
 graph = function.set_topology("flow", engine="async")
@@ -169,4 +169,7 @@ step = step.to(model_runner_step)
 step.to("storey.FlatMap", _fn="(event.body)", full_event=True).respond()
 
 print("Serving graph configured with dedicated_process execution mechanism")
+
+#  Enable AsyncSpec when using batch step
+function.with_http(async_spec=AsyncSpec())
 ```

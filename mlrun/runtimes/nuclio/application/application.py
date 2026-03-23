@@ -82,6 +82,7 @@ class ApplicationSpec(nuclio_function.NuclioSpec):
         add_templated_ingress_host_mode=None,
         state_thresholds=None,
         disable_default_http_trigger=None,
+        custom_scaling_metric_specs=None,
         serving_spec=None,
         graph=None,
         parameters=None,
@@ -136,6 +137,7 @@ class ApplicationSpec(nuclio_function.NuclioSpec):
             track_models=track_models,
             state_thresholds=state_thresholds,
             disable_default_http_trigger=disable_default_http_trigger,
+            custom_scaling_metric_specs=custom_scaling_metric_specs,
             auth=auth,
         )
 

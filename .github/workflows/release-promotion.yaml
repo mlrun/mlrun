@@ -205,7 +205,7 @@ jobs:
 
       - name: Generate GitHub App Token for ui repo
         id: ui-app-token
-        uses: actions/create-github-app-token@v2
+        uses: actions/create-github-app-token@v3
         with:
           app-id: ${{ secrets.GH_APP_ID }}
           private-key: ${{ secrets.GH_APP_PRIVATE_KEY }}
@@ -247,7 +247,7 @@ jobs:
 
       - name: Set up uv
         if: github.event.inputs.skip_publish_pypi != 'true'
-        uses: astral-sh/setup-uv@e06108dd0aef18192324c70427afc47652e63a82 # 7.5.0
+        uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # 7.6.0
 
       - name: Upload package to target PyPI repo
         if: github.event.inputs.skip_publish_pypi != 'true'
@@ -275,7 +275,7 @@ jobs:
       - name: Generate GitHub App Token for ui repo
         if: github.event.inputs.skip_create_tag_release != 'true'
         id: ui-release-app-token
-        uses: actions/create-github-app-token@v2
+        uses: actions/create-github-app-token@v3
         with:
           app-id: ${{ secrets.GH_APP_ID }}
           private-key: ${{ secrets.GH_APP_PRIVATE_KEY }}

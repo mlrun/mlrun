@@ -81,6 +81,44 @@ def test_compiled_function_config_sidecar_image_enrichment():
     ), "Image not enriched"
 
 
+def test_custom_scaling_metric_specs_forwarded_to_nuclio():
+    name = f"{assets_path}/training.py"
+    fn = mlrun.code_to_function(
+        "nuclio", filename=name, kind="nuclio", handler="my_hand"
+    )
+    metric_specs = [
+        {
+            "type": "Resource",
+            "resource": {
+                "name": "cpu",
+                "target": {"type": "AverageValue", "averageValue": "400m"},
+            },
+        }
+    ]
+    fn.spec.custom_scaling_metric_specs = metric_specs
+    (
+        _name,
+        _project,
+        config,
+    ) = services.api.crud.runtimes.nuclio.function._compile_function_config(fn)
+    assert mlrun.utils.get_in(config, "spec.customScalingMetricSpecs") == metric_specs
+
+
+def test_custom_scaling_metric_specs_omitted_when_empty():
+    """ML-11991: When custom_scaling_metric_specs is empty, the key should
+    not appear in the compiled Nuclio config."""
+    name = f"{assets_path}/training.py"
+    fn = mlrun.code_to_function(
+        "nuclio", filename=name, kind="nuclio", handler="my_hand"
+    )
+    (
+        _name,
+        _project,
+        config,
+    ) = services.api.crud.runtimes.nuclio.function._compile_function_config(fn)
+    assert not mlrun.utils.get_in(config, "spec.customScalingMetricSpecs")
+
+
 @pytest.mark.parametrize(
     "handler, expected",
     [

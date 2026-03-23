@@ -38,14 +38,14 @@ async def store_project_secrets(
     ),
     db_session: Session = fastapi.Depends(framework.api.deps.get_db_session),
 ):
-    # Doing a specific check for project existence, because we want to return 404 in the case of a project not
-    # existing, rather than returning a permission error, as it misleads the user. We don't even care for return
-    # value.
+    # Using ensure_project instead of get_project to both verify project existence (returning 404 rather than
+    # a misleading permission error) and populate the OPA owner cache, mitigating the OPA manifest propagation
+    # race condition on multi-pod deployments.
     await run_in_threadpool(
-        framework.utils.singletons.project_member.get_project_member().get_project,
+        framework.utils.singletons.project_member.get_project_member().ensure_project,
         db_session,
         project,
-        auth_info,
+        auth_info=auth_info,
     )
 
     await (
@@ -74,11 +74,13 @@ async def delete_project_secrets(
     ),
     db_session: Session = fastapi.Depends(framework.api.deps.get_db_session),
 ):
+    # Using ensure_project instead of get_project to both verify project existence and populate
+    # the OPA owner cache, mitigating the OPA manifest propagation race condition.
     await run_in_threadpool(
-        framework.utils.singletons.project_member.get_project_member().get_project,
+        framework.utils.singletons.project_member.get_project_member().ensure_project,
         db_session,
         project,
-        auth_info,
+        auth_info=auth_info,
     )
 
     await (
@@ -113,10 +115,10 @@ async def list_project_secret_keys(
     db_session: Session = fastapi.Depends(framework.api.deps.get_db_session),
 ):
     await run_in_threadpool(
-        framework.utils.singletons.project_member.get_project_member().get_project,
+        framework.utils.singletons.project_member.get_project_member().ensure_project,
         db_session,
         project,
-        auth_info,
+        auth_info=auth_info,
     )
     await (
         framework.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
@@ -148,10 +150,10 @@ async def list_project_secrets(
     db_session: Session = fastapi.Depends(framework.api.deps.get_db_session),
 ):
     await run_in_threadpool(
-        framework.utils.singletons.project_member.get_project_member().get_project,
+        framework.utils.singletons.project_member.get_project_member().ensure_project,
         db_session,
         project,
-        auth_info,
+        auth_info=auth_info,
     )
     await (
         framework.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(

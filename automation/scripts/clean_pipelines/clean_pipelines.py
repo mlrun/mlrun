@@ -18,6 +18,7 @@ from time import sleep
 import pandas as pd
 
 import mlrun
+import mlrun.common.schemas
 import mlrun.utils
 import mlrun_pipelines
 import mlrun_pipelines.client

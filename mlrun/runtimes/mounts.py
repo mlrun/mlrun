@@ -388,12 +388,13 @@ def auto_mount(
         )
     # In the case of CE when working remotely, no env variables will be defined but auto-mount
     # parameters may still be declared - use them in that case.
-    if config.storage.auto_mount_type == "pvc":
-        return mount_pvc(**config.get_storage_auto_mount_params())
-    if config.storage.auto_mount_type == "s3":
-        return mount_s3(**config.get_storage_auto_mount_params())
-    if config.storage.auto_mount_type == "secret_env":
-        return set_env_vars_from_secret(**config.get_storage_auto_mount_params())
+    # Lazy import to avoid circular dependency (pod.py imports mounts.py at module level).
+    from mlrun.runtimes.pod import AutoMountType
+
+    auto_mount_type = AutoMountType(config.storage.auto_mount_type)
+    modifier = auto_mount_type.get_modifier()
+    if modifier and auto_mount_type != AutoMountType.auto:
+        return modifier(**config.get_storage_auto_mount_params())
     if "V3IO_ACCESS_KEY" in os.environ:
         return mount_v3io(name=volume_name or "v3io")
 

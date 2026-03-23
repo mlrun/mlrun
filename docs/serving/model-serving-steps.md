@@ -17,8 +17,7 @@ model (useful when the model has a long startup time or requires a lot of resour
 used for different models within the same step. ModelRunnerStep supports a shared
 model that is invoked from multiple steps in one graph. Model endpoints resresent the models themselves, not the steps.
 
-
-ModelRunnerSteps have model endpoints, and can therefore be monitored. The input and output of each step are user-configurable. See [Basic code examples](#basic-code-examples) and {py:meth}`~mlrun.serving.ModelRunnerStep.add_model`.
+ModelRunnerSteps have model endpoints, and can therefore be monitored. The input and output of each step are user-configurable. See [ModelRunnerStep with two models](#modelrunnerstep-with-two-models) and {py:meth}`~mlrun.serving.ModelRunnerStep.add_model`.
 
 When a `ModelRunnerStep `is included in a graph, MLRun automatically imports the default language model class (`LLModel` or `mlrun.serving.states.LLModel`) during function deployment to wrap the model for handling a LLM prompt-based inference. This class extends the base Model to provide specialized handling for `LLMPromptArtifact` objects, enabling both synchronous and asynchronous invocation of language models. Follow the class description and implement your own enrichment when a custom class is needed.
 
@@ -34,7 +33,7 @@ ModelRunnerStep can only be added to a graph that has the {ref}`flow topology<fl
 When adding models to the `ModelRunnerStap`, there are many configuration options, for example, excluding unnecessary details that are included in any LLM, input and outputs, which can be paths, dict, etc. 
 See the parameters in {py:meth}`~mlrun.serving.states.ModelRunnerStep.add_model`.
 
-### ModelRunnerStap with two models
+### ModelRunnerStep with two models
 
 This code illustrates a `ModelRunnerStap` with two models. The `ModelSelector` determines which model to run on each event, based on responses from an LLM (for example, finanace vs. travel). It can be a class or a string. If you do not provide a `ModelSelector` to the `ModelRunnerStep `the default case is to run all models.
 

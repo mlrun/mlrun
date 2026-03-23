@@ -49,7 +49,7 @@ class BaseLauncher(abc.ABC):
         if not kwargs:
             return
 
-        valid_launch_params = set(inspect.signature(self.launch).parameters) - {"self"}
+        valid_launch_params = self._get_valid_launcher_params()
         for key in sorted(kwargs):
             if key in valid_launch_params:
                 continue
@@ -469,3 +469,23 @@ class BaseLauncher(abc.ABC):
         runtime: "mlrun.runtimes.BaseRuntime", result: dict, run: "mlrun.run.RunObject"
     ):
         pass
+
+    def _get_valid_launcher_params(self) -> frozenset[str]:
+        """
+        Union of params valid for launcher __init__ (should not warn on these).
+        Derived from:
+            (1) launch() signature,
+            (2) explicit __init__ params of launcher subclasses (local, auth_info, etc.).
+        """
+        valid = set(inspect.signature(self.launch).parameters) - {"self"}
+
+        # Collect explicit __init__ params from this class and subclasses
+        for cls in type(self).__mro__:
+            if cls is object or not issubclass(cls, BaseLauncher):
+                continue
+            if "__init__" in cls.__dict__:
+                for name, param in inspect.signature(cls.__init__).parameters.items():
+                    if name != "self" and param.kind != inspect.Parameter.VAR_KEYWORD:
+                        valid.add(name)
+
+        return frozenset(valid)

@@ -76,6 +76,11 @@ class LogHint(BaseModel):
     Labels to add to the logged artifact.
     """
 
+    artifact_path: str | None = None
+    """
+    The artifact path to log the object to. If None, the default artifact path will be used. Default is None.
+    """
+
     extra_data: dict = Field(default_factory=dict)
     """
     Extra data to log alongside the artifact. To link to another package, write the key and a '...' as the value. For

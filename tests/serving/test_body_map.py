@@ -223,16 +223,7 @@ class TestAPIHandlerStepBodyMap:
         config.add_endpoint_handler(
             path, HTTPMethod.POST, APIHandlerAction.ALLOW, "Test"
         )
-
-        context = MagicMock()
-        mock_event = MagicMock()
-        mock_event.method = HTTPMethod.POST
-        mock_event.path = path
-        context.current_event = mock_event
-
-        step = _APIHandlerStep(config=config)
-        step.context = context
-        return step
+        return _APIHandlerStep(config=config)
 
     @staticmethod
     def test_body_map_transforms_event_body() -> None:
@@ -282,14 +273,7 @@ class TestAPIHandlerStepBodyMap:
         config = APIHandlerConfig()  # no body_map
         config.add_endpoint_handler("/predict", HTTPMethod.POST, APIHandlerAction.ALLOW)
 
-        context = MagicMock()
-        mock_event = MagicMock()
-        mock_event.method = HTTPMethod.POST
-        mock_event.path = "/predict"
-        context.current_event = mock_event
-
         step = _APIHandlerStep(config=config)
-        step.context = context
 
         event = MagicMock()
         event.method = HTTPMethod.POST
@@ -330,13 +314,6 @@ class TestAPIHandlerStepBodyMap:
         step = _APIHandlerStep(config=config)
 
         # Test /predict
-        context = MagicMock()
-        mock_event = MagicMock()
-        mock_event.method = HTTPMethod.POST
-        mock_event.path = "/predict"
-        context.current_event = mock_event
-        step.context = context
-
         event = MagicMock()
         event.method = HTTPMethod.POST
         event.path = "/predict"
@@ -344,8 +321,7 @@ class TestAPIHandlerStepBodyMap:
         result = step.do(event)
         assert result.body == {"input": [1, 2]}
 
-        # Test /classify — same body_map applies
-        mock_event.path = "/classify"
+        # Test /classify -- same body_map applies
         event2 = MagicMock()
         event2.method = HTTPMethod.POST
         event2.path = "/classify"

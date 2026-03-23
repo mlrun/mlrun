@@ -21,6 +21,8 @@ import mlrun.common.schemas
 import mlrun.k8s_utils
 import mlrun.utils.singleton
 
+import framework.utils.auth.verifier
+import framework.utils.project_formats
 import services.api.crud
 
 
@@ -45,9 +47,16 @@ class Member(abc.ABC):
         auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
     ):
         try:
+            # Using minimal format to access spec.owner for OPA cache population
+            # while avoiding the overhead of fetching large fields (functions, workflows, artifacts)
             project = self.get_project(
                 db_session,
-                format_=mlrun.common.formatters.ProjectFormat.name_only,
+                format_=framework.utils.project_formats.ProjectFormatCustomSelection(
+                    [
+                        framework.utils.project_formats.ProjectFormatCustom.name,
+                        framework.utils.project_formats.ProjectFormatCustom.owner,
+                    ]
+                ),
                 auth_info=auth_info,
                 from_leader=False,
                 name=name,
@@ -58,6 +67,21 @@ class Member(abc.ABC):
         # for custom description and for sanity check
         if not project:
             raise mlrun.errors.MLRunNotFoundError(f"Project {name} does not exist")
+
+        # Populate the OPA owner cache if the requesting user is the project owner.
+        # This mitigates the OPA manifest propagation race condition on multi-pod deployments:
+        # when a request is routed to a pod that hasn't received the OPA manifest yet,
+        # the cache allows the owner to proceed without waiting for OPA propagation.
+        if (
+            auth_info.username
+            and hasattr(project, "spec")
+            and project.spec
+            and project.spec.owner
+            and auth_info.username == project.spec.owner
+        ):
+            framework.utils.auth.verifier.AuthVerifier().add_allowed_project_for_owner(
+                name, auth_info
+            )
 
     @abc.abstractmethod
     def create_project(
@@ -113,7 +137,7 @@ class Member(abc.ABC):
         name: str,
         auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
         from_leader: bool = False,
-        format_: mlrun.common.formatters.ProjectFormat = mlrun.common.formatters.ProjectFormat.full,
+        format_: framework.utils.project_formats.ProjectFormatType = mlrun.common.formatters.ProjectFormat.full,
     ) -> mlrun.common.schemas.ProjectOutput:
         pass
 
@@ -123,7 +147,7 @@ class Member(abc.ABC):
         db_session: sqlalchemy.orm.Session,
         auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
         owner: str | None = None,
-        format_: mlrun.common.formatters.ProjectFormat = mlrun.common.formatters.ProjectFormat.full,
+        format_: framework.utils.project_formats.ProjectFormatType = mlrun.common.formatters.ProjectFormat.full,
         labels: list[str] | None = None,
         state: mlrun.common.schemas.ProjectState = None,
         names: list[str] | None = None,

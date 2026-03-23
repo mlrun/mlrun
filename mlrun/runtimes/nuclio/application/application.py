@@ -20,6 +20,7 @@ import nuclio
 import nuclio.auth
 
 import mlrun.common.constants
+import mlrun.common.runtimes.validators
 import mlrun.common.schemas as schemas
 import mlrun.datastore
 import mlrun.errors
@@ -81,6 +82,7 @@ class ApplicationSpec(nuclio_function.NuclioSpec):
         add_templated_ingress_host_mode=None,
         state_thresholds=None,
         disable_default_http_trigger=None,
+        custom_scaling_metric_specs=None,
         serving_spec=None,
         graph=None,
         parameters=None,
@@ -135,6 +137,7 @@ class ApplicationSpec(nuclio_function.NuclioSpec):
             track_models=track_models,
             state_thresholds=state_thresholds,
             disable_default_http_trigger=disable_default_http_trigger,
+            custom_scaling_metric_specs=custom_scaling_metric_specs,
             auth=auth,
         )
 
@@ -374,6 +377,11 @@ class ApplicationRuntime(nuclio_function.RemoteRuntime):
                 }.items()
                 if value is not None
             }
+        )
+
+        # Validate the probe configuration before storing
+        mlrun.common.runtimes.validators.validate_sidecar_probes(
+            [{type.key: probe_config}]
         )
 
         # Store probe configuration in the sidecar
@@ -1128,7 +1136,16 @@ class ApplicationRuntime(nuclio_function.RemoteRuntime):
                   deploy() uses these to restore the local path in a finally block.
         """
         source = self.spec.build.source
-        if not source or not self._is_single_local_file(source):
+        if not source or not self._is_local_path(source) or os.path.isdir(source):
+            return None, None
+
+        if not os.path.isfile(source):
+            # On redeploy the remote artifact from the previous deploy is still available
+            if not getattr(self.status, "application_source", None):
+                raise mlrun.errors.MLRunNotFoundError(
+                    f"Source file not found: '{source}'. "
+                    "The file must exist locally to be uploaded as a source artifact."
+                )
             return None, None
 
         project_name = self.metadata.project
@@ -1169,14 +1186,8 @@ class ApplicationRuntime(nuclio_function.RemoteRuntime):
         return source, artifact.uri
 
     @staticmethod
-    def _is_single_local_file(source: str) -> bool:
-        # Skip if the source is already a store URI
+    def _is_local_path(source: str) -> bool:
+        """Check if source looks like a local filesystem path (not a URL or store URI)."""
         if mlrun.datastore.is_store_uri(source):
             return False
-
-        # Skip if it's a remote URL (not a relative/local path)
-        if not (is_relative_path(source) or os.path.isabs(source)):
-            return False
-
-        # Check if it's a local file (not a directory)
-        return os.path.isfile(source)
+        return is_relative_path(source) or os.path.isabs(source)

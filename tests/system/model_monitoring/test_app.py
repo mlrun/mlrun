@@ -326,7 +326,6 @@ class _V3IORecordsChecker:
 
 
 @TestMLRunSystemModelMonitoring.skip_test_if_env_not_configured
-@pytest.mark.enterprise
 class TestMonitoringAppFlow(TestMLRunSystemModelMonitoring, _V3IORecordsChecker):
     project_name = "test-app-flow"
     # Set image to "<repo>/mlrun:<tag>" for local testing
@@ -840,8 +839,15 @@ class TestMonitoringAppFlow(TestMLRunSystemModelMonitoring, _V3IORecordsChecker)
             "No drift over time should be detected in the past"
         )
 
-    @pytest.mark.parametrize("with_training_set", [True, False])
-    @pytest.mark.parametrize("with_model_runner", [True, False])
+    @pytest.mark.parametrize(
+        "with_training_set, with_model_runner",
+        [
+            pytest.param(True, True, marks=pytest.mark.smoke),
+            pytest.param(True, False),
+            pytest.param(False, True),
+            pytest.param(False, False),
+        ],
+    )
     def test_app_flow(self, with_training_set: bool, with_model_runner: bool) -> None:
         self.apps_data = self._get_apps_data(with_training_set)
         self.project = typing.cast(mlrun.projects.MlrunProject, self.project)

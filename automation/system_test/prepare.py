@@ -153,15 +153,6 @@ class SystemTestPreparer:
     def run(self):
         self.connect_to_remote()
 
-        try:
-            logger.log("debug", "installing dev utilities")
-            self._install_dev_utilities()
-            logger.log("debug", "installing dev utilities - done")
-        except Exception as exp:
-            self._logger.log(
-                "error", "error on install dev utilities", exception=str(exp)
-            )
-
         # for sanity clean up before starting the run
         self.clean_up_remote_workdir()
 
@@ -358,6 +349,8 @@ class SystemTestPreparer:
         # enrichment can be done only if ssh client is initialized
         if self._ssh_client:
             self._enrich_env()
+        else:
+            self._enrich_oss_env()
         serialized_env_config = self._serialize_env_config()
         with open(filepath, "w") as f:
             f.write(serialized_env_config)
@@ -414,14 +407,6 @@ class SystemTestPreparer:
         )
 
     def _enrich_env(self):
-        devutils_outputs = self._get_devutils_status()
-        if "redis" in devutils_outputs:
-            self._logger.log("debug", "Enriching env with redis info")
-            # uncomment when url is accessible from outside the cluster
-            # self._env_config["MLRUN_REDIS__URL"] = f"redis://{devutils_outputs['redis']['app_url']}"
-            # self._env_config["REDIS_USER"] = devutils_outputs["redis"]["username"]
-            # self._env_config["REDIS_PASSWORD"] = devutils_outputs["redis"]["password"]
-
         api_url_host = self._get_ingress_host("datanode-dashboard")
         framesd_host = self._get_ingress_host("framesd")
         v3io_api_host = self._get_ingress_host("webapi")
@@ -435,14 +420,10 @@ class SystemTestPreparer:
         self._env_config["V3IO_API"] = f"https://{v3io_api_host}"
         self._env_config["MLRUN_DBPATH"] = f"https://{mlrun_api_url}"
 
-        # Since the prepare script is shared across branches, two MM configs are set.
-        # Remove the deprecated config when we stop testing 1.7.x.
+        # running system tests in a lab environment where TLS verification may be disabled.
+        self._env_config["MLRUN_HTTPDB__HTTP__VERIFY"] = "false"
 
-        # MM infra for < 1.8.0
-        self._env_config["MLRUN_MODEL_ENDPOINT_MONITORING__TSDB_CONNECTION"] = "v3io"
-        self._env_config["MLRUN_MODEL_ENDPOINT_MONITORING__STREAM_CONNECTION"] = "v3io"
-
-        # MM infra for >= 1.8.0
+        # MM infra
         self._env_config["mlrun_model_monitoring_tsdb_profile"] = json.dumps(
             {
                 "type": "v3io",
@@ -458,28 +439,27 @@ class SystemTestPreparer:
             }
         )
 
-    def _install_dev_utilities(self):
-        list_uninstall = [
-            "dev_utilities.py",
-            "uninstall",
-            "--redis",
-            "--mysql",
-            "--redisinsight",
-            "--kafka",
-        ]
-        list_install = [
-            "dev_utilities.py",
-            "install",
-            "--redis",
-            "--mysql",
-            "--redisinsight",
-            "--kafka",
-            "--ipadd",
-            os.environ.get("IP_ADDR_PREFIX", "localhost"),
-        ]
-        self._run_command("rm", args=["-rf", "/home/iguazio/dev_utilities"])
-        self._run_command("python3", args=list_uninstall, workdir="/home/iguazio/")
-        self._run_command("python3", args=list_install, workdir="/home/iguazio/")
+    def _enrich_oss_env(self):
+        """Add model monitoring profiles for OSS/CE deployments."""
+        self._env_config["mlrun_model_monitoring_tsdb_profile"] = json.dumps(
+            {
+                "type": "postgresql",
+                "name": "mm-tsdb-profile",
+                "user": "postgres",
+                "password": "postgres",
+                "host": "timescaledb",
+                "port": 5432,
+                "database": "postgres",
+            }
+        )
+        self._env_config["mlrun_model_monitoring_stream_profile"] = json.dumps(
+            {
+                "type": "kafka_stream",
+                "name": "mm-stream-profile",
+                "brokers": "kafka-stream:9092",
+                "topics": [],
+            }
+        )
 
     def _download_provctl(self):
         # extract bucket name, object name from s3 file path
@@ -771,29 +751,6 @@ class SystemTestPreparer:
         if stderr:
             raise RuntimeError(f"Failed getting service name. Error: {stderr}")
         return service_name.strip()
-
-    def _get_devutils_status(self):
-        out, err = "", ""
-        try:
-            out, err = self._run_command(
-                "python3",
-                [
-                    "/home/iguazio/dev_utilities.py",
-                    "status",
-                    "--redis",
-                    "--kafka",
-                    "--mysql",
-                    "--redisinsight",
-                    "--output",
-                    "json",
-                ],
-            )
-        except Exception as exc:
-            self._logger.log(
-                "warning", "Failed to enrich env", exc=exc, err=err, out=out
-            )
-
-        return json.loads(out or "{}")
 
     def _ensure_ssh_session_active(self):
         try:

@@ -43,11 +43,11 @@ class LauncherFactory(
         if mlrun.config.is_running_as_api():
             return self._launcher_container.server_side_launcher(**kwargs)
 
-        local = kwargs.get("local", False)
+        local = kwargs.pop("local", False)
         if is_remote and not local:
             return self._launcher_container.client_remote_launcher(**kwargs)
 
-        return self._launcher_container.client_local_launcher(**kwargs)
+        return self._launcher_container.client_local_launcher(local=local, **kwargs)
 
 
 class LauncherContainer(containers.DeclarativeContainer):

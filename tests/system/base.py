@@ -193,7 +193,11 @@ class TestMLRunSystem:
             else cls.mandatory_env_vars
         )
         if cls._has_marker(test, cls.model_monitoring_marker_name):
-            mandatory_env_vars += cls.model_monitoring_mandatory_keys
+            # Use + (not +=) to avoid mutating the class variable in-place,
+            # which would permanently append to it across test runs in the same process.
+            mandatory_env_vars = (
+                mandatory_env_vars + cls.model_monitoring_mandatory_keys
+            )
 
         missing_env_vars = []
         try:
@@ -238,7 +242,8 @@ class TestMLRunSystem:
     @classmethod
     def _get_env_from_file(cls) -> dict:
         with cls.env_file_path.open() as f:
-            return yaml.safe_load(f)
+            env = yaml.safe_load(f)
+        return env if isinstance(env, dict) else {}
 
     @classmethod
     def _setup_env(cls, env: dict):

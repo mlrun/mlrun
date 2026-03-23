@@ -22,6 +22,7 @@ from packaging.version import parse as parse_version
 import mlrun
 import mlrun.common.constants as mlrun_constants
 import mlrun.common.schemas
+import mlrun.errors
 from mlrun.runtimes.base import RuntimeClassMode
 from mlrun.utils import logger
 

@@ -16,6 +16,7 @@ name: CI
 
 permissions:
   contents: read
+  pull-requests: write
 
 on:
   pull_request:
@@ -54,13 +55,13 @@ jobs:
         cache: pip
     - name: Install dependencies
       run: |
-        python -m pip install --upgrade pip~=25.0
+        python -m pip install --upgrade pip~=26.0
         pip install -r dev-requirements.txt
     - name: Lint
       run: make lint
 
     # perform copyright check here, to avoid spinning up another runner needlessly
-    - uses: denoland/setup-deno@e95548e56dfa95d4e1a28d6f422fafe75c4c26fb # 2.0.3
+    - uses: denoland/setup-deno@667a34cdef165d8d2b2e98dde39547c9daac7282 # 2.0.4
       with:
         deno-version: v1.x
     - name: Check
@@ -138,7 +139,7 @@ jobs:
         make test-dockerized
     - name: Upload coverage report
       if: env.RUN_COVERAGE == 'true'
-      uses: actions/upload-artifact@v6
+      uses: actions/upload-artifact@v7
       with:
         name: coverage_unit_tests_report_${{ matrix.python-version }}_${{ github.run_id }}_${{ matrix.test-suite }}.coverage
         path: /tmp/coverage_reports/unit_tests_${{ matrix.test-suite }}/unit_tests_${{ matrix.test-suite }}.coverage
@@ -202,7 +203,7 @@ jobs:
       timeout-minutes: 90
 
     - name: Upload coverage report
-      uses: actions/upload-artifact@v6
+      uses: actions/upload-artifact@v7
       if: env.RUN_COVERAGE == 'true'
       with:
          name: coverage_integration_tests_report_${{ matrix.python-version }}_${{ matrix.test-db }}_${{ github.run_id }}.coverage
@@ -232,7 +233,7 @@ jobs:
           MLRUN_DOCKER_CACHE_FROM_TAG=${{ steps.docker_cache.outputs.tag }} \
           make test-migrations-dockerized RUN_COVERAGE=true
       - name: Upload coverage report
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: coverage_migration_tests_report-${{ github.run_id }}.coverage
           path: /tmp/coverage_reports/migration_tests/migration_tests.coverage
@@ -256,14 +257,15 @@ jobs:
       with:
         python-version: ${{ matrix.python-version }}
 
-    - uses: astral-sh/setup-uv@803947b9bd8e9f986429fa0c5a41c367cd732b41 # 7.2.1
+    - uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # 7.6.0
       with:
           python-version: ${{ matrix.python-version }}
           enable-cache: true
+          cache-dependency-glob: "**/*requirements*.txt"
 
     - name: Install automation scripts dependencies and add mlrun to dev packages
       run: |
-        uv venv venv --seed
+        uv venv venv --seed --clear
         source venv/bin/activate
         make install-automation-requirements
         uv pip install -e .
@@ -294,7 +296,7 @@ jobs:
       - name: Generate HTML docs
         run: MLRUN_DOCKER_REGISTRY=ghcr.io/ MLRUN_DOCKER_CACHE_FROM_TAG=${{ steps.docker_cache.outputs.tag }} make html-docs-dockerized
       - name: Upload generated docs
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: docs
           path: docs/_build/html
@@ -376,22 +378,22 @@ jobs:
         # To save time, install only pytest and coverage-related packages, without mlrun and its dependencies.
         run: make install-dev-requirements
       - name: Download server unit tests coverage report
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           name: coverage_unit_tests_report_${{ matrix.python-version }}_${{ github.run_id }}_server.coverage
           path: tests/coverage_reports/
       - name: Download client unit tests coverage report
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           name: coverage_unit_tests_report_${{ matrix.python-version }}_${{ github.run_id }}_client.coverage
           path: tests/coverage_reports/
       - name: Download integration coverage report
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           path: tests/coverage_reports/
 
       - name: Download migration coverage report
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           name: coverage_migration_tests_report-${{ github.run_id }}.coverage
           path: tests/coverage_reports/
@@ -399,7 +401,7 @@ jobs:
         run: make coverage-combine UNIT_TEST_COVERAGE_PATHS="tests/coverage_reports/unit_tests_client.coverage tests/coverage_reports/unit_tests_server.coverage"
         # Save it as an artifact:
       - name: Upload coverage combined report
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: coverage_combined_report-${{ github.run_id }}.coverage
           path: tests/coverage_reports/combined.coverage
@@ -409,10 +411,77 @@ jobs:
           diff-cover tests/coverage_reports/combined.xml \
           --compare-branch origin/development \
           --show-uncovered \
-          --html-report tests/coverage_reports/combined_diff.html
-      - name: Upload coverage diff report
-        uses: actions/upload-artifact@v6
+          --html-report tests/coverage_reports/combined_diff.html \
+          --markdown-report tests/coverage_reports/diff_coverage.md
+
+      - name: Add coverage to job summary
+        if: github.event_name == 'pull_request'
+        run: |
+          {
+            echo "## 📊 Diff Coverage Report"
+            echo ""
+            echo "<details>"
+            echo "<summary>📂 Click to view full coverage details</summary>"
+            echo ""
+            cat tests/coverage_reports/diff_coverage.md
+            echo ""
+            echo "</details>"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload markdown coverage report for PR comment
+        if: github.event_name == 'pull_request'
+        uses: actions/upload-artifact@v7
+        with:
+          name: coverage-markdown-report
+          path: tests/coverage_reports/diff_coverage.md
+          retention-days: 30
+
+      - name: Upload coverage html diff report
+        uses: actions/upload-artifact@v7
         with:
           name: coverage_combined_diff_report_${{ matrix.python-version }}_${{ github.run_id }}.html
           path: tests/coverage_reports/combined_diff.html
           retention-days: 30
+
+  label-oss-system-test-unknown:
+    name: Label PR with Smoke Unknown
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Set Smoke tests Unknown label
+        run: |
+          PR="${{ github.event.pull_request.number }}"
+          API_URL="https://api.github.com/repos/${{ github.repository }}/issues/${PR}/labels"
+
+          REPO_LABELS_URL="https://api.github.com/repos/${{ github.repository }}/labels"
+
+          # Ensure the Unknown label exists with gray color
+          curl -sS -X PATCH \
+            -H "Authorization: token ${GITHUB_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            -d '{"color":"c5def5"}' \
+            "${REPO_LABELS_URL}/Smoke tests%3A%20Unknown" || \
+          curl -sS -X POST \
+            -H "Authorization: token ${GITHUB_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            -d '{"name":"Smoke tests: Unknown","color":"c5def5"}' \
+            "${REPO_LABELS_URL}"
+
+          # Remove Pass and Fail labels (ignore errors if not present)
+          curl -sS -X DELETE \
+            -H "Authorization: token ${GITHUB_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            "${API_URL}/Smoke tests%3A%20Pass" || true
+          curl -sS -X DELETE \
+            -H "Authorization: token ${GITHUB_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            "${API_URL}/Smoke tests%3A%20Fail" || true
+
+          # Add Unknown label
+          curl -sS -X POST \
+            -H "Authorization: token ${GITHUB_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            -d '{"labels":["Smoke tests: Unknown"]}' \
+            "${API_URL}"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

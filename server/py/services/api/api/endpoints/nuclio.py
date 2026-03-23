@@ -25,7 +25,7 @@ from fastapi.concurrency import run_in_threadpool
 
 import mlrun.common.schemas
 import mlrun.common.schemas.model_monitoring.constants as mm_constants
-from mlrun.common.runtimes.constants import ProbeType
+from mlrun.common.runtimes.validators import validate_sidecar_probes
 from mlrun.common.schemas.serving import DeployResponse
 from mlrun.config import config
 from mlrun.utils import logger
@@ -482,7 +482,13 @@ def _deploy_function(
         # Validate sidecar probe configurations before deployment
         sidecars = fn.spec.config.get("spec.sidecars") or []
         if sidecars:
-            _validate_sidecar_probes(sidecars)
+            try:
+                validate_sidecar_probes(sidecars)
+            except mlrun.errors.MLRunInvalidArgumentError as exc:
+                framework.api.utils.log_and_raise(
+                    HTTPStatus.BAD_REQUEST.value,
+                    reason=str(exc),
+                )
 
         # save the function to DB
         fn.save(versioned=False)
@@ -777,30 +783,3 @@ async def _add_functions_external_invocation_url(
         for function in function_names
     ]
     await asyncio.gather(*tasks)
-
-
-def _validate_sidecar_probes(sidecars: list[dict]) -> None:
-    """Validate probe configurations in sidecars against Kubernetes V1Probe schema.
-
-    Validates that each probe configuration has exactly one of the following:
-    httpGet, exec, tcpSocket, or grpc.
-    """
-    health_check_keys = ["httpGet", "exec", "tcpSocket", "grpc"]
-
-    for sidecar in sidecars:
-        for probe_type in (pt.key for pt in ProbeType):
-            probe_config = sidecar.get(probe_type)
-            if probe_config is None:
-                continue
-
-            # Count health check configuration keys
-            present_keys = [key for key in health_check_keys if key in probe_config]
-
-            if len(present_keys) != 1:
-                framework.api.utils.log_and_raise(
-                    HTTPStatus.BAD_REQUEST.value,
-                    reason=(
-                        f"Sidecar {probe_type} must have exactly one of "
-                        f"the following configuration sections: {', '.join(health_check_keys)}"
-                    ),
-                )

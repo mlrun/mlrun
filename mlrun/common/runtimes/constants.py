@@ -386,6 +386,13 @@ class ProbeType(StrEnum):
             )
         return valid_value
 
+    @classmethod
+    def all(cls) -> list[str]:
+        return [pt.key for pt in cls]
+
+
+HEALTH_CHECK_KEYS = ["httpGet", "exec", "tcpSocket", "grpc"]
+
 
 class ProbeTimeConfig(StrEnum):
     INITIAL_DELAY_SECONDS = "initialDelaySeconds"

@@ -161,6 +161,56 @@ class TestTimescaleDBOperationsManagerIntegration:
         )
         assert len(result.data) == 4
 
+    def test_predictions_unique_index_created(self, query_test_helper):
+        """Test that a unique index on (endpoint_id, end_infer_time) is created on the predictions table."""
+        connection = query_test_helper.connection
+        tables = query_test_helper.operations_handler.tables
+        predictions_table = tables[mm_schemas.TimescaleDBTables.PREDICTIONS]
+        schema_name = predictions_table.schema
+
+        # Query actual unique indexes and their column order from pg catalog
+        result = connection.run(
+            query=f"""
+            SELECT ic.relname AS index_name,
+                   array_agg(a.attname ORDER BY array_position(ix.indkey, a.attnum)) AS columns
+            FROM pg_index ix
+            JOIN pg_class t ON t.oid = ix.indrelid
+            JOIN pg_class ic ON ic.oid = ix.indexrelid
+            JOIN pg_namespace n ON n.oid = t.relnamespace
+            JOIN pg_attribute a ON a.attrelid = t.oid AND a.attnum = ANY(ix.indkey)
+            WHERE n.nspname = '{schema_name}'
+              AND t.relname = '{predictions_table.table_name}'
+              AND ix.indisunique = true
+              AND NOT ix.indisprimary
+            GROUP BY ic.relname
+            """
+        )
+
+        # Exactly one unique index on predictions
+        assert len(result.data) == 1
+        _, columns = result.data[0]
+        assert columns == ["endpoint_id", "end_infer_time"]
+
+        # Verify other tables have no unique indexes
+        for table_type in [
+            mm_schemas.TimescaleDBTables.METRICS,
+            mm_schemas.TimescaleDBTables.APP_RESULTS,
+            mm_schemas.TimescaleDBTables.ERRORS,
+        ]:
+            table = tables[table_type]
+            other_result = connection.run(
+                query=f"""
+                SELECT COUNT(*) FROM pg_index ix
+                JOIN pg_class t ON t.oid = ix.indrelid
+                JOIN pg_namespace n ON n.oid = t.relnamespace
+                WHERE n.nspname = '{schema_name}'
+                  AND t.relname = '{table.table_name}'
+                  AND ix.indisunique = true
+                  AND NOT ix.indisprimary
+                """
+            )
+            assert other_result.data[0][0] == 0
+
     def test_create_tables_with_pre_aggregates(self, query_test_helper_with_aggregates):
         """Test table creation with pre-aggregate configuration."""
         # Tables are already created by the fixture

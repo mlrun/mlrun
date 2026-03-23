@@ -57,12 +57,14 @@ metadata:
   labels:
     app: docker-registry
 spec:
+  type: NodePort
   selector:
     app: docker-registry
   ports:
     - protocol: TCP
       port: 80
       targetPort: 5000
+      nodePort: 32000
 
 ---
 apiVersion: v1

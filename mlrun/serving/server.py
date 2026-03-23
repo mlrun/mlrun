@@ -328,10 +328,6 @@ class GraphServer(ModelObj):
                         body=message, content_type="text/plain", status_code=400
                     )
         try:
-            # Store current event in context for API handler steps to access
-            if context:
-                context.current_event = event
-
             response = self.graph.run(event, **(extra_args or {}))
         except Exception as exc:
             # Extract appropriate status code from MLRunHTTPStatusError exceptions

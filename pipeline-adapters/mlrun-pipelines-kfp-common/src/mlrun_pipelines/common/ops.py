@@ -751,6 +751,7 @@ def process_kfp_workflow_secret_references(
     env_var_names: list[str],
     secrets_store: "SecretsStore",
     auth_secret_name: str | None = None,
+    auth_info: mlrun.common.schemas.AuthInfo | None = None,
 ) -> bytes:
     if content_type.endswith(
         "zip"
@@ -761,6 +762,7 @@ def process_kfp_workflow_secret_references(
             env_var_names=env_var_names,
             secrets_store=secrets_store,
             auth_secret_name=auth_secret_name,
+            auth_info=auth_info,
         )
         return modified_zip_bytes
     elif content_type.endswith(("yaml", "plain")):
@@ -769,6 +771,7 @@ def process_kfp_workflow_secret_references(
             env_var_names=env_var_names,
             secrets_store=secrets_store,
             auth_secret_name=auth_secret_name,
+            auth_info=auth_info,
         )
         return modified_yaml_bytes
     else:
@@ -780,11 +783,19 @@ def _enrich_kfp_workflow_credentials_in_subprocess(
     env_var_names: list[str],
     secrets_store: "SecretsStore",
     auth_secret_name: str | None = None,
+    auth_info: mlrun.common.schemas.AuthInfo | None = None,
 ) -> bytes:
     queue = multiprocessing.Queue()
     process = multiprocessing.Process(
         target=_enrich_wrapper,
-        args=(queue, byte_buffer, env_var_names, secrets_store, auth_secret_name),
+        args=(
+            queue,
+            byte_buffer,
+            env_var_names,
+            secrets_store,
+            auth_secret_name,
+            auth_info,
+        ),
     )
     process.start()
     result = queue.get()
@@ -798,12 +809,14 @@ def _enrich_wrapper(
     env_var_names: list[str],
     secrets_store: "SecretsStore",
     auth_secret_name: str | None = None,
+    auth_info: mlrun.common.schemas.AuthInfo | None = None,
 ):
     result = _enrich_kfp_workflow_zip_credentials(
         byte_buffer=byte_buffer,
         env_var_names=env_var_names,
         secrets_store=secrets_store,
         auth_secret_name=auth_secret_name,
+        auth_info=auth_info,
     )
     queue.put(result)
 
@@ -813,6 +826,7 @@ def _enrich_kfp_workflow_zip_credentials(
     env_var_names: list[str],
     secrets_store: "SecretsStore",
     auth_secret_name: str | None = None,
+    auth_info: mlrun.common.schemas.AuthInfo | None = None,
 ) -> bytes:
     in_memory_zip = io.BytesIO(byte_buffer)
     with zipfile.ZipFile(in_memory_zip, "r") as zip_read:
@@ -829,6 +843,7 @@ def _enrich_kfp_workflow_zip_credentials(
                 env_var_names=env_var_names,
                 secrets_store=secrets_store,
                 auth_secret_name=auth_secret_name,
+                auth_info=auth_info,
             )
             files_data[file_name] = modified_yaml
 
@@ -845,6 +860,7 @@ def _enrich_kfp_workflow_yaml_credentials(
     env_var_names: list[str],
     secrets_store: "SecretsStore",
     auth_secret_name: str | None = None,
+    auth_info: mlrun.common.schemas.AuthInfo | None = None,
 ) -> bytes:
     """
     Modifies the given workflow YAML to add secret environment variables to container specifications.
@@ -873,6 +889,7 @@ def _enrich_kfp_workflow_yaml_credentials(
                     env_var_names=env_var_names,
                     container=container,
                     secrets_store=secrets_store,
+                    auth_info=auth_info,
                 )
 
         return yaml.safe_dump(workflow_dict).encode()
@@ -884,6 +901,7 @@ def _enrich_kfp_workflow_yaml_credentials(
                     env_var_names=env_var_names,
                     task=task,
                     secrets_store=secrets_store,
+                    auth_info=auth_info,
                 )
         result = yaml.safe_dump(workflow_dict).encode()
         return result
@@ -932,6 +950,7 @@ def _replace_secret_envs_in_argocd_template(
     env_var_names: list[str],
     container: dict,
     secrets_store: "SecretsStore",
+    auth_info: mlrun.common.schemas.AuthInfo | None = None,
 ) -> None:
     """
     Replaces specified environment variables in the container with secret references.
@@ -943,6 +962,7 @@ def _replace_secret_envs_in_argocd_template(
         env_var_names=env_var_names,
         secret_name_to_secret_ref=secret_name_to_secret_ref,
         secrets_store=secrets_store,
+        auth_info=auth_info,
     )
 
     cmd_parts = container.get("command", [])
@@ -951,6 +971,7 @@ def _replace_secret_envs_in_argocd_template(
         env_var_names=env_var_names,
         secret_name_to_secret_ref=secret_name_to_secret_ref,
         secrets_store=secrets_store,
+        auth_info=auth_info,
     )
 
 
@@ -958,6 +979,7 @@ def _replace_secret_envs_in_tekton_template(
     env_var_names: list[str],
     task: dict,
     secrets_store: "SecretsStore",
+    auth_info: mlrun.common.schemas.AuthInfo | None = None,
 ) -> None:
     secret_name_to_secret_ref = {}
     step_template = task.get("stepTemplate", {})
@@ -966,6 +988,7 @@ def _replace_secret_envs_in_tekton_template(
         env_var_names=env_var_names,
         secret_name_to_secret_ref=secret_name_to_secret_ref,
         secrets_store=secrets_store,
+        auth_info=auth_info,
     )
 
 
@@ -974,6 +997,7 @@ def _replace_secret_vars_in_function_spec(
     env_var_names: list[str],
     secret_name_to_secret_ref: dict[str, V1EnvVar],
     secrets_store: "SecretsStore",
+    auth_info: mlrun.common.schemas.AuthInfo | None = None,
 ) -> None:
     """
     Replaces specified environment variables in the function spec within cmd_parts.
@@ -996,6 +1020,7 @@ def _replace_secret_vars_in_function_spec(
                 env_var_names=env_var_names,
                 secret_name_to_secret_ref=secret_name_to_secret_ref,
                 secrets_store=secrets_store,
+                auth_info=auth_info,
             )
             cmd_parts[cmd_part_index + 1] = repr(func_data)
             break
@@ -1005,10 +1030,12 @@ def _create_secret_env_var_for_pipeline(
     name: str,
     value: str,
     secrets_store: "SecretsStore",
+    auth_info: mlrun.common.schemas.AuthInfo | None = None,
 ) -> V1EnvVar:
+    secret_username = auth_info.user_id if auth_info and auth_info.user_id else name
     secret_name = secrets_store.store_auth_secret(
         secret=mlrun.common.schemas.AuthSecretData(
-            username=name,
+            username=secret_username,
             access_key=value,
         ),
     )
@@ -1032,6 +1059,7 @@ def _replace_env_vars_with_secrets(
     env_var_names: list[str],
     secret_name_to_secret_ref: dict[str, V1EnvVar],
     secrets_store: "SecretsStore",
+    auth_info: mlrun.common.schemas.AuthInfo | None = None,
 ) -> list[dict]:
     """
     Helper function to replace environment variables with secrets.
@@ -1050,6 +1078,7 @@ def _replace_env_vars_with_secrets(
                     name=env_var_name,
                     value=value,
                     secrets_store=secrets_store,
+                    auth_info=auth_info,
                 )
                 secret_name_to_secret_ref[env_var_name] = secret_env_var
             env_vars[env_var_index] = _create_env_for_container(secret_env_var)

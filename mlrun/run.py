@@ -730,7 +730,7 @@ def code_to_function(
             "nuclio-mover",
             kind="nuclio",
             filename="mover.py",
-            image="python:3.9",
+            image="python:3.11",
             description="this function moves files from one system to another",
             requirements=["pandas"],
             labels={"author": "me"},

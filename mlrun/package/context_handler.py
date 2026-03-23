@@ -230,8 +230,8 @@ class ContextHandler:
                 self._context.update_artifact(artifact_object=artifact)
             # Log the packed results and artifacts:
             self._context.log_results(results=self._packagers_manager.results)
-            for artifact in self._packagers_manager.artifacts:
-                self._context.log_artifact(item=artifact)
+            for artifact, logging_kwargs in self._packagers_manager.artifacts:
+                self._context.log_artifact(item=artifact, **logging_kwargs)
             # Update and log the bundle (if exists):
             bundle_results = self._packagers_manager.get_bundles_results(
                 logged_outputs={**self._context.artifact_uris, **self._context.results},

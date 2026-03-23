@@ -1092,13 +1092,13 @@ def test_get_user_secret_tokens_as_igz_yml_data_single_token(k8s_helper):
 
 
 def test_get_user_secret_tokens_as_igz_yml_data_single_token_not_found(k8s_helper):
-    """Test that MLRunNotFoundError is raised when requested token doesn't exist."""
+    """Test that MLRunBadRequestError is raised when requested token doesn't exist."""
     user_id = "test-user-id"
     token_name = "missing-token"
 
     k8s_helper.list_secrets = mock.MagicMock(return_value=None)
 
-    with pytest.raises(mlrun.errors.MLRunNotFoundError):
+    with pytest.raises(mlrun.errors.MLRunBadRequestError):
         k8s_helper.get_user_secret_tokens_as_igz_yml_data(
             user_id=user_id, token_name=token_name
         )
@@ -1191,14 +1191,14 @@ def test_list_user_token_secret_values_empty(k8s_helper):
 
 
 def test_get_user_secret_tokens_as_igz_yml_data_no_tokens(k8s_helper):
-    """Test that MLRunNotFoundError is raised when user has no tokens."""
+    """Test that MLRunBadRequestError is raised when user has no tokens."""
     user_id = "test-user-id"
 
     k8s_helper.list_secrets = mock.MagicMock(return_value=[])
 
     with pytest.raises(
-        mlrun.errors.MLRunNotFoundError,
-        match=f"No valid tokens found for user '{user_id}'",
+        mlrun.errors.MLRunBadRequestError,
+        match=f"No valid tokens found for user id '{user_id}'",
     ):
         k8s_helper.get_user_secret_tokens_as_igz_yml_data(
             user_id=user_id, token_name=None
@@ -1206,7 +1206,7 @@ def test_get_user_secret_tokens_as_igz_yml_data_no_tokens(k8s_helper):
 
 
 def test_get_user_secret_tokens_as_igz_yml_data_all_fail(k8s_helper):
-    """Test MLRunNotFoundError when all token extractions fail."""
+    """Test MLRunBadRequestError when all token extractions fail."""
     user_id = "test-user-id"
     token_name = "bad-token"
     secret_name = k8s_helper._resolve_auth_secret_name(user_id, token_name)
@@ -1224,8 +1224,8 @@ def test_get_user_secret_tokens_as_igz_yml_data_all_fail(k8s_helper):
     k8s_helper.list_secrets = mock.MagicMock(return_value=[bad_secret])
 
     with pytest.raises(
-        mlrun.errors.MLRunNotFoundError,
-        match=f"No valid tokens found for user '{user_id}'",
+        mlrun.errors.MLRunBadRequestError,
+        match=f"No valid tokens found for user id '{user_id}'",
     ):
         k8s_helper.get_user_secret_tokens_as_igz_yml_data(
             user_id=user_id, token_name=None

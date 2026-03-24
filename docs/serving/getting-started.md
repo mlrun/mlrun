@@ -3,20 +3,19 @@
 
 Learn how serving graphs can simplify complex workflows as illustrated in these examples.
 
-<!-- ## Data preparation, ## Model serving -->
-
 **In this section**
-* [Example of a simple model serving router](#example-of-a-simple-model-serving-router)
-* [Example of advanced data processing and serving ensemble](#example-of-advanced-data-processing-and-serving-ensemble)
-* [Example of NLP processing pipeline with real-time streaming](#example-of-an-nlp-processing-pipeline-with-real-time-streaming)
-* [Data and feature engineering](#data-and-feature-engineering-using-the-feature-store)
+- [Simple model serving router](#simple-model-serving-router)
+- [Streaming serving function](#streaming-serving-function)
+- [ModelRunnerStep with proxy models for a shared model](#modelrunnerstep-with-proxy-models-for-a-shared-model)
+- [Serving function using Kafka queue and serving child function](#serving-function-using-kafka-queue-and-serving-child-function)
 
 In addition to the examples in this section, see the:
+- {ref}`hf-model-batch-serving-graph` that illustrates how to set up a serving graph with batch processing with a Hugging Face model, including the Hugging Face profile configuration, creating model artifacts, and deploying a serving function.
 - [Distributed (multi-function) pipeline example](./distributed-graph.ipynb) that details how to run a pipeline that consists of multiple serverless functions (connected using streams).
 - [Advanced model serving graph notebook example](./graph-example.ipynb) that illustrates the flow, task, model, and ensemble router states; building tasks from custom handlers; classes and storey components; using custom error handlers; testing graphs locally; deploying a graph as a real-time serverless function.
 - {ref}`MLRun demos <demos>` for additional use cases and full end-to-end examples, including GenAI serving.
 
-## Example of a simple model serving router
+## Simple model serving router
 
 Graphs are used for serving models with different transformations.
 
@@ -69,130 +68,146 @@ For an example of writing the minimal serving functions, see [Minimal sklearn se
 See the full [V2 Model Server (SKLearn) example](https://github.com/mlrun/functions/blob/master/functions/src/v2_model_server/v2_model_server.ipynb) that 
 tests one or more classifier models against a held-out dataset.
 
-## Example of advanced data processing and serving ensemble
+## Streaming serving function
 
-MLRun serving graphs can host advanced pipelines that handle event/data processing, ML functionality, 
- or any custom task. The following example demonstrates an asynchronous pipeline that pre-processes data, 
-passes the data into a model ensemble, and finishes off with post processing. 
+This example demonstrates how to create a streaming serving function that yields chunks
+incrementally over HTTP. The function deploys to Nuclio and uses HTTP chunked transfer
+encoding to stream results back to the client as they are produced.
 
-**For a complete example, see the [Advanced graph example notebook](./graph-example.ipynb).**
+```
+{Admonition}Important
+`function.invoke()` does not support streaming responses — it buffers the
+entire response and tries to parse it as a single JSON object. Use `requests` with
+`stream=True` instead.
+``` 
+### Define the streaming step
 
-Create a function of type serving from code and set the graph topology to `async flow`.
+A streaming step is any step whose `do()` method is a generator (sync or async).
+Each yielded value becomes a separate HTTP chunk in the response.
+```
+%%writefile streaming_step.py
+import asyncio
 
-```python
+
+class StreamingStep:
+    """A step that yields chunks with a delay to simulate work."""
+
+    def __init__(self, context=None, name=None, num_chunks=5):
+        self.context = context
+        self.name = name
+        self.num_chunks = num_chunks
+
+    async def do(self, event):
+        if isinstance(event, bytes):
+            event = event.decode("utf-8")
+        for i in range(self.num_chunks):
+            await asyncio.sleep(0.5)
+            yield f"chunk {i}: processed '{event}'\n"
+```
+
+### Build and deploy the function
+```
 import mlrun
 
-project = mlrun.get_or_create_project("myproj")
+project = mlrun.get_or_create_project("streaming-example", context="./")
+
+fn = mlrun.code_to_function(
+    name="streaming-fn",
+    kind="serving",
+    filename="streaming_step.py",
+)
+
+graph = fn.set_topology("flow", engine="async")
+graph.to(name="streamer", class_name="StreamingStep").respond()
+
+fn.set_streaming(enabled=True)
+fn.deploy()
+```
+
+### Invoke with streaming
+
+Use `requests` with `stream=True` and iterate over chunks as they arrive.
+
+```
+{Admonition}Note
+HTTP chunk boundaries are not guaranteed to align 1:1 with yielded values.
+The network stack or proxies may coalesce multiple chunks into a single read.
+```
+```
+import requests
+
+url = fn.get_url()
+resp = requests.post(url, data="hello", stream=True)
+resp.raise_for_status()
+
+print(f"Transfer-Encoding: {resp.headers.get('Transfer-Encoding')}")
+print()
+
+for chunk in resp.iter_content(decode_unicode=True):
+    if chunk:
+        print(chunk, end="", flush=True)
+```
+
+
+
+## ModelRunnerStep with proxy models for a shared model
+
+`ModelRunnerStep` is used to run multiple models on each event.
+When a `ModelRunnerStep` is included in a function graph, MLRun automatically imports the default language model class (`LLModel` or `mlrun.serving.states.LLModel`) during function deployment to wrap the model for handling a LLM prompt-based inference.
+This class extends the base `Model` to provide specialized handling for `LLMPromptArtifact` objects, enabling both synchronous and asynchronous invocation of language models.
+Follow the class description and implement your own enrichment when custom class is needed.
+
+Use the `add_shared_model` method to add a shared model to the graph — this model becomes accessible to all `ModelRunners` in the graph.
+Use `add_shared_model_proxy` to add a *proxy model* to a `ModelRunnerStep`. A proxy model acts as a lightweight reference to an existing shared model within the graph. It allows each step to reuse the same underlying shared model without duplicating it, while still being able to assign a unique endpoint name, labels, and endpoint creation strategy for tracking or monitoring purposes. This helps maintain efficiency and consistency across multiple model runners that operate on shared models. 
+See the full example in {ref}`genai-04-llm-prompt-artifact`.
+```
+from mlrun.serving import ModelRunnerStep
+from mlrun.common.schemas.model_monitoring.constants import (
+    ModelEndpointCreationStrategy,
+)
 
 function = project.set_function(
-    "advanced",
-    func="<path to demo.py>",
+    name="open-ai-tut",
     kind="serving",
-    image="mlrun/mlrun",
-    requirements=["storey"],
+    tag="latest",
+    func="./src/LLM_file.py",
+    image=image,
+    requirements=["openai==1.77.0"],
 )
 graph = function.set_topology("flow", engine="async")
-```
 
-Build and connect the graph (DAG) using the custom function and classes and plot the result. 
-Add steps using the `step.to()` method (adds a new step after the current one), or using the 
-`graph.add_step()` method.
-
-Use the graph `error_handler` if you want an error from the graph or a step to be fed into a specific state (catcher). See the full description in {ref}`pipelines-error-handling`.
-
-Specify which step is the responder (returns the HTTP response) using the `step.respond()` method. 
-If the responder is not specified, the graph is non-blocking.
-
-```python
-# use built-in storey class or our custom Echo class to create and link Task steps. Add an error handling step that runs only if the "Echo" step fails
-graph.to("storey.Extend", name="enrich", _fn='({"tag": "something"})').to(
-    class_name="Echo", name="pre-process", some_arg="abc"
-).error_handler(name="catcher", handler="handle_error", full_event=True)
-
-# add an Ensemble router with two child models (routes), the "*" prefix marks it as router class
-router = graph.add_step(
-    "*mlrun.serving.VotingEnsemble", name="ensemble", after="pre-process"
-)
-router.add_route("m1", class_name="ClassifierModel", model_path=path1)
-router.add_route("m2", class_name="ClassifierModel", model_path=path2)
-
-# add the final step (after the router), which handles post-processing and response to the client
-graph.add_step(class_name="Echo", name="final", after="ensemble").respond()
-
-# plot the graph (using Graphviz) and run a test
-graph.plot(rankdir="LR")
-```
-
-<br><img src="../_static/images/graph-flow.svg" alt="graph-flow" width="800"/><br>
-
-Create a mock (test) server, and run a test. Use `wait_for_completion()` 
-to wait for the async event loop to complete.
-  
-```python
-server = function.to_mock_server()
-resp = server.test("/v2/models/m2/infer", body={"inputs": data})
-server.wait_for_completion()
-``` 
-
-And deploy the graph as a real-time Nuclio serverless function with one command:
-
-    function.deploy()
-
-```{note}
-If you test a Nuclio function that has a serving graph with the async engine via the Nuclio UI, the UI might not display the logs in the output.
-```
-
-## Example of an NLP processing pipeline with real-time streaming
-
-In some cases it's useful to split your processing to multiple functions and use 
-streaming protocols to connect those functions. In this example the data 
-processing is in the first function/container and the NLP processing is in the second function. 
-In this example the GPU is contained in the second function.
-
-See the [full notebook example](./distributed-graph.ipynb).
-
-```python
-# define a new real-time serving function (from code) with an async graph
-project = mlrun.get_or_create_project("myproj")
-
-fn = project.set_function(
-    "multi-func", func="<path to data_prep.py>", kind="serving", image="mlrun/mlrun"
-)
-graph = fn.set_topology("flow", engine="async")
-
-# define the graph steps (DAG)
-graph.to(name="load_url", handler="load_url").to(
-    name="to_paragraphs", handler="to_paragraphs"
-).to("storey.FlatMap", "flatten_paragraphs", _fn="(event)").to(
-    ">>", "q1", path=internal_stream
-).to(
-    name="nlp", class_name="ApplyNLP", function="enrich"
-).to(
-    name="extract_entities", handler="extract_entities", function="enrich"
-).to(
-    name="enrich_entities", handler="enrich_entities", function="enrich"
-).to(
-    "storey.FlatMap", "flatten_entities", _fn="(event)", function="enrich"
-).to(
-    name="printer", handler="myprint", function="enrich"
-).to(
-    ">>", "output_stream", path=out_stream
+model_runner_step = ModelRunnerStep(
+    name="model_runner_step", model_selector="MyModelSelector"
 )
 
-# specify the "enrich" child function, add extra package requirements
-child = fn.add_child_function("enrich", "./nlp.py", "mlrun/mlrun")
-child.spec.build.commands = [
-    "python -m pip install spacy",
-    "python -m spacy download en_core_web_sm",
-]
-graph.plot()
-```
+graph.add_shared_model(
+    name="shared_llm",
+    execution_mechanism="dedicated_process",
+    model_class="LLModel",
+    model_artifact=model_artifact,
+    result_path="outputs",
+)
 
-## Example of serving function using Kafka queue and serving child function
+model_runner_step.add_shared_model_proxy(
+    endpoint_name="finance_endpoint",
+    model_artifact=finance_llm_prompt_artifact,
+    shared_model_name="shared_llm",
+    model_endpoint_creation_strategy=ModelEndpointCreationStrategy.OVERWRITE,
+)
+model_runner_step.add_shared_model_proxy(
+    endpoint_name="sport_endpoint",
+    model_artifact=sport_llm_prompt_artifact,
+    shared_model_name="shared_llm",
+    model_endpoint_creation_strategy=ModelEndpointCreationStrategy.OVERWRITE,
+)
+
+graph.to(model_runner_step).respond()
+```
+## Serving function using Kafka queue and serving child function
 
 ```Python
-graph = fn_seving.set_topology("flow", engine="async")
-fn_child = fn_seving.add_child_function("nuclio-log-ds", "nuclio_log_dataset.py", "mlrun/mlrun")
+graph = fn_serving.set_topology("flow", engine="async")
+fn_child = fn_serving.add_child_function("nuclio-log-ds", "nuclio_log_dataset.py", "mlrun/mlrun")
 
 graph.to(name="PrintEvent", handler="print_event").to(
     name="ExtendEvent",class_name="storey.Extend", _fn='({"extend": "something"})').to(
@@ -206,21 +221,11 @@ graph.plot(rankdir="LR")
 <br><img src="../_static/images/serving-graph-kafka-queue-flows.svg" alt="graph-flow" width="800"/><br>
 
 ```Python
-addr_serving = fn_seving.deploy()
+addr_serving = fn_serving.deploy()
 events = [{"int": 2, "x2": 2 * 2} ]
 payload = {"records": events}
-result = fn_seving.invoke("", body=payload)
+result = fn_serving.invoke("", body=payload)
 ```
 
-Currently, queues support Iguazio V3IO and Kafka streams.
-## Data and feature engineering (using the feature store)
-
-You can build a feature set transformation using serving graphs.
-
-High-level transformation logic is automatically converted to real-time serverless processing engines that can read 
-from any online or offline source, handle any type of structures or unstructured data, run complex computation graphs 
-and native user code. Iguazio’s solution uses a unique multi-model database, serving the computed features consistently 
-through many different APIs and formats (like files, SQL queries, pandas, real-time REST APIs, time-series, streaming), 
-resulting in better accuracy and simpler integration.
-
-Read more in {ref}`feature-store`, and [Feature set transformations](../feature-store/transformations.md).
+Currently, queues support Iguazio V3IO and Kafka streams. 
+See more about Kafka in [Kafka stream example](../serving/remote-execution.ipynb#kafka-stream-example).

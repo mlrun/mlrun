@@ -626,6 +626,7 @@ default_config = {
                 "num_workers": 2,
                 "min_replicas": 1,
                 "max_replicas": 4,
+                "target_cpu": "400m",
             },
         },
         "application_stream_args": {

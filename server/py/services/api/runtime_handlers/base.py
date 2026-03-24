@@ -452,7 +452,9 @@ class BaseRuntimeHandler(ABC):
                     else key
                 )
                 # Don't override user-provided plain env vars (ML-12330)
-                if not BaseRuntimeHandler._has_user_set_plain_env(runtime, env_var_name):
+                if not BaseRuntimeHandler._has_user_set_plain_env(
+                    runtime, env_var_name
+                ):
                     runtime.set_env_from_secret(env_var_name, global_secret_name, key)
 
         # the secrets param may be an empty dictionary (asking for all secrets of that project) -
@@ -492,7 +494,9 @@ class BaseRuntimeHandler(ABC):
         for key, env_var_name in secrets.items():
             if key in existing_secret_keys:
                 # Don't override user-provided plain env vars (ML-12330)
-                if not BaseRuntimeHandler._has_user_set_plain_env(runtime, env_var_name):
+                if not BaseRuntimeHandler._has_user_set_plain_env(
+                    runtime, env_var_name
+                ):
                     runtime.set_env_from_secret(env_var_name, secret_name, key)
 
         # Keep a list of the variables that relate to secrets, so that the MLRun context (when using nuclio:mlrun)

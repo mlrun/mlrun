@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import traceback
+import typing
 import uuid
 from abc import ABC, abstractmethod
 from datetime import UTC, datetime, timedelta
@@ -409,7 +410,7 @@ class BaseRuntimeHandler(ABC):
 
         Returns True only for env vars with a plain .value (user-set), not for
         secret-injected vars that have .value_from. This distinction is critical
-        to preserve the project > global secret priority (ML-12330).
+        to preserve the project > global secret priority.
         """
         for env_var in runtime.spec.env:
             if isinstance(env_var, dict):
@@ -451,7 +452,7 @@ class BaseRuntimeHandler(ABC):
                     if encode_key_names
                     else key
                 )
-                # Don't override user-provided plain env vars (ML-12330)
+                # Don't override user-provided plain env vars
                 if not BaseRuntimeHandler._has_user_set_plain_env(
                     runtime, env_var_name
                 ):
@@ -493,7 +494,7 @@ class BaseRuntimeHandler(ABC):
 
         for key, env_var_name in secrets.items():
             if key in existing_secret_keys:
-                # Don't override user-provided plain env vars (ML-12330)
+                # Don't override user-provided plain env vars
                 if not BaseRuntimeHandler._has_user_set_plain_env(
                     runtime, env_var_name
                 ):
@@ -931,7 +932,7 @@ class BaseRuntimeHandler(ABC):
 
     def _list_pods_paginated(
         self, namespace: str, label_selector: str | None = None
-    ) -> list:
+    ) -> typing.Generator[k8s_client.V1Pod, None, None]:
         for pod in framework.utils.singletons.k8s.get_k8s_helper().list_pods_paginated(
             namespace, selector=label_selector
         ):

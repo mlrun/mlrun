@@ -7,6 +7,7 @@ Learn how serving graphs can simplify complex workflows as illustrated in these 
 - [Simple model serving router](#simple-model-serving-router)
 - [Streaming serving function](#streaming-serving-function)
 - [ModelRunnerStep with proxy models for a shared model](#modelrunnerstep-with-proxy-models-for-a-shared-model)
+- [Cyclic graph](#cyclic-graph)
 - [Serving function using Kafka queue and serving child function](#serving-function-using-kafka-queue-and-serving-child-function)
 
 In addition to the examples in this section, see the:
@@ -203,6 +204,105 @@ model_runner_step.add_shared_model_proxy(
 
 graph.to(model_runner_step).respond()
 ```
+
+## Cyclic graph
+In agentic systems, loops and iterative refinement are common architectural patterns. Typical use cases:
+- Evaluator–optimizer loop: An LLM generates a response, a secondary agent evaluates it, and if unsatisfactory, the generation is retried until quality improves or a cap is reached.
+- Multi-agent orchestration: A controller agent invokes specialized sub-agents (retriever, summarizer, planner), then loops back to coordinate or refine based on their results.
+- Guardrail enforcement: A safety or compliance step checks outputs and, on failure, routes control back to the generator until conditions are met.
+
+Cycles are supported for graphs of `flow` topology and `async` engine (storey) with `kind` = `job` and `serving`. You can run it `to_mock_server` and `deploy()`.
+Set a graph as cyclic using `allow_cyclic=True` in `set_topology`, or after the graph is defined with `serving.spec.graph.allow_cyclic = True`.
+
+Cycles can return to the same step, or cycle through multiple steps. Create a multi-step cycle by listing the step names and using `cycle_to`. (See {py:meth}`~mlrun.serving.states.BaseStep.to()` and {py:meth}`~mlrun.serving.states.BaseStep.cycle_to`.) 
+Example of creating a cycle where after the `evaluator` the `choice` step determines whether to cycle to the `generator` or continue forward to `post_process` and respond:
+
+```python
+graph.to("generator").to("evaluator").to("choice").cycle_to(["generator"]).to(
+    "post_process"
+).respond()
+```
+As an alternative to the choice step, you can implement {py:class}`~mlrun.serving.states.ModelRunnerSelector.select_outlets` in the evaluator step. See the usage in [Prevent infinite loops](#prevent-infinite-loops).
+
+Iteration tracking is automatic, you do not need to add counters manually in the step code. The default number of iterations is 10_000.
+If you set `max_iterations` in `set_topology` and in `add_step`, the value in `add_step` takes precedence. 
+```{admonition} Important
+- If stop conditions (`max_iterations`) are misconfigured, cycles can lead to an infinite execution of graph steps.
+- Rerunning steps in a loop can cause unexpected compute spikes and higher costs.
+- Step failures inside a cycle could repeat continuously, amplifying errors.
+Any of these issues make graph execution harder to debug and monitor, and
+increase the risk of resource exhaustion (workers, memory, execution slots).
+```
+
+When a RuntimeError is raised:
+- If you provided an error handler, the event invokes the error handler
+- If you did not provide an error handler, the error is raised to the client
+A typical error is `RuntimeError(f"Max iterations exceeded in step '{self.name}' for event {event.id}")`.
+
+```python
+# Define the function
+function = project.set_function(
+    name="cyclic-function",
+    func="cyclic.py",
+    kind="serving",
+    image="mlrun/mlrun",
+)
+# Define the graph (global cap applies unless overridden per-step)
+graph = function.set_topology(
+    "flow", engine="async", allow_cyclic=True, max_iterations=100
+)
+graph.to(name="preprocess", class_name="Processor").to(
+    name="generator", class_name="Generator", after="preprocess", max_iterations=30
+).to(name="evaluator", class_name="Evaluator", after="generator").to(
+    name="evaluation-loop",
+    class_name="ChoiceHandler",
+    cycle_to=["generator"],
+    after="evaluator",
+).to(
+    name="output", handler="responder", after="evaluation-loop"
+).respond()
+
+# Adding error handler to the graph
+graph.error_handler(class_name="HandleError")
+
+# Mock server
+mock = graph.to_mock_server()
+mock.test("/", body={...})
+
+# Kubernetes deployment
+function.deploy()
+function.invoke("/", body={...})
+```
+### Prevent infinite loops
+To ensure that your graph does not become infinite, use one of the following two approaches:
+- Extend an existing step by implementing {py:class}`~mlrun.serving.states.ModelRunnerSelector.select_outlets` to explicitly control the flow and prevent cycles. 
+Example:
+```python
+class MyStep:
+    def do(self, event):
+        # Process the event
+        ...
+        return event
+
+    def select_outlets(self, event):
+        if event["should_continue"]:
+            return ["continue"]
+        return ["stop"]
+```     
+- Implement a custom step that inherits from {py:class}`~storey.transformations.Choice`. Override the `select_outlets` method to control which outlets are selected at runtime. 
+Example:
+```python
+import storey
+
+
+class MyChoiceStep(storey.Choice):
+    def select_outlets(self, event):
+        if event["should_continue"]:
+            return ["continue"]
+        return ["stop"]
+```
+The list returned by `select_outlets` must include only valid step names that follow the current step in the graph flow. If the current step is the responder, use Complete as the outlet name to exit the graph and return the response.
+
 ## Serving function using Kafka queue and serving child function
 
 ```Python

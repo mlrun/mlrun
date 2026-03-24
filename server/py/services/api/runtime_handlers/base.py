@@ -403,25 +403,6 @@ class BaseRuntimeHandler(ABC):
         runtime.spec.update_vols_and_mounts(volumes, volume_mounts)
 
     @staticmethod
-    def _has_user_set_plain_env(
-        runtime: mlrun.runtimes.pod.KubeResource, name: str
-    ) -> bool:
-        """Check if user explicitly set a plain-value env var (not from a secret).
-
-        Returns True only for env vars with a plain .value (user-set), not for
-        secret-injected vars that have .value_from. This distinction is critical
-        to preserve the project > global secret priority.
-        """
-        for env_var in runtime.spec.env:
-            if isinstance(env_var, dict):
-                if env_var.get("name") == name:
-                    return env_var.get("value") is not None
-            else:
-                if getattr(env_var, "name", None) == name:
-                    return getattr(env_var, "value", None) is not None
-        return False
-
-    @staticmethod
     def add_k8s_secrets_to_spec(
         secrets,
         runtime: mlrun.runtimes.pod.KubeResource,
@@ -446,7 +427,7 @@ class BaseRuntimeHandler(ABC):
                     global_secret_name
                 )
             )
-            for key, value in global_secrets.items():
+            for key in global_secrets.keys():
                 env_var_name = (
                     mlrun.secrets.SecretsStore.k8s_env_variable_name_for_secret(key)
                     if encode_key_names
@@ -967,7 +948,7 @@ class BaseRuntimeHandler(ABC):
 
     def _list_crd_objects_paginated(
         self, namespace: str, label_selector: str | None = None
-    ) -> list:
+    ) -> typing.Generator[k8s_client.V1CustomResourceDefinition, None, None]:
         crd_group, crd_version, crd_plural = self._get_crd_info()
         yield from framework.utils.singletons.k8s.get_k8s_helper().list_crds_paginated(
             crd_group, crd_version, crd_plural, namespace, selector=label_selector
@@ -2110,3 +2091,22 @@ class BaseRuntimeHandler(ABC):
             return run_retry_count > 0
 
         return int(pod_retry_label) < run_retry_count
+
+    @staticmethod
+    def _has_user_set_plain_env(
+        runtime: mlrun.runtimes.pod.KubeResource, name: str
+    ) -> bool:
+        """Check if runtime was explicitly set with a plain-value env var.
+
+        Returns True only for env vars with a plain .value (user-set), not for
+        secret-injected vars that have .value_from. This distinction is critical
+        to preserve the project > global secret priority.
+        """
+        for env_var in runtime.spec.env:
+            if isinstance(env_var, dict):
+                if env_var.get("name") == name:
+                    return env_var.get("value") is not None
+            else:
+                if getattr(env_var, "name", None) == name:
+                    return getattr(env_var, "value", None) is not None
+        return False

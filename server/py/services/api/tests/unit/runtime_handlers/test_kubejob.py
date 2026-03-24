@@ -1129,6 +1129,51 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
         assert runtime.spec.volume_mounts == []
         assert runtime.spec.volumes == []
 
+    def test_resolve_container_error_status_with_null_container_statuses(self):
+        # When containerStatuses is absent from the K8s API response,
+        # V1PodStatus.to_dict() sets it to None rather than omitting the key.
+        pod = k8s_client.V1Pod(
+            metadata=k8s_client.V1ObjectMeta(name="test-pod"),
+            status=k8s_client.V1PodStatus(
+                phase=PodPhases.failed,
+                container_statuses=None,
+            ),
+        ).to_dict()
+
+        reason, message = self.runtime_handler._resolve_container_error_status(pod)
+
+        assert reason == ""
+        assert message == ""
+
+    def test_resolve_container_error_status_with_terminated_container(self):
+        pod = k8s_client.V1Pod(
+            metadata=k8s_client.V1ObjectMeta(name="test-pod"),
+            status=k8s_client.V1PodStatus(
+                phase=PodPhases.failed,
+                container_statuses=[
+                    k8s_client.V1ContainerStatus(
+                        name="main",
+                        image="some/image",
+                        image_id="some-image-id",
+                        ready=False,
+                        restart_count=0,
+                        state=k8s_client.V1ContainerState(
+                            terminated=k8s_client.V1ContainerStateTerminated(
+                                exit_code=1,
+                                reason="Error",
+                                message="OOMKilled",
+                            )
+                        ),
+                    )
+                ],
+            ),
+        ).to_dict()
+
+        reason, message = self.runtime_handler._resolve_container_error_status(pod)
+
+        assert reason == "Error"
+        assert message == "OOMKilled"
+
     def _mock_list_resources_pods(self, pod=None):
         pod = pod or self.completed_job_pod
         mocked_responses = self._mock_list_namespaced_pods([[pod]])

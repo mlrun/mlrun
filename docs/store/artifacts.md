@@ -17,7 +17,8 @@ Artifacts metadata is stored in the MLRun database.
 
 
 **In this section**
-- [Viewing artifacts](#viewing-artifacts)
+- [View artifacts in the UI](#view-artifacts-in-the-ui)
+- [View artifacts with the SDK](#view-artifacts-with-the-sdk)
 - [Artifact path](#artifact-path)
 - [Saving artifacts in run-specific paths](#saving-artifacts-in-run-specific-paths)
 - [Artifact URIs, versioning, and metadata](#artifact-uris-versioning-and-metadata)
@@ -30,7 +31,7 @@ Artifacts metadata is stored in the MLRun database.
 - [Logging a Databricks response as an artifact](../runtimes/databricks.ipynb#logging-a-databricks-response-as-an-artifact)
 
 
-## Viewing artifacts
+## View artifacts in the UI
 
 Artifacts that are stored in certain paths (see [Artifact path](#artifact-path)) can be viewed and managed in the UI. 
 In the **Project** page, select the type of artifact you want to view from the left-hand menu: 
@@ -51,6 +52,15 @@ You can download the artifact. You can also tag and remove tags from artifacts u
 The UI limits the artifact query display to 1000 records. You can add filters to narrow the query results. 
 (Each search could results in a different set of records.) 
 
+##  View artifacts with the SDK
+View artifacts with `project.list_artifacts()`, for example:
+```
+# Get the latest version of all artifacts in project
+latest_artifacts = project.list_artifacts(tag="latest")
+# Check the different artifact versions for a specific artifact, return as objects list
+result_versions = project.list_artifacts("results", tag="*").to_objects()
+```
+See the full parameter list in {py:class}`~mlrun.projects.MlrunProject.list_artifacts` and {py:class}`~mlrun.db.httpdb.HTTPRunDB.list_artifacts`.
 
 ## Artifact path
 

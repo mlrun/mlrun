@@ -862,6 +862,51 @@ async def test_list_project_summaries_different_installation_modes(
     )
 
 
+@pytest.mark.asyncio
+async def test_list_project_summaries_filters_by_project_permissions(
+    db: Session, client: TestClient, project_member_mode: str
+) -> None:
+    """Verify that project-summaries only returns summaries for projects the user
+    has permission to see, consistent with GET /projects behaviour."""
+    allowed_project = "allowed-project"
+    forbidden_project = "forbidden-project"
+    _create_project(client, allowed_project)
+    _create_project(client, forbidden_project)
+
+    services.api.crud.Pipelines().list_pipelines = unittest.mock.Mock(
+        return_value=(0, None, [])
+    )
+
+    # mock alert activations logic as it requires MySQL-specific logic not supported by SQLite.
+    framework.utils.singletons.db.SQLDB._calculate_alert_activations_counters = (
+        unittest.mock.Mock(
+            return_value=(
+                {},
+                {},
+                {},
+            )
+        )
+    )
+
+    await services.api.crud.Projects().refresh_project_resources_counters_cache(db)
+
+    # Mock filter_projects_by_permissions to only allow one project.
+    # The filter branch is always entered when the request is not from the leader,
+    # which is the case for regular user requests (projects_role is None).
+    framework.utils.auth.verifier.AuthVerifier().filter_projects_by_permissions = (
+        unittest.mock.AsyncMock(return_value=[allowed_project])
+    )
+
+    response = client.get("project-summaries")
+    assert response.status_code == HTTPStatus.OK.value
+    project_summaries_output = mlrun.common.schemas.ProjectSummariesOutput(
+        **response.json()
+    )
+    returned_names = [s.name for s in project_summaries_output.project_summaries]
+    assert returned_names == [allowed_project]
+    assert forbidden_project not in returned_names
+
+
 def test_delete_project_deletion_strategy_check(
     db: Session,
     client: TestClient,

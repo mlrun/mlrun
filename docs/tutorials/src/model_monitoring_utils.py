@@ -25,19 +25,33 @@ def enable_model_monitoring(
     )
 
     if not mlrun.mlconf.is_using_v3io():
+        
         mlrun_namespace = os.environ.get("MLRUN_NAMESPACE", "mlrun")
+        
+        KAFKA_BROKER = ""
+        if "KAFKA_BROKER" in os.environ:
+            KAFKA_BROKER = os.environ.get("KAFKA_BROKER")
+        else:
+            KAFKA_BROKER = f"kafka-stream.{mlrun_namespace}.svc.cluster.local:9092"
+
+        PG_SQL = ""
+        if "PG_SQL" in os.environ:
+            PG_SQL = os.environ.get("PG_SQL")
+        else:
+            PG_SQL = f"timescaledb.{mlrun_namespace}.svc.cluster.local"
+
         tsdb_profile = DatastoreProfilePostgreSQL(
             name=tsdb_profile_name,
             user="postgres",
-            password="password",
-            host=f"timescaledb.{mlrun_namespace}.svc.cluster.local",
+            password="postgres",
+            host=PG_SQL,
             port=5432,
             database="mlrun",
         )
 
         stream_profile = DatastoreProfileKafkaStream(
             name=stream_profile_name,
-            brokers=f"kafka-stream.{mlrun_namespace}.svc.cluster.local:9092",
+            brokers=KAFKA_BROKER,
             topics=[],
         )
 

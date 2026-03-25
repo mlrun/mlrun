@@ -61,10 +61,10 @@ The configuration is serialized into `serving_fn.spec.api_handler_config` and is
 
 ```python
 config.add_endpoint_handler(
-    path,                                   # URL path, e.g. "/v1/chat" or "/v1/chat/*"
-    http_method=HTTPMethod.POST,            # HTTPMethod enum or string ("GET", "POST", ...)
-    action=APIHandlerAction.ALLOW,          # ALLOW or FORBID
-    description=None,                       # Optional human-readable description
+    path,  # URL path, e.g. "/v1/chat" or "/v1/chat/*"
+    http_method=HTTPMethod.POST,  # HTTPMethod enum or string ("GET", "POST", ...)
+    action=APIHandlerAction.ALLOW,  # ALLOW or FORBID
+    description=None,  # Optional human-readable description
 )
 ```
 
@@ -142,8 +142,8 @@ A `GET /v1/chat/completions/abc123?limit=10` request passes the following keywor
 
 ```python
 {
-    "completion_id": "abc123",                            # from path template
-    "limit": "10",                                        # from query string
+    "completion_id": "abc123",  # from path template
+    "limit": "10",  # from query string
     "mlrun_request_path": "/v1/chat/completions/abc123",  # from include_url_info
 }
 ```
@@ -153,14 +153,12 @@ A `GET /v1/chat/completions/abc123?limit=10` request passes the following keywor
 Extracted parameters are passed as keyword arguments to the handler function or `do()` method:
 
 ```python
-def predict(model_name, inputs, **kwargs):
-    ...
+def predict(model_name, inputs, **kwargs): ...
 ```
 
 ```python
 class InferenceStep:
-    def do(self, model_name, inputs, **kwargs):
-        ...
+    def do(self, model_name, inputs, **kwargs): ...
 ```
 
 ## Complete example
@@ -182,11 +180,13 @@ serving_fn = project.set_function(
     image="mlrun/mlrun",
 )
 
+
 # --- Define the graph step that processes chat completions ---
 # model_name and messages are passed as keyword arguments by the API handler
 def chat_handler(model_name, messages, mlrun_request_path, **kwargs):
     reply = f"Received {len(messages)} message(s) for model '{model_name}'"
     return {"reply": reply, "path": mlrun_request_path}
+
 
 graph = serving_fn.set_topology("flow", engine="sync")
 graph.to(name="chat", handler=chat_handler).respond()

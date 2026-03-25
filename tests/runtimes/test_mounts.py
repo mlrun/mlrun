@@ -333,6 +333,64 @@ def test_mount_v3io():
             )
 
 
+def test_auto_mount_s3():
+    """Test that auto_mount() returns s3 mount modifier when auto_mount_type is 's3'."""
+    mlrun.mlconf.storage.auto_mount_type = "s3"
+    mlrun.mlconf.storage.auto_mount_params = (
+        "endpoint_url=http://seaweedfs:8333,secret_name=minio-credentials"
+    )
+
+    function = mlrun.new_function(
+        "function-name", "function-project", kind=mlrun.runtimes.RuntimeKinds.job
+    )
+    function.apply(mlrun.runtimes.mounts.auto_mount())
+
+    env_dict = {
+        var["name"]: var.get("value", var.get("valueFrom")) for var in function.spec.env
+    }
+    assert env_dict == {
+        "AWS_ENDPOINT_URL_S3": "http://seaweedfs:8333",
+        "AWS_ACCESS_KEY_ID": {
+            "secretKeyRef": {"key": "AWS_ACCESS_KEY_ID", "name": "minio-credentials"}
+        },
+        "AWS_SECRET_ACCESS_KEY": {
+            "secretKeyRef": {
+                "key": "AWS_SECRET_ACCESS_KEY",
+                "name": "minio-credentials",
+            }
+        },
+    }
+
+
+def test_auto_mount_secret_env():
+    """Test that auto_mount() returns secret_env mount modifier when auto_mount_type is 'secret_env'."""
+    mlrun.mlconf.storage.auto_mount_type = "secret_env"
+    mlrun.mlconf.storage.auto_mount_params = "secret_name=s3-credentials"
+
+    function = mlrun.new_function(
+        "function-name", "function-project", kind=mlrun.runtimes.RuntimeKinds.job
+    )
+    function.apply(mlrun.runtimes.mounts.auto_mount())
+
+    env_from = function.spec.env_from
+    assert len(env_from) == 1
+    assert env_from[0].config_map_ref is None
+    assert env_from[0].secret_ref.name == "s3-credentials"
+
+
+def test_auto_mount_raises_without_config():
+    """Test that auto_mount() raises ValueError when no mount type is configured."""
+    mlrun.mlconf.storage.auto_mount_type = ""
+    mlrun.mlconf.storage.auto_mount_params = ""
+
+    # Clear env vars that could trigger other paths
+    os.environ.pop("MLRUN_PVC_MOUNT", None)
+    os.environ.pop("V3IO_ACCESS_KEY", None)
+
+    with pytest.raises(ValueError, match="Failed to auto mount"):
+        mlrun.runtimes.mounts.auto_mount()
+
+
 def _auth_prefix() -> str:
     # Matches how the code builds the pattern: format(hashed_access_key="")
     return mlrun.mlconf.secret_stores.kubernetes.auth_secret_name.format(

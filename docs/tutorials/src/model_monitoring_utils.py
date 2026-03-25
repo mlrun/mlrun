@@ -25,7 +25,6 @@ def enable_model_monitoring(
     )
 
     if not mlrun.mlconf.is_using_v3io():
-
         mlrun_namespace = os.environ.get("MLRUN_NAMESPACE", "mlrun")
 
         kafka_broker = ""

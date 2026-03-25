@@ -133,7 +133,7 @@ async def test_not_skipping_delayed_schedules(db: Session, scheduler: Scheduler)
         # IG4 mode without user_id → nothing stored
         (mlrun.common.types.AuthenticationMode.IGUAZIO_V4, None, False),
         # non-IG4 mode → user_id never stored
-        (mlrun.common.types.AuthenticationMode.none, "user-123", False),
+        (mlrun.common.types.AuthenticationMode.NONE, "user-123", False),
     ],
 )
 def test_embed_user_id_in_scheduled_object(

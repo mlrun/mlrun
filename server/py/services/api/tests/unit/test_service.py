@@ -65,7 +65,7 @@ class TestService(TestAPIBase):
             await self._service._retry_jobs()
             await asyncio.sleep(1)
             mock_submit_run_from_body.assert_called_once()
-            auth_info_arg = mock_submit_run_from_body.call_args[0][0]
+            auth_info_arg = mock_submit_run_from_body.call_args[0][1]
             assert auth_info_arg.user_id == "expected-user-id"
 
     async def test_retry_job_retry_exhausted(self, db: Session):

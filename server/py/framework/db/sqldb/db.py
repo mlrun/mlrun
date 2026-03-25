@@ -6966,6 +6966,8 @@ class SQLDB(DBInterface):
         active: bool = False,
         obj: dict | None = None,
         alert_id: int | None = None,
+        cooldown_end_time: datetime | None = None,
+        clear_cooldown: bool = False,
     ):
         if alert_id is not None:
             query = self._query(session, AlertState).filter(
@@ -6994,6 +6996,10 @@ class SQLDB(DBInterface):
         state.active = active
         if obj is not None:
             state.full_object = obj
+        if cooldown_end_time is not None:
+            state.cooldown_end_time = cooldown_end_time
+        if clear_cooldown:
+            state.cooldown_end_time = None
         self._upsert(session, [state])
 
     def get_alert_state(self, session, alert_id: int) -> AlertState:

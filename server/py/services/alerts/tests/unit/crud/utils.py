@@ -28,6 +28,7 @@ def generate_alert_data(
     notifications: list[notification_objects.Notification] | None = None,
     criteria: alert_objects.AlertCriteria = None,
     reset_policy: alert_objects.ResetPolicy = alert_objects.ResetPolicy.AUTO,
+    cooldown_period: str | None = None,
 ):
     trigger = alert_objects.AlertTrigger(events=[event_kind])
     if notifications is None:
@@ -51,6 +52,7 @@ def generate_alert_data(
         criteria=criteria,
         notifications=notifications,
         reset_policy=reset_policy,
+        cooldown_period=cooldown_period,
     )
 
 

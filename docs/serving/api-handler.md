@@ -9,7 +9,7 @@ Use an API handler to:
 
 API handlers are active only for HTTP-triggered invocations. When an event arrives through a non-HTTP trigger such as a stream, the API handler is bypassed (the path is always `/` in that case).
 
-**Supported runtimes**: Nuclio functions with an HTTP trigger, and the mock server (local testing).
+**Supported runtimes**: Serving functions with an HTTP trigger, and the mock server (local testing).
 
 ## Overview
 
@@ -78,7 +78,7 @@ config.remove_endpoint_handler("/v1/models", HTTPMethod.GET)
 
 Endpoints are matched in the following priority order:
 
-1. **Exact paths** — no wildcards or template parameters, e.g. `/v1/models`. O(1) dict lookup.
+1. **Exact paths** — no wildcards or template parameters, e.g. `/v1/models`.
 2. **Path templates** — contain `{param}` placeholders, e.g. `/v1/models/{model_name}/predict`. Matched with a pre-compiled regex; insertion order wins when multiple templates match the same path.
 3. **Wildcard paths** — end with `*`, e.g. `/admin/*`. The `*` must be at the end and appear only once. Matched by prefix; the request path must contain at least one segment after the prefix. Insertion order wins.
 
@@ -92,7 +92,7 @@ Endpoints are matched in the following priority order:
 
 ## Extracting request parameters
 
-When the handler allows a request, it may extract parameters from three sources:
+When the handler allows a request, it can extract parameters from three sources:
 
 | Source                   | How to configure                 | Available as               |
 |--------------------------|----------------------------------|----------------------------|
@@ -100,15 +100,13 @@ When the handler allows a request, it may extract parameters from three sources:
 | Query string parameters  | automatic                        | keyword argument           |
 | Request body fields      | `body_map` (JSONPath, see below) | keyword argument           |
 
-The extracted parameters are passed to the next step as keyword arguments. If the same parameter name appears in more than one source, the request fails with a 400 error.
+The extracted parameters are passed to the next step as keyword arguments. If the same parameter name appears in more than one source, the request fails with an error (400). Conflicts between `body_map` and path template parameters are detected at setup time.
 
-**Priority when no conflicts exist**: path > query > body_map (highest to lowest).
-
-If no parameters are extracted and `include_url_info` is not enabled, the original event body is passed through unchanged.
+Parameters are always forwarded to the next step. When any parameters are extracted or `include_url_info` is enabled, they are collected into a dict and passed as keyword arguments. Otherwise, the original event body is forwarded unchanged.
 
 ### Body mapping (`body_map`)
 
-`body_map` maps parameter names to [JSONPath](https://goessner.net/articles/JsonPath/) expressions. It is **global** — the same mapping applies to every configured endpoint. The request body must be a JSON dict when `body_map` is configured.
+`body_map` maps parameter names to [JSONPath](https://datatracker.ietf.org/doc/html/rfc9535) expressions. It is **global** — the same mapping applies to every configured endpoint. The request body must be a JSON dict when `body_map` is configured.
 
 ```python
 # Extract "model" field and nested "inputs" field from the request body
@@ -150,15 +148,19 @@ A `GET /v1/chat/completions/abc123?limit=10` request passes the following keywor
 
 ## How downstream steps receive parameters
 
-Extracted parameters are passed as keyword arguments to the handler function or `do()` method:
+Extracted parameters are passed as keyword arguments to the handler function or `do()` method. For example, given the endpoint `/v1/chat/completions/{completion_id}` with `include_url_info=True`, a `GET /v1/chat/completions/abc123?limit=10` request calls the next step as:
 
 ```python
-def predict(model_name, inputs, **kwargs): ...
-```
+def step_handler(body, completion_id, limit, mlrun_request_path, **kwargs):
+    # body: original request body
+    # completion_id="abc123"                            — from path template
+    # limit="10"                                        — from query string
+    # mlrun_request_path="/v1/chat/completions/abc123"  — from include_url_info
+    ...
 
-```python
-class InferenceStep:
-    def do(self, model_name, inputs, **kwargs): ...
+class MyStep:
+    def do(self, body, completion_id, limit, mlrun_request_path, **kwargs):
+        ...
 ```
 
 ## Complete example

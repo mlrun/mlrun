@@ -15,7 +15,7 @@ pandas>=1.2, <2.2
 # <18 to prevent bugs due to major upgrading
 pyarrow>=10.0, <18
 pyyaml>=6.0.2, <7
-requests~=2.32
+requests~=2.33
 # >=0.8.6 from kfp 1.6.0 (and still up until 1.8.10)
 tabulate~=0.8.6
 v3io~=0.7.0

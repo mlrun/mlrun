@@ -10,7 +10,7 @@ graphviz~=0.20.0
 python-dotenv~=1.0
 # below: vulnerabilities remediation
 setuptools>=75.2
-requests~=2.32
+requests~=2.33
 certifi~=2024.0
 # consumed when training a model using PyTorch
 tqdm~=4.66

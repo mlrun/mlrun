@@ -3,7 +3,7 @@ click~=8.1
 PyNaCl==1.6.0
 paramiko~=3.5
 semver~=3.0
-requests~=2.32
+requests~=2.33
 boto3>=1.28.0,<1.36
 pyyaml>=6.0.2, <7
 packaging~=24.2

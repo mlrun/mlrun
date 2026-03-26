@@ -2751,3 +2751,66 @@ def test_project_enrich_skips_none_fields():
     # `other` didn't provide status, so base.status should be preserved (same object, same state)
     assert id(base.status) == base_status_id
     assert base.status.state == "offline"
+
+
+def test_init_function_from_dict_store_uri():
+    """set_function with store:// URI stores it in spec.build.source without downloading."""
+    project = mlrun.new_project("test-proj", save=False)
+    project.spec.context = tempfile.mkdtemp()
+
+    func = project.set_function(
+        func="store://artifacts/test-proj/my_func_code",
+        name="my_func",
+        kind="job",
+        handler="main",
+    )
+
+    assert func.spec.build.source == "store://artifacts/test-proj/my_func_code"
+    assert func.spec.default_handler == "main"
+    assert func.metadata.name == "my-func"
+
+
+def test_init_function_from_dict_store_uri_with_repo_raises():
+    """store:// with with_repo=True raises ValueError."""
+    project = mlrun.new_project("test-proj", save=False)
+    project.spec.context = tempfile.mkdtemp()
+
+    with pytest.raises(ValueError, match="with_repo=True is not supported"):
+        project.set_function(
+            func="store://artifacts/test-proj/my_func_code",
+            name="my_func",
+            kind="job",
+            handler="main",
+            with_repo=True,
+        )
+
+
+def test_init_function_from_dict_store_uri_nuclio():
+    """set_function with store:// URI and kind=nuclio stores URI in spec.build.source."""
+    project = mlrun.new_project("test-proj", save=False)
+    project.spec.context = tempfile.mkdtemp()
+
+    func = project.set_function(
+        func="store://artifacts/test-proj/my_func_code",
+        name="my_serving_func",
+        kind="nuclio",
+        handler="main",
+    )
+
+    assert func.spec.build.source == "store://artifacts/test-proj/my_func_code"
+    assert func.kind == "remote"
+
+
+def test_init_function_from_dict_store_uri_serving():
+    """set_function with store:// URI and kind=serving stores URI in spec.build.source."""
+    project = mlrun.new_project("test-proj", save=False)
+    project.spec.context = tempfile.mkdtemp()
+
+    func = project.set_function(
+        func="store://artifacts/test-proj/my_func_code",
+        name="my_serving_func",
+        kind="serving",
+    )
+
+    assert func.spec.build.source == "store://artifacts/test-proj/my_func_code"
+    assert func.kind == "serving"

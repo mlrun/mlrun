@@ -837,7 +837,7 @@ class BaseRuntimeHandler(ABC):
         run_state = PodPhases.pod_phase_to_run_state(pod["status"]["phase"])
         last_container_completion_time = None
         if in_terminal_state:
-            for container_status in pod["status"].get("container_statuses", []):
+            for container_status in pod["status"].get("container_statuses") or []:
                 if container_status.get("state", {}).get("terminated"):
                     container_completion_time = container_status["state"][
                         "terminated"
@@ -853,7 +853,7 @@ class BaseRuntimeHandler(ABC):
         return in_terminal_state, last_container_completion_time, run_state
 
     def _resolve_container_error_status(self, pod: dict) -> tuple[str, str]:
-        container_statuses = pod.get("status", {}).get("container_statuses", [])
+        container_statuses = pod.get("status", {}).get("container_statuses") or []
         for container_status in container_statuses:
             terminated = container_status.get("state", {}).get("terminated")
             if terminated:

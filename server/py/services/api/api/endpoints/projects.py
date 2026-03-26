@@ -427,16 +427,9 @@ async def list_project_summaries(
         mlrun.mlconf.is_iguazio_v4_mode()
         or not framework.utils.helpers.is_request_from_leader(auth_info.projects_role)
     ):
-        auth_verifier = framework.utils.auth.verifier.AuthVerifier()
-        allowed_project_names = await auth_verifier.filter_project_resources_by_permissions(
-            resource_type=mlrun.common.schemas.AuthorizationResourceTypes.project_summaries,
-            resources=allowed_project_names,
-            project_and_resource_name_extractor=lambda project: (
-                project,
-                "",
-            ),
-            auth_info=auth_info,
-            action=mlrun.common.schemas.AuthorizationAction.read,
+        allowed_project_names = await framework.utils.auth.verifier.AuthVerifier().filter_projects_by_permissions(
+            allowed_project_names,
+            auth_info,
         )
     return await get_project_member().list_project_summaries(
         db_session,

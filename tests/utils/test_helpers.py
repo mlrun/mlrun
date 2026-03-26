@@ -23,6 +23,8 @@ import pytest
 from pandas import Timedelta, Timestamp
 
 import mlrun.errors
+import mlrun.model
+import mlrun.runtimes.nuclio.function
 import mlrun.utils.regex
 import mlrun.utils.version
 import mlrun_pipelines.client
@@ -46,6 +48,7 @@ from mlrun.utils.helpers import (
     remove_tag_from_artifact_uri,
     resolve_image_tag_suffix,
     set_auth_token_name,
+    set_auth_user_id,
     set_data_by_path,
     split_path,
     str_to_timestamp,
@@ -2089,14 +2092,17 @@ def test_validate_function_name(function_name, expected):
         validate_function_name(function_name)
 
 
+class _MockSpec:
+    """Minimal stand-in for any spec object that carries an ``auth`` attribute."""
+
+    def __init__(self, auth=None):
+        self.auth = auth
+
+
 @pytest.mark.parametrize("token_name", [None, ""])
 def test_set_auth_token_name_noop_for_empty_token(token_name):
     """Test that None or empty token_name does not modify spec."""
-
-    class MockSpec:
-        auth = None
-
-    spec = MockSpec()
+    spec = _MockSpec()
     set_auth_token_name(spec, token_name)
     assert spec.auth is None
 
@@ -2112,19 +2118,13 @@ def test_set_auth_token_name_noop_for_empty_token(token_name):
 )
 def test_set_auth_token_name_sets_token(initial_auth, expected_auth):
     """Test that set_auth_token_name correctly sets token on various auth states."""
-
-    class MockSpec:
-        auth = initial_auth
-
-    spec = MockSpec()
+    spec = _MockSpec(auth=initial_auth)
     set_auth_token_name(spec, "my-token")
     assert spec.auth == expected_auth
 
 
 def test_set_auth_token_name_works_with_run_spec():
     """Test that set_auth_token_name works with actual RunSpec."""
-    import mlrun.model
-
     spec = mlrun.model.RunSpec()
     set_auth_token_name(spec, "my-token")
     assert spec.auth["token_name"] == "my-token"
@@ -2135,7 +2135,37 @@ def test_set_auth_token_name_works_with_nuclio_spec():
 
     Note: auth on function spec is only supported for Nuclio runtimes, not job runtimes.
     """
-
     spec = mlrun.runtimes.nuclio.function.NuclioSpec()
     set_auth_token_name(spec, "my-token")
     assert spec.auth["token_name"] == "my-token"
+
+
+@pytest.mark.parametrize("user_id", [None, ""])
+def test_set_auth_user_id_noop_for_empty_user_id(user_id):
+    """Test that None or empty user_id does not modify spec."""
+    spec = _MockSpec()
+    set_auth_user_id(spec, user_id)
+    assert spec.auth is None
+
+
+@pytest.mark.parametrize(
+    "initial_auth,expected_auth",
+    [
+        (None, {"user_id": "user-123"}),
+        ({}, {"user_id": "user-123"}),
+        ({"other_key": "value"}, {"other_key": "value", "user_id": "user-123"}),
+        ({"user_id": "old-user"}, {"user_id": "user-123"}),
+    ],
+)
+def test_set_auth_user_id_sets_user_id(initial_auth, expected_auth):
+    """Test that set_auth_user_id correctly sets user_id on various auth states."""
+    spec = _MockSpec(auth=initial_auth)
+    set_auth_user_id(spec, "user-123")
+    assert spec.auth == expected_auth
+
+
+def test_set_auth_user_id_works_with_run_spec():
+    """Test that set_auth_user_id works with actual RunSpec."""
+    spec = mlrun.model.RunSpec()
+    set_auth_user_id(spec, "user-123")
+    assert spec.auth["user_id"] == "user-123"

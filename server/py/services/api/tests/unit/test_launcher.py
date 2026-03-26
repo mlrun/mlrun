@@ -530,10 +530,47 @@ def test_enrich_and_validate_auth_token_name_iguazio_v4_resolution(
     launcher.enrich_and_validate_auth_token_name(run)
 
     assert run.spec.auth["token_name"] == expected_token_name
+    assert run.spec.auth["user_id"] == "1234"
     mock_resolve.assert_called_once_with(
         user_id="1234",
         provided_token_name=initial_auth.get("token_name") if initial_auth else None,
     )
+
+
+def test_enrich_and_validate_auth_token_name_iguazio_v4_user_id_fallback_from_spec(
+    monkeypatch, iguazio_v4_mode
+):
+    """Test that user_id is read from spec.auth when auth_info.user_id is None.
+
+    This covers post-restart scheduled jobs and retries where auth_info is empty
+    but user_id was previously persisted on the run/scheduled_object spec.
+    """
+    mock_resolve = unittest.mock.Mock(return_value="resolved-token")
+    monkeypatch.setattr(
+        services.api.utils.helpers,
+        "resolve_auth_token_name",
+        mock_resolve,
+    )
+
+    launcher = services.api.launcher.ServerSideLauncher(
+        auth_info=mlrun.common.schemas.AuthInfo(user_id=None)
+    )
+    run = mlrun.run.RunObject(
+        spec=mlrun.model.RunSpec(auth={"user_id": "spec-user-id"}),
+    )
+
+    launcher.enrich_and_validate_auth_token_name(run)
+
+    mock_resolve.assert_called_once_with(
+        user_id="spec-user-id",
+        provided_token_name=None,
+    )
+    assert run.spec.auth["user_id"] == "spec-user-id"
+    assert run.spec.auth["token_name"] == "resolved-token"
+    # user_id must be propagated back to auth_info so downstream code (e.g.
+    # _mount_secret_token_to_runtime) uses the correct identity, not the empty
+    # auth_info from a post-restart schedule reload.
+    assert launcher._auth_info.user_id == "spec-user-id"
 
 
 def test_enrich_and_validate_auth_token_name_iguazio_v4_token_not_found(

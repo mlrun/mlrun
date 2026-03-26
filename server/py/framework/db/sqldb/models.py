@@ -844,7 +844,7 @@ with warnings.catch_warnings():
         )
         active = Column(BOOLEAN, default=False)
         cooldown_end_time = Column(
-            framework.db.sqldb.sql_types.DateTime(timezone=True),
+            framework.db.sqldb.sql_types.MicroSecondDateTime,
             default=None,
             nullable=True,
         )

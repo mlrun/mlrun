@@ -1,4 +1,4 @@
-# Copyright 2024 Iguazio
+# Copyright 2026 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,9 +14,9 @@
 
 """Add cooldown_end_time to alert_states
 
-Revision ID: 3f2c1331622a
+Revision ID: 24a254635f94
 Revises: c25e56faecce
-Create Date: 2026-03-23 12:38:05.275072
+Create Date: 2026-03-26 19:25:36.089443
 
 """
 
@@ -25,7 +25,7 @@ from alembic import op
 from sqlalchemy.dialects import mysql
 
 # revision identifiers, used by Alembic.
-revision = "3f2c1331622a"
+revision = "24a254635f94"
 down_revision = "c25e56faecce"
 branch_labels = None
 depends_on = None
@@ -37,7 +37,7 @@ def upgrade():
         "alert_states",
         sa.Column(
             "cooldown_end_time",
-            mysql.DATETIME(timezone=True, fsp=3),
+            mysql.DATETIME(timezone=True, fsp=6),
             nullable=True,
         ),
     )

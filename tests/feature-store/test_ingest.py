@@ -189,11 +189,14 @@ def test_run_spark_graph_closes_resource_cache():
 
     df = pd.DataFrame({"ticker": ["GOOG", "MSFT"], "price": [100.0, 200.0]})
 
-    with patch(
-        "mlrun.feature_store.ingestion.ResourceCache.close_sync", mock_close_sync
-    ), patch(
-        "mlrun.feature_store.ingestion.create_graph_server"
-    ) as mock_server_factory:
+    with (
+        patch(
+            "mlrun.feature_store.ingestion.ResourceCache.close_sync", mock_close_sync
+        ),
+        patch(
+            "mlrun.feature_store.ingestion.create_graph_server"
+        ) as mock_server_factory,
+    ):
         mock_server = unittest.mock.MagicMock()
         mock_server.run.return_value = df
         mock_server_factory.return_value = mock_server

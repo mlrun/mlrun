@@ -123,6 +123,7 @@ class FeaturesDriftTablePlot:
         inputs_statistics: dict,
         metrics: dict[str, Union[dict, float]],
         drift_results: dict[str, DriftResultType],
+        include_plotlyjs: bool | str = "cdn",
     ) -> _PlotlyTableArtifact:
         """
         Produce the html code of the table plot with the given information and the stored configurations in the class.
@@ -131,6 +132,8 @@ class FeaturesDriftTablePlot:
         :param inputs_statistics:     The inputs calculated statistics dictionary.
         :param metrics:               The drift detection metrics calculated on the sample set and inputs.
         :param drift_results:         The drift results per feature according to the rules of the monitor.
+        :param include_plotlyjs:      How to include Plotly.js in the exported HTML (passed to
+                                      ``PlotlyArtifact``). Defaults to ``"cdn"``.
 
         :return: The drift table as a plotly artifact.
         """
@@ -141,7 +144,9 @@ class FeaturesDriftTablePlot:
             metrics=metrics,
             drift_results=drift_results,
         )
-        return _PlotlyTableArtifact(figure=figure, key="drift_table_plot")
+        return _PlotlyTableArtifact(
+            figure=figure, key="drift_table_plot", include_plotlyjs=include_plotlyjs
+        )
 
     def _read_columns_names(self, statistics_dictionary: dict, drift_metrics: dict):
         """

@@ -79,13 +79,23 @@ class PlotlyArtifact(Artifact):
         figure: typing.Optional["Figure"] = None,
         key: str | None = None,
         target_path: str | None = None,
+        include_plotlyjs: bool | str = True,
     ) -> None:
         """
         Initialize a Plotly artifact with the given figure.
 
-        :param figure:      Plotly figure ('plotly.graph_objs.Figure' object) to save as an artifact.
-        :param key:         Key for the artifact to be stored in the database.
-        :param target_path: Path to save the artifact.
+        :param figure:           Plotly figure ('plotly.graph_objs.Figure' object) to save as an artifact.
+        :param key:              Key for the artifact to be stored in the database.
+        :param target_path:      Path to save the artifact.
+        :param include_plotlyjs: How to include Plotly.js in the exported HTML. Passed directly to
+                                 ``plotly.io.to_html(include_plotlyjs=...)``. Common values:
+
+                                 * ``True`` (default) - embed the full ~3.4 MB Plotly.js bundle inline.
+                                   The artifact is self-contained but large.
+                                 * ``"cdn"`` - reference Plotly.js from the official CDN. The artifact
+                                   is ~8 KB but requires network access to render.
+                                 * ``False`` - omit Plotly.js entirely. Use when the viewer (e.g. the
+                                   MLRun UI) already loads Plotly.js independently.
         """
         # Validate the plotly package:
         try:
@@ -114,6 +124,7 @@ class PlotlyArtifact(Artifact):
 
         # Continue initializing the plotly artifact:
         self._figure = figure
+        self._include_plotlyjs = include_plotlyjs
         self.spec.format = "html"
 
     def get_body(self) -> str:
@@ -122,4 +133,4 @@ class PlotlyArtifact(Artifact):
 
         :return: The figure's html code.
         """
-        return self._figure.to_html()
+        return self._figure.to_html(include_plotlyjs=self._include_plotlyjs)

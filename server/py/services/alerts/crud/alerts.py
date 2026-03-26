@@ -287,6 +287,8 @@ class Alerts(
             "session": session.hash_key,
         }
 
+        # AUTO without cooldown: reset before notification delivery so the alert can fire again on the next event.
+        # With cooldown, reset is deferred until the cooldown period elapses
         if (
             alert.reset_policy == mlrun.common.schemas.alert.ResetPolicy.AUTO
             and not alert.cooldown_period
@@ -299,6 +301,8 @@ class Alerts(
             session, alert, event_data
         )
 
+        # MANUAL alerts stay active until explicitly reset; cooldown alerts stay active until the cooldown elapses.
+        # last_activation_id is stored so it can be updated when the alert is eventually reset.
         if (
             alert.reset_policy == mlrun.common.schemas.alert.ResetPolicy.MANUAL
             or alert.cooldown_period
@@ -660,6 +664,7 @@ class Alerts(
                 f"Alert {name} for project {project} does not exist"
             )
 
+        # MANUAL and cooldown alerts track the last activation so it can be marked as resolved on reset
         if (
             alert.reset_policy == mlrun.common.schemas.alert.ResetPolicy.MANUAL
             or alert.cooldown_period

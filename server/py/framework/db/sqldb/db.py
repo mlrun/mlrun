@@ -6996,6 +6996,7 @@ class SQLDB(DBInterface):
         state.active = active
         if obj is not None:
             state.full_object = obj
+        # These two are mutually exclusive: pass cooldown_end_time to set it, or clear_cooldown=True to null it.
         if cooldown_end_time is not None:
             state.cooldown_end_time = cooldown_end_time
         if clear_cooldown:

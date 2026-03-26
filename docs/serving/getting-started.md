@@ -4,9 +4,9 @@
 Learn how serving graphs can simplify complex workflows as illustrated in these examples.
 
 **In this section**
+- [ModelRunnerStep with proxy models for a shared model](#modelrunnerstep-with-proxy-models-for-a-shared-model)
 - [Simple model serving router](#simple-model-serving-router)
 - [Streaming serving function](#streaming-serving-function)
-- [ModelRunnerStep with proxy models for a shared model](#modelrunnerstep-with-proxy-models-for-a-shared-model)
 - [Cyclic graph](#cyclic-graph)
 - [Serving function using Kafka queue and serving child function](#serving-function-using-kafka-queue-and-serving-child-function)
 
@@ -15,6 +15,62 @@ In addition to the examples in this section, see the:
 - [Distributed (multi-function) pipeline example](./distributed-graph.ipynb) that details how to run a pipeline that consists of multiple serverless functions (connected using streams).
 - [Advanced model serving graph notebook example](./graph-example.ipynb) that illustrates the flow, task, model, and ensemble router states; building tasks from custom handlers; classes and storey components; using custom error handlers; testing graphs locally; deploying a graph as a real-time serverless function.
 - {ref}`MLRun demos <demos>` for additional use cases and full end-to-end examples, including GenAI serving.
+
+## ModelRunnerStep with proxy models for a shared model
+
+`ModelRunnerStep` is used to run multiple models on each event.
+When a `ModelRunnerStep` is included in a function graph, MLRun automatically imports the default language model class (`LLModel` or `mlrun.serving.states.LLModel`) during function deployment to wrap the model for handling a LLM prompt-based inference.
+This class extends the base `Model` to provide specialized handling for `LLMPromptArtifact` objects, enabling both synchronous and asynchronous invocation of language models.
+Follow the class description and implement your own enrichment when custom class is needed.
+
+Use the `add_shared_model` method to add a shared model to the graph — this model becomes accessible to all `ModelRunners` in the graph.
+Use `add_shared_model_proxy` to add a *proxy model* to a `ModelRunnerStep`. A proxy model acts as a lightweight reference to an existing shared model within the graph. It allows each step to reuse the same underlying shared model without duplicating it, while still being able to assign a unique endpoint name, labels, and endpoint creation strategy for tracking or monitoring purposes. This helps maintain efficiency and consistency across multiple model runners that operate on shared models. 
+
+### Example
+Here's the basic code. See also the full example in {ref}`genai-04-llm-prompt-artifact`.
+```
+from mlrun.serving import ModelRunnerStep
+from mlrun.common.schemas.model_monitoring.constants import (
+    ModelEndpointCreationStrategy,
+)
+
+function = project.set_function(
+    name="open-ai-tut",
+    kind="serving",
+    tag="latest",
+    func="./src/LLM_file.py",
+    image=image,
+    requirements=["openai==1.77.0"],
+)
+graph = function.set_topology("flow", engine="async")
+
+model_runner_step = ModelRunnerStep(
+    name="model_runner_step", model_selector="MyModelSelector"
+)
+
+graph.add_shared_model(
+    name="shared_llm",
+    execution_mechanism="dedicated_process",
+    model_class="LLModel",
+    model_artifact=model_artifact,
+    result_path="outputs",
+)
+
+model_runner_step.add_shared_model_proxy(
+    endpoint_name="finance_endpoint",
+    model_artifact=finance_llm_prompt_artifact,
+    shared_model_name="shared_llm",
+    model_endpoint_creation_strategy=ModelEndpointCreationStrategy.OVERWRITE,
+)
+model_runner_step.add_shared_model_proxy(
+    endpoint_name="sport_endpoint",
+    model_artifact=sport_llm_prompt_artifact,
+    shared_model_name="shared_llm",
+    model_endpoint_creation_strategy=ModelEndpointCreationStrategy.OVERWRITE,
+)
+
+graph.to(model_runner_step).respond()
+```
 
 ## Simple model serving router
 
@@ -71,12 +127,13 @@ tests one or more classifier models against a held-out dataset.
 
 ## Streaming serving function
 
+Streaming is useful when the responses are large: the responses can be sent incrementally to the user, for example, an LLM output is displayed to the user in real-time as the tokens as generated.
+
 This example demonstrates how to create a streaming serving function that yields chunks
 incrementally over HTTP. The function deploys to Nuclio and uses HTTP chunked transfer
 encoding to stream results back to the client as they are produced.
 
-```
-{Admonition}Important
+```{admonition} Important
 `function.invoke()` does not support streaming responses — it buffers the
 entire response and tries to parse it as a single JSON object. Use `requests` with
 `stream=True` instead.
@@ -129,12 +186,12 @@ fn.deploy()
 
 Use `requests` with `stream=True` and iterate over chunks as they arrive.
 
-```
-{Admonition}Note
+```{admonition} Note
 HTTP chunk boundaries are not guaranteed to align 1:1 with yielded values.
 The network stack or proxies may coalesce multiple chunks into a single read.
 ```
-```
+
+```python
 import requests
 
 url = fn.get_url()
@@ -149,62 +206,6 @@ for chunk in resp.iter_content(decode_unicode=True):
         print(chunk, end="", flush=True)
 ```
 
-
-
-## ModelRunnerStep with proxy models for a shared model
-
-`ModelRunnerStep` is used to run multiple models on each event.
-When a `ModelRunnerStep` is included in a function graph, MLRun automatically imports the default language model class (`LLModel` or `mlrun.serving.states.LLModel`) during function deployment to wrap the model for handling a LLM prompt-based inference.
-This class extends the base `Model` to provide specialized handling for `LLMPromptArtifact` objects, enabling both synchronous and asynchronous invocation of language models.
-Follow the class description and implement your own enrichment when custom class is needed.
-
-Use the `add_shared_model` method to add a shared model to the graph — this model becomes accessible to all `ModelRunners` in the graph.
-Use `add_shared_model_proxy` to add a *proxy model* to a `ModelRunnerStep`. A proxy model acts as a lightweight reference to an existing shared model within the graph. It allows each step to reuse the same underlying shared model without duplicating it, while still being able to assign a unique endpoint name, labels, and endpoint creation strategy for tracking or monitoring purposes. This helps maintain efficiency and consistency across multiple model runners that operate on shared models. 
-See the full example in {ref}`genai-04-llm-prompt-artifact`.
-```
-from mlrun.serving import ModelRunnerStep
-from mlrun.common.schemas.model_monitoring.constants import (
-    ModelEndpointCreationStrategy,
-)
-
-function = project.set_function(
-    name="open-ai-tut",
-    kind="serving",
-    tag="latest",
-    func="./src/LLM_file.py",
-    image=image,
-    requirements=["openai==1.77.0"],
-)
-graph = function.set_topology("flow", engine="async")
-
-model_runner_step = ModelRunnerStep(
-    name="model_runner_step", model_selector="MyModelSelector"
-)
-
-graph.add_shared_model(
-    name="shared_llm",
-    execution_mechanism="dedicated_process",
-    model_class="LLModel",
-    model_artifact=model_artifact,
-    result_path="outputs",
-)
-
-model_runner_step.add_shared_model_proxy(
-    endpoint_name="finance_endpoint",
-    model_artifact=finance_llm_prompt_artifact,
-    shared_model_name="shared_llm",
-    model_endpoint_creation_strategy=ModelEndpointCreationStrategy.OVERWRITE,
-)
-model_runner_step.add_shared_model_proxy(
-    endpoint_name="sport_endpoint",
-    model_artifact=sport_llm_prompt_artifact,
-    shared_model_name="shared_llm",
-    model_endpoint_creation_strategy=ModelEndpointCreationStrategy.OVERWRITE,
-)
-
-graph.to(model_runner_step).respond()
-```
-
 ## Cyclic graph
 In agentic systems, loops and iterative refinement are common architectural patterns. Typical use cases:
 - Evaluator–optimizer loop: An LLM generates a response, a secondary agent evaluates it, and if unsatisfactory, the generation is retried until quality improves or a cap is reached.
@@ -215,6 +216,17 @@ Cycles are supported for graphs of `flow` topology and `async` engine (storey) w
 Set a graph as cyclic using `allow_cyclic=True` in `set_topology`, or after the graph is defined with `serving.spec.graph.allow_cyclic = True`.
 
 Cycles can return to the same step, or cycle through multiple steps. Create a multi-step cycle by listing the step names and using `cycle_to`. (See {py:meth}`~mlrun.serving.states.BaseStep.to()` and {py:meth}`~mlrun.serving.states.BaseStep.cycle_to`.) 
+
+The following image illustrates a multi-agent orchestrator for planning trip.
+It gets a user request for a trip in a specific location and dates, and plans a trip according to the expected weather.
+The flow contains:
+- A router agent that receives the user request and sends it to the relevant sub-agent. It also receives the answers from the agents and routes those to the relevant next steps.
+- A weather agent that receives aclocation and date and uses a weather tool to return the expected weather in that location.
+- A trip planning agent that receives a location and expected weather and plans a trip accordingly (using a web search).
+- A response agent that receives all the information and generates an answer. 
+<p align="center"><img src="../_static/images/cyclic-graph.png" alt="cyclic graph" /></p>
+
+### Usage
 Example of creating a cycle where after the `evaluator` the `choice` step determines whether to cycle to the `generator` or continue forward to `post_process` and respond:
 
 ```python
@@ -224,7 +236,7 @@ graph.to("generator").to("evaluator").to("choice").cycle_to(["generator"]).to(
 ```
 As an alternative to the choice step, you can implement {py:class}`~mlrun.serving.states.ModelRunnerSelector.select_outlets` in the evaluator step. See the usage in [Prevent infinite loops](#prevent-infinite-loops).
 
-Iteration tracking is automatic, you do not need to add counters manually in the step code. The default number of iterations is 10_000.
+Iteration tracking is automatic, you do not need to add counters manually in the step code. The default number of iterations is 100.
 If you set `max_iterations` in `set_topology` and in `add_step`, the value in `add_step` takes precedence. 
 ```{admonition} Important
 - If stop conditions (`max_iterations`) are misconfigured, cycles can lead to an infinite execution of graph steps.
@@ -239,6 +251,7 @@ When a RuntimeError is raised:
 - If you did not provide an error handler, the error is raised to the client
 A typical error is `RuntimeError(f"Max iterations exceeded in step '{self.name}' for event {event.id}")`.
 
+### Example
 ```python
 # Define the function
 function = project.set_function(
@@ -304,6 +317,8 @@ class MyChoiceStep(storey.Choice):
 The list returned by `select_outlets` must include only valid step names that follow the current step in the graph flow. If the current step is the responder, use Complete as the outlet name to exit the graph and return the response.
 
 ## Serving function using Kafka queue and serving child function
+
+Queues accept data from one or more source steps and publish to one or more output steps. You can use them to send events from one part of a graph to another and to decouple the processing of those parts.
 
 ```Python
 graph = fn_serving.set_topology("flow", engine="async")

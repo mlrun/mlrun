@@ -66,7 +66,10 @@ def init_featureset_graph(
             context=server.context,
         )
         server.init_object(namespace)
-        return graph.wait_for_completion()
+        try:
+            return graph.wait_for_completion()
+        finally:
+            cache.close_sync()
     else:
         # for initialize all the validators of the feature set
         cache.cache_resource(featureset.uri, featureset, True)

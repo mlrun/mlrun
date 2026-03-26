@@ -141,6 +141,26 @@ def test_return_df(rundb_mock):
     assert isinstance(result_df, pd.DataFrame)
 
 
+def test_init_featureset_graph_async_closes_resource_cache(rundb_mock):
+    """Verify that the async (default) path of init_featureset_graph closes the ResourceCache."""
+    mock_close_sync = unittest.mock.Mock()
+
+    fset = fstore.FeatureSet("cache-close-test", entities=[fstore.Entity("ticker")])
+    fset._run_db = rundb_mock
+    fset.reload = unittest.mock.Mock()
+    fset.save = unittest.mock.Mock()
+    fset.purge_targets = unittest.mock.Mock()
+
+    df = pd.DataFrame({"ticker": ["GOOG", "MSFT"], "price": [100.0, 200.0]})
+
+    with patch(
+        "mlrun.feature_store.ingestion.ResourceCache.close_sync", mock_close_sync
+    ):
+        fset.ingest(df, targets=[DFTarget()])
+
+    mock_close_sync.assert_called_once()
+
+
 def test_init_featureset_graph_sync_closes_resource_cache():
     """Verify that the sync path of init_featureset_graph closes the ResourceCache."""
     from mlrun.feature_store.ingestion import init_featureset_graph

@@ -886,6 +886,7 @@ async def test_list_project_summaries_filters_by_project_permissions(
                 {},
                 {},
                 {},
+                {},
             )
         )
     )

@@ -78,3 +78,4 @@ run's data.
 <br><img src="../_static/images/project-jobs-train-artifacts-test_set.png" alt="project-jobs-train-artifacts-test_set" width="800"/>
 
 See full details and examples in [Functions](../runtimes/functions.md).
+

@@ -40,18 +40,18 @@ See a full description of KFP, Python, and the workflow engines in {ref}`local-r
 |-------|----------------------------------------------------------------------------|
 |ML-7879|Serving graphs now support consuming messages from RabbitMQ queues and topic-based routing. See {py:meth}`~mlrun.runtimes.RemoteRuntime.add_rabbitmq_trigger`, {ref}`graph-ha-cfg`. |
 |ML-9565|Serving graphs now support API handlers, used to expose endpoints and interfaces. See [API handler](../serving/api-handler.md).|
-|ML-10258|MLRun can process events asynchronously, within a batch, sending a response as soon as the event completes. Throughput is maximized, and bottlenecks are minimized. See [Async mode](../genai/deployment/gpu_utilization.md#async-mode).|
+|ML-10258|MLRun can process multiple events asynchronously with HTTP triggers. Throughput is maximized, and bottlenecks are minimized. See [Async mode](../genai/deployment/gpu_utilization.md#async-mode).|
 |ML-10839|MLRun supports model serving with batched events: an invoked function is processed with an aggregated event (a single event holding multiple events), reducing GPU utilization. The trigger forwards the batch of events based on either timespan or the number of accumulated events. Both are user-configurable. See [Batching](../genai/deployment/gpu_utilization.md#batching), [Batching example](../serving/model-serving-steps.md#example-with-batching), and [Serving graph with batching using a Hugging Face model](..genai/deployment/hf-model-batch-serving-graph.ipynb).|
-|ML-10863|MLRun supports stream responses (send back tokens as they are generated), rather than waiting until all the tokens are generated. This significantly reduces the latency for initial response and improves the overall user experience in gen AI workflows. See  [HTTP streaming step](../serving/model-serving-steps.md#http-streaming-step) and {py:class}`~mlrun.runtimes.ServingRuntime.set_streaming` and {py:class}`~storey.transformations.Collector`.|
-|ML-10753|MLRun supports cyclic serving graphs. See [Cyclic graph example](../serving/use-cases.md#example-of-a-cyclic-graph) and {py:meth}`~mlrun.serving.states.BaseStep.cycle_to`.|
+|ML-10863|MLRun supports model stream responses that return tokens, rather than waiting until all the tokens are generated. This significantly reduces the latency for initial response and improves the overall user experience in gen AI workflows. See  [HTTP streaming step](../serving/model-serving-steps.md#http-streaming-step) and {py:class}`~mlrun.runtimes.ServingRuntime.set_streaming` and {py:class}`~storey.transformations.Collector`.|
+|ML-10753|MLRun supports cyclic serving graphs, used to implement agent-faadback loops. See [Cyclic graph example](../serving/use-cases.md#example-of-a-cyclic-graph) and {py:meth}`~mlrun.serving.states.BaseStep.cycle_to`.|
 |10097|New `ChoiceByField` step that routes events to downstream steps based on an event field that contains the step name or names. See {py:class}`~`
-|10099|New `RemoteFunctionStep` that calls remote functions. See [RemoteFunctionStep](../serving/available-steps.md#remotefunctionstep) and {py:class}`~mlrun.serving.remote.RemoteFunctionStep`.|
+|10099|New `RemoteFunctionStep` that calls remote functions, for example another Nuclio function. See [RemoteFunctionStep](../serving/available-steps.md#remotefunctionstep) and {py:class}`~mlrun.serving.remote.RemoteFunctionStep`.|
   
 
 ### Model monitoring
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
-|ML-9954|You can now generate an alert when lags are detected in writer/applications. See [Lag detection alerts](../model-monitoring/running-applications.md#lag-detection-alerts).|
+|ML-9954|You can now generate an alert when lags in ingress stream processing are detected in model monitoring writer/application pods. Lags usually indicate perfoemance issues. See [Lag detection alerts](../model-monitoring/running-applications.md#lag-detection-alerts).|
 |ML-10919|Model monitoring supports TimescaleDB PostgreSQL with TimescaleDB extension as a TSDB platform. See [Configuring data store profiles](../install-mlrun-ce/mlrun-ce-development-notes.md#configuring-data-store-profiles) and {py:meth}`~mlrun.projects.MlrunProject.set_model_monitoring_credentials`.|
 |ML-10331|The writer pod performance is increased by utilizing async processing.|
 
@@ -59,7 +59,7 @@ See a full description of KFP, Python, and the workflow engines in {ref}`local-r
 ### UI
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
-|ML-11445| In the **Model endpoints > Metrics** tab, you can now select aggregation functions, which appear as multiple lines in the values graphs. Also, you can select a period of time greater than 1 month. See [Model endpoints metrics](../model-monitoring/monitoring-models.ipynb#model-endpoints-metrics). This is not supported for V3IO.|
+|ML-11445| In the **Model endpoints > Metrics** tab, you can now select aggregation functions, which appear as multiple lines in the values graphs. Also, you can select a period of time greater than 1 month. See [Model endpoints metrics](../model-monitoring/monitoring-models.ipynb#model-endpoints-metrics). Supported for TimescaleDB (PostgreSQL).|
 
 ## Packagers
 | ID    |Description                                                                 |
@@ -67,15 +67,22 @@ See a full description of KFP, Python, and the workflow engines in {ref}`local-r
 |ML-3474|MLRun now suports packagers for moving data in and out of MLRun functions by using standard Python functions with type hints and returning values. See [Packagers](/concepts/packagers/index.md).|
 |ML-11894|The user flow for changing default attributes for packagers artifacts is improved. See {py:class}`~mlrun.package.log_hint.LogHint`.|
 
-
+### Artifacts
+| ID    |Description                                                                 |
+|-------|----------------------------------------------------------------------------|
+|ML-11767|You can now run ` log_llm_prompt` without using the model artifact.|
 
 (1.11.0-breaking)=
 ### Breaking Changes
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
 |ML-11065| Python 3.9 is not supported. <ul><li>You must rebuild custom images and migrate existing workflows to Python 3.11.</li><li>Scheduled workflows that were created using MLRun client versions < 1.11.0 and Python 3.9–based images are not modified or migrated automatically. They continue to run exactly as they were originally defined, using the same MLRun client version, the same Python runtime (3.9), and the same image reference. After you upgrade your client to v1.11.0, all existing Python 3.9-based schedules must be rebuilt and re-created to migrate them to Python 3.11, and schedules must use Python 3.11.</li><li>TensorFlow/tf-keras are removed from `dev-requirements.txt `as part of the Python 3.11 upgrade. If you rely on them, you must manually install compatible versions.</li></ul> |
-|ML-11482|TDEngine is deprecated. Model monitoring data in TDEngine is not migrated. |
+|ML-11482|TDEngine is deprecated. Use TimescaleDB instead.  Model monitoring data in TDEngine is not migrated.|
 
+### MLRun hub
+| ID    |Description                                                                 |
+|-------|----------------------------------------------------------------------------|
+|10357|You can now import steps from the MLRun hub or your own private hub. See  .|
 
 ### Documentation
 | ID    |Description                                                                 |
@@ -88,22 +95,21 @@ See a full description of KFP, Python, and the workflow engines in {ref}`local-r
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
 |ML-7955|The **Owner** field is no longer blank for artifacts that are registered in the UI.|
-|ML-9098|The date format in the date range dropdown now supports local formats. Non-supported locakes use the US format: MM/DD/YYYY.|
-|ML-9272|
+|ML-9098|The date format in the date range dropdown now supports local formats. Non-supported locales use the US format: MM/DD/YYYY.|
+|ML-9272|Warning is now issued when the user supplies unexpected argument to the `job.run` method.|
 |ML-9615|There is now a timeout to Kubernetes client operations. Previously, API workers could hang indefinitely when the Kubernetes control plane was slow or unresponsive.|
 |ML-10643|If unarchiving a project fails, there is now an error message: `Failed to unarchive project {project.metadata.name}`. Previously there was no error message.
 |ML-11343|When running get_monitoring_function_summaries() without timezones now raises an error: `Custom start and end times must contain the timezone`. Previously this resuled in an error: `the call fails in get_start_end`.|
 |ML-11354|The function `mlconf.reload()` in `set_env_from_file()` now updates the mlconf with the env from the mlrun.env project file. Previously, it used the values from the file in the home directory.|
-|ML-11580|Previously, when creating a serving graph with steps that run in parallel and setting the graph topology engine to sync, the deployment completed but invoking the function failed since the `sync` does not support brancges. Now there is an error message before the deployment: `synchronous flow engine doesn't support branches use async for step <name>`.|
-|ML-11581|Added pagination to the Alerts tab. Now when opening the ALerts tab when there are numerous alerts, the message is `Only 100 alerts displayed. View all in alerts screen`.|
-|ML-11767|
+|ML-11382|RabbitMQ triggers now hides credentials in the URL.|
+|ML-11580|Previously, when creating a serving graph with steps that run in parallel and setting the graph topology engine to sync, the deployment completed but invoking the function failed since the `sync` does not support branches. Now there is an error message before the deployment: `synchronous flow engine doesn't support branches use async for step <name>`.|
+|ML-11581|Added pagination to the Alerts tab. Now when opening the Alerts tab when there are numerous alerts, the message is `Only 100 alerts displayed. View all in alerts screen`.|
 |ML-11780|Fixed the error in [Model monitoring tutorial](../tutorials/05-model-monitoring.ipynb) that resulted in failure of `enable_model_monitoring`.|
 ML-11820|Improved the time to access the monitoring page (V3IO).|
 |ML-11969|Fixed description of alert auto reset that alerts are reset immediately. See [Alert reset policy](../concepts/alerts.md#alert-reset-policy).|
 ML-11985|Improved the error message when a step of any kind is created with `after=<something other than a list>`.|
-|ML-12304|
-|ML-12311|Resolved issue of failure to return project workflows by changing the defaults:  counter refresh time is 1 mnute (was 30 seconds); and "in progress workflow counters" count only the last 2 days.|
-|ML-12328||
+|ML-12311|Resolved issue of failure to return project workflows by changing the defaults: counter refresh time is 1 mninute (was 30 seconds); and "in progress workflow counters" count only the last 2 days.|
+|ML-12328|Fixed KFP experiments pagination.|
 
 
 
@@ -1560,7 +1566,12 @@ with a drill-down to view the steps and their details. [Tech Preview]
 |ML-9235|After migrating from v1.7.x to v1.8.x, there are two artifacts with the same key that are tagged `latest`. When using such an artifact in the job by `key:tag` the job will fail with the error `multiple rows were found`.| NA|v1.8.0|
 |ML-9929|Partition-by query on artifact does not sort by best-iteration.|NA||
 |ML-9993|Pagination is not persistent upon browser refresh on Iguazio releases 3.6.0 and 3.6.1.|NA|v1.8.0|
-|ML-10004|Batch writes to TSDB fail when the ingestion rate for the TSDB target is greater than 1/s. The result is that you cannot monitor inferencing and at some point the influencing results are dropped. 
+|ML-10004|Batch writes to TSDB fail when the ingestion rate for the TSDB target is greater than 1/s. The result is that you cannot monitor inferencing and at some point the influencing results are dropped. |
+|ML-10614|`project.log_model()` and `project.log_artifact()` do not account for the the context folder.|
+
+
+
+
 
 
 

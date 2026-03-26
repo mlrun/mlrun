@@ -769,3 +769,134 @@ def test_artifact_producer_parse_uri(uri, expected_parsed_result):
         deepdiff.DeepDiff(parsed_result, expected_parsed_result, ignore_order=True)
         == {}
     )
+
+
+class TestCodeArtifact:
+    def test_create_with_defaults(self):
+        artifact = mlrun.artifacts.CodeArtifact(key="my-code")
+        assert artifact.kind == "code"
+        assert (
+            artifact.spec.code_type
+            == mlrun.artifacts.code.CodeArtifactCodeType.function
+        )
+        assert artifact.spec.language is None
+
+    def test_create_with_language_and_code_type(self):
+        artifact = mlrun.artifacts.CodeArtifact(
+            key="my-code",
+            language="python:3.9",
+            code_type="workflow",
+        )
+        assert artifact.spec.language == "python:3.9"
+        assert (
+            artifact.spec.code_type
+            == mlrun.artifacts.code.CodeArtifactCodeType.workflow
+        )
+
+    def test_create_with_enum_code_type(self):
+        artifact = mlrun.artifacts.CodeArtifact(
+            key="my-code",
+            code_type=mlrun.artifacts.code.CodeArtifactCodeType.workflow,
+        )
+        assert (
+            artifact.spec.code_type
+            == mlrun.artifacts.code.CodeArtifactCodeType.workflow
+        )
+
+    def test_invalid_code_type_raises(self):
+        with pytest.raises(ValueError):
+            mlrun.artifacts.CodeArtifact(key="bad", code_type="invalid")
+
+    def test_serialization_roundtrip(self):
+        artifact = mlrun.artifacts.CodeArtifact(
+            key="my-code",
+            language="python:3.9",
+            code_type="function",
+        )
+        artifact_dict = artifact.to_dict()
+        assert artifact_dict["kind"] == "code"
+        assert artifact_dict["spec"]["language"] == "python:3.9"
+        assert artifact_dict["spec"]["code_type"] == "function"
+
+        restored = mlrun.artifacts.manager.dict_to_artifact(artifact_dict)
+        assert isinstance(restored, mlrun.artifacts.CodeArtifact)
+        assert restored.spec.language == artifact.spec.language
+        assert restored.spec.code_type == artifact.spec.code_type
+
+    def test_registered_in_artifact_types(self):
+        assert "code" in mlrun.artifacts.manager.artifact_types
+        assert (
+            mlrun.artifacts.manager.artifact_types["code"]
+            is mlrun.artifacts.CodeArtifact
+        )
+
+    def test_category_filtering(self):
+        assert (
+            mlrun.common.schemas.artifact.ArtifactCategories.from_kind("code")
+            == mlrun.common.schemas.artifact.ArtifactCategories.code
+        )
+        kinds, exclude = (
+            mlrun.common.schemas.artifact.ArtifactCategories.code.to_kinds_filter()
+        )
+        assert "code" in kinds
+        assert not exclude
+
+    def test_other_category_excludes_code(self):
+        kinds, exclude = (
+            mlrun.common.schemas.artifact.ArtifactCategories.other.to_kinds_filter()
+        )
+        assert "code" in kinds
+        assert exclude
+
+    def test_log_code_file_via_project(self, new_project_factory):
+        project = new_project_factory("test-code-proj", save=False)
+        artifact = project.log_code_file(
+            "my-func",
+            body="def handler(): pass",
+            language="python:3.9",
+            code_type="function",
+            is_inline=True,
+            artifact_path=str(results_dir),
+        )
+        assert isinstance(artifact, mlrun.artifacts.CodeArtifact)
+        assert artifact.kind == "code"
+        assert artifact.spec.language == "python:3.9"
+        assert (
+            artifact.spec.code_type
+            == mlrun.artifacts.code.CodeArtifactCodeType.function
+        )
+
+    def test_log_code_file_via_context(self, ensure_project):
+        context = mlrun.get_or_create_ctx("test")
+        artifact = context.log_code_file(
+            "my-func",
+            body="def handler(): pass",
+            language="python:3.11",
+            code_type="workflow",
+            is_inline=True,
+            artifact_path=str(results_dir),
+        )
+        assert isinstance(artifact, mlrun.artifacts.CodeArtifact)
+        assert artifact.kind == "code"
+        assert artifact.spec.language == "python:3.11"
+        assert (
+            artifact.spec.code_type
+            == mlrun.artifacts.code.CodeArtifactCodeType.workflow
+        )
+
+    def test_log_code_file_with_local_file(self, tmp_path, new_project_factory):
+        code_file = tmp_path / "my_func.py"
+        code_file.write_text("def handler(): return 42")
+
+        project = new_project_factory("test-code-file", save=False)
+        artifact = project.log_code_file(
+            "my-func",
+            local_path=str(code_file),
+            language="python",
+            code_type="function",
+            artifact_path=str(results_dir),
+            upload=False,
+        )
+        assert isinstance(artifact, mlrun.artifacts.CodeArtifact)
+        assert artifact.kind == "code"
+        assert artifact.spec.language == "python"

@@ -12,9 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import asyncio
 import os
 from pathlib import Path
-from unittest.mock import MagicMock, Mock, patch
+from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
 import pandas as pd
 import pytest
@@ -398,3 +399,34 @@ def test_resource_cache_get_table_caches_by_original_uri():
             second_result = cache.get_table(test_uri)
             assert mock_table_class.call_count == 1
             assert second_result is first_result
+
+
+def test_resource_cache_close_closes_all_tables():
+    """Test that ResourceCache.close() closes all cached tables and clears the cache."""
+    cache = ResourceCache()
+
+    table1 = AsyncMock(name="Table1")
+    table2 = AsyncMock(name="Table2")
+    table3 = MagicMock(name="PlainTable", spec=[])  # no close method
+
+    cache.cache_table("v3io://host/container/t1", table1)
+    cache.cache_table("v3io://host/container/t2", table2)
+    cache.cache_table("in-memory", table3)
+
+    asyncio.run(cache.close())
+
+    table1.close.assert_awaited_once()
+    table2.close.assert_awaited_once()
+    assert len(cache._tabels) == 0
+
+
+def test_resource_cache_close_is_idempotent():
+    """Test that calling close() twice doesn't raise."""
+    cache = ResourceCache()
+    table = AsyncMock(name="Table")
+    cache.cache_table("v3io://host/container/t1", table)
+
+    asyncio.run(cache.close())
+    asyncio.run(cache.close())
+
+    table.close.assert_awaited_once()

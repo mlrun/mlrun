@@ -123,6 +123,8 @@ def init_featureset_graph(
         if verbose:
             logger.info(f"wrote target: {target_status}")
 
+    cache.close_sync()
+
     result_df = pd.concat(result_dfs)
     return result_df.head(rows_limit)
 
@@ -166,7 +168,10 @@ def run_spark_graph(df, featureset, namespace, spark):
     server.init_object(namespace)
     server.context.spark = spark
     event = MockEvent(body=df)
-    return server.run(event, get_body=True)
+    try:
+        return server.run(event, get_body=True)
+    finally:
+        cache.close_sync()
 
 
 def context_to_ingestion_params(context):

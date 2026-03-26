@@ -5234,6 +5234,45 @@ class TestFeatureStore(TestMLRunSystem):
         )
         verify_ingest(source, "key", infer=False, targets=[target])
 
+    @TestMLRunSystem.skip_test_if_env_not_configured
+    @pytest.mark.enterprisex
+    def test_nosql_ingest_fd_leak(self):
+        """Ingest to NoSqlTarget in a loop and verify FDs don't grow."""
+        import subprocess
+
+        def fd_count():
+            pid = os.getpid()
+            return int(
+                subprocess.check_output(f"lsof -p {pid} | wc -l", shell=True)
+            )
+
+        iterations = 50
+        data = pd.DataFrame({"name": ["a", "b", "c"], "val": [1, 2, 3]})
+        counts = []
+
+        for i in range(iterations):
+            fset = fstore.FeatureSet(
+                f"fd-leak-test-{i}", entities=[fstore.Entity("name")]
+            )
+            fset.ingest(
+                data, targets=[NoSqlTarget()], run_config=fstore.RunConfig(local=True)
+            )
+            if i % 10 == 0:
+                counts.append((i, fd_count()))
+
+        counts.append((iterations - 1, fd_count()))
+
+        for iteration, fds in counts:
+            print(f"iteration {iteration}: {fds} FDs")
+
+        first_fds = counts[0][1]
+        last_fds = counts[-1][1]
+        growth = last_fds - first_fds
+        assert growth < 50, (
+            f"FD count grew by {growth} over {iterations} iterations "
+            f"({first_fds} -> {last_fds}), likely a leak"
+        )
+
 
 def verify_purge(fset, targets):
     fset.reload(update_spec=False)

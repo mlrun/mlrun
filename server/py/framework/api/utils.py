@@ -207,6 +207,12 @@ def _generate_function_and_task_from_submit_run_body(
     apply_enrichment_and_validation_on_function(function=function, auth_info=auth_info)
     apply_enrichment_and_validation_on_task(task)
 
+    # Overwrite any client-supplied spec.auth.user_id with the authenticated identity.
+    if auth_info.user_id:
+        task.setdefault("spec", {}).setdefault("auth", {})["user_id"] = (
+            auth_info.user_id
+        )
+
     return function, task
 
 

@@ -191,9 +191,20 @@ def clone_git(url: str, context: str, secrets=None, clone: bool = True):
     return url, repo
 
 
-def extract_source(source: str, workdir=None, secrets=None, clone=True):
+def extract_source(source: str, workdir=None, secrets=None, clone=True, project=None):
     if not source:
         return
+    # Handle store:// artifact URIs by delegating to load_source_code
+    # Import here to avoid circular import (clones is imported from mlrun.utils.__init__)
+    import mlrun.datastore
+
+    if mlrun.datastore.is_store_uri(source):
+        target_dir = workdir or os.path.realpath("./code")
+        return load_source_code(
+            source_uri=source,
+            target_dir=target_dir,
+            project=project,
+        )
     clone = clone if workdir else False
     target_dir = workdir or os.path.realpath("./code")
     if source.endswith(".zip"):

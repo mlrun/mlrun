@@ -120,7 +120,7 @@ class AlertConfig(ModelObj):
                                and must be reset explicitly. "auto" means the alert is reset automatically
                                after triggering and sending notifications (immediately if cooldown_period is
                                not set, or after the cooldown period elapses if it is set).
-        :param cooldown_period:Period during which the alert remains active after being triggered before it
+        :param cooldown_period: Period during which the alert remains active after being triggered before it
                                is automatically reset. Only applicable when reset_policy=auto. If not set,
                                the alert resets immediately. Format: e.g. 1d, 3h, 5m, 15s.
         :param notifications:  List of notifications to invoke once the alert is triggered

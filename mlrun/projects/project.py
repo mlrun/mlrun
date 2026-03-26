@@ -4049,20 +4049,6 @@ class MlrunProject(ModelObj):
         """
         db = mlrun.db.get_run_db(secrets=self._secrets)
 
-        stream_profile = db.get_datastore_profile(stream_profile_name, self.name)
-        if (
-            isinstance(
-                stream_profile,
-                mlrun.datastore.datastore_profile.DatastoreProfileKafkaStream,
-            )
-            and stream_profile.group is not None
-        ):
-            logger.warning(
-                "Kafka profile 'group' is ignored for model monitoring;"
-                " the consumer group is set to the topic name"
-                " to prevent cross-project rebalance storms",
-            )
-
         db.set_model_monitoring_credentials(
             project=self.name,
             credentials={

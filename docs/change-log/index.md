@@ -22,41 +22,52 @@ The change log lists updates per version, open issues, limitations, and deprecat
 Upgrading these three MLRun dependencies spans several releases.  The upgrades are comprised of:
 - KFP: from 1.8 to 2.x. KFP has 2 components: the KFP service, and the KFP client package (which is used in both the MLRun service and some MLRun clients) and pipeline code (which is provided by the user). The client is not yet upgraded.
 - Pydantic: from version 1 to 2.
-- Python: from 3.9 to 3.11. Completed in v1.11.0.
 
 See a full description of KFP, Python, and the workflow engines in {ref}`local-remote`. Specific changes are listed under the relevant versions.
-
-## v1.11.0 
+(v1110)=
+## v1.11.0 (March 2025)
 
 ### Runtimes
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
-|ML-9209|MLRun supports the Kubernetes readinessProbe and livenessProbe for application runtimes. See [Configure sidecar Kubernetes proble](../runtimes/application.ipynb#configure-sidecar-kubernetes-probes), {py:meth}`~mlrun.runtimes.ApplicationRuntime.set_probe`, and {py:meth}`~mlrun.runtimes.ApplicationRuntime.delete_probe`.|
-|ML-9695|Application runtimes now support deploying from a single Python file without packaging into directories/archives; and pull-at-runtime for Git repositories or source archives. See [Application runtimes examples](../runtimes/application.ipynb#usage-examples).|
-|ML-9754|You can expose multiple ports for application and Nuclio runtimes. See [Expose multiple ports](../runtimes/application.ipynb#expose-multiple-ports) and .|
-|ML-5967|The application runtime now supports loading a single code file and pull at runtime. See [Deploy an application from a single Python file](../runtimes/application.ipynb#deploy-an-application-from-a-single-python-file) and [Pull at runtime from Git and source archives](../runtimes/application.ipynb#pull-at-runtime-from-git-and-source-archives).|
-|ML-9209|You can set a Application readinessProbe and a livenessProbe for the sidecar container. See [Configure sidecar Kubernetes probes](../runtimes/application.ipynb#configure-sidecar-kubernetes-probes).|
+|ML-5967|The application runtime now supports deploying from a single Python file without packaging into directories/archives; and pull-at-runtime for Git repositories or source archives. See [Deploy an application from a single Python file](../runtimes/application.ipynb#deploy-an-application-from-a-single-python-file) and [Pull at runtime from Git and source archives](../runtimes/application.ipynb#pull-at-runtime-from-git-and-source-archives).|
+|ML-9209|MLRun supports the Kubernetes readinessProbe and livenessProbe for an application runtime sidecar. See [Configure sidecar Kubernetes proble](../runtimes/application.ipynb#configure-sidecar-kubernetes-probes), {py:meth}`~mlrun.runtimes.ApplicationRuntime.set_probe`, and {py:meth}`~mlrun.runtimes.ApplicationRuntime.delete_probe`.|
+|ML-9754|You can expose multiple ports for application and Nuclio runtimes. See [Expose multiple ports (application runtime)](../runtimes/application.ipynb#expose-multiple-ports) and [Expose multiple ports (Nuclio)](../runtimes/application.ipynb#expose-multiple-ports).|
+
 
 ### Serving Graph
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
 |ML-7879|Serving graphs now support consuming messages from RabbitMQ queues and topic-based routing. See {py:meth}`~mlrun.runtimes.RemoteRuntime.add_rabbitmq_trigger`, {ref}`graph-ha-cfg`. |
-|ML-10753|MLRun supports cyclic serving graphs. See [Cyclic graph example](../serving/use-cases.md#example-of-a-cyclic-graph) and {py:meth}`~mlrun.serving.states.BaseStep.cycle_to`.|
 |ML-9565|Serving graphs now support API handlers, used to expose endpoints and interfaces. See [API handler](../serving/api-handler.md).|
-
+|ML-10258|MLRun can process events asynchronously, within a batch, sending a response as soon as the event completes. Throughput is maximized, and bottlenecks are minimized. See [Async mode](../genai/deployment/gpu_utilization.md#async-mode).|
+|ML-10839|MLRun supports model serving with batched events: an invoked function is processed with an aggregated event (a single event holding multiple events), reducing GPU utilization. The trigger forwards the batch of events based on either timespan or the number of accumulated events. Both are user-configurable. See [Batching](../genai/deployment/gpu_utilization.md#batching), [Batching example](../serving/model-serving-steps.md#example-with-batching), and [Serving graph with batching using a Hugging Face model](..genai/deployment/hf-model-batch-serving-graph.ipynb).|
+|ML-10863|MLRun supports stream responses (send back tokens as they are generated), rather than waiting until all the tokens are generated. This significantly reduces the latency for initial response and improves the overall user experience in gen AI workflows. See  [HTTP streaming step](../serving/model-serving-steps.md#http-streaming-step) and {py:class}`~mlrun.runtimes.ServingRuntime.set_streaming` and {py:class}`~storey.transformations.Collector`.|
+|ML-10753|MLRun supports cyclic serving graphs. See [Cyclic graph example](../serving/use-cases.md#example-of-a-cyclic-graph) and {py:meth}`~mlrun.serving.states.BaseStep.cycle_to`.|
+|10097|New `ChoiceByField` step that routes events to downstream steps based on an event field that contains the step name or names. See {py:class}`~`
+|10099|New `RemoteFunctionStep` that calls remote functions. See [RemoteFunctionStep](../serving/available-steps.md#remotefunctionstep) and {py:class}`~mlrun.serving.remote.RemoteFunctionStep`.|
+  
 
 ### Model monitoring
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
-|ML-10919|Model monitoring supports TimescaleDB PostgreSQL `17` with TimescaleDB extensionas a TSDB platform. See [Configuring data store profiles](../install-mlrun-ce/mlrun-ce-development-notes.md#configuring-data-store-profiles) and {py:meth}`~mlrun.projects.MlrunProject.set_model_monitoring_credentials`.|
 |ML-9954|You can now generate an alert when lags are detected in writer/applications. See [Lag detection alerts](../model-monitoring/running-applications.md#lag-detection-alerts).|
+|ML-10919|Model monitoring supports TimescaleDB PostgreSQL with TimescaleDB extension as a TSDB platform. See [Configuring data store profiles](../install-mlrun-ce/mlrun-ce-development-notes.md#configuring-data-store-profiles) and {py:meth}`~mlrun.projects.MlrunProject.set_model_monitoring_credentials`.|
+|ML-10331|The writer pod performance is increased by utilizing async processing.|
 
-###
 
 ### UI
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
-|ML-11445| In the **Model endpoints > Metrics** tab, you can now select aggregation functions, which appear as multiple lines in the values graphs. Also, you can select a period of time greater than 1 month. See [Model endpoints metrics](../model-monitoring/monitoring-models.ipynb#model-endpoints-metrics)This is not supported for V3IO.|
+|ML-11445| In the **Model endpoints > Metrics** tab, you can now select aggregation functions, which appear as multiple lines in the values graphs. Also, you can select a period of time greater than 1 month. See [Model endpoints metrics](../model-monitoring/monitoring-models.ipynb#model-endpoints-metrics). This is not supported for V3IO.|
+
+## Packagers
+| ID    |Description                                                                 |
+|-------|----------------------------------------------------------------------------|
+|ML-3474|MLRun now suports packagers for moving data in and out of MLRun functions by using standard Python functions with type hints and returning values. See [Packagers](/concepts/packagers/index.md).|
+|ML-11894|The user flow for changing default attributes for packagers artifacts is improved. See {py:class}`~mlrun.package.log_hint.LogHint`.|
+
+
 
 (1.11.0-breaking)=
 ### Breaking Changes
@@ -71,18 +82,29 @@ See a full description of KFP, Python, and the workflow engines in {ref}`local-r
 |-------|----------------------------------------------------------------------------|
 |NA|Reorganized and updated the serving graph documentation. See [Real-time serving pipelines (graphs)](../serving/serving-graph.md).|
 |NA|The new [Profiles page](../store/profiles.md) describes provider profiles and source/target profiles.|
-|NA|New pages describing [Packagers](/concepts/packagers/index.md) and how to use them.|
-|NA|Reorganized and updated the [CE instalation guide](../install-mlrun-ce/index.md).
-
-### Deprecations
-| ID    |Description                                                                 |
-|-------|----------------------------------------------------------------------------|
-|ML-10919|TDEngine was replaced with TimescaleDB. Model monitoring data in TDEngine is not migrated|
+|NA|Reorganized and updated the [CE installation guide](../install-mlrun-ce/index.md).
 
 ### Closed issues
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
 |ML-7955|The **Owner** field is no longer blank for artifacts that are registered in the UI.|
+|ML-9098|The date format in the date range dropdown now supports local formats. Non-supported locakes use the US format: MM/DD/YYYY.|
+|ML-9272|
+|ML-9615|There is now a timeout to Kubernetes client operations. Previously, API workers could hang indefinitely when the Kubernetes control plane was slow or unresponsive.|
+|ML-10643|If unarchiving a project fails, there is now an error message: `Failed to unarchive project {project.metadata.name}`. Previously there was no error message.
+|ML-11343|When running get_monitoring_function_summaries() without timezones now raises an error: `Custom start and end times must contain the timezone`. Previously this resuled in an error: `the call fails in get_start_end`.|
+|ML-11354|The function `mlconf.reload()` in `set_env_from_file()` now updates the mlconf with the env from the mlrun.env project file. Previously, it used the values from the file in the home directory.|
+|ML-11580|Previously, when creating a serving graph with steps that run in parallel and setting the graph topology engine to sync, the deployment completed but invoking the function failed since the `sync` does not support brancges. Now there is an error message before the deployment: `synchronous flow engine doesn't support branches use async for step <name>`.|
+|ML-11581|Added pagination to the Alerts tab. Now when opening the ALerts tab when there are numerous alerts, the message is `Only 100 alerts displayed. View all in alerts screen`.|
+|ML-11767|
+|ML-11780|Fixed the error in [Model monitoring tutorial](../tutorials/05-model-monitoring.ipynb) that resulted in failure of `enable_model_monitoring`.|
+ML-11820|Improved the time to access the monitoring page (V3IO).|
+|ML-11969|Fixed description of alert auto reset that alerts are reset immediately. See [Alert reset policy](../concepts/alerts.md#alert-reset-policy).|
+ML-11985|Improved the error message when a step of any kind is created with `after=<something other than a list>`.|
+|ML-12304|
+|ML-12311|Resolved issue of failure to return project workflows by changing the defaults:  counter refresh time is 1 mnute (was 30 seconds); and "in progress workflow counters" count only the last 2 days.|
+|ML-12328||
+
 
 
 

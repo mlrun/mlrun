@@ -162,3 +162,32 @@ def test_resolve_nuclio_runtime_python_image(
             mlrun_client_version, python_version
         )
     )
+
+
+def test_nuclio_store_uri_should_fetch_source():
+    """_should_fetch_source_code returns True for nuclio with store:// source."""
+    func = mlrun.new_function("test-func", kind="nuclio")
+    func.metadata.project = "test-proj"
+    func.spec.build.source = "store://artifacts/test-proj/my_code"
+
+    assert (
+        services.api.crud.runtimes.nuclio.function._should_fetch_source_code(func)
+        is True
+    )
+
+
+def test_nuclio_store_source_preserved_on_redeploy():
+    """status.application_source preserves store:// URI across re-deploys."""
+    func = mlrun.new_function("test-func", kind="nuclio")
+    func.metadata.project = "test-proj"
+    func.spec.build.source = "store://artifacts/test-proj/my_code"
+
+    # Simulate first deploy: source saved, then cleared
+    func.status.application_source = func.spec.build.source
+    func.spec.build.source = ""
+
+    # On redeploy, _should_fetch_source_code falls back to status.application_source
+    assert (
+        services.api.crud.runtimes.nuclio.function._should_fetch_source_code(func)
+        is True
+    )

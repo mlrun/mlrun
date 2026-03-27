@@ -246,9 +246,9 @@ class ApplicationStatus(nuclio_function.NuclioStatus):
             external_invocation_urls=external_invocation_urls,
             build_pod=build_pod,
             container_image=container_image,
+            application_source=application_source,
         )
         self.application_image = application_image or None
-        self.application_source = application_source or None
         self.sidecar_name = sidecar_name or None
         self.api_gateway_name = api_gateway_name or None
         self.api_gateway: nuclio_api_gateway.APIGateway | None = api_gateway or None

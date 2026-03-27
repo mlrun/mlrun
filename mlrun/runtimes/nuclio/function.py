@@ -271,6 +271,7 @@ class NuclioStatus(FunctionStatus):
         external_invocation_urls=None,
         build_pod=None,
         container_image=None,
+        application_source=None,
     ):
         super().__init__(state, build_pod)
 
@@ -287,6 +288,11 @@ class NuclioStatus(FunctionStatus):
 
         # the name of the image that was built and pushed to the registry, and used by the nuclio function
         self.container_image = container_image
+
+        # Preserves the original store:// source URI across re-deployments.
+        # When a function is redeployed via from_image(), spec.build.source is cleared;
+        # this field allows _should_fetch_source_code() to detect store:// sources on redeploy.
+        self.application_source = application_source or None
 
 
 class RemoteRuntime(KubeResource):

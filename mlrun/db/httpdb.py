@@ -1596,13 +1596,25 @@ class HTTPRunDB(RunDBInterface):
         resp = self.api_call("GET", path, error, params=params)
         return resp.json()["func"]
 
-    def delete_function(self, name: str, project: str = ""):
-        """Delete a function belonging to a specific project."""
+    def delete_function(
+        self, name: str, project: str = "", delete_code_artifact: bool = True
+    ):
+        """Delete a function belonging to a specific project.
+
+        :param name:                  name of the function
+        :param project:               project name
+        :param delete_code_artifact:  if True (default), delete the code artifact
+                                      metadata when the function uses a store:// source.
+                                      The artifact's target file is NOT deleted.
+        """
 
         project = project or config.active_project
         path = f"projects/{project}/functions/{name}"
         error_message = f"Failed deleting function {project}/{name}"
-        response = self.api_call("DELETE", path, error_message, version="v2")
+        params = {"delete-code-artifact": str(delete_code_artifact).lower()}
+        response = self.api_call(
+            "DELETE", path, error_message, params=params, version="v2"
+        )
         if response.status_code == http.HTTPStatus.ACCEPTED:
             logger.info(
                 "Function is being deleted", project_name=project, function_name=name

@@ -49,6 +49,11 @@ async def delete_function(
     request: Request,
     project: str,
     name: str,
+    delete_code_artifact: bool = fastapi.Query(
+        True,
+        alias="delete-code-artifact",
+        description="Delete the code artifact if the function uses a store:// source",
+    ),
     auth_info: mlrun.common.schemas.AuthInfo = Depends(deps.authenticate_request),
     db_session: Session = Depends(deps.get_db_session),
 ):
@@ -100,6 +105,7 @@ async def delete_function(
         project,
         name,
         auth_info,
+        delete_code_artifact=delete_code_artifact,
     )
 
     response.status_code = http.HTTPStatus.ACCEPTED.value

@@ -36,6 +36,7 @@ from sqlalchemy.orm import Session
 
 import mlrun.common.constants
 import mlrun.common.schemas
+import mlrun.datastore
 import mlrun.errors
 import mlrun.runtimes.pod
 import mlrun.utils.helpers
@@ -1281,6 +1282,7 @@ def create_function_deletion_background_task(
     project_name: str,
     function_name: str,
     auth_info: mlrun.common.schemas.AuthInfo,
+    delete_code_artifact: bool = True,
 ):
     background_task_name = str(uuid.uuid4())
 
@@ -1298,6 +1300,7 @@ def create_function_deletion_background_task(
         function_name,
         auth_info,
         background_task_name,
+        delete_code_artifact,
     )
 
 
@@ -1307,6 +1310,7 @@ async def _delete_function(
     function_name: str,
     auth_info: mlrun.common.schemas.AuthInfo,
     background_task_name: str,
+    delete_code_artifact: bool = True,
 ):
     # getting all function tags
     functions = await run_in_threadpool(
@@ -1360,6 +1364,42 @@ async def _delete_function(
                 nuclio_functions, project, {"status.deletion_error": error_message}
             )
             raise mlrun.errors.MLRunInternalServerError(error_message)
+
+    # Delete code artifacts for functions using store:// sources
+    if delete_code_artifact:
+        for func_dict in functions:
+            source = get_in(func_dict, "spec.build.source", "") or ""
+            app_source = get_in(func_dict, "status.application_source", "") or ""
+            store_source = (
+                source
+                if mlrun.datastore.is_store_uri(source)
+                else (app_source if mlrun.datastore.is_store_uri(app_source) else None)
+            )
+            if store_source:
+                try:
+                    artifact = await run_in_threadpool(
+                        mlrun.datastore.get_store_resource,
+                        store_source,
+                        project=project,
+                    )
+                    await run_in_threadpool(
+                        services.api.crud.Artifacts().delete_artifact,
+                        db_session,
+                        project=project,
+                        key=artifact.key,
+                        auth_info=auth_info,
+                    )
+                except Exception as exc:
+                    logger.warning(
+                        "Failed to delete code artifact",
+                        project=project,
+                        function_name=function_name,
+                        source=store_source,
+                        error=err_to_str(exc),
+                    )
+                # Only need to delete one code artifact per function name
+                # (all versions share the same source)
+                break
 
     # For application runtime functions, clean up source artifacts that were uploaded during deploy
     if functions[0].get("kind") == mlrun.runtimes.RuntimeKinds.application:

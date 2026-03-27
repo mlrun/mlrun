@@ -379,7 +379,9 @@ class SQLRunDB(RunDBInterface):
             hash_key,
         )
 
-    def delete_function(self, name: str, project: str = ""):
+    def delete_function(
+        self, name: str, project: str = "", delete_code_artifact: bool = True
+    ):
         return self._transform_db_error(
             services.api.crud.Functions().delete_function,
             self.session,

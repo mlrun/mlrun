@@ -281,7 +281,7 @@ def _compile_function_config(
             _configure_source_loader_init_container(
                 function,
                 # Application runtime has exactly one sidecar (the user's application container)
-                sidecar=sidecars[0],
+                container=sidecars[0],
                 client_version=client_version,
                 client_python_version=client_python_version,
             )
@@ -800,26 +800,26 @@ def _should_fetch_source_code(
 
 def _configure_source_loader_init_container(
     function: mlrun.runtimes.nuclio.function.RemoteRuntime,
-    sidecar: dict,
+    container: dict,
     client_version: str | None = None,
     client_python_version: str | None = None,
 ):
     """
-    Configure an init container for Application runtime to load source code at runtime.
+    Configure an init container to load source code at runtime.
 
-    This function sets up a Kubernetes init container that runs before the main sidecar
+    This function sets up a Kubernetes init container that runs before the main
     container starts. The init container is responsible for fetching source code from
     remote locations (store:// URIs, git repos, archives) and extracting it to a shared
-    volume that the sidecar can access.
+    volume that the target container can access.
 
     The setup involves:
-    1. Creating an emptyDir volume shared between init container and sidecar
+    1. Creating an emptyDir volume shared between init container and target container
     2. Building an init container spec that runs `mlrun load-source` command
     3. Adding the init container to the function's Nuclio spec
-    4. Patching the sidecar to mount the shared volume and set PYTHONPATH
+    4. Patching the target container to mount the shared volume and set PYTHONPATH
 
     :param function: The function object to configure
-    :param sidecar: The sidecar container dict (the user's application container)
+    :param container: The target container dict (e.g. sidecar or main function container)
     :param client_version: Client version for resolving the init container image
     :param client_python_version: Client Python version for resolving the init container image
     """
@@ -837,7 +837,7 @@ def _configure_source_loader_init_container(
     volume = {"name": volume_name, "emptyDir": {}}
     volume_mount = {"name": volume_name, "mountPath": target_dir}
 
-    # Add volume to function spec so both init container and sidecar can access it
+    # Add volume to function spec so both init container and target container can access it
     function.spec.with_volumes(volume)
     function.spec.with_volume_mounts(volume_mount)
 
@@ -854,8 +854,8 @@ def _configure_source_loader_init_container(
     # Add init container to function spec (idempotently - replaces if exists)
     _ensure_source_loader_init_container(function, init_container)
 
-    _patch_sidecar_for_source(
-        sidecar=sidecar,
+    _patch_container_for_source(
+        container=container,
         volume_name=volume_name,
         volume_mount=volume_mount,
         target_dir=target_dir,
@@ -940,30 +940,30 @@ def _ensure_source_loader_init_container(
         init_containers.append(init_container)
 
 
-def _patch_sidecar_for_source(
-    sidecar: dict,
+def _patch_container_for_source(
+    container: dict,
     volume_name: str,
     volume_mount: dict,
     target_dir: str,
     workdir: str | None = None,
 ):
     """
-    Patch sidecar container with volume mount, workingDir, and PYTHONPATH.
+    Patch container with volume mount, workingDir, and PYTHONPATH.
 
-    :param sidecar: The sidecar container dict
+    :param container: The container dict (e.g. sidecar or main function container)
     :param volume_name: Name of the source volume
     :param volume_mount: Volume mount configuration
     :param target_dir: Target directory where source code is extracted
     :param workdir: Working directory relative to target_dir (e.g. 'subdir') or absolute path
-                    on the container filesystem. When set, the sidecar runs from this directory
+                    on the container filesystem. When set, the container runs from this directory
                     instead of the target_dir root.
     """
     # Add volume mount idempotently
-    sidecar_mounts = sidecar.setdefault("volumeMounts", [])
-    if not any(vm.get("name") == volume_name for vm in sidecar_mounts):
-        sidecar_mounts.append(volume_mount)
+    container_mounts = container.setdefault("volumeMounts", [])
+    if not any(vm.get("name") == volume_name for vm in container_mounts):
+        container_mounts.append(volume_mount)
 
-    # Resolve the effective working directory for the sidecar.
+    # Resolve the effective working directory for the container.
     # workdir can be relative (joined with target_dir) or absolute (used as-is).
     if workdir:
         if os.path.isabs(workdir):
@@ -973,13 +973,13 @@ def _patch_sidecar_for_source(
     else:
         resolved_workdir = target_dir
 
-    sidecar["workingDir"] = resolved_workdir
+    container["workingDir"] = resolved_workdir
 
-    # Set PYTHONPATH so the sidecar can import modules from the source directory.
+    # Set PYTHONPATH so the container can import modules from the source directory.
     # If PYTHONPATH already exists (user-defined), prepend our path to preserve theirs.
-    sidecar_env = sidecar.setdefault("env", [])
+    container_env = container.setdefault("env", [])
     pythonpath_env = next(
-        (e for e in sidecar_env if e.get("name") == "PYTHONPATH"), None
+        (e for e in container_env if e.get("name") == "PYTHONPATH"), None
     )
     if pythonpath_env:
         existing_path = pythonpath_env.get("value", "")
@@ -990,4 +990,4 @@ def _patch_sidecar_for_source(
                 else resolved_workdir
             )
     else:
-        sidecar_env.append({"name": "PYTHONPATH", "value": resolved_workdir})
+        container_env.append({"name": "PYTHONPATH", "value": resolved_workdir})

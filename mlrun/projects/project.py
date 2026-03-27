@@ -4003,13 +4003,16 @@ class MlrunProject(ModelObj):
                         elif hasattr(func_def, "spec"):
                             func_def.spec.build.source = relative_path
 
-        with open(project_file_path, "w") as fp:
-            fp.write(self.to_yaml())
-
-        # Restore original store:// refs so in-memory state is not mutated
-        if original_sources:
+        try:
+            with open(project_file_path, "w") as fp:
+                fp.write(self.to_yaml())
+        finally:
+            # Restore original store:// refs so in-memory state is never corrupted,
+            # even if to_yaml() or the file write raises an exception
             for name, original_source in original_sources.items():
-                func_def = self.spec._function_definitions[name]
+                func_def = self.spec._function_definitions.get(name)
+                if not func_def:
+                    continue
                 if isinstance(func_def, dict):
                     func_def["url"] = original_source
                 elif hasattr(func_def, "spec"):

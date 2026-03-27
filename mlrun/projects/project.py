@@ -3178,24 +3178,16 @@ class MlrunProject(ModelObj):
 
         self.spec.set_function(name, function_object, func)
 
-    def delete_function(self, name, delete_from_db=False, delete_code_artifact=True):
+    def delete_function(self, name, delete_from_db=False):
         """deletes the specified function from the project
 
         :param name: name of the function (under the project)
         :param delete_from_db: default is False. If False, the function is removed
                                only from the project's cache and spec.
                                If True, the function is also removed from the database.
-        :param delete_code_artifact: default is True. If True and the function uses a
-                                     store:// artifact, the artifact metadata is also deleted
-                                     server-side (the file it points at is NOT deleted).
-                                     Only applies when delete_from_db=True.
         """
         if delete_from_db:
-            mlrun.db.get_run_db().delete_function(
-                name=name,
-                project=self.metadata.name,
-                delete_code_artifact=delete_code_artifact,
-            )
+            mlrun.db.get_run_db().delete_function(name=name, project=self.metadata.name)
         self.spec.remove_function(name)
 
     def delete_model_monitoring_function(self, name: Union[str, list[str]]):

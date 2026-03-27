@@ -2878,20 +2878,3 @@ def test_init_function_from_dict_store_uri_serving():
 
     assert func.spec.build.source == "store://artifacts/test-proj/my_func_code"
     assert func.kind == "serving"
-
-
-def test_delete_function_accepts_delete_code_artifact_param():
-    """delete_function accepts delete_code_artifact parameter."""
-    project = mlrun.new_project("test-proj", save=False)
-    project.spec.context = tempfile.mkdtemp()
-
-    project.set_function(
-        func="store://artifacts/test-proj/my_func_code",
-        name="my_func",
-        kind="job",
-        handler="main",
-    )
-
-    # delete_from_db=False (default) -- just removes from project spec
-    project.delete_function("my_func", delete_code_artifact=False)
-    assert "my_func" not in project.spec._function_definitions

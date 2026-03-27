@@ -245,9 +245,7 @@ class RunDBInterface(ABC):
         pass
 
     @abstractmethod
-    def delete_function(
-        self, name: str, project: str = "", delete_code_artifact: bool = True
-    ):
+    def delete_function(self, name: str, project: str = ""):
         pass
 
     @abstractmethod

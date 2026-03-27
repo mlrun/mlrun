@@ -262,9 +262,7 @@ class NopDB(RunDBInterface):
     def get_function(self, name, project="", tag="", hash_key=""):
         pass
 
-    def delete_function(
-        self, name: str, project: str = "", delete_code_artifact: bool = True
-    ):
+    def delete_function(self, name: str, project: str = ""):
         pass
 
     def list_functions(

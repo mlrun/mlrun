@@ -6121,9 +6121,7 @@ def _download_store_artifact_for_export(
         path_hash = hashlib.sha256(target_path.encode()).hexdigest()[:8]
         name, ext = os.path.splitext(filename)
         unique_filename = f"{name}_{path_hash}{ext}"
-        local_path = os.path.join(
-            project_context, ".mlrun", "code", unique_filename
-        )
+        local_path = os.path.join(project_context, ".mlrun", "code", unique_filename)
         os.makedirs(os.path.dirname(local_path), exist_ok=True)
         mlrun.get_dataitem(target_path).download(local_path)
         return os.path.relpath(local_path, project_context)

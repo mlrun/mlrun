@@ -22,6 +22,8 @@ from sqlalchemy.orm import Session
 
 import mlrun.common.constants as mlrun_constants
 import mlrun.common.schemas
+import mlrun.model
+import mlrun.runtimes.kubejob
 import tests.conftest
 from mlrun.common.runtimes.constants import PodPhases, RunStates
 from mlrun.common.types import AuthenticationMode
@@ -34,6 +36,7 @@ import framework.utils.singletons.db
 import services.api.crud
 from framework.utils.singletons.db import get_db
 from services.api.runtime_handlers import get_runtime_handler
+from services.api.runtime_handlers.kubejob import KubeRuntimeHandler
 from services.api.tests.unit.runtime_handlers.base import TestRuntimeHandlerBase
 
 
@@ -1173,6 +1176,25 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
 
         assert reason == "Error"
         assert message == "OOMKilled"
+
+    def test_store_uri_source_sets_load_source_on_run(self):
+        """When spec.build.source is store://, load_source_on_run should be set to True."""
+        runtime = mlrun.runtimes.kubejob.KubejobRuntime()
+        runtime.metadata.name = "test-func"
+        runtime.spec.build.source = "store://artifacts/proj/my_code"
+        runtime.spec.build.load_source_on_run = False  # explicitly False
+
+        run = mlrun.model.RunObject()
+        run.metadata.name = "test-run"
+        run.spec.handler = "main"
+
+        handler = KubeRuntimeHandler()
+        cmd, args, extra_env = handler._get_cmd_args(runtime, run)
+
+        # store:// source should be passed as --source arg
+        # (meaning load_source_on_run was auto-set to True)
+        assert "--source" in args
+        assert "store://artifacts/proj/my_code" in args
 
     def _mock_list_resources_pods(self, pod=None):
         pod = pod or self.completed_job_pod

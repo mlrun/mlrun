@@ -24,7 +24,7 @@ from git import Repo
 
 import mlrun
 
-from .helpers import logger
+from .helpers import is_store_uri, logger
 
 
 def _remove_directory_contents(target_dir):
@@ -191,9 +191,16 @@ def clone_git(url: str, context: str, secrets=None, clone: bool = True):
     return url, repo
 
 
-def extract_source(source: str, workdir=None, secrets=None, clone=True):
+def extract_source(source: str, workdir=None, secrets=None, clone=True, project=None):
     if not source:
         return
+    if is_store_uri(source):
+        target_dir = workdir or os.path.realpath("./code")
+        return load_source_code(
+            source_uri=source,
+            target_dir=target_dir,
+            project=project,
+        )
     clone = clone if workdir else False
     target_dir = workdir or os.path.realpath("./code")
     if source.endswith(".zip"):

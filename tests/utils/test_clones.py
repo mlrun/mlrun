@@ -224,6 +224,56 @@ def test_load_source_code_tgz(tmp_path):
     mock_clone_tgz.assert_called_once_with(source_uri, target_dir)
 
 
+def test_extract_source_store_uri_delegates_to_load_source_code():
+    """extract_source with store:// URI delegates to load_source_code."""
+    with unittest.mock.patch("mlrun.utils.clones.load_source_code") as mock_load:
+        mock_load.return_value = "/tmp/code/my_func.py"
+        result = mlrun.utils.clones.extract_source(
+            source="store://artifacts/proj/my_func",
+            workdir="/tmp/workdir",
+            project="proj",
+        )
+        mock_load.assert_called_once_with(
+            source_uri="store://artifacts/proj/my_func",
+            target_dir="/tmp/workdir",
+            project="proj",
+        )
+        assert result == "/tmp/code/my_func.py"
+
+
+def test_extract_source_store_uri_without_project():
+    """extract_source with store:// but no project passes project=None."""
+    with unittest.mock.patch("mlrun.utils.clones.load_source_code") as mock_load:
+        mock_load.return_value = "/tmp/code/my_func.py"
+        mlrun.utils.clones.extract_source(
+            source="store://artifacts/proj/my_func",
+            workdir="/tmp/workdir",
+        )
+        mock_load.assert_called_once_with(
+            source_uri="store://artifacts/proj/my_func",
+            target_dir="/tmp/workdir",
+            project=None,
+        )
+
+
+def test_extract_source_store_uri_default_workdir():
+    """extract_source with store:// and no workdir uses default ./code dir."""
+    with unittest.mock.patch("mlrun.utils.clones.load_source_code") as mock_load:
+        mock_load.return_value = "/tmp/code/my_func.py"
+        import os
+
+        expected_target = os.path.realpath("./code")
+        mlrun.utils.clones.extract_source(
+            source="store://artifacts/proj/my_func",
+            project="proj",
+        )
+        mock_load.assert_called_once_with(
+            source_uri="store://artifacts/proj/my_func",
+            target_dir=expected_target,
+            project="proj",
+        )
+
+
 def test_load_source_code_archive_failure(tmp_path):
     source_uri = "https://example.com/source.zip"
     target_dir = str(tmp_path / "target")

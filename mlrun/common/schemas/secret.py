@@ -76,6 +76,10 @@ class DeleteSecretTokenResponse(BaseModel):
         default=True,
         description="True if token was deleted, False if token was not found",
     )
+    username: str | None = Field(
+        default=None,
+        description="The resolved username of the token owner",
+    )
 
 
 class DeleteSecretTokensResponse(BaseModel):
@@ -88,4 +92,8 @@ class DeleteSecretTokensResponse(BaseModel):
     failed_tokens: list[str] = Field(
         default_factory=list,
         description="List of token names that failed to delete",
+    )
+    username: str | None = Field(
+        default=None,
+        description="The resolved username of the token owner",
     )

@@ -5468,11 +5468,13 @@ class HTTPRunDB(RunDBInterface):
             logger.info(
                 "Token was successfully deleted",
                 token_name=token_name,
-                username=username,
+                username=result.username,
             )
         else:
             logger.info(
-                "Token could not be deleted", token_name=token_name, username=username
+                "Token could not be deleted",
+                token_name=token_name,
+                username=result.username,
             )
         return result
 
@@ -5507,14 +5509,14 @@ class HTTPRunDB(RunDBInterface):
         if result.failed_tokens:
             logger.warning(
                 "Tokens deletion completed with failures",
-                username=username,
+                username=result.username,
                 deleted_count=result.deleted_count,
                 failed_count=len(result.failed_tokens),
             )
         else:
             logger.debug(
                 "Tokens deletion completed",
-                username=username,
+                username=result.username,
                 deleted_count=result.deleted_count,
             )
         return result

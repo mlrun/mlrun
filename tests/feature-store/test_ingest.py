@@ -237,3 +237,70 @@ def test_online_vector_service_close_without_cache():
         index_columns=["key"],
     )
     service.close()  # should not raise
+
+
+def test_dask_feature_merger_close_local_client():
+    """Verify that DaskFeatureMerger.close() closes a locally-created client."""
+    from mlrun.feature_store.retrieval.dask_merger import DaskFeatureMerger
+
+    mock_client = unittest.mock.MagicMock()
+    merger = DaskFeatureMerger(unittest.mock.MagicMock())
+    merger.client = mock_client
+    merger._local_client = True
+
+    merger.close()
+
+    mock_client.close.assert_called_once()
+    assert merger.client is None
+    assert merger._local_client is False
+
+
+def test_dask_feature_merger_close_external_client():
+    """Verify that DaskFeatureMerger.close() does NOT close an externally-provided client."""
+    from mlrun.feature_store.retrieval.dask_merger import DaskFeatureMerger
+
+    mock_client = unittest.mock.MagicMock()
+    merger = DaskFeatureMerger(unittest.mock.MagicMock(), dask_client=mock_client)
+
+    merger.close()
+
+    mock_client.close.assert_not_called()
+
+
+def test_dask_feature_merger_close_is_idempotent():
+    """Verify that calling close() twice doesn't raise."""
+    from mlrun.feature_store.retrieval.dask_merger import DaskFeatureMerger
+
+    mock_client = unittest.mock.MagicMock()
+    merger = DaskFeatureMerger(unittest.mock.MagicMock())
+    merger.client = mock_client
+    merger._local_client = True
+
+    merger.close()
+    merger.close()
+
+    mock_client.close.assert_called_once()
+
+
+def test_offline_vector_response_close_propagates_to_merger():
+    """Verify that OfflineVectorResponse.close() calls merger.close()."""
+    from mlrun.feature_store.feature_vector_utils import OfflineVectorResponse
+
+    mock_merger = unittest.mock.MagicMock()
+    resp = OfflineVectorResponse(mock_merger)
+
+    resp.close()
+
+    mock_merger.close.assert_called_once()
+
+
+def test_offline_vector_response_context_manager():
+    """Verify that OfflineVectorResponse context manager calls close on exit."""
+    from mlrun.feature_store.feature_vector_utils import OfflineVectorResponse
+
+    mock_merger = unittest.mock.MagicMock()
+
+    with OfflineVectorResponse(mock_merger):
+        pass
+
+    mock_merger.close.assert_called_once()

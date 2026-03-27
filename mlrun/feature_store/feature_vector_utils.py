@@ -467,3 +467,14 @@ class OfflineVectorResponse:
     def to_csv(self, target_path, **kw):
         """return results as csv file"""
         return self._merger.to_csv(target_path, **kw)
+
+    def close(self):
+        """Release resources held by the underlying merger (e.g. Dask client)."""
+        self._merger.close()
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.close()
+        return False

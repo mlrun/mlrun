@@ -1298,6 +1298,70 @@ def test_export_to_zip(rundb_mock):
     assert mlrun.get_dataitem("memory://x.zip").stat().size
 
 
+def test_export_to_yaml_with_store_function_keeps_store_uri():
+    """export to YAML keeps store:// reference as-is."""
+    project = mlrun.new_project("test-proj", save=False)
+    project.spec.context = tempfile.mkdtemp()
+
+    project.set_function(
+        func="store://artifacts/test-proj/my_func_code",
+        name="my_func",
+        kind="job",
+        handler="main",
+    )
+
+    yaml_path = os.path.join(project.spec.context, "project.yaml")
+    project.export(yaml_path)
+
+    with open(yaml_path) as f:
+        content = f.read()
+
+    assert "store://artifacts/test-proj/my_func_code" in content
+
+
+def test_export_to_zip_with_store_function_downloads_code():
+    """export to zip downloads store:// artifact code and rewrites ref."""
+    project = mlrun.new_project("test-proj", save=False)
+    project.spec.context = tempfile.mkdtemp()
+
+    func = project.set_function(
+        func="store://artifacts/test-proj/my_func_code",
+        name="my_func",
+        kind="job",
+        handler="main",
+    )
+
+    zip_path = os.path.join(tempfile.mkdtemp(), "project.zip")
+
+    with unittest.mock.patch(
+        "mlrun.projects.project._download_store_artifact_for_export"
+    ) as mock_dl:
+        # Simulate successful download
+        mock_dl.return_value = ".mlrun/code/my_func.py"
+        # Create the dummy file so it exists in the zip
+        code_dir = os.path.join(project.spec.context, ".mlrun", "code")
+        os.makedirs(code_dir, exist_ok=True)
+        with open(os.path.join(code_dir, "my_func.py"), "w") as f:
+            f.write("def main():\n    pass\n")
+
+        project.export(zip_path)
+
+    assert os.path.exists(zip_path)
+    # After export, in-memory project should still have store:// ref
+    assert func.spec.build.source == "store://artifacts/test-proj/my_func_code"
+
+    # Verify the zip contains the downloaded code file and the rewritten project.yaml
+    with zipfile.ZipFile(zip_path, "r") as zipf:
+        names = zipf.namelist()
+        assert ".mlrun/code/my_func.py" in names
+        assert "project.yaml" in names
+
+        # Verify project.yaml inside the zip has the local path, not store://
+        yaml_content = zipf.read("project.yaml").decode()
+        assert "store://artifacts/test-proj/my_func_code" not in yaml_content
+        assert ".mlrun/code/my_func.py" in yaml_content
+
+
 def test_function_receives_project_artifact_path(rundb_mock):
     func_path = str(pathlib.Path(__file__).parent / "assets" / "handler.py")
     mlrun.mlconf.artifact_path = "/tmp"

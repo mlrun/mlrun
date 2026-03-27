@@ -3973,8 +3973,47 @@ class MlrunProject(ModelObj):
 
         project_dir = pathlib.Path(project_file_path).parent
         project_dir.mkdir(parents=True, exist_ok=True)
+
+        # For zip exports, download store:// function code into the project
+        # context and temporarily rewrite function definitions to use local
+        # paths so the exported project.yaml references files inside the zip.
+        original_sources: dict[str, str] = {}
+        if archive_code:
+            for name, func_def in self.spec._function_definitions.items():
+                store_uri = None
+                if isinstance(func_def, dict):
+                    source = func_def.get("url", "")
+                    if source and mlrun.datastore.is_store_uri(source):
+                        store_uri = source
+                elif hasattr(func_def, "spec") and hasattr(func_def.spec, "build"):
+                    source = getattr(func_def.spec.build, "source", "")
+                    if source and mlrun.datastore.is_store_uri(source):
+                        store_uri = source
+
+                if store_uri:
+                    relative_path = _download_store_artifact_for_export(
+                        project_context=str(project_dir),
+                        store_uri=store_uri,
+                        project_name=self.metadata.name,
+                    )
+                    if relative_path:
+                        original_sources[name] = store_uri
+                        if isinstance(func_def, dict):
+                            func_def["url"] = relative_path
+                        elif hasattr(func_def, "spec"):
+                            func_def.spec.build.source = relative_path
+
         with open(project_file_path, "w") as fp:
             fp.write(self.to_yaml())
+
+        # Restore original store:// refs so in-memory state is not mutated
+        if original_sources:
+            for name, original_source in original_sources.items():
+                func_def = self.spec._function_definitions[name]
+                if isinstance(func_def, dict):
+                    func_def["url"] = original_source
+                elif hasattr(func_def, "spec"):
+                    func_def.spec.build.source = original_source
 
         if archive_code:
             files_filter = include_files or "**"
@@ -3983,7 +4022,9 @@ class MlrunProject(ModelObj):
                 fpath = f.name if remote_file else filepath
                 with zipfile.ZipFile(fpath, "w") as zipf:
                     for file_path in glob.iglob(
-                        f"{project_dir}/{files_filter}", recursive=True
+                        f"{project_dir}/{files_filter}",
+                        recursive=True,
+                        include_hidden=True,
                     ):
                         write_path = pathlib.Path(file_path)
                         zipf.write(
@@ -6061,6 +6102,35 @@ class MlrunProject(ModelObj):
 def _set_as_current_active_project(project: MlrunProject):
     mlrun.mlconf.active_project = project.metadata.name
     pipeline_context.set(project)
+
+
+def _download_store_artifact_for_export(
+    project_context: str,
+    store_uri: str,
+    project_name: str,
+) -> str | None:
+    """Download a store:// artifact's content into the project context for zip export.
+
+    :param project_context: Project context directory
+    :param store_uri:       The store:// URI
+    :param project_name:    Project name
+    :returns: Relative path of the downloaded file, or None on failure
+    """
+    try:
+        artifact = mlrun.datastore.get_store_resource(store_uri, project=project_name)
+        target_path = artifact.get_target_path()
+        filename = os.path.basename(target_path)
+        local_path = os.path.join(project_context, ".mlrun", "code", filename)
+        os.makedirs(os.path.dirname(local_path), exist_ok=True)
+        mlrun.get_dataitem(target_path).download(local_path)
+        return os.path.relpath(local_path, project_context)
+    except Exception:
+        logger.warning(
+            "Failed to download code artifact for export",
+            store_uri=store_uri,
+            project=project_name,
+        )
+        return None
 
 
 def _init_function_from_dict(

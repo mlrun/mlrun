@@ -16,6 +16,7 @@ import contextlib
 import datetime
 import getpass
 import glob
+import hashlib
 import http
 import importlib.util as imputil
 import json
@@ -6123,7 +6124,14 @@ def _download_store_artifact_for_export(
         artifact = mlrun.datastore.get_store_resource(store_uri, project=project_name)
         target_path = artifact.get_target_path()
         filename = os.path.basename(target_path)
-        local_path = os.path.join(project_context, ".mlrun", "code", filename)
+        # Avoid collisions when different artifacts share the same filename
+        # (e.g. s3://bucket-a/funcs/handler.py vs s3://bucket-b/other/handler.py)
+        path_hash = hashlib.sha256(target_path.encode()).hexdigest()[:8]
+        name, ext = os.path.splitext(filename)
+        unique_filename = f"{name}_{path_hash}{ext}"
+        local_path = os.path.join(
+            project_context, ".mlrun", "code", unique_filename
+        )
         os.makedirs(os.path.dirname(local_path), exist_ok=True)
         mlrun.get_dataitem(target_path).download(local_path)
         return os.path.relpath(local_path, project_context)

@@ -22,6 +22,7 @@ from packaging.version import parse as parse_version
 import mlrun
 import mlrun.common.constants as mlrun_constants
 import mlrun.common.schemas
+import mlrun.datastore
 import mlrun.errors
 from mlrun.runtimes.base import RuntimeClassMode
 from mlrun.utils import logger
@@ -121,6 +122,12 @@ class KubeRuntimeHandler(BaseRuntimeHandler):
 
         if code:
             extra_env.append({"name": "MLRUN_EXEC_CODE", "value": code})
+
+        # store:// artifact URIs must always be loaded at runtime (pod can't resolve at build time)
+        if runtime.spec.build.source and mlrun.datastore.is_store_uri(
+            runtime.spec.build.source
+        ):
+            runtime.spec.build.load_source_on_run = True
 
         load_archive = (
             runtime.spec.build.load_source_on_run and runtime.spec.build.source

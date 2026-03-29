@@ -17,6 +17,8 @@ import traceback
 from http import HTTPStatus
 
 import mlrun.common.schemas
+import mlrun.datastore
+import mlrun.utils
 from mlrun.errors import err_to_str
 from mlrun.run import new_function
 from mlrun.runtimes import RuntimeKinds
@@ -133,3 +135,35 @@ def build_function(
             reason=f"Runtime error: {err_to_str(err)}",
         )
     return fn, ready
+
+
+def enrich_function_from_code_artifact(
+    function: "mlrun.runtimes.base.BaseRuntime",
+    project: str,
+):
+    """Resolve store:// code artifact and merge its requirements into function build spec.
+
+    :param function: The function object to enrich
+    :param project:  Project name for artifact resolution
+    """
+    # Falls back to status.application_source for Nuclio (Application runtime)
+    # redeploys where spec.build.source is cleared mid-deploy. No-op for jobs.
+    source = function.spec.build.source or getattr(
+        function.status, "application_source", None
+    )
+    if not source or not mlrun.utils.is_store_uri(source):
+        return
+
+    try:
+        artifact = mlrun.datastore.get_store_resource(source, project=project)
+    except Exception as exc:
+        raise mlrun.errors.MLRunInvalidArgumentError(
+            f"Cannot resolve code artifact {source}: {err_to_str(exc)}"
+        ) from exc
+
+    artifact_requirements = getattr(artifact.spec, "requirements", None)
+    if artifact_requirements:
+        function.spec.build.requirements = mlrun.utils.merge_requirements(
+            reqs_priority=function.spec.build.requirements or [],
+            reqs_secondary=artifact_requirements,
+        )

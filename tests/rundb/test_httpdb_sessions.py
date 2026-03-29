@@ -12,17 +12,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import pytest
 import unittest.mock
 
+import pytest
 import requests_mock as requests_mock_module
 
+import mlrun.common.types
 import mlrun.db.httpdb
 import mlrun.utils.http
 
-import mlrun.common.types
-
 http_methods = [method.value for method in mlrun.common.types.HTTPMethod]
+
 
 @pytest.mark.parametrize("method", http_methods)
 def test_calls_reuse_same_session(method: str):
@@ -41,7 +41,6 @@ def test_calls_reuse_same_session(method: str):
         assert first_session is second_session, (
             f"{method} should reuse the existing session, not create a new one"
         )
-
 
 
 def test_mixed_methods_reuse_same_session():

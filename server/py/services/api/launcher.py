@@ -717,10 +717,28 @@ class ServerSideLauncher(launcher.BaseLauncher):
             )
         user_id = self._auth_info.user_id or spec_user_id
 
-        # Use the token resolution logic that validates existence and expiration
-        token_name = services.api.utils.helpers.resolve_auth_token_name(
-            user_id=user_id, provided_token_name=provided_token_name
+        # Tolerate missing auth tokens for scheduled runs so the run record is still created
+        # and the failure is visible to the user.
+        is_scheduled = bool(
+            (object.metadata.labels or {}).get(
+                mlrun.common.schemas.constants.LabelNames.schedule_name
+            )
         )
+        try:
+            token_name = services.api.utils.helpers.resolve_auth_token_name(
+                user_id=user_id, provided_token_name=provided_token_name
+            )
+        except (mlrun.errors.MLRunBadRequestError, mlrun.errors.MLRunNotFoundError):
+            if not is_scheduled:
+                raise
+            mlrun.utils.logger.warning(
+                "Auth token not found for scheduled run; proceeding without token mount",
+                user_id=user_id,
+                schedule_name=(object.metadata.labels or {}).get(
+                    mlrun.common.schemas.constants.LabelNames.schedule_name
+                ),
+            )
+            return
 
         mlrun.utils.helpers.set_auth_token_name(object.spec, token_name)
         # Persist user_id on the run spec so retries can reconstruct a valid identity

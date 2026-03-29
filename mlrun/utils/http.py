@@ -232,7 +232,14 @@ class HTTPSessionWithRetry(requests.Session):
         :param retry_on_post: Whether POST requests should be retried.
         :param retry_on_put:  Whether PUT requests should be retried.
         """
-        self._retry_methods = self._resolve_retry_methods(retry_on_post, retry_on_put)
+        new_methods = self._resolve_retry_methods(retry_on_post, retry_on_put)
+
+        # Skip Retry object re-allocation when the allowed methods haven't changed
+        # consecutive calls with the same policy (common case) don't need a new Retry object
+        if new_methods == self._retry_methods:
+            return
+
+        self._retry_methods = new_methods
         if hasattr(self, "_http_adapter"):
             self._http_adapter.max_retries = urllib3.util.retry.Retry(
                 total=self.max_retries,

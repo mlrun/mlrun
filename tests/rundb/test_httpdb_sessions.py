@@ -1,4 +1,4 @@
-# Copyright 2023 Iguazio
+# Copyright 2026 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -93,19 +93,25 @@ def test_multiple_post_calls_no_session_leak():
         )
 
 
-def test_update_retry_methods_updates_frozenset():
+@pytest.mark.parametrize(
+    "retry_on_post, retry_on_put",
+    [
+        (True, False),
+        (False, True),
+        (True, True),
+        (False, False),
+    ],
+)
+def test_update_retry_methods_updates_frozenset(retry_on_post, retry_on_put):
     """update_retry_methods() should update _retry_methods on the session."""
     session = mlrun.utils.http.HTTPSessionWithRetry(
-        retry_on_post=False, retry_on_put=True
+        retry_on_post=False, retry_on_put=False
     )
 
-    assert "POST" not in session._retry_methods
-    assert "PUT" in session._retry_methods
+    session.update_retry_methods(retry_on_post=retry_on_post, retry_on_put=retry_on_put)
 
-    session.update_retry_methods(retry_on_post=True, retry_on_put=False)
-
-    assert "POST" in session._retry_methods
-    assert "PUT" not in session._retry_methods
+    assert ("POST" in session._retry_methods) == retry_on_post
+    assert ("PUT" in session._retry_methods) == retry_on_put
 
 
 def test_update_retry_methods_updates_adapter():

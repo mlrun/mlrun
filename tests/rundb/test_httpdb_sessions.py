@@ -12,14 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""
-Tests for HTTPRunDB session reuse on POST/PUT calls.
-
-After the fix, a single session is created and reused across all requests.
-POST/PUT calls update the retry policy in-place via update_retry_methods()
-instead of replacing the session.
-"""
-
+import pytest
 import unittest.mock
 
 import requests_mock as requests_mock_module
@@ -27,59 +20,28 @@ import requests_mock as requests_mock_module
 import mlrun.db.httpdb
 import mlrun.utils.http
 
+import mlrun.common.types
 
-def test_post_calls_reuse_same_session():
-    """POST calls should reuse the existing session, not create a new one."""
+http_methods = [method.value for method in mlrun.common.types.HTTPMethod]
+
+@pytest.mark.parametrize("method", http_methods)
+def test_calls_reuse_same_session(method: str):
+    """{method} calls should reuse the existing session, not create a new one."""
     db = mlrun.db.httpdb.HTTPRunDB("https://fake-url")
 
     with requests_mock_module.Mocker() as adapter:
-        adapter.register_uri("POST", "https://fake-url/api/v1/some/path", json={})
+        adapter.register_uri(method, "https://fake-url/api/v1/some/path", json={})
 
-        db.api_call("POST", "some/path")
+        db.api_call(method, "some/path")
         first_session = db.session
 
-        db.api_call("POST", "some/path")
+        db.api_call(method, "some/path")
         second_session = db.session
 
         assert first_session is second_session, (
-            "POST should reuse the existing session, not create a new one"
+            f"{method} should reuse the existing session, not create a new one"
         )
 
-
-def test_put_calls_reuse_same_session():
-    """PUT calls should reuse the existing session, not create a new one."""
-    db = mlrun.db.httpdb.HTTPRunDB("https://fake-url")
-
-    with requests_mock_module.Mocker() as adapter:
-        adapter.register_uri("PUT", "https://fake-url/api/v1/some/path", json={})
-
-        db.api_call("PUT", "some/path")
-        first_session = db.session
-
-        db.api_call("PUT", "some/path")
-        second_session = db.session
-
-        assert first_session is second_session, (
-            "PUT should reuse the existing session, not create a new one"
-        )
-
-
-def test_get_requests_reuse_same_session():
-    """GET requests should reuse the same session (unchanged behavior)."""
-    db = mlrun.db.httpdb.HTTPRunDB("https://fake-url")
-
-    with requests_mock_module.Mocker() as adapter:
-        adapter.register_uri("GET", "https://fake-url/api/v1/some/path", json={})
-
-        db.api_call("GET", "some/path")
-        first_session = db.session
-
-        db.api_call("GET", "some/path")
-        second_session = db.session
-
-        assert first_session is second_session, (
-            "GET should reuse the existing session"
-        )
 
 
 def test_mixed_methods_reuse_same_session():

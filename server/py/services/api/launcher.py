@@ -701,12 +701,36 @@ class ServerSideLauncher(launcher.BaseLauncher):
         # Get the provided token name, if any
         provided_token_name = (object.spec.auth or {}).get("token_name")
 
+        # Fall back to spec.auth for cases where auth_info is empty such as scheduled
+        # jobs after API restart (user_id stored in the scheduled_object template)
+        # and run retries (user_id stored on the run spec).
+        spec_user_id = (object.spec.auth or {}).get("user_id")
+        if (
+            self._auth_info.user_id
+            and spec_user_id
+            and spec_user_id != self._auth_info.user_id
+        ):
+            mlrun.utils.logger.warning(
+                "spec.auth.user_id does not match authenticated user_id, ignoring spec value",
+                spec_user_id=spec_user_id,
+                auth_user_id=self._auth_info.user_id,
+            )
+        user_id = self._auth_info.user_id or spec_user_id
+
         # Use the token resolution logic that validates existence and expiration
         token_name = services.api.utils.helpers.resolve_auth_token_name(
-            user_id=self._auth_info.user_id, provided_token_name=provided_token_name
+            user_id=user_id, provided_token_name=provided_token_name
         )
 
         mlrun.utils.helpers.set_auth_token_name(object.spec, token_name)
+        # Persist user_id on the run spec so retries can reconstruct a valid identity
+        # without a live auth_info.
+        mlrun.utils.helpers.set_auth_user_id(object.spec, user_id)
+        # Propagate resolved user_id back to auth_info so that downstream code
+        # (e.g. _mount_secret_token_to_runtime) also uses the correct identity,
+        # not the empty auth_info from a schedule reload.
+        if not self._auth_info.user_id:
+            self._auth_info.user_id = user_id
 
 
 # Once this file is imported it will set the container server side launcher

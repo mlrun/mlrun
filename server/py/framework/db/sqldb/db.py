@@ -3667,6 +3667,7 @@ class SQLDB(DBInterface):
         dict[str, int],
         dict[str, int],
         dict[str, int],
+        dict[str, int],
     ]:
         results = await asyncio.gather(
             fastapi.concurrency.run_in_threadpool(
@@ -3715,7 +3716,8 @@ class SQLDB(DBInterface):
             (
                 project_to_endpoint_alerts_count,
                 project_to_job_alerts_count,
-                project_to_other_alerts_count,
+                project_to_application_alerts_count,
+                project_to_infra_alerts_count,
             ),
             (
                 project_to_running_mm_functions,
@@ -3746,7 +3748,8 @@ class SQLDB(DBInterface):
             project_to_running_runs_count,
             project_to_endpoint_alerts_count,
             project_to_job_alerts_count,
-            project_to_other_alerts_count,
+            project_to_application_alerts_count,
+            project_to_infra_alerts_count,
             category_to_project_artifact_count.get(
                 mlrun.common.schemas.ArtifactCategories.dataset,
                 collections.defaultdict(lambda: 0),
@@ -4027,14 +4030,16 @@ class SQLDB(DBInterface):
         dict[str, int],
         dict[str, int],
         dict[str, int],
+        dict[str, int],
     ]:
         if mlrun.mlconf.httpdb.dsn.startswith(mlrun.common.db.dialects.Dialects.SQLITE):
             logger.debug("Partition management not supported for SQLite")
-            return {}, {}, {}
+            return {}, {}, {}, {}
 
         project_to_endpoint_alerts_count = collections.defaultdict(int)
         project_to_job_alerts_count = collections.defaultdict(int)
-        project_to_other_alerts_count = collections.defaultdict(int)
+        project_to_application_alerts_count = collections.defaultdict(int)
+        project_to_infra_alerts_count = collections.defaultdict(int)
 
         last_day = mlrun.utils.datetime_now() - timedelta(hours=24)
 
@@ -4064,17 +4069,23 @@ class SQLDB(DBInterface):
             func.count(
                 case(
                     (
-                        AlertActivation.entity_kind.notin_(
-                            [
-                                mlrun.common.schemas.alert.EventEntityKind.MODEL_ENDPOINT_RESULT,
-                                mlrun.common.schemas.alert.EventEntityKind.JOB,
-                            ]
-                        ),
+                        AlertActivation.entity_kind
+                        == mlrun.common.schemas.alert.EventEntityKind.MODEL_MONITORING_APPLICATION,
                         1,
                     ),
                     else_=None,
                 )
-            ).label("other_alerts_count"),
+            ).label("application_alerts_count"),
+            func.count(
+                case(
+                    (
+                        AlertActivation.entity_kind
+                        == mlrun.common.schemas.alert.EventEntityKind.MODEL_MONITORING_INFRA,
+                        1,
+                    ),
+                    else_=None,
+                )
+            ).label("infra_alerts_count"),
         )
 
         # filter by project, creation time, and activations within the last 24 hours
@@ -4087,15 +4098,23 @@ class SQLDB(DBInterface):
             .all()
         )
 
-        for project, endpoint_counter, job_counter, other_counter in query_results:
+        for (
+            project,
+            endpoint_counter,
+            job_counter,
+            application_counter,
+            infra_counter,
+        ) in query_results:
             project_to_endpoint_alerts_count[project] = endpoint_counter
             project_to_job_alerts_count[project] = job_counter
-            project_to_other_alerts_count[project] = other_counter
+            project_to_application_alerts_count[project] = application_counter
+            project_to_infra_alerts_count[project] = infra_counter
 
         return (
             project_to_endpoint_alerts_count,
             project_to_job_alerts_count,
-            project_to_other_alerts_count,
+            project_to_application_alerts_count,
+            project_to_infra_alerts_count,
         )
 
     @staticmethod

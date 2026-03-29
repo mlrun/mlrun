@@ -427,7 +427,7 @@ class BaseRuntimeHandler(ABC):
                     global_secret_name
                 )
             )
-            for key in global_secrets.keys():
+            for key in global_secrets:
                 env_var_name = (
                     mlrun.secrets.SecretsStore.k8s_env_variable_name_for_secret(key)
                     if encode_key_names

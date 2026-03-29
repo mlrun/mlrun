@@ -1,4 +1,4 @@
-# Copyright 2023 Iguazio
+# Copyright 2026 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -24,7 +24,7 @@ from mlrun.config import config as mlconf
 from services.api.runtime_handlers.base import BaseRuntimeHandler
 
 
-def test_user_env_var_not_overridden_by_global_secret():
+def test_user_env_var_not_overridden_by_global_secret(monkeypatch):
     """User-set AWS_ACCESS_KEY_ID is preserved when global secret has the same key.
 
     Exercises the full add_k8s_secrets_to_spec flow with a mocked k8s helper,
@@ -48,26 +48,20 @@ def test_user_env_var_not_overridden_by_global_secret():
     mock_k8s = MagicMock()
     mock_k8s.get_secret_data.return_value = global_secrets
 
-    original_global_secret = (
-        mlconf.secret_stores.kubernetes.global_function_env_secret_name
+    monkeypatch.setattr(
+        mlconf.secret_stores.kubernetes,
+        "global_function_env_secret_name",
+        global_secret_name,
     )
-    try:
-        mlconf.secret_stores.kubernetes.global_function_env_secret_name = (
-            global_secret_name
-        )
-        with patch(
-            "services.api.runtime_handlers.base.framework.utils.singletons.k8s.get_k8s_helper",
-            return_value=mock_k8s,
-        ):
-            BaseRuntimeHandler.add_k8s_secrets_to_spec(
-                secrets=None,
-                runtime=runtime,
-                project_name=None,
-                encode_key_names=True,
-            )
-    finally:
-        mlconf.secret_stores.kubernetes.global_function_env_secret_name = (
-            original_global_secret
+    with patch(
+        "services.api.runtime_handlers.base.framework.utils.singletons.k8s.get_k8s_helper",
+        return_value=mock_k8s,
+    ):
+        BaseRuntimeHandler.add_k8s_secrets_to_spec(
+            secrets=None,
+            runtime=runtime,
+            project_name=None,
+            encode_key_names=True,
         )
 
     # The user's plain value must be preserved
@@ -89,7 +83,7 @@ def test_user_env_var_not_overridden_by_global_secret():
     )
 
 
-def test_user_env_var_not_overridden_by_project_secret():
+def test_user_env_var_not_overridden_by_project_secret(monkeypatch):
     """User-set env var is preserved when project secret has the same key.
 
     Uses encode_key_names=False (nuclio path) for simplicity, so env var
@@ -112,28 +106,26 @@ def test_user_env_var_not_overridden_by_project_secret():
     mock_k8s.get_project_secret_name.return_value = "project-secret-name"
     mock_k8s.get_project_secret_keys.return_value = project_secret_keys
 
-    original_global_secret = (
-        mlconf.secret_stores.kubernetes.global_function_env_secret_name
+    monkeypatch.setattr(
+        mlconf.secret_stores.kubernetes,
+        "global_function_env_secret_name",
+        "",
     )
-    original_auto_add = mlconf.secret_stores.kubernetes.auto_add_project_secrets
-    try:
-        mlconf.secret_stores.kubernetes.global_function_env_secret_name = ""
-        mlconf.secret_stores.kubernetes.auto_add_project_secrets = True
-        with patch(
-            "services.api.runtime_handlers.base.framework.utils.singletons.k8s.get_k8s_helper",
-            return_value=mock_k8s,
-        ):
-            BaseRuntimeHandler.add_k8s_secrets_to_spec(
-                secrets=None,
-                runtime=runtime,
-                project_name=project_name,
-                encode_key_names=False,
-            )
-    finally:
-        mlconf.secret_stores.kubernetes.global_function_env_secret_name = (
-            original_global_secret
+    monkeypatch.setattr(
+        mlconf.secret_stores.kubernetes,
+        "auto_add_project_secrets",
+        True,
+    )
+    with patch(
+        "services.api.runtime_handlers.base.framework.utils.singletons.k8s.get_k8s_helper",
+        return_value=mock_k8s,
+    ):
+        BaseRuntimeHandler.add_k8s_secrets_to_spec(
+            secrets=None,
+            runtime=runtime,
+            project_name=project_name,
+            encode_key_names=False,
         )
-        mlconf.secret_stores.kubernetes.auto_add_project_secrets = original_auto_add
 
     # User's value must be preserved
     env_var = find_env_var(runtime, secret_key)
@@ -152,7 +144,7 @@ def test_user_env_var_not_overridden_by_project_secret():
     )
 
 
-def test_project_secret_overrides_global_secret_for_same_key():
+def test_project_secret_overrides_global_secret_for_same_key(monkeypatch):
     """When both global and project secrets share a key, project must win."""
 
     runtime = mlrun.runtimes.KubejobRuntime()
@@ -169,30 +161,26 @@ def test_project_secret_overrides_global_secret_for_same_key():
     mock_k8s.get_project_secret_name.return_value = "project-secret-name"
     mock_k8s.get_project_secret_keys.return_value = project_secret_keys
 
-    original_global_secret = (
-        mlconf.secret_stores.kubernetes.global_function_env_secret_name
+    monkeypatch.setattr(
+        mlconf.secret_stores.kubernetes,
+        "global_function_env_secret_name",
+        global_secret_name,
     )
-    original_auto_add = mlconf.secret_stores.kubernetes.auto_add_project_secrets
-    try:
-        mlconf.secret_stores.kubernetes.global_function_env_secret_name = (
-            global_secret_name
+    monkeypatch.setattr(
+        mlconf.secret_stores.kubernetes,
+        "auto_add_project_secrets",
+        True,
+    )
+    with patch(
+        "services.api.runtime_handlers.base.framework.utils.singletons.k8s.get_k8s_helper",
+        return_value=mock_k8s,
+    ):
+        BaseRuntimeHandler.add_k8s_secrets_to_spec(
+            secrets=None,
+            runtime=runtime,
+            project_name=project_name,
+            encode_key_names=False,
         )
-        mlconf.secret_stores.kubernetes.auto_add_project_secrets = True
-        with patch(
-            "services.api.runtime_handlers.base.framework.utils.singletons.k8s.get_k8s_helper",
-            return_value=mock_k8s,
-        ):
-            BaseRuntimeHandler.add_k8s_secrets_to_spec(
-                secrets=None,
-                runtime=runtime,
-                project_name=project_name,
-                encode_key_names=False,
-            )
-    finally:
-        mlconf.secret_stores.kubernetes.global_function_env_secret_name = (
-            original_global_secret
-        )
-        mlconf.secret_stores.kubernetes.auto_add_project_secrets = original_auto_add
 
     # The env var should come from the PROJECT secret, not the global one
     env_var = find_env_var(runtime, shared_key)
@@ -207,7 +195,7 @@ def test_project_secret_overrides_global_secret_for_same_key():
     )
 
 
-def test_user_plain_var_wins_over_both_global_and_project_secrets():
+def test_user_plain_var_wins_over_both_global_and_project_secrets(monkeypatch):
     """When user sets a plain env var, neither global nor project secret overrides it."""
 
     runtime = mlrun.runtimes.KubejobRuntime()
@@ -226,30 +214,26 @@ def test_user_plain_var_wins_over_both_global_and_project_secrets():
     mock_k8s.get_project_secret_name.return_value = "project-secret-name"
     mock_k8s.get_project_secret_keys.return_value = project_secret_keys
 
-    original_global_secret = (
-        mlconf.secret_stores.kubernetes.global_function_env_secret_name
+    monkeypatch.setattr(
+        mlconf.secret_stores.kubernetes,
+        "global_function_env_secret_name",
+        global_secret_name,
     )
-    original_auto_add = mlconf.secret_stores.kubernetes.auto_add_project_secrets
-    try:
-        mlconf.secret_stores.kubernetes.global_function_env_secret_name = (
-            global_secret_name
+    monkeypatch.setattr(
+        mlconf.secret_stores.kubernetes,
+        "auto_add_project_secrets",
+        True,
+    )
+    with patch(
+        "services.api.runtime_handlers.base.framework.utils.singletons.k8s.get_k8s_helper",
+        return_value=mock_k8s,
+    ):
+        BaseRuntimeHandler.add_k8s_secrets_to_spec(
+            secrets=None,
+            runtime=runtime,
+            project_name=project_name,
+            encode_key_names=False,
         )
-        mlconf.secret_stores.kubernetes.auto_add_project_secrets = True
-        with patch(
-            "services.api.runtime_handlers.base.framework.utils.singletons.k8s.get_k8s_helper",
-            return_value=mock_k8s,
-        ):
-            BaseRuntimeHandler.add_k8s_secrets_to_spec(
-                secrets=None,
-                runtime=runtime,
-                project_name=project_name,
-                encode_key_names=False,
-            )
-    finally:
-        mlconf.secret_stores.kubernetes.global_function_env_secret_name = (
-            original_global_secret
-        )
-        mlconf.secret_stores.kubernetes.auto_add_project_secrets = original_auto_add
 
     # User's plain value must survive both global and project injection
     env_var = find_env_var(runtime, shared_key)

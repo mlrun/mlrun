@@ -191,7 +191,7 @@ class APIHandlerConfig(mlrun.model.ModelObj):
         action: schemas.serving.APIHandlerAction = schemas.serving.APIHandlerAction.ALLOW,
         description: str | None = None,
     ) -> None:
-        """Add an endpoint handler configuration.
+        r"""Add an endpoint handler configuration.
 
         :param path: URL path for the endpoint (e.g., ``/v1/models`` or ``/api/v1/\*``)
         :param http_method: HTTP method for the endpoint (HTTPMethod enum or string like 'GET', 'POST')

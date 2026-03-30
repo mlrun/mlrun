@@ -164,3 +164,10 @@ The user sees the response being typed out in real time, improving the conversat
 - {py:class}`~storey.transformations.Collector` step: Collects streaming chunks and emits a single event once all chunks for a stream are received. 
 
 ### Examples
+```
+# Create a serving function with streaming enabled
+serving_fn = mlrun.code_to_function(kind="serving")
+serving_fn.set_topology("flow", engine="async")
+serving_fn.set_streaming(enabled=True)
+```
+See a complete example in [Streaming serving function](../serving/getting-started.md#streaming-serving-function).

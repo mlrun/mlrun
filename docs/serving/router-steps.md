@@ -4,28 +4,26 @@
 Router steps allow branching, enrichment, aggregation, etc.
 
 **In this section**
+- [RouterStep](#routerstep)
 - [VotingEnsemble](#votingensemble)
 - [Parallel execution](#parallel-execution-parallelrun)
 
-**See also**
-- Example of {py:class}`~mlrun.serving.RouterStep` in {ref}`graph-example`.
 
+## RouterStep
+### Description
+{py:class}`~mlrun.serving.RouterStep` implements routing logic for running child routes.
 ```{admonition} Note
 The `*` prefix indicates a router class (not a simple processing step).
 ```
-
-## Router
-### Description
-{py:class}`~mlrun.serving.RouterStep` implements routing logic for running child routes.
-
-### Use Case
-
-
-### Examples
+### Examokes
+- {ref}`graph-example`
+- - {ref}`working-with-rag`
 
 ## VotingEnsemble
 ### Description
 {py:class}`~mlrun.serving.routers.VotingEnsemble` is a router that encapsulates both execution and aggregation of multiple model routes. It outputs a single result.
+
+An ensemble machine learning model that combines the prediction of several models.
 
 ### Use Case
 
@@ -102,6 +100,9 @@ graph.add_step("*mlrun.serving.ParallelRun", name="parallel")
 ## Parallel execution (ParallelRun)
 ### Description
 Use {py:meth}`~mlrun.serving.routers.ParallelRun` to run multiple independent branches with custom merging or postprocessing. It outputs a dict or list.
+```{admonition} Note
+The `*` prefix indicates a router class (not a simple processing step). The graph sends the event to one of its children, based on path. 
+```
 
 ## Use Cases
 

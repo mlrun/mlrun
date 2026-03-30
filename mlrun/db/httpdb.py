@@ -1058,7 +1058,7 @@ class HTTPRunDB(RunDBInterface):
                          or just `"label"` for key existence.
                        - A comma-separated string formatted as `"label1=value1,label2"` to match entities with
                          the specified key-value pairs or key existence.
- 
+
         :param states: List only runs whose state is one of the provided states.
         :param sort: Whether to sort the result according to their start time. Otherwise, results will be
             returned by their internal order in the DB (order will not be guaranteed).
@@ -1379,7 +1379,7 @@ class HTTPRunDB(RunDBInterface):
                          or just `"label"` for key existence.
                        - A comma-separated string formatted as `"label1=value1,label2"` to match entities with
                          the specified key-value pairs or key existence.
-        
+
         :param since: Return artifacts updated after this date (as datetime object).
         :param until: Return artifacts updated before this date (as datetime object).
         :param iter: Return artifacts from a specific iteration (where ``iter=0`` means the root iteration). If
@@ -3287,7 +3287,7 @@ class HTTPRunDB(RunDBInterface):
                          or just `"label"` for key existence.
                        - A comma-separated string formatted as `"label1=value1,label2"` to match entities with
                          the specified key-value pairs or key existence.
- 
+
         :param state: Filter by project's state. Can be either ``online`` or ``archived``.
         """
         labels = self._parse_labels(labels)

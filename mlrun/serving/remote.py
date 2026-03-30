@@ -552,7 +552,7 @@ class RemoteFunctionStep(RemoteStep):
                          1. Extracted from the function URI (if specified as 'project_name/function_name')
                          2. Taken from the `project_name` parameter
                          3. Inferred from the current runtime or graph execution context
-    """
+    
 
     def __init__(
         self,

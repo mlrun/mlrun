@@ -611,8 +611,9 @@ def test_enrich_and_validate_auth_token_name_scheduled_run_tolerates_missing_tok
 
     When a scheduled KubeJob fires and the user's auth token secret has been
     deleted (MLRunBadRequestError) or revoked/invalid (MLRunNotFoundError from
-    the iguazio SDK), the method should log a warning and return early.  This
-    allows store_run() to still create a run record so the failure is visible.
+    the iguazio SDK), the method should log a warning, skip the token mount,
+    but still persist user_id on the spec and back-fill auth_info so that
+    retries and downstream code keep working.
     """
     monkeypatch.setattr(
         services.api.utils.helpers,
@@ -631,10 +632,18 @@ def test_enrich_and_validate_auth_token_name_scheduled_run_tolerates_missing_tok
         spec=mlrun.model.RunSpec(auth=None),
     )
 
-    launcher.enrich_and_validate_auth_token_name(run)
+    with unittest.mock.patch("mlrun.utils.logger") as mock_logger:
+        launcher.enrich_and_validate_auth_token_name(run)
 
-    # token_name must NOT be set — method returned before calling set_auth_token_name
-    assert run.spec.auth is None or "token_name" not in (run.spec.auth or {})
+        mock_logger.warning.assert_called_once()
+        call_kwargs = mock_logger.warning.call_args[1]
+        assert call_kwargs["user_id"] == "1234"
+        assert call_kwargs["schedule_name"] == "my-schedule"
+
+    # token_name must NOT be set — token resolution failed
+    assert not run.spec.auth or run.spec.auth.get("token_name") is None
+    # user_id must still be persisted for retries / downstream code
+    assert run.spec.auth["user_id"] == "1234"
 
 
 @pytest.mark.parametrize(
@@ -672,44 +681,6 @@ def test_enrich_and_validate_auth_token_name_direct_run_raises_on_missing_token(
 
     with pytest.raises(exc_type, match="No valid tokens found"):
         launcher.enrich_and_validate_auth_token_name(run)
-
-
-@pytest.mark.parametrize(
-    "exc",
-    [
-        mlrun.errors.MLRunBadRequestError("token gone"),
-        mlrun.errors.MLRunNotFoundError("token revoked"),
-    ],
-    ids=["bad_request", "not_found"],
-)
-def test_enrich_and_validate_auth_token_name_scheduled_run_logs_warning(
-    monkeypatch, iguazio_v4_mode, exc
-):
-    """Verify the warning log includes user_id and schedule_name context for both error types."""
-    monkeypatch.setattr(
-        services.api.utils.helpers,
-        "resolve_auth_token_name",
-        unittest.mock.Mock(side_effect=exc),
-    )
-
-    launcher = services.api.launcher.ServerSideLauncher(
-        auth_info=mlrun.common.schemas.AuthInfo(user_id="1234")
-    )
-    schedule_label = mlrun.common.schemas.constants.LabelNames.schedule_name
-    run = mlrun.run.RunObject(
-        metadata=mlrun.model.RunMetadata(
-            labels={schedule_label: "nightly-train"},
-        ),
-        spec=mlrun.model.RunSpec(auth=None),
-    )
-
-    with unittest.mock.patch("mlrun.utils.logger") as mock_logger:
-        launcher.enrich_and_validate_auth_token_name(run)
-
-        mock_logger.warning.assert_called_once()
-        call_kwargs = mock_logger.warning.call_args[1]
-        assert call_kwargs["user_id"] == "1234"
-        assert call_kwargs["schedule_name"] == "nightly-train"
 
 
 def test_enrich_and_validate_auth_token_name_scheduled_run_happy_path(

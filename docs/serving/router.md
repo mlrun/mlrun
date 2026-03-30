@@ -60,9 +60,6 @@ Notes:
 The `*` prefix indicates a router class (not a simple processing step).
 ```
 
-### Use Case
-
-
 ### Example
 ```python
 enricher = graph.add_step(

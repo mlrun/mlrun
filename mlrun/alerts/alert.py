@@ -27,6 +27,7 @@ class AlertConfig(ModelObj):
         "summary",
         "severity",
         "reset_policy",
+        "cooldown_period",
         "state",
         "count",
         "created",
@@ -50,6 +51,7 @@ class AlertConfig(ModelObj):
         trigger: alert_objects.AlertTrigger = None,
         criteria: alert_objects.AlertCriteria = None,
         reset_policy: alert_objects.ResetPolicy = None,
+        cooldown_period: str | None = None,
         notifications: list[alert_objects.AlertNotification] | None = None,
         entities: alert_objects.EventEntities = None,
         id: int | None = None,
@@ -115,8 +117,12 @@ class AlertConfig(ModelObj):
         :param criteria:       When the alert will be triggered based on the specified number of events within the
                                defined time period.
         :param reset_policy:   When to clear the alert. "manual" means the alert stays active after triggering
-                               and must be reset explicitly. "auto" means the alert is reset immediately
-                               after triggering and sending notifications.
+                               and must be reset explicitly. "auto" means the alert is reset automatically
+                               after triggering and sending notifications (immediately if cooldown_period is
+                               not set, or after the cooldown period elapses if it is set).
+        :param cooldown_period: Period during which the alert remains active after being triggered before it
+                               is automatically reset. Only applicable when reset_policy=auto. If not set,
+                               the alert resets immediately. Format: e.g. 1d, 3h, 5m, 15s.
         :param notifications:  List of notifications to invoke once the alert is triggered
         :param entities:       Entities that the event relates to. The entity object will contain fields that
                                uniquely identify a given entity in the system
@@ -134,6 +140,7 @@ class AlertConfig(ModelObj):
         self.trigger = trigger
         self.criteria = criteria
         self.reset_policy = reset_policy
+        self.cooldown_period = cooldown_period
         self.notifications = notifications or []
         self.entities = entities
         self.id = id
@@ -285,6 +292,7 @@ class AlertConfig(ModelObj):
         self.criteria = self.criteria or template.criteria
         self.trigger = self.trigger or template.trigger
         self.reset_policy = self.reset_policy or template.reset_policy
+        self.cooldown_period = self.cooldown_period or template.cooldown_period
 
     def list_activations(
         self,

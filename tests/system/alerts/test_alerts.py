@@ -424,14 +424,19 @@ class TestAlerts(TestMLRunSystem):
         self,
         expected_job_alerts_count=0,
         expected_endpoint_alerts_count=0,
-        expected_other_alerts_count=0,
+        expected_application_alerts_count=0,
+        expected_infra_alerts_count=0,
     ):
         project_summary = mlrun.get_run_db().get_project_summary(
             project=self.project_name
         )
         assert project_summary.job_alerts_count == expected_job_alerts_count
         assert project_summary.endpoint_alerts_count == expected_endpoint_alerts_count
-        assert project_summary.other_alerts_count == expected_other_alerts_count
+        assert (
+            project_summary.application_alerts_count
+            == expected_application_alerts_count
+        )
+        assert project_summary.infra_alerts_count == expected_infra_alerts_count
 
     @staticmethod
     def _validate_notifications_on_nuclio(nuclio_function_url, expected_notifications):

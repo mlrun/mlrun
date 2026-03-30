@@ -205,7 +205,7 @@ def _generate_function_and_task_from_submit_run_body(
             function = enrich_function_from_dict(function, function_dict)
 
     apply_enrichment_and_validation_on_function(function=function, auth_info=auth_info)
-    apply_enrichment_and_validation_on_task(task)
+    apply_enrichment_and_validation_on_task(task, auth_info=auth_info)
 
     return function, task
 
@@ -296,12 +296,20 @@ async def submit_run(
 
 
 def apply_enrichment_and_validation_on_task(
-    task: dict, mask_notification_params_on_task: bool = True
+    task: dict,
+    auth_info: mlrun.common.schemas.AuthInfo | None = None,
+    mask_notification_params_on_task: bool = True,
 ):
     # Conceal notification config params from the task object with secrets
     if mask_notification_params_on_task:
         framework.utils.notifications.mask_notification_params_on_task(
             task, framework.constants.MaskOperations.CONCEAL
+        )
+
+    # Overwrite any client-supplied spec.auth.user_id with the authenticated identity.
+    if auth_info and auth_info.user_id:
+        task.setdefault("spec", {}).setdefault("auth", {})["user_id"] = (
+            auth_info.user_id
         )
     # validates that secrets used in the task are allowed
     # currently, this only ensures that if k8s mlrun project secrets are used,

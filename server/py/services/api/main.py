@@ -1064,10 +1064,10 @@ class Service(framework.service.Service):
             submit_job_body = {
                 "task": run.to_dict(),
             }
+            user_id = (run.spec.auth or {}).get("user_id") if run.spec.auth else None
             framework.db.session.run_function_with_new_db_session(
                 framework.api.utils.submit_run_from_body,
-                # auth is already masked on the function
-                mlrun.common.schemas.AuthInfo(),
+                mlrun.common.schemas.AuthInfo(user_id=user_id),
                 # TODO: pass values for param_file_secrets ?
                 submit_job_body,
             )

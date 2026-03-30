@@ -963,12 +963,32 @@ class Scheduler:
         # We use the schedule labels to keep track of the access-key to use. Note that this is the name of the secret,
         # not the secret value itself. Therefore, it can be kept in a non-secure field.
         labels = self._append_access_key_secret_to_labels(labels, secret_name)
+        self._embed_user_id_in_scheduled_object(auth_info, scheduled_object)
         self._enrich_schedule_notifications(project, name, scheduled_object)
         if fn_kind:
             labels = labels or {}
             labels.setdefault(mlrun_constants.MLRunInternalLabels.kind, fn_kind)
         framework.utils.helpers.set_scheduled_object_labels(scheduled_object, labels)
         return labels
+
+    @staticmethod
+    def _embed_user_id_in_scheduled_object(
+        auth_info: mlrun.common.schemas.AuthInfo,
+        scheduled_object: Union[dict, Callable],
+    ):
+        """Persist user_id in the scheduled_object template so it survives API restarts.
+
+        On each fire, enrich_and_validate_auth_token_name reads it from spec.auth
+        as a fallback when auth_info.user_id is not available.
+        """
+        if (
+            mlrun.mlconf.is_iguazio_v4_mode()
+            and auth_info.user_id
+            and isinstance(scheduled_object, dict)
+        ):
+            scheduled_object.setdefault("task", {}).setdefault("spec", {}).setdefault(
+                "auth", {}
+            )["user_id"] = auth_info.user_id
 
     @staticmethod
     def _remove_schedule_notification_secrets(

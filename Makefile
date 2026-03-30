@@ -889,7 +889,7 @@ lint-copyright-ci: ## Check copyright year in newly added files in a PR (CI use)
 	@echo "Checking copyright year in new files..."
 	@current_year=$$(date +%Y); \
 	  bad_files=""; \
-	  for f in $$(git diff --name-only --diff-filter=A $(BASE_BRANCH)...HEAD); do \
+	  for f in $$(git diff --name-only --diff-filter=A $(BASE_BRANCH)..HEAD); do \
 	    if grep -q "# Copyright 20[0-9][0-9] Iguazio" "$$f" 2>/dev/null; then \
 	      if ! grep -q "# Copyright $$current_year Iguazio" "$$f" 2>/dev/null; then \
 	        bad_files="$$bad_files $$f"; \

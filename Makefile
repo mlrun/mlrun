@@ -873,7 +873,7 @@ lint: lint-check lint-imports lint-copyright ## Run lint on the code
 lint-copyright: ## Check copyright year in new (untracked) files
 	@echo "Checking copyright year in new files..."
 	@current_year=$$(date +%Y); \
-	  bad_files=$$(git ls-files --others --exclude-standard | xargs grep -l "# Copyright 20[0-9][0-9] Iguazio" 2>/dev/null | xargs grep -L "# Copyright $$current_year Iguazio" 2>/dev/null); \
+	  bad_files=$$(git ls-files --others --exclude-standard | xargs -r grep -l "# Copyright 20[0-9][0-9] Iguazio" 2>/dev/null | xargs -r grep -L "# Copyright $$current_year Iguazio" 2>/dev/null); \
 	  if [ -n "$$bad_files" ]; then \
 	    echo "Wrong copyright year in new files (expected $$current_year):"; \
 	    echo "$$bad_files"; \

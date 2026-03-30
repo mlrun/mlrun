@@ -287,7 +287,12 @@ class Alerts(
             "session": session.hash_key,
         }
 
-        if alert.reset_policy == "auto":
+        # AUTO without cooldown: reset before notification delivery so the alert can fire again on the next event.
+        # With cooldown, reset is deferred until the cooldown period elapses
+        if (
+            alert.reset_policy == mlrun.common.schemas.alert.ResetPolicy.AUTO
+            and not alert.cooldown_period
+        ):
             logger.debug("Resetting alert before sending notification", **log_kwargs)
             self.reset_alert(session, alert.project, alert.name, alert_id=alert.id)
             keep_cache = False
@@ -296,10 +301,28 @@ class Alerts(
             session, alert, event_data
         )
 
-        if alert.reset_policy == "manual":
+        # MANUAL alerts stay active until explicitly reset; cooldown alerts stay active until the cooldown elapses.
+        # last_activation_id is stored so it can be updated when the alert is eventually reset.
+        if (
+            alert.reset_policy == mlrun.common.schemas.alert.ResetPolicy.MANUAL
+            or alert.cooldown_period
+        ):
             active = True
             state["active"] = True
             state_obj["last_activation_id"] = activation_id
+
+        cooldown_end_time = None
+        if alert.cooldown_period:
+            cooldown_td = framework.utils.helpers.string_to_timedelta(
+                alert.cooldown_period, raise_on_error=False
+            )
+            if cooldown_td is not None:
+                cooldown_end_time = datetime.datetime.now(datetime.UTC) + cooldown_td
+                logger.debug(
+                    "Alert cooldown period set, will auto-reset after cooldown",
+                    cooldown_end_time=cooldown_end_time.isoformat(),
+                    **log_kwargs,
+                )
 
         logger.debug("Sending notifications for alert", **log_kwargs)
         notification_pusher.AlertNotificationPusher().push(
@@ -319,6 +342,7 @@ class Alerts(
             obj=state_obj,
             active=active,
             alert_id=alert.id,
+            cooldown_end_time=cooldown_end_time,
         )
         return keep_cache
 
@@ -387,6 +411,7 @@ class Alerts(
 
         self._validate_alert_criteria(project, name, alert.criteria)
         self._validate_alert_notifications(project, name, alert.notifications)
+        self._validate_alert_cooldown_period(project, name, alert)
 
         if alert.entities.project != project:
             raise mlrun.errors.MLRunBadRequestError(
@@ -455,6 +480,45 @@ class Alerts(
                     f"Invalid cooldown_period ({alert_notification.cooldown_period}) "
                     f"specified for alert {name} for project {project}"
                 )
+
+    @staticmethod
+    def _validate_alert_cooldown_period(
+        project: str,
+        name: str,
+        alert: mlrun.common.schemas.AlertConfig,
+    ):
+        """
+        Validate the cooldown_period field on AlertConfig:
+        - cooldown_period is only allowed when reset_policy=auto.
+        - If set, it must be a valid time duration string.
+        - If set, it must be >= cooldown_reset_interval to ensure accurate reset timing.
+        """
+        if not alert.cooldown_period:
+            return
+
+        if alert.reset_policy == mlrun.common.schemas.alert.ResetPolicy.MANUAL:
+            raise mlrun.errors.MLRunBadRequestError(
+                f"cooldown_period is not allowed when reset_policy=manual "
+                f"for alert {name} for project {project}"
+            )
+
+        cooldown_td = framework.utils.helpers.string_to_timedelta(
+            alert.cooldown_period, raise_on_error=False
+        )
+        if cooldown_td is None:
+            raise mlrun.errors.MLRunBadRequestError(
+                f"Invalid cooldown_period ({alert.cooldown_period}) "
+                f"specified for alert {name} for project {project}"
+            )
+
+        min_cooldown = datetime.timedelta(
+            seconds=mlconfig.alerts.cooldown_reset_interval
+        )
+        if cooldown_td < min_cooldown:
+            raise mlrun.errors.MLRunBadRequestError(
+                f"cooldown_period ({alert.cooldown_period}) must be at least "
+                f"{mlconfig.alerts.cooldown_reset_interval} seconds for alert {name} for project {project}"
+            )
 
     def _handle_existing_alert(
         self,
@@ -600,14 +664,24 @@ class Alerts(
                 f"Alert {name} for project {project} does not exist"
             )
 
-        if alert.reset_policy == mlrun.common.schemas.alert.ResetPolicy.MANUAL:
+        # MANUAL and cooldown alerts track the last activation so it can be marked as resolved on reset
+        if (
+            alert.reset_policy == mlrun.common.schemas.alert.ResetPolicy.MANUAL
+            or alert.cooldown_period
+        ):
             self._update_alert_activation_on_reset(
                 session=session,
                 project=project,
                 alert=alert,
             )
         framework.utils.singletons.db.get_db().store_alert_state(
-            session, project, name, last_updated=None, alert_id=alert.id
+            session,
+            project,
+            name,
+            last_updated=None,
+            alert_id=alert.id,
+            obj={},
+            clear_cooldown=True,
         )
         self._get_alert_state_cached().cache_remove(session, alert.id)
         self._clear_alert_states(alert.id)
@@ -677,9 +751,9 @@ class Alerts(
         ):
             return True, "reset-policy changed from manual to auto"
 
-        # reset the alert if a functional parameter (entities, trigger, or criteria) has changed, as these affect the
-        # conditions for alert activation.
-        functional_parameters = ["entities", "trigger", "criteria"]
+        # reset the alert if a functional parameter (entities, trigger, criteria, or cooldown_period) has changed,
+        # as these affect the conditions or timing of alert activation.
+        functional_parameters = ["entities", "trigger", "criteria", "cooldown_period"]
         for attr in functional_parameters:
             if getattr(old_alert_data, attr) != getattr(alert_data, attr):
                 return True, f"changes in {attr}"

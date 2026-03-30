@@ -309,9 +309,13 @@ class HTTPRunDB(RunDBInterface):
 
         retry_on_put = self._is_retry_put_allowed(method, path)
 
-        # if the method is POST or PUT, we need to update the session with the appropriate retry policy
-        if not self.session or method in ("POST", "PUT"):
+        # Reuse the existing session across all requests. For POST/PUT, update the
+        # retry policy in-place instead of creating a new session (which would leak
+        # the old session's urllib3 PoolManager and its TCP connections).
+        if not self.session:
             self.session = self._init_session(retry_on_post, retry_on_put)
+        elif method in ("POST", "PUT"):
+            self.session.update_retry_methods(retry_on_post, retry_on_put)
 
         try:
             response = self.session.request(

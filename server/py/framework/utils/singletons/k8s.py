@@ -17,6 +17,7 @@ import json
 import random
 import string
 import time
+import typing
 from datetime import UTC, datetime
 
 import kubernetes.client.rest as k8s_client_rest
@@ -166,7 +167,7 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
         selector: str = "",
         states: list[str] | None = None,
         max_retry: int = 3,
-    ):
+    ) -> typing.Generator[client.V1Pod, None, None]:
         """
         List pods paginated
         :param namespace:       Namespace to query

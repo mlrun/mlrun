@@ -309,9 +309,13 @@ class HTTPRunDB(RunDBInterface):
 
         retry_on_put = self._is_retry_put_allowed(method, path)
 
-        # if the method is POST or PUT, we need to update the session with the appropriate retry policy
-        if not self.session or method in ("POST", "PUT"):
+        # Reuse the existing session across all requests. For POST/PUT, update the
+        # retry policy in-place instead of creating a new session (which would leak
+        # the old session's urllib3 PoolManager and its TCP connections).
+        if not self.session:
             self.session = self._init_session(retry_on_post, retry_on_put)
+        elif method in ("POST", "PUT"):
+            self.session.update_retry_methods(retry_on_post, retry_on_put)
 
         try:
             response = self.session.request(
@@ -5468,11 +5472,13 @@ class HTTPRunDB(RunDBInterface):
             logger.info(
                 "Token was successfully deleted",
                 token_name=token_name,
-                username=username,
+                username=result.username,
             )
         else:
             logger.info(
-                "Token could not be deleted", token_name=token_name, username=username
+                "Token could not be deleted",
+                token_name=token_name,
+                username=result.username,
             )
         return result
 
@@ -5507,14 +5513,14 @@ class HTTPRunDB(RunDBInterface):
         if result.failed_tokens:
             logger.warning(
                 "Tokens deletion completed with failures",
-                username=username,
+                username=result.username,
                 deleted_count=result.deleted_count,
                 failed_count=len(result.failed_tokens),
             )
         else:
             logger.debug(
                 "Tokens deletion completed",
-                username=username,
+                username=result.username,
                 deleted_count=result.deleted_count,
             )
         return result

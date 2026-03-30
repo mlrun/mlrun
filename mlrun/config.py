@@ -917,6 +917,8 @@ default_config = {
         "max_allowed_cache_size": 20000,
         # default limit for listing alert configs
         "default_list_alert_configs_limit": 2000,
+        # interval between periodic scans for alerts whose cooldown period has expired
+        "cooldown_reset_interval": 15,  # seconds
     },
     "auth_with_client_id": {
         "enabled": False,

@@ -222,6 +222,33 @@ class HTTPSessionWithRetry(requests.Session):
             return False
         return True
 
+    def update_retry_methods(self, retry_on_post: bool, retry_on_put: bool) -> None:
+        """Update the retry method set on the session and its mounted adapter.
+
+        This allows reusing a single session across requests with different
+        retry policies (e.g., POST paths that are retriable vs. non-retriable),
+        avoiding the overhead of creating a new session per request.
+
+        :param retry_on_post: Whether POST requests should be retried.
+        :param retry_on_put:  Whether PUT requests should be retried.
+        """
+        new_methods = self._resolve_retry_methods(retry_on_post, retry_on_put)
+
+        # Skip Retry object re-allocation when the allowed methods haven't changed
+        # consecutive calls with the same policy (common case) don't need a new Retry object
+        if new_methods == self._retry_methods:
+            return
+
+        self._retry_methods = new_methods
+        if hasattr(self, "_http_adapter"):
+            self._http_adapter.max_retries = urllib3.util.retry.Retry(
+                total=self.max_retries,
+                backoff_factor=self.retry_backoff_factor,
+                status_forcelist=config.http_retry_defaults.status_codes,
+                allowed_methods=self._retry_methods,
+                raise_on_status=False,
+            )
+
     def _method_retryable(self, method: str):
         return method in self._retry_methods
 

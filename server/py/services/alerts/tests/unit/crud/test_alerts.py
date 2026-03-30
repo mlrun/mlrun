@@ -32,13 +32,6 @@ from framework.tests.unit.common_fixtures import K8sSecretsMock
 from services.alerts.tests.unit.conftest import TestAlertsBase
 
 
-@pytest.fixture
-def reset_alert_caches():
-    yield
-    services.alerts.crud.Alerts()._alert_cache.cache_clear()
-    services.alerts.crud.Alerts()._alert_state_cache.cache_clear()
-
-
 class TestAlerts(TestAlertsBase):
     @pytest.mark.asyncio
     @unittest.mock.patch.object(
@@ -57,6 +50,7 @@ class TestAlerts(TestAlertsBase):
         mocked_store_alert_activation,
         db: sqlalchemy.orm.Session,
         k8s_secrets_mock: K8sSecretsMock,
+        reset_alert_caches,
     ):
         project = "project-name"
         alert_name = "my-alert"

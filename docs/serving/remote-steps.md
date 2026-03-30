@@ -1,6 +1,9 @@
 (remote-steps)=
 # Remote steps
+Use remote steps to access HTTP sources, external URIs, and remote functions. 
+This icon in the UI indicates remote steps: <img src="../_static/images/steps-remote.png" alt="graph-steps-remote" width="20"/>.
 
+**In this section**
 - [SendToHttp](#sendtohttp)
 - [RemoteStep](#remotestep)
 - [RemoteFunctionStep](#remotefunctionstep)
@@ -44,7 +47,7 @@ flow.to(name="step1", handler="func1").to(
  
 ## RemoteFunctionStep
 ### Description
- Calls remote functions. See {py:class}`~mlrun.serving.remote.RemoteFunctionStep`.
+Calls a remote functions. See {py:class}`~mlrun.serving.remote.RemoteFunctionStep`.
 ### Use Case
 Use this step when you want to invoke an **existing function deployed in MLRun** as part of a serving graph without manually specifying its HTTP endpoint.<br>
 The step accepts a function name or URI, retrieves the function object from MLRun, and automatically resolves the function’s invocation URL.<br> This simplifies integration between serving graphs and previously deployed functions, especially when the endpoint address may change between environments.<br>

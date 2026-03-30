@@ -18,6 +18,7 @@ All steps are supported by the storey engine.
 - [Choice](#choice)
 - [ChoiceByField](#choicebyfield)
 
+This icon in the UI indicates choice steps: <img src="../_static/images/steps-choice.png" alt="graph-steps-choice" width="20"/>.
 ### Choice
 - Description: Routes each event to one or more downstream branches based on custom logic. See {py:class}`~storey.transformations.Choice`.
 
@@ -71,6 +72,8 @@ The value of the configured field can be either:
 
 ## Event operation steps 
 
+This icon in the UI indicates event operation steps: <img src="../_static/images/steps-event-operation.png" alt="graph-steps-event-operation" width="20"/>.
+
 | Class name  | Description                                                                                                |   
 |-------------|------------------------------------------------------------------------------------------------------| 
 |{py:class}`~storey.transformations.Collector`| Collects streaming chunks and emits a single event once all chunks for a stream are received. (It acts as a no-op passthrough for non-streaming events.)|    
@@ -83,10 +86,11 @@ The value of the configured field can be either:
 |{py:class}`~storey.transformations.MapWithState` |Maps, or transforms, incoming events using a stateful user-provided function, and an initial state, which can be a database table.|
 |{py:class}`~storey.transformations.Partition`      |Partitions events by calling a predicate function on each event. Routes each event to a left if condition is True or right branch if False.|
 |storey.Reduce |Reduces incoming events into a single value that is returned upon the successful termination of the flow.|
-|{py:class}`~storey.transformations.SendToHttp`.|Joins each event with data from any HTTP source. Used for event augmentation.|
 |ReduceToDataFrame|Builds a pandas DataFrame from events and returns that DataFrame on flow termination. |
 
 ## Batch operation steps 
+
+This icon in the UI indicates batch steps: <img src="../_static/images/steps-batch.png" alt="graph-steps-batch" width="20"/>.
 | Class name  | Description                                                                                                |   
 |-------------|------------------------------------------------------------------------------------------------------| 
 |{py:class}`~storey.transformations.Batch`  |Collects events until the batch reaches a configured size or age, then sends them downstream together.|
@@ -94,6 +98,8 @@ The value of the configured field can be either:
 |{py:class}`~storey.transformations.ForEach`|Runs custom logic for every event and then passes the original event downstream.|
 
 ## Filter steps 
+
+This icon in the UI indicates filter steps: <img src="../_static/images/steps-filter.png" alt="graph-steps-filter" width="20"/>.
 | Class name  | Description                                                                                                |   
 |-------------|------------------------------------------------------------------------------------------------------| 
 |{py:class}`~storey.transformations.Filter` |Filters events based on a user-provided function.      | 

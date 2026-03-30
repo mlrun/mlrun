@@ -1,6 +1,6 @@
 (model-serving-steps)=
 # Model serving steps
-Learn about the ModelRunnerStep and other steps used when serving models.
+Learn about the ModelRunnerStep and the HTTP streaming step.
 
 **In this section**
 - [ModelRunnerStep](#modelrunnerstep)

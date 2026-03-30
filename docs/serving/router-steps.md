@@ -2,6 +2,7 @@
 # Router steps
 
 Router steps allow branching, enrichment, aggregation, etc.
+This icon in the UI indicates router steps: <img src="../_static/images/steps-router.png" alt="graph-steps-router" />.
 
 **In this section**
 - [RouterStep](#routerstep)

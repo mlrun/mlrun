@@ -170,4 +170,3 @@ serving_fn = mlrun.code_to_function(kind="serving")
 serving_fn.set_topology("flow", engine="async")
 serving_fn.set_streaming(enabled=True)
 ```
-See a complete example in [Streaming serving function](../serving/getting-started.md#streaming-serving-function).

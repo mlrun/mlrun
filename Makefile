@@ -33,6 +33,9 @@ MLRUN_ML_DOCKER_IMAGE_NAME_PREFIX ?= ml-
 # mainly used for mlrun and mlrun-gpu.
 MLRUN_PYTHON_VERSION ?= 3.11
 
+# Ruff command - defaults to "python -m ruff", set to "ruff" to use global ruff
+MLRUN_RUFF_CMD ?= python -m ruff
+
 # Centralized MySQL image tag for tests and tooling (overridable)
 MLRUN_MYSQL_IMAGE ?= gcr.io/iguazio/mlrun-mysql:8.4
 MLRUN_POSTGRES_IMAGE = gcr.io/iguazio/postgres:17
@@ -842,11 +845,14 @@ html-docs-dockerized: build-test ## Build html docs dockerized
 		$(MLRUN_TEST_IMAGE_NAME_TAGGED) \
 		bash -c 'make install-docs-requirements && make html-docs'
 
-.PHONY: fmt
-fmt: ## Format the code using Ruff and blacken-docs
+.PHONY: fmt-ruff
+fmt-ruff: ## Format the code using Ruff
 	@echo "Running ruff checks and fixes..."
-	python -m ruff check --fix-only
-	python -m ruff format
+	$(MLRUN_RUFF_CMD) check --fix-only
+	$(MLRUN_RUFF_CMD) format
+
+.PHONY: fmt
+fmt: fmt-ruff ## Format the code using Ruff and blacken-docs
 	@echo "Formatting the code blocks with blacken-docs..."
 	git ls-files -z -- '*.md' | xargs -0 blacken-docs -t="$(MLRUN_LINT_PYTHON_VERSION)"
 
@@ -864,14 +870,14 @@ lint-imports: ## Validates import dependencies
 	lint-imports
 
 .PHONY: lint
-lint: lint-check lint-imports ## Run lint on the code
+lint: lint-ruff lint-imports ## Run lint on the code
 
-.PHONY: lint-check
-lint-check: ## Check the code (using ruff)
+.PHONY: lint-ruff
+lint-ruff: ## Check the code (using ruff)
 	@echo "Running ruff checks..."
-	python -m ruff check --exit-non-zero-on-fix
-	python -m ruff check --preview --select=CPY001 --exit-non-zero-on-fix
-	python -m ruff format --check
+	$(MLRUN_RUFF_CMD) check --exit-non-zero-on-fix
+	$(MLRUN_RUFF_CMD) check --preview --select=CPY001 --exit-non-zero-on-fix
+	$(MLRUN_RUFF_CMD) format --check
 
 .PHONY: lint-go
 lint-go:

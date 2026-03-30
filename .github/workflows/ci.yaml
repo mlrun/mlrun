@@ -48,6 +48,9 @@ jobs:
         python-version: ["3.11"]
     steps:
     - uses: actions/checkout@v6
+    - name: Fetch base branch for copyright diff
+      if: github.event_name == 'pull_request'
+      run: git fetch origin ${{ github.base_ref }} --depth=1
     - name: Set up python ${{ matrix.python-version }}
       uses: actions/setup-python@v6
       with:
@@ -67,13 +70,17 @@ jobs:
     - name: Check
       run: |
         deno run --allow-read https://deno.land/x/license_checker@v3.2.3/main.ts
+    - name: Check copyright year in new files
+      if: github.event_name == 'pull_request'
+      run: make lint-copyright-ci BASE_BRANCH=origin/${{ github.base_ref }}
     - name: Instructions For Adding Copyright
       if: ${{ failure() }}
       run: |
+        current_year=$(date +%Y)
         echo "
         Please add the following lines to the top of your code:
 
-        # Copyright 2024 Iguazio
+        # Copyright $current_year Iguazio
         #
         # Licensed under the Apache License, Version 2.0 (the "License");
         # you may not use this file except in compliance with the License.

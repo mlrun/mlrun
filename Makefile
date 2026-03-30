@@ -849,6 +849,9 @@ fmt: ## Format the code using Ruff and blacken-docs
 	python -m ruff format
 	@echo "Formatting the code blocks with blacken-docs..."
 	git ls-files -z -- '*.md' | xargs -0 blacken-docs -t="$(MLRUN_LINT_PYTHON_VERSION)"
+	@echo "Fixing copyright year in new files..."
+	@current_year=$$(date +%Y) && \
+	  git ls-files --others --exclude-standard | xargs perl -pi -e "s/# Copyright 20[0-9][0-9] Iguazio/# Copyright $$current_year Iguazio/g" 2>/dev/null || true
 
 .PHONY: lint-docs
 lint-docs: ## Format the code blocks in markdown files
@@ -864,7 +867,42 @@ lint-imports: ## Validates import dependencies
 	lint-imports
 
 .PHONY: lint
-lint: lint-check lint-imports ## Run lint on the code
+lint: lint-check lint-imports lint-copyright ## Run lint on the code
+
+.PHONY: lint-copyright
+lint-copyright: ## Check copyright year in new (untracked) files
+	@echo "Checking copyright year in new files..."
+	@current_year=$$(date +%Y); \
+	  bad_files=$$(git ls-files --others --exclude-standard | xargs grep -l "# Copyright 20[0-9][0-9] Iguazio" 2>/dev/null | xargs grep -L "# Copyright $$current_year Iguazio" 2>/dev/null); \
+	  if [ -n "$$bad_files" ]; then \
+	    echo "Wrong copyright year in new files (expected $$current_year):"; \
+	    echo "$$bad_files"; \
+	    echo "Run 'make fmt' to fix automatically."; \
+	    exit 1; \
+	  fi
+	@echo "Copyright year check passed."
+
+BASE_BRANCH ?= origin/development
+
+.PHONY: lint-copyright-ci
+lint-copyright-ci: ## Check copyright year in newly added files in a PR (CI use)
+	@echo "Checking copyright year in new files..."
+	@current_year=$$(date +%Y); \
+	  bad_files=""; \
+	  for f in $$(git diff --name-only --diff-filter=A $(BASE_BRANCH)...HEAD); do \
+	    if grep -q "# Copyright 20[0-9][0-9] Iguazio" "$$f" 2>/dev/null; then \
+	      if ! grep -q "# Copyright $$current_year Iguazio" "$$f" 2>/dev/null; then \
+	        bad_files="$$bad_files $$f"; \
+	      fi; \
+	    fi; \
+	  done; \
+	  if [ -n "$$bad_files" ]; then \
+	    echo "Wrong copyright year in new files (expected $$current_year):"; \
+	    for f in $$bad_files; do echo "  $$f"; done; \
+	    echo "Update the copyright line to the current year ($$current_year) and push. Locally, 'make fmt' fixes untracked files automatically."; \
+	    exit 1; \
+	  fi
+	@echo "Copyright year check passed."
 
 .PHONY: lint-check
 lint-check: ## Check the code (using ruff)

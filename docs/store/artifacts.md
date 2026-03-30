@@ -66,10 +66,10 @@ See the full parameter list in {py:class}`~mlrun.projects.MlrunProject.list_arti
 
 Any path that is supported by MLRun can be used to store artifacts. However, only artifacts that are stored in paths that are 
 system-configured as "allowed" in the MLRun service are visible in the UI. These are:
-- MLRun < 1.2: The allowed paths include only V3IO paths
-- MLRun 1.2 and higher: Allows cloud storage paths &mdash; `v3io://`, `s3://`, `az://`, `gcs://`, `gs://`. <br>
+- V3IO paths
+- cloud storage paths &mdash; `v3io://`, `s3://`, `az://`, `gcs://`, `gs://`. <br>
   `http://` paths are not visible due to security reasons.
-- MLRun 1.5 adds support for DBFS (Databricks file system): `dbfs://`
+- DBFS (Databricks file system): `dbfs://`
 
 Jobs use the default or job specific `artifact_path` parameter to determine where the artifacts are stored.
 The default `artifact_path` can be specified at the cluster level, client level, project level, or job level 

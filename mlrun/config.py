@@ -89,6 +89,7 @@ default_config = {
     "images_to_enrich_registry": "^mlrun/*,^python:3.(9|11)$",
     "kfp_url": "",
     "kfp_ttl": "14400",  # KFP ttl in sec, after that completed PODs will be deleted
+    "kfp_workflow_timeout": "86400",  # KFP workflow execution timeout in sec (default: 24 hours); set to 0 to disable
     "kfp_image": "mlrun/mlrun-kfp",  # image to use for KFP runner
     "dask_kfp_image": "mlrun/mlrun",  # image to use for dask KFP runner
     "igz_version": "",  # the version of the iguazio system the API is running on

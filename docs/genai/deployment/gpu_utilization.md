@@ -55,18 +55,6 @@ async_spec = mlrun.runtimes.nuclio.function.AsyncSpec(
             )
 
 func.with_http(async_spec=async_spec)
-
-# Example for Nuclio
-
-from mlrun import get_or_create_project
-
-project = get_or_create_project(project_name, context=f"./{project_name}")
-func = project.set_function(name=serving_func_name, kind="nuclio", image="mlrun/mlrun", func="func_file.py")
-async_spec = mlrun.runtimes.nuclio.function.AsyncSpec(
-                enabled=True, max_connections=500, connection_availability_timeout=30
-            )
-
-func.with_http(async_spec=async_spec)
 ```
 
 Disable async mode by:

@@ -309,7 +309,7 @@ def test_client_spec_does_not_include_oauth_config_when_not_iguazio_v4_mode(
     assert response_body.get("oauth_internal_token_endpoint") is None
 
 
-def test_client_spec_includes_default_image_by_kind_when_configured(
+def test_client_spec_includes_default_runtime_image_by_kind_when_configured(
     db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
 ) -> None:
     # Set custom image_by_kind values (different from defaults)
@@ -327,13 +327,16 @@ def test_client_spec_includes_default_image_by_kind_when_configured(
     response_body = response.json()
 
     # Should include the custom values
-    assert response_body["default_image_by_kind"] is not None
-    assert response_body["default_image_by_kind"]["job"] == custom_job_image
-    assert response_body["default_image_by_kind"]["serving"] == custom_serving_image
-    assert response_body["default_image_by_kind"]["nuclio"] == "mlrun/mlrun"
+    assert response_body["default_runtime_image_by_kind"] is not None
+    assert response_body["default_runtime_image_by_kind"]["job"] == custom_job_image
+    assert (
+        response_body["default_runtime_image_by_kind"]["serving"]
+        == custom_serving_image
+    )
+    assert response_body["default_runtime_image_by_kind"]["nuclio"] == "mlrun/mlrun"
 
 
-def test_client_spec_excludes_default_image_by_kind_when_default(
+def test_client_spec_excludes_default_runtime_image_by_kind_when_default(
     db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
 ) -> None:
     # Set image_by_kind to default values
@@ -347,4 +350,4 @@ def test_client_spec_excludes_default_image_by_kind_when_default(
     response_body = response.json()
 
     # Should be None when values match defaults
-    assert response_body["default_image_by_kind"] is None
+    assert response_body["default_runtime_image_by_kind"] is None

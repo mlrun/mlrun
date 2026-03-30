@@ -396,7 +396,7 @@ def test_restricted_methods_in_wrong_mode(monkeypatch, method_name):
         ),
     ],
 )
-def test_client_spec_default_image_by_kind_enrichment(
+def test_client_spec_default_runtime_image_by_kind_enrichment(
     requests_mock,
     server_image_by_kind,
     expected_image_by_kind,
@@ -409,7 +409,10 @@ def test_client_spec_default_image_by_kind_enrichment(
 
     requests_mock.get(
         "https://fake-url/api/v1/client-spec",
-        json={"version": "v1.1.0", "default_image_by_kind": server_image_by_kind},
+        json={
+            "version": "v1.1.0",
+            "default_runtime_image_by_kind": server_image_by_kind,
+        },
     )
 
     db = mlrun.db.httpdb.HTTPRunDB("https://fake-url")

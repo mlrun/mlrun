@@ -90,7 +90,7 @@ project.log_artifact(
 
 
 ## Log dataset artifacts
-```python
+```
 # Log the dataset as an artifact
 dataset_artifact = project.log_dataset(key="to-index", df=data)
 dataset_artifact.uri

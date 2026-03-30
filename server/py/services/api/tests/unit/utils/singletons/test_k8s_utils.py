@@ -920,6 +920,12 @@ def test_get_user_token_secret_value_not_found(k8s_helper):
         k8s_helper.get_user_token_secret_value(user_id, token_name, namespace="default")
 
 
+@pytest.mark.parametrize("user_id", [None, ""])
+def test_get_user_token_secret_value_rejects_empty_user_id(k8s_helper, user_id):
+    with pytest.raises(mlrun.errors.MLRunBadRequestError, match="user_id is missing"):
+        k8s_helper.get_user_token_secret_value(user_id, "some-token")
+
+
 def test_get_user_token_secret_value_invalid_base64(k8s_helper):
     user_id = "test-user-id"
     token_name = "my-token"
@@ -1188,6 +1194,12 @@ def test_list_user_token_secret_values_empty(k8s_helper):
     result = k8s_helper.list_user_token_secret_values(user_id=user_id)
 
     assert result == []
+
+
+@pytest.mark.parametrize("user_id", [None, ""])
+def test_list_user_token_secret_values_rejects_empty_user_id(k8s_helper, user_id):
+    with pytest.raises(mlrun.errors.MLRunBadRequestError, match="user_id is missing"):
+        k8s_helper.list_user_token_secret_values(user_id=user_id)
 
 
 def test_get_user_secret_tokens_as_igz_yml_data_no_tokens(k8s_helper):

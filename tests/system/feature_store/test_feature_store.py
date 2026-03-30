@@ -266,38 +266,40 @@ class TestFeatureStore(TestMLRunSystem):
             join_graph=join_graph,
             relations={"stocks": {"name": "id_y"}},  # dummy relations
         )
-        resp = vector.get_offline_features(
+        with vector.get_offline_features(
             entity_rows=trades.set_index(
                 "ticker"
             ),  # test when the relation keys are indexes.
             entity_timestamp_column=entity_timestamp_column,
             engine=engine,
-        )
-        assert len(vector.spec.features) == len(features), (
-            "unexpected num of requested features"
-        )
-        assert len(vector.status.features) == features_size, (
-            "unexpected num of returned features"
-        )
-        assert len(vector.status.stats) == features_size, (
-            "unexpected num of feature stats"
-        )
-        assert vector.status.label_column == "xx", "unexpected label_column name"
+        ) as resp:
+            assert len(vector.spec.features) == len(features), (
+                "unexpected num of requested features"
+            )
+            assert len(vector.status.features) == features_size, (
+                "unexpected num of returned features"
+            )
+            assert len(vector.status.stats) == features_size, (
+                "unexpected num of feature stats"
+            )
+            assert vector.status.label_column == "xx", "unexpected label_column name"
 
-        df = resp.to_dataframe()
-        if entity_timestamp_column:
-            columns = trades.shape[1] + features_size - 2  # - 2 keys ['ticker', 'time']
-        else:
-            columns = trades.shape[1] + features_size - 1  # - 1 keys ['ticker']
-        assert df.shape[1] == columns, "unexpected num of returned df columns"
-        resp.to_parquet(str(self.results_path / f"query-{engine}.parquet"))
+            df = resp.to_dataframe()
+            if entity_timestamp_column:
+                columns = (
+                    trades.shape[1] + features_size - 2
+                )  # - 2 keys ['ticker', 'time']
+            else:
+                columns = trades.shape[1] + features_size - 1  # - 1 keys ['ticker']
+            assert df.shape[1] == columns, "unexpected num of returned df columns"
+            resp.to_parquet(str(self.results_path / f"query-{engine}.parquet"))
 
         # check simple api without join with other df
         # test the use of vector uri
         vector.save()
-        resp = vector.get_offline_features(engine=engine)
-        df = resp.to_dataframe()
-        assert df.shape[1] == features_size, "unexpected num of returned df columns"
+        with vector.get_offline_features(engine=engine) as resp:
+            df = resp.to_dataframe()
+            assert df.shape[1] == features_size, "unexpected num of returned df columns"
 
     def _get_online_features(self, features, features_size, join_graph=None):
         # test real-time query
@@ -3422,23 +3424,23 @@ class TestFeatureStore(TestMLRunSystem):
         )
 
         # different tests
-        result_1 = my_fv.get_offline_features(
+        with my_fv.get_offline_features(
             target=ParquetTarget(),
             query="age>6 and department_RD==1",
             engine=engine,
             engine_args=engine_args,
-        )
-        df_res_1 = result_1.to_dataframe()
+        ) as result_1:
+            df_res_1 = result_1.to_dataframe()
 
         assert_frame_equal(df_res_1, expected_df, check_dtype=False)
 
-        result_2 = my_fv.get_offline_features(
+        with my_fv.get_offline_features(
             target=ParquetTarget(),
             query="name in ['C']",
             engine=engine,
             engine_args=engine_args,
-        )
-        df_res_2 = result_2.to_dataframe()
+        ) as result_2:
+            df_res_2 = result_2.to_dataframe()
 
         assert_frame_equal(df_res_2, expected_df, check_dtype=False)
 
@@ -4142,23 +4144,23 @@ class TestFeatureStore(TestMLRunSystem):
         )
         vector.save()
 
-        resp = vector.get_offline_features(
+        with vector.get_offline_features(
             with_indexes=with_indexes,
             engine=engine,
             engine_args=engine_args,
             order_by="name",
-        )
-        if with_indexes:
-            expected = pd.DataFrame(
-                employees_with_department, columns=["id", "name"]
-            ).set_index("id", drop=True)
-            assert_frame_equal(expected, resp.to_dataframe(), check_dtype=False)
-        else:
-            assert_frame_equal(
-                pd.DataFrame(employees_with_department, columns=["name"]),
-                resp.to_dataframe(),
-                check_dtype=False,
-            )
+        ) as resp:
+            if with_indexes:
+                expected = pd.DataFrame(
+                    employees_with_department, columns=["id", "name"]
+                ).set_index("id", drop=True)
+                assert_frame_equal(expected, resp.to_dataframe(), check_dtype=False)
+            else:
+                assert_frame_equal(
+                    pd.DataFrame(employees_with_department, columns=["name"]),
+                    resp.to_dataframe(),
+                    check_dtype=False,
+                )
 
         with vector.get_online_feature_service() as svc:
             resp = svc.get({"id": 100})
@@ -4174,15 +4176,15 @@ class TestFeatureStore(TestMLRunSystem):
         )
         vector.save()
 
-        resp_1 = vector.get_offline_features(
+        with vector.get_offline_features(
             with_indexes=with_indexes,
             engine=engine,
             engine_args=engine_args,
             order_by="n",
-        )
-        assert_frame_equal(
-            join_employee_department, resp_1.to_dataframe(), check_dtype=False
-        )
+        ) as resp_1:
+            assert_frame_equal(
+                join_employee_department, resp_1.to_dataframe(), check_dtype=False
+            )
 
         with vector.get_online_feature_service(entity_keys=["id"]) as svc:
             resp = svc.get({"id": 100})
@@ -4202,15 +4204,15 @@ class TestFeatureStore(TestMLRunSystem):
         )
         vector.save()
 
-        resp_2 = vector.get_offline_features(
+        with vector.get_offline_features(
             with_indexes=with_indexes,
             engine=engine,
             engine_args=engine_args,
             order_by=["n"],
-        )
-        assert_frame_equal(
-            join_employee_managers, resp_2.to_dataframe(), check_dtype=False
-        )
+        ) as resp_2:
+            assert_frame_equal(
+                join_employee_managers, resp_2.to_dataframe(), check_dtype=False
+            )
 
         with vector.get_online_feature_service(entity_keys=["id"]) as svc:
             resp = svc.get({"id": 100})
@@ -4230,13 +4232,16 @@ class TestFeatureStore(TestMLRunSystem):
         )
         vector.save()
 
-        resp_3 = vector.get_offline_features(
+        with vector.get_offline_features(
             with_indexes=with_indexes,
             engine=engine,
             engine_args=engine_args,
             order_by="name",
-        )
-        assert_frame_equal(join_employee_sets, resp_3.to_dataframe(), check_dtype=False)
+        ) as resp_3:
+            assert_frame_equal(
+                join_employee_sets, resp_3.to_dataframe(), check_dtype=False
+            )
+
         with vector.get_online_feature_service(entity_keys=["id"]) as svc:
             resp = svc.get({"id": 100})
             assert resp[0] == {"n": "employee100", "mini_name": "employee100"}
@@ -4263,13 +4268,13 @@ class TestFeatureStore(TestMLRunSystem):
         )
         vector.save()
 
-        resp_4 = vector.get_offline_features(
+        with vector.get_offline_features(
             with_indexes=with_indexes,
             engine=engine,
             engine_args=engine_args,
             order_by="n",
-        )
-        assert_frame_equal(join_all, resp_4.to_dataframe(), check_dtype=False)
+        ) as resp_4:
+            assert_frame_equal(join_all, resp_4.to_dataframe(), check_dtype=False)
 
         with vector.get_online_feature_service(entity_keys=["id"]) as svc:
             resp = svc.get({"id": 100})
@@ -4369,18 +4374,18 @@ class TestFeatureStore(TestMLRunSystem):
         )
         vector.save()
 
-        resp_1 = vector.get_offline_features(
+        with vector.get_offline_features(
             with_indexes=with_indexes,
             engine=engine,
             engine_args=engine_args,
             order_by="n",
-        )
-        assert_frame_equal(
-            join_employee_department,
-            resp_1.to_dataframe(),
-            check_dtype=False,
-            check_index_type=False,
-        )
+        ) as resp_1:
+            assert_frame_equal(
+                join_employee_department,
+                resp_1.to_dataframe(),
+                check_dtype=False,
+                check_index_type=False,
+            )
 
     @TestMLRunSystem.skip_test_if_env_not_configured
     @pytest.mark.enterprise
@@ -4497,16 +4502,15 @@ class TestFeatureStore(TestMLRunSystem):
             join_graph=join_graph,
         )
         vector.save()
-        resp_1 = vector.get_offline_features(
+        with vector.get_offline_features(
             with_indexes=with_indexes,
             engine=engine,
             engine_args=engine_args,
             order_by=["n"],
-        )
-
-        assert_frame_equal(
-            join_employee_department, resp_1.to_dataframe(), check_dtype=False
-        )
+        ) as resp_1:
+            assert_frame_equal(
+                join_employee_department, resp_1.to_dataframe(), check_dtype=False
+            )
 
     @TestMLRunSystem.skip_test_if_env_not_configured
     @pytest.mark.enterprise
@@ -4754,8 +4758,8 @@ class TestFeatureStore(TestMLRunSystem):
 
         vec = fstore.FeatureVector("vec1", ["fs1-as-of.*", "fs2-as-of.*"])
 
-        resp = vec.get_offline_features(engine=engine, engine_args=engine_args)
-        res_df = resp.to_dataframe().sort_index(axis=1)
+        with vec.get_offline_features(engine=engine, engine_args=engine_args) as resp:
+            res_df = resp.to_dataframe().sort_index(axis=1)
 
         assert_frame_equal(expected_df, res_df, check_dtype=False)
 
@@ -4813,14 +4817,14 @@ class TestFeatureStore(TestMLRunSystem):
         else:
             timestamp_for_filtering_str = timestamp_for_filtering
         if timestamp_for_filtering_str != "bad_ts":
-            resp = vec.get_offline_features(
+            with vec.get_offline_features(
                 start_time=test_base_time - pd.Timedelta(minutes=3),
                 end_time=test_base_time,
                 timestamp_for_filtering=timestamp_for_filtering,
                 engine=engine,
                 engine_args=engine_args,
-            )
-            res_df = resp.to_dataframe().sort_index(axis=1)
+            ) as resp:
+                res_df = resp.to_dataframe().sort_index(axis=1)
 
             if not timestamp_for_filtering_str:
                 assert res_df["val"].tolist() == [1, 2]
@@ -5121,17 +5125,14 @@ class TestFeatureStore(TestMLRunSystem):
         target = ParquetTarget(
             path=f"v3io:///projects/{self.project_name}/get_offline_features_{run_uuid}",
         )
-        result = (
-            vec.get_offline_features(
-                additional_filters=[("bad", "=", 95)],
-                with_indexes=True,
-                engine=engine,
-                run_config=run_config,
-                target=target,
-            )
-            .to_dataframe()
-            .reset_index()
-        )
+        with vec.get_offline_features(
+            additional_filters=[("bad", "=", 95)],
+            with_indexes=True,
+            engine=engine,
+            run_config=run_config,
+            target=target,
+        ) as resp:
+            result = resp.to_dataframe().reset_index()
         expected = df if passthrough else filtered_df
         expected = sort_df(expected.query("bad == 95"), "patient_id")
         result = sort_df(result, "patient_id")

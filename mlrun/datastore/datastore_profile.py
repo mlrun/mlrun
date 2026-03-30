@@ -173,7 +173,7 @@ class DatastoreProfileKafkaStream(DatastoreProfile):
     _private_attributes = ("kwargs_private", "sasl_user", "sasl_pass")
     brokers: typing.Union[str, list[str]]
     topics: typing.Union[str, list[str]]
-    group: str | None = None
+    group: str | None = "serving"
     initial_offset: str | None = "earliest"
     partitions: typing.Union[str, list[str]] | None
     sasl_user: str | None

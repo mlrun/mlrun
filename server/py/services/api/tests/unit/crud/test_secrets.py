@@ -936,11 +936,14 @@ def test_delete_secret_token_success(mock_iguazio_client):
     mock_secrets_provider.get_user_token_secret_value.return_value = fake_token
     mock_secrets_provider.delete_user_token_secret = unittest.mock.Mock()
 
-    services.api.crud.Secrets().delete_secret_token(
+    result = services.api.crud.Secrets().delete_secret_token(
         token_name=token_name,
         username=auth_info.username,
         auth_info=auth_info,
     )
+
+    assert result.deleted is True
+    assert result.username == auth_info.username
 
     mock_secrets_provider.get_user_token_secret_value.assert_called_once_with(
         user_id=auth_info.user_id, token_name=token_name
@@ -966,9 +969,12 @@ def test_delete_secret_token_not_found(mock_iguazio_client):
         mlrun.errors.MLRunNotFoundError("Token not found")
     )
 
-    services.api.crud.Secrets().delete_secret_token(
+    result = services.api.crud.Secrets().delete_secret_token(
         token_name=token_name, username=auth_info.username, auth_info=auth_info
     )
+
+    assert result.deleted is False
+    assert result.username == auth_info.username
 
 
 def test_delete_secret_token_iguazio_failure(mock_iguazio_client):
@@ -1051,6 +1057,7 @@ async def test_delete_secret_tokens_success(mock_iguazio_client):
 
     assert result.deleted_count == 2
     assert result.failed_tokens == []
+    assert result.username == auth_info.username
 
     mock_secrets_provider.list_user_token_secrets.assert_called_once_with(
         user_id=auth_info.user_id
@@ -1113,6 +1120,7 @@ async def test_delete_secret_tokens_partial_failure(mock_iguazio_client):
     assert result.deleted_count == 2
     assert result.failed_tokens == ["token-2"]
     assert result.deleted_count + len(result.failed_tokens) == len(token_infos)
+    assert result.username == auth_info.username
 
     # All three tokens should have been attempted
     assert mock_secrets_provider.delete_user_token_secret.call_count == 3
@@ -1136,6 +1144,7 @@ async def test_delete_secret_tokens_no_tokens(mock_iguazio_client):
 
     assert result.deleted_count == 0
     assert result.failed_tokens == []
+    assert result.username == auth_info.username
 
     # Verify no delete calls were made
     mock_secrets_provider.delete_user_token_secret.assert_not_called()

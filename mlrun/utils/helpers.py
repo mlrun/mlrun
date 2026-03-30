@@ -2721,3 +2721,18 @@ def set_auth_token_name(spec, token_name: str | None):
         if not spec.auth:
             spec.auth = {}
         spec.auth["token_name"] = token_name
+
+
+def set_auth_user_id(spec, user_id: str | None):
+    """
+    Set the user_id on a spec object so it can be recovered in retry and post-restart flows.
+
+    Works with any spec object that has an `auth` attribute (e.g., RunSpec, KubeResourceSpec).
+
+    :param spec: Spec object with an `auth` attribute.
+    :param user_id: User ID to store. If None/empty, no action is taken.
+    """
+    if user_id:
+        if not spec.auth:
+            spec.auth = {}
+        spec.auth["user_id"] = user_id

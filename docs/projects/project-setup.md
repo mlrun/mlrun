@@ -129,7 +129,7 @@ project.set_source(source, pull_at_runtime=True)
 ### Export Project to Zip File Archive
 Export the local project directory contents to a zip file archive. Use this in conjunction with setting the project source for rapid iteration without requiring a Git commit for each change. See {py:meth}`~mlrun.projects.MlrunProject.set_source` and {py:meth}`~mlrun.projects.MlrunProject.export` for more info.
 
-**Note:** This requires using the Iguazio `v3io` data layer or some `s3` compliant object storage such as `minio`.
+**Note:** This requires using the Iguazio `v3io` data layer or some `s3` compliant object storage such as `seaweedFS`.
 
 ```python
 source = project.get_param("source")  # v3io:///bigdata/my_project.zip

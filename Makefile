@@ -899,7 +899,7 @@ lint-copyright-ci: ## Check copyright year in newly added files in a PR (CI use)
 	  if [ -n "$$bad_files" ]; then \
 	    echo "Wrong copyright year in new files (expected $$current_year):"; \
 	    for f in $$bad_files; do echo "  $$f"; done; \
-	    echo "Update the copyright line to the current year ($$current_year) and push. Locally, 'make fmt' fixes untracked files automatically."; \
+	    echo "Update the copyright year to $$current_year in the listed files, commit, and push. If the files are not yet committed, 'make fmt' fixes it automatically."; \
 	    exit 1; \
 	  fi
 	@echo "Copyright year check passed."

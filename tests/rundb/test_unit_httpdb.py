@@ -370,7 +370,11 @@ def test_restricted_methods_in_wrong_mode(monkeypatch, method_name):
         # Server provides custom images for a subset of kinds
         (
             {"job": "custom/job-image", "serving": "custom/serving-image"},
-            {"job": "custom/job-image", "serving": "custom/serving-image", "nuclio": "mlrun/mlrun"},
+            {
+                "job": "custom/job-image",
+                "serving": "custom/serving-image",
+                "nuclio": "mlrun/mlrun",
+            },
         ),
         # Server provides custom images for all kinds
         (
@@ -411,4 +415,6 @@ def test_client_spec_default_image_by_kind_enrichment(
     db = mlrun.db.httpdb.HTTPRunDB("https://fake-url")
     db.connect()
 
-    assert mlrun.mlconf.function_defaults.image_by_kind.to_dict() == expected_image_by_kind
+    assert (
+        mlrun.mlconf.function_defaults.image_by_kind.to_dict() == expected_image_by_kind
+    )

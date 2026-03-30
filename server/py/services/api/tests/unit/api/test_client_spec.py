@@ -337,11 +337,9 @@ def test_client_spec_excludes_default_image_by_kind_when_default(
     db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
 ) -> None:
     # Set image_by_kind to default values
-    mlrun.mlconf.function_defaults.image_by_kind = {
-        "job": "mlrun/mlrun",
-        "serving": "mlrun/mlrun",
-        "nuclio": "mlrun/mlrun",
-    }
+    mlrun.mlconf.function_defaults.image_by_kind = mlrun.config.default_config[
+        "function_defaults"
+    ]["image_by_kind"]
     services.api.api.endpoints.client_spec.get_cached_client_spec.cache_clear()
 
     response = client.get("client-spec")

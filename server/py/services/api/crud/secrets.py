@@ -632,7 +632,9 @@ class Secrets(
                 target_username=username,
                 token_name=token_name,
             )
-            return mlrun.common.schemas.DeleteSecretTokenResponse(deleted=False)
+            return mlrun.common.schemas.DeleteSecretTokenResponse(
+                deleted=False, username=username
+            )
 
         logger.debug(
             "Finished revoking secret token for user",
@@ -640,7 +642,9 @@ class Secrets(
             target_username=username,
             token_name=token_name,
         )
-        return mlrun.common.schemas.DeleteSecretTokenResponse(deleted=True)
+        return mlrun.common.schemas.DeleteSecretTokenResponse(
+            deleted=True, username=username
+        )
 
     async def delete_secret_tokens(
         self,
@@ -683,7 +687,7 @@ class Secrets(
 
         if not tokens:
             return mlrun.common.schemas.DeleteSecretTokensResponse(
-                deleted_count=0, failed_tokens=[]
+                deleted_count=0, failed_tokens=[], username=username
             )
 
         # TODO: move init iguazio_client (ML-11077)
@@ -741,7 +745,7 @@ class Secrets(
         )
 
         return mlrun.common.schemas.DeleteSecretTokensResponse(
-            deleted_count=deleted_count, failed_tokens=failed_tokens
+            deleted_count=deleted_count, failed_tokens=failed_tokens, username=username
         )
 
     def get_secret_token(

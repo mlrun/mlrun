@@ -566,6 +566,10 @@ class HTTPRunDB(RunDBInterface):
             )
             config.kfp_image = server_cfg.get("kfp_image") or config.kfp_image
             config.kfp_url = server_cfg.get("kfp_url") or config.kfp_url
+            config.kfp_default_workflow_timeout = (
+                server_cfg.get("kfp_default_workflow_timeout")
+                or config.kfp_default_workflow_timeout
+            )
             config.dask_kfp_image = (
                 server_cfg.get("dask_kfp_image") or config.dask_kfp_image
             )

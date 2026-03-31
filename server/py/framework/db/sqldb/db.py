@@ -3568,7 +3568,7 @@ class SQLDB(DBInterface):
             project_query = self._add_labels_filter(
                 session, project_query, Project, labels
             )
-        if names:
+        if names is not None:
             project_query = project_query.filter(Project.name.in_(names))
 
         project_subquery = project_query.subquery()

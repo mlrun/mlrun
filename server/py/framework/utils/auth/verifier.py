@@ -14,9 +14,15 @@
 
 import asyncio
 import base64
+import time
 import typing
+from collections import OrderedDict
+from dataclasses import dataclass
+from functools import partial
+from heapq import heapify, heappop, heappush
 
 import fastapi
+import jwt
 
 import mlrun
 import mlrun.common.schemas as schemas
@@ -30,8 +36,24 @@ import framework.utils.auth.providers.opa
 import framework.utils.clients.iguazio.v3
 import framework.utils.clients.iguazio.v4
 
+TOKEN_CACHE_MAX_SIZE = 128
+TOKEN_CACHE_MAX_TTL = 30  # seconds
+
+
+@dataclass(frozen=True)
+class TokenExpiryEntry:
+    token: str
+    task: asyncio.Task[schemas.AuthInfo]
+    expires_at: float
+
+    def __lt__(self, other: "TokenExpiryEntry") -> bool:
+        return self.expires_at < other.expires_at
+
 
 class AuthVerifier(metaclass=mlrun.utils.singleton.Singleton):
+    _token_cache: OrderedDict[str, asyncio.Task[schemas.AuthInfo]]
+    _token_expiry_heap: list[TokenExpiryEntry]
+
     def __init__(self) -> None:
         super().__init__()
         self._resources_prefix = mlrun.mlconf.httpdb.authorization.namespaces.resources
@@ -46,6 +68,9 @@ class AuthVerifier(metaclass=mlrun.utils.singleton.Singleton):
             self._auth_provider = framework.utils.auth.providers.opa.Provider()
         else:
             raise NotImplementedError("Unsupported authorization mode")
+
+        self._token_cache = OrderedDict()
+        self._token_expiry_heap = []
 
     async def filter_project_resources_by_permissions(
         self,
@@ -427,9 +452,104 @@ class AuthVerifier(metaclass=mlrun.utils.singleton.Singleton):
             ]
         return auth_info
 
-    @staticmethod
     async def _authenticate_iguazio_v4(
+        self,
         request: fastapi.Request,
     ) -> schemas.AuthInfo:
-        iguazio_client = framework.utils.clients.iguazio.v4.AsyncClient()
-        return await iguazio_client.verify_request_session(request)
+        token = self._extract_token(request)
+        curr_time = time.time()
+
+        if token is None or token[1] <= curr_time:
+            # No token or an expired token means no caching
+            # TODO: should we immediately throw an error instead of trying to
+            # verify it?
+            iguazio_client = framework.utils.clients.iguazio.v4.AsyncClient()
+            return await iguazio_client.verify_request_session(request)
+
+        token, expires_at = token
+
+        self._expire_tokens(curr_time)
+        task = self._token_cache.get(token)
+
+        if task is None:
+            # No task means we have to create it and add it to the cache
+            iguazio_client = framework.utils.clients.iguazio.v4.AsyncClient()
+            task = asyncio.create_task(iguazio_client.verify_request_session(request))
+            task.add_done_callback(partial(self._on_verify_complete, token))
+
+            self._token_cache[token] = task
+            if len(self._token_cache) > TOKEN_CACHE_MAX_SIZE:
+                self._token_cache.popitem(last=False)
+
+            expires_at = min(expires_at, curr_time + TOKEN_CACHE_MAX_TTL)
+            heappush(self._token_expiry_heap, TokenExpiryEntry(token, task, expires_at))
+        else:
+            # Move to end to mark it as the most recently used
+            self._token_cache.move_to_end(token)
+
+        # We shield the task since it can be shared between multiple
+        # verifications and cancellation could have unexpected side effects
+        return await asyncio.shield(task)
+
+    @staticmethod
+    def _extract_token(request: fastapi.Request) -> tuple[str, float] | None:
+        header_value = request.headers.get("Authorization")
+        if header_value is None:
+            return None
+
+        scheme, _, token = header_value.partition(" ")
+        if scheme.lower() != "bearer":  # scheme is case insensitive
+            return None
+
+        # We don't verify the signature here, this is handled by the endpoint
+        # called by the iguazio_client, we just want to extract the expiry time
+        try:
+            decoded = jwt.decode(token, options={"verify_signature": False})
+        except jwt.DecodeError:
+            return None
+
+        expires_at = decoded.get("exp")
+        if not isinstance(expires_at, (int, float)):
+            return None
+
+        return token, expires_at
+
+    def _expire_tokens(self, curr_time: float) -> None:
+        # The heap can have items that have been removed already, to keep this
+        # in bounds with the cache size we clean up the entire heap if it is
+        # more than double the cache size
+        if len(self._token_expiry_heap) > len(self._token_cache) * 2:
+            # In this case we filter the whole list while handling expiry and
+            # heapify it again
+            new_len = 0
+
+            for entry in self._token_expiry_heap:
+                if self._token_cache.get(entry.token) is not entry.task:
+                    pass  # already evicted
+                elif entry.expires_at <= curr_time:
+                    del self._token_cache[entry.token]  # expired
+                else:
+                    self._token_expiry_heap[new_len] = entry
+                    new_len += 1
+
+            del self._token_expiry_heap[new_len:]
+            heapify(self._token_expiry_heap)
+        else:
+            # We pop expired tokens from the heap to evict them from the cache
+            while (
+                self._token_expiry_heap
+                and self._token_expiry_heap[0].expires_at <= curr_time
+            ):
+                entry = heappop(self._token_expiry_heap)
+                if self._token_cache.get(entry.token) is entry.task:
+                    del self._token_cache[entry.token]
+
+    def _on_verify_complete(
+        self, token: str, task: asyncio.Task[schemas.AuthInfo]
+    ) -> None:
+        # We evict from the cache on failure to make sure we dont block tokens
+        # on things like temporary connectivity issues
+        # TODO: should we whitelist certain exceptions to be kept? e.g. invalid token
+        task_failed = task.cancelled() or task.exception() is not None
+        if task_failed and self._token_cache.get(token) is task:
+            del self._token_cache[token]

@@ -259,7 +259,7 @@ class HistogramDataDriftApplication(ModelMonitoringApplicationBase):
         return stats
 
     @staticmethod
-    def _get_common_features_sample_stats(
+    def _get_shared_features_sample_stats(
         monitoring_context: mm_context.MonitoringApplicationContext,
     ) -> mlrun.common.model_monitoring.helpers.FeatureStats:
         """
@@ -338,7 +338,7 @@ class HistogramDataDriftApplication(ModelMonitoringApplicationBase):
 
         if self._produce_plotly_artifact:
             self._log_plotly_table_artifact(
-                sample_set_statistics=self._get_common_features_sample_stats(
+                sample_set_statistics=self._get_shared_features_sample_stats(
                     monitoring_context
                 ),
                 inputs_statistics=monitoring_context.feature_stats,

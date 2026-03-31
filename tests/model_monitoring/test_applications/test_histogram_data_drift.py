@@ -362,7 +362,7 @@ class TestGetSharedFeaturesSampleStats:
             {"f1": {"count": 50}}
         )
 
-        result = application._get_common_features_sample_stats(ctx)
+        result = application._get_shared_features_sample_stats(ctx)
         assert set(result.keys()) == {"f1"}, (
             "Should only include features present in both stats dicts"
         )

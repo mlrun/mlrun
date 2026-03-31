@@ -164,7 +164,8 @@ class HistogramDataDriftApplication(ModelMonitoringApplicationBase):
         sample_df_stats = monitoring_context.dict_to_histogram(
             monitoring_context.sample_df_stats
         )
-        for feature_name in feature_stats:
+        common_features = set(feature_stats.columns) & set(sample_df_stats.columns)
+        for feature_name in common_features:
             sample_hist = np.asarray(sample_df_stats[feature_name])
             reference_hist = np.asarray(feature_stats[feature_name])
             monitoring_context.logger.info(
@@ -258,7 +259,7 @@ class HistogramDataDriftApplication(ModelMonitoringApplicationBase):
         return stats
 
     @staticmethod
-    def _get_shared_features_sample_stats(
+    def _get_common_features_sample_stats(
         monitoring_context: mm_context.MonitoringApplicationContext,
     ) -> mlrun.common.model_monitoring.helpers.FeatureStats:
         """
@@ -268,6 +269,7 @@ class HistogramDataDriftApplication(ModelMonitoringApplicationBase):
             {
                 key: monitoring_context.sample_df_stats[key]
                 for key in monitoring_context.feature_stats
+                if key in monitoring_context.sample_df_stats
             }
         )
 
@@ -336,7 +338,7 @@ class HistogramDataDriftApplication(ModelMonitoringApplicationBase):
 
         if self._produce_plotly_artifact:
             self._log_plotly_table_artifact(
-                sample_set_statistics=self._get_shared_features_sample_stats(
+                sample_set_statistics=self._get_common_features_sample_stats(
                     monitoring_context
                 ),
                 inputs_statistics=monitoring_context.feature_stats,
@@ -362,6 +364,11 @@ class HistogramDataDriftApplication(ModelMonitoringApplicationBase):
             monitoring_context.logger.warning(
                 "No feature statistics found, skipping the application. \n"
                 "In order to run the application, training set must be provided when logging the model."
+            )
+            return []
+        if monitoring_context.sample_df.empty:
+            monitoring_context.logger.warning(
+                "No sample data found for the given interval, skipping the application."
             )
             return []
         metrics_per_feature = self._compute_metrics_per_feature(

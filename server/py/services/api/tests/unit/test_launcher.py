@@ -596,6 +596,120 @@ def test_enrich_and_validate_auth_token_name_iguazio_v4_token_not_found(
         launcher.enrich_and_validate_auth_token_name(run)
 
 
+@pytest.mark.parametrize(
+    "exc",
+    [
+        mlrun.errors.MLRunBadRequestError("No valid tokens found for user id '1234'."),
+        mlrun.errors.MLRunNotFoundError("No valid tokens found for user id '1234'"),
+    ],
+    ids=["bad_request", "not_found"],
+)
+def test_enrich_and_validate_auth_token_name_scheduled_run_tolerates_missing_token(
+    monkeypatch, iguazio_v4_mode, exc
+):
+    """Scheduled runs should not raise when the auth token is missing or revoked.
+
+    When a scheduled KubeJob fires and the user's auth token secret has been
+    deleted (MLRunBadRequestError) or revoked/invalid (MLRunNotFoundError from
+    the iguazio SDK), the method should log a warning, skip the token mount,
+    but still persist user_id on the spec and back-fill auth_info so that
+    retries and downstream code keep working.
+    """
+    monkeypatch.setattr(
+        services.api.utils.helpers,
+        "resolve_auth_token_name",
+        unittest.mock.Mock(side_effect=exc),
+    )
+
+    launcher = services.api.launcher.ServerSideLauncher(
+        auth_info=mlrun.common.schemas.AuthInfo(user_id="1234")
+    )
+    schedule_label = mlrun.common.schemas.constants.LabelNames.schedule_name
+    run = mlrun.run.RunObject(
+        metadata=mlrun.model.RunMetadata(
+            labels={schedule_label: "my-schedule"},
+        ),
+        spec=mlrun.model.RunSpec(auth=None),
+    )
+
+    with unittest.mock.patch("mlrun.utils.logger") as mock_logger:
+        launcher.enrich_and_validate_auth_token_name(run)
+
+        mock_logger.warning.assert_called_once()
+        call_kwargs = mock_logger.warning.call_args[1]
+        assert call_kwargs["user_id"] == "1234"
+        assert call_kwargs["schedule_name"] == "my-schedule"
+
+    # token_name must NOT be set — token resolution failed
+    assert not run.spec.auth or run.spec.auth.get("token_name") is None
+    # user_id must still be persisted for retries / downstream code
+    assert run.spec.auth["user_id"] == "1234"
+
+
+@pytest.mark.parametrize(
+    "exc,exc_type",
+    [
+        (
+            mlrun.errors.MLRunBadRequestError(
+                "No valid tokens found for user id '1234'."
+            ),
+            mlrun.errors.MLRunBadRequestError,
+        ),
+        (
+            mlrun.errors.MLRunNotFoundError("No valid tokens found for user id '1234'"),
+            mlrun.errors.MLRunNotFoundError,
+        ),
+    ],
+    ids=["bad_request", "not_found"],
+)
+def test_enrich_and_validate_auth_token_name_direct_run_raises_on_missing_token(
+    monkeypatch, iguazio_v4_mode, exc, exc_type
+):
+    """Direct (non-scheduled) runs must still fail fast when the token is missing or revoked."""
+    monkeypatch.setattr(
+        services.api.utils.helpers,
+        "resolve_auth_token_name",
+        unittest.mock.Mock(side_effect=exc),
+    )
+
+    launcher = services.api.launcher.ServerSideLauncher(
+        auth_info=mlrun.common.schemas.AuthInfo(user_id="1234")
+    )
+    run = mlrun.run.RunObject(
+        spec=mlrun.model.RunSpec(auth=None),
+    )
+
+    with pytest.raises(exc_type, match="No valid tokens found"):
+        launcher.enrich_and_validate_auth_token_name(run)
+
+
+def test_enrich_and_validate_auth_token_name_scheduled_run_happy_path(
+    monkeypatch, iguazio_v4_mode
+):
+    """Scheduled runs with a valid token should still enrich normally."""
+    monkeypatch.setattr(
+        services.api.utils.helpers,
+        "resolve_auth_token_name",
+        unittest.mock.Mock(return_value="valid-token"),
+    )
+
+    launcher = services.api.launcher.ServerSideLauncher(
+        auth_info=mlrun.common.schemas.AuthInfo(user_id="1234")
+    )
+    schedule_label = mlrun.common.schemas.constants.LabelNames.schedule_name
+    run = mlrun.run.RunObject(
+        metadata=mlrun.model.RunMetadata(
+            labels={schedule_label: "my-schedule"},
+        ),
+        spec=mlrun.model.RunSpec(auth=None),
+    )
+
+    launcher.enrich_and_validate_auth_token_name(run)
+
+    assert run.spec.auth["token_name"] == "valid-token"
+    assert run.spec.auth["user_id"] == "1234"
+
+
 def test_store_function_enriches_owner_from_auth_info():
     """Test that server-side owner enrichment overrides client-provided owner."""
     auth_info = mlrun.common.schemas.AuthInfo(username="authenticated_user")

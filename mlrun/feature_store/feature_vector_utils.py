@@ -283,6 +283,7 @@ class OnlineVectorService:
         index_columns,
         impute_policy: dict | None = None,
         requested_columns: list[str] | None = None,
+        resource_cache=None,
     ):
         self.vector = vector
         self.impute_policy = impute_policy or {}
@@ -291,6 +292,7 @@ class OnlineVectorService:
         self._index_columns = index_columns
         self._impute_values = {}
         self._requested_columns = requested_columns
+        self._resource_cache = resource_cache
 
     def __enter__(self):
         return self
@@ -431,8 +433,11 @@ class OnlineVectorService:
         return results
 
     def close(self):
-        """terminate the async loop"""
+        """terminate the async loop and release cached connections"""
         self._controller.terminate()
+        if self._resource_cache:
+            self._resource_cache.close_sync()
+            self._resource_cache = None
 
 
 class OfflineVectorResponse:
@@ -462,3 +467,14 @@ class OfflineVectorResponse:
     def to_csv(self, target_path, **kw):
         """return results as csv file"""
         return self._merger.to_csv(target_path, **kw)
+
+    def close(self):
+        """Release resources held by the underlying merger (e.g. Dask client)."""
+        self._merger.close()
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.close()
+        return False

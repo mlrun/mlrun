@@ -29,12 +29,16 @@ from mlrun.common.schemas.model_monitoring.constants import (
     ResultKindApp,
     ResultStatusApp,
 )
+from mlrun.model_monitoring.applications._application_steps import (
+    _ApplicationErrorHandler,
+)
 from mlrun.model_monitoring.applications.histogram_data_drift import (
     DataDriftClassifier,
     HistogramDataDriftApplication,
     InvalidMetricValueError,
     InvalidThresholdValueError,
 )
+from mlrun.serving.server import MockEvent
 
 assets_folder = Path(__file__).parent / "assets"
 
@@ -369,15 +373,10 @@ class TestApplicationErrorHandler:
 
     @staticmethod
     def test_do_returns_event() -> None:
-        from mlrun.model_monitoring.applications._application_steps import (
-            _ApplicationErrorHandler,
-        )
-
         handler = _ApplicationErrorHandler(project="test-project")
 
-        event = Mock()
-        event.body.endpoint_id = "ep-123"
-        event.body.application_name = "test-app"
+        event = MockEvent()
+        event.body = Mock(endpoint_id="ep-123", application_name="test-app")
         event.error = ValueError("test error")
         event.timestamp = "2024-01-01T00:00:00"
 

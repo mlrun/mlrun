@@ -165,6 +165,11 @@ class HistogramDataDriftApplication(ModelMonitoringApplicationBase):
             monitoring_context.sample_df_stats
         )
         common_features = set(feature_stats.columns) & set(sample_df_stats.columns)
+        if common_features != set(feature_stats.columns):
+            monitoring_context.logger.warning(
+                "Some reference features are missing from the sample data",
+                missing_features=set(feature_stats.columns) - common_features,
+            )
         for feature_name in common_features:
             sample_hist = np.asarray(sample_df_stats[feature_name])
             reference_hist = np.asarray(feature_stats[feature_name])

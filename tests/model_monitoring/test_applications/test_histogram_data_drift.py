@@ -330,6 +330,7 @@ class TestMetricsPerFeature:
     def test_compute_metrics_mismatched_features(
         application: HistogramDataDriftApplication,
         monitoring_context: Mock,
+        caplog: pytest.LogCaptureFixture,
     ) -> None:
         """feature_stats has features not present in sample_df_stats (ML-12380)."""
         feature_stats = pd.DataFrame(
@@ -346,6 +347,7 @@ class TestMetricsPerFeature:
         assert set(metrics_per_feature.index) == {"f1"}, (
             "Should only compute metrics for shared features"
         )
+        assert "missing from the sample data" in caplog.text
 
 
 class TestGetSharedFeaturesSampleStats:

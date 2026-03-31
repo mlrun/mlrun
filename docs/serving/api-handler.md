@@ -120,8 +120,13 @@ config.add_body_mapping("titles", "$['store']['book'][*]['title']")
 Rules:
 - A single match → the value is returned as-is.
 - Multiple matches → a list is returned.
-- No match → the request fails with a 422 (Unprocessable Entity) error.
-- `body_map` applies to **all** ALLOW endpoints in the config. Every allowed request must supply a JSON dict body that satisfies all configured mappings.
+- No match → the request fails with HTTP 422 (Unprocessable Entity).
+- Non-JSON or non-dict body → the request fails with HTTP 422 (Unprocessable Entity).
+- `body_map` applies to **all** ALLOW endpoints in the config. Because the mapping is global, a `body_map` that matches one endpoint's body format may cause 422 errors for other endpoints whose requests do not share that format.
+
+```{note}
+The strict 422 behavior for missing body mappings and non-JSON bodies is a known limitation in the current release and will be relaxed in a future release to allow more flexible body handling.
+```
 
 To remove a mapping: `config.remove_body_mapping("model_name")`
 

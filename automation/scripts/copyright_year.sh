@@ -15,56 +15,63 @@
 
 # Manage copyright year in untracked (new) files.
 # Usage:
-#   ./copyright.sh fix               - fix copyright year in untracked files to the current year
-#   ./copyright.sh check             - check copyright year in untracked files, exit 1 if wrong
-#   ./copyright.sh check-ci <base>   - check copyright year in files added in a PR (CI use)
+#   ./copyright_year.sh fix               - fix copyright year in untracked files to the current year
+#   ./copyright_year.sh check             - check copyright year in untracked files, exit 1 if wrong
+#   ./copyright_year.sh check-ci <base>   - check copyright year in files added in a PR (CI use)
 
 set -e
 
+if [[ "$1" != "fix" && "$1" != "check" && "$1" != "check-ci" ]]; then
+    echo "Usage: $0 {fix|check|check-ci <base-branch>}"
+    exit 1
+fi
+
 current_year=$(date +%Y)
+readonly COPYRIGHT_RE_OLD='# Copyright 20[0-9][0-9] Iguazio'
+readonly COPYRIGHT_LINE_CURRENT="# Copyright $current_year Iguazio"
+
+list_untracked_iguazio_copyright_paths() {
+    local untracked
+    untracked=$(git ls-files --others --exclude-standard)
+    [ -z "$untracked" ] || echo "$untracked" | xargs grep -l "$COPYRIGHT_RE_OLD" 2>/dev/null || true
+}
+
+fail_if_bad_copyright() {
+    # Usage: fail_if_bad_copyright <bad_files> <fix_hint>
+    local bad_files="$1"
+    local fix_hint="$2"
+    if [ -n "$bad_files" ]; then
+        echo "Wrong copyright year in new files (expected $current_year):"
+        for f in $bad_files; do echo "  $f"; done
+        echo "$fix_hint"
+        exit 1
+    fi
+    echo "Copyright year check passed."
+}
 
 case "$1" in
     fix)
-        untracked=$(git ls-files --others --exclude-standard)
-        copyright_files=$([ -z "$untracked" ] || echo "$untracked" | xargs grep -l "# Copyright 20[0-9][0-9] Iguazio" 2>/dev/null || true)
+        copyright_files=$(list_untracked_iguazio_copyright_paths)
         if [ -n "$copyright_files" ]; then
             echo "$copyright_files" | xargs python -c \
-                "import sys,re,fileinput; year=sys.argv.pop(1); [print(re.sub('# Copyright 20[0-9][0-9] Iguazio','# Copyright '+year+' Iguazio',line),end='') for line in fileinput.input(inplace=True)]" \
-                "$current_year"
+                "import sys,re,fileinput; [print(re.sub('$COPYRIGHT_RE_OLD','$COPYRIGHT_LINE_CURRENT',line),end='') for line in fileinput.input(inplace=True)]"
         fi
         ;;
     check)
-        untracked=$(git ls-files --others --exclude-standard)
-        copyright_files=$([ -z "$untracked" ] || echo "$untracked" | xargs grep -l "# Copyright 20[0-9][0-9] Iguazio" 2>/dev/null || true)
-        bad_files=$([ -z "$copyright_files" ] || echo "$copyright_files" | xargs grep -L "# Copyright $current_year Iguazio" 2>/dev/null || true)
-        if [ -n "$bad_files" ]; then
-            echo "Wrong copyright year in new files (expected $current_year):"
-            echo "$bad_files"
-            echo "Run 'make fmt' to fix automatically."
-            exit 1
-        fi
-        echo "Copyright year check passed."
+        copyright_files=$(list_untracked_iguazio_copyright_paths)
+        bad_files=$([ -z "$copyright_files" ] || echo "$copyright_files" | xargs grep -L "$COPYRIGHT_LINE_CURRENT" 2>/dev/null || true)
+        fail_if_bad_copyright "$bad_files" "Run 'make fmt' to fix automatically."
         ;;
     check-ci)
         base_branch="${2:?Usage: $0 check-ci <base-branch>}"
         bad_files=""
         for f in $(git diff --name-only --diff-filter=A "$base_branch"..HEAD); do
-            if grep -q "# Copyright 20[0-9][0-9] Iguazio" "$f" 2>/dev/null; then
-                if ! grep -q "# Copyright $current_year Iguazio" "$f" 2>/dev/null; then
+            if grep -q "$COPYRIGHT_RE_OLD" "$f" 2>/dev/null; then
+                if ! grep -q "$COPYRIGHT_LINE_CURRENT" "$f" 2>/dev/null; then
                     bad_files="$bad_files $f"
                 fi
             fi
         done
-        if [ -n "$bad_files" ]; then
-            echo "Wrong copyright year in new files (expected $current_year):"
-            for f in $bad_files; do echo "  $f"; done
-            echo "Update the copyright year to $current_year in the listed files, commit, and push. If the files are not yet committed, 'make fmt' fixes it automatically."
-            exit 1
-        fi
-        echo "Copyright year check passed."
-        ;;
-    *)
-        echo "Usage: $0 {fix|check|check-ci <base-branch>}"
-        exit 1
+        fail_if_bad_copyright "$bad_files" "Update the copyright year to $current_year in the listed files, commit, and push. If the files are not yet committed, 'make fmt' fixes it automatically."
         ;;
 esac

@@ -15,6 +15,7 @@
 import typing
 
 from mlrun.config import config
+from mlrun.utils import logger
 from mlrun_pipelines.imports import PipelineConf
 
 
@@ -22,7 +23,6 @@ def new_pipe_metadata(
     artifact_path: str | None = None,
     cleanup_ttl: int | None = None,
     op_transformers: list[typing.Callable] | None = None,
-    workflow_timeout: int | None = None,
 ):
     def _set_artifact_path(task):
         from kubernetes import client as k8s_client
@@ -38,20 +38,16 @@ def new_pipe_metadata(
     if cleanup_ttl:
         conf.set_ttl_seconds_after_finished(cleanup_ttl)
 
-    # Fall back to the config default when no timeout was provided
-    if workflow_timeout is None:
-        try:
-            workflow_timeout = int(config.kfp_workflow_timeout)
-        except (ValueError, TypeError):
-            from mlrun.utils import logger
-
-            logger.warning(
-                "Invalid kfp_workflow_timeout config value, workflow timeout will not be set",
-                value=config.kfp_workflow_timeout,
-            )
-            workflow_timeout = 0
-    if workflow_timeout > 0:
-        conf.set_timeout(workflow_timeout)
+    try:
+        default_timeout = int(config.kfp_default_workflow_timeout)
+    except (ValueError, TypeError):
+        logger.warning(
+            "Invalid kfp_default_workflow_timeout config value, workflow timeout will not be set",
+            value=config.kfp_default_workflow_timeout,
+        )
+        default_timeout = 0
+    if default_timeout > 0:
+        conf.set_timeout(default_timeout)
 
     if artifact_path:
         conf.add_op_transformer(_set_artifact_path)

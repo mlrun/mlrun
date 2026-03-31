@@ -16,7 +16,6 @@ import functools
 import typing
 
 import mlrun
-from mlrun.config import config
 from mlrun.errors import err_to_str
 from mlrun.utils import logger
 from mlrun_pipelines.imports import dsl, kfp
@@ -25,19 +24,17 @@ from mlrun_pipelines.imports import dsl, kfp
 def _wrap_pipeline_func_with_conf_sync(
     pipeline_func: typing.Callable,
     pipeline_conf: dsl.PipelineConf | None,
-    default_timeout: int,
 ) -> typing.Callable:
     """Wrap a pipeline function to sync internal conf settings onto the external pipeline_conf.
 
     KFP's compiler prefers the external ``pipeline_conf`` over the internal
     ``dsl_pipeline.conf``, so settings applied inside the pipeline function
-    (e.g. ``set_timeout()``) are silently ignored.  This wrapper runs the user's
-    pipeline code first, then copies the effective settings onto ``pipeline_conf``
-    so the compiler picks them up.
+    (e.g. ``dsl.get_pipeline_conf().set_timeout()``) are silently ignored.
+    This wrapper runs the user's pipeline code first, then copies the effective
+    timeout onto ``pipeline_conf`` so the compiler picks it up.
 
-    :param pipeline_func:    The original ``@dsl.pipeline`` decorated callable.
-    :param pipeline_conf:    The external PipelineConf the compiler will read.
-    :param default_timeout:  System default from ``config.kfp_workflow_timeout``.
+    :param pipeline_func:  The original ``@dsl.pipeline`` decorated callable.
+    :param pipeline_conf:  The external PipelineConf the compiler will read.
     """
 
     @functools.wraps(pipeline_func)
@@ -47,12 +44,8 @@ def _wrap_pipeline_func_with_conf_sync(
             return result
         try:
             active_pipeline = dsl.Pipeline.get_default_pipeline()
-            user_timeout = (
-                active_pipeline.conf.timeout if active_pipeline is not None else 0
-            )
-            timeout = user_timeout or default_timeout
-            if timeout > 0:
-                pipeline_conf.set_timeout(timeout)
+            if active_pipeline is not None and active_pipeline.conf.timeout > 0:
+                pipeline_conf.set_timeout(active_pipeline.conf.timeout)
         except Exception as err:
             logger.debug(
                 "Failed to sync pipeline conf settings",
@@ -87,19 +80,8 @@ def _create_enriched_mlrun_workflow(
         _set_function_attribute_on_kfp_pod,
     )
 
-    try:
-        default_timeout = int(config.kfp_workflow_timeout)
-    except (ValueError, TypeError):
-        logger.warning(
-            "Invalid kfp_workflow_timeout config value, workflow timeout will not be set",
-            value=config.kfp_workflow_timeout,
-        )
-        default_timeout = 0
-
     workflow = self._original_create_workflow(
-        _wrap_pipeline_func_with_conf_sync(
-            pipeline_func, pipeline_conf, default_timeout
-        ),
+        _wrap_pipeline_func_with_conf_sync(pipeline_func, pipeline_conf),
         pipeline_name,
         pipeline_description,
         params_list,

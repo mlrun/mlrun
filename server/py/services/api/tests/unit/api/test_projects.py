@@ -949,9 +949,9 @@ async def test_list_project_summaries_returns_empty_when_no_permissions(
     project_summaries_output = mlrun.common.schemas.ProjectSummariesOutput(
         **response.json()
     )
-    assert (
-        project_summaries_output.project_summaries == []
-    ), "Expected no project summaries when user has no permissions, but got some"
+    assert project_summaries_output.project_summaries == [], (
+        "Expected no project summaries when user has no permissions, but got some"
+    )
 
 
 def test_delete_project_deletion_strategy_check(

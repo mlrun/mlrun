@@ -850,14 +850,7 @@ fmt: ## Format the code using Ruff and blacken-docs
 	@echo "Formatting the code blocks with blacken-docs..."
 	git ls-files -z -- '*.md' | xargs -0 blacken-docs -t="$(MLRUN_LINT_PYTHON_VERSION)"
 	@echo "Fixing copyright year in new files..."
-	@current_year=$$(date +%Y) && \
-	  untracked=$$(git ls-files --others --exclude-standard); \
-	  files=$$([ -z "$$untracked" ] || echo "$$untracked" | xargs grep -l "# Copyright 20[0-9][0-9] Iguazio" 2>/dev/null); \
-	  if [ -n "$$files" ]; then \
-	    echo "$$files" | xargs python -c \
-	      "import sys,re,fileinput; year=sys.argv.pop(1); [print(re.sub('# Copyright 20[0-9][0-9] Iguazio','# Copyright '+year+' Iguazio',line),end='') for line in fileinput.input(inplace=True)]" \
-	      "$$current_year"; \
-	  fi
+	@bash automation/scripts/copyright_year.sh fix
 
 .PHONY: lint-docs
 lint-docs: ## Format the code blocks in markdown files
@@ -878,39 +871,14 @@ lint: lint-check lint-imports lint-copyright ## Run lint on the code
 .PHONY: lint-copyright
 lint-copyright: ## Check copyright year in new (untracked) files
 	@echo "Checking copyright year in new files..."
-	@current_year=$$(date +%Y); \
-	  untracked=$$(git ls-files --others --exclude-standard); \
-	  copyright_files=$$([ -z "$$untracked" ] || echo "$$untracked" | xargs grep -l "# Copyright 20[0-9][0-9] Iguazio" 2>/dev/null); \
-	  bad_files=$$([ -z "$$copyright_files" ] || echo "$$copyright_files" | xargs grep -L "# Copyright $$current_year Iguazio" 2>/dev/null); \
-	  if [ -n "$$bad_files" ]; then \
-	    echo "Wrong copyright year in new files (expected $$current_year):"; \
-	    echo "$$bad_files"; \
-	    echo "Run 'make fmt' to fix automatically."; \
-	    exit 1; \
-	  fi
-	@echo "Copyright year check passed."
+	@bash automation/scripts/copyright_year.sh check
 
 BASE_BRANCH ?= origin/development
 
 .PHONY: lint-copyright-ci
 lint-copyright-ci: ## Check copyright year in newly added files in a PR (CI use)
 	@echo "Checking copyright year in new files..."
-	@current_year=$$(date +%Y); \
-	  bad_files=""; \
-	  for f in $$(git diff --name-only --diff-filter=A $(BASE_BRANCH)..HEAD); do \
-	    if grep -q "# Copyright 20[0-9][0-9] Iguazio" "$$f" 2>/dev/null; then \
-	      if ! grep -q "# Copyright $$current_year Iguazio" "$$f" 2>/dev/null; then \
-	        bad_files="$$bad_files $$f"; \
-	      fi; \
-	    fi; \
-	  done; \
-	  if [ -n "$$bad_files" ]; then \
-	    echo "Wrong copyright year in new files (expected $$current_year):"; \
-	    for f in $$bad_files; do echo "  $$f"; done; \
-	    echo "Update the copyright year to $$current_year in the listed files, commit, and push. If the files are not yet committed, 'make fmt' fixes it automatically."; \
-	    exit 1; \
-	  fi
-	@echo "Copyright year check passed."
+	@bash automation/scripts/copyright_year.sh check-ci $(BASE_BRANCH)
 
 .PHONY: lint-check
 lint-check: ## Check the code (using ruff)

@@ -364,12 +364,23 @@ def test_restricted_methods_in_wrong_mode(monkeypatch, method_name):
     )
 
 
+DEFAULTS = {
+    "job": "mlrun/mlrun",
+    "serving": "mlrun/mlrun",
+    "nuclio": "mlrun/mlrun",
+}
+
+
 @pytest.mark.parametrize(
-    "server_image_by_kind,expected_image_by_kind",
+    "client_image_by_kind,server_image_by_kind,expected_image_by_kind",
     [
         # Server provides custom images for a subset of kinds
         (
-            {"job": "custom/job-image", "serving": "custom/serving-image"},
+            DEFAULTS,
+            {
+                "job": "custom/job-image",
+                "serving": "custom/serving-image",
+            },
             {
                 "job": "custom/job-image",
                 "serving": "custom/serving-image",
@@ -378,6 +389,7 @@ def test_restricted_methods_in_wrong_mode(monkeypatch, method_name):
         ),
         # Server provides custom images for all kinds
         (
+            DEFAULTS,
             {
                 "job": "custom/job-image",
                 "serving": "custom/serving-image",
@@ -387,25 +399,37 @@ def test_restricted_methods_in_wrong_mode(monkeypatch, method_name):
                 "job": "custom/job-image",
                 "serving": "custom/serving-image",
                 "nuclio": "custom/nuclio-image",
+            },
+        ),
+        # User has an override and server provides another override
+        (
+            {
+                "job": "custom/job-image",
+                "serving": "mlrun/mlrun",
+                "nuclio": "mlrun/mlrun",
+            },
+            {
+                "serving": "custom/serving-image",
+            },
+            {
+                "job": "custom/job-image",
+                "serving": "custom/serving-image",
+                "nuclio": "mlrun/mlrun",
             },
         ),
         # Server does not override (returns None)
-        (
-            None,
-            {"job": "mlrun/mlrun", "serving": "mlrun/mlrun", "nuclio": "mlrun/mlrun"},
-        ),
+        (DEFAULTS, None, DEFAULTS),
+        # Server provides a kind not in the whitelist (dropped)
+        (DEFAULTS, {"foo": "foo"}, DEFAULTS),
     ],
 )
 def test_client_spec_default_runtime_image_by_kind_enrichment(
     requests_mock,
+    client_image_by_kind,
     server_image_by_kind,
     expected_image_by_kind,
 ):
-    mlrun.mlconf.function_defaults.image_by_kind = {
-        "job": "mlrun/mlrun",
-        "serving": "mlrun/mlrun",
-        "nuclio": "mlrun/mlrun",
-    }
+    mlrun.mlconf.function_defaults.image_by_kind = client_image_by_kind.copy()
 
     requests_mock.get(
         "https://fake-url/api/v1/client-spec",

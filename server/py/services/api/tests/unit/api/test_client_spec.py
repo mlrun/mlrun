@@ -326,23 +326,23 @@ def test_client_spec_includes_default_runtime_image_by_kind_when_configured(
     assert response.status_code == http.HTTPStatus.OK.value
     response_body = response.json()
 
-    # Should include the custom values
-    assert response_body["default_runtime_image_by_kind"] is not None
-    assert response_body["default_runtime_image_by_kind"]["job"] == custom_job_image
-    assert (
-        response_body["default_runtime_image_by_kind"]["serving"]
-        == custom_serving_image
-    )
-    assert response_body["default_runtime_image_by_kind"]["nuclio"] == "mlrun/mlrun"
+    # Should include the custom values but not the default
+    assert response_body["default_runtime_image_by_kind"] == {
+        "job": custom_job_image,
+        "serving": custom_serving_image,
+    }
 
 
 def test_client_spec_excludes_default_runtime_image_by_kind_when_default(
     db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
 ) -> None:
-    # Set image_by_kind to default values
-    mlrun.mlconf.function_defaults.image_by_kind = mlrun.config.default_config[
-        "function_defaults"
-    ]["image_by_kind"]
+    # Set only defaults
+    mlrun.mlconf.function_defaults.image_by_kind = {
+        "job": "mlrun/mlrun",
+        "serving": "mlrun/mlrun",
+        "nuclio": "mlrun/mlrun",
+    }
+
     services.api.api.endpoints.client_spec.get_cached_client_spec.cache_clear()
 
     response = client.get("client-spec")

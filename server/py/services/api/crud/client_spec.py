@@ -142,7 +142,7 @@ class ClientSpec(
             oauth_internal_token_endpoint=oauth_internal_token_endpoint,
             oauth_external_token_endpoint=oauth_external_token_endpoint,
             default_runtime_image_by_kind=self._get_config_value_if_not_default(
-                "function_defaults.image_by_kind"
+                "function_defaults.image_by_kind", delta=True
             ),
         )
 
@@ -170,7 +170,7 @@ class ClientSpec(
             return mlrun.utils.helpers.enrich_image_url(image)
 
     @staticmethod
-    def _get_config_value_if_not_default(config_key):
+    def _get_config_value_if_not_default(config_key, delta=False):
         config_key_parts = config_key.split(".")
         current_config_value = config
         current_default_config_value = default_config
@@ -182,7 +182,27 @@ class ClientSpec(
         # when accessing attribute in Config, if the object is of type Mapping it returns the object in type Config
         if isinstance(current_config_value, Config):
             current_config_value = current_config_value.to_dict()
-        if current_config_value == current_default_config_value:
+
+        if delta:
+            if not isinstance(current_config_value, dict) or not isinstance(
+                current_default_config_value, dict
+            ):
+                raise TypeError(
+                    "delta can only be computed if both the current and default values are dictionaries"
+                )
+
+            # Convert current value to a subset of the dict that differs from the default dict
+            current_config_value = {
+                key: value
+                for key, value in current_config_value.items()
+                if key not in current_default_config_value
+                or value != current_default_config_value[key]
+            }
+
+            return current_config_value or None
+
+        elif current_config_value == current_default_config_value:
             return None
+
         else:
             return current_config_value

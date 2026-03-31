@@ -910,6 +910,50 @@ async def test_list_project_summaries_filters_by_project_permissions(
     assert forbidden_project not in returned_names
 
 
+@pytest.mark.asyncio
+async def test_list_project_summaries_returns_empty_when_no_permissions(
+    db: Session, client: TestClient, project_member_mode: str
+) -> None:
+    """Verify that project-summaries returns no projects when the user has no
+    permissions at all (empty allowed list from OPA), rather than leaking all
+    projects due to `if names:` treating [] as falsy."""
+    _create_project(client, "project-a")
+    _create_project(client, "project-b")
+
+    services.api.crud.Pipelines().list_pipelines = unittest.mock.Mock(
+        return_value=(0, None, [])
+    )
+
+    # mock alert activations logic as it requires MySQL-specific logic not supported by SQLite.
+    framework.utils.singletons.db.SQLDB._calculate_alert_activations_counters = (
+        unittest.mock.Mock(
+            return_value=(
+                {},
+                {},
+                {},
+                {},
+            )
+        )
+    )
+
+    await services.api.crud.Projects().refresh_project_resources_counters_cache(db)
+
+    # Mock filter_projects_by_permissions to return an empty list,
+    # simulating a user with zero project access.
+    framework.utils.auth.verifier.AuthVerifier().filter_projects_by_permissions = (
+        unittest.mock.AsyncMock(return_value=[])
+    )
+
+    response = client.get("project-summaries")
+    assert response.status_code == HTTPStatus.OK.value
+    project_summaries_output = mlrun.common.schemas.ProjectSummariesOutput(
+        **response.json()
+    )
+    assert project_summaries_output.project_summaries == [], (
+        "Expected no project summaries when user has no permissions, but got some"
+    )
+
+
 def test_delete_project_deletion_strategy_check(
     db: Session,
     client: TestClient,

@@ -359,7 +359,7 @@ class _APIHandlerStep(mlrun.serving.states.TaskStep):
                     body = event.body if hasattr(event, "body") else event
                     if isinstance(body, dict):
                         try:
-                            body_params = dict(self._apply_parsed_body_map(body))
+                            body_params = self._apply_parsed_body_map(body)
                             mlrun.utils.logger.debug(
                                 "Applied body_map transformation",
                                 body_map=self.config.body_map,
@@ -391,7 +391,7 @@ class _APIHandlerStep(mlrun.serving.states.TaskStep):
                         query_params=query_params,
                         url_params=url_params,
                     )
-                    original_body = event.body if hasattr(event, "body") else event
+                    original_body = event.body if hasattr(event, "body") else None
                     event_body = _RequestContext(
                         original_body=original_body,
                         body_params=body_params,
@@ -400,10 +400,7 @@ class _APIHandlerStep(mlrun.serving.states.TaskStep):
                         url_params=url_params,
                     )
 
-                    if hasattr(event, "body"):
-                        event.body = event_body
-                    else:
-                        event = event_body
+                    event.body = event_body
 
                 # Pass the event to the next step in the graph
                 return event

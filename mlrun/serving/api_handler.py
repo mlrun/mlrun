@@ -392,15 +392,13 @@ class _APIHandlerStep(mlrun.serving.states.TaskStep):
                         url_params=url_params,
                     )
                     original_body = event.body if hasattr(event, "body") else None
-                    event_body = _RequestContext(
+                    event.body = _RequestContext(
                         original_body=original_body,
                         body_params=body_params,
                         path_params=path_params,
                         query_params=query_params,
                         url_params=url_params,
                     )
-
-                    event.body = event_body
 
                 # Pass the event to the next step in the graph
                 return event

@@ -27,8 +27,8 @@ if [[ "$1" != "fix" && "$1" != "check" && "$1" != "check-ci" ]]; then
 fi
 
 current_year=$(date +%Y)
-readonly COPYRIGHT_RE_OLD='# Copyright 20[0-9][0-9] Iguazio'
-readonly COPYRIGHT_LINE_CURRENT="# Copyright $current_year Iguazio"
+readonly COPYRIGHT_RE_OLD='Copyright 20[0-9][0-9] Iguazio'
+readonly COPYRIGHT_LINE_CURRENT="Copyright $current_year Iguazio"
 
 list_untracked_iguazio_copyright_paths() {
     local untracked

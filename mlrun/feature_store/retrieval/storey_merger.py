@@ -168,6 +168,7 @@ class StoreyFeatureMerger(BaseMerger):
             entity_keys,
             impute_policy=self.impute_policy,
             requested_columns=requested_columns,
+            resource_cache=cache,
         )
         service.initialize()
 

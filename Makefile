@@ -851,7 +851,13 @@ fmt: ## Format the code using Ruff and blacken-docs
 	git ls-files -z -- '*.md' | xargs -0 blacken-docs -t="$(MLRUN_LINT_PYTHON_VERSION)"
 	@echo "Fixing copyright year in new files..."
 	@current_year=$$(date +%Y) && \
-	  git ls-files --others --exclude-standard | xargs perl -pi -e "s/# Copyright 20[0-9][0-9] Iguazio/# Copyright $$current_year Iguazio/g" 2>/dev/null || true
+	  untracked=$$(git ls-files --others --exclude-standard); \
+	  files=$$([ -z "$$untracked" ] || echo "$$untracked" | xargs grep -l "# Copyright 20[0-9][0-9] Iguazio" 2>/dev/null); \
+	  if [ -n "$$files" ]; then \
+	    echo "$$files" | xargs python -c \
+	      "import sys,re,fileinput; year=sys.argv.pop(1); [print(re.sub('# Copyright 20[0-9][0-9] Iguazio','# Copyright '+year+' Iguazio',line),end='') for line in fileinput.input(inplace=True)]" \
+	      "$$current_year"; \
+	  fi
 
 .PHONY: lint-docs
 lint-docs: ## Format the code blocks in markdown files
@@ -873,7 +879,9 @@ lint: lint-check lint-imports lint-copyright ## Run lint on the code
 lint-copyright: ## Check copyright year in new (untracked) files
 	@echo "Checking copyright year in new files..."
 	@current_year=$$(date +%Y); \
-	  bad_files=$$(git ls-files --others --exclude-standard | xargs -r grep -l "# Copyright 20[0-9][0-9] Iguazio" 2>/dev/null | xargs -r grep -L "# Copyright $$current_year Iguazio" 2>/dev/null); \
+	  untracked=$$(git ls-files --others --exclude-standard); \
+	  copyright_files=$$([ -z "$$untracked" ] || echo "$$untracked" | xargs grep -l "# Copyright 20[0-9][0-9] Iguazio" 2>/dev/null); \
+	  bad_files=$$([ -z "$$copyright_files" ] || echo "$$copyright_files" | xargs grep -L "# Copyright $$current_year Iguazio" 2>/dev/null); \
 	  if [ -n "$$bad_files" ]; then \
 	    echo "Wrong copyright year in new files (expected $$current_year):"; \
 	    echo "$$bad_files"; \

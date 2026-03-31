@@ -386,6 +386,7 @@ async def list_projects(
             projects_output.projects,
             auth_info,
         )
+    # Short-circuit when the user has no project permissions (OPA returned an empty allowed list).
     if allowed_project_names is not None and not allowed_project_names:
         return mlrun.common.schemas.ProjectsOutput(projects=[])
     return await run_in_threadpool(
@@ -433,6 +434,7 @@ async def list_project_summaries(
             allowed_project_names,
             auth_info,
         )
+    # Short-circuit when the user has no project permissions (OPA returned an empty allowed list).
     if allowed_project_names is not None and not allowed_project_names:
         return mlrun.common.schemas.ProjectSummariesOutput(project_summaries=[])
     return await get_project_member().list_project_summaries(

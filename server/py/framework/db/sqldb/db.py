@@ -3568,6 +3568,8 @@ class SQLDB(DBInterface):
             project_query = self._add_labels_filter(
                 session, project_query, Project, labels
             )
+        # Use `is not None` to distinguish between "no filter" (None) and
+        # "empty allowed list" ([]) from OPA when the user has no permissions.
         if names is not None:
             project_query = project_query.filter(Project.name.in_(names))
 

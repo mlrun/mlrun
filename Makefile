@@ -657,6 +657,8 @@ test: clean ## Run mlrun tests
 	COVERAGE_FILE=$(COVERAGE_FILE) && \
 	COVERAGE_FILE=$${COVERAGE_FILE:-"tests/coverage_reports/unit_tests.coverage"} && \
 	$(SETUP_COVERAGE) && \
+	PYTEST_START=$$(date +%s) && \
+	echo "=== [TIMING] pytest start: $$(date -Iseconds) ===" && \
 	python \
 		-X faulthandler \
 		$(COVERAGE_ADDITION) \
@@ -670,6 +672,8 @@ test: clean ## Run mlrun tests
 		--forked \
 		-rf \
 		$$UNIT_TESTS_PATH && \
+	PYTEST_END=$$(date +%s) && \
+	echo "=== [TIMING] pytest end: $$(date -Iseconds) — pytest took $$((PYTEST_END - PYTEST_START))s ===" && \
 	$(PRINT_COVERAGE_REPORT) ;
 
 

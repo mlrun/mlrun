@@ -1,7 +1,6 @@
 {
   "1.11.0": {
     "demos": [
-        "demo-fraud",
         "demo-monitoring-and-feedback-loop",
         "demo-call-center",
         "demo-banking-agent"
@@ -50,7 +49,6 @@
   },
   "development": {
     "demos": [
-        "demo-fraud",
         "demo-monitoring-and-feedback-loop",
         "demo-call-center",
         "demo-banking-agent"

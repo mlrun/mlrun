@@ -431,9 +431,8 @@ registering the packager in your project.
 
 ```{note}
 When running remotely, set the project source with `pull_at_runtime=True`
-so the packager module can be imported on the remote worker:
-
-    project.set_source(source="./", pull_at_runtime=True)
+so the packager module can be imported on the remote worker.
+See [Setting a project source, either remote or archive](../../projects/automate-project-git-source.ipynb#setting-a-project-source-either-remote-or-archive). The git repo or the archive file needs to include the custom packager files.
 
 The custom packager needs to be available during runtime. See how to do that
 in {ref}`Make the packager importable on the remote worker <make-the-packager-importable-on-the-remote-worker>`.

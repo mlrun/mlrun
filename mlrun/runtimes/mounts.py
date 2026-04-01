@@ -371,6 +371,8 @@ def auto_mount(
     - k8s PVC volume when both pvc_name and volume_mount_path are set
     - k8s PVC volume when env var is set: MLRUN_PVC_MOUNT=<pvc-name>:<mount-path>
     - k8s PVC volume if it's configured as the auto mount type
+    - S3 credentials when configured as the auto mount type
+    - Secret-based env vars when configured as the auto mount type
     - iguazio v3io volume when V3IO_ACCESS_KEY and V3IO_USERNAME env vars are set
 
     """
@@ -380,14 +382,25 @@ def auto_mount(
             volume_mount_path=volume_mount_path,
             volume_name=volume_name or "shared-persistency",
         )
+    # When auto_mount_type is explicitly configured (not the default "auto"),
+    # honour it regardless of env variables like MLRUN_PVC_MOUNT.  This ensures
+    # that an admin-configured S3 or secret_env mount type takes precedence over
+    # a PVC env var that may be set on the client machine (e.g., external Jupyter).
+    # Lazy import to avoid circular dependency (pod.py imports mounts.py at module level).
+    from mlrun.runtimes.pod import AutoMountType, _filter_modifier_params
+
+    auto_mount_type = AutoMountType(config.storage.auto_mount_type)
+    if auto_mount_type != AutoMountType.auto:
+        modifier = auto_mount_type.get_modifier()
+        if modifier:
+            params = _filter_modifier_params(
+                modifier, config.get_storage_auto_mount_params()
+            )
+            return modifier(**params)
     if "MLRUN_PVC_MOUNT" in os.environ:
         return mount_pvc(
             volume_name=volume_name or "shared-persistency",
         )
-    # In the case of CE when working remotely, no env variables will be defined but auto-mount
-    # parameters may still be declared - use them in that case.
-    if config.storage.auto_mount_type == "pvc":
-        return mount_pvc(**config.get_storage_auto_mount_params())
     if "V3IO_ACCESS_KEY" in os.environ:
         return mount_v3io(name=volume_name or "v3io")
 

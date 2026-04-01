@@ -334,9 +334,9 @@ The MLRun CE (Community Edition) includes the following services:
    ```
    my_func.spec.spark_conf['spark.hadoop.fs.s3a.aws.credentials.provider'] = 'com.amazonaws.auth.WebIdentityTokenCredentialsProvider'
    ```
-2. To configure Spark to work with Minio:
+2. To configure Spark to work with SeaweedFS:
    ```
-   func.spec.spark_conf["spark.hadoop.fs.s3a.endpoint"] = 'http://minio.mlrun.svc.cluster.local:9000' 
+   func.spec.spark_conf["spark.hadoop.fs.s3a.endpoint"] = 'http://seaweedfs-s3.<"namespace-name">.svc.cluster.local:8333' 
    func.spec.spark_conf['spark.hadoop.fs.s3a.path.style.access'] = 'true'
    ```
 

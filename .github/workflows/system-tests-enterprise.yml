@@ -92,6 +92,16 @@ jobs:
           automation/system_test/cleanup.py \
           ${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_SSH_USERNAME }}@${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_IP }}:/home/iguazio/cleanup.py
 
+        # cleanup.py needs aiohttp and click
+        sshpass \
+          -p "${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_SSH_PASSWORD }}" \
+          ssh \
+          -o StrictHostKeyChecking=no \
+          -o ServerAliveInterval=180 \
+          -o ServerAliveCountMax=3 \
+          ${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_SSH_USERNAME }}@${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_IP }} \
+          /bin/python3 -m pip install --user -q aiohttp click
+
         sshpass \
           -p "${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_SSH_PASSWORD }}" \
           ssh \
@@ -135,7 +145,7 @@ jobs:
         output-credentials: true
 
     - name: Install uv
-      uses: astral-sh/setup-uv@e06108dd0aef18192324c70427afc47652e63a82 # 7.5.0
+      uses: astral-sh/setup-uv@cec208311dfd045dd5311c1add060b2062131d57 # 8.0.0
       with:
         enable-cache: true
         python-version: 3.11
@@ -406,7 +416,7 @@ jobs:
         ref: ${{ needs.prepare-system-tests-enterprise-ci.outputs.mlrunBranch }}
 
     - name: Install uv
-      uses: astral-sh/setup-uv@e06108dd0aef18192324c70427afc47652e63a82 # 7.5.0
+      uses: astral-sh/setup-uv@cec208311dfd045dd5311c1add060b2062131d57 # 8.0.0
       with:
         enable-cache: true
         python-version: 3.11

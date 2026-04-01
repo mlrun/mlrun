@@ -1,4 +1,4 @@
-# Copyright 2023 Iguazio
+# Copyright 2026 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,19 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import typing
+import pytest
 
-import pydantic.v1
-
-
-class PipelinesPagination(str):
-    default_page_size = 200
-    # https://github.com/kubeflow/pipelines/blob/release-2.16/backend/src/apiserver/list/list.go#L385
-    max_page_size = 200
+import services.alerts.crud
 
 
-class PipelinesOutput(pydantic.v1.BaseModel):
-    # use the format query param to control what is returned
-    runs: list[typing.Union[dict, str]]
-    total_size: int
-    next_page_token: str | None
+@pytest.fixture
+def reset_alert_caches():
+    yield
+    if services.alerts.crud.Alerts()._alert_cache:
+        services.alerts.crud.Alerts()._alert_cache.cache_clear()
+    if services.alerts.crud.Alerts()._alert_state_cache:
+        services.alerts.crud.Alerts()._alert_state_cache.cache_clear()

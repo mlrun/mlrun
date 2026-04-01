@@ -144,7 +144,7 @@ default_config = {
         },
         "projects": {
             "summaries": {
-                "cache_interval": "30",
+                "cache_interval": "60",
             },
         },
     },
@@ -542,7 +542,7 @@ default_config = {
             "nuclio_project_deletion_verification_interval": "5 seconds",
             "summaries": {
                 # Number of days back to include when calculating the project pipeline summary.
-                "list_pipelines_time_period_in_days": 7,
+                "list_pipelines_time_period_in_days": 2,
             },
             "resource_deletion_batch_size": 10000,
         },
@@ -626,6 +626,7 @@ default_config = {
                 "num_workers": 2,
                 "min_replicas": 1,
                 "max_replicas": 4,
+                "target_cpu": "400m",
             },
         },
         "application_stream_args": {
@@ -916,6 +917,8 @@ default_config = {
         "max_allowed_cache_size": 20000,
         # default limit for listing alert configs
         "default_list_alert_configs_limit": 2000,
+        # interval between periodic scans for alerts whose cooldown period has expired
+        "cooldown_reset_interval": 15,  # seconds
     },
     "auth_with_client_id": {
         "enabled": False,

@@ -664,6 +664,8 @@ test: clean ## Run mlrun tests
 	COVERAGE_FILE=$(COVERAGE_FILE) && \
 	COVERAGE_FILE=$${COVERAGE_FILE:-"tests/coverage_reports/unit_tests.coverage"} && \
 	$(SETUP_COVERAGE) && \
+	PYTEST_START=$$(date +%s) && \
+	echo "=== [TIMING] pytest start: $$(date -Iseconds) ===" && \
 	COVERAGE_FILE=$$COVERAGE_FILE \
 	python \
 		-X faulthandler \
@@ -678,7 +680,14 @@ test: clean ## Run mlrun tests
 		--forked \
 		-rf \
 		$$UNIT_TESTS_PATH && \
+	PYTEST_END=$$(date +%s) && \
+	echo "=== [TIMING] pytest end: $$(date -Iseconds) — pytest took $$((PYTEST_END - PYTEST_START))s ===" && \
+	COMBINE_START=$$(date +%s) && \
+	echo "=== [TIMING] coverage combine start: $$(date -Iseconds) ===" && \
+	echo "=== [TIMING] coverage files to combine: $$(ls -1 $${COVERAGE_FILE}.* 2>/dev/null | wc -l) ===" && \
 	$(COMBINE_COVERAGE) && \
+	COMBINE_END=$$(date +%s) && \
+	echo "=== [TIMING] coverage combine end: $$(date -Iseconds) — combine took $$((COMBINE_END - COMBINE_START))s ===" && \
 	$(PRINT_COVERAGE_REPORT) ;
 
 .PHONY: test-integration-dockerized

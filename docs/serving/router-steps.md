@@ -16,7 +16,7 @@ This icon in the UI indicates router steps: <img src="../_static/images/steps-ro
 ```{admonition} Note
 The `*` prefix indicates a router class (not a simple processing step).
 ```
-### Examokes
+### Examples
 - {ref}`graph-example`
 - - {ref}`working-with-rag`
 

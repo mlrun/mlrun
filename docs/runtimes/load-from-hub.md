@@ -139,7 +139,7 @@ There are two ways to import a step from the hub:
 
 **Use the step as defined in the hub**
 - Add the step to the graph with the hub path, for example:<br>
-   `graph.to("hub://my_cool_step", name="my_hub_step", ..)`
+   `graph.add_step(class_name="hub://my_step", name="my_hub_step", ..)`
 
 **Import a step and modify it before using it**
 1. Import the step. The `steps` directory must be part of the user source archive. <br>

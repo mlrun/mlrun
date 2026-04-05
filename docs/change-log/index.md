@@ -51,7 +51,7 @@ See a full description of KFP, Python, and the workflow engines in {ref}`local-r
 ### Model monitoring
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
-|ML-9954|You can now generate an alert when lags in ingress stream processing are detected in model monitoring writer/application pods. Lags usually indicate perfoemance issues. See [Lag detection alerts](../model-monitoring/running-applications.md#lag-detection-alerts).|
+|ML-9954|You can now generate an alert when lags in stream processing are detected in model monitoring writer/application pods. Lags usually indicate perfoemance issues. See [Lag detection alerts](../model-monitoring/running-applications.md#lag-detection-alerts).|
 |ML-10919|Model monitoring supports TimescaleDB PostgreSQL with TimescaleDB extension as a TSDB platform. See [Configuring data store profiles](../install-mlrun-ce/mlrun-ce-development-notes.md#configuring-data-store-profiles) and {py:meth}`~mlrun.projects.MlrunProject.set_model_monitoring_credentials`.|
 |ML-10331|The writer pod performance is increased by utilizing async processing.|
 
@@ -65,6 +65,7 @@ See a full description of KFP, Python, and the workflow engines in {ref}`local-r
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
 |ML-3474|MLRun now suports packagers for moving data in and out of MLRun functions by using standard Python functions with type hints and returning values. See [Packagers](/concepts/packagers/index.md).|
+|ML-11892|You can now get a dict of artifacts as an input.|
 |ML-11894|The user flow for changing default attributes for packagers artifacts is improved. See {py:class}`~mlrun.package.log_hint.LogHint`.|
 
 ### Artifacts

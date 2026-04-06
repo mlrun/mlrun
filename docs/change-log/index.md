@@ -108,10 +108,10 @@ See a full description of KFP, Python, and the workflow engines in {ref}`local-r
 |ML-11780|Fixed the error in [Model monitoring tutorial](../tutorials/05-model-monitoring.ipynb) that resulted in failure of `enable_model_monitoring`.|
 ML-11820|Improved the time to access the monitoring page (V3IO).|
 |ML-11969|Fixed description of alert auto reset that alerts are reset immediately. See [Alert reset policy](../concepts/alerts.md#alert-reset-policy).|
-ML-11985|Improved the error message when a step of any kind is created with `after=<something other than a list>`.|
+|ML-11985|Improved the error message when a step of any kind is created with `after=<something other than a list>`.|
 |ML-12311|Resolved issue of failure to return project workflows by changing the defaults: counter refresh time is 1 mninute (was 30 seconds); and "in progress workflow counters" count only the last 2 days.|
 |ML-12328|Fixed KFP experiments pagination.|
-
+|ML-12372|????in or not
 
 
 
@@ -209,7 +209,7 @@ TDEngine will be replaced with TimescaleDB. Model monitoring data in TDEngine wi
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
 | NA |The default `--allow-cross-project` CLI flag in `run`, `build`, `deploy`, and `project` CLI commands will change to `False` in v1.11.0.|
-|ML-11530|Use of underscore '_' in function names will be deprecated in v1.11.0. Use dashes '-' instead.|
+|ML-11414|Use of underscore '_' in function names will be deprecated in an upcoming release. Use dashes '-' instead.|
 
 
 ### Documentation
@@ -1537,11 +1537,9 @@ with a drill-down to view the steps and their details. [Tech Preview]
 |ML-8796|The application runtime has two containers: the nuclio container uses the default resources and the sidecar container uses the function resources. | NA   |v1.7.1|
 |ML-8874|Documents that are added to different vectorstores with the same collection name cannot be differentiated.|Avoid using same collection name over different vectorstores.|v1.8.0|
 |ML-9336|Attempts to delete more than 200 artifacts fail, and you are prompted to use a more granular filter.|Configure the limit with `mlrun.mlconf.artifacts.limits.max_deletions`.|v1.8.0|
-|ML-9338|If the same project+key were created from both a hyper-param run and single run, and you removed the latest tag from everything, MLRun assigns latest to either the hyper-param items or the single run item, depending on which item comes up first when iterating over the results: it might not be the actual latest.|NA|v1.8.0|
 |ML-9913|UI: There may be a discrepancy in the artifact count between the Project monitoring page and the Artifacts page when running hyper-param jobs without a best-iteration. |Always provide a selection criteria for `best-iteration`.|v1.8.0|
 |ML-11463|The application graph in the model monitoring UI does not present the “dead zones” where no activity happened, and the time axis representation is not consistent.|NA|v1.10.0|
 |ML-11654|MLRun serving graphs with HTTP trigger and no responder. When a serving function is configured with an HTTP trigger only and the graph does not include any `.respond()` step, the function does not return the actual result or error of the graph execution. Instead, it only returns a generic invocation ID (for example, {"id": "<uuid>"}), even if an exception occurred inside the graph.|Add a `.respond()` step.|v1.10.0|
-|ML-11771|In rare circumstances, access to projects is temporarily unavailable.|Restart MLRun.|V1.9.2|
 |ML-11468|A rare race-condition exists in the pagination mechanism, where concurrently issuing two paginated query requests for the same resource and with the exact same parameters (for example, asking to list functions for the same project with same filters and order type) at the exact same time may result in one of these requests receiving an MLRunConflictError response.|Reissue the same request. |v1.10.1|
 
 
@@ -1561,7 +1559,6 @@ with a drill-down to view the steps and their details. [Tech Preview]
 |ML-5669|When using `mlrun.mlrun` image, use PyTorch versions up to and including than 2.0.1, but not higher. See [MLRun runtime images](../runtimes/images.md#mlrun-runtime-images) | You can build your own images with newer CUDA for a later release of PyTorch. |v1.6.0|  
 |ML-5732|When using an MLRun client previous to v1.6.0, the workflow step status might show completed when it is actually aborted. | Abort the job from the SDK instead of from the UI, or upgrade the client to v1.6.0 or higher. | v1.6.0 |
 |ML-8174|A loaded system takes a few minutes (±5) to calculate the statistics in the Projects Monitoring pane.|NA| v1.7.0|
-|ML-8601|Default spot labels node selector is removed. || v1.7.0|
 |ML-8699|After upgrade/restart there may be some lost notifications due to restart of the chief.|NA| v1.8.0|
 |ML-8996|Occasionally, deleting projects fails with 'Fail to delete project in MLRun' | Try deleting the project again.| v1.8.0|
 |ML-9235|After migrating from v1.7.x to v1.8.x, there are two artifacts with the same key that are tagged `latest`. When using such an artifact in the job by `key:tag` the job will fail with the error `multiple rows were found`.| NA|v1.8.0|

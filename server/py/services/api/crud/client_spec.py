@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import os
+from typing import Any
 
 import mlrun.common.schemas
 import mlrun.utils.singleton
@@ -141,8 +142,8 @@ class ClientSpec(
             ),
             oauth_internal_token_endpoint=oauth_internal_token_endpoint,
             oauth_external_token_endpoint=oauth_external_token_endpoint,
-            default_runtime_image_by_kind=self._get_config_value_if_not_default(
-                "function_defaults.image_by_kind", delta=True
+            default_runtime_image_by_kind=self._get_config_value_diff_from_default(
+                "function_defaults.image_by_kind"
             ),
         )
 
@@ -170,39 +171,48 @@ class ClientSpec(
             return mlrun.utils.helpers.enrich_image_url(image)
 
     @staticmethod
-    def _get_config_value_if_not_default(config_key, delta=False):
+    def _get_config_value_current_and_default(config_key: str) -> tuple[Any, Any]:
         config_key_parts = config_key.split(".")
+
         current_config_value = config
-        current_default_config_value = default_config
+        default_config_value = default_config
+
         for config_key_part in config_key_parts:
             current_config_value = getattr(current_config_value, config_key_part)
-            current_default_config_value = current_default_config_value.get(
-                config_key_part, ""
-            )
+            default_config_value = default_config_value.get(config_key_part, "")
+
         # when accessing attribute in Config, if the object is of type Mapping it returns the object in type Config
         if isinstance(current_config_value, Config):
             current_config_value = current_config_value.to_dict()
 
-        if delta:
-            if not isinstance(current_config_value, dict) or not isinstance(
-                current_default_config_value, dict
-            ):
-                raise TypeError(
-                    "delta can only be computed if both the current and default values are dictionaries"
-                )
+        return current_config_value, default_config_value
 
-            # Convert current value to a subset of the dict that differs from the default dict
-            current_config_value = {
-                key: value
-                for key, value in current_config_value.items()
-                if key not in current_default_config_value
-                or value != current_default_config_value[key]
-            }
+    @staticmethod
+    def _get_config_value_if_not_default(config_key: str) -> Any:
+        current_config_value, default_config_value = (
+            ClientSpec._get_config_value_current_and_default(config_key)
+        )
 
-            return current_config_value or None
-
-        elif current_config_value == current_default_config_value:
+        if current_config_value == default_config_value:
             return None
-
         else:
             return current_config_value
+
+    @staticmethod
+    def _get_config_value_diff_from_default(config_key: str) -> dict[Any, Any] | None:
+        current_config_value, default_config_value = (
+            ClientSpec._get_config_value_current_and_default(config_key)
+        )
+
+        if not isinstance(current_config_value, dict) or not isinstance(
+            default_config_value, dict
+        ):
+            raise TypeError("can only compute diff between two dictionaries")
+
+        changes = {
+            key: value
+            for key, value in current_config_value.items()
+            if key not in default_config_value or value != default_config_value[key]
+        }
+
+        return changes or None

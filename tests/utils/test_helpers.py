@@ -59,7 +59,7 @@ from mlrun.utils.helpers import (
     validate_tag_name,
     validate_v3io_stream_consumer_group,
     verify_field_regex,
-    verify_list_items_type,
+    verify_list_items_type, helper_dummy,
 )
 
 STORE_PREFIX = "store://{kind}/dummy-project/dummy-db-key"
@@ -2169,6 +2169,9 @@ def test_set_auth_user_id_works_with_run_spec():
     spec = mlrun.model.RunSpec()
     set_auth_user_id(spec, "user-123")
     assert spec.auth["user_id"] == "user-123"
+
+def test_helper_dummy():
+    assert helper_dummy() == 1
 
 class TestDummy:
     def test_dummy(self):

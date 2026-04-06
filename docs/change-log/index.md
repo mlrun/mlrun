@@ -25,7 +25,7 @@ Upgrading these three MLRun dependencies spans several releases.  The upgrades a
 
 See a full description of KFP, Python, and the workflow engines in {ref}`local-remote`. Specific changes are listed under the relevant versions.
 (v1110)=
-## v1.11.0 (March 2025)
+## v1.11.0 (March 2026)
 
 ### Runtimes
 | ID    |Description                                                                 |
@@ -59,6 +59,7 @@ See a full description of KFP, Python, and the workflow engines in {ref}`local-r
 ### UI
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
+|ML-1811|The realtime pipelines page now displays: a table of serving graphs with a few parameters that can be filtered; the toal number of graphs/pipelines, the main function status, and the total number of endpoints; icons and details of the graph steps according to the step category; a model endpoints tab.|
 |ML-11445| In the **Model endpoints > Metrics** tab, you can now select aggregation functions, which appear as multiple lines in the values graphs. Also, you can select a period of time greater than 1 month. See [Model endpoints metrics](../model-monitoring/monitoring-models.ipynb#model-endpoints-metrics). Supported for TimescaleDB (PostgreSQL).|
 
 ## Packagers

@@ -17,9 +17,7 @@ import base64
 import time
 import typing
 from collections import OrderedDict
-from dataclasses import dataclass
 from functools import partial
-from heapq import heapify, heappop, heappush
 
 import fastapi
 import jwt
@@ -40,19 +38,8 @@ TOKEN_CACHE_MAX_SIZE = 128
 TOKEN_CACHE_MAX_TTL = 30  # seconds
 
 
-@dataclass(frozen=True)
-class TokenExpiryEntry:
-    token: str
-    task: asyncio.Task[schemas.AuthInfo]
-    expires_at: float
-
-    def __lt__(self, other: "TokenExpiryEntry") -> bool:
-        return self.expires_at < other.expires_at
-
-
 class AuthVerifier(metaclass=mlrun.utils.singleton.Singleton):
-    _token_cache: OrderedDict[str, asyncio.Task[schemas.AuthInfo]]
-    _token_expiry_heap: list[TokenExpiryEntry]
+    _token_cache: OrderedDict[str, tuple[asyncio.Task[schemas.AuthInfo], float]]
 
     def __init__(self) -> None:
         super().__init__()
@@ -70,7 +57,6 @@ class AuthVerifier(metaclass=mlrun.utils.singleton.Singleton):
             raise NotImplementedError("Unsupported authorization mode")
 
         self._token_cache = OrderedDict()
-        self._token_expiry_heap = []
 
     async def filter_project_resources_by_permissions(
         self,
@@ -466,30 +452,38 @@ class AuthVerifier(metaclass=mlrun.utils.singleton.Singleton):
             iguazio_client = framework.utils.clients.iguazio.v4.AsyncClient()
             return await iguazio_client.verify_request_session(request)
 
-        token, expires_at = token_with_expiry
+        token = token_with_expiry[0]
+        task_with_expiry = self._token_cache.get(token)
 
-        self._expire_tokens(curr_time)
-        task = self._token_cache.get(token)
+        if task_with_expiry is None or task_with_expiry[1] <= curr_time:
+            # No task or an expired task means we have to create a new task
+            is_cached = task_with_expiry is not None
 
-        if task is None:
-            # No task means we have to create it and add it to the cache
             iguazio_client = framework.utils.clients.iguazio.v4.AsyncClient()
             task = asyncio.create_task(iguazio_client.verify_request_session(request))
             task.add_done_callback(partial(self._on_verify_complete, token))
 
-            self._token_cache[token] = task
-            if len(self._token_cache) > TOKEN_CACHE_MAX_SIZE:
-                self._token_cache.popitem(last=False)
+            task_expires_at = curr_time + TOKEN_CACHE_MAX_TTL
 
-            expires_at = min(expires_at, curr_time + TOKEN_CACHE_MAX_TTL)
-            heappush(self._token_expiry_heap, TokenExpiryEntry(token, task, expires_at))
+            task_with_expiry = task, task_expires_at
+            self._token_cache[token] = task_with_expiry
         else:
-            # Move to end to mark it as the most recently used
+            # We can reuse the old task
+            is_cached = True
+
+        if is_cached:
+            # If the token was already cached the cache size did not change
+            # We just need to mark the token as the most recently used
             self._token_cache.move_to_end(token)
+
+        elif len(self._token_cache) > TOKEN_CACHE_MAX_SIZE:
+            # If the cache grew beyond the max size with the new item we pop
+            # the least recently used one
+            self._token_cache.popitem(last=False)
 
         # We shield the task since it can be shared between multiple
         # verifications and cancellation could have unexpected side effects
-        return await asyncio.shield(task)
+        return await asyncio.shield(task_with_expiry[0])
 
     @staticmethod
     def _extract_token(request: fastapi.Request) -> tuple[str, float] | None:
@@ -514,42 +508,15 @@ class AuthVerifier(metaclass=mlrun.utils.singleton.Singleton):
 
         return token, expires_at
 
-    def _expire_tokens(self, curr_time: float) -> None:
-        # The heap can have items that have been removed already, to keep this
-        # in bounds with the cache size we clean up the entire heap if it is
-        # more than double the cache size
-        if len(self._token_expiry_heap) > len(self._token_cache) * 2:
-            # In this case we filter the whole list while handling expiry and
-            # heapify it again
-            new_len = 0
-
-            for entry in self._token_expiry_heap:
-                if self._token_cache.get(entry.token) is not entry.task:
-                    pass  # already evicted
-                elif entry.expires_at <= curr_time:
-                    del self._token_cache[entry.token]  # expired
-                else:
-                    self._token_expiry_heap[new_len] = entry
-                    new_len += 1
-
-            del self._token_expiry_heap[new_len:]
-            heapify(self._token_expiry_heap)
-        else:
-            # We pop expired tokens from the heap to evict them from the cache
-            while (
-                self._token_expiry_heap
-                and self._token_expiry_heap[0].expires_at <= curr_time
-            ):
-                entry = heappop(self._token_expiry_heap)
-                if self._token_cache.get(entry.token) is entry.task:
-                    del self._token_cache[entry.token]
-
     def _on_verify_complete(
         self, token: str, task: asyncio.Task[schemas.AuthInfo]
     ) -> None:
         # We evict from the cache on failure to make sure we dont block tokens
         # on things like temporary connectivity issues
         # TODO: should we whitelist certain exceptions to be kept? e.g. invalid token
-        task_failed = task.cancelled() or task.exception() is not None
-        if task_failed and self._token_cache.get(token) is task:
+        if not task.cancelled() and task.exception() is None:
+            return
+
+        task_with_expiry = self._token_cache.get(token)
+        if task_with_expiry is not None and task_with_expiry[0] is task:
             del self._token_cache[token]

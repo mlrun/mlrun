@@ -298,139 +298,61 @@ async def test_concurrent_requests_share_single_backend_call(
     mock_instance.verify_request_session.assert_awaited_once()
 
 
-# --- Heap expiry paths ---
+# --- Stale callback regression ---
 
 
 @pytest.mark.asyncio
-async def test_rebuild_path_expires_valid_token(
+async def test_stale_done_callback_doesnt_evict_refreshed_task(
     verifier: framework.utils.auth.verifier.AuthVerifier,
     mock_client: tuple[unittest.mock.AsyncMock, schemas.AuthInfo],
-    monkeypatch: pytest.MonkeyPatch,
 ):
     """
-    The rebuild path (heap > 2*cache) is triggered through _authenticate_iguazio_v4
-    and correctly expires a token that is still in cache but past its TTL.
+    When a cached task's TTL expires and is lazily replaced by a new task,
+    the old task's done callback must not evict the new task from the cache.
 
-    Setup with max_size=1:
-      t=0: A cached → B cached (evicts A) → A re-cached (evicts B)
-      Result: heap has 3 entries [A_v1, B, A_v2], cache has 1 entry {A: A_v2}
-
-    At t=TTL+1, adding C triggers _expire_tokens with heap=3 > cache=1*2:
-      - A_v1: stale (different task)  → skip
-      - B:    stale (not in cache)    → skip
-      - A_v2: valid but expired       → deleted  ← the branch under test
+    1. Token A is cached (task_v1 starts but does not complete yet).
+    2. At t=TTL+1, token A is requested again; lazy expiry replaces task_v1 with task_v2.
+    3. task_v1 fails; its done callback fires.
+    4. task_v2 must still be in cache.
     """
-    monkeypatch.setattr(framework.utils.auth.verifier, "TOKEN_CACHE_MAX_SIZE", 1)
     client, _ = mock_client
-
     base_time = time.time()
-    token_a = _make_jwt(exp=base_time + 3600)
-    token_b = _make_jwt(exp=base_time + 3601)
-    token_c = _make_jwt(exp=base_time + 3602)
+    token = _make_jwt(exp=base_time + 3600)
 
+    backend_proceed = asyncio.Event()
+    call_count = 0
+
+    async def controlled_verify(_request):
+        nonlocal call_count
+        call_count += 1
+        if call_count == 1:
+            await backend_proceed.wait()
+            raise Exception("old task failed")
+        return schemas.AuthInfo(username="new-user")
+
+    client.verify_request_session.side_effect = controlled_verify
+
+    # Start first request at t=0; task_v1 blocks waiting on backend_proceed
     with unittest.mock.patch("framework.utils.auth.verifier.time") as mock_time:
         mock_time.time.return_value = base_time
-        await verifier._authenticate_iguazio_v4(_make_request(token_a))
-        await verifier._authenticate_iguazio_v4(_make_request(token_b))
-        await verifier._authenticate_iguazio_v4(_make_request(token_a))
+        task_outer = asyncio.create_task(
+            verifier._authenticate_iguazio_v4(_make_request(token))
+        )
+        await asyncio.sleep(0)  # yield to let task_v1 start
 
-    # Adding token_c at TTL+1 triggers the rebuild; token_a_v2 is expired and deleted
+    # At t=TTL+1, lazy expiry fires; task_v2 is created and returned
     with unittest.mock.patch("framework.utils.auth.verifier.time") as mock_time:
         mock_time.time.return_value = base_time + TOKEN_CACHE_MAX_TTL + 1
-        await verifier._authenticate_iguazio_v4(_make_request(token_c))
+        result = await verifier._authenticate_iguazio_v4(_make_request(token))
 
-    # a_v1, b, a_v2 at t=0, then c at t=TTL+1
-    assert client.verify_request_session.call_count == 4
-    assert token_c in verifier._token_cache
-    assert token_a not in verifier._token_cache
+    assert result.username == "new-user"
 
+    # Release task_v1 to fail; its done callback must not evict task_v2
+    backend_proceed.set()
+    with pytest.raises(Exception, match="old task failed"):
+        await task_outer
+    await asyncio.sleep(0)  # let the done callback run
 
-@pytest.mark.asyncio
-async def test_fast_path_skips_stale_heap_entry(
-    verifier: framework.utils.auth.verifier.AuthVerifier,
-    mock_client: tuple[unittest.mock.AsyncMock, schemas.AuthInfo],
-    monkeypatch: pytest.MonkeyPatch,
-):
-    """
-    In the fast path (heap <= 2*cache), an expired heap entry whose token has
-    already been LRU-evicted is silently skipped rather than causing an error.
-
-    Setup with max_size=1:
-      t=0: A cached → B cached (evicts A)
-      Result: heap=[A(TTL), B(TTL)], cache={B: task_b}; heap=2, cache=1 → 2 <= 2, fast path
-
-    At t=TTL+1, requesting A again triggers fast path expiry:
-      - A's entry: `cache.get(A) is task_a` → False (A was evicted) → no-op  ← the branch under test
-      - B's entry: `cache.get(B) is task_b` → True                → evicted
-    """
-    monkeypatch.setattr(framework.utils.auth.verifier, "TOKEN_CACHE_MAX_SIZE", 1)
-    client, _ = mock_client
-
-    base_time = time.time()
-    token_a = _make_jwt(exp=base_time + 3600)
-    token_b = _make_jwt(exp=base_time + 3601)
-
-    with unittest.mock.patch("framework.utils.auth.verifier.time") as mock_time:
-        mock_time.time.return_value = base_time
-        await verifier._authenticate_iguazio_v4(_make_request(token_a))
-        await verifier._authenticate_iguazio_v4(_make_request(token_b))
-
-    # At TTL+1, re-requesting A triggers fast path; A's stale entry is skipped,
-    # B is evicted, and A gets a fresh backend call
-    with unittest.mock.patch("framework.utils.auth.verifier.time") as mock_time:
-        mock_time.time.return_value = base_time + TOKEN_CACHE_MAX_TTL + 1
-        await verifier._authenticate_iguazio_v4(_make_request(token_a))
-
-    # a (t=0), b (t=0), a_v2 (t=TTL+1)
-    assert client.verify_request_session.call_count == 3
-    assert token_a in verifier._token_cache
-    assert token_b not in verifier._token_cache
-
-
-# --- Stale heap entry regression ---
-
-
-@pytest.mark.asyncio
-async def test_stale_heap_entry_doesnt_evict_recached_token(
-    verifier: framework.utils.auth.verifier.AuthVerifier,
-    mock_client: tuple[unittest.mock.AsyncMock, schemas.AuthInfo],
-    monkeypatch: pytest.MonkeyPatch,
-):
-    """
-    Regression test for the double-heap-entry bug:
-
-    1. Token A is cached (heap entry 1 with task_a_v1, expires at base+TTL).
-    2. Token B is cached, LRU-evicting token A. Heap entry 1 is now stale.
-    3. Token A is re-cached (heap entry 2 with task_a_v2, expires at base+5+TTL).
-    4. At base+TTL+1, heap entry 1 fires. It must NOT evict task_a_v2 from cache.
-    """
-    monkeypatch.setattr(framework.utils.auth.verifier, "TOKEN_CACHE_MAX_SIZE", 1)
-
-    base_time = time.time()
-    token_a = _make_jwt(exp=base_time + 3600)
-    token_b = _make_jwt(exp=base_time + 3601)
-
-    with unittest.mock.patch("framework.utils.auth.verifier.time") as mock_time:
-        # t=0: cache token_a → heap entry 1 (expires at base_time + TTL)
-        mock_time.time.return_value = base_time
-        await verifier._authenticate_iguazio_v4(_make_request(token_a))
-        task_a_v1 = verifier._token_cache[token_a]
-
-        # t=0: cache token_b → LRU-evicts token_a; heap entry 1 becomes stale
-        await verifier._authenticate_iguazio_v4(_make_request(token_b))
-        assert token_a not in verifier._token_cache
-
-        # t=5: re-cache token_a → heap entry 2 (expires at base_time+5+TTL)
-        mock_time.time.return_value = base_time + 5
-        await verifier._authenticate_iguazio_v4(_make_request(token_a))
-        task_a_v2 = verifier._token_cache[token_a]
-        assert task_a_v2 is not task_a_v1
-
-    # t=TTL+1: heap entry 1 (base_time+TTL) fires but entry 2 (base_time+5+TTL)
-    # is still valid. The stale entry must not evict task_a_v2.
-    verifier._expire_tokens(base_time + TOKEN_CACHE_MAX_TTL + 1)
-
-    assert token_a in verifier._token_cache, (
-        "task_a_v2 should still be cached after stale heap entry fires"
+    assert token in verifier._token_cache, (
+        "task_v2 should still be cached after stale task_v1 callback fires"
     )
-    assert verifier._token_cache[token_a] is task_a_v2

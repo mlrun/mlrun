@@ -456,17 +456,17 @@ class AuthVerifier(metaclass=mlrun.utils.singleton.Singleton):
         self,
         request: fastapi.Request,
     ) -> schemas.AuthInfo:
-        token = self._extract_token(request)
+        token_with_expiry = self._extract_token(request)
         curr_time = time.time()
 
-        if token is None or token[1] <= curr_time:
+        if token_with_expiry is None or token_with_expiry[1] <= curr_time:
             # No token or an expired token means no caching
             # TODO: should we immediately throw an error instead of trying to
             # verify it?
             iguazio_client = framework.utils.clients.iguazio.v4.AsyncClient()
             return await iguazio_client.verify_request_session(request)
 
-        token, expires_at = token
+        token, expires_at = token_with_expiry
 
         self._expire_tokens(curr_time)
         task = self._token_cache.get(token)

@@ -20,7 +20,6 @@ from collections import OrderedDict
 from functools import partial
 
 import fastapi
-import jwt
 
 import mlrun
 import mlrun.common.schemas as schemas
@@ -442,18 +441,15 @@ class AuthVerifier(metaclass=mlrun.utils.singleton.Singleton):
         self,
         request: fastapi.Request,
     ) -> schemas.AuthInfo:
-        token_with_expiry = self._extract_token(request)
-        curr_time = time.time()
+        token = self._extract_token(request)
 
-        if token_with_expiry is None or token_with_expiry[1] <= curr_time:
-            # No token or an expired token means no caching
-            # TODO: should we immediately throw an error instead of trying to
-            # verify it?
+        if token is None:
+            # No token means no caching
             iguazio_client = framework.utils.clients.iguazio.v4.AsyncClient()
             return await iguazio_client.verify_request_session(request)
 
-        token = token_with_expiry[0]
         task_with_expiry = self._token_cache.get(token)
+        curr_time = time.time()
 
         if task_with_expiry is None or task_with_expiry[1] <= curr_time:
             # No task or an expired task means we have to create a new task
@@ -486,7 +482,7 @@ class AuthVerifier(metaclass=mlrun.utils.singleton.Singleton):
         return await asyncio.shield(task_with_expiry[0])
 
     @staticmethod
-    def _extract_token(request: fastapi.Request) -> tuple[str, float] | None:
+    def _extract_token(request: fastapi.Request) -> str | None:
         header_value = request.headers.get("Authorization")
         if header_value is None:
             return None
@@ -495,18 +491,7 @@ class AuthVerifier(metaclass=mlrun.utils.singleton.Singleton):
         if scheme.lower() != "bearer":  # scheme is case insensitive
             return None
 
-        # We don't verify the signature here, this is handled by the endpoint
-        # called by the iguazio_client, we just want to extract the expiry time
-        try:
-            decoded = jwt.decode(token, options={"verify_signature": False})
-        except jwt.DecodeError:
-            return None
-
-        expires_at = decoded.get("exp")
-        if not isinstance(expires_at, (int, float)):
-            return None
-
-        return token, expires_at
+        return token
 
     def _on_verify_complete(
         self, token: str, task: asyncio.Task[schemas.AuthInfo]

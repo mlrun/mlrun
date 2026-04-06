@@ -13,12 +13,10 @@
 # limitations under the License.
 
 import asyncio
-import time
 import unittest.mock
 from collections.abc import Generator
 
 import fastapi
-import jwt
 import pytest
 import starlette.datastructures
 
@@ -31,13 +29,6 @@ import framework.utils.clients.iguazio.v4
 from framework.utils.auth.verifier import TOKEN_CACHE_MAX_TTL
 
 # --- Helpers ---
-
-
-def _make_jwt(exp: float | None = None) -> str:
-    payload = {}
-    if exp is not None:
-        payload["exp"] = int(exp)
-    return jwt.encode(payload, key="test-secret", algorithm="HS256")
 
 
 def _make_request(token: str | None, scheme: str = "Bearer") -> fastapi.Request:
@@ -96,7 +87,7 @@ async def test_cache_miss_calls_backend(
     mock_client: tuple[unittest.mock.AsyncMock, schemas.AuthInfo],
 ):
     client, auth_info = mock_client
-    token = _make_jwt(exp=time.time() + 3600)
+    token = "token"
 
     result = await verifier._authenticate_iguazio_v4(_make_request(token))
 
@@ -110,7 +101,7 @@ async def test_cache_hit_reuses_result(
     mock_client: tuple[unittest.mock.AsyncMock, schemas.AuthInfo],
 ):
     client, auth_info = mock_client
-    token = _make_jwt(exp=time.time() + 3600)
+    token = "token"
     request = _make_request(token)
 
     result1 = await verifier._authenticate_iguazio_v4(request)
@@ -140,43 +131,7 @@ async def test_non_bearer_scheme_skips_cache(
     verifier: framework.utils.auth.verifier.AuthVerifier,
     mock_client: tuple[unittest.mock.AsyncMock, schemas.AuthInfo],
 ):
-    token = _make_jwt(exp=time.time() + 3600)
-
-    await verifier._authenticate_iguazio_v4(_make_request(token, scheme="Basic"))
-
-    assert len(verifier._token_cache) == 0
-
-
-@pytest.mark.asyncio
-async def test_non_jwt_bearer_skips_cache(
-    verifier: framework.utils.auth.verifier.AuthVerifier,
-    mock_client: tuple[unittest.mock.AsyncMock, schemas.AuthInfo],
-):
-    await verifier._authenticate_iguazio_v4(_make_request("not-a-jwt-token"))
-
-    assert len(verifier._token_cache) == 0
-
-
-@pytest.mark.asyncio
-async def test_jwt_without_exp_skips_cache(
-    verifier: framework.utils.auth.verifier.AuthVerifier,
-    mock_client: tuple[unittest.mock.AsyncMock, schemas.AuthInfo],
-):
-    token = _make_jwt(exp=None)
-
-    await verifier._authenticate_iguazio_v4(_make_request(token))
-
-    assert len(verifier._token_cache) == 0
-
-
-@pytest.mark.asyncio
-async def test_expired_jwt_skips_cache(
-    verifier: framework.utils.auth.verifier.AuthVerifier,
-    mock_client: tuple[unittest.mock.AsyncMock, schemas.AuthInfo],
-):
-    token = _make_jwt(exp=time.time() - 1)
-
-    await verifier._authenticate_iguazio_v4(_make_request(token))
+    await verifier._authenticate_iguazio_v4(_make_request("token", scheme="Basic"))
 
     assert len(verifier._token_cache) == 0
 
@@ -191,7 +146,7 @@ async def test_backend_failure_evicts_task(
 ):
     client, _ = mock_client
     client.verify_request_session.side_effect = Exception("backend unavailable")
-    token = _make_jwt(exp=time.time() + 3600)
+    token = "token"
     request = _make_request(token)
 
     with pytest.raises(Exception, match="backend unavailable"):
@@ -217,9 +172,7 @@ async def test_lru_eviction(
 ):
     monkeypatch.setattr(framework.utils.auth.verifier, "TOKEN_CACHE_MAX_SIZE", 2)
 
-    exp = time.time() + 3600
-    # Three distinct tokens (different exp → different JWT payloads)
-    tokens = [_make_jwt(exp=exp + i) for i in range(3)]
+    tokens = ["token_0", "token_1", "token_2"]
 
     for token in tokens:
         await verifier._authenticate_iguazio_v4(_make_request(token))
@@ -235,8 +188,8 @@ async def test_ttl_expiry(
     mock_client: tuple[unittest.mock.AsyncMock, schemas.AuthInfo],
 ):
     client, _ = mock_client
-    base_time = time.time()
-    token = _make_jwt(exp=base_time + 3600)
+    base_time = 0
+    token = "token"
     request = _make_request(token)
 
     with unittest.mock.patch("framework.utils.auth.verifier.time") as mock_time:
@@ -261,7 +214,7 @@ async def test_ttl_expiry(
 async def test_concurrent_requests_share_single_backend_call(
     verifier: framework.utils.auth.verifier.AuthVerifier,
 ):
-    token = _make_jwt(exp=time.time() + 3600)
+    token = "token"
     auth_info = schemas.AuthInfo(username="test-user")
 
     backend_started = asyncio.Event()
@@ -316,8 +269,8 @@ async def test_stale_done_callback_doesnt_evict_refreshed_task(
     4. task_v2 must still be in cache.
     """
     client, _ = mock_client
-    base_time = time.time()
-    token = _make_jwt(exp=base_time + 3600)
+    base_time = 0
+    token = "token"
 
     backend_proceed = asyncio.Event()
     call_count = 0

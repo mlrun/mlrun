@@ -33,9 +33,6 @@ import framework.utils.auth.providers.opa
 import framework.utils.clients.iguazio.v3
 import framework.utils.clients.iguazio.v4
 
-TOKEN_CACHE_MAX_SIZE = 128
-TOKEN_CACHE_MAX_TTL = 30  # seconds
-
 
 class AuthVerifier(metaclass=mlrun.utils.singleton.Singleton):
     _token_cache: OrderedDict[str, tuple[asyncio.Task[schemas.AuthInfo], float]]
@@ -459,7 +456,7 @@ class AuthVerifier(metaclass=mlrun.utils.singleton.Singleton):
             task = asyncio.create_task(iguazio_client.verify_request_session(request))
             task.add_done_callback(partial(self._on_verify_complete, token))
 
-            task_expires_at = curr_time + TOKEN_CACHE_MAX_TTL
+            task_expires_at = curr_time + self._token_cache_ttl_seconds
 
             task_with_expiry = task, task_expires_at
             self._token_cache[token] = task_with_expiry
@@ -472,7 +469,7 @@ class AuthVerifier(metaclass=mlrun.utils.singleton.Singleton):
             # We just need to mark the token as the most recently used
             self._token_cache.move_to_end(token)
 
-        elif len(self._token_cache) > TOKEN_CACHE_MAX_SIZE:
+        elif len(self._token_cache) > self._token_cache_max_size:
             # If the cache grew beyond the max size with the new item we pop
             # the least recently used one
             self._token_cache.popitem(last=False)
@@ -480,6 +477,14 @@ class AuthVerifier(metaclass=mlrun.utils.singleton.Singleton):
         # We shield the task since it can be shared between multiple
         # verifications and cancellation could have unexpected side effects
         return await asyncio.shield(task_with_expiry[0])
+
+    @property
+    def _token_cache_max_size(self) -> int:
+        return mlrun.mlconf.httpdb.authentication.iguazio.token_cache.max_size
+
+    @property
+    def _token_cache_ttl_seconds(self) -> float:
+        return mlrun.mlconf.httpdb.authentication.iguazio.token_cache.ttl_seconds
 
     @staticmethod
     def _extract_token(request: fastapi.Request) -> str | None:

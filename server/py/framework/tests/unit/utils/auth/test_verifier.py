@@ -26,7 +26,6 @@ import mlrun.utils.singleton
 
 import framework.utils.auth.verifier
 import framework.utils.clients.iguazio.v4
-from framework.utils.auth.verifier import TOKEN_CACHE_MAX_TTL
 
 # --- Helpers ---
 
@@ -170,7 +169,9 @@ async def test_lru_eviction(
     mock_client: tuple[unittest.mock.AsyncMock, schemas.AuthInfo],
     monkeypatch: pytest.MonkeyPatch,
 ):
-    monkeypatch.setattr(framework.utils.auth.verifier, "TOKEN_CACHE_MAX_SIZE", 2)
+    monkeypatch.setattr(
+        mlrun.mlconf.httpdb.authentication.iguazio.token_cache, "max_size", 2
+    )
 
     tokens = ["token_0", "token_1", "token_2"]
 
@@ -201,7 +202,11 @@ async def test_ttl_expiry(
     # Advance time past TTL; _authenticate_iguazio_v4 should expire the token
     # internally and call the backend again
     with unittest.mock.patch("framework.utils.auth.verifier.time") as mock_time:
-        mock_time.time.return_value = base_time + TOKEN_CACHE_MAX_TTL + 1
+        mock_time.time.return_value = (
+            base_time
+            + mlrun.mlconf.httpdb.authentication.iguazio.token_cache.ttl_seconds
+            + 1
+        )
         await verifier._authenticate_iguazio_v4(request)
 
     assert client.verify_request_session.call_count == 2
@@ -295,7 +300,11 @@ async def test_stale_done_callback_doesnt_evict_refreshed_task(
 
     # At t=TTL+1, lazy expiry fires; task_v2 is created and returned
     with unittest.mock.patch("framework.utils.auth.verifier.time") as mock_time:
-        mock_time.time.return_value = base_time + TOKEN_CACHE_MAX_TTL + 1
+        mock_time.time.return_value = (
+            base_time
+            + mlrun.mlconf.httpdb.authentication.iguazio.token_cache.ttl_seconds
+            + 1
+        )
         result = await verifier._authenticate_iguazio_v4(_make_request(token))
 
     assert result.username == "new-user"

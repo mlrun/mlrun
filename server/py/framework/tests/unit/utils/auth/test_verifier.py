@@ -30,6 +30,13 @@ import framework.utils.clients.iguazio.v4
 # --- Helpers ---
 
 
+def _make_headers(authorization: str | None) -> starlette.datastructures.Headers:
+    headers = {}
+    if authorization is not None:
+        headers["Authorization"] = authorization
+    return starlette.datastructures.Headers(headers)
+
+
 def _make_request(token: str | None, scheme: str = "Bearer") -> fastapi.Request:
     headers = {}
     if token is not None:
@@ -318,3 +325,103 @@ async def test_stale_done_callback_doesnt_evict_refreshed_task(
     assert token in verifier._token_cache, (
         "task_v2 should still be cached after stale task_v1 callback fires"
     )
+
+
+# --- _parse_auth_header ---
+
+
+@pytest.mark.parametrize(
+    "authorization, prefix, expected",
+    [
+        # Exact match returns the value after the prefix
+        ("Basic dXNlcjpwYXNz", "Basic ", "dXNlcjpwYXNz"),
+        ("Bearer mytoken", "Bearer ", "mytoken"),
+        # Wrong scheme returns None
+        ("Bearer mytoken", "Basic ", None),
+        ("Basic dXNlcjpwYXNz", "Bearer ", None),
+        # Missing header returns None
+        (None, "Bearer ", None),
+        # Case-insensitive scheme: lowercase
+        ("basic dXNlcjpwYXNz", "Basic ", "dXNlcjpwYXNz"),
+        ("bearer mytoken", "Bearer ", "mytoken"),
+        # Case-insensitive scheme: uppercase
+        ("BASIC dXNlcjpwYXNz", "Basic ", "dXNlcjpwYXNz"),
+        ("BEARER mytoken", "Bearer ", "mytoken"),
+        # Case-insensitive scheme: mixed case
+        ("bAsIc dXNlcjpwYXNz", "Basic ", "dXNlcjpwYXNz"),
+        ("BeArEr mytoken", "Bearer ", "mytoken"),
+    ],
+)
+def test_parse_auth_header(
+    verifier: framework.utils.auth.verifier.AuthVerifier,
+    authorization: str | None,
+    prefix: str,
+    expected: str | None,
+):
+    headers = _make_headers(authorization)
+    assert verifier._parse_auth_header(headers, prefix) == expected
+
+
+# --- _authenticate_basic case-insensitivity ---
+
+
+@pytest.mark.parametrize("scheme", ["Basic", "basic", "BASIC", "bAsIc"])
+def test_authenticate_basic_case_insensitive_scheme(
+    verifier: framework.utils.auth.verifier.AuthVerifier,
+    scheme: str,
+):
+    import base64
+
+    mlrun.mlconf.httpdb.authentication.mode = "basic"
+    mlrun.mlconf.httpdb.authentication.basic.username = "user"
+    mlrun.mlconf.httpdb.authentication.basic.password = "pass"
+
+    encoded = base64.b64encode(b"user:pass").decode()
+    headers = _make_headers(f"{scheme} {encoded}")
+
+    auth_info = verifier._authenticate_basic(headers)
+    assert auth_info.username == "user"
+    assert auth_info.password == "pass"
+
+
+# --- _authenticate_bearer case-insensitivity ---
+
+
+@pytest.mark.parametrize("scheme", ["Bearer", "bearer", "BEARER", "bEaReR"])
+def test_authenticate_bearer_case_insensitive_scheme(
+    verifier: framework.utils.auth.verifier.AuthVerifier,
+    scheme: str,
+):
+    mlrun.mlconf.httpdb.authentication.mode = "bearer"
+    mlrun.mlconf.httpdb.authentication.bearer.token = "secret"
+
+    headers = _make_headers(f"{scheme} secret")
+
+    auth_info = verifier._authenticate_bearer(headers)
+    assert auth_info.token == "secret"
+
+
+# --- _authenticate_iguazio_v4 case-insensitivity ---
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("scheme", ["Bearer", "bearer", "BEARER", "bEaReR"])
+async def test_authenticate_iguazio_v4_case_insensitive_scheme_uses_cache(
+    verifier: framework.utils.auth.verifier.AuthVerifier,
+    mock_client: tuple[unittest.mock.AsyncMock, schemas.AuthInfo],
+    scheme: str,
+):
+    """Any capitalisation of 'Bearer' should be accepted and cached."""
+    client, auth_info = mock_client
+    token = "mytoken"
+
+    request = fastapi.Request({"type": "http"})
+    request._headers = _make_headers(f"{scheme} {token}")
+
+    result1 = await verifier._authenticate_iguazio_v4(request)
+    result2 = await verifier._authenticate_iguazio_v4(request)
+
+    assert result1 == auth_info
+    assert result2 == auth_info
+    # Both requests must share the single cached backend call
+    client.verify_request_session.assert_awaited_once()

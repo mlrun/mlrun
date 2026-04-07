@@ -2743,3 +2743,9 @@ def helper_dummy():
     x += 1
     x -= 1
     return x
+
+
+def not_covered_function():
+    y = 1
+    y += 2
+    return y

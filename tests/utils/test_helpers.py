@@ -42,6 +42,7 @@ from mlrun.utils.helpers import (
     get_parsed_docker_registry,
     get_pretty_types_names,
     get_regex_list_as_string,
+    helper_dummy,
     lock_hub_uri_version,
     merge_requirements,
     parse_artifact_uri,
@@ -59,7 +60,7 @@ from mlrun.utils.helpers import (
     validate_tag_name,
     validate_v3io_stream_consumer_group,
     verify_field_regex,
-    verify_list_items_type, helper_dummy,
+    verify_list_items_type,
 )
 
 STORE_PREFIX = "store://{kind}/dummy-project/dummy-db-key"
@@ -2170,8 +2171,10 @@ def test_set_auth_user_id_works_with_run_spec():
     set_auth_user_id(spec, "user-123")
     assert spec.auth["user_id"] == "user-123"
 
+
 def test_helper_dummy():
     assert helper_dummy() == 1
+
 
 class TestDummy:
     def test_dummy(self):
@@ -2203,4 +2206,3 @@ class TestDummy:
 
     def test_dummy10(self):
         assert True
-

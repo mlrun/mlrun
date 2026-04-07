@@ -32,12 +32,13 @@ import sqlalchemy.orm
 
 import mlrun.common.db.dialects
 import mlrun.utils
+
 # from tests.coverage_hooks import (  # noqa: F401
 #     is_coverage_active,
 #     pytest_runtest_call,
 #     pytest_runtest_teardown,
 # )
-import tests.sitecustomize
+
 tests_root_directory = Path(__file__).absolute().parent
 results = tests_root_directory / "test_results"
 is_ci = "CI" in environ

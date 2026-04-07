@@ -2737,8 +2737,9 @@ def set_auth_user_id(spec, user_id: str | None):
             spec.auth = {}
         spec.auth["user_id"] = user_id
 
+
 def helper_dummy():
-    x=1
-    x+=1
-    x-=1
+    x = 1
+    x += 1
+    x -= 1
     return x

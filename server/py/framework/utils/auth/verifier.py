@@ -382,23 +382,37 @@ class AuthVerifier(metaclass=mlrun.utils.singleton.Singleton):
         return mlrun.mlconf.is_iguazio_v4_mode()
 
     @staticmethod
-    def _parse_basic_auth(header):
+    def _parse_auth_header(
+        headers: typing.Mapping[str, str], prefix: str
+    ) -> str | None:
+        header = headers.get(schemas.HeaderNames.authorization, "")
+
+        # Authorization schemes are case insensitive
+        if header.lower().startswith(prefix.lower()):
+            return header[len(prefix) :]
+        else:
+            return None
+
+    @staticmethod
+    def _parse_basic_auth(b64value: str) -> tuple[str, str]:
         """
         parse_basic_auth('Basic YnVnczpidW5ueQ==')
         ['bugs', 'bunny']
         """
-        b64value = header[len(schemas.AuthorizationHeaderPrefixes.basic) :]
         value = base64.b64decode(b64value).decode()
-        return value.split(":", 1)
+        username, password = value.split(":", 1)
+        return username, password
 
     def _authenticate_basic(
         self, headers: typing.Mapping[str, str]
     ) -> schemas.AuthInfo:
-        header = headers.get(schemas.HeaderNames.authorization, "")
-        if not header.startswith(schemas.AuthorizationHeaderPrefixes.basic):
+        basic_auth = self._parse_auth_header(
+            headers, schemas.AuthorizationHeaderPrefixes.basic
+        )
+        if basic_auth is None:
             raise mlrun.errors.MLRunUnauthorizedError("Missing basic auth header")
 
-        username, password = self._parse_basic_auth(header)
+        username, password = self._parse_basic_auth(basic_auth)
         if (
             username != mlrun.mlconf.httpdb.authentication.basic.username
             or password != mlrun.mlconf.httpdb.authentication.basic.password
@@ -412,11 +426,13 @@ class AuthVerifier(metaclass=mlrun.utils.singleton.Singleton):
     def _authenticate_bearer(
         self, headers: typing.Mapping[str, str]
     ) -> schemas.AuthInfo:
-        header = headers.get(schemas.HeaderNames.authorization, "")
-        if not header.startswith(schemas.AuthorizationHeaderPrefixes.bearer):
+        token = self._parse_auth_header(
+            headers, schemas.AuthorizationHeaderPrefixes.bearer
+        )
+
+        if token is None:
             raise mlrun.errors.MLRunUnauthorizedError("Missing bearer auth header")
 
-        token = header[len(schemas.AuthorizationHeaderPrefixes.bearer) :]
         if token != mlrun.mlconf.httpdb.authentication.bearer.token:
             raise mlrun.errors.MLRunUnauthorizedError("Token did not match")
 
@@ -438,7 +454,9 @@ class AuthVerifier(metaclass=mlrun.utils.singleton.Singleton):
         self,
         request: fastapi.Request,
     ) -> schemas.AuthInfo:
-        token = self._extract_token(request)
+        token = self._parse_auth_header(
+            request.headers, schemas.AuthorizationHeaderPrefixes.bearer
+        )
 
         if token is None:
             # No token means no caching
@@ -485,18 +503,6 @@ class AuthVerifier(metaclass=mlrun.utils.singleton.Singleton):
     @property
     def _token_cache_ttl_seconds(self) -> float:
         return mlrun.mlconf.httpdb.authentication.iguazio.token_cache.ttl_seconds
-
-    @staticmethod
-    def _extract_token(request: fastapi.Request) -> str | None:
-        header_value = request.headers.get("Authorization")
-        if header_value is None:
-            return None
-
-        scheme, _, token = header_value.partition(" ")
-        if scheme.lower() != "bearer":  # scheme is case insensitive
-            return None
-
-        return token
 
     def _on_verify_complete(
         self, token: str, task: asyncio.Task[schemas.AuthInfo]

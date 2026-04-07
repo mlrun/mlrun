@@ -12,8 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import tests.conftest  # noqa: F401
-from tests.coverage_hooks import (  # noqa: F401
-    is_coverage_active,
-    pytest_runtest_call,
-    pytest_runtest_teardown,
-)
+# from tests.coverage_hooks import (  # noqa: F401
+#     is_coverage_active,
+#     pytest_runtest_call,
+#     pytest_runtest_teardown,
+# )
+import tests.sitecustomize

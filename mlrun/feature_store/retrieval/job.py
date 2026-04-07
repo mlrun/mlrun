@@ -197,6 +197,16 @@ class RemoteVectorResponse:
         self._is_ready()
         return self.run.output("target")["path"]
 
+    def close(self):
+        pass
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.close()
+        return False
+
 
 _default_merger_handler = """
 import mlrun

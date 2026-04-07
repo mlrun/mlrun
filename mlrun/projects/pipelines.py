@@ -1187,6 +1187,7 @@ def load_and_run_workflow(
     cleanup_ttl: int | None = None,
     wait_for_completion: bool = False,
     project_context: str | None = None,
+    run_setup: bool = False,
 ):
     """
     Auxiliary function that the RemoteRunner run once or run every schedule.
@@ -1215,6 +1216,7 @@ def load_and_run_workflow(
                                 workflow and all its resources are deleted)
     :param wait_for_completion: wait for workflow completion before returning
     :param project_context:     project context path (used for loading the project)
+    :param run_setup:           whether the setup script should be ran (default False)
     """
     project_context = project_context or f"./{project_name}"
 
@@ -1229,6 +1231,7 @@ def load_and_run_workflow(
         clone=clone,
         schedule=schedule,
         workflow_name=workflow_name,
+        run_setup=run_setup,
     )
 
     # Retrieve the project object:
@@ -1238,6 +1241,7 @@ def load_and_run_workflow(
         context=project_context or f"./{project_name}",
         name=project_name,
         allow_cross_project=True,
+        run_setup=run_setup,
     )
 
     # extract "start" notification if exists
@@ -1309,6 +1313,7 @@ def pull_remote_project_files(
     clone: bool,
     schedule: typing.Union[str, mlrun.common.schemas.ScheduleCronTrigger] | None,
     workflow_name: str | None,
+    run_setup: bool = True,
 ) -> None:
     """
     Load the project to clone remote files if they exist.
@@ -1323,6 +1328,7 @@ def pull_remote_project_files(
     :param clone:          Whether to clone the repository.
     :param schedule:       Schedule for running the workflow.
     :param workflow_name:  Name of the workflow to run.
+    :param run_setup:      whether the setup script should be ran (default True)
     """
     try:
         # Load the project to clone remote files if they exist.
@@ -1336,6 +1342,7 @@ def pull_remote_project_files(
             clone=clone,
             save=False,
             allow_cross_project=True,
+            run_setup=run_setup,
         )
     except Exception as error:
         notify_scheduled_workflow_failure(

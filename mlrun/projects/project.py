@@ -163,6 +163,7 @@ def new_project(
     overwrite: bool = False,
     parameters: dict | None = None,
     default_function_node_selector: dict | None = None,
+    run_setup: bool = True,
 ) -> "MlrunProject":
     """Create a new MLRun project, optionally load it from a yaml/zip/git template.
     The project will become the active project for the current session.
@@ -231,6 +232,7 @@ def new_project(
                          if project with name exists
     :param parameters:   key/value pairs to add to the project.spec.params
     :param default_function_node_selector: defines the default node selector for scheduling functions within the project
+    :param run_setup:    whether the setup script should be ran (default True)
 
     :returns: project object
     """
@@ -316,7 +318,8 @@ def new_project(
         )
 
     # Hook for initializing the project using a project_setup script
-    project = project.setup(save and mlrun.mlconf.dbpath)
+    if run_setup:
+        project = project.setup(save and mlrun.mlconf.dbpath)
 
     return project
 
@@ -334,6 +337,7 @@ def load_project(
     sync_functions: bool = False,
     parameters: dict | None = None,
     allow_cross_project: bool | None = None,
+    run_setup: bool = True,
 ) -> "MlrunProject":
     """Load an MLRun project from git or tar or dir. The project will become the active project for
     the current session.
@@ -383,6 +387,7 @@ def load_project(
     :param parameters:      key/value pairs to add to the project.spec.params
     :param allow_cross_project: if True, override the loaded project name. This flag ensures awareness of
                                 loading an existing project yaml as a baseline for a new project with a different name
+    :param run_setup:       whether the setup script should be ran (default True)
 
     :returns: project object
     """
@@ -454,7 +459,8 @@ def load_project(
         project.save()
 
     # Hook for initializing the project using a project_setup script
-    project = project.setup(to_save)
+    if run_setup:
+        project = project.setup(to_save)
 
     if to_save:
         project.register_artifacts()
@@ -480,6 +486,7 @@ def get_or_create_project(
     save: bool = True,
     parameters: dict | None = None,
     allow_cross_project: bool | None = None,
+    run_setup: bool = True,
 ) -> "MlrunProject":
     """Load a project from MLRun DB, or create/import if it does not exist.
     The project will become the active project for the current session.
@@ -527,6 +534,7 @@ def get_or_create_project(
     :param parameters:   key/value pairs to add to the project.spec.params
     :param allow_cross_project: if True, override the loaded project name. This flag ensures awareness of
                                 loading an existing project yaml as a baseline for a new project with a different name
+    :param run_setup:    whether the setup script should be ran (default True)
 
     :returns: project object
     """
@@ -547,6 +555,7 @@ def get_or_create_project(
             save=False,
             parameters=parameters,
             allow_cross_project=allow_cross_project,
+            run_setup=run_setup,
         )
         logger.info("Project loaded successfully", project_name=project.name)
         return project
@@ -578,6 +587,7 @@ def get_or_create_project(
             save=save,
             parameters=parameters,
             allow_cross_project=allow_cross_project,
+            run_setup=run_setup,
         )
 
         logger.info(
@@ -599,6 +609,7 @@ def get_or_create_project(
         subpath=subpath,
         save=save,
         parameters=parameters,
+        run_setup=run_setup,
     )
     logger.info(
         "Project created successfully", project_name=project.name, stored_in_db=save

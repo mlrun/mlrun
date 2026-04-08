@@ -2,7 +2,7 @@
 ruff==0.15.2
 import-linter~=2.0
 blacken-docs~=1.18
-black~=24.4  # only used by by blacken-docs
+black~=26.3  # only used by by blacken-docs
 vale~=3.7
 
 # testing
@@ -34,7 +34,7 @@ sqlalchemy-utils~=0.41.2
 scikit-learn~=1.5.2
 lightgbm~=4.3
 xgboost~=1.1
-cryptography~=44.0
+cryptography~=46.0
 
 # install to verify it doesn't cause a warning (ML-8951)
 evidently~=0.7.6
@@ -45,5 +45,5 @@ diff-cover~=9.2
 # NOTE: requests currently expects chardet < 6 when chardet is present
 chardet<6
 openai~=1.88
-transformers~=4.56
-pillow~=11.3
+transformers~=5.5
+pillow~=12.2

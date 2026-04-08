@@ -20,6 +20,7 @@ import sqlalchemy.orm
 
 import mlrun.utils
 import tests.conftest
+from tests import sitecustomize  # noqa: F401 -- for coverage purposes only
 
 pytest_plugins = [
     "tests.common_fixtures",

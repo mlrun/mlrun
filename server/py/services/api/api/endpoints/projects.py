@@ -647,16 +647,3 @@ async def _ensure_project_create_or_update_permissions(
             mlrun.common.schemas.AuthorizationAction.create,
             auth_info,
         )
-
-
-def server_dummy_function():
-    x = 3
-    print("This is a dummy function to check the server code coverage")
-    x += 1
-    return x
-
-
-def not_covered_server_function():
-    y = 3
-    y += 3
-    return y

@@ -42,7 +42,6 @@ from mlrun.utils.helpers import (
     get_parsed_docker_registry,
     get_pretty_types_names,
     get_regex_list_as_string,
-    helper_dummy,
     lock_hub_uri_version,
     merge_requirements,
     parse_artifact_uri,
@@ -2170,39 +2169,3 @@ def test_set_auth_user_id_works_with_run_spec():
     spec = mlrun.model.RunSpec()
     set_auth_user_id(spec, "user-123")
     assert spec.auth["user_id"] == "user-123"
-
-
-def test_helper_dummy():
-    assert helper_dummy() == 1
-
-
-class TestDummy:
-    def test_dummy(self):
-        assert True
-
-    def test_dummy2(self):
-        assert True
-
-    def test_dummy3(self):
-        assert True
-
-    def test_dummy4(self):
-        assert True
-
-    def test_dummy5(self):
-        assert True
-
-    def test_dummy6(self):
-        assert True
-
-    def test_dummy7(self):
-        assert True
-
-    def test_dummy8(self):
-        assert True
-
-    def test_dummy9(self):
-        assert True
-
-    def test_dummy10(self):
-        assert True

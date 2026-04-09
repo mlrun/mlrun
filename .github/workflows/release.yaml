@@ -79,7 +79,7 @@ jobs:
     steps:
       - name: Generate GitHub App token
         id: mlrun-app-token
-        uses: actions/create-github-app-token@v2
+        uses: actions/create-github-app-token@v3
         with:
           app-id: ${{ secrets.GH_APP_ID }}
           private-key: ${{ secrets.GH_APP_PRIVATE_KEY }}
@@ -137,7 +137,7 @@ jobs:
 
         # the condition is here and not on job because some other jobs "needs" this job to be done (and not skipped)
         if: ${{ !contains(github.event.inputs.skip_images, 'ui') }}
-        uses: actions/create-github-app-token@v2
+        uses: actions/create-github-app-token@v3
         with:
           app-id: ${{ secrets.GH_APP_ID }}
           private-key: ${{ secrets.GH_APP_PRIVATE_KEY }}
@@ -171,7 +171,7 @@ jobs:
     steps:
       - name: Generate GitHub App token
         id: mlrun-app-token
-        uses: actions/create-github-app-token@v2
+        uses: actions/create-github-app-token@v3
         with:
           app-id: ${{ secrets.GH_APP_ID }}
           private-key: ${{ secrets.GH_APP_PRIVATE_KEY }}
@@ -180,7 +180,7 @@ jobs:
           token: ${{ steps.mlrun-app-token.outputs.token }}
           persist-credentials: false
       - name: Set up uv
-        uses: astral-sh/setup-uv@e06108dd0aef18192324c70427afc47652e63a82 # 7.5.0
+        uses: astral-sh/setup-uv@cec208311dfd045dd5311c1add060b2062131d57 # 8.0.0
       - name: Build & push to PyPI
         if: github.event.inputs.skip_publish_pypi != 'true'
         env:
@@ -197,11 +197,11 @@ jobs:
     steps:
       - name: Generate GitHub App token for mlrun repo
         id: mlrun-app-token
-        uses: actions/create-github-app-token@v2
+        uses: actions/create-github-app-token@v3
         with:
           app-id: ${{ secrets.GH_APP_ID }}
           private-key: ${{ secrets.GH_APP_PRIVATE_KEY }}
-      - uses: ncipollo/release-action@b7eabc95ff50cbeeedec83973935c8f306dfcd0b # 1.20.0
+      - uses: ncipollo/release-action@339a81892b84b4eeb0f6e744e4574d79d0d9b8dd # 1.21.0
         if: github.event.inputs.skip_create_tag_release != 'true'
         with:
           tag: v${{ needs.prepare-inputs.outputs.version }}
@@ -211,13 +211,13 @@ jobs:
       - name: Generate GitHub App Token for ui repo
         if: github.event.inputs.skip_create_tag_release != 'true'
         id: ui-release-app-token
-        uses: actions/create-github-app-token@v2
+        uses: actions/create-github-app-token@v3
         with:
           app-id: ${{ secrets.GH_APP_ID }}
           private-key: ${{ secrets.GH_APP_PRIVATE_KEY }}
           owner: ${{ github.repository_owner }}
           repositories: ui
-      - uses: ncipollo/release-action@b7eabc95ff50cbeeedec83973935c8f306dfcd0b # 1.20.0
+      - uses: ncipollo/release-action@339a81892b84b4eeb0f6e744e4574d79d0d9b8dd # 1.21.0
         if: github.event.inputs.skip_create_tag_release != 'true'
         with:
           repo: ui
@@ -238,7 +238,7 @@ jobs:
     steps:
       - name: Generate GitHub App token for mlrun repo
         id: mlrun-app-token
-        uses: actions/create-github-app-token@v2
+        uses: actions/create-github-app-token@v3
         with:
           app-id: ${{ secrets.GH_APP_ID }}
           private-key: ${{ secrets.GH_APP_PRIVATE_KEY }}
@@ -261,7 +261,7 @@ jobs:
     steps:
       - name: Generate GitHub App token
         id: mlrun-app-token
-        uses: actions/create-github-app-token@v2
+        uses: actions/create-github-app-token@v3
         with:
           app-id: ${{ secrets.GH_APP_ID }}
           private-key: ${{ secrets.GH_APP_PRIVATE_KEY }}
@@ -279,7 +279,7 @@ jobs:
           tar -cvf mlrun-tutorials.tar docs/tutorials docs/README.md docs/welcome.ipynb docs/assets/images
           rm -rf docs/welcome.ipynb docs/README.md docs/assets/images /tmp/tutorials
       - name: Add tutorials tar to release
-        uses: ncipollo/release-action@b7eabc95ff50cbeeedec83973935c8f306dfcd0b # 1.20.0
+        uses: ncipollo/release-action@339a81892b84b4eeb0f6e744e4574d79d0d9b8dd # 1.21.0
         with:
           allowUpdates: true
           tag: v${{ needs.prepare-inputs.outputs.version }}
@@ -294,7 +294,7 @@ jobs:
     steps:
       - name: Generate GitHub App token
         id: mlrun-app-token
-        uses: actions/create-github-app-token@v2
+        uses: actions/create-github-app-token@v3
         with:
           app-id: ${{ secrets.GH_APP_ID }}
           private-key: ${{ secrets.GH_APP_PRIVATE_KEY }}
@@ -324,7 +324,7 @@ jobs:
           tar -cf mlrun-demos.tar demos
           echo "✅ Archive created successfully!"
       - name: Add mlrun-demos tar to release
-        uses: ncipollo/release-action@b7eabc95ff50cbeeedec83973935c8f306dfcd0b # 1.20.0
+        uses: ncipollo/release-action@339a81892b84b4eeb0f6e744e4574d79d0d9b8dd # 1.21.0
         with:
           allowUpdates: true
           tag: v${{ needs.prepare-inputs.outputs.version }}
@@ -341,7 +341,7 @@ jobs:
     steps:
       - name: Generate GitHub App token
         id: mlrun-app-token
-        uses: actions/create-github-app-token@v2
+        uses: actions/create-github-app-token@v3
         with:
           app-id: ${{ secrets.GH_APP_ID }}
           private-key: ${{ secrets.GH_APP_PRIVATE_KEY }}
@@ -376,7 +376,7 @@ jobs:
           cat release_notes.md >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
 
-      - uses: ncipollo/release-action@b7eabc95ff50cbeeedec83973935c8f306dfcd0b # 1.20.0
+      - uses: ncipollo/release-action@339a81892b84b4eeb0f6e744e4574d79d0d9b8dd # 1.21.0
         with:
           tag: v${{ needs.prepare-inputs.outputs.version }}
           body: ${{ steps.resolve-release-notes.outputs.body }}

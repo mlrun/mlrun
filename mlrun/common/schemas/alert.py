@@ -160,6 +160,17 @@ class AlertConfig(pydantic.v1.BaseModel):
     trigger: AlertTrigger
     criteria: AlertCriteria | None
     reset_policy: ResetPolicy = ResetPolicy.AUTO
+    cooldown_period: Annotated[
+        str | None,
+        pydantic.v1.Field(
+            description=(
+                "Period during which the alert remains active after being triggered "
+                "before it is automatically reset. Only applicable when reset_policy=auto. "
+                "If not set, the alert resets immediately upon triggering (current behavior). "
+                "Format: e.g. 1d, 3h, 5m, 15s."
+            )
+        ),
+    ] = None
     notifications: pydantic.v1.conlist(AlertNotification, min_items=1)
     state: AlertActiveState = AlertActiveState.INACTIVE
     count: int | None = 0
@@ -198,6 +209,7 @@ class AlertTemplate(
     trigger: AlertTrigger
     criteria: AlertCriteria | None
     reset_policy: ResetPolicy = ResetPolicy.AUTO
+    cooldown_period: str | None = None
 
     # This is slightly different than __eq__ as it doesn't compare everything
     def templates_differ(self, other):
@@ -208,6 +220,7 @@ class AlertTemplate(
             or self.trigger != other.trigger
             or self.reset_policy != other.reset_policy
             or self.criteria != other.criteria
+            or self.cooldown_period != other.cooldown_period
         )
 
 

@@ -51,7 +51,6 @@ def _make_error_handler(error_class: type[Exception], message: str) -> Callable:
         (mlrun.errors.MLRunConflictError, "Resource conflict", 409),
         (mlrun.errors.MLRunInternalServerError, "Internal server error", 500),
         (mlrun.errors.MLRunMethodNotAllowedError, "Method not allowed", 405),
-        (mlrun.errors.MLRunUnprocessableEntityError, "Unprocessable entity", 422),
         # Non-MLRun exceptions (backwards compatibility: should return 400)
         (ValueError, "Some generic error", 400),
         (RuntimeError, "Runtime error occurred", 400),
@@ -63,7 +62,6 @@ def _make_error_handler(error_class: type[Exception], message: str) -> Callable:
         "409_conflict",
         "500_internal_server_error",
         "405_method_not_allowed",
-        "422_unprocessable_entity",
         "400_value_error_backwards_compat",
         "400_runtime_error_backwards_compat",
     ],

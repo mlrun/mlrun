@@ -20,6 +20,7 @@ import mlrun.common.formatters
 import mlrun.common.schemas
 import mlrun.errors
 
+import framework.utils.project_formats
 import framework.utils.projects.remotes.follower as project_follower
 
 
@@ -88,7 +89,7 @@ class Member(project_follower.Member):
         session: sqlalchemy.orm.Session,
         auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
         owner: str | None = None,
-        format_: mlrun.common.formatters.ProjectFormat = mlrun.common.formatters.ProjectFormat.full,
+        format_: framework.utils.project_formats.ProjectFormatType = mlrun.common.formatters.ProjectFormat.full,
         labels: list[str] | None = None,
         state: mlrun.common.schemas.ProjectState = None,
         names: list[str] | None = None,
@@ -106,6 +107,13 @@ class Member(project_follower.Member):
                 for project_name, project in self._projects.items()
                 if project_name in names
             ]
+
+        # Custom column selection returns full projects as-is (no formatting needed)
+        # since nop_follower holds in-memory objects, not DB records
+        if isinstance(
+            format_, framework.utils.project_formats.ProjectFormatCustomSelection
+        ):
+            return mlrun.common.schemas.ProjectsOutput(projects=projects)
 
         return mlrun.common.schemas.ProjectsOutput(
             projects=[

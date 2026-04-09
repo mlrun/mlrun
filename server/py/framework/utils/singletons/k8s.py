@@ -17,6 +17,7 @@ import json
 import random
 import string
 import time
+import typing
 from datetime import UTC, datetime
 
 import kubernetes.client.rest as k8s_client_rest
@@ -166,7 +167,7 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
         selector: str = "",
         states: list[str] | None = None,
         max_retry: int = 3,
-    ):
+    ) -> typing.Generator[client.V1Pod, None, None]:
         """
         List pods paginated
         :param namespace:       Namespace to query
@@ -1641,11 +1642,16 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
         :param namespace: Kubernetes namespace where the secret is stored.
                           If empty, the default namespace will be used.
         :return: The offline token string (JWT).
+        :raises mlrun.errors.MLRunBadRequestError: If user_id is empty.
         :raises mlrun.errors.MLRunNotFoundError: If the secret or the specific token
             is not found for the user.
         :raises mlrun.errors.MLRunRuntimeError: If decoding or parsing the secret
             data fails.
         """
+        if not user_id:
+            raise mlrun.errors.MLRunBadRequestError(
+                "Cannot resolve auth token: user_id is missing"
+            )
 
         k8s_secret = self._get_user_token_secret(user_id, token_name, namespace)
         if not k8s_secret:
@@ -1665,7 +1671,12 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
         :param user_id: The user ID.
         :param namespace: Kubernetes namespace where the secrets are stored.
         :return: List of SecretToken objects with name and token value.
+        :raises mlrun.errors.MLRunBadRequestError: If user_id is empty.
         """
+        if not user_id:
+            raise mlrun.errors.MLRunBadRequestError(
+                "Cannot resolve auth token: user_id is missing"
+            )
         namespace = self.resolve_namespace(namespace)
         labels = {mlrun_constants.MLRunInternalLabels.auth_userid: user_id}
         k8s_secrets = self.list_secrets(namespace=namespace, labels=labels)

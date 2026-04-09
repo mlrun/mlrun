@@ -291,7 +291,7 @@ class Projects(
         session: sqlalchemy.orm.Session,
         auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
         owner: str | None = None,
-        format_: mlrun.common.formatters.ProjectFormat = mlrun.common.formatters.ProjectFormat.full,
+        format_: framework.utils.project_formats.ProjectFormatType = mlrun.common.formatters.ProjectFormat.full,
         labels: list[str] | None = None,
         state: mlrun.common.schemas.ProjectState = None,
         names: list[str] | None = None,
@@ -474,7 +474,8 @@ class Projects(
             project_to_running_runs_count,
             project_to_endpoint_alerts_count,
             project_to_job_alerts_count,
-            project_to_other_alerts_count,
+            project_to_application_alerts_count,
+            project_to_infra_alerts_count,
             project_to_datasets_count,
             project_to_documents_count,
             project_to_llm_prompts_count,
@@ -533,7 +534,10 @@ class Projects(
                         project_name, 0
                     ),
                     job_alerts_count=project_to_job_alerts_count.get(project_name, 0),
-                    other_alerts_count=project_to_other_alerts_count.get(
+                    application_alerts_count=project_to_application_alerts_count.get(
+                        project_name, 0
+                    ),
+                    infra_alerts_count=project_to_infra_alerts_count.get(
                         project_name, 0
                     ),
                     datasets_count=project_to_datasets_count.get(project_name, 0),

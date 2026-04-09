@@ -551,6 +551,7 @@ class DBInterface(ABC):
         dict[str, int],
         dict[str, int],
         dict[str, int],
+        dict[str, int],
     ]:
         pass
 
@@ -987,6 +988,8 @@ class DBInterface(ABC):
         active: bool = False,
         obj: dict | None = None,
         alert_id: int | None = None,
+        cooldown_end_time: datetime.datetime | None = None,
+        clear_cooldown: bool = False,
     ):
         pass
 

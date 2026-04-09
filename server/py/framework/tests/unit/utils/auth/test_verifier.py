@@ -22,7 +22,6 @@ import starlette.datastructures
 
 import mlrun
 import mlrun.common.schemas as schemas
-import mlrun.utils.singleton
 
 import framework.utils.auth.verifier
 import framework.utils.clients.iguazio.v4
@@ -31,37 +30,15 @@ import framework.utils.clients.iguazio.v4
 
 
 def _make_headers(authorization: str | None) -> starlette.datastructures.Headers:
-    headers = {}
+    headers: dict[str, str] = {}
     if authorization is not None:
         headers["Authorization"] = authorization
     return starlette.datastructures.Headers(headers)
 
 
 def _make_request(token: str | None, scheme: str = "Bearer") -> fastapi.Request:
-    headers = {}
-    if token is not None:
-        headers["Authorization"] = f"{scheme} {token}"
-    request = fastapi.Request({"type": "http"})
-    request._headers = starlette.datastructures.Headers(headers)
-    return request
-
-
-# --- Fixtures ---
-
-
-@pytest.fixture(autouse=True)
-def reset_verifier() -> Generator[None, None, None]:
-    """Reset the AuthVerifier singleton before and after each test."""
-    original_mode = mlrun.mlconf.httpdb.authorization.mode
-    mlrun.mlconf.httpdb.authorization.mode = "none"
-    mlrun.utils.singleton.Singleton._instances.pop(
-        framework.utils.auth.verifier.AuthVerifier, None
-    )
-    yield
-    mlrun.mlconf.httpdb.authorization.mode = original_mode
-    mlrun.utils.singleton.Singleton._instances.pop(
-        framework.utils.auth.verifier.AuthVerifier, None
-    )
+    headers = _make_headers(None if token is None else f"{scheme} {token}")
+    return fastapi.Request({"type": "http", "headers": headers.raw})
 
 
 @pytest.fixture
@@ -82,9 +59,6 @@ def mock_client() -> Generator[
         return_value=mock_instance,
     ):
         yield mock_instance, auth_info
-
-
-# --- Cache miss / hit ---
 
 
 @pytest.mark.asyncio
@@ -119,9 +93,6 @@ async def test_cache_hit_reuses_result(
     client.verify_request_session.assert_awaited_once()
 
 
-# --- Scenarios that skip the cache ---
-
-
 @pytest.mark.asyncio
 async def test_no_auth_header_skips_cache(
     verifier: framework.utils.auth.verifier.AuthVerifier,
@@ -140,9 +111,6 @@ async def test_non_bearer_scheme_skips_cache(
     await verifier._authenticate_iguazio_v4(_make_request("token", scheme="Basic"))
 
     assert len(verifier._token_cache) == 0
-
-
-# --- Failure and eviction ---
 
 
 @pytest.mark.asyncio
@@ -197,6 +165,7 @@ async def test_ttl_expiry(
 ):
     client, _ = mock_client
     base_time = 0
+    ttl: int = mlrun.mlconf.httpdb.authentication.iguazio.token_cache.ttl_seconds
     token = "token"
     request = _make_request(token)
 
@@ -204,22 +173,22 @@ async def test_ttl_expiry(
         mock_time.time.return_value = base_time
         await verifier._authenticate_iguazio_v4(request)
 
-    assert token in verifier._token_cache
+    assert client.verify_request_session.call_count == 1
+    init_task, init_expires_at = verifier._token_cache[token]
+    assert init_expires_at == base_time + ttl
 
     # Advance time past TTL; _authenticate_iguazio_v4 should expire the token
     # internally and call the backend again
+    refresh_time = init_expires_at + 1
+
     with unittest.mock.patch("framework.utils.auth.verifier.time") as mock_time:
-        mock_time.time.return_value = (
-            base_time
-            + mlrun.mlconf.httpdb.authentication.iguazio.token_cache.ttl_seconds
-            + 1
-        )
+        mock_time.time.return_value = refresh_time
         await verifier._authenticate_iguazio_v4(request)
 
     assert client.verify_request_session.call_count == 2
-
-
-# --- Concurrency ---
+    refresh_task, refresh_expires_at = verifier._token_cache[token]
+    assert refresh_task is not init_task
+    assert refresh_expires_at == refresh_time + ttl
 
 
 @pytest.mark.asyncio
@@ -261,9 +230,6 @@ async def test_concurrent_requests_share_single_backend_call(
     assert result1 == auth_info
     assert result2 == auth_info
     mock_instance.verify_request_session.assert_awaited_once()
-
-
-# --- Stale callback regression ---
 
 
 @pytest.mark.asyncio
@@ -327,9 +293,6 @@ async def test_stale_done_callback_doesnt_evict_refreshed_task(
     )
 
 
-# --- _parse_auth_header ---
-
-
 @pytest.mark.parametrize(
     "authorization, prefix, expected",
     [
@@ -362,9 +325,6 @@ def test_parse_auth_header(
     assert verifier._parse_auth_header(headers, prefix) == expected
 
 
-# --- _authenticate_basic case-insensitivity ---
-
-
 @pytest.mark.parametrize("scheme", ["Basic", "basic", "BASIC", "bAsIc"])
 def test_authenticate_basic_case_insensitive_scheme(
     verifier: framework.utils.auth.verifier.AuthVerifier,
@@ -384,9 +344,6 @@ def test_authenticate_basic_case_insensitive_scheme(
     assert auth_info.password == "pass"
 
 
-# --- _authenticate_bearer case-insensitivity ---
-
-
 @pytest.mark.parametrize("scheme", ["Bearer", "bearer", "BEARER", "bEaReR"])
 def test_authenticate_bearer_case_insensitive_scheme(
     verifier: framework.utils.auth.verifier.AuthVerifier,
@@ -399,9 +356,6 @@ def test_authenticate_bearer_case_insensitive_scheme(
 
     auth_info = verifier._authenticate_bearer(headers)
     assert auth_info.token == "secret"
-
-
-# --- _authenticate_iguazio_v4 case-insensitivity ---
 
 
 @pytest.mark.asyncio

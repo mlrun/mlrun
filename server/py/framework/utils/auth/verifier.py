@@ -396,8 +396,8 @@ class AuthVerifier(metaclass=mlrun.utils.singleton.Singleton):
     @staticmethod
     def _parse_basic_auth(b64value: str) -> tuple[str, str]:
         """
-        parse_basic_auth('Basic YnVnczpidW5ueQ==')
-        ['bugs', 'bunny']
+        parse_basic_auth('YnVnczpidW5ueQ==')
+        ('bugs', 'bunny')
         """
         value = base64.b64decode(b64value).decode()
         username, password = value.split(":", 1)
@@ -468,7 +468,7 @@ class AuthVerifier(metaclass=mlrun.utils.singleton.Singleton):
 
         if task_with_expiry is None or task_with_expiry[1] <= curr_time:
             # No task or an expired task means we have to create a new task
-            is_cached = task_with_expiry is not None
+            is_existing_key = task_with_expiry is not None
 
             iguazio_client = framework.utils.clients.iguazio.v4.AsyncClient()
             task = asyncio.create_task(iguazio_client.verify_request_session(request))
@@ -480,11 +480,11 @@ class AuthVerifier(metaclass=mlrun.utils.singleton.Singleton):
             self._token_cache[token] = task_with_expiry
         else:
             # We can reuse the old task
-            is_cached = True
+            is_existing_key = True
 
-        if is_cached:
-            # If the token was already cached the cache size did not change
-            # We just need to mark the token as the most recently used
+        if is_existing_key:
+            # If the token was already in the cache the cache size did not
+            # change. We just need to mark the token as the most recently used
             self._token_cache.move_to_end(token)
 
         elif len(self._token_cache) > self._token_cache_max_size:
@@ -509,7 +509,6 @@ class AuthVerifier(metaclass=mlrun.utils.singleton.Singleton):
     ) -> None:
         # We evict from the cache on failure to make sure we dont block tokens
         # on things like temporary connectivity issues
-        # TODO: should we whitelist certain exceptions to be kept? e.g. invalid token
         if not task.cancelled() and task.exception() is None:
             return
 

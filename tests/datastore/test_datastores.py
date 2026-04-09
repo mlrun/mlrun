@@ -307,8 +307,9 @@ def test_verify_data_stores_are_not_cached_in_api_when_not_needed():
     assert obj3._store._secrets == {}
 
 
-@pytest.mark.parametrize("system_endpoint", ["some-system", None])
+@pytest.mark.parametrize("system_endpoint", ["some-system", ""])
 def test_verify_data_stores_are_cached_when_not_api(system_endpoint):
+    #  empty system endpoint is used to verify that the store is cached even when the endpoint is not provided
     user1_secrets = {"V3IO_ACCESS_KEY": "user1-access-key"}
     user1_objpath = f"v3io://{system_endpoint}/some-dir/user1"
 

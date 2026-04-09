@@ -14,6 +14,7 @@
 
 import time
 from datetime import datetime
+from urllib.parse import urlparse
 
 import fsspec
 import v3io
@@ -259,7 +260,9 @@ class V3ioStore(DataStore):
         # remove the endpoint from the URL (if present), since the base class
         # will add it back and the v3io filesystem expects the URL without it.
         if url:
-            url = url.replace(self.endpoint, "", 1)
+            parsed = urlparse(url)
+            if parsed.netloc:
+                url = f"{parsed.scheme}://{parsed.path}"
         return super().as_df(
             url=url,
             subpath=subpath,

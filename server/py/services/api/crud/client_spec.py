@@ -200,6 +200,15 @@ class ClientSpec(
 
     @staticmethod
     def _get_config_value_diff_from_default(config_key: str) -> dict[Any, Any] | None:
+        """
+        For a key in the configuration pointing to a dictionary return a
+        dictionary of all keys within that differ from the default. If no keys
+        differ it will return None instead. If either the current or default
+        value at this key is not a dictionary it will raise a TypeError.
+
+        :param config_key: the key within the config, multiple keys can be joined with .
+        :return: either a dict of changed keys with their new value or None
+        """
         current_config_value, default_config_value = (
             ClientSpec._get_config_value_current_and_default(config_key)
         )

@@ -318,7 +318,8 @@ def test_client_spec_includes_default_runtime_image_by_kind_when_configured(
     mlrun.mlconf.function_defaults.image_by_kind = {
         "job": custom_job_image,
         "serving": custom_serving_image,
-        "nuclio": "mlrun/mlrun",  # keep default
+        # keep default
+        "nuclio": "mlrun/mlrun",
     }
     services.api.api.endpoints.client_spec.get_cached_client_spec.cache_clear()
 

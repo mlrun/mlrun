@@ -100,7 +100,7 @@ class TestModelEndpointsOperations(TestMLRunSystemModelMonitoring):
     """Applying basic model endpoint CRUD operations through MLRun API"""
 
     project_name = "mm-app-project"
-    image = "mlrun/mlrun"
+    image = None  # uses mlrun.mlconf.function_defaults.image_by_kind at runtime
 
     def setup_method(self, method):
         super().setup_method(method)
@@ -2303,7 +2303,9 @@ class TestModelEndpointGetMetrics(TestMLRunSystemModelMonitoring):
     def test_get_model_endpoint_metrics(self):
         self.set_mm_credentials()
 
-        self.project.enable_model_monitoring(image=self.image or "mlrun/mlrun")
+        self.project.enable_model_monitoring(
+            image=self.image or mlrun.mlconf.function_defaults.image_by_kind.job
+        )
         db = mlrun.get_run_db()
         model_endpoint = mock_random_endpoint(self.project_name, "testing")
         model_endpoint = db.create_model_endpoint(model_endpoint)
@@ -2457,7 +2459,7 @@ class TestModelMonitoringOverJob(TestMLRunSystemModelMonitoring):
     """Test get_model_endpoint_monitoring_metrics functionality."""
 
     project_name = "model-monitoring-over-job"
-    image = "mlrun/mlrun"
+    image = None  # uses mlrun.mlconf.function_defaults.image_by_kind at runtime
 
     @pytest.mark.parametrize("with_timestamp_column", [False, True])
     def test_job_from_serving_runtime_with_model_tracking(self, with_timestamp_column):
@@ -2620,7 +2622,9 @@ class TestLLModelWithMonitoring(TestMLRunSystemModelMonitoring):
     """Test LLModel serving with model monitoring enabled."""
 
     project_name = "llmodel-monitoring-5"
-    image: str | None = "mlrun/mlrun"
+    image: str | None = (
+        None  # uses mlrun.mlconf.function_defaults.image_by_kind at runtime
+    )
 
     def test_mep_with_remote_model(self):
         self.set_mm_credentials()

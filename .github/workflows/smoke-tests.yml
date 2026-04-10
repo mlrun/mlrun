@@ -14,9 +14,10 @@
 
 name: Smoke Tests
 
-# Stub — real implementation lives on feature/smoke.
-# This file exists on development so the workflow is dispatchable.
-# Trigger with --ref feature/smoke to run the full implementation.
+permissions:
+  contents: read
+  pull-requests: write
+  packages: write
 
 on:
   workflow_dispatch:
@@ -25,11 +26,6 @@ on:
         description: 'PR number to target for labeling (and optionally to build from)'
         required: false
         default: ''
-      build_from_pr:
-        description: 'Build Docker images and run tests from the PR branch (vs upstream). Requires pr_number.'
-        required: false
-        default: false
-        type: boolean
       clean_resources_in_teardown:
         description: 'Clean test resources upon teardown'
         required: true
@@ -48,7 +44,114 @@ on:
           - 'false'
 
 jobs:
-  stub:
+  run-smoke-tests:
+    name: Run Smoke Tests
+    uses: ./.github/workflows/system-tests-opensource.yml
+    with:
+      pr_number: ${{ inputs.pr_number }}
+      pytest_markers: 'not enterprise and smoke'
+      clean_resources_in_teardown: ${{ inputs.clean_resources_in_teardown }}
+      debug_enabled: ${{ inputs.debug_enabled }}
+    secrets: inherit
+
+  post-results:
+    name: Post smoke test results
     runs-on: ubuntu-latest
+    if: always() && inputs.pr_number != ''
+    needs: run-smoke-tests
+    permissions:
+      pull-requests: write
     steps:
-      - run: echo "This is a stub - NOP."
+      - name: Determine label and outcome
+        id: outcome
+        run: |
+          OUTCOME="${{ needs.run-smoke-tests.result }}"
+
+          if [ "$OUTCOME" = "success" ]; then
+            STATUS="Pass"
+            EMOJI="✅"
+            COLOR="0e8a16"
+          else
+            STATUS="Fail"
+            EMOJI="❌"
+            COLOR="d93f0b"
+          fi
+
+          LABEL="Smoke tests: ${STATUS}"
+          SOURCE="PR branch"
+
+          echo "label=${LABEL}"   >> $GITHUB_OUTPUT
+          echo "color=${COLOR}"   >> $GITHUB_OUTPUT
+          echo "emoji=${EMOJI}"   >> $GITHUB_OUTPUT
+          echo "status=${STATUS}" >> $GITHUB_OUTPUT
+          echo "source=${SOURCE}" >> $GITHUB_OUTPUT
+
+      - name: Set label on PR
+        run: |
+          PR="${{ inputs.pr_number }}"
+          API_URL="https://api.github.com/repos/${{ github.repository }}/issues/${PR}/labels"
+          REPO_LABELS_URL="https://api.github.com/repos/${{ github.repository }}/labels"
+          LABEL="${{ steps.outcome.outputs.label }}"
+          COLOR="${{ steps.outcome.outputs.color }}"
+
+          ENCODED_LABEL=$(echo "${LABEL}" | sed 's/ /%20/g; s/:/%3A/g; s/(/%28/g; s/)/%29/g')
+
+          # Check if label is already set correctly — skip if no change needed
+          CURRENT_SMOKE_LABEL=$(curl -sS \
+            -H "Authorization: token ${GITHUB_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            "${API_URL}" | jq -r '[.[].name | select(startswith("Smoke tests:"))] | join(",")' )
+          if [ "${CURRENT_SMOKE_LABEL}" = "${LABEL}" ]; then
+            echo "Label '${LABEL}' already set, skipping"
+            exit 0
+          fi
+
+          # Ensure label exists in the repo (create if absent, update color if present)
+          curl -sS -X PATCH \
+            -H "Authorization: token ${GITHUB_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            -d "{\"color\":\"${COLOR}\"}" \
+            "${REPO_LABELS_URL}/${ENCODED_LABEL}" || \
+          curl -sS -X POST \
+            -H "Authorization: token ${GITHUB_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            -d "{\"name\":\"${LABEL}\",\"color\":\"${COLOR}\"}" \
+            "${REPO_LABELS_URL}"
+
+          # Remove any stale smoke labels before adding the correct one.
+          for stale in \
+            "Smoke%20tests%3A%20Pass" \
+            "Smoke%20tests%3A%20Fail" \
+            "Smoke%20tests%3A%20Pass%20%28tests%20from%20pr%29" \
+            "Smoke%20tests%3A%20Fail%20%28tests%20from%20pr%29" \
+            "Smoke%20tests%3A%20Unknown"; do
+            curl -sS -X DELETE \
+              -H "Authorization: token ${GITHUB_TOKEN}" \
+              -H "Accept: application/vnd.github+json" \
+              "${API_URL}/${stale}" || true
+          done
+
+          # Add the correct label
+          curl -sS -X POST \
+            -H "Authorization: token ${GITHUB_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            -d "{\"labels\":[\"${LABEL}\"]}" \
+            "${API_URL}"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build comment body
+        run: |
+          RUN_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          BASE_REF="${{ needs.run-smoke-tests.outputs.pr_base_ref }}"
+          BASE_SHA="${{ needs.run-smoke-tests.outputs.pr_base_sha }}"
+
+          echo "Smoke Tests [${{ steps.outcome.outputs.status }}](${RUN_URL}) ${{ steps.outcome.outputs.emoji }} with the PR rebased to \`${BASE_REF}\` HEAD \`${BASE_SHA:0:8}\`" > comment.md
+
+      - name: Post comment to PR
+        uses: thollander/actions-comment-pull-request@24bffb9b452ba05a4f3f77933840a6a841d1b32b
+        with:
+          pr-number: ${{ inputs.pr_number }}
+          file-path: comment.md
+          comment-tag: smoke_test_result
+          mode: recreate

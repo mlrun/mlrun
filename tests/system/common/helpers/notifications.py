@@ -18,6 +18,7 @@ import typing
 
 import requests
 
+import mlrun
 import mlrun.projects
 
 assets_path = pathlib.Path(__file__).parent.parent / "assets"
@@ -29,7 +30,9 @@ def deploy_notification_nuclio(
     nuclio_function = project.set_function(
         name="alert-notify",
         func=str(assets_path / "notification_nuclio_function.py"),
-        image="mlrun/mlrun" if image is None else image,
+        image=mlrun.mlconf.function_defaults.image_by_kind.nuclio
+        if image is None
+        else image,
         kind="nuclio",
     )
     nuclio_function.deploy()

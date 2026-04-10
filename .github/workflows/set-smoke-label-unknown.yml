@@ -1,0 +1,91 @@
+# Copyright 2026 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+name: Set Smoke Tests Unknown Label
+
+on:
+  workflow_run:
+    workflows: ["CI"]
+    types: [requested]
+
+permissions:
+  pull-requests: write
+  actions: read
+
+jobs:
+  set-unknown:
+    name: Set Smoke tests Unknown label
+    runs-on: ubuntu-latest
+    if: github.event.workflow_run.event == 'pull_request'
+    steps:
+      - name: Set Smoke tests Unknown label
+        run: |
+          HEAD_OWNER="${{ github.event.workflow_run.head_repository.owner.login }}"
+          HEAD_BRANCH="${{ github.event.workflow_run.head_branch }}"
+          PR=$(curl -sS \
+            -H "Authorization: token ${GITHUB_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/${{ github.repository }}/pulls?head=${HEAD_OWNER}:${HEAD_BRANCH}" \
+            | jq -r '.[0].number // empty')
+          if [ -z "$PR" ]; then
+            echo "::warning::No open PR found for ${HEAD_OWNER}:${HEAD_BRANCH}, skipping"
+            exit 0
+          fi
+
+          API_URL="https://api.github.com/repos/${{ github.repository }}/issues/${PR}/labels"
+          REPO_LABELS_URL="https://api.github.com/repos/${{ github.repository }}/labels"
+          LABEL="Smoke tests: Unknown"
+
+          # Check if label is already set correctly — skip if no change needed
+          CURRENT_SMOKE_LABEL=$(curl -sS \
+            -H "Authorization: token ${GITHUB_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            "${API_URL}" | jq -r '[.[].name | select(startswith("Smoke tests:"))] | join(",")' )
+          if [ "${CURRENT_SMOKE_LABEL}" = "${LABEL}" ]; then
+            echo "Label '${LABEL}' already set, skipping"
+            exit 0
+          fi
+
+          # Ensure Unknown label exists with gray color (create if absent, update color if present)
+          curl -sS -X PATCH \
+            -H "Authorization: token ${GITHUB_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            -d '{"color":"c5def5"}' \
+            "${REPO_LABELS_URL}/Smoke%20tests%3A%20Unknown" || \
+          curl -sS -X POST \
+            -H "Authorization: token ${GITHUB_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            -d "{\"name\":\"${LABEL}\",\"color\":\"c5def5\"}" \
+            "${REPO_LABELS_URL}"
+
+          # Remove all Pass/Fail smoke labels (both upstream and "tests from pr" variants)
+          for label in \
+            "Smoke%20tests%3A%20Pass" \
+            "Smoke%20tests%3A%20Fail" \
+            "Smoke%20tests%3A%20Pass%20%28tests%20from%20pr%29" \
+            "Smoke%20tests%3A%20Fail%20%28tests%20from%20pr%29"; do
+            curl -sS -X DELETE \
+              -H "Authorization: token ${GITHUB_TOKEN}" \
+              -H "Accept: application/vnd.github+json" \
+              "${API_URL}/${label}" || true
+          done
+
+          # Add Unknown label
+          curl -sS -X POST \
+            -H "Authorization: token ${GITHUB_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            -d "{\"labels\":[\"${LABEL}\"]}" \
+            "${API_URL}"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

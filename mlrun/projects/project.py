@@ -454,6 +454,14 @@ def load_project(
     # Hook for initializing the project using a project_setup script
     project = project.setup(to_save)
 
+    # Re-apply parameters after setup to ensure they are not overwritten
+    # when loading from a git source (fixes: parameters ignored in get_or_create_project)
+    if parameters:
+        for key, val in parameters.items():
+            project.spec.params[key] = val
+        if to_save:
+            project.save()
+
     if to_save:
         project.register_artifacts()
 

@@ -149,7 +149,7 @@ async def store_api_gateway(
                 if func not in api_gateway.get_function_names()
             ]
             # if invocation URL has changed, delete URL from all the functions
-            if existing_api_gateway.get_invoke_url != api_gateway.get_invoke_url:
+            if existing_api_gateway.get_invoke_url() != api_gateway.get_invoke_url():
                 await _delete_functions_external_invocation_url(
                     project=project,
                     url=existing_api_gateway.get_invoke_url(),

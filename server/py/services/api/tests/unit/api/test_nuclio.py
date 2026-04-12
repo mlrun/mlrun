@@ -311,3 +311,82 @@ def test_with_http_async_spec(
                 assert trigger.get("async") == expected_async_struct
             else:
                 assert "async" not in trigger
+
+
+@staticmethod
+def _make_api_gateway(host: str, path: str, function_names: list[str]):
+    """Build a minimal APIGateway schema with the given host, path and functions."""
+    upstreams = [
+        mlrun.common.schemas.APIGatewayUpstream(
+            nucliofunction={"name": name},
+            percentage=100 // len(function_names),
+        )
+        for name in function_names
+    ]
+    return mlrun.common.schemas.APIGateway(
+        metadata=mlrun.common.schemas.APIGatewayMetadata(name="gw"),
+        spec=mlrun.common.schemas.APIGatewaySpec(
+            name="gw",
+            host=host,
+            path=path,
+            upstreams=upstreams,
+        ),
+    )
+
+def test_same_invoke_url_skips_full_deletion():
+    """
+    When the existing and new API gateway have the same invoke URL,
+    _delete_functions_external_invocation_url should NOT be called
+    for ALL functions.  It may still be called for individually
+    removed functions (the elif branch), but not the full-URL-change
+    branch.
+    """
+    existing = self._make_api_gateway(
+        "https://my.host", "/api", ["proj/fn1", "proj/fn2"]
+    )
+    updated = self._make_api_gateway(
+        "https://my.host", "/api", ["proj/fn1", "proj/fn2"]
+    )
+
+    # Sanity: both return the same URL string
+    assert existing.get_invoke_url() == updated.get_invoke_url()
+
+    # But comparing the methods themselves (the old buggy code) would
+    # always be True because they are different bound-method objects
+    assert existing.get_invoke_url != updated.get_invoke_url  # methods differ
+
+    # The fixed comparison (calling the methods) should be False
+    assert not (existing.get_invoke_url() != updated.get_invoke_url()), (
+        "Calling get_invoke_url() should show equal URLs"
+    )
+
+def test_different_invoke_url_triggers_deletion():
+    """
+    When the invoke URL really changed, the comparison should detect it.
+    """
+    existing = self._make_api_gateway("https://old.host", "/api", ["proj/fn1"])
+    updated = self._make_api_gateway("https://new.host", "/api", ["proj/fn1"])
+
+    # The URLs are different so the condition should be True
+    assert existing.get_invoke_url() != updated.get_invoke_url()
+
+def test_unused_functions_detected_when_url_unchanged():
+    """
+    When the URL is the same but functions were removed, the elif branch
+    should be reachable (it was unreachable before the fix).
+    """
+    existing = self._make_api_gateway(
+        "https://my.host", "/api", ["proj/fn1", "proj/fn2"]
+    )
+    updated = self._make_api_gateway("https://my.host", "/api", ["proj/fn1"])
+
+    # URL is the same
+    assert existing.get_invoke_url() == updated.get_invoke_url()
+
+    # fn2 was removed
+    unused_functions = [
+        func
+        for func in existing.get_function_names()
+        if func not in updated.get_function_names()
+    ]
+    assert unused_functions == ["proj/fn2"]

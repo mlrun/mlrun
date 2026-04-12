@@ -26,6 +26,7 @@ import mlrun.errors
 from mlrun import new_task
 from mlrun_pipelines.models import PipelineRun
 from tests.conftest import out_path, tag_test, verify_state
+import mlrun.execution
 
 
 def my_func(context):
@@ -348,3 +349,56 @@ def _generate_run_dict():
             "allow_empty_resources": True,
         },
     }
+
+
+@pytest.fixture
+def ctx():
+    """Create a minimal MLClientCtx with no DB connection."""
+    context = mlrun.execution.MLClientCtx(autocommit=False)
+    context._parameters = {}
+    return context
+
+
+@pytest.mark.parametrize(
+    "default_value",
+    [0, 0.0, False, "", []],
+    ids=["zero_int", "zero_float", "false", "empty_string", "empty_list"],
+)
+def test_falsy_default_triggers_update_run(ctx, default_value):
+    """When key is missing and default is a falsy non-None value,
+    _update_run must still be called to persist the default."""
+    with unittest.mock.patch.object(ctx, "_update_run") as mock_update:
+        result = ctx.get_param("missing_key", default_value)
+
+    assert result == default_value
+    assert ctx._parameters["missing_key"] == default_value
+    mock_update.assert_called_once()
+
+def test_none_default_does_not_trigger_update_run(ctx):
+    """When key is missing and default is None,
+    _update_run must NOT be called (no value to persist)."""
+    with unittest.mock.patch.object(ctx, "_update_run") as mock_update:
+        result = ctx.get_param("missing_key", None)
+
+    assert result is None
+    assert ctx._parameters["missing_key"] is None
+    mock_update.assert_not_called()
+
+def test_truthy_default_triggers_update_run(ctx):
+    """Sanity check: truthy default always triggers _update_run."""
+    with unittest.mock.patch.object(ctx, "_update_run") as mock_update:
+        result = ctx.get_param("missing_key", 42)
+
+    assert result == 42
+    assert ctx._parameters["missing_key"] == 42
+    mock_update.assert_called_once()
+
+def test_existing_key_returns_stored_value(ctx):
+    """When the key already exists, return the stored value
+    without calling _update_run."""
+    ctx._parameters["existing"] = 99
+    with unittest.mock.patch.object(ctx, "_update_run") as mock_update:
+        result = ctx.get_param("existing", 0)
+
+    assert result == 99
+    mock_update.assert_not_called()

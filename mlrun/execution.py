@@ -532,7 +532,7 @@ class MLClientCtx:
         """
         if key not in self._parameters:
             self._parameters[key] = default
-            if default:
+            if default is not None:
                 self._update_run()
             return default
         return self._parameters[key]

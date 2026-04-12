@@ -5,7 +5,7 @@ An artifact is any data that is produced and/or consumed by functions, jobs, or 
 
 There are several types of Artifacts. The type of the Artifact is reflected in the 
 `kind` attribute of each Artifact. These types are also 
-used for grouping the [artifacts in the UI](#viewing-artifacts). 
+used for grouping the [artifacts in the UI](#view-artifacts-in-the-ui). 
 The main kinds of artifacts are:
 
 - Files — Files, directories, images, figures, and plot lines
@@ -17,7 +17,8 @@ Artifacts metadata is stored in the MLRun database.
 
 
 **In this section**
-- [Viewing artifacts](#viewing-artifacts)
+- [View artifacts in the UI](#view-artifacts-in-the-ui)
+- [View artifacts with the SDK](#view-artifacts-with-the-sdk)
 - [Artifact path](#artifact-path)
 - [Saving artifacts in run-specific paths](#saving-artifacts-in-run-specific-paths)
 - [Artifact URIs, versioning, and metadata](#artifact-uris-versioning-and-metadata)
@@ -30,7 +31,7 @@ Artifacts metadata is stored in the MLRun database.
 - [Logging a Databricks response as an artifact](../runtimes/databricks.ipynb#logging-a-databricks-response-as-an-artifact)
 
 
-## Viewing artifacts
+## View artifacts in the UI
 
 Artifacts that are stored in certain paths (see [Artifact path](#artifact-path)) can be viewed and managed in the UI. 
 In the **Project** page, select the type of artifact you want to view from the left-hand menu: 
@@ -51,15 +52,24 @@ You can download the artifact. You can also tag and remove tags from artifacts u
 The UI limits the artifact query display to 1000 records. You can add filters to narrow the query results. 
 (Each search could results in a different set of records.) 
 
+##  View artifacts with the SDK
+View artifacts with `project.list_artifacts()`, for example:
+```
+# Get the latest version of all artifacts in project
+latest_artifacts = project.list_artifacts(tag="latest")
+# Check the different artifact versions for a specific artifact, return as objects list
+result_versions = project.list_artifacts("results", tag="*").to_objects()
+```
+See the full parameter list in {py:class}`~mlrun.projects.MlrunProject.list_artifacts` and {py:class}`~mlrun.db.httpdb.HTTPRunDB.list_artifacts`.
 
 ## Artifact path
 
 Any path that is supported by MLRun can be used to store artifacts. However, only artifacts that are stored in paths that are 
 system-configured as "allowed" in the MLRun service are visible in the UI. These are:
-- MLRun < 1.2: The allowed paths include only V3IO paths
-- MLRun 1.2 and higher: Allows cloud storage paths &mdash; `v3io://`, `s3://`, `az://`, `gcs://`, `gs://`. <br>
+- V3IO paths
+- cloud storage paths &mdash; `v3io://`, `s3://`, `az://`, `gcs://`, `gs://`. <br>
   `http://` paths are not visible due to security reasons.
-- MLRun 1.5 adds support for DBFS (Databricks file system): `dbfs://`
+- DBFS (Databricks file system): `dbfs://`
 
 Jobs use the default or job specific `artifact_path` parameter to determine where the artifacts are stored.
 The default `artifact_path` can be specified at the cluster level, client level, project level, or job level 

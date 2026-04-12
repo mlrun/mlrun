@@ -95,6 +95,7 @@ class HubModule(HubAsset):
     ):
         """
         Download this hub module’s code file.
+
         :param local_path: Target directory to download the module files to. Defaults to the current working directory.
                            This path will be used to locate the code file when importing it as a module.
         :param download_example: Whether to download the example notebook if available. Defaults to True.
@@ -124,6 +125,7 @@ def get_hub_module(
 ) -> HubModule:
     """
     Get a hub-module object containing metadata of the requested module.
+
     :param url: Hub module url in the format "hub://[<source>/]<item-name>[:<tag>]"
     :param download_files: When set to True, the module files (code file and example notebook) are downloaded
     :param secrets: Optional, credentials dict for DB or URL (s3, v3io, ...)
@@ -156,6 +158,7 @@ def import_module(
 ):
     """
     Import a module from the hub to use directly.
+
     :param url: hub module url in the format "hub://[<source>/]<item-name>[:<tag>]"
     :param install_requirements: when set to True, the module's requirements are installed.
     :param secrets: optional, credentials dict for DB or URL (s3, v3io, ...)

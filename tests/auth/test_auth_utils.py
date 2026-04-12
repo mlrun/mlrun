@@ -842,3 +842,33 @@ def test_load_and_prepare_secret_tokens_skips_invalid(tmp_path, monkeypatch):
     assert len(secret_tokens) == 1
     assert secret_tokens[0].name == "good_token"
     assert secret_tokens[0].token == valid_jwt
+
+
+def test_invalid_token_with_raise_on_error_false_returns_none():
+    """When raise_on_error=False and the token is invalid, the function should
+    catch the MLRunInvalidArgumentError from _decode_token_unverified and return None
+    instead of propagating the exception."""
+    result = mlrun.auth.utils.resolve_jwt_subject(
+        "not-a-valid-jwt-token", raise_on_error=False
+    )
+    assert result is None
+
+def test_invalid_token_with_raise_on_error_true_raises():
+    """When raise_on_error=True and the token is invalid, the function should
+    raise an error (via raise_or_log_error which raises MLRunRuntimeError)."""
+    with pytest.raises(mlrun.errors.MLRunRuntimeError):
+        mlrun.auth.utils.resolve_jwt_subject(
+            "not-a-valid-jwt-token", raise_on_error=True
+        )
+
+def test_consistency_with_resolve_jwt_username():
+    """Both resolve_jwt_subject and resolve_jwt_username should handle
+    invalid tokens the same way when raise_on_error=False (return None)."""
+    subject_result = mlrun.auth.utils.resolve_jwt_subject(
+        "invalid-token", raise_on_error=False
+    )
+    username_result = mlrun.auth.utils.resolve_jwt_username(
+        "invalid-token", raise_on_error=False
+    )
+    assert subject_result is None
+    assert username_result is None

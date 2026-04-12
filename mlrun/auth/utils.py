@@ -373,7 +373,7 @@ def resolve_jwt_subject(token: str, raise_on_error: bool = True) -> str | None:
         # This method is used from the client side after receiving this token from the server, there's no need or
         # ability to verify its signature here.
         return _decode_token_unverified(token).get(Claims.SUBJECT)
-    except jwt.PyJWTError as exc:
+    except mlrun.errors.MLRunInvalidArgumentError as exc:
         mlrun.utils.helpers.raise_or_log_error(
             f"Failed to decode JWT token: {exc}", raise_on_error
         )

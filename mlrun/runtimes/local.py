@@ -532,7 +532,7 @@ def exec_from_params(handler, runobj: RunObject, context: MLClientCtx, cwd=None)
         if cwd:
             os.chdir(old_dir)
         context.set_logger_stream(sys.stdout)
-        if val:
+        if val is not None:
             context.log_result("return", val)
 
         if commit:

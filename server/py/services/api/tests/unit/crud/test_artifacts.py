@@ -22,6 +22,7 @@ import mlrun.common.schemas
 import mlrun.common.schemas.artifact
 
 import services.api.crud
+from unittest.mock import MagicMock, patch
 
 
 class TestArtifacts:
@@ -179,3 +180,79 @@ class TestArtifacts:
             "status": {},
         }
         return artifact
+
+
+def test_project_param_not_overwritten_by_artifact_uri():
+    """
+    Verify that the `project` parameter passed to `_get_artifacts_from_uris` is
+    preserved and used for the final `list_artifacts_for_producer_id` call, even
+    when artifact URIs contain a different project name.
+
+    Before the fix, the tuple unpacking `project, key, ... = parse_artifact_uri(...)`
+    shadowed the function's `project` parameter, causing `list_artifacts_for_producer_id`
+    to be called with the project from the last artifact URI instead of the original.
+    """
+    original_project = "my-project"
+    producer_id = "some-producer-uid"
+    run = {
+        "status": {
+            "artifact_uris": {
+                "result1": f"store://artifacts/{original_project}/key1@{producer_id}",
+                "result2": f"store://artifacts/{original_project}/key2@{producer_id}",
+            },
+        },
+    }
+    db_session = MagicMock()
+
+    with patch.object(
+        services.api.crud.Artifacts,
+        "list_artifacts_for_producer_id",
+        return_value=[],
+    ) as mock_list:
+        services.api.crud.Runs._get_artifacts_from_uris(
+            db_session, original_project, producer_id, run
+        )
+
+        # The project passed to list_artifacts_for_producer_id must be the original
+        mock_list.assert_called_once()
+        call_args = mock_list.call_args
+        # project is the third positional argument (after db_session and producer_id)
+        actual_project = call_args[0][2]
+        assert actual_project == original_project, (
+            f"Expected project '{original_project}' but got '{actual_project}'. "
+            "The project parameter was overwritten by artifact URI parsing."
+        )
+
+def test_project_preserved_when_uri_has_different_project():
+    """
+    When an artifact URI contains a different project than the function parameter,
+    the original project should still be used for the DB query.
+    """
+    original_project = "my-project"
+    different_project = "other-project"
+    producer_id = "some-uid"
+    run = {
+        "status": {
+            "artifact_uris": {
+                "art1": f"store://artifacts/{different_project}/key1@{producer_id}",
+            },
+        },
+    }
+    db_session = MagicMock()
+
+    with patch.object(
+        services.api.crud.Artifacts,
+        "list_artifacts_for_producer_id",
+        return_value=[],
+    ) as mock_list:
+        services.api.crud.Runs._get_artifacts_from_uris(
+            db_session, original_project, producer_id, run
+        )
+
+        mock_list.assert_called_once()
+        call_args = mock_list.call_args
+        actual_project = call_args[0][2]
+        assert actual_project == original_project, (
+            f"Expected project '{original_project}' but got '{actual_project}'. "
+            "The project parameter was overwritten by a URI with a different project."
+        )

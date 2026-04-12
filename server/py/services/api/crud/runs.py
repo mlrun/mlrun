@@ -647,13 +647,13 @@ class Runs(
         artifact_identifiers = []
         for _, uri in artifact_uris.items():
             _, uri = mlrun.datastore.parse_store_uri(uri)
-            project, key, iteration, tag, artifact_producer_id, uid = (
+            artifact_project, key, iteration, tag, artifact_producer_id, uid = (
                 mlrun.utils.parse_artifact_uri(uri, project)
             )
             if artifact_producer_id != producer_id:
                 logger.warning(
                     "Artifact producer ID does not match the run/workflow ID, skipping artifact",
-                    project=project,
+                    project=artifact_project,
                     key=key,
                     tag=tag,
                     iteration=iteration,

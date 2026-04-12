@@ -355,7 +355,7 @@ class Runs(
             tasks = []
             for project, run_uids_to_delete in project_to_run_uids_to_delete.items():
                 tasks.append(
-                    framework.db.session.run_function_with_new_db_session(
+                    framework.db.session.run_async_function_with_new_db_session(
                         self._delete_runs,
                         project,
                         run_uids_to_delete,

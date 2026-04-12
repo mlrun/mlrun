@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import copy
 import re
 import typing
 
@@ -76,7 +77,9 @@ class WebhookNotification(NotificationBase):
             request_body["custom_html"] = custom_html
 
         if override_body:
-            request_body = self._serialize_runs_in_request_body(override_body, runs)
+            request_body = self._serialize_runs_in_request_body(
+                copy.deepcopy(override_body), runs
+            )
 
         # Specify the `verify_ssl` parameter value only for HTTPS urls.
         # The `ClientSession` allows using `ssl=None` for the default SSL check,

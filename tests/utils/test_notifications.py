@@ -2080,3 +2080,38 @@ async def test_ssl_logic(
     await notification.push("ignored")
     ssl_arg = DummySessionContext.dummy_session_holder["session"].request_args["ssl"]
     assert ssl_arg is expected_ssl
+
+
+async def test_webhook_override_body_not_mutated_across_pushes(monkeypatch):
+    """Verify that pushing a webhook notification does not mutate the stored
+    override_body template, so subsequent pushes still render fresh run data."""
+    _mock_async_response(monkeypatch, "post", {"id": "response-id"})
+
+    override_body = {"message": "runs: {{ runs }}"}
+    notification = mlrun.utils.notifications.notification.webhook.WebhookNotification(
+        params={"override_body": override_body, "url": "http://test.com"}
+    )
+
+    run_first = {
+        "metadata": {"name": "run-1", "project": "proj"},
+        "status": {"state": runtimes_constants.RunStates.completed},
+    }
+    run_second = {
+        "metadata": {"name": "run-2", "project": "proj"},
+        "status": {"state": runtimes_constants.RunStates.error, "error": "boom"},
+    }
+
+    # First push
+    await notification.push("msg1", "info", [run_first])
+
+    # The template in self.params must still contain {{ runs }} so the next
+    # push can substitute fresh data.
+    stored_template = notification.params["override_body"]["message"]
+    assert "{{ runs }}" in stored_template, (
+        "override_body template was mutated in-place by the first push; "
+        "subsequent pushes would contain stale run data"
+    )
+
+    # Second push with different run data should still render correctly
+    await notification.push("msg2", "info", [run_second])
+    assert "{{ runs }}" in notification.params["override_body"]["message"]

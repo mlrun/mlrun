@@ -421,7 +421,7 @@ async def abort_run(
 
                 if (
                     background_task.status.state
-                    in mlrun.common.schemas.BackgroundTaskState.running
+                    == mlrun.common.schemas.BackgroundTaskState.running
                 ):
                     logger.debug(
                         "Abort background task is still running, returning it",

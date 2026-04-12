@@ -1010,3 +1010,37 @@ def _generate_project(name="project-name"):
             description="some description", owner="owner-name"
         ),
     )
+
+
+@pytest.mark.parametrize("partial_state", ["run", "n", "ning", "unni", "r"])
+def test_background_task_state_substring_not_equal(partial_state):
+    """Verify that partial substrings of 'running' match via `in` but not via `==`.
+    The fix ensures equality is used for state comparison, not substring matching."""
+    running_state = mlrun.common.schemas.BackgroundTaskState.running
+    # Substring check matches (the bug behavior)
+    assert partial_state in str(running_state)
+    # Equality check rejects (the fix)
+    assert partial_state != running_state
+
+def test_background_task_state_values_not_substrings_of_each_other():
+    """Verify the enum values and that the fix prevents cross-matching."""
+    states = mlrun.common.schemas.BackgroundTaskState
+
+    # Verify enum values
+    assert states.running == "running"
+    assert states.succeeded == "succeeded"
+    assert states.failed == "failed"
+
+    # With equality, each state matches only itself
+    assert states.running == states.running
+    assert states.running != states.succeeded
+    assert states.running != states.failed
+
+def test_terminal_states_use_list_not_string():
+    """Verify that terminal_states() returns a list, making `in` safe for it."""
+    terminal = mlrun.common.schemas.BackgroundTaskState.terminal_states()
+    assert isinstance(terminal, list)
+    # Using `in` on a list is correct (membership check, not substring)
+    assert mlrun.common.schemas.BackgroundTaskState.succeeded in terminal
+    assert mlrun.common.schemas.BackgroundTaskState.failed in terminal
+    assert mlrun.common.schemas.BackgroundTaskState.running not in terminal

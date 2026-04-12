@@ -37,6 +37,7 @@ from mlrun.datastore.store_resources import parse_store_uri
 from mlrun.utils import logger
 from mlrun.utils.helpers import (
     StorePrefix,
+    _split_by_dots_with_escaping,
     enrich_image_url,
     ensure_batch_job_suffix,
     extend_hub_uri_if_needed,
@@ -2345,4 +2346,43 @@ def test_remove_image_protocol_prefix(image, expected):
     result = remove_image_protocol_prefix(image)
     assert result == expected, (
         f"Expected '{expected}' for image '{image}', got '{result}'"
+    )
+
+
+@pytest.mark.parametrize(
+    "key, expected_parts",
+    [
+        # simple dot-separated key
+        ("a.b.c", ["a", "b", "c"]),
+        # single key, no dots
+        ("abc", ["abc"]),
+        # escaped dot should be kept as literal
+        ("a\\.b.c", ["a.b", "c"]),
+        # escaped dot followed by more unescaped dots
+        ("a\\.b.c.d", ["a.b", "c", "d"]),
+        # multiple escaped dots
+        ("a\\.b\\.c.d", ["a.b.c", "d"]),
+        # double backslash (literal backslash, not an escape)
+        ("a\\\\.b", ["a", "b"]),
+        # empty string
+        ("", [""]),
+        # key ending with a dot
+        ("a.b.", ["a", "b", ""]),
+    ],
+)
+def test_split_by_dots_with_escaping(key, expected_parts):
+    result = _split_by_dots_with_escaping(key)
+    assert result == expected_parts, (
+        f"Expected {expected_parts} for key {key!r}, got {result}"
+    )
+
+
+def test_update_in_with_escaped_dot_key():
+    """Verify that update_in correctly handles escaped dots in keys,
+    splitting only on unescaped dots while subsequent unescaped dots
+    are still treated as separators."""
+    obj = {}
+    update_in(obj, "a\\.b.c", "value")
+    assert obj == {"a.b": {"c": "value"}}, (
+        f"Expected nested dict with escaped dot key, got {obj}"
     )

@@ -612,6 +612,7 @@ def _split_by_dots_with_escaping(key: str):
             escape = not escape
         else:
             current_key += char
+            escape = False
     parts.append(current_key)
     return parts
 

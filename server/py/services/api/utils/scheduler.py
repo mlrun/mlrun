@@ -518,7 +518,7 @@ class Scheduler:
             if auth_info.access_key.startswith(
                 mlrun.model.Credentials.secret_reference_prefix
             ):
-                secret_name = auth_info.access_key.lstrip(
+                secret_name = auth_info.access_key.removeprefix(
                     mlrun.model.Credentials.secret_reference_prefix
                 )
                 secret = services.api.crud.Secrets().read_auth_secret(

@@ -34,6 +34,21 @@ V3IO_DEFAULT_UPLOAD_CHUNK_SIZE = 1024 * 1024 * 10
 
 
 class V3ioStore(DataStore):
+    """DataStore for Iguazio v3io object storage.
+
+    URL forms::
+        v3io://<endpoint>/container/path   # explicit endpoint
+        v3io:///container/path             # no endpoint → falls back to V3IO_API secret/env or mlconf.v3io_api
+
+    WARNING - Breaking change - double-slash vs triple-slash:
+        ``v3io://container/path`` (double slash) treats ``container`` as the
+        endpoint hostname, not the container name.  Use triple-slash
+        (``v3io:///container/path``) when relying on the default endpoint.
+
+        Users who intended the default endpoint but used double-slash will
+        silently connect to the wrong endpoint with no error raised.
+    """
+
     def __init__(self, parent, schema, name, endpoint="", secrets: dict | None = None):
         super().__init__(parent, name, schema, endpoint, secrets=secrets)
         self.endpoint = (

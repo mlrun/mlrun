@@ -889,6 +889,7 @@ class Pipelines(
         if not target_name:
             for run in runs:
                 yield run
+            return
 
         for run in runs:
             if filter_by(run):

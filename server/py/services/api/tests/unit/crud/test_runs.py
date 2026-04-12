@@ -33,6 +33,8 @@ import framework.utils.singletons.k8s
 import services.api.crud
 import services.api.runtime_handlers
 import services.api.tests.unit.conftest
+from unittest.mock import MagicMock, patch
+import services.api.crud.pipelines
 
 
 class TestRuns(services.api.tests.unit.conftest.MockedK8sHelper):
@@ -1162,3 +1164,62 @@ class TestRuns(services.api.tests.unit.conftest.MockedK8sHelper):
             # Should NOT skip - the grace period hasn't expired
             # For job kind, it will try to list pods (which we mocked to return empty)
             services.api.crud.Runs._delete_run_resources(db, project, uid, run)
+
+
+def _make_run(self, name: str, project: str = "proj") -> MagicMock:
+    run = MagicMock()
+    run.name = f"{project}-{name}"
+    run.workflow_manifest.return_value = None
+    return run
+
+@patch.object(
+    services.api.crud.pipelines.Pipelines,
+    "_resolve_project_from_pipeline",
+    side_effect=lambda self_or_run, *a, **kw: "proj",
+)
+def test_empty_target_name_does_not_duplicate_runs(mock_resolve):
+    """When target_name is empty, each run should be yielded exactly once."""
+    pipelines = services.api.crud.pipelines.Pipelines()
+    runs = [
+        self._make_run("run-a"),
+        self._make_run("run-b"),
+        self._make_run("run-c"),
+    ]
+
+    result = list(pipelines._filter_runs_by_name(runs, target_name=""))
+
+    # Without the fix, runs would be yielded twice (6 items instead of 3)
+    assert len(result) == 3
+    assert result == runs
+
+@patch.object(
+    services.api.crud.pipelines.Pipelines,
+    "_resolve_project_from_pipeline",
+    side_effect=lambda self_or_run, *a, **kw: "proj",
+)
+def test_nonempty_target_name_filters_correctly(mock_resolve):
+    """When target_name is provided, only matching runs should be yielded."""
+    pipelines = services.api.crud.pipelines.Pipelines()
+    run_a = self._make_run("train-model")
+    run_b = self._make_run("deploy-model")
+    run_c = self._make_run("evaluate")
+    runs = [run_a, run_b, run_c]
+
+    result = list(pipelines._filter_runs_by_name(runs, target_name="model"))
+
+    assert len(result) == 2
+    assert result == [run_a, run_b]
+
+@patch.object(
+    services.api.crud.pipelines.Pipelines,
+    "_resolve_project_from_pipeline",
+    side_effect=lambda self_or_run, *a, **kw: "proj",
+)
+def test_no_matching_runs(mock_resolve):
+    """When no runs match, an empty list should be returned."""
+    pipelines = services.api.crud.pipelines.Pipelines()
+    runs = [self._make_run("train"), self._make_run("deploy")]
+
+    result = list(pipelines._filter_runs_by_name(runs, target_name="nonexistent"))
+
+    assert len(result) == 0

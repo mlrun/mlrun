@@ -343,7 +343,8 @@ def ast_code(expr):
         children = [ast_code(e) for e in expr.args]
         children += [f"{k.arg}={ast_code(k.value)}" for k in expr.keywords]
         inner = ", ".join(children)
-        return f"{expr.func.id}({inner})"
+        func_name = ast.unparse(expr.func)
+        return f"{func_name}({inner})"
     else:  # Leaf (number, str ...)
         return repr(getattr(expr, expr._fields[0]))
 

@@ -233,6 +233,7 @@ def test_ignore_underscore():
 def test_annotate_mod():
     code = """
     import mlrun
+from mlrun.runtimes.funcdoc import ast_code, find_handlers
 
     def handler(data: mlrun.DataItem):
         ...
@@ -284,3 +285,50 @@ def test_return_types(func_code, expected_return_type):
     fn: ast.FunctionDef = ast.parse(dedent(func_code)).body[0]
     func_info = funcdoc.ast_func_info(fn)
     assert func_info["return"]["type"] == expected_return_type
+
+
+def _get_default(code: str):
+    """Parse a function def and return its first default value AST node."""
+    tree = ast.parse(code)
+    func = tree.body[0]
+    return func.args.defaults[0]
+
+
+@pytest.mark.parametrize(
+    "code, expected",
+    [
+        ("def f(x=dict()): pass", "dict()"),
+        ("def f(x=datetime.now()): pass", "datetime.now()"),
+        ('def f(x=os.path.join("a", "b")): pass', "os.path.join('a', 'b')"),
+        ("def f(x=collections.OrderedDict(a=1)): pass", "collections.OrderedDict(a=1)"),
+    ],
+)
+def test_ast_code_call_defaults(code, expected):
+    """ast_code should handle method-call default parameters without crashing."""
+    default = _get_default(code)
+    result = ast_code(default)
+    assert result == expected
+
+
+@pytest.mark.parametrize(
+    "code, param_name, expected_default",
+    [
+        (
+            "def handler(context, x=datetime.now()):\n    pass\n",
+            "x",
+            "datetime.now()",
+        ),
+        (
+            'def handler(context, path=os.path.join("/tmp", "data")):\n    pass\n',
+            "path",
+            "os.path.join('/tmp', 'data')",
+        ),
+    ],
+)
+def test_find_handlers_method_call_defaults(code, param_name, expected_default):
+    """find_handlers should capture method-call defaults as strings."""
+    result = find_handlers(code, handlers=["handler"])
+    assert len(result) == 1
+    params = result[0]["params"]
+    param = next(p for p in params if p["name"] == param_name)
+    assert param["default"] == expected_default

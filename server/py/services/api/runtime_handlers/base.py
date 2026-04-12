@@ -1356,10 +1356,12 @@ class BaseRuntimeHandler(ABC):
 
             # sanity
             if current_run:
-                duplicated_runs = {
-                    "monitored_run": current_run.get(["metadata"]),
-                    "duplicated_run": run.get(["metadata"]),
-                }
+                duplicated_runs.append(
+                    {
+                        "monitored_run": current_run.get("metadata"),
+                        "duplicated_run": run.get("metadata"),
+                    }
+                )
                 continue
 
             project_run_uid_map[project][uid] = run

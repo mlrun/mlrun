@@ -35,6 +35,7 @@ import services.api.crud
 from framework.utils.singletons.db import get_db
 from services.api.runtime_handlers import get_runtime_handler
 from services.api.tests.unit.runtime_handlers.base import TestRuntimeHandlerBase
+from services.api.runtime_handlers.kubejob import KubeRuntimeHandler
 
 
 class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
@@ -1178,3 +1179,190 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
         pod = pod or self.completed_job_pod
         mocked_responses = self._mock_list_namespaced_pods([[pod]])
         return mocked_responses[0].items
+
+
+def setup_method(self):
+    self.handler = KubeRuntimeHandler()
+
+def test_duplicated_runs_collected_as_list_with_correct_metadata():
+    """
+    Verify that when multiple runs share the same UID, all duplicates are
+    collected into a list (not overwritten by a dict) and that the metadata
+    is correctly extracted using .get("metadata") instead of .get(["metadata"]).
+    """
+    shared_uid = "dup-uid-123"
+    project = "test-project"
+    first_run = {
+        "metadata": {
+            "uid": shared_uid,
+            "project": project,
+            "name": "run-first",
+            "labels": {"kind": "job"},
+        },
+        "status": {"state": "running"},
+    }
+    duplicate_run = {
+        "metadata": {
+            "uid": shared_uid,
+            "project": project,
+            "name": "run-duplicate",
+            "labels": {"kind": "job"},
+        },
+        "status": {"state": "running"},
+    }
+    another_duplicate = {
+        "metadata": {
+            "uid": shared_uid,
+            "project": project,
+            "name": "run-another-dup",
+            "labels": {"kind": "job"},
+        },
+        "status": {"state": "running"},
+    }
+
+    mock_db = unittest.mock.MagicMock()
+    mock_db.list_runs.return_value = [first_run, duplicate_run, another_duplicate]
+    mock_session = unittest.mock.MagicMock()
+
+    project_run_uid_map = self.handler._list_runs_for_monitoring(
+        mock_db, mock_session, states=["running"]
+    )
+
+    # The first run should be in the map
+    assert project in project_run_uid_map
+    assert shared_uid in project_run_uid_map[project]
+    assert project_run_uid_map[project][shared_uid] is first_run
+
+def test_duplicated_runs_logged_with_non_none_metadata():
+    """
+    Verify that duplicated run entries contain actual metadata dicts,
+    not None (which was the bug when .get(["metadata"]) was used).
+    """
+    shared_uid = "dup-uid-456"
+    project = "test-project"
+    first_run = {
+        "metadata": {
+            "uid": shared_uid,
+            "project": project,
+            "name": "first",
+            "labels": {"kind": "job"},
+        },
+        "status": {"state": "running"},
+    }
+    duplicate_run = {
+        "metadata": {
+            "uid": shared_uid,
+            "project": project,
+            "name": "dup",
+            "labels": {"kind": "job"},
+        },
+        "status": {"state": "running"},
+    }
+
+    mock_db = unittest.mock.MagicMock()
+    mock_db.list_runs.return_value = [first_run, duplicate_run]
+    mock_session = unittest.mock.MagicMock()
+
+    # Patch logger to capture the warning
+    with unittest.mock.patch(
+        "services.api.runtime_handlers.base.logger"
+    ) as mock_logger:
+        self.handler._list_runs_for_monitoring(
+            mock_db, mock_session, states=["running"]
+        )
+
+        # Assert that the warning was called with duplicated_runs as a list
+        mock_logger.warning.assert_called()
+        call_kwargs = mock_logger.warning.call_args
+        duplicated_runs = call_kwargs.kwargs.get("duplicated_runs") or call_kwargs[
+            1
+        ].get("duplicated_runs")
+
+        # duplicated_runs should be a list, not a dict
+        assert isinstance(duplicated_runs, list), (
+            f"Expected list, got {type(duplicated_runs)}"
+        )
+        assert len(duplicated_runs) == 1
+
+        # Metadata should be actual dicts, not None
+        entry = duplicated_runs[0]
+        assert entry["monitored_run"] is not None
+        assert entry["duplicated_run"] is not None
+        assert entry["monitored_run"]["uid"] == shared_uid
+        assert entry["duplicated_run"]["uid"] == shared_uid
+
+def test_multiple_duplicated_runs_all_collected():
+    """
+    When there are 3 runs with the same UID, both duplicates should appear
+    in the duplicated_runs list (the first one is kept as the monitored run).
+    """
+    shared_uid = "dup-uid-789"
+    project = "test-project"
+    runs = [
+        {
+            "metadata": {
+                "uid": shared_uid,
+                "project": project,
+                "name": f"run-{i}",
+                "labels": {"kind": "job"},
+            },
+            "status": {"state": "running"},
+        }
+        for i in range(3)
+    ]
+
+    mock_db = unittest.mock.MagicMock()
+    mock_db.list_runs.return_value = runs
+    mock_session = unittest.mock.MagicMock()
+
+    with unittest.mock.patch(
+        "services.api.runtime_handlers.base.logger"
+    ) as mock_logger:
+        self.handler._list_runs_for_monitoring(
+            mock_db, mock_session, states=["running"]
+        )
+
+        call_kwargs = mock_logger.warning.call_args
+        duplicated_runs = call_kwargs.kwargs.get("duplicated_runs") or call_kwargs[
+            1
+        ].get("duplicated_runs")
+
+        # Should have 2 duplicates (runs[1] and runs[2])
+        assert isinstance(duplicated_runs, list)
+        assert len(duplicated_runs) == 2
+
+def test_no_duplicates_no_warning():
+    """
+    When there are no duplicated runs, the duplicated_runs warning
+    should not be logged.
+    """
+    runs = [
+        {
+            "metadata": {
+                "uid": f"uid-{i}",
+                "project": "test-project",
+                "name": f"run-{i}",
+                "labels": {"kind": "job"},
+            },
+            "status": {"state": "running"},
+        }
+        for i in range(3)
+    ]
+
+    mock_db = unittest.mock.MagicMock()
+    mock_db.list_runs.return_value = runs
+    mock_session = unittest.mock.MagicMock()
+
+    with unittest.mock.patch(
+        "services.api.runtime_handlers.base.logger"
+    ) as mock_logger:
+        result = self.handler._list_runs_for_monitoring(
+            mock_db, mock_session, states=["running"]
+        )
+
+        # All 3 runs should be in the map
+        assert len(result["test-project"]) == 3
+
+        # No warning about duplicated runs
+        for call in mock_logger.warning.call_args_list:
+            assert "duplicated" not in str(call).lower()

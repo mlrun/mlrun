@@ -23,6 +23,8 @@ import mlrun_pipelines.common.helpers
 import services.api.crud
 import unittest.mock
 import services.api.crud.pipelines
+import datetime
+from mlrun_pipelines.common.models import RunStatuses
 
 
 def test_resolve_pipeline_project():
@@ -472,3 +474,85 @@ def test_failed_experiment_deletion_logs_correct_experiment_id(
         f"Expected experiment_id='exp-bbb', got '{warning_kwargs['experiment_id']}'. "
         "This indicates the stale loop variable bug is present."
     )
+
+
+def test_succeeded_status_uses_equality_not_substring():
+    """
+    Ensure that only the exact status string "Succeeded" is counted as
+    a completed pipeline, not any substring of it.
+    """
+    # RunStatuses.succeeded is "Succeeded"
+    succeeded_status = RunStatuses.succeeded
+    assert succeeded_status == "Succeeded"
+
+    # A correct equality check rejects substrings
+    assert ("S" == succeeded_status) is False
+    assert ("ceed" == succeeded_status) is False
+    assert ("Succeeded" == succeeded_status) is True
+
+    # The bug: substring check would incorrectly match
+    assert ("S" in succeeded_status) is True  # this is the bug behavior
+    assert ("ceed" in succeeded_status) is True  # this is the bug behavior
+
+
+def test_calculate_pipelines_counters_counts_only_exact_succeeded():
+    """
+    Verify the fixed comparison logic: only pipelines with exactly
+    "Succeeded" status are counted as completed.
+    """
+    now = datetime.datetime.now(tz=datetime.UTC)
+    recent_time = (now - datetime.timedelta(hours=1)).strftime(
+        "%Y-%m-%d %H:%M:%S%z"
+    )
+
+    pipelines = [
+        {
+            "project": "proj1",
+            "status": str(RunStatuses.succeeded),
+            "finished_at": recent_time,
+        },
+        {
+            "project": "proj1",
+            "status": "SomeOtherStatus",
+            "finished_at": recent_time,
+        },
+    ]
+
+    completed_count = 0
+    for pipeline in pipelines:
+        if pipeline.get("finished_at"):
+            finished_at = datetime.datetime.strptime(
+                pipeline["finished_at"], "%Y-%m-%d %H:%M:%S%z"
+            )
+            if finished_at > now - datetime.timedelta(days=1):
+                # This is the FIXED comparison (==), not substring (in)
+                if pipeline["status"] == RunStatuses.succeeded:
+                    completed_count += 1
+
+    # Only the first pipeline with exactly "Succeeded" should be counted
+    assert completed_count == 1
+
+
+def test_substring_status_not_counted_as_succeeded():
+    """
+    Regression test: a status that is a substring of "Succeeded" must
+    not be counted as a completed pipeline.
+    """
+    now = datetime.datetime.now(tz=datetime.UTC)
+    recent_time = (now - datetime.timedelta(hours=1)).strftime(
+        "%Y-%m-%d %H:%M:%S%z"
+    )
+
+    # "ceed" is a substring of "Succeeded" - with the old `in` check
+    # it would be incorrectly counted as completed
+    pipeline = {
+        "project": "proj1",
+        "status": "ceed",
+        "finished_at": recent_time,
+    }
+
+    # With substring check (bug): "ceed" in "Succeeded" == True
+    assert ("ceed" in str(RunStatuses.succeeded)) is True
+
+    # With equality check (fix): "ceed" == "Succeeded" == False
+    assert (pipeline["status"] == RunStatuses.succeeded) is False

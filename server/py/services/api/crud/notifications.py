@@ -92,11 +92,9 @@ class Notifications(
         notifications = [
             notification
             for notification in self.list_run_notifications(session, run_uid, project)
-            if notification.name == name
+            if name is None or notification.name == name
         ]
-        if notifications:
-            # unique constraint on name, run_uid, project, so the list will contain one item at most
-            notification = notifications[0]
+        for notification in notifications:
             framework.utils.notifications.delete_notification_params_secret(
                 project, notification
             )

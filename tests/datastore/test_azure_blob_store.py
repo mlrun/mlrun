@@ -692,3 +692,38 @@ class TestAzureBlobStore:
             # Falls back to endpoint (hostname) - not ideal but maintains backward compatibility
             expected = "testdata.blob.core.windows.net/path/to/file.txt"
             assert result == expected
+
+    @pytest.mark.parametrize(
+        "env_vars",
+        [
+            {
+                "AZURE_STORAGE_ACCOUNT_NAME": "teststorage",
+                "AZURE_STORAGE_ACCOUNT_KEY": "mlrun-key",
+                "AZURE_STORAGE_CLIENT_ID": "storage-client-id",
+                "AZURE_STORAGE_CLIENT_SECRET": "storage-client-secret",
+                "AZURE_STORAGE_TENANT_ID": "storage-tenant-id",
+            },
+            {
+                "AZURE_STORAGE_ACCOUNT": "teststorage",
+                "AZURE_STORAGE_ACCESS_KEY": "sdk-key",
+                "AZURE_CLIENT_ID": "sdk-client-id",
+                "AZURE_CLIENT_SECRET": "sdk-client-secret",
+                "AZURE_TENANT_ID": "sdk-tenant-id",
+            },
+        ],
+        ids=["mlrun_env_vars", "standard_azure_sdk_env_vars"],
+    )
+    def test_storage_options_resolves_azure_credential_env_vars(self, env_vars):
+        """Test that storage_options picks up both AZURE_STORAGE_* and standard Azure SDK env var names."""
+        store = self._create_store(schema="az", endpoint="mycontainer")
+
+        with patch.object(store, "_get_secret_or_env") as mock_get_secret:
+            mock_get_secret.side_effect = lambda key: env_vars.get(key)
+
+            options = store.storage_options
+
+        assert options["account_name"] == "teststorage"
+        assert options["account_key"] is not None
+        assert options["client_id"] is not None
+        assert options["client_secret"] is not None
+        assert options["tenant_id"] is not None

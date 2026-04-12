@@ -1734,6 +1734,19 @@ class TestMailNotification:
                     "password": "pass",
                 },
             ),
+            (
+                # The Subject should take only the first line of the message
+                "multiline_message",
+                {},
+                "Run failed\nRetries attempted: 3\nRetry limit reached",
+                "info",
+                {
+                    "subject": "[info] Run failed",
+                    "body": MOCKED_HTML,
+                    "username": None,
+                    "password": None,
+                },
+            ),
         ],
     )
     async def test_push(self, name, params, message, severity, expected):

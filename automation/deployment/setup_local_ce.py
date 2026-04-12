@@ -905,6 +905,8 @@ def setup_ce(
         "kube-prometheus-stack.enabled=false",
         "--set",
         f"kafka.rbac.operatorNamespace={admin_namespace}",
+        "--set",
+        f"spark-operator.spark.jobNamespaces[0]={namespace}",
     ]
     if mlrun_install_extra_values:
         for key, value in mlrun_install_extra_values.items():

@@ -77,7 +77,7 @@ class MailNotification(base.NotificationBase):
         alert: mlrun.common.schemas.AlertConfig | None = None,
         event_data: mlrun.common.schemas.Event | None = None,
     ):
-        self.params["subject"] = f"[{severity}] {message}"
+        self.params["subject"] = self._sanitize_subject(f"[{severity}] {message}")
         message_body_override = self.params.get("message_body_override", None)
 
         runs_html = self._get_html(
@@ -187,6 +187,11 @@ class MailNotification(base.NotificationBase):
             send_kwargs["password"] = password
 
         await aiosmtplib.send(message, **send_kwargs)
+
+    @staticmethod
+    def _sanitize_subject(subject: str) -> str:
+        # Keep only the first line for the email subject.
+        return subject.splitlines()[0].strip()
 
     @staticmethod
     def _enrich_params(params):

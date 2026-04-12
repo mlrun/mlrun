@@ -849,6 +849,8 @@ fmt: ## Format the code using Ruff and blacken-docs
 	python -m ruff format
 	@echo "Formatting the code blocks with blacken-docs..."
 	git ls-files -z -- '*.md' | xargs -0 blacken-docs -t="$(MLRUN_LINT_PYTHON_VERSION)"
+	@echo "Fixing copyright year in new files..."
+	@bash automation/scripts/copyright_year.sh fix
 
 .PHONY: lint-docs
 lint-docs: ## Format the code blocks in markdown files
@@ -864,7 +866,19 @@ lint-imports: ## Validates import dependencies
 	lint-imports
 
 .PHONY: lint
-lint: lint-check lint-imports ## Run lint on the code
+lint: lint-check lint-imports lint-copyright ## Run lint on the code
+
+.PHONY: lint-copyright
+lint-copyright: ## Check copyright year in new (untracked) files
+	@echo "Checking copyright year in new files..."
+	@bash automation/scripts/copyright_year.sh check
+
+BASE_BRANCH ?= origin/development
+
+.PHONY: lint-copyright-ci
+lint-copyright-ci: ## Check copyright year in newly added files in a PR (CI use)
+	@echo "Checking copyright year in new files..."
+	@bash automation/scripts/copyright_year.sh check-ci $(BASE_BRANCH)
 
 .PHONY: lint-check
 lint-check: ## Check the code (using ruff)

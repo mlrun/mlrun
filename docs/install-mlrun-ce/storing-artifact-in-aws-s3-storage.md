@@ -1,15 +1,15 @@
 # Storing artifacts in AWS S3 storage
 
-MLRun CE uses a MinIO service as a shared storage for artifacts, and accesses it using S3 protocol. This means that
-any path that begins with `s3://` is automatically directed by MLRun to the MinIO service. The default artifact
+MLRun CE uses a SeaweedFS service as a shared storage for artifacts, and accesses it using S3 protocol. This means that
+any path that begins with `s3://` is automatically directed by MLRun to the SeaweedFS service. The default artifact
 path is also configured as `s3://mlrun/projects/{{run.project}}/artifacts` which is a path on the `mlrun` bucket in the
-MinIO service.
+SeaweedFS service.
 
-To store artifacts in AWS S3 buckets instead of the local MinIO service, these configurations need to be overridden to 
+To store artifacts in AWS S3 buckets instead of the local SeaweedFS service, these configurations need to be overridden to 
 make `s3://` paths lead to AWS buckets instead.
 
 ```{admonition} Note
-These configurations are only required for AWS S3 storage, due to the usage of the same S3 protocol in MinIO. For other
+These configurations are only required for AWS S3 storage, due to the usage of the same S3 protocol in SeaweedFS. For other
 storage options (such as GCS, Azure blobs etc.) just modify the artifact path and provide credentials.
 ```
 
@@ -28,7 +28,7 @@ for any project used:
 ## Disabling auto-mount
 
 Before running any MLRun job that writes to an S3 bucket, make sure auto-mount is disabled for it, since by default
-auto-mount adds S3 configurations that point at the MinIO service (refer to 
+auto-mount adds S3 configurations that point at the SeaweedFS service (refer to 
 [**Function storage**](../runtimes/function-storage.md) for more details on auto-mount). This can be done in one
 of following ways:
 

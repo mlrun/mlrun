@@ -45,6 +45,29 @@ class TestService(TestAPIBase):
             await asyncio.sleep(1)
             mock_submit_run_from_body.assert_called_once()
 
+    async def test_retry_job_passes_user_id_from_run_spec(self, db: Session):
+        """Test that user_id stored on the run spec is forwarded to AuthInfo on retry.
+
+        In IG4 mode, auth_info is empty when the retry background task fires.
+        The user_id must be read from run.spec.auth so that
+        enrich_and_validate_auth_token_name can resolve the correct token.
+        """
+        mlrun.mlconf.function.spec.retry.backoff.min_base_delay = "0s"
+        run_uid = "test-job-uid-user-id"
+        run = self._generate_retry_job(uid=run_uid)
+        run["spec"]["auth"] = {"user_id": "expected-user-id", "token_name": "default"}
+        run_db = mlrun.db.get_run_db()
+        with unittest.mock.patch(
+            "framework.api.utils.submit_run_from_body",
+            return_value=unittest.mock.Mock(),
+        ) as mock_submit_run_from_body:
+            run_db.store_run(struct=run, uid=run_uid, project=self._project)
+            await self._service._retry_jobs()
+            await asyncio.sleep(1)
+            mock_submit_run_from_body.assert_called_once()
+            auth_info_arg = mock_submit_run_from_body.call_args[0][1]
+            assert auth_info_arg.user_id == "expected-user-id"
+
     async def test_retry_job_retry_exhausted(self, db: Session):
         run_uid = "test-job-uid"
         run = self._generate_retry_job(uid=run_uid, count=2, retry_count=2)

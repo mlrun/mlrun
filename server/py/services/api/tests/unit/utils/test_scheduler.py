@@ -28,6 +28,7 @@ from sqlalchemy.orm import Session
 
 import mlrun
 import mlrun.common.schemas
+import mlrun.common.types
 import mlrun.errors
 import mlrun.launcher.factory
 from mlrun.common.runtimes.constants import RunStates
@@ -122,6 +123,44 @@ async def test_not_skipping_delayed_schedules(db: Session, scheduler: Scheduler)
     time.sleep(2 + expected_call_counter)
     await asyncio.sleep(1)
     assert call_counter == expected_call_counter
+
+
+@pytest.mark.parametrize(
+    "auth_mode,user_id,expect_stored",
+    [
+        # IG4 mode with user_id → user_id stored in scheduled_object
+        (mlrun.common.types.AuthenticationMode.IGUAZIO_V4, "user-123", True),
+        # IG4 mode without user_id → nothing stored
+        (mlrun.common.types.AuthenticationMode.IGUAZIO_V4, None, False),
+        # non-IG4 mode → user_id never stored
+        (mlrun.common.types.AuthenticationMode.NONE, "user-123", False),
+    ],
+)
+def test_embed_user_id_in_scheduled_object(
+    auth_mode,
+    user_id,
+    expect_stored,
+):
+    """Test that _embed_user_id_in_scheduled_object persists user_id in IG4 mode.
+
+    This ensures the user_id survives API restarts: each new schedule occurrence
+    creates a fresh RunObject from the stored scheduled_object template, so the
+    user_id must live there rather than in auth_info (which is empty after restart).
+    """
+    mlrun.mlconf.httpdb.authentication.mode = auth_mode
+
+    scheduled_object = {"task": {"spec": {}, "metadata": {}}}
+    auth_info = mlrun.common.schemas.AuthInfo(user_id=user_id)
+
+    Scheduler._embed_user_id_in_scheduled_object(auth_info, scheduled_object)
+
+    stored_user_id = (
+        scheduled_object.get("task", {}).get("spec", {}).get("auth", {}).get("user_id")
+    )
+    if expect_stored:
+        assert stored_user_id == user_id
+    else:
+        assert stored_user_id is None
 
 
 @pytest.mark.asyncio

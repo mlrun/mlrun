@@ -823,7 +823,14 @@ with warnings.catch_warnings():
 
     class AlertState(Base, framework.db.sqldb.base.BaseModel):
         __tablename__ = "alert_states"
-        __table_args__ = (UniqueConstraint("parent_id", name="_alert_state_parent_uc"),)
+        __table_args__ = (
+            UniqueConstraint("parent_id", name="_alert_state_parent_uc"),
+            Index(
+                "ix_alert_states_active_cooldown_end_time",
+                "active",
+                "cooldown_end_time",
+            ),
+        )
 
         id = Column(Integer, primary_key=True)
         count = Column(Integer)
@@ -836,6 +843,11 @@ with warnings.catch_warnings():
             default=None,
         )
         active = Column(BOOLEAN, default=False)
+        cooldown_end_time = Column(
+            framework.db.sqldb.sql_types.MicroSecondDateTime,
+            default=None,
+            nullable=True,
+        )
 
         parent_id = Column(Integer, ForeignKey("alert_configs.id"))
 

@@ -73,7 +73,12 @@ from ..utils import (
     is_explicit_ack_supported,
     lock_hub_uri_version,
 )
-from .utils import StepToDict, _extract_input_data, _MappedBody, _update_result_body
+from .utils import (
+    StepToDict,
+    _extract_input_data,
+    _RequestContext,
+    _update_result_body,
+)
 
 callable_prefix = "_"
 path_splitter = "/"
@@ -208,6 +213,14 @@ class BaseStep(ModelObj):
             if name not in self.after:
                 self.after.append(name)
         return self
+
+    @property
+    def max_iterations(self):
+        return self._max_iterations
+
+    @max_iterations.setter
+    def max_iterations(self, max_iterations: int):
+        self._max_iterations = max_iterations
 
     def error_handler(
         self,
@@ -937,12 +950,7 @@ class TaskStep(BaseStep):
                 )
 
             body = _extract_input_data(self.input_path, event.body)
-            if isinstance(body, _MappedBody):
-                # body_map-transformed bodies are unpacked as **kwargs
-                # so handler signatures like def fun(book: str) work
-                result = self._handler(**body, **kwargs)
-            else:
-                result = self._handler(body, *args, **kwargs)
+            result = _MappedBodyAwareHandler(self._handler)(body, *args, **kwargs)
             event.body = _update_result_body(self.result_path, event.body, result)
         except Exception as exc:
             if self._on_error_handler:
@@ -3339,14 +3347,6 @@ class RootFlowStep(FlowStep):
         self._pool_factor = None
 
     @property
-    def max_iterations(self) -> int:
-        return self._max_iterations
-
-    @max_iterations.setter
-    def max_iterations(self, max_iterations: int):
-        self._max_iterations = max_iterations
-
-    @property
     def allow_cyclic(self) -> bool:
         return self._allow_cyclic
 
@@ -4034,6 +4034,40 @@ def params_to_step(
     return name, step
 
 
+class _MappedBodyAwareHandler:
+    """Dispatch handler calls for API-handler-produced _RequestContext bodies.
+
+    When _APIHandlerStep.do() produces a _RequestContext, the handler receives
+    the original event body as the first positional arg and all extracted params
+    (body_map, path, query, url) as keyword args::
+
+        def handler(body, model_name, version, **kwargs): ...
+
+    Implemented as a named class rather than a closure so instances remain
+    picklable for storey's multiprocessing (max_processes) mode.
+
+    Use ``__call__`` for the sync path (TaskStep.run()) and ``async_call`` for
+    the async path (_init_async_objects).
+    """
+
+    def __init__(self, handler):
+        self._fn = handler
+
+    def __call__(self, body, *args, **kwargs):
+        if isinstance(body, _RequestContext):
+            return self._fn(
+                body.original_body, **{k: v for k, v in body.items()}, **kwargs
+            )
+        return self._fn(body, *args, **kwargs)
+
+    async def async_call(self, body, *args, **kwargs):
+        if isinstance(body, _RequestContext):
+            return await self._fn(
+                body.original_body, **{k: v for k, v in body.items()}, **kwargs
+            )
+        return await self._fn(body, *args, **kwargs)
+
+
 def _init_async_objects(context, steps, root):
     try:
         import storey
@@ -4137,8 +4171,14 @@ def _init_async_objects(context, steps, root):
                         f"Step '{step.name}' does not have a handler that can be called"
                     )
                 # if regular class, wrap with storey Map
+                wrapped = _MappedBodyAwareHandler(step._handler)
+                if inspect.iscoroutinefunction(step._handler):
+                    # Pass the bound async method so asyncio.iscoroutinefunction detects it correctly
+                    handler = wrapped.async_call
+                else:
+                    handler = wrapped
                 step._async_object = storey.Map(
-                    step._handler,
+                    handler,
                     full_event=step.full_event or step._call_with_event,
                     input_path=step.input_path,
                     result_path=step.result_path,

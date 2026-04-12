@@ -172,10 +172,6 @@ class MLRunMethodNotAllowedError(MLRunHTTPStatusError):
     error_status_code = HTTPStatus.METHOD_NOT_ALLOWED.value
 
 
-class MLRunUnprocessableEntityError(MLRunHTTPStatusError):
-    error_status_code = HTTPStatus.UNPROCESSABLE_ENTITY.value
-
-
 class MLRunInvalidArgumentError(MLRunHTTPStatusError, ValueError):
     error_status_code = HTTPStatus.BAD_REQUEST.value
 

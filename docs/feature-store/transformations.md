@@ -1,6 +1,14 @@
 (transformations)=
 # Feature set transformations
 
+You can build a feature set transformation using {ref}`serving graphs<serving-graph>`.
+
+High-level transformation logic is automatically converted to real-time serverless processing engines that can read 
+from any online or offline source, handle any type of structures or unstructured data, run complex computation graphs 
+and native user code. Iguazio’s solution uses a unique multi-model database, serving the computed features consistently 
+through many different APIs and formats (like files, SQL queries, pandas, real-time REST APIs, time-series, streaming), 
+resulting in better accuracy and simpler integration.
+
 A feature set contains an execution graph of operations that are performed when data is ingested, or when simulating data flow for inferring its metadata. This graph utilizes MLRun's {ref}`serving-graph`.
 
 The graph contains steps that represent data sources and targets, and may also contain steps whose
@@ -38,6 +46,10 @@ to the [feature store example](./basic-demo.ipynb).
 - [Built-in transformations](#built-in-transformations)
 - [Custom transformations](#custom-transformations)
 - [Data transformation steps](#data-transformation-steps)
+
+
+
+
 
 ## Aggregations
 

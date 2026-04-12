@@ -134,7 +134,8 @@ class TestServingAPIHandler(tests.system.base.TestMLRunSystem):
 
         self._logger.info("Forbidden API handler test passed")
 
-    def test_api_handler_with_body_mapping(self) -> None:
+    @pytest.mark.parametrize("engine", ["sync", "async"])
+    def test_api_handler_with_body_mapping(self, engine: str) -> None:
         """Test API handler with body_map JSONPath extraction."""
         self._logger.info("Testing API handler with body_map functionality")
 
@@ -161,7 +162,7 @@ class TestServingAPIHandler(tests.system.base.TestMLRunSystem):
         )
 
         # Set up topology with handler that receives kwargs from body_map
-        graph = function.set_topology("flow", engine="sync", exist_ok=True)
+        graph = function.set_topology("flow", engine=engine, exist_ok=True)
         graph.to(
             name="processor", handler="process_mapped_data"
         ).respond()  # Reference handler by name

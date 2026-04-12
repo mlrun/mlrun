@@ -71,3 +71,4 @@ class ClientSpec(pydantic.v1.BaseModel):
     oauth_internal_token_endpoint: str | None
     oauth_external_token_endpoint: str | None
     authorization_namespaces_resources: str | None
+    default_runtime_image_by_kind: dict[str, str] | None

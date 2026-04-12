@@ -16,6 +16,7 @@
 
 import logging
 import re
+from collections.abc import Iterator
 from http import HTTPMethod
 from typing import cast
 from unittest.mock import MagicMock
@@ -27,10 +28,16 @@ import mlrun.errors
 from mlrun.common.schemas.serving import APIHandlerAction, _APIEndpointKeys
 from mlrun.runtimes.nuclio.serving import APIHandlerConfig, ServingRuntime
 from mlrun.serving import GraphContext
-from mlrun.serving.api_handler import _APIHandlerStep, _RequestContext
-from mlrun.serving.server import MockEvent, RootFlowStep, _add_api_handler_step_to_graph
+from mlrun.serving.api_handler import _APIHandlerStep
+from mlrun.serving.server import (
+    GraphServer,
+    MockEvent,
+    RootFlowStep,
+    _add_api_handler_step_to_graph,
+)
 from mlrun.serving.utils import (
     _combine_serving_endpoint_key,
+    _RequestContext,
     _split_serving_endpoint_key,
 )
 
@@ -126,11 +133,8 @@ class TestRequestContext:
         assert ctx["body_only"] == "b1"
 
     def test_context_is_mapped_body(self) -> None:
-        """Test that RequestContext is a _MappedBody subclass"""
-        from mlrun.serving.utils import _MappedBody
-
+        """Test that RequestContext is a dict subclass"""
         ctx = _RequestContext(query_params={"test": "value"})
-        assert isinstance(ctx, _MappedBody)
         assert isinstance(ctx, dict)
 
     def test_context_unpacks_as_kwargs(self) -> None:
@@ -737,6 +741,7 @@ class TestIncludeUrlInfo:
         result = step.do(event)
 
         assert isinstance(result.body, _RequestContext)
+        assert result.body.original_body == "hello"
         assert result.body["mlrun_request_path"] == "/api/test"
 
     def test_include_url_info_path_without_query_string(self) -> None:
@@ -753,6 +758,7 @@ class TestIncludeUrlInfo:
         result = step.do(event)
 
         assert isinstance(result.body, _RequestContext)
+        assert result.body.original_body == "hello"
         # Path must be normalized (no query string)
         assert result.body["mlrun_request_path"] == "/api/items"
         # Query params are still extracted normally
@@ -773,6 +779,7 @@ class TestIncludeUrlInfo:
         result = step.do(event)
 
         assert isinstance(result.body, _RequestContext)
+        assert result.body.original_body == "hello"
         # Actual request path, not the template pattern
         assert result.body["mlrun_request_path"] == "/api/users/abc-123"
         # Path param is also present
@@ -790,6 +797,7 @@ class TestIncludeUrlInfo:
         result = step.do(event)
 
         assert isinstance(result.body, _RequestContext)
+        assert result.body.original_body == "hello"
         assert result.body["mlrun_request_path"] == "/api/deeply/nested/resource"
 
     def test_include_url_info_combined_with_existing_params(self) -> None:
@@ -811,6 +819,7 @@ class TestIncludeUrlInfo:
         result = step.do(event)
 
         assert isinstance(result.body, _RequestContext)
+        assert result.body.original_body == {"q": "Hello world"}
         assert result.body["mlrun_request_path"] == "/api/gpt4/ask"
         assert result.body["model_id"] == "gpt4"
         assert result.body["lang"] == "en"
@@ -903,8 +912,8 @@ class TestAPIHandlerMockServer:
     def test_api_handler_path_and_query_params_passed_to_handler(self) -> None:
         """Test that path params and query params are passed to handler arguments"""
 
-        def handler(**kwargs):
-            # All params come as kwargs via RequestContext
+        def handler(first_positional_arg, **kwargs):
+            # body is the original event body; path/query params come as kwargs
             return {
                 "item_id": kwargs.get("item_id"),
                 "source": kwargs.get("source"),
@@ -946,7 +955,7 @@ class TestAPIHandlerMockServer:
     def test_api_handler_body_map_with_path_query(self) -> None:
         """Test combining body_map, path params, and query params"""
 
-        def handler(**kwargs):
+        def handler(body, **kwargs):
             return {
                 "model": kwargs.get("model"),  # from body_map
                 "version": kwargs.get("version"),  # from path
@@ -988,7 +997,7 @@ class TestAPIHandlerMockServer:
     def test_api_handler_url_encoded_path_params(self) -> None:
         """Test that URL-encoded path parameters are properly decoded"""
 
-        def handler(**kwargs):
+        def handler(body, **kwargs):
             return {"filename": kwargs.get("filename")}
 
         fn = cast(
@@ -1021,7 +1030,7 @@ class TestAPIHandlerMockServer:
     def test_api_handler_multiple_path_params(self) -> None:
         """Test endpoint with multiple path parameters"""
 
-        def handler(**kwargs):
+        def handler(body, **kwargs):
             return {
                 "org": kwargs.get("org_id"),
                 "repo": kwargs.get("repo_id"),
@@ -1130,7 +1139,7 @@ class TestAPIHandlerMockServer:
     def test_api_handler_repeated_query_params(self) -> None:
         """Test that repeated query parameters are passed as lists"""
 
-        def handler(**kwargs):
+        def handler(body, **kwargs):
             return {"ids": kwargs.get("id"), "single": kwargs.get("name")}
 
         fn = cast(
@@ -1174,7 +1183,7 @@ class TestAPIHandlerMockServer:
         """
 
         def handler(
-            item_id: str, category: str, tags: list[str] | None = None, **kwargs
+            body, item_id: str, category: str, tags: list[str] | None = None, **kwargs
         ) -> dict:
             """Handler with explicit path params in signature.
 
@@ -1777,7 +1786,11 @@ class TestAPIHandlerStep:
             step.do(event)
 
     def test_run_body_map_with_missing_body(self) -> None:
-        """Test that body_map with missing/non-dict body raises 422 error"""
+        """body_map is silently skipped when the request body is not a dict.
+
+        Different endpoints share the same body_map config, so endpoints whose
+        body format is not a dict (e.g. a GET with no body) must not fail.
+        """
         config = APIHandlerConfig()
         config.body_map = {"$.name": "user_name"}
         config.add_endpoint_handler("/test", HTTPMethod.POST, APIHandlerAction.ALLOW)
@@ -1785,11 +1798,35 @@ class TestAPIHandlerStep:
         step = _APIHandlerStep(config=config)
         event = MockEvent(body=None, method="POST", path="/test")
 
-        with pytest.raises(
-            mlrun.errors.MLRunUnprocessableEntityError,
-            match="body_map configured but request body is not a dict",
-        ):
-            step.do(event)
+        # Should succeed; body_map is ignored when the body is not a dict
+        result = step.do(event)
+        assert result.body is None
+
+    def test_run_body_map_dict_body_no_fields_match(self) -> None:
+        """body_map is silently skipped when the dict body has no matching fields.
+
+        When body_map is configured globally but a particular endpoint's body does
+        not contain the mapped fields, the original body must be passed through
+        unchanged (not dropped). This covers the multi-endpoint case where different
+        endpoints have different body schemas.
+        """
+        config = APIHandlerConfig()
+        config.add_body_mapping("name", "$.user_name")
+        config.add_endpoint_handler(
+            "/test/{item_id}", HTTPMethod.POST, APIHandlerAction.ALLOW
+        )
+
+        step = _APIHandlerStep(config=config)
+        original_body = {"unrelated_field": "value"}
+        event = MockEvent(body=original_body, method="POST", path="/test/42")
+
+        result = step.do(event)
+
+        # Original body must be preserved; no body_map fields matched so it should
+        # come through as _RequestContext (original body + path param as kwarg).
+        assert isinstance(result.body, _RequestContext)
+        assert result.body.original_body == original_body
+        assert result.body["item_id"] == "42"
 
 
 class TestAddAPIHandlerStepToGraph:
@@ -2161,10 +2198,96 @@ class TestAPIHandlerEdgeCases:
         # Process the event
         result = handler.do(event)
 
-        # The handler modifies event.body to be a RequestContext when params are extracted
-        # (see api_handler.py line ~430: "if hasattr(event, 'body'): event.body = request_context")
+        # Path/query params extracted and no body_map → _RequestContext:
+        # original body passed as first positional arg, params as kwargs.
         assert isinstance(result, MockEvent)
         assert isinstance(result.body, _RequestContext)
+        assert result.body.original_body == "test"
         assert result.body["user_id"] == "123"
         assert result.body["fields"] == "name,email"
         assert result.body["limit"] == "10"
+
+
+class TestBodyMapMappedBodyUnpacking:
+    """body_map unpacking must work in both sync and async engines.
+
+    _APIHandlerStep.do() sets event.body to a _RequestContext that carries
+    the original body as the first positional arg and all extracted params as kwargs.
+    TaskStep.run() dispatches via _MappedBodyAwareHandler in both the sync and async
+    (storey) paths.
+    """
+
+    _EXPECTED = [
+        {"chunk_id": 0, "word": "Hello"},
+        {"chunk_id": 1, "word": "streaming"},
+        {"chunk_id": 2, "word": "world"},
+        {"chunk_id": -1, "word": "[END]", "final": True},
+    ]
+
+    @staticmethod
+    def _streaming_word_handler(body, message: str) -> Iterator[dict]:
+        """Yields one dict per word; used to test body_map unpacking."""
+        for i, word in enumerate(message.split()):
+            yield {"chunk_id": i, "word": word}
+        yield {"chunk_id": -1, "word": "[END]", "final": True}
+
+    @staticmethod
+    def _make_body_map_serving_fn(engine: str) -> ServingRuntime:
+        config = APIHandlerConfig()
+        config.add_endpoint_handler(
+            "/stream/data", HTTPMethod.POST, APIHandlerAction.ALLOW
+        )
+        config.add_body_mapping("message", "$.text")
+
+        fn = mlrun.new_function("test-body-map", kind="serving")
+        fn.set_api_handler_config(config)
+        graph = fn.set_topology("flow", engine=engine)
+        graph.to(
+            name="streaming_handler",
+            handler="streaming_word_handler",
+            streaming=True,
+        ).respond()
+        fn.set_streaming(enabled=True)
+        return fn
+
+    @pytest.fixture
+    def body_map_sync_server(self) -> Iterator[GraphServer]:
+        """Serving function with engine="sync" and body_map configured."""
+        fn = self._make_body_map_serving_fn(engine="sync")
+        server = fn.to_mock_server(
+            namespace={"streaming_word_handler": self._streaming_word_handler}
+        )
+        yield server
+        server.wait_for_completion()
+
+    @pytest.fixture
+    def body_map_async_server(self) -> Iterator[GraphServer]:
+        """Serving function with engine="async" and body_map configured."""
+        fn = self._make_body_map_serving_fn(engine="async")
+        server = fn.to_mock_server(
+            namespace={"streaming_word_handler": self._streaming_word_handler}
+        )
+        yield server
+        server.wait_for_completion()
+
+    def test_sync_engine_unpacks_body_map(
+        self, body_map_sync_server: GraphServer
+    ) -> None:
+        """engine="sync" routes through TaskStep.run() — _MappedBody unpacked as **kwargs."""
+        result = body_map_sync_server.test(
+            "/stream/data",
+            body={"text": "Hello streaming world"},
+            method="POST",
+        )
+        assert list(result) == self._EXPECTED
+
+    def test_async_engine_unpacks_body_map(
+        self, body_map_async_server: GraphServer
+    ) -> None:
+        """engine="async" must unpack _MappedBody as **kwargs, matching engine="sync"."""
+        result = body_map_async_server.test(
+            "/stream/data",
+            body={"text": "Hello streaming world"},
+            method="POST",
+        )
+        assert list(result) == self._EXPECTED

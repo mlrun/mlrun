@@ -1400,7 +1400,6 @@ def test_retryer_backoff_progresses():
     backoff progression.
     """
     sleep_intervals = []
-    original_sleep = mlrun.utils.retryer.time.sleep
 
     def mock_sleep(seconds):
         sleep_intervals.append(seconds)

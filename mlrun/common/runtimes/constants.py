@@ -336,7 +336,7 @@ class MPIJobV1Alpha1States:
             raise ValueError(f"Invalid MPI job state: {mpijob_state}")
         return {
             MPIJobV1Alpha1States.succeeded: RunStates.completed,
-            SparkApplicationStates.failed: RunStates.error,
+            MPIJobV1Alpha1States.failed: RunStates.error,
             MPIJobV1Alpha1States.active: RunStates.running,
         }[mpijob_state]
 

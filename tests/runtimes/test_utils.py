@@ -403,3 +403,35 @@ def test_results_to_iter_status_resolution(rundb_mock):
 def test_resolve_run_user_template(output_path, owner, expected_output_path):
     result = mlrun.runtimes.utils.resolve_run_user_template(output_path, owner)
     assert result == expected_output_path
+
+
+@pytest.mark.parametrize(
+    "mpijob_state, expected_run_state",
+    [
+        (
+            mlrun.common.runtimes.constants.MPIJobV1Alpha1States.succeeded,
+            mlrun.common.runtimes.constants.RunStates.completed,
+        ),
+        (
+            mlrun.common.runtimes.constants.MPIJobV1Alpha1States.failed,
+            mlrun.common.runtimes.constants.RunStates.error,
+        ),
+        (
+            mlrun.common.runtimes.constants.MPIJobV1Alpha1States.active,
+            mlrun.common.runtimes.constants.RunStates.running,
+        ),
+    ],
+)
+def test_mpijob_v1alpha1_state_to_run_state(mpijob_state, expected_run_state):
+    """
+    Regression test: MPIJobV1Alpha1States.mpijob_state_to_run_state previously used
+    SparkApplicationStates.failed ("FAILED") as the dict key for the "failed" case
+    instead of MPIJobV1Alpha1States.failed ("Failed"), causing a KeyError whenever an
+    MPI job transitioned to the Failed state.
+    """
+    result = (
+        mlrun.common.runtimes.constants.MPIJobV1Alpha1States.mpijob_state_to_run_state(
+            mpijob_state
+        )
+    )
+    assert result == expected_run_state

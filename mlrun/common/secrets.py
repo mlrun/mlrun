@@ -226,9 +226,10 @@ class InMemorySecretProvider(SecretProviderInterface):
             mlrun.common.schemas.SecretTokenInfo(
                 name=self.secrets_map[secret_name]["token_name"],
                 expiration=self.secrets_map[secret_name]["expiration"],
+                user_id=self.secrets_map[secret_name]["user_id"],
             )
             for secret_name in secret_names
-            if self.secrets_map[secret_name]["user_id"] == user_id
+            if self.secrets_map[secret_name].get("user_id") == user_id
         ]
 
     def delete_user_token_secret(

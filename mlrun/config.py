@@ -1021,11 +1021,11 @@ class Config:
 
     def keys(self):
         if isinstance(self._cfg, Mapping):
-            return iter(self.data.keys())
+            return iter(self._cfg.keys())
 
     def values(self):
         if isinstance(self._cfg, Mapping):
-            return iter(self.data.values())
+            return iter(self._cfg.values())
 
     def update(self, cfg, skip_errors=False):
         for key, value in cfg.items():

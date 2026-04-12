@@ -21,6 +21,8 @@ import mlrun_pipelines
 import mlrun_pipelines.common.helpers
 
 import services.api.crud
+import unittest.mock
+import services.api.crud.pipelines
 
 
 def test_resolve_pipeline_project():
@@ -308,3 +310,165 @@ def test_list_pipelines_project_filtering(project, expected_ids):
     assert total_size == len(expected_ids)
     assert next_page_token is None
     assert [r["id"] for r in runs] == expected_ids
+
+
+@pytest.fixture()
+def pipelines_crud(self):
+    return services.api.crud.pipelines.Pipelines()
+
+def test_failed_run_deletion_logs_correct_run_id(pipelines_crud, monkeypatch):
+    """
+    When deleting multiple pipeline runs concurrently, the warning log
+    for a failed deletion must reference the correct pipeline_run_id,
+    not the last run processed in the submission loop.
+    """
+    # Arrange: 3 runs; only the second one will fail
+    fake_runs = [
+        {"id": "run-aaa", "name": "run-a", "experiment_id": ""},
+        {"id": "run-bbb", "name": "run-b", "experiment_id": ""},
+        {"id": "run-ccc", "name": "run-c", "experiment_id": ""},
+    ]
+
+    # Make list_pipelines return our fake runs
+    monkeypatch.setattr(
+        "mlrun.utils.helpers.retry_until_successful",
+        lambda *a, **kw: (None, None, fake_runs),
+    )
+
+    # Patch _initialize_kfp_client to return a mock client
+    mock_kfp_client = unittest.mock.MagicMock()
+
+    # Track which run_id was passed for each call
+    call_order = []
+
+    def fake_delete_run(run_id):
+        call_order.append(run_id)
+        if run_id == "run-bbb":
+            raise RuntimeError("Simulated KFP deletion failure for run-bbb")
+
+    mock_kfp_client._run_api.delete_run.side_effect = fake_delete_run
+    monkeypatch.setattr(
+        pipelines_crud,
+        "_initialize_kfp_client",
+        lambda *a, **kw: mock_kfp_client,
+    )
+
+    # Patch PipelineRun to return a simple object with .id and .experiment_id
+    class FakePipelineRun:
+        def __init__(self, data):
+            self.id = data["id"]
+            self.name = data["name"]
+            self.experiment_id = data.get("experiment_id", "")
+
+    monkeypatch.setattr(
+        "mlrun_pipelines.models.PipelineRun",
+        FakePipelineRun,
+    )
+
+    # Capture warning logs
+    logged_warnings = []
+
+    def capture_warning(msg, **kwargs):
+        logged_warnings.append((msg, kwargs))
+
+    monkeypatch.setattr(
+        "mlrun.utils.logger.warning",
+        capture_warning,
+    )
+
+    # Act
+    db_session = unittest.mock.MagicMock()
+    pipelines_crud.delete_pipelines_runs(db_session, "test-project")
+
+    # Assert: exactly one warning was logged
+    assert len(logged_warnings) == 1, (
+        f"Expected exactly 1 warning, got {len(logged_warnings)}"
+    )
+
+    warning_msg, warning_kwargs = logged_warnings[0]
+    assert warning_msg == "Failed to delete pipeline run"
+    # The critical assertion: the logged run ID must be "run-bbb"
+    # (the one that actually failed), NOT "run-ccc" (the last loop value)
+    assert warning_kwargs["pipeline_run_id"] == "run-bbb", (
+        f"Expected pipeline_run_id='run-bbb', got '{warning_kwargs['pipeline_run_id']}'. "
+        "This indicates the stale loop variable bug is present."
+    )
+
+def test_failed_experiment_deletion_logs_correct_experiment_id(
+    self, pipelines_crud, monkeypatch
+):
+    """
+    When deleting multiple experiments concurrently, the warning log
+    for a failed deletion must reference the correct experiment_id.
+    """
+    # Arrange: 3 runs each with a different experiment_id
+    fake_runs = [
+        {"id": "run-1", "name": "run-1", "experiment_id": "exp-aaa"},
+        {"id": "run-2", "name": "run-2", "experiment_id": "exp-bbb"},
+        {"id": "run-3", "name": "run-3", "experiment_id": "exp-ccc"},
+    ]
+
+    monkeypatch.setattr(
+        "mlrun.utils.helpers.retry_until_successful",
+        lambda *a, **kw: (None, None, fake_runs),
+    )
+
+    mock_kfp_client = unittest.mock.MagicMock()
+    # All run deletions succeed
+    mock_kfp_client._run_api.delete_run.return_value = None
+
+    # Only exp-bbb fails
+    def fake_delete_experiment(exp_id):
+        if exp_id == "exp-bbb":
+            raise RuntimeError(
+                "Simulated KFP experiment deletion failure for exp-bbb"
+            )
+
+    mock_kfp_client._experiment_api.delete_experiment.side_effect = (
+        fake_delete_experiment
+    )
+    monkeypatch.setattr(
+        pipelines_crud,
+        "_initialize_kfp_client",
+        lambda *a, **kw: mock_kfp_client,
+    )
+
+    class FakePipelineRun:
+        def __init__(self, data):
+            self.id = data["id"]
+            self.name = data["name"]
+            self.experiment_id = data.get("experiment_id", "")
+
+    monkeypatch.setattr(
+        "mlrun_pipelines.models.PipelineRun",
+        FakePipelineRun,
+    )
+
+    logged_warnings = []
+
+    def capture_warning(msg, **kwargs):
+        logged_warnings.append((msg, kwargs))
+
+    monkeypatch.setattr(
+        "mlrun.utils.logger.warning",
+        capture_warning,
+    )
+
+    db_session = unittest.mock.MagicMock()
+    pipelines_crud.delete_pipelines_runs(db_session, "test-project")
+
+    # Find the experiment deletion warning
+    exp_warnings = [
+        (msg, kw)
+        for msg, kw in logged_warnings
+        if msg == "Failed to delete an experiment"
+    ]
+    assert len(exp_warnings) == 1, (
+        f"Expected exactly 1 experiment warning, got {len(exp_warnings)}"
+    )
+
+    _, warning_kwargs = exp_warnings[0]
+    assert warning_kwargs["experiment_id"] == "exp-bbb", (
+        f"Expected experiment_id='exp-bbb', got '{warning_kwargs['experiment_id']}'. "
+        "This indicates the stale loop variable bug is present."
+    )

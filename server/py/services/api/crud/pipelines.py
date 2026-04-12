@@ -152,7 +152,7 @@ class Pipelines(
         runs_succeeded = 0
         runs_failed = 0
         experiment_ids = set()
-        delete_run_futures = []
+        future_to_run_id = {}
         with concurrent.futures.ThreadPoolExecutor(
             max_workers=mlrun.mlconf.workflows.concurrent_delete_worker_count,
             thread_name_prefix="delete_workflow_experiment_",
@@ -160,12 +160,13 @@ class Pipelines(
             for pipeline_run in project_pipeline_runs:
                 pipeline_run = mlrun_pipelines.models.PipelineRun(pipeline_run)
                 # delete pipeline run also terminates it if it is in progress
-                delete_run_futures.append(
-                    executor.submit(kfp_client._run_api.delete_run, pipeline_run.id)
+                future = executor.submit(
+                    kfp_client._run_api.delete_run, pipeline_run.id
                 )
+                future_to_run_id[future] = pipeline_run.id
                 if pipeline_run.experiment_id:
                     experiment_ids.add(pipeline_run.experiment_id)
-            for future in concurrent.futures.as_completed(delete_run_futures):
+            for future in concurrent.futures.as_completed(future_to_run_id):
                 delete_run_exception = future.exception()
                 if delete_run_exception is not None:
                     # we don't want to fail the entire delete operation if we failed to delete a single pipeline run
@@ -173,7 +174,7 @@ class Pipelines(
                     mlrun.utils.logger.warning(
                         "Failed to delete pipeline run",
                         project_name=project_name,
-                        pipeline_run_id=pipeline_run.id,
+                        pipeline_run_id=future_to_run_id[future],
                         exc_info=delete_run_exception,
                     )
                     runs_failed += 1
@@ -189,31 +190,30 @@ class Pipelines(
 
         experiments_succeeded = 0
         experiments_failed = 0
-        delete_experiment_futures = []
+        future_to_experiment_id = {}
         with concurrent.futures.ThreadPoolExecutor(
             max_workers=mlrun.mlconf.workflows.concurrent_delete_worker_count,
             thread_name_prefix="delete_workflow_experiment_",
         ) as executor:
-            for experiment_id in experiment_ids:
+            for exp_id in experiment_ids:
                 mlrun.utils.logger.debug(
                     f"Detected experiment for project {project_name} and deleting it",
                     project_name=project_name,
-                    experiment_id=experiment_id,
+                    experiment_id=exp_id,
                 )
-                delete_experiment_futures.append(
-                    executor.submit(
-                        kfp_client._experiment_api.delete_experiment,
-                        experiment_id,
-                    )
+                future = executor.submit(
+                    kfp_client._experiment_api.delete_experiment,
+                    exp_id,
                 )
-            for future in concurrent.futures.as_completed(delete_experiment_futures):
+                future_to_experiment_id[future] = exp_id
+            for future in concurrent.futures.as_completed(future_to_experiment_id):
                 delete_experiment_exception = future.exception()
                 if delete_experiment_exception is not None:
                     experiments_failed += 1
                     mlrun.utils.logger.warning(
                         "Failed to delete an experiment",
                         project_name=project_name,
-                        experiment_id=experiment_id,
+                        experiment_id=future_to_experiment_id[future],
                         exc_info=mlrun.errors.err_to_str(delete_experiment_exception),
                     )
                 else:

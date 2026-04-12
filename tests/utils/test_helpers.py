@@ -16,6 +16,7 @@ import asyncio
 import json
 import re
 import unittest.mock
+import warnings
 from contextlib import nullcontext as does_not_raise
 from datetime import UTC, datetime, timedelta, timezone
 
@@ -2171,9 +2172,6 @@ def test_set_auth_user_id_works_with_run_spec():
     spec = mlrun.model.RunSpec()
     set_auth_user_id(spec, "user-123")
     assert spec.auth["user_id"] == "user-123"
-
-
-import warnings
 
 
 @pytest.mark.parametrize(

@@ -11,11 +11,12 @@ With the `router` topology you can specify different machine learning models. Ea
 
 More advanced or custom routing can be used, for example, the ensemble router sends the event to all child routes in parallel, aggregates the result, and responds.
 
-## Built-in steps
+**In this section**
 
 - [ModelRouter](#modelrouter)
 - [EnrichmentVotingEnsemble](#enrichmentvotingensemble)
-### ModelRouter
+
+## ModelRouter
 Description:  Basic model router, for calling different models per each model path. See {py:class}`~mlrun.serving.routers.ModelRouter`.
 ### Example
 
@@ -58,9 +59,6 @@ Notes:
 ```{admonition} Note
 The `*` prefix indicates a router class (not a simple processing step).
 ```
-
-### Use Case
-
 
 ### Example
 ```python

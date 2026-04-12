@@ -25,6 +25,7 @@ import mlrun.common.constants as mlrun_constants
 import mlrun.common.runtimes.constants
 import mlrun.common.schemas
 import mlrun.errors
+import mlrun.utils.helpers
 
 import framework.db.session
 import framework.utils.clients.log_collector
@@ -1075,3 +1076,89 @@ class TestRuns(services.api.tests.unit.conftest.MockedK8sHelper):
                 )
                 == {}
             )
+
+    def test_delete_run_resources_skips_after_grace_period(
+        self, db: sqlalchemy.orm.Session
+    ):
+        """Test that _delete_run_resources returns early when the run's start time
+        is older than the deletion grace period + 1 day, skipping runtime resource deletion."""
+        project = "test-project"
+        uid = "test-uid"
+
+        # Set a short grace period for testing (0 seconds)
+        mlrun.mlconf.runtime_resources_deletion_grace_period = "0"
+
+        # Create a run dict with start_time far in the past (2 days ago)
+        old_start_time = (
+            datetime.now(tz=mlrun.utils.helpers.timezone.utc)
+            - mlrun.utils.helpers.timedelta(days=2)
+        ).isoformat()
+
+        run = {
+            "metadata": {
+                "name": "run-name",
+                "labels": {
+                    mlrun_constants.MLRunInternalLabels.kind: "job",
+                },
+            },
+            "status": {
+                "state": "completed",
+                "start_time": old_start_time,
+            },
+        }
+
+        with unittest.mock.patch.object(
+            services.api.runtime_handlers.BaseRuntimeHandler,
+            "delete_runtime_object_resources",
+        ) as delete_resources_mock:
+            services.api.crud.Runs._delete_run_resources(db, project, uid, run)
+
+            # The grace period has expired, so runtime resource deletion should be skipped
+            delete_resources_mock.assert_not_called()
+
+    def test_delete_run_resources_does_not_skip_within_grace_period(
+        self, db: sqlalchemy.orm.Session
+    ):
+        """Test that _delete_run_resources does NOT skip runtime resource deletion
+        when the run's start time is within the grace period."""
+        project = "test-project"
+        uid = "test-uid"
+
+        # Set a very large grace period (1 year in seconds)
+        mlrun.mlconf.runtime_resources_deletion_grace_period = str(365 * 24 * 3600)
+
+        # Create a run dict with start_time just now
+        recent_start_time = datetime.now(
+            tz=mlrun.utils.helpers.timezone.utc
+        ).isoformat()
+
+        run = {
+            "metadata": {
+                "name": "run-name",
+                "labels": {
+                    mlrun_constants.MLRunInternalLabels.kind: "job",
+                },
+            },
+            "status": {
+                "state": "completed",
+                "start_time": recent_start_time,
+            },
+        }
+
+        k8s_helper = framework.utils.singletons.k8s.get_k8s_helper()
+        with (
+            unittest.mock.patch.object(
+                k8s_helper.v1api,
+                "list_namespaced_pod",
+                return_value=k8s_client.V1PodList(
+                    items=[], metadata=k8s_client.V1ListMeta()
+                ),
+            ),
+            unittest.mock.patch.object(
+                services.api.runtime_handlers.BaseRuntimeHandler,
+                "_ensure_run_logs_collected",
+            ),
+        ):
+            # Should NOT skip - the grace period hasn't expired
+            # For job kind, it will try to list pods (which we mocked to return empty)
+            services.api.crud.Runs._delete_run_resources(db, project, uid, run)

@@ -548,6 +548,7 @@ class Runs(
                     iter=iter,
                     runtime_kind=runtime_kind,
                 )
+                return
 
         if runtime_kind in mlrun.runtimes.RuntimeKinds.runtime_with_handlers():
             runtime_handler = services.api.runtime_handlers.get_runtime_handler(

@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import mimetypes
+import os
 from http import HTTPStatus
 
 import fastapi
@@ -117,7 +118,7 @@ def _get_files(
             f"{mlrun.mlconf.artifacts.limits.max_chunk_size}",
         )
 
-    _, filename = objpath.split(objpath)
+    _, filename = os.path.split(objpath)
 
     objpath = get_obj_path(schema, objpath, user=user)
     if not objpath:

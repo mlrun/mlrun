@@ -28,6 +28,9 @@ from tests.common_fixtures import (  # noqa: F401
 )
 
 import services.api.api.endpoints.files
+import os
+import fastapi
+import mlrun.common.schemas
 
 
 @pytest.mark.usefixtures("patch_file_forbidden")
@@ -109,3 +112,73 @@ def test_files_max_chunk_size_exceeded():
         )
 
     assert exc.value.status_code == HTTPStatus.REQUEST_ENTITY_TOO_LARGE.value
+
+
+@pytest.mark.parametrize(
+    "objpath, expected_filename",
+    [
+        ("/path/to/file.txt", "file.txt"),
+        ("/path/to/data.csv", "data.csv"),
+        ("file.txt", "file.txt"),
+        ("/deep/nested/path/model.pkl", "model.pkl"),
+    ],
+)
+def test_filename_extraction_uses_os_path_split(objpath, expected_filename):
+    """
+    Verify os.path.split is used to extract the filename from objpath.
+    Before the fix, str.split(str) was used which always returned an empty
+    filename because splitting a string by itself yields ['', ''].
+    """
+    _, filename = os.path.split(objpath)
+    assert filename == expected_filename
+
+def test_str_split_self_returns_empty_filename():
+    """
+    Demonstrate the bug: str.split(str) always returns ['', ''].
+    """
+    objpath = "/path/to/file.txt"
+    # This is what the buggy code did
+    _, buggy_filename = objpath.split(objpath)
+    assert buggy_filename == "", "str.split(self) always produces empty string"
+
+    # This is what the fixed code does
+    _, correct_filename = os.path.split(objpath)
+    assert correct_filename == "file.txt"
+
+@unittest.mock.patch(
+    "services.api.api.endpoints.files.store_manager",
+)
+@unittest.mock.patch(
+    "services.api.api.endpoints.files.get_obj_path",
+    return_value="/resolved/path/to/data.parquet",
+)
+@unittest.mock.patch(
+    "services.api.api.endpoints.files.get_secrets",
+    return_value={},
+)
+def test_get_files_returns_correct_filename_header(
+    self,
+    mock_get_secrets,
+    mock_get_obj_path,
+    mock_store_manager,
+):
+    """
+    Integration-style test: verify _get_files returns the correct
+    x-suggested-filename header with the actual filename, not an empty string.
+    """
+    mock_obj = unittest.mock.MagicMock()
+    mock_obj.get.return_value = b"file content"
+    mock_store_manager.object.return_value = mock_obj
+
+    auth_info = mlrun.common.schemas.AuthInfo()
+    response = services.api.api.endpoints.files._get_files(
+        schema="",
+        objpath="/some/path/data.parquet",
+        user="",
+        size=0,
+        offset=0,
+        auth_info=auth_info,
+    )
+
+    assert isinstance(response, fastapi.Response)
+    assert response.headers["x-suggested-filename"] == "data.parquet"

@@ -352,10 +352,10 @@ def _update_dict(dict_1: dict, dict_2: collections.abc.Mapping):
     for key, val in dict_2.items():
         if isinstance(val, collections.abc.Mapping):
             dict_1[key] = _update_dict(dict_1.get(key, {}), val)
-        # It is necessary to update only if value is exist because
+        # It is necessary to update only if value is not None because
         # on initialization of the WorkflowSpec object all unfilled values gets None values,
         # and when converting to dict the keys gets those None values.
-        elif val:
+        elif val is not None:
             dict_1[key] = val
     return dict_1
 

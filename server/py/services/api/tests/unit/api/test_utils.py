@@ -50,6 +50,7 @@ import services.api.tests.unit.api.utils
 import services.api.tests.unit.conftest
 import services.api.utils.helpers
 import services.api.utils.singletons.scheduler
+from services.api.api.endpoints.workflows import _update_dict
 
 # Want to use k8s_secrets_mock for all tests in this module. It is needed since
 # _generate_function_and_task_from_submit_run_body looks for project secrets for secret-account validation.
@@ -2472,3 +2473,54 @@ def test_test_resolve_project_service_account_details_validity(
             forbidden_service_accounts=forbidden,
             default_service_account=default,
         )
+
+
+@pytest.mark.parametrize(
+    "falsy_value",
+    [False, 0, "", []],
+    ids=["False", "zero", "empty_string", "empty_list"],
+)
+def test_falsy_values_override_existing(falsy_value):
+    """Falsy-but-not-None values in dict_2 must replace existing values."""
+    original = {"key": "original_value"}
+    override = {"key": falsy_value}
+    result = _update_dict(original, override)
+    assert result["key"] == falsy_value
+
+def test_none_values_do_not_override():
+    """None values in dict_2 must NOT replace existing values."""
+    original = {"key": "original_value"}
+    override = {"key": None}
+    result = _update_dict(original, override)
+    assert result["key"] == "original_value"
+
+def test_run_local_false_overrides_true():
+    """Simulates a real WorkflowSpec scenario: run_local=False must override True."""
+    project_workflow = {"name": "my-wf", "run_local": True, "ttl": 300}
+    user_spec = {"name": "my-wf", "run_local": False, "ttl": None}
+    result = _update_dict(project_workflow, user_spec)
+    assert result["run_local"] is False
+    # ttl should be preserved since user_spec has None
+    assert result["ttl"] == 300
+
+def test_ttl_zero_overrides_nonzero():
+    """Simulates a real WorkflowSpec scenario: ttl=0 must override a nonzero value."""
+    project_workflow = {"name": "my-wf", "ttl": 300}
+    user_spec = {"name": "my-wf", "ttl": 0}
+    result = _update_dict(project_workflow, user_spec)
+    assert result["ttl"] == 0
+
+def test_truthy_values_override_existing():
+    """Standard case: truthy values in dict_2 replace existing values."""
+    original = {"key": "old"}
+    override = {"key": "new"}
+    result = _update_dict(original, override)
+    assert result["key"] == "new"
+
+def test_nested_dict_merging_preserved():
+    """Nested dicts should still be recursively merged."""
+    original = {"args": {"lr": 0.01, "epochs": 10}}
+    override = {"args": {"lr": 0.001}}
+    result = _update_dict(original, override)
+    assert result["args"]["lr"] == 0.001
+    assert result["args"]["epochs"] == 10

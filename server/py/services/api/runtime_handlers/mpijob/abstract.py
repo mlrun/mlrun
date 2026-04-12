@@ -147,7 +147,7 @@ class AbstractMPIJobRuntimeHandler(KubeRuntimeHandler, abc.ABC):
         pods = self.get_pods(name, namespace, launcher=True)
         if not pods:
             logger.error("no pod matches that job name")
-            return
+            return None, None
         return list(pods.items())[0]
 
     def _submit_mpijob(self, job, namespace=None):

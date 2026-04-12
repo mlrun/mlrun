@@ -30,6 +30,8 @@ from framework.utils.singletons.db import get_db
 from framework.utils.singletons.k8s import get_k8s_helper
 from services.api.runtime_handlers import get_runtime_handler
 from services.api.tests.unit.runtime_handlers.base import TestRuntimeHandlerBase
+from unittest.mock import patch
+from services.api.runtime_handlers.mpijob.v1 import MpiV1RuntimeHandler
 
 
 class TestMPIjobRuntimeHandler(TestRuntimeHandlerBase):
@@ -724,3 +726,31 @@ class TestMPIjobRuntimeHandler(TestRuntimeHandlerBase):
             "replicaStatuses": {"Launcher": {"failed": 1}, "Worker": {}},
             "conditions": [{"reason": "Some reason", "message": "Some message"}],
         }
+
+
+@pytest.mark.parametrize("pods_return", [None, {}], ids=["none_pods", "empty_pods"])
+def test_get_launcher_returns_tuple_when_no_pods(pods_return):
+    """When no pods exist, _get_launcher should return (None, None) so callers
+    can safely unpack as `launcher, phase = self._get_launcher(...)`."""
+    handler = MpiV1RuntimeHandler()
+
+    with patch.object(handler, "get_pods", return_value=pods_return):
+        result = handler._get_launcher("some-job", "some-namespace")
+
+    assert result == (None, None)
+    launcher, phase = result
+    assert launcher is None
+    assert phase is None
+
+
+def test_get_launcher_returns_pod_info_when_pods_exist():
+    """When pods exist, _get_launcher should return (pod_name, pod_phase)."""
+    handler = MpiV1RuntimeHandler()
+    mock_pods = {"my-launcher-pod": "Running"}
+
+    with patch.object(handler, "get_pods", return_value=mock_pods):
+        result = handler._get_launcher("some-job", "some-namespace")
+
+    launcher, phase = result
+    assert launcher == "my-launcher-pod"
+    assert phase == "Running"

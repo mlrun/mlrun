@@ -296,7 +296,7 @@ class SparkApplicationStates:
             SparkApplicationStates.failed: RunStates.error,
             SparkApplicationStates.submitted: RunStates.running,
             SparkApplicationStates.running: RunStates.running,
-            SparkApplicationStates.submission_failed: RunStates.running,
+            SparkApplicationStates.submission_failed: RunStates.error,
             SparkApplicationStates.pending_rerun: RunStates.running,
             SparkApplicationStates.pending_submission: RunStates.running,
             SparkApplicationStates.invalidating: RunStates.running,

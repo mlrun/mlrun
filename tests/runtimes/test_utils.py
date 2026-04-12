@@ -435,3 +435,44 @@ def test_mpijob_v1alpha1_state_to_run_state(mpijob_state, expected_run_state):
         )
     )
     assert result == expected_run_state
+
+
+@pytest.mark.parametrize(
+    "spark_state, expected_run_state",
+    [
+        (
+            mlrun.common.runtimes.constants.SparkApplicationStates.completed,
+            mlrun.common.runtimes.constants.RunStates.completed,
+        ),
+        (
+            mlrun.common.runtimes.constants.SparkApplicationStates.failed,
+            mlrun.common.runtimes.constants.RunStates.error,
+        ),
+        (
+            mlrun.common.runtimes.constants.SparkApplicationStates.submission_failed,
+            mlrun.common.runtimes.constants.RunStates.error,
+        ),
+        (
+            mlrun.common.runtimes.constants.SparkApplicationStates.submitted,
+            mlrun.common.runtimes.constants.RunStates.running,
+        ),
+        (
+            mlrun.common.runtimes.constants.SparkApplicationStates.running,
+            mlrun.common.runtimes.constants.RunStates.running,
+        ),
+        (
+            mlrun.common.runtimes.constants.SparkApplicationStates.unknown,
+            mlrun.common.runtimes.constants.RunStates.unknown,
+        ),
+    ],
+)
+def test_spark_application_state_to_run_state(spark_state, expected_run_state):
+    """
+    Regression test: SparkApplicationStates.spark_application_state_to_run_state
+    previously mapped SUBMISSION_FAILED to RunStates.running instead of
+    RunStates.error, causing runs that failed to submit to appear as still running.
+    """
+    result = mlrun.common.runtimes.constants.SparkApplicationStates.spark_application_state_to_run_state(
+        spark_state
+    )
+    assert result == expected_run_state

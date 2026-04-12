@@ -627,7 +627,7 @@ class Pipelines(
                     f"Failed to parse workflow manifest YAML: {mlrun.errors.err_to_str(exc)}"
                 ) from exc
             content_type = ".yaml"
-        elif " /zip" in content_type:
+        elif "/zip" in content_type:
             content_type = ".zip"
         else:
             framework.api.utils.log_and_raise(

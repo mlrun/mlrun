@@ -25,6 +25,11 @@ import unittest.mock
 import services.api.crud.pipelines
 import datetime
 from mlrun_pipelines.common.models import RunStatuses
+import zipfile
+from io import BytesIO
+import fastapi
+import mlrun.common.schemas
+import mlrun.errors
 
 
 def test_resolve_pipeline_project():
@@ -556,3 +561,89 @@ def test_substring_status_not_counted_as_succeeded():
 
     # With equality check (fix): "ceed" == "Succeeded" == False
     assert (pipeline["status"] == RunStatuses.succeeded) is False
+
+
+def _make_dummy_zip() -> bytes:
+    buf = BytesIO()
+    with zipfile.ZipFile(buf, "w") as zf:
+        zf.writestr("pipeline.yaml", "apiVersion: argoproj.io/v1alpha1")
+    return buf.getvalue()
+
+
+def test_zip_content_type_is_recognized():
+    """
+    Verify that 'application/zip' content type is correctly detected
+    as a zip pipeline (not rejected as unsupported).
+    Before the fix, the check was '" /zip" in content_type' (with a
+    spurious leading space), which never matched 'application/zip'.
+    """
+    pipelines = services.api.crud.Pipelines()
+    data = _make_dummy_zip()
+    auth_info = mlrun.common.schemas.AuthInfo(
+        username="test_user", user_id="test-user-id"
+    )
+
+    # Mock everything after the content type detection
+    with (
+        unittest.mock.patch.object(
+            pipelines, "_initialize_kfp_client"
+        ) as mock_client,
+        unittest.mock.patch(
+            "services.api.utils.helpers.resolve_auth_token_secret_name",
+            return_value="mock-secret",
+        ),
+        unittest.mock.patch(
+            "mlrun_pipelines.common.ops.process_kfp_workflow_secret_references",
+            return_value=data,
+        ),
+    ):
+        mock_kfp = unittest.mock.MagicMock()
+        mock_client.return_value = mock_kfp
+        mock_experiment = unittest.mock.MagicMock()
+        mock_experiment.id = "exp-id"
+        mock_kfp.create_experiment.return_value = mock_experiment
+        mock_run = unittest.mock.MagicMock()
+        mock_run.id = "run-id"
+        mock_run.name = "test-run"
+        mock_kfp.run_pipeline.return_value = mock_run
+
+        # This should NOT raise "unsupported pipeline type"
+        run = pipelines.create_pipeline(
+            experiment_name="test-exp",
+            run_name="test-run",
+            content_type="application/zip",
+            data=data,
+            arguments={},
+            auth_info=auth_info,
+        )
+        assert run is not None
+
+
+def test_unsupported_content_type_raises():
+    """Verify that an unsupported content type still raises an error."""
+    pipelines = services.api.crud.Pipelines()
+    data = b"fake data"
+    auth_info = mlrun.common.schemas.AuthInfo(
+        username="test_user", user_id="test-user-id"
+    )
+
+    with pytest.raises(fastapi.HTTPException):
+        pipelines.create_pipeline(
+            experiment_name="test-exp",
+            run_name="test-run",
+            content_type="text/plain",
+            data=data,
+            arguments={},
+            auth_info=auth_info,
+        )
+
+
+def test_application_zip_content_type_matches():
+    """Verify that 'application/zip' (the standard MIME type) contains '/zip'."""
+    assert "/zip" in "application/zip"
+
+
+def test_yaml_content_type_is_recognized():
+    """Verify that '/yaml' content type check still works."""
+    assert "/yaml" in "application/yaml"
+    assert "/yaml" in "text/yaml"

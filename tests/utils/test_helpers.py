@@ -1356,6 +1356,39 @@ def test_retry_until_successful(fatal_exception):
     test_run(mlrun.utils.create_linear_backoff(0.02, 0.02))
 
 
+@pytest.mark.asyncio
+async def test_async_retry_until_successful_respects_fatal_exceptions():
+    """Regression test: AsyncRetryer must stop retrying when a fatal exception is raised.
+
+    Before the fix, AsyncRetryer was missing the ``type(exc) not in self.fatal_exceptions``
+    check that the synchronous Retryer has, causing it to keep retrying even on exceptions
+    marked as fatal. This test verifies that the async retryer stops after the first fatal
+    exception and does not call the function again.
+    """
+    call_count = 0
+
+    async def failing_func():
+        nonlocal call_count
+        call_count += 1
+        raise ValueError("fatal error")
+
+    with pytest.raises(mlrun.errors.MLRunRetryExhaustedError):
+        await mlrun.utils.retry_until_successful_async(
+            0.01,
+            10,
+            logger,
+            False,
+            failing_func,
+            fatal_exceptions=(ValueError,),
+        )
+
+    # With fatal_exceptions=(ValueError,), the retryer should stop after the first call.
+    # Without the fix, it would retry many times within the 10-second timeout.
+    assert call_count == 1, (
+        f"Expected exactly 1 call (fatal exception should stop retries), got {call_count}"
+    )
+
+
 @pytest.mark.parametrize(
     "iterable_list, chunk_size, expected_chunked_list",
     [

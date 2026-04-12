@@ -18,7 +18,7 @@ import typing
 import fastapi
 from fastapi import Depends
 from fastapi.concurrency import run_in_threadpool
-from kfp_server_api import ApiException
+from kubernetes.client.rest import ApiException
 
 import mlrun.common.schemas
 from mlrun.utils import logger

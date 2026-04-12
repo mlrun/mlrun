@@ -31,10 +31,13 @@ import framework.utils.background_tasks
 import framework.utils.clients.iguazio.v3 as iguazio_client
 import framework.utils.notifications.notification_pusher as notification_pusher
 import services.api.api.endpoints.operations
+import services.api.api.endpoints.operations as operations_module
 import services.api.crud
 import services.api.initial_data
 import services.api.tests.unit.conftest as tests_unit_conftest
 import services.api.utils.singletons.scheduler
+import inspect
+import kubernetes.client.rest
 
 
 def test_migrations_already_in_progress(
@@ -196,4 +199,53 @@ def _generate_background_task_schema(
             state=mlrun.common.schemas.BackgroundTaskState.running
         ),
         spec=mlrun.common.schemas.BackgroundTaskSpec(),
+    )
+
+
+def test_operations_imports_kubernetes_api_exception():
+    """
+    Verify that the operations endpoint imports ApiException from
+    kubernetes.client.rest (for catching K8s errors from store_secrets),
+    not from kfp_server_api (which is a completely different exception class
+    used for KFP pipeline API errors).
+    """
+
+
+    # Get the ApiException referenced in the module's namespace
+    api_exception_cls = getattr(operations_module, "ApiException", None)
+    assert api_exception_cls is not None, (
+        "operations module should have an ApiException in its namespace"
+    )
+
+    # Verify it comes from the kubernetes package, not kfp_server_api
+    assert api_exception_cls is kubernetes.client.rest.ApiException, (
+        f"ApiException in operations module should be kubernetes.client.rest.ApiException, "
+        f"but got {api_exception_cls.__module__}.{api_exception_cls.__qualname__}"
+    )
+
+
+def test_store_secret_error_handler_catches_kubernetes_exception():
+    """
+    Verify that _store_mail_notifications_default_params_to_secret
+    references the correct ApiException class in its exception handler.
+    We inspect the source code to ensure the except clause uses the
+    kubernetes ApiException.
+    """
+
+
+    source = inspect.getsource(
+        operations_module._store_mail_notifications_default_params_to_secret
+    )
+    # The function should contain 'except ApiException'
+    assert "except ApiException" in source, (
+        "_store_mail_notifications_default_params_to_secret should catch ApiException"
+    )
+    # And the module-level ApiException should be from kubernetes
+    api_exception_cls = operations_module.ApiException
+    assert issubclass(api_exception_cls, Exception), (
+        "ApiException should be an exception class"
+    )
+    assert "kubernetes" in api_exception_cls.__module__, (
+        f"ApiException should be from kubernetes package, "
+        f"but is from {api_exception_cls.__module__}"
     )

@@ -756,7 +756,9 @@ class HTTPRunDB(RunDBInterface):
             logger.warning(
                 "Retrieving all logs. This may be inefficient and can result in a large log."
             )
-            state, offset = self.watch_log(uid, project, watch=False, offset=offset)
+            state, offset = self.watch_log(
+                uid, project, watch=False, offset=offset, attempt=attempt
+            )
             return state, offset
 
         params = {"offset": offset, "size": size}

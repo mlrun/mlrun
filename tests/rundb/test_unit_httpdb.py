@@ -322,6 +322,28 @@ def test_watch_logs_continue():
 
 
 @pytest.mark.parametrize(
+    "attempt, offset",
+    [
+        (3, 0),
+        (None, 10),
+    ],
+    ids=["with_attempt", "without_attempt"],
+)
+def test_get_log_size_minus_one_forwards_attempt(attempt, offset):
+    """Test that get_log forwards the attempt parameter to watch_log when size=-1."""
+    db = mlrun.db.httpdb.HTTPRunDB("https://fake-url")
+
+    with unittest.mock.patch.object(
+        db, "watch_log", return_value=("completed", 100)
+    ) as mock_watch:
+        db.get_log("some-uid", "some-project", offset=offset, size=-1, attempt=attempt)
+
+    mock_watch.assert_called_once_with(
+        "some-uid", "some-project", watch=False, offset=offset, attempt=attempt
+    )
+
+
+@pytest.mark.parametrize(
     "params,expected_page_params",
     [
         # defaults

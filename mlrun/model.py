@@ -675,7 +675,7 @@ class ImageBuilder(ModelObj):
         resolved_requirements = self.resolve_requirements(
             requirements, requirements_file
         )
-        requirements = self.requirements or [] if not overwrite else []
+        requirements = [] if overwrite else (self.requirements or [])
 
         # make sure we don't append the same line twice
         for requirement in resolved_requirements:

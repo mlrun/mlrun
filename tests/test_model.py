@@ -94,3 +94,38 @@ def test_runobject_to_json_with_exclude_params(
     if not is_empty:
         for notification in run_object_to_test.spec.notifications:
             assert notification.params
+
+
+def test_image_builder_with_requirements_overwrite():
+    """Test that ImageBuilder.with_requirements correctly handles the overwrite flag.
+
+    Regression test: the original code had an operator precedence bug where
+    `self.requirements or [] if not overwrite else []` was parsed as
+    `self.requirements or ([] if not overwrite else [])`, which always evaluates
+    to `self.requirements or []` regardless of the overwrite flag. This meant
+    that overwrite=True never cleared existing requirements.
+    """
+    builder = mlrun.model.ImageBuilder()
+
+    # Set initial requirements
+    builder.with_requirements(requirements=["pandas", "numpy"])
+    assert sorted(builder.requirements) == ["numpy", "pandas"]
+
+    # Append without overwrite (default)
+    builder.with_requirements(requirements=["scikit-learn"])
+    assert sorted(builder.requirements) == ["numpy", "pandas", "scikit-learn"]
+
+    # Overwrite=True should replace, not append
+    builder.with_requirements(requirements=["requests"], overwrite=True)
+    assert builder.requirements == ["requests"]
+
+
+def test_image_builder_with_requirements_overwrite_empty():
+    """Test that overwrite=True with empty requirements clears the list."""
+    builder = mlrun.model.ImageBuilder()
+    builder.with_requirements(requirements=["pandas"])
+    assert builder.requirements == ["pandas"]
+
+    # Overwrite with empty list should clear
+    builder.with_requirements(requirements=[], overwrite=True)
+    assert builder.requirements == []

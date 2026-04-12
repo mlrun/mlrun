@@ -622,8 +622,9 @@ class _KFPRunner(_PipelineRunner):
                 "Some of the features (like setting message or severity level) are not supported."
             )
             for notification in notifications or []:
-                params = notification.params
-                params.update(notification.secret_params)
+                params = {}
+                params.update(notification.secret_params or {})
+                params.update(notification.params or {})
                 project.notifiers.add_notification(
                     notification_type=notification.kind,
                     params=params,

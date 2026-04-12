@@ -47,7 +47,7 @@ def _wrap_pipeline_func_with_conf_sync(
             if active_pipeline is not None and active_pipeline.conf.timeout > 0:
                 pipeline_conf.set_timeout(active_pipeline.conf.timeout)
         except Exception as err:
-            logger.debug(
+            logger.warn(
                 "Failed to sync pipeline conf settings",
                 error=err_to_str(err),
             )

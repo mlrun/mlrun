@@ -66,6 +66,7 @@ def calc_hash(func, tag=""):
     # remove tag, hash, date from calculation
     tag = tag or func.metadata.tag
     status = func.status
+    updated = func.metadata.updated
     func.metadata.tag = ""
     func.metadata.hash = ""
     func.status = None
@@ -78,6 +79,7 @@ def calc_hash(func, tag=""):
     func.metadata.tag = tag
     func.metadata.hash = hashkey
     func.status = status
+    func.metadata.updated = updated
     return hashkey
 
 

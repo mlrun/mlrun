@@ -25,6 +25,8 @@ import mlrun.runtimes.mounts
 from mlrun.config import config as mlconf
 from mlrun.runtimes import KubejobRuntime
 from mlrun.runtimes.pod import AutoMountType
+import mlrun
+import mlrun.runtimes.utils
 
 
 class TestAutoMount:
@@ -478,3 +480,40 @@ class TestAutoMount:
 
         assert runtime.spec.volumes == expected_volumes
         assert runtime.spec.volume_mounts == expected_mounts
+
+
+def test_calc_hash_preserves_metadata_updated():
+    """Test that calc_hash restores metadata.updated after computing the hash.
+
+    calc_hash temporarily clears several metadata fields (tag, hash, status,
+    updated) to get a stable hash.  All cleared fields must be restored after
+    the hash is computed.  A previous version forgot to restore
+    metadata.updated, silently losing the timestamp.
+    """
+    fn = mlrun.new_function("test-func", kind="job")
+    fn.metadata.tag = "v1"
+    fn.metadata.updated = "2024-01-15T10:30:00"
+
+    original_tag = fn.metadata.tag
+    original_updated = fn.metadata.updated
+    original_status = fn.status
+
+    mlrun.runtimes.utils.calc_hash(fn)
+
+    assert fn.metadata.tag == original_tag, "calc_hash should restore metadata.tag"
+    assert fn.metadata.updated == original_updated, (
+        "calc_hash should restore metadata.updated"
+    )
+    assert fn.status is not None or original_status is None, (
+        "calc_hash should restore status"
+    )
+
+
+def test_calc_hash_preserves_none_updated():
+    """Test that calc_hash works correctly when metadata.updated is already None."""
+    fn = mlrun.new_function("test-func", kind="job")
+    fn.metadata.updated = None
+
+    mlrun.runtimes.utils.calc_hash(fn)
+
+    assert fn.metadata.updated is None

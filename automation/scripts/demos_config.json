@@ -1,6 +1,13 @@
 {
   "1.11.0": {
     "demos": [
+        "demo-monitoring-and-feedback-loop",
+        "demo-call-center",
+        "demo-banking-agent"
+      ]
+  },
+  "1.10.0": {
+    "demos": [
         "demo-fraud",
         "demo-monitoring-and-feedback-loop",
         "demo-call-center",
@@ -15,7 +22,15 @@
         "demo-banking-agent"
       ]
   },
-  "1.10.0": {
+  "1.10.2": {
+    "demos": [
+        "demo-fraud",
+        "demo-monitoring-and-feedback-loop",
+        "demo-call-center",
+        "demo-banking-agent"
+      ]
+  },  
+  "1.10.3": {
     "demos": [
         "demo-fraud",
         "demo-monitoring-and-feedback-loop",
@@ -34,11 +49,9 @@
   },
   "development": {
     "demos": [
-        "demo-fraud",
-        "demo-mask-detection",
         "demo-monitoring-and-feedback-loop",
         "demo-call-center",
-        "demo-sagemaker"
+        "demo-banking-agent"
       ]
   }
 }

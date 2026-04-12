@@ -378,6 +378,33 @@ def test_auto_mount_secret_env():
     assert env_from[0].secret_ref.name == "s3-credentials"
 
 
+def test_auto_mount_s3_takes_precedence_over_pvc_env():
+    """Test that auto_mount_type=s3 takes precedence over MLRUN_PVC_MOUNT env var.
+
+    When the server sets auto_mount_type=s3, it should be honoured even if
+    MLRUN_PVC_MOUNT is set on the client (e.g., external Jupyter). See ML-12370.
+    """
+    mlrun.mlconf.storage.auto_mount_type = "s3"
+    mlrun.mlconf.storage.auto_mount_params = (
+        "endpoint_url=https://minio-lab.example.com,secret_name=minio-credentials"
+    )
+    os.environ["MLRUN_PVC_MOUNT"] = "some-pvc:/home/jovyan/"
+    try:
+        function = mlrun.new_function(
+            "function-name", "function-project", kind=mlrun.runtimes.RuntimeKinds.job
+        )
+        function.apply(mlrun.runtimes.mounts.auto_mount())
+
+        env_dict = {
+            var["name"]: var.get("value", var.get("valueFrom"))
+            for var in function.spec.env
+        }
+        assert "AWS_ACCESS_KEY_ID" in env_dict
+        assert env_dict["AWS_ENDPOINT_URL_S3"] == "https://minio-lab.example.com"
+    finally:
+        os.environ.pop("MLRUN_PVC_MOUNT", None)
+
+
 def test_auto_mount_raises_without_config():
     """Test that auto_mount() raises ValueError when no mount type is configured."""
     mlrun.mlconf.storage.auto_mount_type = ""

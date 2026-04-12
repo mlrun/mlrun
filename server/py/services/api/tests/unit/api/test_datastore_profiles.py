@@ -22,6 +22,8 @@ import mlrun.artifacts
 import mlrun.common.schemas
 
 from services.api.tests.unit.conftest import K8sSecretsMock
+from unittest.mock import MagicMock, patch
+import services.api.crud
 
 project = "prj"
 datastore = {
@@ -215,3 +217,42 @@ def test_datastore_profile_list(
     )
     assert resp.status_code == HTTPStatus.OK.value
     assert json.loads(resp._content) == expected_return
+
+
+def test_delete_secret_passes_correct_arguments():
+    """
+    Verify that _delete_secret calls delete_project_secret with the
+    provider as a SecretProviderName enum and the secret key as a string,
+    rather than bundling them into a SecretsData object.
+    """
+    profiles = services.api.crud.DatastoreProfiles()
+    project = "my-project"
+    profile_name = "my-profile"
+
+    with (
+        patch.object(profiles, "_in_k8s", return_value=True),
+        patch("services.api.crud.Secrets") as mock_secrets_cls,
+    ):
+        mock_secrets_instance = MagicMock()
+        mock_secrets_cls.return_value = mock_secrets_instance
+
+        profiles._delete_secret(project, profile_name)
+
+        mock_secrets_instance.delete_project_secret.assert_called_once()
+        call_args = mock_secrets_instance.delete_project_secret.call_args
+
+        # The second positional arg must be the provider enum, not a SecretsData object
+        provider_arg = call_args[0][1]
+        assert provider_arg == mlrun.common.schemas.SecretProviderName.kubernetes, (
+            f"Expected provider to be SecretProviderName.kubernetes, "
+            f"got {type(provider_arg).__name__}: {provider_arg}"
+        )
+
+        # The third positional arg must be the secret key string
+        secret_key_arg = call_args[0][2]
+        assert isinstance(secret_key_arg, str), (
+            f"Expected secret_key to be a string, got {type(secret_key_arg).__name__}"
+        )
+
+        # Verify allow_internal_secrets is passed
+        assert call_args[1].get("allow_internal_secrets") is True

@@ -63,10 +63,8 @@ class DatastoreProfiles(
 
         services.api.crud.Secrets().delete_project_secret(
             project,
-            mlrun.common.schemas.SecretsData(
-                provider=mlrun.common.schemas.SecretProviderName.kubernetes,
-                secret_key=adjusted_secret,
-            ),
+            mlrun.common.schemas.SecretProviderName.kubernetes,
+            adjusted_secret,
             allow_internal_secrets=True,
         )
 

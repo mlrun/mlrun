@@ -283,7 +283,7 @@ class Spark3JobSpec(KubeResourceSpec):
     def driver_affinity(self, affinity):
         self._driver_affinity = (
             mlrun.runtimes.pod.transform_attribute_to_k8s_class_instance(
-                "executor_affinity", affinity
+                "driver_affinity", affinity
             )
         )
 

@@ -421,11 +421,20 @@ def load_module(
 def run_exec(cmd, args, env=None, cwd=None):
     if args:
         cmd += args
-    if env and "SYSTEMROOT" in os.environ:
-        env["SYSTEMROOT"] = os.environ["SYSTEMROOT"]
+    # Merge custom env vars (e.g. PYTHONPATH, MLRUN_LOG_LEVEL) into a copy
+    # of the current environment so the subprocess inherits everything plus
+    # the caller's overrides.
+    effective_env = os.environ.copy()
+    if env:
+        effective_env.update(env)
     print("Running:", cmd)
     process = Popen(
-        cmd, stdout=PIPE, stderr=PIPE, env=os.environ, cwd=cwd, universal_newlines=True
+        cmd,
+        stdout=PIPE,
+        stderr=PIPE,
+        env=effective_env,
+        cwd=cwd,
+        universal_newlines=True,
     )
 
     def read_stderr(stderr):

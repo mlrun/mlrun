@@ -70,7 +70,7 @@ class ModelArtifactSpec(ArtifactSpec):
         body=None,
         model_file=None,
         metrics=None,
-        paraemeters=None,
+        parameters=None,
         inputs: list[Feature] | None = None,
         outputs: list[Feature] | None = None,
         framework=None,
@@ -94,7 +94,7 @@ class ModelArtifactSpec(ArtifactSpec):
         )
         self.model_file = model_file
         self.metrics = metrics or {}
-        self.parameters = paraemeters or {}
+        self.parameters = parameters or {}
         self.inputs = inputs or []
         self.outputs = outputs or []
         self.framework = framework

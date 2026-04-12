@@ -22,6 +22,7 @@ import yaml
 import mlrun
 import mlrun.artifacts
 from tests import conftest
+import mlrun.artifacts.model
 
 results_dir = (pathlib.Path(conftest.results) / "artifacts").absolute()
 model_file = pathlib.Path(__file__).parent / "assets" / "model.pkl"
@@ -141,3 +142,27 @@ def test_get_model_with_dataitem(rundb_mock, new_project_factory):
     model_dataitem = model_artifact.to_dataitem()
     model_path, _, _ = mlrun.artifacts.get_model(model_dataitem)
     assert f"{project.context}/{model_name}/{file_name}" == model_path
+
+
+def test_constructor_accepts_parameters_keyword():
+    """Test that ModelArtifactSpec accepts 'parameters' as a keyword argument.
+
+    Before the fix, the constructor had a typo ('paraemeters' instead of
+    'parameters'), causing a TypeError when passing parameters by name.
+    """
+    params = {"learning_rate": 0.01, "epochs": 100}
+    spec = mlrun.artifacts.model.ModelArtifactSpec(parameters=params)
+    assert spec.parameters == params
+
+def test_constructor_parameters_default_empty_dict():
+    """Test that parameters defaults to an empty dict when not provided."""
+    spec = mlrun.artifacts.model.ModelArtifactSpec()
+    assert spec.parameters == {}
+
+def test_model_artifact_passes_parameters_to_spec():
+    """Test that ModelArtifact correctly passes parameters to its spec."""
+    params = {"batch_size": 32, "optimizer": "adam"}
+    artifact = mlrun.artifacts.model.ModelArtifact(
+        key="my-model", parameters=params
+    )
+    assert artifact.spec.parameters == params

@@ -26,6 +26,8 @@ from mlrun import code_to_function
 from mlrun.datastore.datastore_profile import DatastoreProfileRabbitMQ
 from mlrun.utils.helpers import resolve_git_reference_from_source
 from tests.runtimes.test_base import TestAutoMount
+import mlrun.db
+import mlrun.runtimes.nuclio.function
 
 
 def test_generate_nuclio_volumes():
@@ -505,3 +507,47 @@ def test_with_source_archive_removes_inline_code(logs_stream):
 
     # assert that the source was set correctly
     assert fn.spec.build.source == source
+
+
+def _create_runtime(self):
+    runtime = mlrun.runtimes.nuclio.function.RemoteRuntime()
+    runtime.metadata.name = "test-func"
+    runtime.metadata.project = "test-project"
+    return runtime
+
+def test_get_state_raise_on_exception_true_raises():
+    """When raise_on_exception=True, a RunDBError should propagate as ValueError."""
+    runtime = self._create_runtime()
+    mock_db = MagicMock()
+    mock_db.get_nuclio_deploy_status.side_effect = mlrun.db.RunDBError("not found")
+
+    with patch.object(runtime, "_get_db", return_value=mock_db):
+        with pytest.raises(
+            ValueError, match="function or deploy process not found"
+        ):
+            runtime._get_state(raise_on_exception=True)
+
+def test_get_state_raise_on_exception_false_returns_empty():
+    """When raise_on_exception=False, a RunDBError should be suppressed."""
+    runtime = self._create_runtime()
+    mock_db = MagicMock()
+    mock_db.get_nuclio_deploy_status.side_effect = mlrun.db.RunDBError("not found")
+
+    with patch.object(runtime, "_get_db", return_value=mock_db):
+        state, text, timestamp = runtime._get_state(raise_on_exception=False)
+        assert state == ""
+        assert text == ""
+        assert timestamp is None
+
+def test_get_state_no_error_returns_status():
+    """When no error occurs, _get_state returns the function status."""
+    runtime = self._create_runtime()
+    runtime.status.state = "ready"
+    mock_db = MagicMock()
+    mock_db.get_nuclio_deploy_status.return_value = ("deploy log", 12345.0)
+
+    with patch.object(runtime, "_get_db", return_value=mock_db):
+        state, text, timestamp = runtime._get_state()
+        assert state == "ready"
+        assert text == "deploy log"
+        assert timestamp == 12345.0

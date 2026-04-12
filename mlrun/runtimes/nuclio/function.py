@@ -986,7 +986,7 @@ class RemoteRuntime(KubeResource):
                 self, last_log_timestamp=last_log_timestamp, verbose=verbose
             )
         except mlrun.db.RunDBError:
-            if raise_on_exception:
+            if not raise_on_exception:
                 return "", "", None
             raise ValueError("function or deploy process not found")
         return self.status.state, text, last_log_timestamp

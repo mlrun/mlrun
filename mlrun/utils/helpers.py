@@ -389,7 +389,7 @@ def remove_image_protocol_prefix(image: str) -> str:
     if not image:
         return image
 
-    prefixes = ["https://", "https://"]
+    prefixes = ["https://", "http://"]
     if any(prefix in image for prefix in prefixes):
         image = image.removeprefix("https://").removeprefix("http://")
         logger.warning(

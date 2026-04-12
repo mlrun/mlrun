@@ -45,6 +45,7 @@ from mlrun.utils.helpers import (
     lock_hub_uri_version,
     merge_requirements,
     parse_artifact_uri,
+    remove_image_protocol_prefix,
     remove_tag_from_artifact_uri,
     resolve_image_tag_suffix,
     set_auth_token_name,
@@ -2208,3 +2209,22 @@ def test_warn_on_deprecated_image(image, should_warn):
                 f"Expected no warnings for image '{image}', got {len(w)}"
             )
 
+
+@pytest.mark.parametrize(
+    "image, expected",
+    [
+        # http:// prefix should be stripped
+        ("http://my-registry.com/my-image:latest", "my-registry.com/my-image:latest"),
+        # https:// prefix should be stripped
+        ("https://my-registry.com/my-image:latest", "my-registry.com/my-image:latest"),
+        # no prefix should remain unchanged
+        ("my-registry.com/my-image:latest", "my-registry.com/my-image:latest"),
+        # empty string should remain empty
+        ("", ""),
+    ],
+)
+def test_remove_image_protocol_prefix(image, expected):
+    result = remove_image_protocol_prefix(image)
+    assert result == expected, (
+        f"Expected '{expected}' for image '{image}', got '{result}'"
+    )

@@ -759,6 +759,55 @@ def test_slack_notification(runs, expected):
     assert slack_data == expected
 
 
+@pytest.mark.parametrize(
+    "step_kind, url, state, expect_hyperlink",
+    [
+        # kind == "run" but url is None -> should NOT produce a hyperlink
+        ("run", None, runtimes_constants.RunStates.completed, False),
+        # kind == "run" and url exists -> should produce a hyperlink
+        ("run", "http://example.com/run", runtimes_constants.RunStates.completed, True),
+        # no kind, url exists -> should produce a hyperlink
+        (None, "http://example.com/run", runtimes_constants.RunStates.completed, True),
+        # no kind, no url -> should NOT produce a hyperlink
+        (None, None, runtimes_constants.RunStates.completed, False),
+        # skipped state -> never produce a hyperlink
+        (None, "http://example.com/run", runtimes_constants.RunStates.skipped, False),
+    ],
+)
+def test_slack_get_run_line_operator_precedence(
+    step_kind, url, state, expect_hyperlink
+):
+    """
+    Verify that _get_run_line does not produce a broken Slack hyperlink
+    when step_kind is "run" but url is None.  Before the fix the condition
+    ``url and not kind or kind == "run"`` was mis-parsed as
+    ``(url and not kind) or (kind == "run")``, causing the True branch to
+    execute with url=None and rendering ``<None|*name*>`` in the message.
+    """
+    slack_notification = mlrun.utils.notifications.slack.SlackNotification()
+    run = {
+        "metadata": {"name": "my-run", "uid": "abc123", "project": "default"},
+        "status": {"state": state},
+    }
+    if step_kind is not None:
+        run["step_kind"] = step_kind
+
+    with unittest.mock.patch("mlrun.utils.helpers.get_run_url", return_value=url):
+        result = slack_notification._get_run_line(run)
+
+    text = result["text"]
+    if expect_hyperlink:
+        assert "<" in text and "|" in text, (
+            f"Expected a Slack hyperlink in text but got: {text}"
+        )
+        # Must not contain None in the link
+        assert "<None|" not in text
+    else:
+        assert "<" not in text or "<None|" not in text, (
+            f"Did not expect a hyperlink (or got broken None link) in: {text}"
+        )
+
+
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
     "params,expected_url,expected_headers",

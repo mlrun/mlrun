@@ -177,7 +177,7 @@ class SlackNotification(NotificationBase):
         state = run["status"].get("state", "")
 
         if state != runtimes_constants.RunStates.skipped and (
-            url and not kind or kind == "run"
+            url and (not kind or kind == "run")
         ):
             line = f"<{url}|*{meta.get('name')}*>"
         else:

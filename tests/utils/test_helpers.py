@@ -27,6 +27,7 @@ import mlrun.errors
 import mlrun.model
 import mlrun.runtimes.nuclio.function
 import mlrun.utils.regex
+import mlrun.utils.retryer
 import mlrun.utils.version
 import mlrun_pipelines.client
 import mlrun_pipelines.models
@@ -1386,6 +1387,93 @@ async def test_async_retry_until_successful_respects_fatal_exceptions():
     # Without the fix, it would retry many times within the 10-second timeout.
     assert call_count == 1, (
         f"Expected exactly 1 call (fatal exception should stop retries), got {call_count}"
+    )
+
+
+def test_retryer_backoff_progresses():
+    """Regression test: Retryer must advance through the backoff generator on each retry.
+
+    Before the fix, the `first_interval` field was never reset to None after the first
+    iteration, so `self.first_interval or next(self.backoff)` always short-circuited to
+    `self.first_interval` on every loop iteration. This caused all retry intervals to be
+    identical (equal to the initial backoff value) instead of following the configured
+    backoff progression.
+    """
+    sleep_intervals = []
+    original_sleep = mlrun.utils.retryer.time.sleep
+
+    def mock_sleep(seconds):
+        sleep_intervals.append(seconds)
+
+    call_count = 0
+
+    def failing_then_succeeding():
+        nonlocal call_count
+        call_count += 1
+        if call_count < 5:
+            raise Exception("not yet")
+        return "done"
+
+    with unittest.mock.patch.object(mlrun.utils.retryer.time, "sleep", mock_sleep):
+        result = mlrun.utils.helpers.retry_until_successful(
+            mlrun.utils.create_linear_backoff(base=1, coefficient=1, stop_value=100),
+            60,
+            logger,
+            False,
+            failing_then_succeeding,
+        )
+
+    assert result == "done"
+    assert call_count == 5
+    # Verify that backoff intervals are strictly increasing (not all the same)
+    # Linear backoff with base=1, coefficient=1 should produce 1, 2, 3, 4, ...
+    # The first call uses interval from _prepare (first next()), remaining come from the loop
+    assert len(sleep_intervals) == 4, (
+        f"Expected 4 sleep intervals (4 retries before success), got {len(sleep_intervals)}"
+    )
+    # With the fix, intervals should increase. Without the fix, they'd all be the same.
+    assert sleep_intervals == sorted(sleep_intervals), (
+        f"Expected non-decreasing backoff intervals, got {sleep_intervals}"
+    )
+    assert len(set(sleep_intervals)) > 1, (
+        f"Expected backoff intervals to progress (not all identical), got {sleep_intervals}"
+    )
+
+
+@pytest.mark.asyncio
+async def test_async_retryer_backoff_progresses():
+    """Regression test: AsyncRetryer must advance through the backoff generator on each retry."""
+    sleep_intervals = []
+
+    async def mock_async_sleep(seconds):
+        sleep_intervals.append(seconds)
+
+    call_count = 0
+
+    async def failing_then_succeeding():
+        nonlocal call_count
+        call_count += 1
+        if call_count < 5:
+            raise Exception("not yet")
+        return "done"
+
+    with unittest.mock.patch.object(
+        mlrun.utils.retryer.asyncio, "sleep", mock_async_sleep
+    ):
+        result = await mlrun.utils.helpers.retry_until_successful_async(
+            mlrun.utils.create_linear_backoff(base=1, coefficient=1, stop_value=100),
+            60,
+            logger,
+            False,
+            failing_then_succeeding,
+        )
+
+    assert result == "done"
+    assert call_count == 5
+    assert len(sleep_intervals) == 4
+    assert sleep_intervals == sorted(sleep_intervals)
+    assert len(set(sleep_intervals)) > 1, (
+        f"Expected backoff intervals to progress (not all identical), got {sleep_intervals}"
     )
 
 

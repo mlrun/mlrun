@@ -69,6 +69,7 @@ else
 endif
 
 SETUP_COVERAGE = if [ "$(RUN_COVERAGE)" = "true" ]; then \
+	rm -f $(ROOT_DIR)tests/coverage_reports/coverage_error.log ; \
 	case "$$COVERAGE_FILE" in *.coverage) \
 		rm -rf $$COVERAGE_FILE $$COVERAGE_FILE.* && \
 		mkdir -p $$(dirname $$COVERAGE_FILE) ;\
@@ -89,6 +90,12 @@ PRINT_COVERAGE_REPORT = if [ "$(RUN_COVERAGE)" = "true" ]; then \
 COMBINE_COVERAGE = if [ "$(RUN_COVERAGE)" = "true" ]; then \
 	echo "Combining coverage files matching $${COVERAGE_FILE}.*" ; \
 	COVERAGE_FILE=$$COVERAGE_FILE coverage combine $${COVERAGE_FILE}.* ; \
+fi
+
+CHECK_COVERAGE_ERROR = if [ "$(RUN_COVERAGE)" = "true" ] && [ $$PYTEST_EXIT -ne 0 ] && [ -s $(ROOT_DIR)tests/coverage_reports/coverage_error.log ]; then \
+	echo "=== coverage_error.log ===" ; \
+	cat $(ROOT_DIR)tests/coverage_reports/coverage_error.log ; \
+	exit $$PYTEST_EXIT ; \
 fi
 
 # Verify the mount point to avoid deleting essential paths
@@ -676,7 +683,8 @@ test: clean ## Run mlrun tests
 		$$IGNORE_ADDITION \
 		--forked \
 		-rf \
-		$$UNIT_TESTS_PATH && \
+		$$UNIT_TESTS_PATH \
+	|| { PYTEST_EXIT=$$? ; $(CHECK_COVERAGE_ERROR) ; exit $$PYTEST_EXIT ; } ; \
 	$(COMBINE_COVERAGE) && \
 	$(PRINT_COVERAGE_REPORT) ;
 

@@ -112,7 +112,7 @@ ML-11820|Improved the time to access the monitoring page (V3IO).|
 |ML-11985|Improved the error message when a step of any kind is created with `after=<something other than a list>`.|
 |ML-12311|Resolved issue of failure to return project workflows by changing the defaults: counter refresh time is 1 mninute (was 30 seconds); and "in progress workflow counters" count only the last 2 days.|
 |ML-12328|Fixed KFP experiments pagination.|
-|ML-12372|????in or not
+|ML-12372|Fixed workflows pagination.|
 
 
 
@@ -1566,7 +1566,7 @@ with a drill-down to view the steps and their details. [Tech Preview]
 |ML-9929|Partition-by query on artifact does not sort by best-iteration.|NA||
 |ML-9993|Pagination is not persistent upon browser refresh on Iguazio releases 3.6.0 and 3.6.1.|NA|v1.8.0|
 |ML-10004|Batch writes to TSDB fail when the ingestion rate for the TSDB target is greater than 1/s. The result is that you cannot monitor inferencing and at some point the influencing results are dropped. |
-|ML-10614|`project.log_model()` and `project.log_artifact()` do not account for the the context folder.|
+|ML-10614|`project.log_model()` and `project.log_artifact()` do not account for the context folder.|
 
 
 

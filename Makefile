@@ -845,7 +845,7 @@ html-docs-dockerized: build-test ## Build html docs dockerized
 .PHONY: build-docs
 build-docs: clean-html-docs ## Build all doc formats (HTML + PDF) to match ReadTheDocs
 	make -C docs html
-	make -C docs latexpdf
+	make -C docs latexpdf SPHINXOPTS="-j auto"
 
 .PHONY: build-docs-dockerized
 build-docs-dockerized: build-test ## Build all doc formats dockerized (HTML + PDF)

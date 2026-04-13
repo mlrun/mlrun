@@ -232,7 +232,7 @@ class AlertConfig(ModelObj):
             raise mlrun.errors.MLRunBadRequestError(
                 "Alert must have at least one notification"
             )
-        return super().to_dict(self._dict_fields)
+        return super().to_dict(self._dict_fields, exclude=exclude, strip=strip)
 
     @classmethod
     def from_dict(cls, struct=None, fields=None, deprecated_fields: dict | None = None):

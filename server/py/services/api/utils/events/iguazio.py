@@ -103,9 +103,14 @@ class Client(base_events.BaseEventClient):
     def _generate_auth_secret_event(
         self, username: str, secret_name: str, action: str
     ) -> igz_mgmt.AuditEvent:
+        action_to_event_kind = {
+            mlrun.common.schemas.SecretEventActions.created: PROJECT_AUTH_SECRET_CREATED,
+            mlrun.common.schemas.SecretEventActions.updated: PROJECT_AUTH_SECRET_UPDATED,
+        }
+        event_kind = action_to_event_kind[action]
         return igz_mgmt.AuditEvent(
             source=self.source,
-            kind=PROJECT_AUTH_SECRET_CREATED,
+            kind=event_kind,
             description=f"User {username} {action} secret {secret_name}",
             parameters_text=[
                 igz_mgmt.schemas.events.ParametersText(name="username", value=username),

@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import os
+import sys
 
 _real_os_exit = os._exit
 
@@ -22,13 +23,25 @@ def _coverage_saving_exit(status):
     try:
         import coverage
 
-        cov = coverage.Coverage.current()
-        if cov is not None:
-            cov.stop()
-            cov.save()
-    except Exception:
-        pass
-    _real_os_exit(status)
+        current_coverage = coverage.Coverage.current()
+        if current_coverage is None:
+            print(
+                "ERROR [sitecustomize]: COVERAGE_PROCESS_START is set but no active "
+                "Coverage instance found in forked child — coverage data will be lost.",
+                file=sys.stderr,
+                flush=True,
+            )
+        else:
+            current_coverage.stop()
+            current_coverage.save()
+    except Exception as e:
+        print(
+            f"ERROR [sitecustomize]: Failed to save coverage in forked child: {e}",
+            file=sys.stderr,
+            flush=True,
+        )
+    finally:
+        _real_os_exit(status)
 
 
 def _patch_exit_for_coverage():

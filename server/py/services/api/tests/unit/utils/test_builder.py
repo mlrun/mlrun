@@ -1449,6 +1449,50 @@ def test_validate_and_merge_args_with_extra_args(args, extra_args, expected_resu
     )
 
 
+def test_validate_and_merge_args_with_multiple_existing_build_args():
+    """Test that multiple --build-arg flags in the initial args are all correctly
+    parsed. Previously, args.index("--build-arg") was used which always returned
+    the index of the first occurrence, causing all subsequent --build-arg values
+    to be read from the first one's position."""
+    # args has two --build-arg entries: A=1 and B=2
+    args = ["--build-arg", "A=1", "--build-arg", "B=2"]
+
+    # extra_args tries to add B=2 (duplicate) and C=3 (new)
+    extra_args = "--build-arg B=2 --build-arg C=3"
+
+    result = services.api.utils.builder._validate_and_merge_args_with_extra_args(
+        args, extra_args
+    )
+
+    # B=2 should be recognized as already existing (not duplicated)
+    # C=3 should be added as a new build-arg
+    assert result == [
+        "--build-arg",
+        "A=1",
+        "--build-arg",
+        "B=2",
+        "--build-arg",
+        "C=3",
+    ]
+
+
+def test_validate_and_merge_args_detects_conflict_on_second_build_arg():
+    """Test that a conflicting value for the second --build-arg in args is
+    correctly detected. Before the fix, the second build-arg was invisible
+    because args.index() always found the first occurrence."""
+    args = ["--build-arg", "A=1", "--build-arg", "B=2"]
+
+    # extra_args tries to set B to a different value
+    extra_args = "--build-arg B=99"
+
+    with pytest.raises(
+        ValueError, match="Duplicate --build-arg 'B' with different values"
+    ):
+        services.api.utils.builder._validate_and_merge_args_with_extra_args(
+            args, extra_args
+        )
+
+
 @pytest.mark.parametrize(
     "extra_args, expected_result",
     [

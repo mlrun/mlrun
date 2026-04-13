@@ -1101,12 +1101,12 @@ def _validate_and_merge_args_with_extra_args(args: list, extra_args: str) -> lis
     if not extra_args:
         return args
     extra_args = _parse_extra_args(extra_args)
-    # Create a set to store the keys from the --build-arg flags in args
+    # Create a dict to store the keys from the --build-arg flags in args
     build_arg_keys = {
         key: value
-        for arg in args
-        if arg == "--build-arg"
-        for key, value in [args[args.index(arg) + 1].split("=")]
+        for i, arg in enumerate(args)
+        if arg == "--build-arg" and i + 1 < len(args)
+        for key, value in [args[i + 1].split("=")]
     }
 
     # Create a new list to store the merged args and extra_args

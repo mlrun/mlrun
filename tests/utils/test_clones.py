@@ -238,3 +238,72 @@ def test_load_source_code_archive_failure(tmp_path):
                 source_uri=source_uri,
                 target_dir=target_dir,
             )
+
+
+@pytest.mark.parametrize(
+    "url_fragment, expected_branch, expected_tag, expected_commit",
+    [
+        # Standard refs
+        ("refs/heads/main", "main", None, None),
+        ("refs/tags/v1.0.0", None, "v1.0.0", None),
+        ("refs/commits/abc123", None, None, "abc123"),
+        # Branch name that contains the prefix substring — the key regression test
+        ("refs/heads/fix-refs/heads/issue", "fix-refs/heads/issue", None, None),
+        # Tag name that contains the prefix substring
+        ("refs/tags/release-refs/tags/old", None, "release-refs/tags/old", None),
+        # Commit ref that contains the prefix substring
+        (
+            "refs/commits/refs/commits/nested",
+            None,
+            None,
+            "refs/commits/nested",
+        ),
+        # Bare ref (no known prefix) falls through to branch
+        ("my-feature", "my-feature", None, None),
+    ],
+)
+def test_clone_git_ref_parsing(
+    url_fragment, expected_branch, expected_tag, expected_commit
+):
+    """Verify that Git ref prefixes are stripped correctly using removeprefix,
+    not replace, so embedded occurrences of the prefix string are preserved."""
+
+    base_url = "git://github.com/org/repo.git"
+    url = f"{base_url}#{url_fragment}"
+    context = "/tmp/test_clone_target"
+
+    with (
+        unittest.mock.patch("mlrun.utils.clones.Repo") as mock_repo_cls,
+        unittest.mock.patch(
+            "mlrun.utils.clones.add_credentials_git_remote_url",
+            return_value=("https://github.com/org/repo.git", False),
+        ),
+        unittest.mock.patch("mlrun.utils.clones.path") as mock_path,
+        unittest.mock.patch("mlrun.utils.clones._remove_directory_contents"),
+    ):
+        mock_path.exists.return_value = True
+        mock_path.isdir.return_value = True
+
+        mock_repo_instance = unittest.mock.MagicMock()
+        mock_repo_cls.clone_from.return_value = mock_repo_instance
+
+        returned_url, returned_repo = mlrun.utils.clones.clone_git(
+            url, context, clone=True
+        )
+
+        # Verify Repo.clone_from was called with the expected branch
+        _, clone_kwargs = mock_repo_cls.clone_from.call_args
+        if expected_branch is not None:
+            assert clone_kwargs.get("b") == expected_branch
+        else:
+            # For tags and commits, branch should be None
+            assert clone_kwargs.get("b") is None
+
+        # Verify checkout was called for tags/commits
+        if expected_tag is not None:
+            mock_repo_instance.git.checkout.assert_called_once_with(expected_tag)
+        elif expected_commit is not None:
+            mock_repo_instance.git.checkout.assert_called_once_with(expected_commit)
+        elif expected_branch is not None:
+            # For branches, checkout is not called
+            mock_repo_instance.git.checkout.assert_not_called()

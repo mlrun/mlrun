@@ -169,11 +169,11 @@ def clone_git(url: str, context: str, secrets=None, clone: bool = True):
     if url_obj.fragment:
         refs = url_obj.fragment
         if refs.startswith("refs/heads/"):
-            branch = refs.replace("refs/heads/", "")
+            branch = refs.removeprefix("refs/heads/")
         elif refs.startswith("refs/tags/"):
-            tag = refs.replace("refs/tags/", "")
+            tag = refs.removeprefix("refs/tags/")
         elif refs.startswith("refs/commits/"):
-            commit = refs.replace("refs/commits/", "")
+            commit = refs.removeprefix("refs/commits/")
         else:
             url = url.replace(f"#{refs}", f"#refs/heads/{refs}")
             branch = refs

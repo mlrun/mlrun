@@ -35,6 +35,7 @@ import services.api.runtime_handlers
 import services.api.tests.unit.conftest
 from unittest.mock import MagicMock, patch
 import services.api.crud.pipelines
+import mlrun.config
 
 
 class TestRuns(services.api.tests.unit.conftest.MockedK8sHelper):
@@ -1223,3 +1224,90 @@ def test_no_matching_runs(mock_resolve):
     result = list(pipelines._filter_runs_by_name(runs, target_name="nonexistent"))
 
     assert len(result) == 0
+
+
+class _FakeRun:
+    """Minimal run object with project, uid, and name attributes."""
+
+    def __init__(self, project, uid, name=None):
+        self.project = project
+        self.uid = uid
+        self.name = name or uid
+
+
+@pytest.mark.asyncio
+async def test_failed_deletion_references_correct_run_in_second_chunk():
+    """
+    Scenario: two chunks of runs, the second chunk has a failure at index 0.
+    Before the fix, ``runs_list[0]`` was used (first run overall), but it should
+    be ``chunked_run_list[0]`` (first run of the *second* chunk).
+    """
+    # Create 4 runs across 2 chunks of size 2
+    runs = [_FakeRun("proj", f"uid-{i}", f"run-{i}") for i in range(4)]
+
+    crud_runs = services.api.crud.Runs()
+
+    def mock_delete_resources(db_session, project, uid, run):
+        # Fail the 3rd call (first item of second chunk = uid-2)
+        if uid == "uid-2":
+            raise RuntimeError("Simulated failure for uid-2")
+
+    # Set chunk size to 2 via mlrun config override
+    mlrun.mlconf.crud.runs.batch_delete_runs_chunk_size = 2
+
+    with (
+        unittest.mock.patch.object(
+            crud_runs,
+            "_delete_run_resources",
+            side_effect=mock_delete_resources,
+        ),
+        unittest.mock.patch.object(
+            crud_runs,
+            "_delete_runs",
+            new_callable=unittest.mock.AsyncMock,
+        ) as mock_delete_runs_db,
+        unittest.mock.patch(
+            "services.api.crud.runs.framework.db.session.run_function_with_new_db_session",
+            side_effect=lambda func, *args, **kwargs: func(None, *args, **kwargs),
+        ),
+        unittest.mock.patch(
+            "services.api.crud.runs.framework.db.session.run_async_function_with_new_db_session",
+            side_effect=lambda func, *args, **kwargs: func(None, *args, **kwargs),
+        ),
+        unittest.mock.patch(
+            "services.api.crud.runs.run_in_threadpool",
+            side_effect=lambda func, *args, **kwargs: func(*args, **kwargs),
+        ),
+    ):
+        # The method should raise because there was a failure
+        with pytest.raises(
+            mlrun.errors.MLRunBadRequestError, match="Failed to delete 1 run"
+        ):
+            await crud_runs.delete_runs(
+                db_session=unittest.mock.MagicMock(),
+                project="proj",
+                runs_list=runs,
+            )
+
+        # Verify _delete_runs was called with the correct UIDs:
+        # uid-2 should have been removed (it failed), so we expect
+        # uid-0, uid-1, uid-3 to remain in the deletion set.
+        assert mock_delete_runs_db.called
+        # Collect all UIDs passed to _delete_runs
+        deleted_uids = set()
+        for call in mock_delete_runs_db.call_args_list:
+            # args: (db_session, project, run_uids_to_delete)
+            _, project_arg, uids_arg = call.args
+            deleted_uids.update(uids_arg)
+
+        # uid-2 should NOT be in the deleted set (it failed and was removed)
+        assert "uid-2" not in deleted_uids, (
+            "uid-2 should have been removed from deletion set because its "
+            "resource deletion failed"
+        )
+        # uid-0 SHOULD be in the deleted set (it succeeded)
+        assert "uid-0" in deleted_uids, (
+            "uid-0 should remain in deletion set because it succeeded"
+        )
+        assert "uid-1" in deleted_uids
+        assert "uid-3" in deleted_uids

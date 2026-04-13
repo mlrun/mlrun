@@ -340,7 +340,7 @@ class Runs(
                 if isinstance(result, Exception):
                     failed_deletions += 1
                     last_exception = result
-                    run = runs_list[i]
+                    run = chunked_run_list[i]
                     project_to_run_uids_to_delete[run.project].remove(run.uid)
                     logger.warning(
                         "Failed to delete run",

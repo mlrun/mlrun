@@ -726,7 +726,7 @@ def ensure_function_has_auth_set(
                 f"{mlrun.model.Credentials.secret_reference_prefix}{secret_name}"
             )
         else:
-            secret_name = function.metadata.credentials.access_key.lstrip(
+            secret_name = function.metadata.credentials.access_key.removeprefix(
                 mlrun.model.Credentials.secret_reference_prefix
             )
 

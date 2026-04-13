@@ -701,6 +701,44 @@ def test_ensure_function_has_auth_set(
     )
 
 
+def test_ensure_function_has_auth_set_secret_name_starting_with_prefix_chars(
+    db: Session,
+    client: TestClient,
+    k8s_secrets_mock: services.api.tests.unit.conftest.K8sSecretsMock,
+):
+    """
+    Verify that ensure_function_has_auth_set correctly extracts the secret name
+    when it starts with characters present in the `$ref:` prefix string.
+    Previously, the code used `lstrip("$ref:")` which strips individual chars
+    from the set {$, r, e, f, :} rather than removing the exact prefix. This
+    caused secret names like `ref-my-secret` to be incorrectly truncated to
+    `-my-secret` (or worse).
+    """
+    services.api.tests.unit.api.utils.create_project(client, PROJECT)
+
+    framework.utils.auth.verifier.AuthVerifier().is_jobs_auth_required = (
+        unittest.mock.Mock(return_value=True)
+    )
+
+    # Secret name that starts with chars from the prefix "$ref:" set
+    secret_name = "ref-my-secret"
+    access_key = f"{mlrun.model.Credentials.secret_reference_prefix}{secret_name}"
+    _, _, _, original_function_dict = _generate_original_function(
+        access_key=access_key,
+        kind=mlrun.runtimes.RuntimeKinds.job,
+    )
+    function = mlrun.new_function(runtime=original_function_dict)
+    framework.api.utils.ensure_function_has_auth_set(
+        function, mlrun.common.schemas.AuthInfo()
+    )
+    _assert_env_var_from_secret(
+        function,
+        mlrun.common.runtimes.constants.FunctionEnvironmentVariables.auth_session,
+        secret_name,
+        mlrun.common.schemas.AuthSecretData.get_field_secret_key("access_key"),
+    )
+
+
 def test_mask_v3io_access_key_env_var(
     db: Session,
     client: TestClient,

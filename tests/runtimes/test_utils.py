@@ -23,6 +23,7 @@ import pytest
 import mlrun.common.constants as mlrun_constants
 import mlrun.common.runtimes.constants
 import mlrun.runtimes.utils
+import mlrun.k8s_utils
 
 
 @pytest.fixture
@@ -476,3 +477,34 @@ def test_spark_application_state_to_run_state(spark_state, expected_run_state):
         spark_state
     )
     assert result == expected_run_state
+
+
+@pytest.mark.parametrize(
+    "node_selector, enriched, expected",
+    [
+        ({}, {"disk-type": "ssd", "region": "us-east-1"}, {"disk-type": "ssd", "region": "us-east-1"}),
+        (None, {"disk-type": "ssd"}, {"disk-type": "ssd"}),
+        ({"spot": "true"}, {}, {}),
+        ({}, {}, {}),
+        ({"spot": "true"}, {"spot": "true", "region": "us-east-1"}, {"region": "us-east-1"}),
+        ({"spot": "true"}, {"spot": "false", "region": "us-east-1"}, {"spot": "false", "region": "us-east-1"}),
+        ({"spot": "true"}, {"spot": "true"}, {}),
+    ],
+    ids=[
+        "empty_prune_preserves_enriched",
+        "none_prune_preserves_enriched",
+        "empty_enriched",
+        "both_empty",
+        "matching_pruned",
+        "non_matching_kept",
+        "all_pruned",
+    ],
+)
+def test_prune_node_selector(node_selector, enriched, expected):
+    """Verify _prune_node_selector correctly removes matching selectors
+    and preserves enriched ones when node_selector is empty/None."""
+    result = mlrun.k8s_utils._prune_node_selector(
+        node_selector=node_selector,
+        enriched_node_selector=enriched,
+    )
+    assert result == expected

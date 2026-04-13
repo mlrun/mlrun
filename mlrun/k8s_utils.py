@@ -499,7 +499,7 @@ def _prune_node_selector(
     """
     # both needs to exists to prune required node_selector from the spec node selector
     if not node_selector or not enriched_node_selector:
-        return
+        return enriched_node_selector
 
     mlrun.utils.logger.debug("Pruning node selectors", node_selector=node_selector)
     return {

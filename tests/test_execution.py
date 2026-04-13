@@ -27,6 +27,8 @@ from mlrun import new_task
 from mlrun_pipelines.models import PipelineRun
 from tests.conftest import out_path, tag_test, verify_state
 import mlrun.execution
+import mlrun.common.formatters
+import mlrun.model
 
 
 def my_func(context):
@@ -402,3 +404,100 @@ def test_existing_key_returns_stored_value(ctx):
 
     assert result == 99
     mock_update.assert_not_called()
+
+
+def _make_context_with_notifications(notification_dicts):
+    """Create an MLClientCtx with a mocked rundb that returns the given notifications."""
+    ctx = mlrun.execution.MLClientCtx()
+    ctx._uid = "test-uid"
+    ctx._iteration = 0
+    mock_rundb = unittest.mock.MagicMock()
+    mock_rundb.read_run.return_value = {
+        "spec": {"notifications": notification_dicts},
+    }
+    ctx._rundb = mock_rundb
+    return ctx
+
+
+def test_get_notifications_without_unmask_returns_all():
+    """When unmask_secret_params=False (default), all notifications should be returned."""
+    notification_dicts = [
+        {"kind": "slack", "name": "slack-notif", "message": "done"},
+        {"kind": "console", "name": "console-notif", "message": "hello"},
+    ]
+    ctx = _make_context_with_notifications(notification_dicts)
+
+    result = ctx.get_notifications(unmask_secret_params=False)
+
+    assert len(result) == 2
+    assert result[0].name == "slack-notif"
+    assert result[1].name == "console-notif"
+
+
+def test_get_notifications_default_returns_all():
+    """Default call (no unmask_secret_params) should return all notifications."""
+    notification_dicts = [
+        {"kind": "slack", "name": "my-notif", "message": "test"},
+    ]
+    ctx = _make_context_with_notifications(notification_dicts)
+
+    result = ctx.get_notifications()
+
+    assert len(result) == 1
+    assert result[0].name == "my-notif"
+
+
+def test_get_notifications_with_unmask_returns_enriched():
+    """When unmask_secret_params=True, notifications should be enriched and returned."""
+    notification_dicts = [
+        {"kind": "slack", "name": "notif-1", "message": "ok"},
+        {"kind": "console", "name": "notif-2", "message": "ok"},
+    ]
+    ctx = _make_context_with_notifications(notification_dicts)
+
+    with unittest.mock.patch.object(
+        mlrun.model.Notification,
+        "enrich_unmasked_secret_params_from_project_secret",
+    ):
+        result = ctx.get_notifications(unmask_secret_params=True)
+
+    assert len(result) == 2
+
+
+def test_get_notifications_with_unmask_skips_failed_enrichment():
+    """When unmask_secret_params=True and enrichment fails, that notification is skipped."""
+    notification_dicts = [
+        {"kind": "slack", "name": "good-notif", "message": "ok"},
+        {"kind": "slack", "name": "bad-notif", "message": "ok"},
+        {"kind": "console", "name": "also-good", "message": "ok"},
+    ]
+    ctx = _make_context_with_notifications(notification_dicts)
+
+    call_count = 0
+
+    def mock_enrich(self_notif):
+        nonlocal call_count
+        call_count += 1
+        if self_notif.name == "bad-notif":
+            raise mlrun.errors.MLRunValueError("secret not found")
+
+    with unittest.mock.patch.object(
+        mlrun.model.Notification,
+        "enrich_unmasked_secret_params_from_project_secret",
+        mock_enrich,
+    ):
+        result = ctx.get_notifications(unmask_secret_params=True)
+
+    # bad-notif should be skipped, the other two should be returned
+    assert len(result) == 2
+    assert result[0].name == "good-notif"
+    assert result[1].name == "also-good"
+
+
+def test_get_notifications_empty_list():
+    """When there are no notifications, an empty list is returned."""
+    ctx = _make_context_with_notifications([])
+
+    result = ctx.get_notifications()
+
+    assert result == []

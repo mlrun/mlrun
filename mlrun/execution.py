@@ -1283,13 +1283,14 @@ class MLClientCtx:
             if unmask_secret_params:
                 try:
                     notification.enrich_unmasked_secret_params_from_project_secret()
-                    notifications.append(notification)
                 except mlrun.errors.MLRunValueError:
                     logger.warning(
                         "Failed to fill secret params from project secret for notification."
                         "Skip this notification.",
                         notification=notification.name,
                     )
+                    continue
+            notifications.append(notification)
 
         return notifications
 

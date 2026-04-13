@@ -842,6 +842,29 @@ html-docs-dockerized: build-test ## Build html docs dockerized
 		$(MLRUN_TEST_IMAGE_NAME_TAGGED) \
 		bash -c 'make install-docs-requirements && make html-docs'
 
+.PHONY: build-docs
+build-docs: clean-html-docs ## Build all doc formats (HTML + PDF) to match ReadTheDocs
+	make -C docs html
+	make -C docs latexpdf
+
+.PHONY: build-docs-dockerized
+build-docs-dockerized: build-test ## Build all doc formats dockerized (HTML + PDF)
+	docker run \
+		--rm \
+		-v $(shell pwd)/docs/_build:/mlrun/docs/_build \
+		-e MLRUN_PYTHON_PACKAGE_INSTALLER=$(MLRUN_PYTHON_PACKAGE_INSTALLER) \
+		$(MLRUN_TEST_IMAGE_NAME_TAGGED) \
+		bash -c '\
+			apt-get update && \
+			DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+				texlive-latex-recommended \
+				texlive-fonts-recommended \
+				texlive-latex-extra \
+				latexmk && \
+			rm -rf /var/lib/apt/lists/* && \
+			make install-docs-requirements && \
+			make build-docs'
+
 .PHONY: fmt
 fmt: ## Format the code using Ruff and blacken-docs
 	@echo "Running ruff checks and fixes..."

@@ -74,8 +74,10 @@ class ScheduleCronTrigger(BaseModel):
     def to_crontab(self) -> str:
         """
         Convert the trigger to a crontab expression.
+        None fields are treated as wildcard (``*``).
         """
-        return f"{self.minute} {self.hour} {self.day} {self.month} {self.day_of_week}"
+        fields = [self.minute, self.hour, self.day, self.month, self.day_of_week]
+        return " ".join(str(f) if f is not None else "*" for f in fields)
 
 
 class ScheduleKinds(mlrun.common.types.StrEnum):

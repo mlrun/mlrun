@@ -26,7 +26,7 @@ azure-identity~=1.5
 azure-keyvault-secrets~=4.2
 # cryptography>=39, which is required by azure, needs this, or else we get
 # AttributeError: module 'lib' has no attribute 'OpenSSL_add_all_algorithms' (ML-3471)
-pyopenssl>=23
+pyopenssl>=25
 plotly~=5.23
 # To support python 3.11, google-cloud-bigquery requires grpcio>=1.49.1 (protobuf 4), which is incompatible with the
 # grpcio and protobuf versions required by frames<0.13 and kfp<2

@@ -1,8 +1,8 @@
 # formatting & linting
 ruff==0.15.2
 import-linter~=2.0
-blacken-docs~=1.18
-black~=24.4  # only used by by blacken-docs
+blacken-docs~=1.20
+black~=26.3  # only used by by blacken-docs
 vale~=3.7
 
 # testing
@@ -34,7 +34,7 @@ sqlalchemy-utils~=0.41.2
 scikit-learn~=1.5.2
 lightgbm~=4.3
 xgboost~=1.1
-cryptography~=44.0
+cryptography~=45.0
 
 # install to verify it doesn't cause a warning (ML-8951)
 evidently~=0.7.6

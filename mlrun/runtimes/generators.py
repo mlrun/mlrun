@@ -213,7 +213,7 @@ def selector(results: list, criteria):
     best_id = 0
     best_item = 0
     if op == "max":
-        best_val = sys.float_info.min
+        best_val = -sys.float_info.max
     elif op == "min":
         best_val = sys.float_info.max
 

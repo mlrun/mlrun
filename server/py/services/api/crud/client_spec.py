@@ -64,6 +64,9 @@ class ClientSpec(
                 client_python_version=client_python_version,
             ),
             kfp_url=config.kfp_url,
+            kfp_default_workflow_timeout=self._get_config_value_if_not_default(
+                "kfp_default_workflow_timeout"
+            ),
             dask_kfp_image=self._resolve_image_by_client_versions(
                 config.dask_kfp_image, client_version, client_python_version
             ),

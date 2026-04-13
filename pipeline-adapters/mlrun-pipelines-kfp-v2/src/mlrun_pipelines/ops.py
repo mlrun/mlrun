@@ -213,6 +213,8 @@ def add_labels(task, function, scrape_metrics=False):
 def add_default_env(task):
     if hasattr(kfp_k8s, "use_field_path_as_env"):
         kfp_k8s.use_field_path_as_env(task, "MLRUN_NAMESPACE", "metadata.namespace")
+        # Inject the full pod name for runner_pod annotation.
+        kfp_k8s.use_field_path_as_env(task, "MLRUN_POD_NAME", "metadata.name")
     else:
         # TODO: remove this warning as soon as "use_field_path_as_env" is available for MLRun SDK
         logger.warning(

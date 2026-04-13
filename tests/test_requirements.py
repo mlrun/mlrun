@@ -135,7 +135,7 @@ def test_requirement_specifiers_convention():
         "docstring_parser": {"~=0.16"},
         "gitpython": {"~=3.1, >=3.1.41"},
         "jinja2": {"~=3.1, >=3.1.6"},
-        "pyopenssl": {">=23"},
+        "pyopenssl": {">=25"},
         # requests currently expects chardet < 6 when chardet is present
         "chardet": {"<6"},
         # used in tests

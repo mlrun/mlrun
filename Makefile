@@ -842,10 +842,23 @@ html-docs-dockerized: build-test ## Build html docs dockerized
 		$(MLRUN_TEST_IMAGE_NAME_TAGGED) \
 		bash -c 'make install-docs-requirements && make html-docs'
 
+# ReadTheDocs PR builds only generate HTML — PDF/ePUB are skipped (platform limitation).
+# This target builds all formats locally to catch PDF-breaking issues before merge.
+#
+# The html and latex steps fail normally on errors (exit codes are not swallowed).
+# Only the latexmk step ignores the exit code: pdflatex exits non-zero for non-fatal
+# warnings (Unicode emojis, SVG images) that are inherent engine limitations — the PDF
+# is still produced. We verify the PDF exists to catch actual fatal errors (e.g. corrupted
+# images), where pdflatex crashes and produces no output at all.
 .PHONY: build-docs
 build-docs: clean-html-docs ## Build all doc formats (HTML + PDF) to match ReadTheDocs
 	make -C docs html
-	make -C docs latexpdf SPHINXOPTS="-j auto"
+	make -C docs latex SPHINXOPTS="-j auto"
+	cd docs/_build/latex && latexmk -r latexmkrc -pdf -f -dvi- -ps- -jobname=mlrun -interaction=nonstopmode; \
+		if [ ! -f mlrun.pdf ]; then \
+			echo "FATAL: PDF was not produced. See pdflatex errors above."; \
+			exit 1; \
+		fi
 
 .PHONY: build-docs-dockerized
 build-docs-dockerized: build-test ## Build all doc formats dockerized (HTML + PDF)
@@ -857,10 +870,12 @@ build-docs-dockerized: build-test ## Build all doc formats dockerized (HTML + PD
 		bash -c '\
 			apt-get update && \
 			DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+				latexmk \
+				tex-gyre \
 				texlive-latex-recommended \
-				texlive-fonts-recommended \
 				texlive-latex-extra \
-				latexmk && \
+				texlive-fonts-recommended \
+				texlive-fonts-extra && \
 			rm -rf /var/lib/apt/lists/* && \
 			make install-docs-requirements && \
 			make build-docs'

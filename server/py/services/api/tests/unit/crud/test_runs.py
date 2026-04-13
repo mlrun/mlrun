@@ -26,6 +26,7 @@ import mlrun.common.runtimes.constants
 import mlrun.common.schemas
 import mlrun.errors
 
+import framework.db.session
 import framework.utils.clients.log_collector
 import framework.utils.singletons.k8s
 import services.api.crud
@@ -218,6 +219,93 @@ class TestRuns(services.api.tests.unit.conftest.MockedK8sHelper):
 
             runs = services.api.crud.Runs().list_runs(db, run_name, project=project)
             assert len(runs) == 1
+
+    @pytest.mark.asyncio
+    async def test_delete_runs_uses_async_session_for_async_delete(
+        self, db: sqlalchemy.orm.Session
+    ):
+        """
+        Regression test: _delete_runs is an async method. The call site must use
+        run_async_function_with_new_db_session (not the sync run_function_with_new_db_session)
+        so the coroutine is properly awaited with an async-compatible DB session.
+        Using the sync variant would return an unawaited coroutine, leaving runs and
+        their logs undeleted.
+        """
+        project = "project-name"
+        run_name = "run-name"
+        for uid in range(3):
+            services.api.crud.Runs().store_run(
+                db,
+                {
+                    "metadata": {
+                        "name": run_name,
+                        "labels": {
+                            mlrun_constants.MLRunInternalLabels.kind: "job",
+                        },
+                        "uid": str(uid),
+                        "iteration": 0,
+                    },
+                },
+                str(uid),
+                project=project,
+            )
+
+        runs = services.api.crud.Runs().list_runs(db, run_name, project=project)
+        assert len(runs) == 3
+
+        k8s_helper = framework.utils.singletons.k8s.get_k8s_helper()
+        async_session_calls = []
+
+        # Spy on run_async_function_with_new_db_session by wrapping it; track
+        # which functions are dispatched through it so we can assert _delete_runs
+        # (an async method) is routed to the async-aware session helper and not
+        # the sync run_function_with_new_db_session.
+        original_async_fn = framework.db.session.run_async_function_with_new_db_session
+
+        async def tracking_async_fn(func, *args, **kwargs):
+            async_session_calls.append(func.__name__)
+            return await original_async_fn(func, *args, **kwargs)
+
+        with (
+            unittest.mock.patch.object(
+                k8s_helper.v1api,
+                "list_namespaced_pod",
+                return_value=k8s_client.V1PodList(
+                    items=[], metadata=k8s_client.V1ListMeta()
+                ),
+            ),
+            unittest.mock.patch.object(
+                services.api.runtime_handlers.BaseRuntimeHandler,
+                "_ensure_run_logs_collected",
+            ),
+            # _post_delete_runs triggers log deletion which requires compiled proto
+            # files not available in local unit-test environments; mock it out so the
+            # test focuses on the DB session dispatch path only.
+            unittest.mock.patch.object(
+                services.api.crud.Runs,
+                "_post_delete_runs",
+                new_callable=unittest.mock.AsyncMock,
+            ),
+            unittest.mock.patch.object(
+                framework.db.session,
+                "run_async_function_with_new_db_session",
+                side_effect=tracking_async_fn,
+            ),
+        ):
+            await services.api.crud.Runs().delete_runs(
+                db, name=run_name, project=project
+            )
+
+        # _delete_runs (async) must be dispatched via run_async_function_with_new_db_session
+        assert "_delete_runs" in async_session_calls, (
+            "_delete_runs must be called via run_async_function_with_new_db_session "
+            "so its coroutine is properly awaited; using the sync variant would silently "
+            "skip DB deletion and log cleanup"
+        )
+
+        # All runs must have been removed from the DB
+        remaining = services.api.crud.Runs().list_runs(db, run_name, project=project)
+        assert len(remaining) == 0
 
     @pytest.mark.asyncio
     @pytest.mark.parametrize(

@@ -1,6 +1,6 @@
 [project]
 name = "mlrun-pipelines-kfp-v2"
-version = "0.6.0"
+version = "0.7.0"
 description = "MLRun Pipelines adapter package for providing KFP 2.* compatibility"
 readme = "README.md"
 requires-python = ">=3.11, <3.12"

@@ -1,16 +1,16 @@
-uvicorn~=0.32.1
+uvicorn~=0.34.0
 dask-kubernetes~=0.11.0
 # no support for 4 yet
 apscheduler>=3.11,<4
 objgraph~=3.6
 igz-mgmt~=0.4.2
 humanfriendly~=10.0
-fastapi~=0.120.0
+fastapi~=0.125.0
 sqlalchemy~=2.0
 sqlalchemy-utils~=0.41.2
 pymysql~=1.1
 psycopg2-binary~=2.9
-alembic~=1.14
+alembic~=1.18
 timelength~=1.1
 memray~=1.12; sys_platform != 'win32'
 aiosmtplib~=3.0

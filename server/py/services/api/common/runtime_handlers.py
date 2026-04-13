@@ -49,7 +49,7 @@ def get_resource_labels(function, run=None, scrape_metrics=None):
     if run_owner:
         labels[mlrun_constants.MLRunInternalLabels.mlrun_owner] = run_owner
         if "@" in run_owner:
-            run_owner, domain = run_owner.split("@")
+            run_owner, domain = run_owner.split("@", 1)
             labels[mlrun_constants.MLRunInternalLabels.mlrun_owner] = run_owner
             labels[mlrun_constants.MLRunInternalLabels.owner_domain] = domain
 

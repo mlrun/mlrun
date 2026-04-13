@@ -35,6 +35,9 @@ from mlrun.common.schemas.hub import HubSourceType
 from mlrun.config import config
 from mlrun.datastore.store_resources import parse_store_uri
 from mlrun.utils import logger
+import copy
+
+import mlrun.utils.helpers
 from mlrun.utils.helpers import (
     StorePrefix,
     _split_by_dots_with_escaping,
@@ -2386,3 +2389,87 @@ def test_update_in_with_escaped_dot_key():
     assert obj == {"a.b": {"c": "value"}}, (
         f"Expected nested dict with escaped dot key, got {obj}"
     )
+
+
+def test_fill_object_hash_restores_updated_field():
+    """Verify that fill_object_hash preserves the metadata.updated timestamp.
+
+    Before the fix, fill_object_hash set metadata.updated to None for hash
+    computation but never restored it, silently wiping the timestamp.
+    """
+    original_updated = "2024-01-15T10:30:00Z"
+    object_dict = {
+        "metadata": {
+            "tag": "v1",
+            "uid": "abc123",
+            "updated": original_updated,
+            "created": "2024-01-10T08:00:00Z",
+        },
+        "status": {"state": "completed"},
+        "spec": {"param": "value"},
+    }
+
+    mlrun.utils.helpers.fill_object_hash(object_dict, "uid")
+
+    assert object_dict["metadata"]["updated"] == original_updated, (
+        "fill_object_hash should restore the metadata.updated field after hash computation"
+    )
+
+def test_fill_object_hash_restores_all_temporarily_cleared_fields():
+    """Verify all temporarily cleared fields (tag, status, created, updated)
+    are restored after hash computation."""
+    original = {
+        "metadata": {
+            "tag": "latest",
+            "uid": "old-uid",
+            "updated": "2024-06-01T12:00:00Z",
+            "created": "2024-05-01T08:00:00Z",
+        },
+        "status": {"state": "running", "error": ""},
+        "spec": {"handler": "my_handler"},
+    }
+    snapshot = copy.deepcopy(original)
+
+    uid = mlrun.utils.helpers.fill_object_hash(original, "uid")
+
+    assert original["metadata"]["tag"] == snapshot["metadata"]["tag"]
+    assert original["metadata"]["created"] == snapshot["metadata"]["created"]
+    assert original["metadata"]["updated"] == snapshot["metadata"]["updated"]
+    assert original["status"] == snapshot["status"]
+    # uid is expected to change to the computed hash
+    assert original["metadata"]["uid"] == uid
+
+def test_fill_object_hash_handles_missing_updated_field():
+    """Verify fill_object_hash works when metadata.updated does not exist."""
+    object_dict = {
+        "metadata": {
+            "tag": "v1",
+            "hash": "",
+        },
+        "status": {},
+        "spec": {"key": "value"},
+    }
+
+    uid = mlrun.utils.helpers.fill_object_hash(object_dict, "hash")
+
+    assert uid is not None
+    assert "updated" not in object_dict["metadata"], (
+        "fill_object_hash should not create an 'updated' key if it did not exist before"
+    )
+
+def test_fill_function_hash_preserves_updated():
+    """Verify the fill_function_hash wrapper also preserves updated."""
+    function_dict = {
+        "metadata": {
+            "tag": "v2",
+            "hash": "old-hash",
+            "updated": "2024-03-20T15:45:00Z",
+            "created": "2024-03-01T09:00:00Z",
+        },
+        "status": {"state": "ready"},
+        "spec": {"image": "mlrun/mlrun"},
+    }
+
+    mlrun.utils.helpers.fill_function_hash(function_dict, tag="v2")
+
+    assert function_dict["metadata"]["updated"] == "2024-03-20T15:45:00Z"

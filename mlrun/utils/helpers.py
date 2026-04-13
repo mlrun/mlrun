@@ -1158,7 +1158,7 @@ def fill_object_hash(object_dict, uid_property_name, tag=""):
     object_dict["metadata"]["tag"] = ""
     object_dict["metadata"][uid_property_name] = ""
     object_dict["status"] = None
-    object_dict["metadata"]["updated"] = None
+    object_updated_timestamp = object_dict["metadata"].pop("updated", None)
     object_created_timestamp = object_dict["metadata"].pop("created", None)
 
     # Note the usage of default=str here, which means everything not JSON serializable (for example datetime) will be
@@ -1176,6 +1176,8 @@ def fill_object_hash(object_dict, uid_property_name, tag=""):
     object_dict["status"] = status
     if object_created_timestamp:
         object_dict["metadata"]["created"] = object_created_timestamp
+    if object_updated_timestamp:
+        object_dict["metadata"]["updated"] = object_updated_timestamp
     return uid
 
 

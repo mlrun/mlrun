@@ -137,7 +137,12 @@ def sanitize_label_value(value: str) -> str:
     :param value: arbitrary string that needs to sanitized for usage on k8s labels
     :return:      string fully compliant with k8s label value expectations
     """
-    return re.sub(r"([^a-zA-Z0-9_.-]|^[^a-zA-Z0-9]|[^a-zA-Z0-9]$)", "-", value[:63])
+    # Replace invalid characters in the middle (not alphanumeric, underscore, dot, or hyphen)
+    sanitized = re.sub(r"[^a-zA-Z0-9_.-]", "-", value[:63])
+    # Strip leading/trailing characters that are not alphanumeric
+    # (K8s requires labels to begin and end with an alphanumeric character)
+    sanitized = sanitized.strip("_.-")
+    return sanitized
 
 
 def verify_label_key(key: str, allow_k8s_prefix: bool = False):

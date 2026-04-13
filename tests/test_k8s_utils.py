@@ -30,10 +30,28 @@ import mlrun.k8s_utils
             "very-long--string--value--with--several--illegal--characters--p",
         ),
         ("0.0.0+unstable", "0.0.0-unstable"),
+        # Values with non-alphanumeric leading/trailing chars must be stripped
+        # so the result begins and ends with an alphanumeric character (K8s requirement)
+        (".leading-dot", "leading-dot"),
+        ("trailing-dot.", "trailing-dot"),
+        ("_underscored_", "underscored"),
+        ("-hyphenated-", "hyphenated"),
+        ("...dots...", "dots"),
+        ("_._mixed_._", "mixed"),
     ],
 )
 def test_sanitize_label_value(value: str, expected: str):
-    assert mlrun.k8s_utils.sanitize_label_value(value) == expected
+    result = mlrun.k8s_utils.sanitize_label_value(value)
+    assert result == expected
+    # Verify the result is a valid K8s label value
+    # (must begin and end with alphanumeric if non-empty)
+    if result:
+        assert result[0].isalnum(), (
+            f"Sanitized label value {result!r} does not start with an alphanumeric character"
+        )
+        assert result[-1].isalnum(), (
+            f"Sanitized label value {result!r} does not end with an alphanumeric character"
+        )
 
 
 @pytest.mark.parametrize(

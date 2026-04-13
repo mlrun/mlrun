@@ -16,6 +16,7 @@ import http
 from unittest import mock
 
 import pytest
+import requests
 from aiohttp import ClientResponse
 
 import mlrun.errors
@@ -137,3 +138,42 @@ def test_err_to_status_code(status_code, exc, message):
     if exc != mlrun.errors.MLRunHTTPError:
         assert _exc.value.error_status_code == int(status_code)
     assert message in str(_exc.value)
+
+
+@pytest.mark.parametrize(
+    "status_code, expected_exception_class",
+    [
+        (http.HTTPStatus.BAD_REQUEST, mlrun.errors.MLRunBadRequestError),
+        (http.HTTPStatus.UNAUTHORIZED, mlrun.errors.MLRunUnauthorizedError),
+        (http.HTTPStatus.FORBIDDEN, mlrun.errors.MLRunAccessDeniedError),
+        (http.HTTPStatus.NOT_FOUND, mlrun.errors.MLRunNotFoundError),
+        (http.HTTPStatus.METHOD_NOT_ALLOWED, mlrun.errors.MLRunMethodNotAllowedError),
+        (http.HTTPStatus.CONFLICT, mlrun.errors.MLRunConflictError),
+        (
+            http.HTTPStatus.PRECONDITION_FAILED,
+            mlrun.errors.MLRunPreconditionFailedError,
+        ),
+        (
+            http.HTTPStatus.INTERNAL_SERVER_ERROR,
+            mlrun.errors.MLRunInternalServerError,
+        ),
+        (
+            http.HTTPStatus.SERVICE_UNAVAILABLE,
+            mlrun.errors.MLRunServiceUnavailableError,
+        ),
+        (http.HTTPStatus.NOT_IMPLEMENTED, mlrun.errors.MLRunNotImplementedServerError),
+        (http.HTTPStatus.GATEWAY_TIMEOUT, mlrun.errors.MLRunTimeoutError),
+    ],
+)
+def test_raise_for_status_maps_status_codes_to_specific_exceptions(
+    status_code, expected_exception_class
+):
+    """Verify that raise_for_status raises the specific MLRun exception class
+    for each HTTP status code in the STATUS_ERRORS table, rather than the
+    generic MLRunHTTPError."""
+    response = requests.Response()
+    response.status_code = status_code
+    response._content = b"test error"
+
+    with pytest.raises(expected_exception_class):
+        raise_for_status(response)

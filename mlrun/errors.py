@@ -293,11 +293,13 @@ STATUS_ERRORS = {
     HTTPStatus.UNAUTHORIZED.value: MLRunUnauthorizedError,
     HTTPStatus.FORBIDDEN.value: MLRunAccessDeniedError,
     HTTPStatus.NOT_FOUND.value: MLRunNotFoundError,
+    HTTPStatus.METHOD_NOT_ALLOWED.value: MLRunMethodNotAllowedError,
     HTTPStatus.CONFLICT.value: MLRunConflictError,
     HTTPStatus.PRECONDITION_FAILED.value: MLRunPreconditionFailedError,
     HTTPStatus.INTERNAL_SERVER_ERROR.value: MLRunInternalServerError,
     HTTPStatus.SERVICE_UNAVAILABLE.value: MLRunServiceUnavailableError,
     HTTPStatus.NOT_IMPLEMENTED.value: MLRunNotImplementedServerError,
+    HTTPStatus.GATEWAY_TIMEOUT.value: MLRunTimeoutError,
 }
 
 EXPECTED_ERRORS = (MLRunPaginationEndOfResultsError,)

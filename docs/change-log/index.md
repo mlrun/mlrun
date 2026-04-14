@@ -1565,9 +1565,9 @@ with a drill-down to view the steps and their details. [Tech Preview]
 |ML-9235|After migrating from v1.7.x to v1.8.x, there are two artifacts with the same key that are tagged `latest`. When using such an artifact in the job by `key:tag` the job will fail with the error `multiple rows were found`.| NA|v1.8.0|
 |ML-9929|Partition-by query on artifact does not sort by best-iteration.|NA||
 |ML-9993|Pagination is not persistent upon browser refresh on Iguazio releases 3.6.0 and 3.6.1.|NA|v1.8.0|
-|ML-10004|Batch writes to TSDB fail when the ingestion rate for the TSDB target is greater than 1/s. The result is that you cannot monitor inferencing and at some point the influencing results are dropped. |
-|ML-10614|`project.log_model()` and `project.log_artifact()` do not account for the context folder.|
-
+|ML-10004|Batch writes to TSDB fail when the ingestion rate for the TSDB target is greater than 1/s. The result is that you cannot monitor inferencing and at some point the influencing results are dropped. |NA|v1.11.0|
+|ML-10614|`project.log_model()` and `project.log_artifact()` do not account for the context folder.|NA|v1.11.0|
+|ML-12378|When using HTTP streaming, async does not work but works in the same manner as sync.|NA|v1.11.0|
 
 
 

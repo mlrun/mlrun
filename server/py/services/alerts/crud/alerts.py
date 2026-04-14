@@ -686,6 +686,29 @@ class Alerts(
         self._get_alert_state_cached().cache_remove(session, alert.id)
         self._clear_alert_states(alert.id)
 
+    def reset_cooled_down_alerts(self, session: sqlalchemy.orm.Session) -> None:
+        """Reset alerts whose cooldown period has elapsed."""
+        alerts = (
+            framework.utils.singletons.db.get_db().list_alerts_pending_cooldown_reset(
+                session
+            )
+        )
+        for alert in alerts:
+            try:
+                self.reset_alert(
+                    session=session,
+                    project=alert.project,
+                    name=alert.name,
+                    alert_id=alert.id,
+                )
+            except Exception as exc:
+                logger.warning(
+                    "Failed to reset cooled-down alert",
+                    project=alert.project,
+                    name=alert.name,
+                    exc=mlrun.errors.err_to_str(exc),
+                )
+
     def _update_alert_activation_on_reset(
         self,
         session: sqlalchemy.orm.Session,

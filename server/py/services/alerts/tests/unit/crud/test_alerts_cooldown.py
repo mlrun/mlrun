@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import datetime
 import unittest
 import unittest.mock
 from contextlib import AbstractContextManager
@@ -386,9 +387,6 @@ class TestAlertsCooldown(TestAlertsBase):
         reset_alert_caches,
     ):
         """reset_cooled_down_alerts() resets only alerts whose cooldown has elapsed."""
-        import datetime as dt
-        from datetime import UTC, timedelta
-
         project = "project-name"
 
         # Alert whose cooldown has elapsed — should be reset
@@ -415,7 +413,8 @@ class TestAlertsCooldown(TestAlertsBase):
             last_updated=None,
             active=True,
             alert_id=elapsed_alert.id,
-            cooldown_end_time=dt.datetime.now(UTC) - timedelta(seconds=1),
+            cooldown_end_time=datetime.datetime.now(datetime.UTC)
+            - datetime.timedelta(seconds=1),
         )
 
         # Alert still within cooldown — should NOT be reset
@@ -442,7 +441,8 @@ class TestAlertsCooldown(TestAlertsBase):
             last_updated=None,
             active=True,
             alert_id=active_alert.id,
-            cooldown_end_time=dt.datetime.now(UTC) + timedelta(minutes=5),
+            cooldown_end_time=datetime.datetime.now(datetime.UTC)
+            + datetime.timedelta(minutes=5),
         )
 
         services.alerts.crud.Alerts().reset_cooled_down_alerts(session=db)

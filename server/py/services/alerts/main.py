@@ -615,15 +615,9 @@ class Service(framework.service.Service):
             )
 
     def _reset_cooled_down_alerts(self):
-        try:
-            framework.db.session.run_function_with_new_db_session(
-                services.alerts.crud.Alerts().reset_cooled_down_alerts
-            )
-        except Exception as exc:
-            self._logger.warning(
-                "Failed resetting cooled-down alerts. Ignoring",
-                exc=mlrun.errors.err_to_str(exc),
-            )
+        framework.db.session.run_function_with_new_db_session(
+            services.alerts.crud.Alerts().reset_cooled_down_alerts
+        )
 
     def _start_periodic_events_generation(self):
         interval = int(mlconf.alerts.events_generation_interval)

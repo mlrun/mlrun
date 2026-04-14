@@ -338,7 +338,9 @@ class TestAlerts(TestMLRunSystem):
         Also verifies that a second event fired during cooldown does not send a duplicate
         notification (since the alert is already active).
         """
-        cooldown_seconds = 30
+        # must be >= cooldown_reset_interval (enforced by validation); add a margin so
+        # the cooldown outlasts at least one full reset-interval cycle.
+        cooldown_seconds = max(30, int(mlconf.alerts.cooldown_reset_interval) + 15)
         alert_name = "cooldown-auto-reset"
         entity_id = "cooldown-auto-reset-job"
 

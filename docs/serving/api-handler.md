@@ -163,9 +163,9 @@ def step_handler(body, completion_id, limit, mlrun_request_path, **kwargs):
     # mlrun_request_path="/v1/chat/completions/abc123"  — from include_url_info
     ...
 
+
 class MyStep:
-    def do(self, body, completion_id, limit, mlrun_request_path, **kwargs):
-        ...
+    def do(self, body, completion_id, limit, mlrun_request_path, **kwargs): ...
 ```
 
 ## Complete example

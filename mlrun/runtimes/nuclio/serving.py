@@ -191,10 +191,10 @@ class APIHandlerConfig(mlrun.model.ModelObj):
         action: schemas.serving.APIHandlerAction = schemas.serving.APIHandlerAction.ALLOW,
         description: str | None = None,
     ) -> None:
-        r"""Add an endpoint handler configuration.
+        """Add an endpoint handler configuration.
 
-        :param path: URL path for the endpoint (e.g., ``/v1/models`` or ``/api/v1/\*``)
-        :param http_method: HTTP method for the endpoint (HTTPMethod enum or string like 'GET', 'POST')
+        :param path: URL path for the endpoint (e.g., ``/v1/models`` or ``/api/v1/*``)
+        :param http_method: HTTP method for the endpoint (``HTTPMethod`` enum or string like ``"GET"``, ``"POST"``)
         :param action: Action to take for this endpoint (:py:class:`~mlrun.common.schemas.serving.APIHandlerAction`)
         :param description: Optional description of the endpoint
         :raises mlrun.errors.MLRunValueError: If the path contains an invalid wildcard ``*`` pattern

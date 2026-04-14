@@ -2,30 +2,29 @@
 # Router steps
 
 Router steps allow branching, enrichment, aggregation, etc.
+This icon in the UI indicates router steps: <img src="../_static/images/steps-router.png" alt="graph-steps-router" />.
 
 **In this section**
+- [RouterStep](#routerstep)
 - [VotingEnsemble](#votingensemble)
 - [Parallel execution](#parallel-execution-parallelrun)
 
-**See also**
-- Example of {py:class}`~mlrun.serving.RouterStep` in {ref}`graph-example`.
 
+## RouterStep
+### Description
+{py:class}`~mlrun.serving.RouterStep` implements routing logic for running child routes.
 ```{admonition} Note
 The `*` prefix indicates a router class (not a simple processing step).
 ```
-
-## Router
-### Description
-{py:class}`~mlrun.serving.RouterStep' implements routing logic for running child routes.
-
-### Use Case
-
-
 ### Examples
+- {ref}`graph-example`
+- - {ref}`working-with-rag`
 
 ## VotingEnsemble
 ### Description
 {py:class}`~mlrun.serving.routers.VotingEnsemble` is a router that encapsulates both execution and aggregation of multiple model routes. It outputs a single result.
+
+An ensemble machine learning model that combines the prediction of several models.
 
 ### Use Case
 
@@ -65,10 +64,10 @@ fn = mlrun.code_to_function(
 
 graph = fn.set_topology("flow")
 
-# 1. Preprocessing
+# Preprocessing
 graph.add_step("PreProcess", class_name="PreProcessClass")
 
-# 2. Voting
+# Voting
 models_path = "https://s3.wasabisys.com/iguazio/models/iris/model.pkl"
 path1 = models_path
 path2 = models_path
@@ -81,10 +80,10 @@ router = graph.add_step(
 router.add_route("m1", class_name="ClassifierModel", model_path=path1)
 router.add_route("m2", class_name="ClassifierModel", model_path=path2)
 
-# 3. Postprocess
+# Postprocess
 graph.add_step("PostProcess", class_name="PostProcessClass", after="enricher").respond()
 
-# 4. Local test
+# Local test
 server = fn.to_mock_server()
 result = server.test(body={"user_id": 123, "inputs": [0.1, 0.2, 0.3]})
 print(result)
@@ -102,6 +101,9 @@ graph.add_step("*mlrun.serving.ParallelRun", name="parallel")
 ## Parallel execution (ParallelRun)
 ### Description
 Use {py:meth}`~mlrun.serving.routers.ParallelRun` to run multiple independent branches with custom merging or postprocessing. It outputs a dict or list.
+```{admonition} Note
+The `*` prefix indicates a router class (not a simple processing step). The graph sends the event to one of its children, based on path. 
+```
 
 ## Use Cases
 

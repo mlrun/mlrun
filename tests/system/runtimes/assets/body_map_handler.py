@@ -12,7 +12,9 @@
 # limitations under the License.
 
 
-def process_mapped_data(user_name: str, user_email: str, book_titles: list) -> dict:
+def process_mapped_data(
+    body, user_name: str, user_email: str, book_titles: list
+) -> dict:
     """Handler that receives mapped parameters from body_map."""
     return {
         "name": user_name,

@@ -186,6 +186,17 @@ def add_default_env(k8s_client, cop):
             ),
         )
     )
+    # Inject the full pod name (metadata.name) for runner_pod annotation.
+    # socket.gethostname() is truncated to 63 chars by the kubelet,
+    # but the full pod name is needed for unambiguous step correlation.
+    cop.container.add_env_variable(
+        k8s_client.V1EnvVar(
+            "MLRUN_POD_NAME",
+            value_from=k8s_client.V1EnvVarSource(
+                field_ref=k8s_client.V1ObjectFieldSelector(field_path="metadata.name")
+            ),
+        )
+    )
 
     if config.httpdb.api_url:
         cop.container.add_env_variable(

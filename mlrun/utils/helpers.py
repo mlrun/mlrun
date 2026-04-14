@@ -389,7 +389,7 @@ def remove_image_protocol_prefix(image: str) -> str:
     if not image:
         return image
 
-    prefixes = ["https://", "https://"]
+    prefixes = ["https://", "http://"]
     if any(prefix in image for prefix in prefixes):
         image = image.removeprefix("https://").removeprefix("http://")
         logger.warning(
@@ -2251,7 +2251,7 @@ def warn_on_deprecated_image(image: str | None):
     """
     deprecated_images = ["mlrun/ml-base"]
     if image and any(
-        image in deprecated_image for deprecated_image in deprecated_images
+        deprecated_image in image for deprecated_image in deprecated_images
     ):
         warnings.warn(
             "'mlrun/ml-base' image is deprecated in 1.10.0 and will be replaced by 'mlrun/mlrun'. "

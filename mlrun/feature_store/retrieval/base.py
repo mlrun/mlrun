@@ -52,6 +52,9 @@ class BaseMerger(abc.ABC):
         self._origin_alias = dict()
         self._entity_rows_node_name = "__mlrun__$entity_rows$"
 
+    def close(self):
+        pass
+
     def _append_drop_column(self, key):
         if key and key not in self._drop_columns:
             self._drop_columns.append(key)

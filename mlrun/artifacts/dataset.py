@@ -311,9 +311,12 @@ class DatasetArtifact(Artifact):
         if stats or (
             stats is None
             and (
-                artifact.spec.length < max_csv and len(df.columns) < max_preview_columns
+                (
+                    artifact.spec.length < max_csv
+                    and len(df.columns) < max_preview_columns
+                )
+                or ignore_preview_limits
             )
-            or ignore_preview_limits
         ):
             artifact.status.stats = get_df_stats(df)
 

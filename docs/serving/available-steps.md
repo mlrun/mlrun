@@ -76,7 +76,7 @@ This icon in the UI indicates event operation steps: <img src="../_static/images
 
 | Class name  | Description                                                                                                |   
 |-------------|------------------------------------------------------------------------------------------------------| 
-|{py:class}`~storey.transformations.Collector`| Collects streaming chunks and emits a single event once all chunks for a stream are received. (It acts as a no-op passthrough for non-streaming events.)|    
+|{py:class}`~storey.transformations.Collector`| Collects streaming chunks and emits a single event once all chunks for a stream are received. (It acts as a no-op passthrough for non-streaming events.) See [HTTP streaming step](../serving/model-serving-steps.html#http-streaming-step) and {py:class}`~storey.transformations.Collector`.|    
 |{py:class}`~storey.transformations.Extend` |Adds new fields to each event using values returned by a user-defined function.| 
 |{py:class}`~storey.transformations.FlatMap`|Applies a function that can expand a single event into multiple downstream events.|
 |{py:class}`~storey.transformations.Flatten` |Flattens iterable outputs so that each element is emitted as a separate event.| 

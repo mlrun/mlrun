@@ -86,59 +86,21 @@ jobs:
           echo "status=${STATUS}" >> $GITHUB_OUTPUT
           echo "source=${SOURCE}" >> $GITHUB_OUTPUT
 
+      - uses: actions/checkout@v6
+        with:
+          sparse-checkout: automation/scripts
+
       - name: Set label on PR
-        run: |
-          PR="${{ inputs.pr_number }}"
-          API_URL="https://api.github.com/repos/${{ github.repository }}/issues/${PR}/labels"
-          REPO_LABELS_URL="https://api.github.com/repos/${{ github.repository }}/labels"
-          LABEL="${{ steps.outcome.outputs.label }}"
-          COLOR="${{ steps.outcome.outputs.color }}"
-
-          ENCODED_LABEL=$(echo "${LABEL}" | sed 's/ /%20/g; s/:/%3A/g; s/(/%28/g; s/)/%29/g')
-
-          # Check if label is already set correctly — skip if no change needed
-          CURRENT_SMOKE_LABEL=$(curl -sS \
-            -H "Authorization: token ${GITHUB_TOKEN}" \
-            -H "Accept: application/vnd.github+json" \
-            "${API_URL}" | jq -r '[.[].name | select(startswith("Smoke tests:"))] | join(",")' )
-          if [ "${CURRENT_SMOKE_LABEL}" = "${LABEL}" ]; then
-            echo "Label '${LABEL}' already set, skipping"
-            exit 0
-          fi
-
-          # Ensure label exists in the repo (create if absent, update color if present)
-          curl -sS -X PATCH \
-            -H "Authorization: token ${GITHUB_TOKEN}" \
-            -H "Accept: application/vnd.github+json" \
-            -d "{\"color\":\"${COLOR}\"}" \
-            "${REPO_LABELS_URL}/${ENCODED_LABEL}" || \
-          curl -sS -X POST \
-            -H "Authorization: token ${GITHUB_TOKEN}" \
-            -H "Accept: application/vnd.github+json" \
-            -d "{\"name\":\"${LABEL}\",\"color\":\"${COLOR}\"}" \
-            "${REPO_LABELS_URL}"
-
-          # Remove any stale smoke labels before adding the correct one.
-          for stale in \
-            "Smoke%20tests%3A%20Pass" \
-            "Smoke%20tests%3A%20Fail" \
-            "Smoke%20tests%3A%20Pass%20%28tests%20from%20pr%29" \
-            "Smoke%20tests%3A%20Fail%20%28tests%20from%20pr%29" \
-            "Smoke%20tests%3A%20Unknown"; do
-            curl -sS -X DELETE \
-              -H "Authorization: token ${GITHUB_TOKEN}" \
-              -H "Accept: application/vnd.github+json" \
-              "${API_URL}/${stale}" || true
-          done
-
-          # Add the correct label
-          curl -sS -X POST \
-            -H "Authorization: token ${GITHUB_TOKEN}" \
-            -H "Accept: application/vnd.github+json" \
-            -d "{\"labels\":[\"${LABEL}\"]}" \
-            "${API_URL}"
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const addRemoveLabels = require('./automation/scripts/add-remove-labels.js')
+            await addRemoveLabels({
+              github, context,
+              prNumber: ${{ inputs.pr_number }},
+              labelsToAdd: [{ name: '${{ steps.outcome.outputs.label }}', color: '${{ steps.outcome.outputs.color }}' }],
+              labelsToRemove: ['Smoke tests: Pass', 'Smoke tests: Fail', 'Smoke tests: Unknown']
+            })
 
       - name: Build comment body
         run: |

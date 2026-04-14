@@ -1645,13 +1645,13 @@ mistune==3.2.0 \
     --hash=sha256:708487c8a8cdd99c9d90eb3ed4c3ed961246ff78ac82f03418f5183ab70e398a \
     --hash=sha256:febdc629a3c78616b94393c6580551e0e34cc289987ec6c35ed3f4be42d0eee1
     # via nbconvert
-mlrun-pipelines-kfp-common==0.6.4 \
-    --hash=sha256:139f0ecaca1fe7e9e37464dc8c596de4437417d0574b9cc6843da81eec8718f6 \
-    --hash=sha256:8e6c62ff2e693c270ec259b018b1bf719519fca2b2b85e35aec60fbdde9520f3
+mlrun-pipelines-kfp-common==0.7.0 \
+    --hash=sha256:25a5ef3cfe9ab2a79766325bd6830186242938e4d0b0761982f9b74a96e26595 \
+    --hash=sha256:c70863c8fef40297a32a6fe046e144689db3b57964fec31a60cb34cfa88ee6b9
     # via -r requirements.txt
-mlrun-pipelines-kfp-v1-8==0.6.4 \
-    --hash=sha256:7bf9d72b4b23c51db2e5524e3fe70b394636b3e34ecd7ad3368fef99afe70c92 \
-    --hash=sha256:8ce8851255a0ab92408d7aaa301db07a2ef42c0ffacb102490a9ad88733ae094
+mlrun-pipelines-kfp-v1-8==0.7.1 \
+    --hash=sha256:1f9b3c8d493db879c53fdbff41dd788327aa4f7d0e7c6adaa6276dd7618486ee \
+    --hash=sha256:308180d1901791f2c22ec023912c9bbdd608abca9a665c7acd65d59198cfbe30
     # via -r requirements.txt
 msal==1.36.0 \
     --hash=sha256:36ecac30e2ff4322d956029aabce3c82301c29f0acb1ad89b94edcabb0e58ec4 \

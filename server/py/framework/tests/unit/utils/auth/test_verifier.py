@@ -26,20 +26,6 @@ import mlrun.common.schemas as schemas
 import framework.utils.auth.verifier
 import framework.utils.clients.iguazio.v4
 
-# --- Helpers ---
-
-
-def _make_headers(authorization: str | None) -> starlette.datastructures.Headers:
-    headers: dict[str, str] = {}
-    if authorization is not None:
-        headers["Authorization"] = authorization
-    return starlette.datastructures.Headers(headers)
-
-
-def _make_request(token: str | None, scheme: str = "Bearer") -> fastapi.Request:
-    headers = _make_headers(None if token is None else f"{scheme} {token}")
-    return fastapi.Request({"type": "http", "headers": headers.raw})
-
 
 @pytest.fixture
 def verifier() -> framework.utils.auth.verifier.AuthVerifier:
@@ -379,3 +365,15 @@ async def test_authenticate_iguazio_v4_case_insensitive_scheme_uses_cache(
     assert result2 == auth_info
     # Both requests must share the single cached backend call
     client.verify_request_session.assert_awaited_once()
+
+
+def _make_headers(authorization: str | None) -> starlette.datastructures.Headers:
+    headers: dict[str, str] = {}
+    if authorization is not None:
+        headers["Authorization"] = authorization
+    return starlette.datastructures.Headers(headers)
+
+
+def _make_request(token: str | None, scheme: str = "Bearer") -> fastapi.Request:
+    headers = _make_headers(None if token is None else f"{scheme} {token}")
+    return fastapi.Request({"type": "http", "headers": headers.raw})

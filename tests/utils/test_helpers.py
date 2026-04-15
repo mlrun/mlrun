@@ -16,6 +16,7 @@ import asyncio
 import json
 import re
 import unittest.mock
+import warnings
 from contextlib import nullcontext as does_not_raise
 from datetime import UTC, datetime, timedelta, timezone
 
@@ -26,6 +27,7 @@ import mlrun.errors
 import mlrun.model
 import mlrun.runtimes.nuclio.function
 import mlrun.utils.regex
+import mlrun.utils.retryer
 import mlrun.utils.version
 import mlrun_pipelines.client
 import mlrun_pipelines.models
@@ -45,6 +47,7 @@ from mlrun.utils.helpers import (
     lock_hub_uri_version,
     merge_requirements,
     parse_artifact_uri,
+    remove_image_protocol_prefix,
     remove_tag_from_artifact_uri,
     resolve_image_tag_suffix,
     set_auth_token_name,
@@ -60,6 +63,7 @@ from mlrun.utils.helpers import (
     validate_v3io_stream_consumer_group,
     verify_field_regex,
     verify_list_items_type,
+    warn_on_deprecated_image,
 )
 
 STORE_PREFIX = "store://{kind}/dummy-project/dummy-db-key"
@@ -1353,6 +1357,125 @@ def test_retry_until_successful(fatal_exception):
     test_run(mlrun.utils.create_linear_backoff(0.02, 0.02))
 
 
+@pytest.mark.asyncio
+async def test_async_retry_until_successful_respects_fatal_exceptions():
+    """Regression test: AsyncRetryer must stop retrying when a fatal exception is raised.
+
+    Before the fix, AsyncRetryer was missing the ``type(exc) not in self.fatal_exceptions``
+    check that the synchronous Retryer has, causing it to keep retrying even on exceptions
+    marked as fatal. This test verifies that the async retryer stops after the first fatal
+    exception and does not call the function again.
+    """
+    call_count = 0
+
+    async def failing_func():
+        nonlocal call_count
+        call_count += 1
+        raise ValueError("fatal error")
+
+    with pytest.raises(mlrun.errors.MLRunRetryExhaustedError):
+        await mlrun.utils.retry_until_successful_async(
+            0.01,
+            10,
+            logger,
+            False,
+            failing_func,
+            fatal_exceptions=(ValueError,),
+        )
+
+    # With fatal_exceptions=(ValueError,), the retryer should stop after the first call.
+    # Without the fix, it would retry many times within the 10-second timeout.
+    assert call_count == 1, (
+        f"Expected exactly 1 call (fatal exception should stop retries), got {call_count}"
+    )
+
+
+def test_retryer_backoff_progresses():
+    """Regression test: Retryer must advance through the backoff generator on each retry.
+
+    Before the fix, the `first_interval` field was never reset to None after the first
+    iteration, so `self.first_interval or next(self.backoff)` always short-circuited to
+    `self.first_interval` on every loop iteration. This caused all retry intervals to be
+    identical (equal to the initial backoff value) instead of following the configured
+    backoff progression.
+    """
+    sleep_intervals = []
+
+    def mock_sleep(seconds):
+        sleep_intervals.append(seconds)
+
+    call_count = 0
+
+    def failing_then_succeeding():
+        nonlocal call_count
+        call_count += 1
+        if call_count < 5:
+            raise Exception("not yet")
+        return "done"
+
+    with unittest.mock.patch.object(mlrun.utils.retryer.time, "sleep", mock_sleep):
+        result = mlrun.utils.helpers.retry_until_successful(
+            mlrun.utils.create_linear_backoff(base=1, coefficient=1, stop_value=100),
+            60,
+            logger,
+            False,
+            failing_then_succeeding,
+        )
+
+    assert result == "done"
+    assert call_count == 5
+    # Verify that backoff intervals are strictly increasing (not all the same)
+    # Linear backoff with base=1, coefficient=1 should produce 1, 2, 3, 4, ...
+    # The first call uses interval from _prepare (first next()), remaining come from the loop
+    assert len(sleep_intervals) == 4, (
+        f"Expected 4 sleep intervals (4 retries before success), got {len(sleep_intervals)}"
+    )
+    # With the fix, intervals should increase. Without the fix, they'd all be the same.
+    assert sleep_intervals == sorted(sleep_intervals), (
+        f"Expected non-decreasing backoff intervals, got {sleep_intervals}"
+    )
+    assert len(set(sleep_intervals)) > 1, (
+        f"Expected backoff intervals to progress (not all identical), got {sleep_intervals}"
+    )
+
+
+@pytest.mark.asyncio
+async def test_async_retryer_backoff_progresses():
+    """Regression test: AsyncRetryer must advance through the backoff generator on each retry."""
+    sleep_intervals = []
+
+    async def mock_async_sleep(seconds):
+        sleep_intervals.append(seconds)
+
+    call_count = 0
+
+    async def failing_then_succeeding():
+        nonlocal call_count
+        call_count += 1
+        if call_count < 5:
+            raise Exception("not yet")
+        return "done"
+
+    with unittest.mock.patch.object(
+        mlrun.utils.retryer.asyncio, "sleep", mock_async_sleep
+    ):
+        result = await mlrun.utils.helpers.retry_until_successful_async(
+            mlrun.utils.create_linear_backoff(base=1, coefficient=1, stop_value=100),
+            60,
+            logger,
+            False,
+            failing_then_succeeding,
+        )
+
+    assert result == "done"
+    assert call_count == 5
+    assert len(sleep_intervals) == 4
+    assert sleep_intervals == sorted(sleep_intervals)
+    assert len(set(sleep_intervals)) > 1, (
+        f"Expected backoff intervals to progress (not all identical), got {sleep_intervals}"
+    )
+
+
 @pytest.mark.parametrize(
     "iterable_list, chunk_size, expected_chunked_list",
     [
@@ -2169,3 +2292,57 @@ def test_set_auth_user_id_works_with_run_spec():
     spec = mlrun.model.RunSpec()
     set_auth_user_id(spec, "user-123")
     assert spec.auth["user_id"] == "user-123"
+
+
+@pytest.mark.parametrize(
+    "image,should_warn",
+    [
+        # Exact deprecated image name
+        ("mlrun/ml-base", True),
+        # Tagged deprecated image (the core bug scenario)
+        ("mlrun/ml-base:v1.11.0", True),
+        ("mlrun/ml-base:latest", True),
+        # Registry-prefixed deprecated image
+        ("registry.example.com/mlrun/ml-base:latest", True),
+        # Non-deprecated images should NOT warn
+        ("mlrun/mlrun:latest", False),
+        ("mlrun/mlrun", False),
+        ("my-custom-image:v1", False),
+        # None and empty string should NOT warn
+        (None, False),
+        ("", False),
+    ],
+)
+def test_warn_on_deprecated_image(image, should_warn):
+    with warnings.catch_warnings(record=True) as w:
+        warnings.simplefilter("always")
+        warn_on_deprecated_image(image)
+        if should_warn:
+            assert len(w) == 1, (
+                f"Expected 1 FutureWarning for image '{image}', got {len(w)}"
+            )
+            assert issubclass(w[0].category, FutureWarning)
+        else:
+            assert len(w) == 0, (
+                f"Expected no warnings for image '{image}', got {len(w)}"
+            )
+
+
+@pytest.mark.parametrize(
+    "image, expected",
+    [
+        # http:// prefix should be stripped
+        ("http://my-registry.com/my-image:latest", "my-registry.com/my-image:latest"),
+        # https:// prefix should be stripped
+        ("https://my-registry.com/my-image:latest", "my-registry.com/my-image:latest"),
+        # no prefix should remain unchanged
+        ("my-registry.com/my-image:latest", "my-registry.com/my-image:latest"),
+        # empty string should remain empty
+        ("", ""),
+    ],
+)
+def test_remove_image_protocol_prefix(image, expected):
+    result = remove_image_protocol_prefix(image)
+    assert result == expected, (
+        f"Expected '{expected}' for image '{image}', got '{result}'"
+    )

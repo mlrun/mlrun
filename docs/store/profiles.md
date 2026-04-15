@@ -51,7 +51,7 @@ project.register_datastore_profile(profile)
 
 See also:
 - {py:class}`~mlrun.datastore.datastore_profile.HuggingFaceProfile`
-- [Integrating a Hugging Face image classification model with MLRun](../genai/deployment/hf-model-image-classification.ipynb)
+- {ref}`hf-model-batch-serving-graph`
 
 ## Source and target profiles
 

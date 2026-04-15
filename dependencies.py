@@ -34,12 +34,12 @@ def extra_requirements() -> dict[str, list[str]]:
             "msrest~=0.6.21",
             "azure-core~=1.24",
             "adlfs==2024.12.0",
-            "pyopenssl>=23",
+            "pyopenssl>=25",
         ],
         "azure-key-vault": [
             "azure-identity~=1.5",
             "azure-keyvault-secrets~=4.2",
-            "pyopenssl>=23",
+            "pyopenssl>=25",
         ],
         "plotly": ["plotly~=5.23"],
         # used to generate visualization nuclio/serving graph steps
@@ -82,7 +82,7 @@ def extra_requirements() -> dict[str, list[str]]:
     extras_require.update(
         {
             "dev-postgres": ["pytest-mock-resources[postgres]~=2.12"],
-            "kfp18": ["mlrun_pipelines_kfp_v1_8[kfp]~=0.6.0"],
+            "kfp18": ["mlrun_pipelines_kfp_v1_8[kfp]~=0.7.0"],
             "mlflow": ["mlflow~=3.0"],
             "ig4": ["iguazio~=0.0.1"],
             # TODO uncomment when KFP 1.8 support is removed

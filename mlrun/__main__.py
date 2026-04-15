@@ -294,8 +294,11 @@ def run(
 
     if workflow:
         runobj.metadata.labels[mlrun_constants.MLRunInternalLabels.workflow] = workflow
+        # Use the full pod name (via MLRUN_POD_NAME downward API env var) for
+        # unambiguous step-to-run correlation. socket.gethostname() is truncated
+        # to 63 chars by the kubelet, which can cause lookup mismatches.
         runobj.metadata.labels[mlrun_constants.MLRunInternalLabels.runner_pod] = (
-            socket.gethostname()
+            environ.get("MLRUN_POD_NAME", socket.gethostname())
         )
 
     if db:

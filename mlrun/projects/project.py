@@ -451,16 +451,18 @@ def load_project(
     if to_save:
         project.save()
 
+    # Snapshot caller-provided params before setup() runs, in case the project_setup script or project.yaml accidentally overwrites them
+    _caller_params = dict(parameters) if parameters else {}
+
     # Hook for initializing the project using a project_setup script
     project = project.setup(to_save)
 
-    # Re-apply parameters after setup to ensure they are not overwritten
-    # when loading from a git source (fixes: parameters ignored in get_or_create_project)
-    if parameters:
-        for key, val in parameters.items():
-            project.spec.params[key] = val
-        if to_save:
-            project.save()
+    # Restore only caller-provided params that setup() did not intentionally set.
+    # This ensures user overrides are preserved without undoing any enrichment that setup() may have performed on those params.
+    if _caller_params:
+        for key, val in _caller_params.items():
+            if project.spec.params.get(key) == val or key not in project.spec.params:
+                project.spec.params[key] = val
 
     if to_save:
         project.register_artifacts()

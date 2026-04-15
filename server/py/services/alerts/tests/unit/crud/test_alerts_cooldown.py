@@ -78,6 +78,27 @@ class TestAlertsCooldown(TestAlertsBase):
                 alert_objects.ResetPolicy.AUTO,
                 does_not_raise(),
             ),
+            # Valid: "0" / "0s" are equivalent to no cooldown — allowed for any reset policy
+            (
+                "0",
+                alert_objects.ResetPolicy.AUTO,
+                does_not_raise(),
+            ),
+            (
+                "0s",
+                alert_objects.ResetPolicy.AUTO,
+                does_not_raise(),
+            ),
+            (
+                "0",
+                alert_objects.ResetPolicy.MANUAL,
+                does_not_raise(),
+            ),
+            (
+                "0s",
+                alert_objects.ResetPolicy.MANUAL,
+                does_not_raise(),
+            ),
         ],
     )
     @unittest.mock.patch.object(

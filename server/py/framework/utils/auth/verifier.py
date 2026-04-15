@@ -14,6 +14,7 @@
 
 import asyncio
 import base64
+import hashlib
 import time
 import typing
 from collections import OrderedDict
@@ -35,7 +36,7 @@ import framework.utils.clients.iguazio.v4
 
 
 class AuthVerifier(metaclass=mlrun.utils.singleton.Singleton):
-    _token_cache: OrderedDict[str, tuple[asyncio.Task[schemas.AuthInfo], float]]
+    _token_cache: OrderedDict[bytes, tuple[asyncio.Task[schemas.AuthInfo], float]]
 
     def __init__(self) -> None:
         super().__init__()
@@ -463,21 +464,23 @@ class AuthVerifier(metaclass=mlrun.utils.singleton.Singleton):
             iguazio_client = framework.utils.clients.iguazio.v4.AsyncClient()
             return await iguazio_client.verify_request_session(request)
 
-        task_with_expiry = self._token_cache.get(token)
+        key = self._token_cache_key(token)
+        task_with_expiry = self._token_cache.get(key)
         curr_time = time.time()
 
         if task_with_expiry is None or task_with_expiry[1] <= curr_time:
             # No task or an expired task means we have to create a new task
             is_existing_key = task_with_expiry is not None
 
-            iguazio_client = framework.utils.clients.iguazio.v4.AsyncClient()
-            task = asyncio.create_task(iguazio_client.verify_request_session(request))
-            task.add_done_callback(partial(self._on_verify_complete, token))
+            task = asyncio.create_task(
+                self._authenticate_iguazio_v4_without_token(request)
+            )
+            task.add_done_callback(partial(self._on_verify_complete, key))
 
             task_expires_at = curr_time + self._token_cache_ttl_seconds
 
             task_with_expiry = task, task_expires_at
-            self._token_cache[token] = task_with_expiry
+            self._token_cache[key] = task_with_expiry
         else:
             # We can reuse the old task
             is_existing_key = True
@@ -485,7 +488,7 @@ class AuthVerifier(metaclass=mlrun.utils.singleton.Singleton):
         if is_existing_key:
             # If the token was already in the cache the cache size did not
             # change. We just need to mark the token as the most recently used
-            self._token_cache.move_to_end(token)
+            self._token_cache.move_to_end(key)
 
         elif len(self._token_cache) > self._token_cache_max_size:
             # If the cache grew beyond the max size with the new item we pop
@@ -494,7 +497,28 @@ class AuthVerifier(metaclass=mlrun.utils.singleton.Singleton):
 
         # We shield the task since it can be shared between multiple
         # verifications and cancellation could have unexpected side effects
-        return await asyncio.shield(task_with_expiry[0])
+        auth_info = await asyncio.shield(task_with_expiry[0])
+
+        # We have to reinsert the token since it was stripped before
+        auth_info = auth_info.copy()
+        auth_info.token = token
+        return auth_info
+
+    @staticmethod
+    async def _authenticate_iguazio_v4_without_token(
+        request: fastapi.Request,
+    ) -> schemas.AuthInfo:
+        iguazio_client = framework.utils.clients.iguazio.v4.AsyncClient()
+        auth_info = await iguazio_client.verify_request_session(request)
+
+        # We strip the token from auth info to not keep it in memory
+        auth_info = auth_info.copy()
+        auth_info.token = None
+        return auth_info
+
+    @staticmethod
+    def _token_cache_key(token: str) -> bytes:
+        return hashlib.sha256(token.encode()).digest()
 
     @property
     def _token_cache_max_size(self) -> int:
@@ -505,13 +529,13 @@ class AuthVerifier(metaclass=mlrun.utils.singleton.Singleton):
         return mlrun.mlconf.httpdb.authentication.iguazio.token_cache.ttl_seconds
 
     def _on_verify_complete(
-        self, token: str, task: asyncio.Task[schemas.AuthInfo]
+        self, key: bytes, task: asyncio.Task[schemas.AuthInfo]
     ) -> None:
         # We evict from the cache on failure to make sure we dont block tokens
         # on things like temporary connectivity issues
         if not task.cancelled() and task.exception() is None:
             return
 
-        task_with_expiry = self._token_cache.get(token)
+        task_with_expiry = self._token_cache.get(key)
         if task_with_expiry is not None and task_with_expiry[0] is task:
-            del self._token_cache[token]
+            del self._token_cache[key]

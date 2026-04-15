@@ -426,6 +426,7 @@ class TestMonitoringAppFlow(TestMLRunSystemModelMonitoring, _V3IORecordsChecker)
             base_period=self.app_interval,
             **({} if self.image is None else {"image": self.image}),
             deploy_histogram_data_drift_app=deploy_histogram_data_drift_app,
+            wait_for_deployment=True,
         )
 
     def _set_and_deploy_monitoring_apps(self) -> None:

@@ -21,6 +21,7 @@ from datetime import UTC, datetime, timedelta
 import pandas as pd
 import pytest
 import snowflake.connector
+from tzlocal import get_localzone
 
 import mlrun.errors
 import mlrun.feature_store as fstore
@@ -280,8 +281,6 @@ class TestSnowFlakeSourceAndTarget(SparkHadoopTestBase):
         result_df = result.to_dataframe()
         result_df = result_df.reset_index(drop=False)
         if self.run_local:
-            from tzlocal import get_localzone
-
             local_tz = get_localzone()
             # result_df["time_stamp"] is read as timezone-naive, we need to localize it to UTC (as snowflake config)
             # and then convert to local timezone before comparing to the original dataframe

@@ -20,6 +20,7 @@ import sqlalchemy.orm
 
 import mlrun.utils
 import tests.conftest
+import tests.sitecustomize  # noqa: F401 - registers os.register_at_fork for coverage in forked processes
 
 pytest_plugins = [
     "tests.common_fixtures",

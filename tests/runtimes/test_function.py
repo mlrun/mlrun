@@ -484,6 +484,26 @@ def test_with_sidecar(command: str, args: list, expected_sidecars: list):
     assert function.spec.config["spec.sidecars"] == expected_sidecars
 
 
+@pytest.mark.parametrize(
+    "external_url, expected_scheme",
+    [
+        ("my-gateway.default-tenant.app.example.com", "https://"),
+        ("https://my-gateway.example.com", "https://"),
+        ("http://my-gateway.example.com", "http://"),
+    ],
+)
+def test_resolve_invocation_url_uses_https_for_external_urls(
+    external_url, expected_scheme
+):
+    fn = mlrun.new_function("test-fn", kind="nuclio")
+    fn.status.external_invocation_urls = [external_url]
+
+    resolved = fn._resolve_invocation_url("/test-path", force_external_address=False)
+
+    assert resolved.startswith(expected_scheme)
+    assert "/test-path" in resolved
+
+
 def test_with_source_archive_removes_inline_code(logs_stream):
     # Verify that when a Nuclio function already contains inline code and the user attaches a source archive
     # (without using with_repo),the inline code is removed and a warning is logged so the archive will actually be used.

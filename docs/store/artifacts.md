@@ -54,13 +54,13 @@ The UI limits the artifact query display to 1000 records. You can add filters to
 
 ##  View artifacts with the SDK
 View artifacts with `project.list_artifacts()`, for example:
-```
+```python
 # Get the latest version of all artifacts in project
 latest_artifacts = project.list_artifacts(tag="latest")
 # Check the different artifact versions for a specific artifact, return as objects list
 result_versions = project.list_artifacts("results", tag="*").to_objects()
 ```
-See the full parameter list in {py:class}`~mlrun.projects.MlrunProject.list_artifacts` and {py:class}`~mlrun.db.httpdb.HTTPRunDB.list_artifacts`.
+See the full parameter list in {py:meth}`~mlrun.projects.MlrunProject.list_artifacts` and {py:meth}`~mlrun.db.httpdb.HTTPRunDB.list_artifacts`.
 
 ## Artifact path
 

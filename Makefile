@@ -938,9 +938,14 @@ fmt-go:
 	$(MAKE) -C server/go fmt
 
 .PHONY: vale-docs
-vale-docs: ## Run vale check for docs and sorts ignore.txt file
+vale-docs: ## Run vale check for docs; fails if ignore.txt is not sorted
+	@sort -c .github/styles/MLRun/ignore.txt || \
+		{ echo "Error: .github/styles/MLRun/ignore.txt is not sorted. Run 'make sort-vale-ignore' to fix."; exit 1; }
 	vale docs
-	@sort .github/styles/MLRun/ignore.txt -o .github/styles/MLRun/ignore.txt
+
+.PHONY: sort-vale-ignore
+sort-vale-ignore: ## Sort the Vale ignore list alphabetically
+	sort .github/styles/MLRun/ignore.txt -o .github/styles/MLRun/ignore.txt
 
 .PHONY: linkcheck
 linkcheck:

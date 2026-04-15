@@ -41,11 +41,11 @@ See a full description of KFP, Python, and the workflow engines in {ref}`local-r
 |ML-7879|Serving graphs now support consuming messages from RabbitMQ queues and topic-based routing. See {py:meth}`~mlrun.runtimes.RemoteRuntime.add_rabbitmq_trigger`, {ref}`graph-ha-cfg`. |
 |ML-9565|Serving graphs now support API handlers, used to expose endpoints and interfaces. See [API handler](../serving/api-handler.md).|
 |ML-10258|MLRun can process multiple events asynchronously with HTTP triggers. Throughput is maximized, and bottlenecks are minimized. See [Async mode](../genai/deployment/gpu_utilization.md#async-mode).|
-|ML-10839|MLRun supports model serving with batched events: an invoked function is processed with an aggregated event (a single event holding multiple events), reducing GPU utilization. The trigger forwards the batch of events based on either timespan or the number of accumulated events. Both are user-configurable. See [Batching](../genai/deployment/gpu_utilization.md#batching), [Batching example](../serving/model-serving-steps.md#example-with-batching), and [Serving graph with batching using a Hugging Face model](..genai/deployment/hf-model-batch-serving-graph.ipynb).|
+|ML-10839|MLRun supports model serving with batched events: an invoked function is processed with an aggregated event (a single event holding multiple events), reducing GPU utilization. The trigger forwards the batch of events based on either timespan or the number of accumulated events. Both are user-configurable. See [Batching](../genai/deployment/gpu_utilization.md#batching), [Batching example](../serving/model-serving-steps.md#example-with-batching), and {ref}`hf-model-batch-serving-graph`.|
 |ML-10863|MLRun supports model stream responses that return tokens, rather than waiting until all the tokens are generated. This significantly reduces the latency for initial response and improves the overall user experience in gen AI workflows. See  [HTTP streaming step](../serving/model-serving-steps.md#http-streaming-step) and {py:class}`~mlrun.runtimes.ServingRuntime.set_streaming` and {py:class}`~storey.transformations.Collector`.|
-|ML-10753|MLRun supports cyclic serving graphs, used to implement agent-faadback loops. See [Cyclic graph example](../serving/use-cases.md#example-of-a-cyclic-graph) and {py:meth}`~mlrun.serving.states.BaseStep.cycle_to`.|
+|ML-10753|MLRun supports cyclic serving graphs, used to implement agent-feedback loops. See [Cyclic graph example](../serving/getting-started.md#cyclic-graph) and {py:meth}`~mlrun.serving.states.BaseStep.cycle_to`.|
 |10097|New `ChoiceByField` step that routes events to downstream steps based on an event field that contains the step name or names. See {py:class}`~`
-|10099|New `RemoteFunctionStep` that calls remote functions, for example another Nuclio function. See [RemoteFunctionStep](../serving/available-steps.md#remotefunctionstep) and {py:class}`~mlrun.serving.remote.RemoteFunctionStep`.|
+|10099|New `RemoteFunctionStep` that calls remote functions, for example another Nuclio function. See [RemoteFunctionStep](../serving/remote-steps.md#remotefunctionstep) and {py:class}`~mlrun.serving.remote.RemoteFunctionStep`.|
   
 
 ### Model monitoring
@@ -65,7 +65,7 @@ See a full description of KFP, Python, and the workflow engines in {ref}`local-r
 ## Packagers
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
-|ML-3474|MLRun now suports packagers for moving data in and out of MLRun functions by using standard Python functions with type hints and returning values. See [Packagers](/concepts/packagers/index.md).|
+|ML-3474|MLRun now suports packagers for moving data in and out of MLRun functions by using standard Python functions with type hints and returning values. See {ref}`packagers`.|
 |ML-11892|You can now get a dict of artifacts as an input.|
 |ML-11894|The user flow for changing default attributes for packagers artifacts is improved. See {py:class}`~mlrun.package.log_hint.LogHint`.|
 

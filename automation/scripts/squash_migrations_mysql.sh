@@ -1,5 +1,5 @@
 #!/bin/bash
-# Copyright 2023 Iguazio
+# Copyright 2026 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -15,8 +15,9 @@
 
 set -e
 
-if [ -z "$MLRUN_MIGRATION_MESSAGE" ]; then
-	echo "Environment variable MLRUN_MIGRATION_MESSAGE not set"
+if [ -z "$MLRUN_SQUASH_REVISION" ]; then
+	echo "Environment variable MLRUN_SQUASH_REVISION not set"
+	echo "Usage: MLRUN_SQUASH_REVISION=<revision_id> MLRUN_MYSQL_IMAGE=<image> $0"
 	exit 1
 fi
 
@@ -29,5 +30,7 @@ trap _mysql_cleanup SIGHUP SIGINT SIGTERM EXIT
 _mysql_full_setup
 
 cd "${_MYSQL_ROOT_DIR}/server/py/services/api"
-alembic upgrade head
-alembic revision --autogenerate -m "${MLRUN_MIGRATION_MESSAGE}"
+
+python "${SCRIPT_DIR}/squash_migrations.py" "${MLRUN_SQUASH_REVISION}"
+ruff format migrations/versions/${MLRUN_SQUASH_REVISION}_*.py
+ruff check --fix migrations/versions/${MLRUN_SQUASH_REVISION}_*.py

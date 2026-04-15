@@ -12,12 +12,48 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import functools
 import typing
 
 import mlrun
 from mlrun.errors import err_to_str
 from mlrun.utils import logger
 from mlrun_pipelines.imports import dsl, kfp
+
+
+def _wrap_pipeline_func_with_conf_sync(
+    pipeline_func: typing.Callable,
+    pipeline_conf: dsl.PipelineConf | None,
+) -> typing.Callable:
+    """Wrap a pipeline function to sync internal conf settings onto the external pipeline_conf.
+
+    KFP's compiler prefers the external ``pipeline_conf`` over the internal
+    ``dsl_pipeline.conf``, so settings applied inside the pipeline function
+    (e.g. ``dsl.get_pipeline_conf().set_timeout()``) are silently ignored.
+    This wrapper runs the user's pipeline code first, then copies the effective
+    timeout onto ``pipeline_conf`` so the compiler picks it up.
+
+    :param pipeline_func:  The original ``@dsl.pipeline`` decorated callable.
+    :param pipeline_conf:  The external PipelineConf the compiler will read.
+    """
+
+    @functools.wraps(pipeline_func)
+    def wrapper(*args, **kwargs):
+        result = pipeline_func(*args, **kwargs)
+        if pipeline_conf is None:
+            return result
+        try:
+            active_pipeline = dsl.Pipeline.get_default_pipeline()
+            if active_pipeline is not None and active_pipeline.conf.timeout > 0:
+                pipeline_conf.set_timeout(active_pipeline.conf.timeout)
+        except Exception as err:
+            logger.warn(
+                "Failed to sync pipeline conf settings",
+                error=err_to_str(err),
+            )
+        return result
+
+    return wrapper
 
 
 # When we run pipelines, the kfp.compile.Compile.compile() method takes the decorated function with @dsl.pipeline and
@@ -45,7 +81,11 @@ def _create_enriched_mlrun_workflow(
     )
 
     workflow = self._original_create_workflow(
-        pipeline_func, pipeline_name, pipeline_description, params_list, pipeline_conf
+        _wrap_pipeline_func_with_conf_sync(pipeline_func, pipeline_conf),
+        pipeline_name,
+        pipeline_description,
+        params_list,
+        pipeline_conf,
     )
     # We don't want to interrupt the original flow and don't know all the scenarios the function could be called.
     # that's why we have try/except on all the code of the enrichment and also specific try/except for errors that

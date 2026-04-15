@@ -10,30 +10,41 @@ Learn about the ModelRunnerStep and the HTTP streaming step.
 
 ### Description
 
-The {py:class}`~mlrun.serving.ModelRunnerStep` gives you an advanced way to run multiple models on each event with control 
+The {py:class}`~mlrun.serving.states.ModelRunnerStep` gives you an advanced way to run multiple models on each event with control 
 over how they are executed in terms of concurrency and parallelism. For example, it supports
 running models in a multi-process or a multi-threaded paradigm, and it supports having a dedicated process for a given
 model (useful when the model has a long startup time or requires a lot of resources). Different execution mechanisms can be
 used for different models within the same step. ModelRunnerStep supports a shared
 model that is invoked from multiple steps in one graph. Model endpoints resresent the models themselves, not the steps.
 
-ModelRunnerSteps have model endpoints, and can therefore be monitored. The input and output of each step are user-configurable. See [ModelRunnerStep with two models](#modelrunnerstep-with-two-models) and {py:meth}`~mlrun.serving.ModelRunnerStep.add_model`.
+ModelRunnerSteps have model endpoints, and can therefore be monitored. The input and output of each step are user-configurable. See [Example with classifier](#example-with-classifier) and {py:meth}`~mlrun.serving.ModelRunnerStep.add_model`.
 
-When a `ModelRunnerStep `is included in a graph, MLRun automatically imports the default language model class (`LLModel` or `mlrun.serving.states.LLModel`) during function deployment to wrap the model for handling a LLM prompt-based inference. This class extends the base Model to provide specialized handling for `LLMPromptArtifact` objects, enabling both synchronous and asynchronous invocation of language models. Follow the class description and implement your own enrichment when a custom class is needed.
+When a `ModelRunnerStep` is included in a graph, MLRun automatically imports the default language model class (`LLModel` or `mlrun.serving.states.LLModel`) during function deployment to wrap the model for handling a LLM prompt-based inference. This class extends the base Model to provide specialized handling for `LLMPromptArtifact` objects, enabling both synchronous and asynchronous invocation of language models. Follow the class description and implement your own enrichment when a custom class is needed.
 
 ModelRunnerStep can only be added to a graph that has the {ref}`flow topology<flow-topology>` and running with the async engine, giving better utilization of CPU/GPU.
 
+ModelRunnerStep is used to execute and manage individual steps within a machine learning model pipeline. Common use cases include:
+- Running inference or prediction tasks as part of a larger workflow.
+- Orchestrating sequential or parallel model steps, such as data preprocessing, feature extraction, and model evaluation.
+- Integrating model steps into automated CI/CD pipelines for machine learning.
+- Monitoring and logging the performance and outputs of each step for debugging and optimization.
+- Enabling modular and reusable components in ML workflows, allowing teams to update or swap out steps independently.
+
 ### SDK
-- {py:meth}`~mlrun.serving.ModelRunnerStep.add_model`: adds a model to the model runner and configures its execution
-- {py:meth}`~mlrun.serving.ModelRunnerStep.add_shared_model_proxy`: Adds a proxy model to the ModelRunnerStep.
-- {py:meth}`~mlrun.serving.ModelSelector`: Select which model to run on each event
+- {py:meth}`~mlrun.serving.states.ModelRunnerStep.add_model`: adds a model to the model runner and configures its execution.
+- {py:meth}`~mlrun.serving.states.ModelRunnerStep.add_shared_model_proxy`: Adds a proxy model to the ModelRunnerStep. 
+- {py:meth}`~mlrun.serving.ModelSelector`: Select which model to run on each event.
 
 ### Preprocess steps
 
 When adding models to the `ModelRunnerStap`, there are many configuration options, for example, excluding unnecessary details that are included in any LLM, input and outputs, which can be paths, dict, etc. 
 See the parameters in {py:meth}`~mlrun.serving.states.ModelRunnerStep.add_model`.
 
-### ModelRunnerStep with two models
+### Shared models 
+
+Use the `add_shared_model` method to add a shared model to a graph: this model becomes accessible to all `ModelRunnerSteps` in the graph. Use `add_shared_model_proxy` to add a proxy model to a `ModelRunnerStep`. A proxy model acts as a lightweight reference to an existing shared model within the graph. It allows each step to reuse the same underlying shared model without duplicating it, while still being able to assign a unique endpoint name, labels, and endpoint creation strategy for tracking or monitoring purposes. This helps maintain efficiency and consistency across multiple model runners that operate on shared models. See an example in the tutorial [Using LLM prompt templates and artifacts](../tutorials/genai-04-llm-prompt-artifact.ipynb#define-the-function-graph-and-add-modelrunnerstep-with-proxy-models-for-the-shared-model)
+
+### Example with classifier
 
 This code illustrates a `ModelRunnerStap` with two models. The `ModelSelector` determines which model to run on each event, based on responses from an LLM (for example, finanace vs. travel). It can be a class or a string. If you do not provide a `ModelSelector` to the `ModelRunnerStep `the default case is to run all models.
 
@@ -65,7 +76,7 @@ graph = function.set_topology("flow", engine="async")
 
 model_runner_step = ModelRunnerStep(
     name="model_runner_step",
-    model_selector="MyClassifier",  # Classify which model should be used
+    model_runner_selector="MyClassifier",  # Classify which model should be used
 )
 
 model_runner_step.add_model(
@@ -82,13 +93,9 @@ model_runner_step.add_model(
 )
 
 graph.to(model_runner_step).respond()
-```     
+```  
 
 
-
-### Shared models 
-
-Use the `add_shared_model` method to add a shared model to the graph: this model becomes accessible to all `ModelRunnerSteps` in the graph. Use `add_shared_model_proxy` to add a proxy model to a `ModelRunnerStep`. A proxy model acts as a lightweight reference to an existing shared model within the graph. It allows each step to reuse the same underlying shared model without duplicating it, while still being able to assign a unique endpoint name, labels, and endpoint creation strategy for tracking or monitoring purposes. This helps maintain efficiency and consistency across multiple model runners that operate on shared models. See an example in the tutorial [Using LLM prompt templates and artifacts](../tutorials/genai-04-llm-prompt-artifact.ipynb#define-the-function-graph-and-add-modelrunnerstep-with-proxy-models-for-the-shared-model)
 
 ### Output
 
@@ -134,6 +141,36 @@ Example:
   "total_tokens": 149
 }
 ```
+
+### Example with batching
+Example of batching using `ModelRunnerStep`. See a full flow in {ref}`hf-model-batch-serving-graph`.
+
+```
+graph = function.set_topology("flow", engine="async")
+step = graph.to(
+    "storey.Batch",
+    "my_batching",
+    max_events=2,
+    flush_after_seconds=4,
+    full_event=True,
+)
+model_runner_step = ModelRunnerStep(name="my_model_runner")
+model_runner_step.add_model(
+    model_class="mlrun.serving.states.LLModel",
+    endpoint_name="my_endpoint",
+    execution_mechanism="dedicated_process",
+    model_artifact=llm_prompt_artifact,
+    result_path="output",
+)
+step = step.to(model_runner_step)
+step.to("storey.FlatMap", _fn="(event.body)", full_event=True).respond()
+
+print("Serving graph configured with dedicated_process execution mechanism")
+
+#  Enable AsyncSpec when using batch step
+function.with_http(async_spec=AsyncSpec())
+```
+
 ## HTTP streaming step
 
 A streaming step is invoked with a single event and produces multiple results, each containing a chunk of the full result. Streaming only applies to events arriving through an HTTP trigger. Once the event is aggregated, it can then be processed by additional streaming steps. 

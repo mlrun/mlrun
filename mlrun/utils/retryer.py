@@ -118,6 +118,7 @@ class Retryer:
         self._prepare()
         while not self._timeout_exceeded():
             next_interval = self.first_interval or next(self.backoff)
+            self.first_interval = None
             result, exc, retry = self._perform_call(next_interval)
 
             if retry and type(exc) not in self.fatal_exceptions:
@@ -197,8 +198,9 @@ class AsyncRetryer(Retryer):
         self._prepare()
         while not self._timeout_exceeded():
             next_interval = self.first_interval or next(self.backoff)
+            self.first_interval = None
             result, exc, retry = await self._perform_call(next_interval)
-            if retry:
+            if retry and type(exc) not in self.fatal_exceptions:
                 await asyncio.sleep(next_interval)
             elif not exc:
                 return result
@@ -214,6 +216,7 @@ class AsyncRetryer(Retryer):
         except mlrun.errors.MLRunFatalFailureError as exc:
             raise exc.original_exception
         except Exception as exc:
+            self.last_exception = exc
             return (
                 None,
                 self.last_exception,

@@ -15,6 +15,7 @@
 import typing
 
 from mlrun.config import config
+from mlrun.utils import logger
 from mlrun_pipelines.imports import PipelineConf
 
 
@@ -36,6 +37,18 @@ def new_pipe_metadata(
 
     if cleanup_ttl:
         conf.set_ttl_seconds_after_finished(cleanup_ttl)
+
+    try:
+        default_timeout = int(config.kfp_default_workflow_timeout)
+    except (ValueError, TypeError):
+        logger.warning(
+            "Invalid kfp_default_workflow_timeout config value, workflow timeout will not be set",
+            value=config.kfp_default_workflow_timeout,
+        )
+        default_timeout = 0
+    if default_timeout > 0:
+        conf.set_timeout(default_timeout)
+
     if artifact_path:
         conf.add_op_transformer(_set_artifact_path)
     if op_transformers:

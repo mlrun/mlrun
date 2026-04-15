@@ -860,7 +860,9 @@ class TestMonitoringAppFlow(TestMLRunSystemModelMonitoring, _V3IORecordsChecker)
                 self._submit_controller_and_deploy_writer,
                 _DefaultDataDriftAppData in self.apps_data,
             )
-            monitoring_apps_future = executor.submit(self._set_and_deploy_monitoring_apps)
+            monitoring_apps_future = executor.submit(
+                self._set_and_deploy_monitoring_apps
+            )
             serving_future = executor.submit(
                 self._deploy_model_serving, with_training_set, with_model_runner
             )

@@ -130,7 +130,6 @@ TDEngine will be replaced with TimescaleDB. Model monitoring data in TDEngine wi
 |NA|New page: {ref}`view-mm-applications`.|
 |NA|New page: {ref}`llm-prompt-artifacts`.|
 |NA|New page: {ref}`deploy-openai-model`.|
-|NA|New page: {ref}`hf-model-image-classification`.|
 |NA|New section: [Remote models](../store/models.md#remote-models).|
 |NA|New section: [Serving using a remote model](../genai/deployment/genai_serving.md#serving-using-a-remote-model).|
 |NA|Updated page: {ref}`load-from-hub`.|

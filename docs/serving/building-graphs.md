@@ -13,8 +13,9 @@ You can also write your own steps using standard Python functions or custom func
 available-steps
 model-serving-steps
 remote-steps
-router-steps
+hub-steps
 writing-custom-steps
+router-steps
 router
 ```
 **See also**

@@ -383,9 +383,6 @@ def upgrade():
         sa.ForeignKeyConstraint(
             ["obj_id"], ["feature_sets.id"], name="_feature_sets_tags_obj_id_fk"
         ),
-        sa.ForeignKeyConstraint(
-            ["obj_name"], ["feature_sets.name"], name="_feature_sets_tags_obj_name_fk"
-        ),
         sa.PrimaryKeyConstraint("id", name="_feature_sets_tags_pk"),
         sa.UniqueConstraint(
             "project", "name", "obj_name", name="_feature_sets_tags_uc"
@@ -432,11 +429,6 @@ def upgrade():
         ),
         sa.ForeignKeyConstraint(
             ["obj_id"], ["feature_vectors.id"], name="_feature_vectors_tags_obj_id_fk"
-        ),
-        sa.ForeignKeyConstraint(
-            ["obj_name"],
-            ["feature_vectors.name"],
-            name="_feature_vectors_tags_obj_name_fk",
         ),
         sa.PrimaryKeyConstraint("id", name="_feature_vectors_tags_pk"),
         sa.UniqueConstraint(
@@ -503,9 +495,6 @@ def upgrade():
         ),
         sa.ForeignKeyConstraint(
             ["obj_id"], ["functions.id"], name="_functions_tags_obj_id_fk"
-        ),
-        sa.ForeignKeyConstraint(
-            ["obj_name"], ["functions.name"], name="_functions_tags_obj_name_fk"
         ),
         sa.PrimaryKeyConstraint("id", name="_functions_tags_pk"),
         sa.UniqueConstraint("project", "name", "obj_name", name="_functions_tags_uc"),

@@ -13,10 +13,12 @@
 # limitations under the License.
 
 import asyncio
+import time
 import unittest.mock
 from collections.abc import Generator
 
 import fastapi
+import jwt
 import pytest
 import starlette.datastructures
 
@@ -53,7 +55,7 @@ async def test_cache_miss_calls_backend(
     mock_client: tuple[unittest.mock.AsyncMock, schemas.AuthInfo],
 ):
     client, auth_info = mock_client
-    token = "token"
+    token = _make_jwt(exp=time.time() + 3600)
 
     result = await verifier._authenticate_iguazio_v4(_make_request(token))
 
@@ -68,7 +70,7 @@ async def test_cache_hit_reuses_result(
     mock_client: tuple[unittest.mock.AsyncMock, schemas.AuthInfo],
 ):
     client, auth_info = mock_client
-    token = "token"
+    token = _make_jwt(exp=time.time() + 3600)
     request = _make_request(token)
 
     result1 = await verifier._authenticate_iguazio_v4(request)
@@ -91,7 +93,7 @@ async def test_cached_auth_info_has_no_token(
     The backend returns an AuthInfo that includes the token so there is
     actually something to strip and the assertion is meaningful.
     """
-    token = "token"
+    token = _make_jwt(exp=time.time() + 3600)
     mock_instance = unittest.mock.AsyncMock()
     mock_instance.verify_request_session.return_value = schemas.AuthInfo(
         username="test-user", token=token
@@ -129,13 +131,59 @@ async def test_non_bearer_scheme_skips_cache(
 
 
 @pytest.mark.asyncio
+async def test_non_jwt_token_skips_cache(
+    verifier: framework.utils.auth.verifier.AuthVerifier,
+    mock_client: tuple[unittest.mock.AsyncMock, schemas.AuthInfo],
+):
+    """A bearer token that is not a valid JWT bypasses the cache."""
+    client, _ = mock_client
+
+    await verifier._authenticate_iguazio_v4(_make_request("not-a-jwt"))
+    await verifier._authenticate_iguazio_v4(_make_request("not-a-jwt"))
+
+    assert len(verifier._token_cache) == 0
+    assert client.verify_request_session.call_count == 2
+
+
+@pytest.mark.asyncio
+async def test_jwt_without_exp_skips_cache(
+    verifier: framework.utils.auth.verifier.AuthVerifier,
+    mock_client: tuple[unittest.mock.AsyncMock, schemas.AuthInfo],
+):
+    """A JWT without an exp claim bypasses the cache."""
+    client, _ = mock_client
+    token = jwt.encode({"sub": "test-user"}, key="secret", algorithm="HS256")
+
+    await verifier._authenticate_iguazio_v4(_make_request(token))
+    await verifier._authenticate_iguazio_v4(_make_request(token))
+
+    assert len(verifier._token_cache) == 0
+    assert client.verify_request_session.call_count == 2
+
+
+@pytest.mark.asyncio
+async def test_expired_token_raises_without_backend_call(
+    verifier: framework.utils.auth.verifier.AuthVerifier,
+    mock_client: tuple[unittest.mock.AsyncMock, schemas.AuthInfo],
+):
+    """An expired JWT is rejected immediately without calling the backend."""
+    client, _ = mock_client
+    token = _make_jwt(exp=time.time() - 1)
+
+    with pytest.raises(mlrun.errors.MLRunUnauthorizedError):
+        await verifier._authenticate_iguazio_v4(_make_request(token))
+
+    client.verify_request_session.assert_not_awaited()
+
+
+@pytest.mark.asyncio
 async def test_backend_failure_evicts_task(
     verifier: framework.utils.auth.verifier.AuthVerifier,
     mock_client: tuple[unittest.mock.AsyncMock, schemas.AuthInfo],
 ):
     client, _ = mock_client
     client.verify_request_session.side_effect = Exception("backend unavailable")
-    token = "token"
+    token = _make_jwt(exp=time.time() + 3600)
     request = _make_request(token)
 
     with pytest.raises(Exception, match="backend unavailable"):
@@ -163,7 +211,7 @@ async def test_lru_eviction(
         mlrun.mlconf.httpdb.authentication.iguazio.token_cache, "max_size", 2
     )
 
-    tokens = ["token_0", "token_1", "token_2"]
+    tokens = [_make_jwt(exp=time.time() + 3600, sub=f"user_{i}") for i in range(3)]
 
     for token in tokens:
         await verifier._authenticate_iguazio_v4(_make_request(token))
@@ -181,7 +229,7 @@ async def test_ttl_expiry(
     client, _ = mock_client
     base_time = 0
     ttl: int = mlrun.mlconf.httpdb.authentication.iguazio.token_cache.ttl_seconds
-    token = "token"
+    token = _make_jwt(exp=base_time + ttl * 10)
     request = _make_request(token)
 
     with unittest.mock.patch("framework.utils.auth.verifier.time") as mock_time:
@@ -207,10 +255,34 @@ async def test_ttl_expiry(
 
 
 @pytest.mark.asyncio
+async def test_ttl_capped_at_token_expiry(
+    verifier: framework.utils.auth.verifier.AuthVerifier,
+    mock_client: tuple[unittest.mock.AsyncMock, schemas.AuthInfo],
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """The cache entry expires at the token's own expiry when that is sooner than the TTL."""
+    monkeypatch.setattr(
+        mlrun.mlconf.httpdb.authentication.iguazio.token_cache, "ttl_seconds", 300
+    )
+    curr_time = 0
+    token_expires_at = 100  # expires before the 300s TTL
+    token = _make_jwt(exp=token_expires_at)
+
+    with unittest.mock.patch("framework.utils.auth.verifier.time") as mock_time:
+        mock_time.time.return_value = curr_time
+        await verifier._authenticate_iguazio_v4(_make_request(token))
+
+    _, cached_expires_at = verifier._token_cache[
+        framework.utils.auth.verifier.AuthVerifier._token_cache_key(token)
+    ]
+    assert cached_expires_at == token_expires_at
+
+
+@pytest.mark.asyncio
 async def test_concurrent_requests_share_single_backend_call(
     verifier: framework.utils.auth.verifier.AuthVerifier,
 ):
-    token = "token"
+    token = _make_jwt(exp=time.time() + 3600)
     auth_info = schemas.AuthInfo(username="test-user")
 
     backend_started = asyncio.Event()
@@ -265,7 +337,8 @@ async def test_stale_done_callback_doesnt_evict_refreshed_task(
     """
     client, _ = mock_client
     base_time = 0
-    token = "token"
+    ttl = mlrun.mlconf.httpdb.authentication.iguazio.token_cache.ttl_seconds
+    token = _make_jwt(exp=base_time + ttl * 10)
 
     backend_proceed = asyncio.Event()
     call_count = 0
@@ -384,7 +457,7 @@ async def test_authenticate_iguazio_v4_case_insensitive_scheme_uses_cache(
 ):
     """Any capitalisation of 'Bearer' should be accepted and cached."""
     client, auth_info = mock_client
-    token = "mytoken"
+    token = _make_jwt(exp=time.time() + 3600)
 
     request = fastapi.Request({"type": "http"})
     request._headers = _make_headers(f"{scheme} {token}")
@@ -398,6 +471,11 @@ async def test_authenticate_iguazio_v4_case_insensitive_scheme_uses_cache(
     assert result2.token == token
     # Both requests must share the single cached backend call
     client.verify_request_session.assert_awaited_once()
+
+
+def _make_jwt(exp: float, sub: str = "test-user") -> str:
+    """Create a minimal JWT with the given expiry timestamp."""
+    return jwt.encode({"exp": int(exp), "sub": sub}, key="secret", algorithm="HS256")
 
 
 def _make_headers(authorization: str | None) -> starlette.datastructures.Headers:

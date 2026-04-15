@@ -21,6 +21,7 @@ from collections import OrderedDict
 from functools import partial
 
 import fastapi
+import jwt
 
 import mlrun
 import mlrun.common.schemas as schemas
@@ -458,15 +459,21 @@ class AuthVerifier(metaclass=mlrun.utils.singleton.Singleton):
         token = self._parse_auth_header(
             request.headers, schemas.AuthorizationHeaderPrefixes.bearer
         )
+        token_expires_at = self._extract_expires_at(token)
 
-        if token is None:
-            # No token means no caching
+        if token is None or token_expires_at is None:
+            # No token or expiry means no caching
             iguazio_client = framework.utils.clients.iguazio.v4.AsyncClient()
             return await iguazio_client.verify_request_session(request)
 
         key = self._token_cache_key(token)
-        task_with_expiry = self._token_cache.get(key)
         curr_time = time.time()
+
+        if token_expires_at <= curr_time:
+            self._token_cache.pop(key, None)
+            raise mlrun.errors.MLRunUnauthorizedError("Expired token")
+
+        task_with_expiry = self._token_cache.get(key)
 
         if task_with_expiry is None or task_with_expiry[1] <= curr_time:
             # No task or an expired task means we have to create a new task
@@ -477,7 +484,10 @@ class AuthVerifier(metaclass=mlrun.utils.singleton.Singleton):
             )
             task.add_done_callback(partial(self._on_verify_complete, key))
 
-            task_expires_at = curr_time + self._token_cache_ttl_seconds
+            task_expires_at = min(
+                curr_time + self._token_cache_ttl_seconds,
+                token_expires_at,
+            )
 
             task_with_expiry = task, task_expires_at
             self._token_cache[key] = task_with_expiry
@@ -503,6 +513,24 @@ class AuthVerifier(metaclass=mlrun.utils.singleton.Singleton):
         auth_info = auth_info.copy()
         auth_info.token = token
         return auth_info
+
+    @staticmethod
+    def _extract_expires_at(token: str | None) -> float | None:
+        if token is None:
+            return None
+
+        # Signature verification happens on the backend
+        try:
+            decoded = jwt.decode(token, options={"verify_signature": False})
+        except jwt.DecodeError:
+            return None
+
+        expires_at = decoded.get("exp")
+
+        if not isinstance(expires_at, (int, float)):
+            return None
+
+        return expires_at
 
     @staticmethod
     async def _authenticate_iguazio_v4_without_token(

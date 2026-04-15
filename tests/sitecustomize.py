@@ -18,14 +18,13 @@ import traceback
 _real_os_exit = os._exit
 
 _ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-_COVERAGE_ERROR_LOG = os.path.join(
-    _ROOT_DIR, "tests", "coverage_reports", "coverage_error.log"
-)
+
+_COVERAGE_ERROR_LOG_DIR = os.path.join(_ROOT_DIR, "tests", "coverage_reports", "errors")
 
 
 def _coverage_saving_exit(status):
     """Save coverage data before os._exit() in a forked child."""
-    status = 0
+    status = status or 0
     try:
         import coverage
 
@@ -39,7 +38,10 @@ def _coverage_saving_exit(status):
         current_coverage.stop()
         current_coverage.save()
     except Exception:
-        with open(_COVERAGE_ERROR_LOG, "a") as f:
+        log_path = os.path.join(
+            _COVERAGE_ERROR_LOG_DIR, f"coverage_error_{os.getpid()}.log"
+        )
+        with open(log_path, "a") as f:
             f.write(traceback.format_exc())
         status = 1
     finally:

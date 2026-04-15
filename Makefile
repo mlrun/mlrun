@@ -69,7 +69,7 @@ else
 endif
 
 SETUP_COVERAGE = if [ "$(RUN_COVERAGE)" = "true" ]; then \
-	rm -f $(ROOT_DIR)tests/coverage_reports/coverage_error.log ; \
+	rm -f $(ROOT_DIR)tests/coverage_reports/errors/coverage_error_*.log ; \
 	case "$$COVERAGE_FILE" in *.coverage) \
 		rm -rf $$COVERAGE_FILE $$COVERAGE_FILE.* && \
 		mkdir -p $$(dirname $$COVERAGE_FILE) ;\
@@ -92,9 +92,9 @@ COMBINE_COVERAGE = if [ "$(RUN_COVERAGE)" = "true" ]; then \
 	COVERAGE_FILE=$$COVERAGE_FILE coverage combine $${COVERAGE_FILE}.* ; \
 fi
 
-CHECK_COVERAGE_ERROR = if [ "$(RUN_COVERAGE)" = "true" ] && [ $$PYTEST_EXIT -ne 0 ] && [ -s $(ROOT_DIR)tests/coverage_reports/coverage_error.log ]; then \
-	echo "=== coverage_error.log ===" ; \
-	cat $(ROOT_DIR)tests/coverage_reports/coverage_error.log ; \
+CHECK_COVERAGE_ERROR = if [ "$(RUN_COVERAGE)" = "true" ] && [ $$PYTEST_EXIT -ne 0 ] && ls $(ROOT_DIR)tests/coverage_reports/errors/coverage_error_*.log 2>/dev/null | grep -q .; then \
+	echo "=== coverage_error_*.log ===" ; \
+	cat $(ROOT_DIR)tests/coverage_reports/errors/coverage_error_*.log ; \
 	exit $$PYTEST_EXIT ; \
 fi
 

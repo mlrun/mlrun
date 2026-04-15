@@ -107,8 +107,15 @@ jobs:
           RUN_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
           BASE_REF="${{ needs.run-smoke-tests.outputs.pr_base_ref }}"
           BASE_SHA="${{ needs.run-smoke-tests.outputs.pr_base_sha }}"
+          REBASE_COUNT="${{ needs.run-smoke-tests.outputs.rebase_commit_count }}"
 
-          echo "Smoke Tests [${{ steps.outcome.outputs.status }}](${RUN_URL}) ${{ steps.outcome.outputs.emoji }} with the PR rebased to \`${BASE_REF}\` HEAD \`${BASE_SHA:0:8}\`" > comment.md
+          BRANCH_URL="${{ github.server_url }}/${{ github.repository }}/commits/${BASE_REF}"
+          if [ "${REBASE_COUNT}" = "0" ] || [ -z "${REBASE_COUNT}" ]; then
+            REBASE_TEXT="on"
+          else
+            REBASE_TEXT="rebased ${REBASE_COUNT} commits to"
+          fi
+          echo "Smoke Tests [${{ steps.outcome.outputs.status }}](${RUN_URL}) ${{ steps.outcome.outputs.emoji }} with the PR ${REBASE_TEXT} [\`${BASE_REF}\`](${BRANCH_URL}) HEAD \`${BASE_SHA:0:8}\`" > comment.md
 
       - name: Post comment to PR
         uses: thollander/actions-comment-pull-request@24bffb9b452ba05a4f3f77933840a6a841d1b32b

@@ -426,6 +426,7 @@ class TestMonitoringAppFlow(TestMLRunSystemModelMonitoring, _V3IORecordsChecker)
             base_period=self.app_interval,
             **({} if self.image is None else {"image": self.image}),
             deploy_histogram_data_drift_app=deploy_histogram_data_drift_app,
+            wait_for_deployment=True,
         )
 
     def _set_and_deploy_monitoring_apps(self) -> None:
@@ -854,16 +855,21 @@ class TestMonitoringAppFlow(TestMLRunSystemModelMonitoring, _V3IORecordsChecker)
 
         self._log_model(with_training_set)
 
-        self._submit_controller_and_deploy_writer(
-            deploy_histogram_data_drift_app=_DefaultDataDriftAppData in self.apps_data
-        )
         with concurrent.futures.ThreadPoolExecutor() as executor:
-            executor.submit(self._set_and_deploy_monitoring_apps)
-            future = executor.submit(
+            infra_future = executor.submit(
+                self._submit_controller_and_deploy_writer,
+                _DefaultDataDriftAppData in self.apps_data,
+            )
+            monitoring_apps_future = executor.submit(
+                self._set_and_deploy_monitoring_apps
+            )
+            serving_future = executor.submit(
                 self._deploy_model_serving, with_training_set, with_model_runner
             )
 
-        serving_fn = future.result()
+        infra_future.result()
+        monitoring_apps_future.result()
+        serving_fn = serving_future.result()
         self._add_error_alert()
 
         time.sleep(5)

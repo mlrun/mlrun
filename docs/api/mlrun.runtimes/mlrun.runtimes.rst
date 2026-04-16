@@ -12,3 +12,9 @@ mlrun.runtimes.nuclio
    :members:
    :show-inheritance:
    :undoc-members:
+
+mlrun.runtimes.serving
+======================
+.. autoclass:: mlrun.runtimes.nuclio.serving.APIHandlerConfig
+   :members:
+   :show-inheritance:

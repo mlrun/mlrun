@@ -165,9 +165,9 @@ class AlertConfig(pydantic.v1.BaseModel):
         pydantic.v1.Field(
             description=(
                 "Period during which the alert remains active after being triggered "
-                "before it is automatically reset. Only applicable when reset_policy=auto. "
-                "If not set, the alert resets immediately upon triggering (current behavior). "
-                "Format: e.g. 1d, 3h, 5m, 15s."
+                "before it is automatically reset. Only applicable when reset_policy=auto "
+                "and cooldown_period > 0. If not set or set to zero, the alert resets "
+                "immediately upon triggering. Format: e.g. 1d, 3h, 5m, 15s."
             )
         ),
     ] = None

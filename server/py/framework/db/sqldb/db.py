@@ -7035,6 +7035,27 @@ class SQLDB(DBInterface):
         if state is not None:
             return state.to_dict()
 
+    def list_alerts_pending_cooldown_reset(
+        self, session
+    ) -> list[mlrun.common.schemas.AlertConfig]:
+        """Return all active alert states whose cooldown period has elapsed."""
+        current_time = datetime.now(UTC)
+        alert_records = (
+            session.query(AlertConfig)
+            .join(AlertState, AlertState.parent_id == AlertConfig.id)
+            .filter(
+                AlertState.active.is_(True),
+                AlertState.cooldown_end_time.isnot(None),
+                AlertState.cooldown_end_time <= current_time,
+            )
+            .all()
+        )
+
+        return [
+            self._transform_alert_config_record_to_schema(record)
+            for record in alert_records
+        ]
+
     def create_alert_state(self, session, alert_id):
         state = AlertState(count=0, parent_id=alert_id)
         self._upsert(session, [state])

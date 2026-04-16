@@ -425,7 +425,7 @@ def resolve_jwt_expiration(
         )
         return None
 
-    if not isinstance(value, (int, float)):
+    if value is not None and not isinstance(value, (int, float)):
         mlrun.utils.helpers.raise_or_log_error(
             f"Invalid expiration claim: {value}", raise_on_error
         )

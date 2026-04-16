@@ -15,9 +15,20 @@
 
 set -e
 
+missing_vars=false
+
+if [ -z "$MLRUN_MIGRATION_MESSAGE" ]; then
+	echo "Environment variable MLRUN_MIGRATION_MESSAGE not set"
+	missing_vars=true
+fi
+
 if [ -z "$MLRUN_SQUASH_REVISION" ]; then
 	echo "Environment variable MLRUN_SQUASH_REVISION not set"
-	echo "Usage: MLRUN_SQUASH_REVISION=<revision_id> MLRUN_MYSQL_IMAGE=<image> $0"
+	missing_vars=true
+fi
+
+if [ "$missing_vars" = true ]; then
+	echo "Usage: MLRUN_MIGRATION_MESSAGE=<message> MLRUN_SQUASH_REVISION=<revision_id> MLRUN_MYSQL_IMAGE=<image> $0"
 	exit 1
 fi
 
@@ -31,4 +42,4 @@ _mysql_full_setup
 
 cd "${_MYSQL_ROOT_DIR}/server/py/services/api"
 
-python "${SCRIPT_DIR}/squash_migrations.py" "${MLRUN_SQUASH_REVISION}"
+python "${SCRIPT_DIR}/squash_migrations.py" "${MLRUN_SQUASH_REVISION}" "${MLRUN_MIGRATION_MESSAGE}"

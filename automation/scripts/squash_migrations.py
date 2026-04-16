@@ -204,7 +204,7 @@ def _skip_drop_index(ops: Iterable[MigrateOperation]) -> Iterator[MigrateOperati
             yield op
 
 
-def main(target_revision: str) -> None:
+def main(target_revision: str, message: str) -> None:
     print(f"Squashing migrations up to and including: {target_revision}")
 
     # Step 1: Load config
@@ -256,7 +256,7 @@ def main(target_revision: str) -> None:
     script_dir2 = ScriptDirectory.from_config(cfg)
     script_dir2.generate_revision(
         target_revision,
-        f"squashed up to {target_revision}",
+        message,
         head=(),  # down_revision = None (new root)
         splice=True,  # allow creating a revision not descending from current head
         upgrades=upgrade_code,
@@ -285,7 +285,7 @@ def main(target_revision: str) -> None:
 
 
 if __name__ == "__main__":
-    if len(sys.argv) != 2:
-        print(f"Usage: {sys.argv[0]} <target_revision>", file=sys.stderr)
+    if len(sys.argv) != 3:
+        print(f"Usage: {sys.argv[0]} <target_revision> <message>", file=sys.stderr)
         sys.exit(1)
-    main(sys.argv[1])
+    main(sys.argv[1], sys.argv[2])

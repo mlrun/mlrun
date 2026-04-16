@@ -60,7 +60,6 @@ async def test_cache_miss_calls_backend(
     result = await verifier._authenticate_iguazio_v4(_make_request(token))
 
     assert result.username == auth_info.username
-    assert result.token == token
     client.verify_request_session.assert_awaited_once()
 
 
@@ -78,38 +77,40 @@ async def test_cache_hit_reuses_result(
 
     assert result1.username == auth_info.username
     assert result2.username == auth_info.username
-    assert result1.token == token
-    assert result2.token == token
     # Backend should only be called once despite two requests
     client.verify_request_session.assert_awaited_once()
 
 
 @pytest.mark.asyncio
-async def test_cached_auth_info_has_no_token(
+async def test_returned_auth_info_is_isolated_from_cache(
     verifier: framework.utils.auth.verifier.AuthVerifier,
 ):
-    """The auth_info stored in the cache must not contain the token.
+    """Mutations to the returned auth_info must not affect the cached copy.
 
-    The backend returns an AuthInfo that includes the token so there is
-    actually something to strip and the assertion is meaningful.
+    authenticate_request mutates the returned auth_info after the fact
+    (e.g. sets request_headers). The cache must be shielded from those changes
+    so that subsequent callers always get a clean copy.
     """
     token = _make_jwt(exp=time.time() + 3600)
     mock_instance = unittest.mock.AsyncMock()
     mock_instance.verify_request_session.return_value = schemas.AuthInfo(
-        username="test-user", token=token
+        username="test-user"
     )
 
     with unittest.mock.patch(
         "framework.utils.clients.iguazio.v4.AsyncClient",
         return_value=mock_instance,
     ):
-        await verifier._authenticate_iguazio_v4(_make_request(token))
+        result = await verifier._authenticate_iguazio_v4(_make_request(token))
+
+    # Simulate what authenticate_request does: mutate the returned auth_info
+    result.request_headers = {"Authorization": f"Bearer {token}"}
 
     cached_task, _ = verifier._token_cache[
         framework.utils.auth.verifier.AuthVerifier._token_cache_key(token)
     ]
     cached_auth_info = await cached_task
-    assert cached_auth_info.token is None
+    assert cached_auth_info.request_headers is None
 
 
 @pytest.mark.asyncio
@@ -335,8 +336,6 @@ async def test_concurrent_requests_share_single_backend_call(
 
     assert result1.username == auth_info.username
     assert result2.username == auth_info.username
-    assert result1.token == token
-    assert result2.token == token
     mock_instance.verify_request_session.assert_awaited_once()
 
 
@@ -487,8 +486,6 @@ async def test_authenticate_iguazio_v4_case_insensitive_scheme_uses_cache(
 
     assert result1.username == auth_info.username
     assert result2.username == auth_info.username
-    assert result1.token == token
-    assert result2.token == token
     # Both requests must share the single cached backend call
     client.verify_request_session.assert_awaited_once()
 

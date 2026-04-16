@@ -18,6 +18,7 @@ import hashlib
 import time
 import typing
 from collections import OrderedDict
+from copy import deepcopy
 from functools import partial
 
 import fastapi
@@ -477,9 +478,8 @@ class AuthVerifier(metaclass=mlrun.utils.singleton.Singleton):
             # No task or an expired task means we have to create a new task
             is_existing_key = task_with_expiry is not None
 
-            task = asyncio.create_task(
-                self._authenticate_iguazio_v4_without_token(request)
-            )
+            iguazio_client = framework.utils.clients.iguazio.v4.AsyncClient()
+            task = asyncio.create_task(iguazio_client.verify_request_session(request))
             task.add_done_callback(partial(self._on_verify_complete, key))
 
             task_expires_at = min(
@@ -507,22 +507,11 @@ class AuthVerifier(metaclass=mlrun.utils.singleton.Singleton):
         # verifications and cancellation could have unexpected side effects
         auth_info = await asyncio.shield(task_with_expiry[0])
 
-        # We have to reinsert the token since it was stripped before
-        auth_info = auth_info.copy()
-        auth_info.token = token
-        return auth_info
-
-    @staticmethod
-    async def _authenticate_iguazio_v4_without_token(
-        request: fastapi.Request,
-    ) -> schemas.AuthInfo:
-        iguazio_client = framework.utils.clients.iguazio.v4.AsyncClient()
-        auth_info = await iguazio_client.verify_request_session(request)
-
-        # We strip the token from auth info to not keep it in memory
-        auth_info = auth_info.copy()
-        auth_info.token = None
-        return auth_info
+        # We dont want the auth info in the cache to ever be modified,
+        # especially since later calls are known to add sensitive data to the
+        # auth info that we do not want in the cache like the original request
+        # headers.
+        return deepcopy(auth_info)
 
     @staticmethod
     def _token_cache_key(token: str) -> bytes:

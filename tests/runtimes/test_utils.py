@@ -22,8 +22,8 @@ import pytest
 
 import mlrun.common.constants as mlrun_constants
 import mlrun.common.runtimes.constants
-import mlrun.runtimes.utils
 import mlrun.k8s_utils
+import mlrun.runtimes.utils
 
 
 @pytest.fixture

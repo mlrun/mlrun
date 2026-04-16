@@ -13,9 +13,11 @@
 # limitations under the License.
 
 import base64
+import copy
 import csv
 import json
 import os
+import unittest.mock
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
@@ -26,16 +28,14 @@ import pytest
 import yaml
 
 import mlrun
+import mlrun.common.schemas
+import mlrun.common.schemas.notification
+import mlrun.model
 import mlrun.projects.pipelines
 import mlrun_pipelines.common.ops
 from mlrun import mlconf, new_function, new_task
 from mlrun.artifacts import PlotlyArtifact
 from mlrun.utils import logger
-import copy
-import unittest.mock
-import mlrun.common.schemas
-import mlrun.common.schemas.notification
-import mlrun.model
 
 model_body = "abc is 123"
 results_body = "<b> Some HTML <b>"

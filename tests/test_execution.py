@@ -21,14 +21,14 @@ import pytest
 import mlrun
 import mlrun.artifacts
 import mlrun.common.constants as mlrun_constants
+import mlrun.common.formatters
 import mlrun.common.runtimes.constants
 import mlrun.errors
+import mlrun.execution
+import mlrun.model
 from mlrun import new_task
 from mlrun_pipelines.models import PipelineRun
 from tests.conftest import out_path, tag_test, verify_state
-import mlrun.execution
-import mlrun.common.formatters
-import mlrun.model
 
 
 def my_func(context):

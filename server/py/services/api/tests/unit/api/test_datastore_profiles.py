@@ -14,6 +14,7 @@
 
 import json
 from http import HTTPStatus
+from unittest.mock import MagicMock, patch
 
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
@@ -21,9 +22,8 @@ from sqlalchemy.orm import Session
 import mlrun.artifacts
 import mlrun.common.schemas
 
-from services.api.tests.unit.conftest import K8sSecretsMock
-from unittest.mock import MagicMock, patch
 import services.api.crud
+from services.api.tests.unit.conftest import K8sSecretsMock
 
 project = "prj"
 datastore = {

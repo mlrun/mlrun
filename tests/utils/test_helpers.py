@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import asyncio
+import copy
 import json
 import re
 import unittest.mock
@@ -26,6 +27,7 @@ from pandas import Timedelta, Timestamp
 import mlrun.errors
 import mlrun.model
 import mlrun.runtimes.nuclio.function
+import mlrun.utils.helpers
 import mlrun.utils.regex
 import mlrun.utils.retryer
 import mlrun.utils.version
@@ -35,9 +37,6 @@ from mlrun.common.schemas.hub import HubSourceType
 from mlrun.config import config
 from mlrun.datastore.store_resources import parse_store_uri
 from mlrun.utils import logger
-import copy
-
-import mlrun.utils.helpers
 from mlrun.utils.helpers import (
     StorePrefix,
     _split_by_dots_with_escaping,

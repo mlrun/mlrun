@@ -16,17 +16,17 @@ import copy
 import hashlib
 import json
 import unittest.mock
+from unittest.mock import MagicMock, call, patch
 
 import pytest
 
 import mlrun.common.runtimes.constants as runtimes_constants
 import mlrun.common.schemas.notification
+import mlrun.model
 
 import framework.constants
 import framework.utils.notifications
 import services.api.crud
-from unittest.mock import MagicMock, call, patch
-import mlrun.model
 
 
 def test_notification_params_masking_on_run(monkeypatch):

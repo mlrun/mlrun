@@ -34,8 +34,8 @@ import framework.utils.singletons.db
 import services.api.crud
 from framework.utils.singletons.db import get_db
 from services.api.runtime_handlers import get_runtime_handler
-from services.api.tests.unit.runtime_handlers.base import TestRuntimeHandlerBase
 from services.api.runtime_handlers.kubejob import KubeRuntimeHandler
+from services.api.tests.unit.runtime_handlers.base import TestRuntimeHandlerBase
 
 
 class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):

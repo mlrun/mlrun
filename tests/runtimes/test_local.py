@@ -12,14 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import pathlib
+import unittest.mock
+from unittest.mock import MagicMock, patch
 
 import pytest
 
-from mlrun.runtimes.local import run_exec
-from unittest.mock import MagicMock, patch
 import mlrun.model
 import mlrun.runtimes.local
-import unittest.mock
+from mlrun.runtimes.local import run_exec
 
 
 def test_run_exec_basic():

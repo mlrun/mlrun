@@ -21,13 +21,13 @@ import pytest
 from deepdiff import DeepDiff
 
 import mlrun
+import mlrun.db
 import mlrun.errors
+import mlrun.runtimes.nuclio.function
 from mlrun import code_to_function
 from mlrun.datastore.datastore_profile import DatastoreProfileRabbitMQ
 from mlrun.utils.helpers import resolve_git_reference_from_source
 from tests.runtimes.test_base import TestAutoMount
-import mlrun.db
-import mlrun.runtimes.nuclio.function
 
 
 def test_generate_nuclio_volumes():

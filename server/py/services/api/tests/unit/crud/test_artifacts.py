@@ -14,6 +14,7 @@
 
 import time
 import uuid
+from unittest.mock import MagicMock, patch
 
 import pytest
 import sqlalchemy.orm
@@ -22,7 +23,6 @@ import mlrun.common.schemas
 import mlrun.common.schemas.artifact
 
 import services.api.crud
-from unittest.mock import MagicMock, patch
 
 
 class TestArtifacts:

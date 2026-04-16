@@ -15,6 +15,7 @@
 import unittest.mock
 import uuid
 from datetime import datetime
+from unittest.mock import MagicMock, patch
 
 import deepdiff
 import pytest
@@ -24,6 +25,7 @@ from kubernetes import client as k8s_client
 import mlrun.common.constants as mlrun_constants
 import mlrun.common.runtimes.constants
 import mlrun.common.schemas
+import mlrun.config
 import mlrun.errors
 import mlrun.utils.helpers
 
@@ -31,11 +33,9 @@ import framework.db.session
 import framework.utils.clients.log_collector
 import framework.utils.singletons.k8s
 import services.api.crud
+import services.api.crud.pipelines
 import services.api.runtime_handlers
 import services.api.tests.unit.conftest
-from unittest.mock import MagicMock, patch
-import services.api.crud.pipelines
-import mlrun.config
 
 
 class TestRuns(services.api.tests.unit.conftest.MockedK8sHelper):

@@ -13,11 +13,13 @@
 # limitations under the License.
 
 import http
+import inspect
 import unittest.mock
 from datetime import datetime
 
 import fastapi.testclient
 import igz_mgmt
+import kubernetes.client.rest
 import pytest
 import sqlalchemy.orm
 
@@ -36,8 +38,6 @@ import services.api.crud
 import services.api.initial_data
 import services.api.tests.unit.conftest as tests_unit_conftest
 import services.api.utils.singletons.scheduler
-import inspect
-import kubernetes.client.rest
 
 
 def test_migrations_already_in_progress(

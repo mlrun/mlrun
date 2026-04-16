@@ -21,8 +21,8 @@ import yaml
 
 import mlrun
 import mlrun.artifacts
-from tests import conftest
 import mlrun.artifacts.model
+from tests import conftest
 
 results_dir = (pathlib.Path(conftest.results) / "artifacts").absolute()
 model_file = pathlib.Path(__file__).parent / "assets" / "model.pkl"

@@ -14,6 +14,7 @@
 
 import uuid
 from datetime import UTC, datetime, timedelta
+from unittest.mock import patch
 
 import pytest
 from fastapi.testclient import TestClient
@@ -29,9 +30,8 @@ import framework.utils.helpers
 from framework.utils.singletons.db import get_db
 from framework.utils.singletons.k8s import get_k8s_helper
 from services.api.runtime_handlers import get_runtime_handler
-from services.api.tests.unit.runtime_handlers.base import TestRuntimeHandlerBase
-from unittest.mock import patch
 from services.api.runtime_handlers.mpijob.v1 import MpiV1RuntimeHandler
+from services.api.tests.unit.runtime_handlers.base import TestRuntimeHandlerBase
 
 
 class TestMPIjobRuntimeHandler(TestRuntimeHandlerBase):

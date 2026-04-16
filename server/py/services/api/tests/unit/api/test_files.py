@@ -12,9 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
 import unittest.mock
 from http import HTTPStatus
 
+import fastapi
 import fastapi.exceptions
 import pytest
 from fastapi.testclient import TestClient
@@ -22,15 +24,13 @@ from sqlalchemy.orm import Session
 
 # fixtures for test, aren't used directly so we need to ignore the lint here
 import mlrun
+import mlrun.common.schemas
 from tests.common_fixtures import (  # noqa: F401
     patch_file_forbidden,
     patch_file_not_found,
 )
 
 import services.api.api.endpoints.files
-import os
-import fastapi
-import mlrun.common.schemas
 
 
 @pytest.mark.usefixtures("patch_file_forbidden")

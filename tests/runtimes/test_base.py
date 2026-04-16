@@ -20,13 +20,13 @@ import tempfile
 
 import pytest
 
+import mlrun
 import mlrun.errors
 import mlrun.runtimes.mounts
+import mlrun.runtimes.utils
 from mlrun.config import config as mlconf
 from mlrun.runtimes import KubejobRuntime
 from mlrun.runtimes.pod import AutoMountType
-import mlrun
-import mlrun.runtimes.utils
 
 
 class TestAutoMount:

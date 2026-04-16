@@ -706,12 +706,12 @@ class Alerts(
 
     def reset_cooled_down_alerts(self, session: sqlalchemy.orm.Session) -> None:
         """Reset alerts whose cooldown period has elapsed."""
-        alerts = (
+        alerts_to_reset = (
             framework.utils.singletons.db.get_db().list_alerts_pending_cooldown_reset(
                 session
             )
         )
-        for alert in alerts:
+        for alert in alerts_to_reset:
             try:
                 logger.debug(
                     "Resetting cooled-down alert",

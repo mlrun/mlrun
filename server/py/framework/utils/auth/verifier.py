@@ -21,13 +21,12 @@ from collections import OrderedDict
 from functools import partial
 
 import fastapi
-import jwt
 
 import mlrun
-from mlrun.auth.utils import resolve_jwt_expiration
 import mlrun.common.schemas as schemas
 import mlrun.utils.helpers
 import mlrun.utils.singleton
+from mlrun.auth.utils import resolve_jwt_expiration
 from mlrun.common.types import AuthenticationMode
 from mlrun.utils import logger
 

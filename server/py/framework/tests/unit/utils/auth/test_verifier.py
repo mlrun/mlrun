@@ -105,7 +105,9 @@ async def test_cached_auth_info_has_no_token(
     ):
         await verifier._authenticate_iguazio_v4(_make_request(token))
 
-    cached_task, _ = verifier._token_cache[framework.utils.auth.verifier.AuthVerifier._token_cache_key(token)]
+    cached_task, _ = verifier._token_cache[
+        framework.utils.auth.verifier.AuthVerifier._token_cache_key(token)
+    ]
     cached_auth_info = await cached_task
     assert cached_auth_info.token is None
 
@@ -162,18 +164,19 @@ async def test_jwt_without_exp_skips_cache(
 
 
 @pytest.mark.asyncio
-async def test_expired_token_raises_without_backend_call(
+async def test_expired_token_raises_skips_cache(
     verifier: framework.utils.auth.verifier.AuthVerifier,
     mock_client: tuple[unittest.mock.AsyncMock, schemas.AuthInfo],
 ):
-    """An expired JWT is rejected immediately without calling the backend."""
+    """An expired JWT bypassts the cache."""
     client, _ = mock_client
     token = _make_jwt(exp=time.time() - 1)
 
-    with pytest.raises(mlrun.errors.MLRunUnauthorizedError):
-        await verifier._authenticate_iguazio_v4(_make_request(token))
+    await verifier._authenticate_iguazio_v4(_make_request(token))
+    await verifier._authenticate_iguazio_v4(_make_request(token))
 
-    client.verify_request_session.assert_not_awaited()
+    assert len(verifier._token_cache) == 0
+    assert client.verify_request_session.call_count == 2
 
 
 @pytest.mark.asyncio
@@ -192,7 +195,10 @@ async def test_backend_failure_evicts_task(
     # Done callbacks are scheduled via call_soon; yield to let them run
     await asyncio.sleep(0)
 
-    assert framework.utils.auth.verifier.AuthVerifier._token_cache_key(token) not in verifier._token_cache
+    assert (
+        framework.utils.auth.verifier.AuthVerifier._token_cache_key(token)
+        not in verifier._token_cache
+    )
 
     # The next request should retry rather than returning the failed task
     client.verify_request_session.side_effect = None
@@ -216,9 +222,18 @@ async def test_lru_eviction(
     for token in tokens:
         await verifier._authenticate_iguazio_v4(_make_request(token))
 
-    assert framework.utils.auth.verifier.AuthVerifier._token_cache_key(tokens[0]) not in verifier._token_cache
-    assert framework.utils.auth.verifier.AuthVerifier._token_cache_key(tokens[1]) in verifier._token_cache
-    assert framework.utils.auth.verifier.AuthVerifier._token_cache_key(tokens[2]) in verifier._token_cache
+    assert (
+        framework.utils.auth.verifier.AuthVerifier._token_cache_key(tokens[0])
+        not in verifier._token_cache
+    )
+    assert (
+        framework.utils.auth.verifier.AuthVerifier._token_cache_key(tokens[1])
+        in verifier._token_cache
+    )
+    assert (
+        framework.utils.auth.verifier.AuthVerifier._token_cache_key(tokens[2])
+        in verifier._token_cache
+    )
 
 
 @pytest.mark.asyncio
@@ -237,7 +252,9 @@ async def test_ttl_expiry(
         await verifier._authenticate_iguazio_v4(request)
 
     assert client.verify_request_session.call_count == 1
-    init_task, init_expires_at = verifier._token_cache[framework.utils.auth.verifier.AuthVerifier._token_cache_key(token)]
+    init_task, init_expires_at = verifier._token_cache[
+        framework.utils.auth.verifier.AuthVerifier._token_cache_key(token)
+    ]
     assert init_expires_at == base_time + ttl
 
     # Advance time past TTL; _authenticate_iguazio_v4 should expire the token
@@ -249,7 +266,9 @@ async def test_ttl_expiry(
         await verifier._authenticate_iguazio_v4(request)
 
     assert client.verify_request_session.call_count == 2
-    refresh_task, refresh_expires_at = verifier._token_cache[framework.utils.auth.verifier.AuthVerifier._token_cache_key(token)]
+    refresh_task, refresh_expires_at = verifier._token_cache[
+        framework.utils.auth.verifier.AuthVerifier._token_cache_key(token)
+    ]
     assert refresh_task is not init_task
     assert refresh_expires_at == refresh_time + ttl
 
@@ -378,9 +397,10 @@ async def test_stale_done_callback_doesnt_evict_refreshed_task(
         await task_outer
     await asyncio.sleep(0)  # let the done callback run
 
-    assert framework.utils.auth.verifier.AuthVerifier._token_cache_key(token) in verifier._token_cache, (
-        "task_v2 should still be cached after stale task_v1 callback fires"
-    )
+    assert (
+        framework.utils.auth.verifier.AuthVerifier._token_cache_key(token)
+        in verifier._token_cache
+    ), "task_v2 should still be cached after stale task_v1 callback fires"
 
 
 @pytest.mark.parametrize(

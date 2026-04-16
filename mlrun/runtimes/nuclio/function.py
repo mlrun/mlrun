@@ -1457,9 +1457,10 @@ class RemoteRuntime(KubeResource):
             return url
 
         if self.status.external_invocation_urls:
-            return mlrun.utils.helpers.join_urls(
-                f"http://{self.status.external_invocation_urls[0]}", path
-            )
+            external_url = self.status.external_invocation_urls[0]
+            if "://" not in external_url:
+                external_url = f"https://{external_url}"
+            return mlrun.utils.helpers.join_urls(external_url, path)
 
         if not self.status.address:
             # if there is no address

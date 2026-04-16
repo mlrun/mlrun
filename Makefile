@@ -69,21 +69,34 @@ else
 endif
 
 SETUP_COVERAGE = if [ "$(RUN_COVERAGE)" = "true" ]; then \
+	rm -f $(ROOT_DIR)tests/coverage_reports/errors/coverage_error_*.log ; \
 	case "$$COVERAGE_FILE" in *.coverage) \
-		rm -rf $$COVERAGE_FILE && \
+		rm -rf $$COVERAGE_FILE $$COVERAGE_FILE.* && \
 		mkdir -p $$(dirname $$COVERAGE_FILE) ;\
 		;; \
 	  *) \
 		echo "Error: COVERAGE_FILE must end with .coverage" >&2; \
 		exit 1; \
 		;; \
-	esac \
+	esac; \
+	export COVERAGE_PROCESS_START=$(ROOT_DIR)pyproject.toml; \
 fi
 
 PRINT_COVERAGE_REPORT = if [ "$(RUN_COVERAGE)" = "true" ]; then \
     	echo "coverage report $$COVERAGE_FILE :"; \
 		COVERAGE_FILE=$$COVERAGE_FILE coverage report; \
 	fi
+
+COMBINE_COVERAGE = if [ "$(RUN_COVERAGE)" = "true" ]; then \
+	echo "Combining coverage files matching $${COVERAGE_FILE}.*" ; \
+	COVERAGE_FILE=$$COVERAGE_FILE coverage combine $${COVERAGE_FILE}.* ; \
+fi
+
+CHECK_COVERAGE_ERROR = if [ "$(RUN_COVERAGE)" = "true" ] && [ $$PYTEST_EXIT -ne 0 ] && ls $(ROOT_DIR)tests/coverage_reports/errors/coverage_error_*.log 2>/dev/null | grep -q .; then \
+	echo "=== coverage_error_*.log ===" ; \
+	cat $(ROOT_DIR)tests/coverage_reports/errors/coverage_error_*.log ; \
+	exit $$PYTEST_EXIT ; \
+fi
 
 # Verify the mount point to avoid deleting essential paths
 SETUP_COVERAGE_MOUNTING = if [ "$(RUN_COVERAGE)" = "true" ]; then \
@@ -657,6 +670,7 @@ test: clean ## Run mlrun tests
 	COVERAGE_FILE=$(COVERAGE_FILE) && \
 	COVERAGE_FILE=$${COVERAGE_FILE:-"tests/coverage_reports/unit_tests.coverage"} && \
 	$(SETUP_COVERAGE) && \
+	COVERAGE_FILE=$$COVERAGE_FILE \
 	python \
 		-X faulthandler \
 		$(COVERAGE_ADDITION) \
@@ -669,10 +683,10 @@ test: clean ## Run mlrun tests
 		$$IGNORE_ADDITION \
 		--forked \
 		-rf \
-		$$UNIT_TESTS_PATH && \
+		$$UNIT_TESTS_PATH \
+	|| { PYTEST_EXIT=$$? ; $(CHECK_COVERAGE_ERROR) ; exit $$PYTEST_EXIT ; } ; \
+	$(COMBINE_COVERAGE) && \
 	$(PRINT_COVERAGE_REPORT) ;
-
-
 
 .PHONY: test-integration-dockerized
 test-integration-dockerized: build-test api ## Run mlrun integration tests in docker container, some tests require the api image to be built
@@ -701,6 +715,7 @@ test-integration: clean ## Run mlrun integration tests
 	$(SETUP_COVERAGE) && \
 	MLRUN_MYSQL_IMAGE=$(MLRUN_MYSQL_IMAGE) \
 	MLRUN_POSTGRES_IMAGE=$(MLRUN_POSTGRES_IMAGE) \
+	COVERAGE_FILE=$$COVERAGE_FILE \
 	python $(COVERAGE_ADDITION) \
 		-m pytest -v \
 		--capture=no \
@@ -710,6 +725,7 @@ test-integration: clean ## Run mlrun integration tests
 		tests/integration \
 		server/py/services/api/tests/integration \
 		tests/rundb/test_httpdb.py && \
+	$(COMBINE_COVERAGE) && \
 	$(PRINT_COVERAGE_REPORT);
 
 .PHONY: test-migrations-dockerized
@@ -745,6 +761,7 @@ test-migrations: clean ## Run mlrun db migrations tests
 	    -rf "$(ROOT_DIR)/server/py/services/api/migrations/tests" \
 	    2>&1 | tee migration_tests.log' ; \
 	exit_code=$$? ; \
+	$(COMBINE_COVERAGE) && \
 	$(PRINT_COVERAGE_REPORT) ; \
 	exit $$exit_code
 
@@ -938,9 +955,14 @@ fmt-go:
 	$(MAKE) -C server/go fmt
 
 .PHONY: vale-docs
-vale-docs: ## Run vale check for docs and sorts ignore.txt file
+vale-docs: ## Run vale check for docs; fails if ignore.txt is not sorted
+	@sort -c .github/styles/MLRun/ignore.txt || \
+		{ echo "Error: .github/styles/MLRun/ignore.txt is not sorted. Run 'make sort-vale-ignore' to fix."; exit 1; }
 	vale docs
-	@sort .github/styles/MLRun/ignore.txt -o .github/styles/MLRun/ignore.txt
+
+.PHONY: sort-vale-ignore
+sort-vale-ignore: ## Sort the Vale ignore list alphabetically
+	sort .github/styles/MLRun/ignore.txt -o .github/styles/MLRun/ignore.txt
 
 .PHONY: linkcheck
 linkcheck:

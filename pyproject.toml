@@ -183,4 +183,7 @@ omit = [
     "server/py/schemas/proto/*"
     ]
 
+parallel = true
+sigterm = true
 relative_files = true
+disable_warnings = ["already-imported"]

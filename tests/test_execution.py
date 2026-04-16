@@ -376,6 +376,7 @@ def test_falsy_default_triggers_update_run(ctx, default_value):
     assert ctx._parameters["missing_key"] == default_value
     mock_update.assert_called_once()
 
+
 def test_none_default_does_not_trigger_update_run(ctx):
     """When key is missing and default is None,
     _update_run must NOT be called (no value to persist)."""
@@ -386,6 +387,7 @@ def test_none_default_does_not_trigger_update_run(ctx):
     assert ctx._parameters["missing_key"] is None
     mock_update.assert_not_called()
 
+
 def test_truthy_default_triggers_update_run(ctx):
     """Sanity check: truthy default always triggers _update_run."""
     with unittest.mock.patch.object(ctx, "_update_run") as mock_update:
@@ -394,6 +396,7 @@ def test_truthy_default_triggers_update_run(ctx):
     assert result == 42
     assert ctx._parameters["missing_key"] == 42
     mock_update.assert_called_once()
+
 
 def test_existing_key_returns_stored_value(ctx):
     """When the key already exists, return the stored value

@@ -24,9 +24,7 @@ def test_list_user_token_secrets_with_non_token_secrets():
     provider = mlrun.common.secrets.InMemorySecretProvider()
 
     # Store a non-token secret (arbitrary dict without user_id/token_name/expiration)
-    provider.store_secret(
-        "some-config-secret", {"host": "localhost", "port": "5432"}
-    )
+    provider.store_secret("some-config-secret", {"host": "localhost", "port": "5432"})
 
     # Store a real user token secret
     auth_info = mlrun.common.schemas.AuthInfo()
@@ -44,6 +42,7 @@ def test_list_user_token_secrets_with_non_token_secrets():
     assert len(result) == 1
     assert result[0].name == "my-token"
     assert result[0].user_id == "test-user-123"
+
 
 def test_list_user_token_secrets_only_non_token_secrets():
     """

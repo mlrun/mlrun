@@ -1022,6 +1022,7 @@ def test_background_task_state_substring_not_equal(partial_state):
     # Equality check rejects (the fix)
     assert partial_state != running_state
 
+
 def test_background_task_state_values_not_substrings_of_each_other():
     """Verify the enum values and that the fix prevents cross-matching."""
     states = mlrun.common.schemas.BackgroundTaskState
@@ -1035,6 +1036,7 @@ def test_background_task_state_values_not_substrings_of_each_other():
     assert states.running == states.running
     assert states.running != states.succeeded
     assert states.running != states.failed
+
 
 def test_terminal_states_use_list_not_string():
     """Verify that terminal_states() returns a list, making `in` safe for it."""

@@ -28,7 +28,11 @@ def test_to_crontab_from_crontab_roundtrip():
 def test_to_crontab_none_fields_no_literal_none():
     """Fields left as None must not produce the literal string 'None'."""
     trigger = mlrun.common.schemas.schedule.ScheduleCronTrigger(
-        minute="0", hour="9", day=None, month=None, day_of_week=None,
+        minute="0",
+        hour="9",
+        day=None,
+        month=None,
+        day_of_week=None,
     )
     result = trigger.to_crontab()
     assert "None" not in result, (
@@ -39,10 +43,34 @@ def test_to_crontab_none_fields_no_literal_none():
 @pytest.mark.parametrize(
     "kwargs, expected",
     [
-        ({"minute": "0", "hour": "9", "day": "15", "month": "6", "day_of_week": "1"}, "0 9 15 6 1"),
-        ({"minute": "0", "hour": "9", "day": None, "month": None, "day_of_week": None}, "0 9 * * *"),
-        ({"minute": None, "hour": None, "day": None, "month": None, "day_of_week": None}, "* * * * *"),
-        ({"minute": 30, "hour": 14, "day": None, "month": None, "day_of_week": None}, "30 14 * * *"),
+        (
+            {"minute": "0", "hour": "9", "day": "15", "month": "6", "day_of_week": "1"},
+            "0 9 15 6 1",
+        ),
+        (
+            {
+                "minute": "0",
+                "hour": "9",
+                "day": None,
+                "month": None,
+                "day_of_week": None,
+            },
+            "0 9 * * *",
+        ),
+        (
+            {
+                "minute": None,
+                "hour": None,
+                "day": None,
+                "month": None,
+                "day_of_week": None,
+            },
+            "* * * * *",
+        ),
+        (
+            {"minute": 30, "hour": 14, "day": None, "month": None, "day_of_week": None},
+            "30 14 * * *",
+        ),
     ],
     ids=["all_fields", "partial_none", "all_none", "integer_fields"],
 )

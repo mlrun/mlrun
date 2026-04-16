@@ -154,15 +154,15 @@ def test_constructor_accepts_parameters_keyword():
     spec = mlrun.artifacts.model.ModelArtifactSpec(parameters=params)
     assert spec.parameters == params
 
+
 def test_constructor_parameters_default_empty_dict():
     """Test that parameters defaults to an empty dict when not provided."""
     spec = mlrun.artifacts.model.ModelArtifactSpec()
     assert spec.parameters == {}
 
+
 def test_model_artifact_passes_parameters_to_spec():
     """Test that ModelArtifact correctly passes parameters to its spec."""
     params = {"batch_size": 32, "optimizer": "adam"}
-    artifact = mlrun.artifacts.model.ModelArtifact(
-        key="my-model", parameters=params
-    )
+    artifact = mlrun.artifacts.model.ModelArtifact(key="my-model", parameters=params)
     assert artifact.spec.parameters == params

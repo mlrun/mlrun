@@ -47,6 +47,7 @@ def test_auth_secret_event_kind_matches_action(action, expected_kind):
         f"but got '{event.kind}'"
     )
 
+
 def test_created_and_updated_have_different_kinds():
     client = iguazio_events.Client.__new__(iguazio_events.Client)
     client.source = "mlrun-api"

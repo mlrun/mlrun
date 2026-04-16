@@ -1173,6 +1173,7 @@ def _make_run(self, name: str, project: str = "proj") -> MagicMock:
     run.workflow_manifest.return_value = None
     return run
 
+
 @patch.object(
     services.api.crud.pipelines.Pipelines,
     "_resolve_project_from_pipeline",
@@ -1193,6 +1194,7 @@ def test_empty_target_name_does_not_duplicate_runs(mock_resolve):
     assert len(result) == 3
     assert result == runs
 
+
 @patch.object(
     services.api.crud.pipelines.Pipelines,
     "_resolve_project_from_pipeline",
@@ -1210,6 +1212,7 @@ def test_nonempty_target_name_filters_correctly(mock_resolve):
 
     assert len(result) == 2
     assert result == [run_a, run_b]
+
 
 @patch.object(
     services.api.crud.pipelines.Pipelines,

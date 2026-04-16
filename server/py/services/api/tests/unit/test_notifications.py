@@ -225,10 +225,12 @@ def setup_method(self):
     self.project = "test-project"
     self.run_uid = "test-uid-123"
 
+
 def _make_notification(self, name: str) -> mlrun.model.Notification:
     notification = mlrun.model.Notification()
     notification.name = name
     return notification
+
 
 @patch("framework.utils.singletons.db.get_db")
 @patch("framework.utils.notifications.delete_notification_params_secret")
@@ -267,6 +269,7 @@ def test_delete_all_notifications_cleans_up_all_secrets(
         self.session, name=None, run_uid=self.run_uid, project=self.project
     )
 
+
 @patch("framework.utils.singletons.db.get_db")
 @patch("framework.utils.notifications.delete_notification_params_secret")
 def test_delete_by_name_cleans_up_only_matching_secret(
@@ -289,6 +292,7 @@ def test_delete_by_name_cleans_up_only_matching_secret(
 
     # Only the webhook notification secret should be cleaned up
     mock_delete_secret.assert_called_once_with(self.project, notif_b)
+
 
 @patch("framework.utils.singletons.db.get_db")
 @patch("framework.utils.notifications.delete_notification_params_secret")

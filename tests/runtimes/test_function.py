@@ -515,6 +515,7 @@ def _create_runtime(self):
     runtime.metadata.project = "test-project"
     return runtime
 
+
 def test_get_state_raise_on_exception_true_raises():
     """When raise_on_exception=True, a RunDBError should propagate as ValueError."""
     runtime = self._create_runtime()
@@ -522,10 +523,9 @@ def test_get_state_raise_on_exception_true_raises():
     mock_db.get_nuclio_deploy_status.side_effect = mlrun.db.RunDBError("not found")
 
     with patch.object(runtime, "_get_db", return_value=mock_db):
-        with pytest.raises(
-            ValueError, match="function or deploy process not found"
-        ):
+        with pytest.raises(ValueError, match="function or deploy process not found"):
             runtime._get_state(raise_on_exception=True)
+
 
 def test_get_state_raise_on_exception_false_returns_empty():
     """When raise_on_exception=False, a RunDBError should be suppressed."""
@@ -538,6 +538,7 @@ def test_get_state_raise_on_exception_false_returns_empty():
         assert state == ""
         assert text == ""
         assert timestamp is None
+
 
 def test_get_state_no_error_returns_status():
     """When no error occurs, _get_state returns the function status."""

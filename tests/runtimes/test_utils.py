@@ -482,12 +482,24 @@ def test_spark_application_state_to_run_state(spark_state, expected_run_state):
 @pytest.mark.parametrize(
     "node_selector, enriched, expected",
     [
-        ({}, {"disk-type": "ssd", "region": "us-east-1"}, {"disk-type": "ssd", "region": "us-east-1"}),
+        (
+            {},
+            {"disk-type": "ssd", "region": "us-east-1"},
+            {"disk-type": "ssd", "region": "us-east-1"},
+        ),
         (None, {"disk-type": "ssd"}, {"disk-type": "ssd"}),
         ({"spot": "true"}, {}, {}),
         ({}, {}, {}),
-        ({"spot": "true"}, {"spot": "true", "region": "us-east-1"}, {"region": "us-east-1"}),
-        ({"spot": "true"}, {"spot": "false", "region": "us-east-1"}, {"spot": "false", "region": "us-east-1"}),
+        (
+            {"spot": "true"},
+            {"spot": "true", "region": "us-east-1"},
+            {"region": "us-east-1"},
+        ),
+        (
+            {"spot": "true"},
+            {"spot": "false", "region": "us-east-1"},
+            {"spot": "false", "region": "us-east-1"},
+        ),
         ({"spot": "true"}, {"spot": "true"}, {}),
     ],
     ids=[

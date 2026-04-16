@@ -1184,6 +1184,7 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
 def setup_method(self):
     self.handler = KubeRuntimeHandler()
 
+
 def test_duplicated_runs_collected_as_list_with_correct_metadata():
     """
     Verify that when multiple runs share the same UID, all duplicates are
@@ -1232,6 +1233,7 @@ def test_duplicated_runs_collected_as_list_with_correct_metadata():
     assert project in project_run_uid_map
     assert shared_uid in project_run_uid_map[project]
     assert project_run_uid_map[project][shared_uid] is first_run
+
 
 def test_duplicated_runs_logged_with_non_none_metadata():
     """
@@ -1291,6 +1293,7 @@ def test_duplicated_runs_logged_with_non_none_metadata():
         assert entry["monitored_run"]["uid"] == shared_uid
         assert entry["duplicated_run"]["uid"] == shared_uid
 
+
 def test_multiple_duplicated_runs_all_collected():
     """
     When there are 3 runs with the same UID, both duplicates should appear
@@ -1330,6 +1333,7 @@ def test_multiple_duplicated_runs_all_collected():
         # Should have 2 duplicates (runs[1] and runs[2])
         assert isinstance(duplicated_runs, list)
         assert len(duplicated_runs) == 2
+
 
 def test_no_duplicates_no_warning():
     """

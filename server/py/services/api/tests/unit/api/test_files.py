@@ -132,6 +132,7 @@ def test_filename_extraction_uses_os_path_split(objpath, expected_filename):
     _, filename = os.path.split(objpath)
     assert filename == expected_filename
 
+
 def test_str_split_self_returns_empty_filename():
     """
     Demonstrate the bug: str.split(str) always returns ['', ''].
@@ -144,6 +145,7 @@ def test_str_split_self_returns_empty_filename():
     # This is what the fixed code does
     _, correct_filename = os.path.split(objpath)
     assert correct_filename == "file.txt"
+
 
 @unittest.mock.patch(
     "services.api.api.endpoints.files.store_manager",

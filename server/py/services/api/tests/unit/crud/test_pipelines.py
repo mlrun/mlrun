@@ -323,6 +323,7 @@ def test_list_pipelines_project_filtering(project, expected_ids):
 def pipelines_crud(self):
     return services.api.crud.pipelines.Pipelines()
 
+
 def test_failed_run_deletion_logs_correct_run_id(pipelines_crud, monkeypatch):
     """
     When deleting multiple pipeline runs concurrently, the warning log
@@ -401,6 +402,7 @@ def test_failed_run_deletion_logs_correct_run_id(pipelines_crud, monkeypatch):
         "This indicates the stale loop variable bug is present."
     )
 
+
 def test_failed_experiment_deletion_logs_correct_experiment_id(
     self, pipelines_crud, monkeypatch
 ):
@@ -427,9 +429,7 @@ def test_failed_experiment_deletion_logs_correct_experiment_id(
     # Only exp-bbb fails
     def fake_delete_experiment(exp_id):
         if exp_id == "exp-bbb":
-            raise RuntimeError(
-                "Simulated KFP experiment deletion failure for exp-bbb"
-            )
+            raise RuntimeError("Simulated KFP experiment deletion failure for exp-bbb")
 
     mock_kfp_client._experiment_api.delete_experiment.side_effect = (
         fake_delete_experiment
@@ -506,9 +506,7 @@ def test_calculate_pipelines_counters_counts_only_exact_succeeded():
     "Succeeded" status are counted as completed.
     """
     now = datetime.datetime.now(tz=datetime.UTC)
-    recent_time = (now - datetime.timedelta(hours=1)).strftime(
-        "%Y-%m-%d %H:%M:%S%z"
-    )
+    recent_time = (now - datetime.timedelta(hours=1)).strftime("%Y-%m-%d %H:%M:%S%z")
 
     pipelines = [
         {
@@ -544,9 +542,7 @@ def test_substring_status_not_counted_as_succeeded():
     not be counted as a completed pipeline.
     """
     now = datetime.datetime.now(tz=datetime.UTC)
-    recent_time = (now - datetime.timedelta(hours=1)).strftime(
-        "%Y-%m-%d %H:%M:%S%z"
-    )
+    recent_time = (now - datetime.timedelta(hours=1)).strftime("%Y-%m-%d %H:%M:%S%z")
 
     # "ceed" is a substring of "Succeeded" - with the old `in` check
     # it would be incorrectly counted as completed
@@ -585,9 +581,7 @@ def test_zip_content_type_is_recognized():
 
     # Mock everything after the content type detection
     with (
-        unittest.mock.patch.object(
-            pipelines, "_initialize_kfp_client"
-        ) as mock_client,
+        unittest.mock.patch.object(pipelines, "_initialize_kfp_client") as mock_client,
         unittest.mock.patch(
             "services.api.utils.helpers.resolve_auth_token_secret_name",
             return_value="mock-secret",

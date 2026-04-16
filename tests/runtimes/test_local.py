@@ -132,6 +132,7 @@ def test_custom_env_vars_merged_into_subprocess_env():
         # os.environ entries should also be present (merged)
         assert "PATH" in passed_env
 
+
 def test_no_custom_env_uses_os_environ():
     """When env=None, run_exec should still pass a copy of os.environ."""
     with unittest.mock.patch("mlrun.runtimes.local.Popen") as mock_popen:

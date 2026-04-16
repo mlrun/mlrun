@@ -365,9 +365,7 @@ def test_kfp_runner_does_not_mutate_notification_params():
         params.update(notif.params or {})
 
         # Verify the merged params dict has both params and secret_params
-        assert "webhook" in params, (
-            "Merged params should contain the original params"
-        )
+        assert "webhook" in params, "Merged params should contain the original params"
         assert "token" in params, "Merged params should contain the secret params"
 
     # Verify the original notification.params was NOT mutated
@@ -386,6 +384,7 @@ def test_kfp_runner_does_not_mutate_notification_params():
         f"notification.secret_params was mutated. "
         f"Expected {original_secret_params}, got {notification.secret_params}"
     )
+
 
 def test_kfp_runner_params_override_secret_params_on_conflict():
     """

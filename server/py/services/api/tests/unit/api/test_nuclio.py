@@ -333,6 +333,7 @@ def _make_api_gateway(host: str, path: str, function_names: list[str]):
         ),
     )
 
+
 def test_same_invoke_url_skips_full_deletion():
     """
     When the existing and new API gateway have the same invoke URL,
@@ -360,6 +361,7 @@ def test_same_invoke_url_skips_full_deletion():
         "Calling get_invoke_url() should show equal URLs"
     )
 
+
 def test_different_invoke_url_triggers_deletion():
     """
     When the invoke URL really changed, the comparison should detect it.
@@ -369,6 +371,7 @@ def test_different_invoke_url_triggers_deletion():
 
     # The URLs are different so the condition should be True
     assert existing.get_invoke_url() != updated.get_invoke_url()
+
 
 def test_unused_functions_detected_when_url_unchanged():
     """

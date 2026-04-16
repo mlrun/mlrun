@@ -56,6 +56,7 @@ def test_owner_with_single_at_sign():
     assert labels[mlrun_constants.MLRunInternalLabels.mlrun_owner] == "user"
     assert labels[mlrun_constants.MLRunInternalLabels.owner_domain] == "example.com"
 
+
 def test_owner_with_multiple_at_signs():
     """owner with multiple '@' should split only on the first '@'"""
     function = _make_function()
@@ -63,9 +64,9 @@ def test_owner_with_multiple_at_signs():
     labels = get_resource_labels(function, run)
     assert labels[mlrun_constants.MLRunInternalLabels.mlrun_owner] == "user"
     assert (
-        labels[mlrun_constants.MLRunInternalLabels.owner_domain]
-        == "dept@company.com"
+        labels[mlrun_constants.MLRunInternalLabels.owner_domain] == "dept@company.com"
     )
+
 
 def test_owner_without_at_sign():
     """owner without '@' should be set as-is without a domain label"""
@@ -74,6 +75,7 @@ def test_owner_without_at_sign():
     labels = get_resource_labels(function, run)
     assert labels[mlrun_constants.MLRunInternalLabels.mlrun_owner] == "admin"
     assert mlrun_constants.MLRunInternalLabels.owner_domain not in labels
+
 
 def test_no_owner():
     """run without an owner label should not set any owner or domain labels"""

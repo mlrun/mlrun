@@ -223,6 +223,7 @@ def test_project_param_not_overwritten_by_artifact_uri():
             "The project parameter was overwritten by artifact URI parsing."
         )
 
+
 def test_project_preserved_when_uri_has_different_project():
     """
     When an artifact URI contains a different project than the function parameter,

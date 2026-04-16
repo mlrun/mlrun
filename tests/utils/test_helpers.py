@@ -2414,6 +2414,7 @@ def test_fill_object_hash_restores_updated_field():
         "fill_object_hash should restore the metadata.updated field after hash computation"
     )
 
+
 def test_fill_object_hash_restores_all_temporarily_cleared_fields():
     """Verify all temporarily cleared fields (tag, status, created, updated)
     are restored after hash computation."""
@@ -2438,6 +2439,7 @@ def test_fill_object_hash_restores_all_temporarily_cleared_fields():
     # uid is expected to change to the computed hash
     assert original["metadata"]["uid"] == uid
 
+
 def test_fill_object_hash_handles_missing_updated_field():
     """Verify fill_object_hash works when metadata.updated does not exist."""
     object_dict = {
@@ -2455,6 +2457,7 @@ def test_fill_object_hash_handles_missing_updated_field():
     assert "updated" not in object_dict["metadata"], (
         "fill_object_hash should not create an 'updated' key if it did not exist before"
     )
+
 
 def test_fill_function_hash_preserves_updated():
     """Verify the fill_function_hash wrapper also preserves updated."""

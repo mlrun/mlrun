@@ -210,7 +210,6 @@ def test_operations_imports_kubernetes_api_exception():
     used for KFP pipeline API errors).
     """
 
-
     # Get the ApiException referenced in the module's namespace
     api_exception_cls = getattr(operations_module, "ApiException", None)
     assert api_exception_cls is not None, (
@@ -231,7 +230,6 @@ def test_store_secret_error_handler_catches_kubernetes_exception():
     We inspect the source code to ensure the except clause uses the
     kubernetes ApiException.
     """
-
 
     source = inspect.getsource(
         operations_module._store_mail_notifications_default_params_to_secret

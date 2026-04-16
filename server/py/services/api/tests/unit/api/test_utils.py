@@ -2525,12 +2525,14 @@ def test_falsy_values_override_existing(falsy_value):
     result = _update_dict(original, override)
     assert result["key"] == falsy_value
 
+
 def test_none_values_do_not_override():
     """None values in dict_2 must NOT replace existing values."""
     original = {"key": "original_value"}
     override = {"key": None}
     result = _update_dict(original, override)
     assert result["key"] == "original_value"
+
 
 def test_run_local_false_overrides_true():
     """Simulates a real WorkflowSpec scenario: run_local=False must override True."""
@@ -2541,6 +2543,7 @@ def test_run_local_false_overrides_true():
     # ttl should be preserved since user_spec has None
     assert result["ttl"] == 300
 
+
 def test_ttl_zero_overrides_nonzero():
     """Simulates a real WorkflowSpec scenario: ttl=0 must override a nonzero value."""
     project_workflow = {"name": "my-wf", "ttl": 300}
@@ -2548,12 +2551,14 @@ def test_ttl_zero_overrides_nonzero():
     result = _update_dict(project_workflow, user_spec)
     assert result["ttl"] == 0
 
+
 def test_truthy_values_override_existing():
     """Standard case: truthy values in dict_2 replace existing values."""
     original = {"key": "old"}
     override = {"key": "new"}
     result = _update_dict(original, override)
     assert result["key"] == "new"
+
 
 def test_nested_dict_merging_preserved():
     """Nested dicts should still be recursively merged."""

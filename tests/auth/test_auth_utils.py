@@ -853,6 +853,7 @@ def test_invalid_token_with_raise_on_error_false_returns_none():
     )
     assert result is None
 
+
 def test_invalid_token_with_raise_on_error_true_raises():
     """When raise_on_error=True and the token is invalid, the function should
     raise an error (via raise_or_log_error which raises MLRunRuntimeError)."""
@@ -860,6 +861,7 @@ def test_invalid_token_with_raise_on_error_true_raises():
         mlrun.auth.utils.resolve_jwt_subject(
             "not-a-valid-jwt-token", raise_on_error=True
         )
+
 
 def test_consistency_with_resolve_jwt_username():
     """Both resolve_jwt_subject and resolve_jwt_username should handle

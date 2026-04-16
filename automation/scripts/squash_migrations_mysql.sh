@@ -32,5 +32,3 @@ _mysql_full_setup
 cd "${_MYSQL_ROOT_DIR}/server/py/services/api"
 
 python "${SCRIPT_DIR}/squash_migrations.py" "${MLRUN_SQUASH_REVISION}"
-ruff format migrations/versions/${MLRUN_SQUASH_REVISION}_*.py
-ruff check --fix migrations/versions/${MLRUN_SQUASH_REVISION}_*.py

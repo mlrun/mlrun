@@ -36,6 +36,7 @@ def upgrade():
         "runs",
         ["project", "iteration", "start_time"],
         unique=False,
+        if_not_exists=True,
     )
     # ### end Alembic commands ###
 

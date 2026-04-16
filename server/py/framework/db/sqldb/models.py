@@ -465,6 +465,12 @@ with warnings.catch_warnings():
         __table_args__ = (
             UniqueConstraint("uid", "project", "iteration", name="_runs_uc"),
             Index("idx_runs_project_id", "id", "project", unique=True),
+            Index(
+                "idx_runs_project_iter_start",
+                "project",
+                "iteration",
+                "start_time",
+            ),
         )
 
         id = Column(Integer, primary_key=True)

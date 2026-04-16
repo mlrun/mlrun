@@ -2736,3 +2736,15 @@ def set_auth_user_id(spec, user_id: str | None):
         if not spec.auth:
             spec.auth = {}
         spec.auth["user_id"] = user_id
+
+
+def covered_function():
+    x = 1
+    x += 1
+    return x
+
+
+def uncovered_function():
+    x = 2
+    x += 1
+    return x

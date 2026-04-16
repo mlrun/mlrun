@@ -37,6 +37,7 @@ from mlrun.datastore.store_resources import parse_store_uri
 from mlrun.utils import logger
 from mlrun.utils.helpers import (
     StorePrefix,
+    covered_function,
     enrich_image_url,
     ensure_batch_job_suffix,
     extend_hub_uri_if_needed,
@@ -2346,3 +2347,7 @@ def test_remove_image_protocol_prefix(image, expected):
     assert result == expected, (
         f"Expected '{expected}' for image '{image}', got '{result}'"
     )
+
+
+def test_covered_function():
+    assert covered_function() == 2

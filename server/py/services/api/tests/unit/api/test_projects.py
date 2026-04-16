@@ -2474,3 +2474,7 @@ def _create_project(client: TestClient, name: str):
     assert response.status_code == HTTPStatus.CREATED.value
     _assert_project_response(project, response)
     return project
+
+
+def test_covered_server_function():
+    assert projects_endpoints.covered_server_function() == 4

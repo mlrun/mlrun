@@ -647,3 +647,15 @@ async def _ensure_project_create_or_update_permissions(
             mlrun.common.schemas.AuthorizationAction.create,
             auth_info,
         )
+
+
+def covered_server_function():
+    x = 3
+    x += 1
+    return x
+
+
+def uncovered_server_function():
+    x = 4
+    x += 1
+    return x

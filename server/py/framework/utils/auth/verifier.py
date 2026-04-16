@@ -392,8 +392,6 @@ class AuthVerifier(metaclass=mlrun.utils.singleton.Singleton):
         # Authorization schemes are case insensitive
         if header.lower().startswith(prefix.lower()):
             return header[len(prefix) :]
-        else:
-            return None
 
     @staticmethod
     def _parse_basic_auth(b64value: str) -> tuple[str, str]:

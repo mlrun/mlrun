@@ -601,6 +601,23 @@ class Service(framework.service.Service):
 
     async def _start_periodic_functions(self):
         self._start_periodic_events_generation()
+        self._start_periodic_cooldown_reset()
+
+    def _start_periodic_cooldown_reset(self):
+        interval = int(mlconf.alerts.cooldown_reset_interval)
+        if interval > 0:
+            self._logger.info("Starting periodic cooldown reset", interval=interval)
+            framework.utils.periodic.run_function_periodically(
+                interval,
+                self._reset_cooled_down_alerts.__name__,
+                False,
+                self._reset_cooled_down_alerts,
+            )
+
+    def _reset_cooled_down_alerts(self):
+        framework.db.session.run_function_with_new_db_session(
+            services.alerts.crud.Alerts().reset_cooled_down_alerts
+        )
 
     def _start_periodic_events_generation(self):
         interval = int(mlconf.alerts.events_generation_interval)

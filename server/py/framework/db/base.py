@@ -998,6 +998,12 @@ class DBInterface(ABC):
         pass
 
     @abstractmethod
+    def list_alerts_pending_cooldown_reset(
+        self, session
+    ) -> list[mlrun.common.schemas.AlertConfig]:
+        pass
+
+    @abstractmethod
     def get_num_configured_alerts(self, session) -> int:
         pass
 

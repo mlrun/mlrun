@@ -330,6 +330,151 @@ class TestAlerts(TestMLRunSystem):
             name=function_name, project=self.project.name
         )
 
+    def test_alert_cooldown_auto_reset(self):
+        """
+        Verify that an alert with cooldown_period stays ACTIVE during the cooldown window,
+        then is automatically reset to INACTIVE by the periodic reset task once it expires.
+
+        Also verifies that a second event fired during cooldown does not send a duplicate
+        notification (since the alert is already active).
+        """
+        # must be >= cooldown_reset_interval (enforced by validation); add a margin so
+        # the cooldown outlasts at least one full reset-interval cycle.
+        cooldown_seconds = max(30, int(mlconf.alerts.cooldown_reset_interval) + 15)
+        alert_name = "cooldown-auto-reset"
+        entity_id = "cooldown-auto-reset-job"
+
+        nuclio_function_url = notification_helpers.deploy_notification_nuclio(
+            self.project, self.image
+        )
+        notifications = self._generate_failure_notifications(nuclio_function_url)
+        self._create_custom_alert_config(
+            name=alert_name,
+            entity_kind=alert_objects.EventEntityKind.JOB,
+            entity_id=entity_id,
+            summary="Cooldown auto-reset test alert",
+            event_name=alert_objects.EventKind.FAILED,
+            notifications=notifications,
+            cooldown_period=f"{cooldown_seconds}s",
+        )
+
+        db = mlrun.get_run_db()
+        event = mlrun.common.schemas.Event(
+            kind=alert_objects.EventKind.FAILED,
+            entity=alert_objects.EventEntities(
+                kind=alert_objects.EventEntityKind.JOB,
+                project=self.project_name,
+                ids=[entity_id],
+            ),
+        )
+
+        # trigger first event — alert becomes active and enters cooldown
+        db.generate_event(
+            alert_objects.EventKind.FAILED, event, project=self.project_name
+        )
+
+        # alert should immediately be ACTIVE
+        mlrun.utils.retry_until_successful(
+            2,
+            15,
+            self._logger,
+            True,
+            self._assert_alert_state,
+            alert_name,
+            alert_objects.AlertActiveState.ACTIVE,
+        )
+
+        # validate the notification was sent
+        self._validate_notifications_on_nuclio(
+            nuclio_function_url, ["notification failure"]
+        )
+
+        # trigger second event during cooldown — alert stays ACTIVE, no new notification
+        db.generate_event(
+            alert_objects.EventKind.FAILED, event, project=self.project_name
+        )
+        # wait for the event to be processed before asserting no notification was sent
+        time.sleep(mlconf.alerts.events_generation_interval + 5)
+        self._validate_notifications_on_nuclio(nuclio_function_url, [])
+
+        # wait for cooldown to expire and the periodic reset task to run;
+        # worst case: task just fired when cooldown started, so we need up to
+        # cooldown + 2 * reset_interval before the next run detects the expiry.
+        mlrun.utils.retry_until_successful(
+            5,
+            cooldown_seconds + 2 * int(mlconf.alerts.cooldown_reset_interval) + 10,
+            self._logger,
+            True,
+            self._assert_alert_state,
+            alert_name,
+            alert_objects.AlertActiveState.INACTIVE,
+        )
+
+    def test_alert_cooldown_manual_reset(self):
+        """
+        Verify that a manual reset immediately clears the alert state regardless
+        of the remaining cooldown, and that the alert can be re-triggered afterwards.
+        """
+        alert_name = "cooldown-manual-reset"
+        entity_id = "cooldown-manual-reset-job"
+
+        nuclio_function_url = notification_helpers.deploy_notification_nuclio(
+            self.project, self.image
+        )
+        notifications = self._generate_failure_notifications(nuclio_function_url)
+        self._create_custom_alert_config(
+            name=alert_name,
+            entity_kind=alert_objects.EventEntityKind.JOB,
+            entity_id=entity_id,
+            summary="Cooldown manual reset test alert",
+            event_name=alert_objects.EventKind.FAILED,
+            notifications=notifications,
+            # long enough to not expire during the test
+            cooldown_period="5m",
+        )
+
+        db = mlrun.get_run_db()
+        event = mlrun.common.schemas.Event(
+            kind=alert_objects.EventKind.FAILED,
+            entity=alert_objects.EventEntities(
+                kind=alert_objects.EventEntityKind.JOB,
+                project=self.project_name,
+                ids=[entity_id],
+            ),
+        )
+
+        # trigger event — alert enters cooldown
+        db.generate_event(
+            alert_objects.EventKind.FAILED, event, project=self.project_name
+        )
+        mlrun.utils.retry_until_successful(
+            2,
+            15,
+            self._logger,
+            True,
+            self._assert_alert_state,
+            alert_name,
+            alert_objects.AlertActiveState.ACTIVE,
+        )
+
+        # manually reset — should clear cooldown immediately
+        db.reset_alert_config(alert_name, project=self.project_name)
+        self._assert_alert_state(alert_name, alert_objects.AlertActiveState.INACTIVE)
+
+        # re-trigger — proves the reset was effective and the alert fires again
+        db.generate_event(
+            alert_objects.EventKind.FAILED, event, project=self.project_name
+        )
+        mlrun.utils.retry_until_successful(
+            2,
+            15,
+            self._logger,
+            True,
+            self._assert_alert_state,
+            alert_name,
+            alert_objects.AlertActiveState.ACTIVE,
+        )
+
     @staticmethod
     def _generate_failure_notifications(nuclio_function_url):
         notification = mlrun.common.schemas.Notification(
@@ -383,6 +528,7 @@ class TestAlerts(TestMLRunSystem):
         event_name,
         notifications,
         criteria=None,
+        cooldown_period=None,
     ):
         alert_data = mlrun.alerts.alert.AlertConfig(
             project=self.project_name,
@@ -394,6 +540,7 @@ class TestAlerts(TestMLRunSystem):
             ),
             trigger=alert_objects.AlertTrigger(events=[event_name]),
             criteria=criteria,
+            cooldown_period=cooldown_period,
             notifications=notifications,
         )
 
@@ -606,3 +753,11 @@ class TestAlerts(TestMLRunSystem):
                 ]
             )
         return expected_notifications
+
+    def _assert_alert_state(self, alert_name, expected_state):
+        alert = mlrun.get_run_db().get_alert_config(
+            alert_name, project=self.project_name
+        )
+        assert alert.state == expected_state, (
+            f"Expected alert '{alert_name}' state={expected_state}, got {alert.state}"
+        )

@@ -1013,7 +1013,11 @@ def _set_callbacks(server, context):
             "Setting drain callback to terminate and restart the graph on a drain event (such as rebalancing)"
         )
 
+        context.drain_complete = asyncio.Event()
+        context.drain_complete.set()
+
         async def drain_callback():
+            context.drain_complete.clear()
             context.logger.info("Drain callback called")
             maybe_coroutine = server.wait_for_completion()
             if asyncio.iscoroutine(maybe_coroutine):
@@ -1021,9 +1025,9 @@ def _set_callbacks(server, context):
             context.logger.info(
                 "Termination of async flow is completed. Rerunning async flow."
             )
-            # Rerun the flow without reconstructing it
             server.graph._run_async_flow()
             context.logger.info("Async flow restarted")
+            context.drain_complete.set()
 
         context.platform.set_drain_callback(drain_callback)
 
@@ -1213,6 +1217,7 @@ class GraphContext:
         self.stream = None
         self.root = None
         self.executor: storey.flow.RunnableExecutor | None = None
+        self.drain_complete: asyncio.Event | None = None
 
         if nuclio_context:
             self.logger: NuclioLogger = nuclio_context.logger

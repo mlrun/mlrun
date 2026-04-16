@@ -1778,3 +1778,115 @@ async def test_async_graph_no_responder_json_serializable():
         assert "id" in response, f"Expected 'id' key in response: {response}"
     finally:
         server.wait_for_completion()
+
+
+class _SlowTerminationStep(storey.Flow):
+    """A Storey step that takes a configurable time to terminate.
+
+    Used to simulate slow ParquetTarget flushes during drain.
+    """
+
+    def __init__(self, termination_delay: float = 0, **kwargs):
+        super().__init__(**kwargs)
+        self._termination_delay = termination_delay
+
+    async def _do(self, event):
+        if event is storey.flow._termination_obj:
+            await asyncio.sleep(self._termination_delay)
+            return await self._do_downstream(event)
+        return await self._do_downstream(event)
+
+
+@pytest.mark.asyncio
+async def test_event_during_drain_waits_for_flow_restart():
+    """Test that events arriving during drain block until the flow restarts.
+
+    Regression test for ML-12406: When Nuclio triggers a drain (e.g. Kafka
+    rebalance), the Go processor's workerTerminationTimeout can expire before
+    the Python drain callback finishes. Go reconnects and sends new events, but
+    the Storey flow is still terminated, causing ValueError("Cannot emit to a
+    terminated flow"). Events should block until the drain completes and the
+    flow restarts.
+    """
+    from mlrun.serving.server import _set_callbacks
+
+    function = mlrun.new_function("test-drain-gate", kind="serving")
+    graph = function.set_topology("flow", engine="async")
+    graph.to(name="step1", class_name="Echo")
+
+    server = GraphServer.from_dict(function.spec.to_dict())
+    server.init_states(context=None, namespace=globals(), is_mock=False)
+    server.init_object(globals())
+
+    drain_cb = None
+
+    class MockPlatform:
+        def set_drain_callback(self, cb):
+            nonlocal drain_cb
+            drain_cb = cb
+
+        def set_termination_callback(self, cb):
+            pass
+
+    server.context.platform = MockPlatform()
+    _set_callbacks(server, server.context)
+    assert drain_cb is not None, (
+        "_set_callbacks should have registered a drain callback"
+    )
+
+    event = storey.Event(body={"before_drain": True})
+    response = server.run(event)
+    if asyncio.iscoroutine(response):
+        response = await response
+    assert isinstance(response, dict)
+
+    # Wrap drain_cb with a delay to simulate slow ParquetTarget flush
+    drain_delay = asyncio.Event()
+
+    async def slow_drain():
+        server.context.drain_complete.clear()
+        server.context.logger.info("Drain callback called")
+        maybe_coroutine = server.wait_for_completion()
+        if asyncio.iscoroutine(maybe_coroutine):
+            await maybe_coroutine
+        # Simulate slow flush (e.g. ParquetTarget writing to remote storage)
+        await drain_delay.wait()
+        server.graph._run_async_flow()
+        server.context.logger.info("Async flow restarted")
+        server.context.drain_complete.set()
+
+    drain_task = asyncio.create_task(slow_drain())
+
+    # Give the drain a moment to terminate the flow
+    await asyncio.sleep(0.05)
+
+    # Now emit an event while drain is still in progress
+    event_during_drain = storey.Event(body={"during_drain": True})
+    event_task = asyncio.create_task(
+        _run_event_through_server(server, event_during_drain)
+    )
+
+    # The event should be blocked — drain hasn't completed yet
+    done, _ = await asyncio.wait({event_task}, timeout=0.1)
+    assert not done, "Event should be blocked waiting for drain to complete"
+
+    # Release the slow flush
+    drain_delay.set()
+    await drain_task
+
+    # Now the event should complete successfully
+    response = await asyncio.wait_for(event_task, timeout=5.0)
+    assert isinstance(response, dict), f"Expected dict, got {type(response)}"
+    assert "id" in response
+
+    maybe_coroutine = server.wait_for_completion()
+    if asyncio.iscoroutine(maybe_coroutine):
+        await maybe_coroutine
+
+
+async def _run_event_through_server(server, event):
+    """Helper to run an event through a server, awaiting if async."""
+    response = server.run(event)
+    if asyncio.iscoroutine(response):
+        response = await response
+    return response

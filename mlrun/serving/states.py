@@ -3156,6 +3156,17 @@ class FlowStep(BaseStep):
         await awaitable
         return {"id": event.id}
 
+    async def _await_drain_and_return_id(self, awaitable, event):
+        drain_complete = self.context.drain_complete
+        if drain_complete is not None and not drain_complete.is_set():
+            self.context.logger.warning(
+                "Event received during drain, waiting for flow restart"
+            )
+            await drain_complete.wait()
+            awaitable = self._controller.emit(event)
+        await awaitable
+        return {"id": event.id}
+
     def run(self, event, *args, **kwargs):
         if self._controller:
             # async flow (using storey)
@@ -3172,7 +3183,7 @@ class FlowStep(BaseStep):
                 )
                 if self._wait_for_result:
                     return resp_awaitable
-                return self._await_and_return_id(resp_awaitable, event)
+                return self._await_drain_and_return_id(resp_awaitable, event)
             event = copy(event)
             event.body = {"id": event.id}
             return event

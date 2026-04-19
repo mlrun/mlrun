@@ -628,7 +628,7 @@ default_config = {
                 "num_workers": 2,
                 # TODO(ML-12430): pinned to a single replica to avoid rebalance-induced
                 # event replay under load. Revert to min_replicas=1 / max_replicas=4 once
-                # ML-11979 and NUC-756 (tracked in ML-12316) are resolved.
+                # NUC-756/ML-12316 is resolved.
                 "min_replicas": 1,
                 "max_replicas": 1,
                 "target_cpu": "400m",

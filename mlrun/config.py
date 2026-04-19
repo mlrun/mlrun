@@ -626,8 +626,11 @@ default_config = {
                 "partition_count": 8,
                 "replication_factor": 1,
                 "num_workers": 2,
+                # TODO(ML-12430): pinned to a single replica to avoid rebalance-induced
+                # event replay under load. Revert to min_replicas=1 / max_replicas=4 once
+                # ML-11979 and NUC-756 (tracked in ML-12316) are resolved.
                 "min_replicas": 1,
-                "max_replicas": 4,
+                "max_replicas": 1,
                 "target_cpu": "400m",
             },
         },

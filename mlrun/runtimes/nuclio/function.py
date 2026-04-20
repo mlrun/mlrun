@@ -1137,6 +1137,8 @@ class RemoteRuntime(KubeResource):
             logger.debug("Invoking function", method=method, path=path)
             if not getattr(self, "_http_session", None):
                 self._http_session = requests.Session()
+            if mlconf.httpdb.http.verify is False:
+                http_client_kwargs.setdefault("verify", False)
             resp = self._http_session.request(
                 method, path, headers=headers, **http_client_kwargs
             )

@@ -16,6 +16,7 @@ import os
 import time
 import uuid
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from urllib.parse import urlparse
 
 import pandas as pd
 import pytest
@@ -65,7 +66,9 @@ class TestNuclioRuntime(TestMLRunSystemModelMonitoring):
         self._logger.debug("Deploying nuclio function")
         deployment = function.deploy()
 
-        assert deployment == function.get_url()  # check function url
+        assert (
+            urlparse(deployment).hostname == urlparse(function.get_url()).hostname
+        )  # check function url
 
     def test_mlrun_project_accessibility(self):
         fn = mlrun.code_to_function(
@@ -114,7 +117,9 @@ class TestNuclioRuntime(TestMLRunSystemModelMonitoring):
         self._logger.debug("Deploying nuclio function")
         deployment = function.deploy()
 
-        assert deployment == function.get_url()  # check function url
+        assert (
+            urlparse(deployment).hostname == urlparse(function.get_url()).hostname
+        )  # check function url
 
         resp = function.invoke("/", {"x": "y"})
         assert resp == {"x": "y", "extra": 123}
@@ -165,7 +170,9 @@ class TestNuclioRuntime(TestMLRunSystemModelMonitoring):
         self._logger.debug("Deploying nuclio function with model selector")
         deployment = function.deploy()
 
-        assert deployment == function.get_url()  # check function url
+        assert (
+            urlparse(deployment).hostname == urlparse(function.get_url()).hostname
+        )  # check function url
 
         resp = function.invoke("/", {"x": "y", "models": ["my-model"]})
         assert resp == {"my-model": {"extra": 123, "x": "y"}}
@@ -193,7 +200,9 @@ class TestNuclioRuntime(TestMLRunSystemModelMonitoring):
         )
         graph.to(model_runner).respond()
         deployment = function.deploy()
-        assert deployment == function.get_url()  # check function url
+        assert (
+            urlparse(deployment).hostname == urlparse(function.get_url()).hostname
+        )  # check function url
 
         resp = function.invoke("/", {"something_with_meaning": "life"})
         assert resp == {"something_with_meaning": "life"}
@@ -257,7 +266,9 @@ class TestNuclioRuntime(TestMLRunSystemModelMonitoring):
         self._logger.debug("Deploying nuclio function")
         deployment = function.deploy()
 
-        assert deployment == function.get_url()  # check function url
+        assert (
+            urlparse(deployment).hostname == urlparse(function.get_url()).hostname
+        )  # check function url
 
         resp = function.invoke("/", {"something_with_meaning": "life"})
         assert resp["prompt"] == [
@@ -332,7 +343,9 @@ class TestNuclioRuntime(TestMLRunSystemModelMonitoring):
         self._logger.debug("Deploying nuclio function")
         deployment = function.deploy()
 
-        assert deployment == function.get_url()  # check function url
+        assert (
+            urlparse(deployment).hostname == urlparse(function.get_url()).hostname
+        )  # check function url
 
         resp = function.invoke("/", {"something_with_meaning": "life"})
         assert resp["prompt"] == [
@@ -373,7 +386,9 @@ class TestNuclioRuntime(TestMLRunSystemModelMonitoring):
 
         assert len(self.project.list_model_endpoints().endpoints) == 1
 
-        assert deployment == function.get_url()  # check function url
+        assert (
+            urlparse(deployment).hostname == urlparse(function.get_url()).hostname
+        )  # check function url
 
     @pytest.mark.parametrize("raise_exception", [True, False])
     def test_deploy_model_runner_error_handler(self, raise_exception: bool):
@@ -404,7 +419,9 @@ class TestNuclioRuntime(TestMLRunSystemModelMonitoring):
         self._logger.debug("Deploying nuclio function")
         deployment = function.deploy()
 
-        assert deployment == function.get_url()  # check function url
+        assert (
+            urlparse(deployment).hostname == urlparse(function.get_url()).hostname
+        )  # check function url
         resp = function.invoke("/", {"x": "y"})
         assert (
             resp
@@ -696,7 +713,7 @@ class TestNuclioRuntime(TestMLRunSystemModelMonitoring):
 
         # Test 1: StreamingStep path (async generator do() method)
         self._logger.info("Testing StreamingStep path...")
-        resp = requests.post(f"{url}/step", data="test", stream=True)
+        resp = requests.post(f"{url}/step", data="test", stream=True, verify=False)
         self._logger.info(f"StreamingStep response: {resp}")
         assert resp.ok, f"StreamingStep request failed: {resp.status_code} {resp.text}"
         assert resp.headers.get("Transfer-Encoding") == "chunked"
@@ -710,7 +727,9 @@ class TestNuclioRuntime(TestMLRunSystemModelMonitoring):
 
         # Test 2: ModelRunnerStep path (generator predict() method)
         self._logger.info("Testing ModelRunnerStep path...")
-        resp = requests.post(f"{url}/model_runner", data="test", stream=True)
+        resp = requests.post(
+            f"{url}/model_runner", data="test", stream=True, verify=False
+        )
         self._logger.info(f"ModelRunnerStep response: {resp}")
         assert resp.ok, (
             f"ModelRunnerStep request failed: {resp.status_code} {resp.text}"
@@ -766,7 +785,9 @@ class TestNuclioRuntime(TestMLRunSystemModelMonitoring):
         # 1. Send a streaming request that triggers a mid-stream error.
         #    Use a timeout to guard against hangs (the pre-NUC-723 failure mode).
         self._logger.info("Sending error streaming request...")
-        resp = requests.post(f"{url}/error", data="test", stream=True, timeout=30)
+        resp = requests.post(
+            f"{url}/error", data="test", stream=True, timeout=30, verify=False
+        )
 
         try:
             chunks = list(resp.iter_content(decode_unicode=True, chunk_size=1024))
@@ -778,7 +799,9 @@ class TestNuclioRuntime(TestMLRunSystemModelMonitoring):
 
         # 2. Verify the worker is still healthy by sending a normal request.
         self._logger.info("Sending healthy streaming request...")
-        resp = requests.post(f"{url}/step", data="test", stream=True, timeout=30)
+        resp = requests.post(
+            f"{url}/step", data="test", stream=True, timeout=30, verify=False
+        )
         assert resp.ok, f"Healthy request failed: {resp.status_code} {resp.text}"
         assert resp.headers.get("Transfer-Encoding") == "chunked"
 

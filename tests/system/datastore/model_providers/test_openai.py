@@ -244,6 +244,7 @@ class TestOpenAIModelRunner(TestMLRunSystem):
             f"{url}/v2/models/{mlrun_model_name}/infer",
             data=json.dumps(BATCH_INPUT_DATA[0]),
             stream=True,
+            verify=False,
         )
         assert resp.ok, f"Streaming request failed: {resp.status_code} {resp.text}"
         assert resp.headers.get("Transfer-Encoding") == "chunked"

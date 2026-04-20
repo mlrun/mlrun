@@ -2977,8 +2977,8 @@ starlette==0.50.0 \
     --hash=sha256:9e5391843ec9b6e472eed1365a78c8098cfceb7a74bfd4d6b1c0c0095efb3bca \
     --hash=sha256:a2a17b22203254bcbc2e1f926d2d55f3f9497f769416b3190768befe598fa3ca
     # via fastapi
-storey==1.12.0 \
-    --hash=sha256:51cad30e682b393cf76ec7137e1281c7312934b41757ba6c20cb118169d49080
+storey==1.12.1 \
+    --hash=sha256:2c2e0d516ffb916186261e546622f8d41ac041161a087cc9aae396560280526e
     # via -r requirements.txt
 tabulate==0.8.10 \
     --hash=sha256:0ba055423dbaa164b9e456abe7920c5e8ed33fcc16f6d1b2f2d152c8e1e8b4fc \

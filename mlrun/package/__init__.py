@@ -37,6 +37,7 @@ from mlrun.package.utils import (
     ArtifactType,
     StructFileSupportedFormat,
 )
+from mlrun.utils.helpers import _resolve_handler_output
 
 
 def handler(
@@ -155,6 +156,10 @@ def handler(
 
             # Call the original function and get the returning values:
             func_outputs = func(*args, **kwargs)
+
+            # If the handler is async, run the coroutine to completion.
+            # Generator returns are not supported and raise an explicit error.
+            func_outputs = _resolve_handler_output(func_outputs, func.__name__)
 
             # If 'auto_pack_outputs' is set, add auto log hints for the available outputs:
             if mlrun.mlconf.packagers.auto_pack_outputs:

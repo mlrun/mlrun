@@ -13,6 +13,7 @@
 # limitations under the License.
 import asyncio
 import base64
+import concurrent.futures
 import enum
 import functools
 import gzip
@@ -29,6 +30,7 @@ import traceback
 import typing
 import uuid
 import warnings
+from collections.abc import Coroutine
 from copy import deepcopy
 from datetime import UTC, datetime, timedelta, timezone
 from importlib import import_module, reload
@@ -79,6 +81,7 @@ from .retryer import (  # noqa: F401
 
 yaml.Dumper.ignore_aliases = lambda *args: True
 _missing = object()
+_T = typing.TypeVar("_T")
 
 hub_prefix = "hub://"
 DB_SCHEMA = "store"
@@ -1936,6 +1939,63 @@ async def run_in_threadpool(func, *args, **kwargs):
     Note that this function is not suitable for CPU-bound tasks, as it will block the event loop.
     """
     return await asyncio.to_thread(func, *args, **kwargs)
+
+
+def _run_async_handler(coro: Coroutine[Any, Any, _T]) -> _T:
+    """
+    Run a coroutine returned by an ``async def`` job handler to completion.
+
+    Handles two execution contexts transparently:
+
+    * **No running event loop** (K8s pod, local non-Jupyter process): delegates
+      directly to ``asyncio.run()``, which creates a fresh event loop, drives the
+      coroutine to completion, and closes the loop.
+    * **Running event loop** (Jupyter / Tornado host): ``asyncio.run()`` cannot be
+      called from an already-running loop. Instead, the coroutine is submitted to a
+      ``ThreadPoolExecutor(max_workers=1)`` via ``asyncio.run()`` in that thread — a
+      new loop is created in the worker thread, isolated from the host loop. The
+      calling thread then blocks on ``.result()`` until the worker completes, giving
+      identical blocking-until-complete semantics as the no-running-loop path.
+
+      This is the same pattern used by Django's ``asgiref.sync.async_to_sync``.
+
+    :param coro: Coroutine object (the return value of calling an ``async def`` function).
+    :return:     The value returned by the coroutine.
+    """
+    try:
+        asyncio.get_running_loop()
+    except RuntimeError:
+        # No running loop — K8s pod or local non-Jupyter process.
+        return asyncio.run(coro)
+
+    # A loop is already running (e.g. Jupyter/Tornado).
+    # Run in a new thread so we can block until completion without nesting loops.
+    with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+        return pool.submit(asyncio.run, coro).result()
+
+
+def _resolve_handler_output(result: Any, handler_name: str) -> Any:
+    """
+    Resolve the return value of a job handler after invocation:
+
+    * **Coroutine** (``async def`` handler): run to completion via
+      :func:`_run_async_handler` and return its result.
+    * **Generator** (sync or async): raise :class:`mlrun.errors.MLRunRuntimeError`
+      — generators are not supported as handler return types.
+    * **Anything else**: return as-is (normal sync handler path).
+
+    :param result:       The raw return value of ``handler(**kwargs)``.
+    :param handler_name: Name of the handler function, used in the error message.
+    :return:             The resolved handler result.
+    """
+    if inspect.iscoroutine(result):
+        return _run_async_handler(result)
+    if inspect.isgenerator(result) or inspect.isasyncgen(result):
+        raise mlrun.errors.MLRunRuntimeError(
+            f"Handler '{handler_name}' returned a generator. "
+            "Sync and async generators are not supported as MLRun job handlers."
+        )
+    return result
 
 
 def is_explicit_ack_supported(context):

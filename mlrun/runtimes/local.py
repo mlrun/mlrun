@@ -42,6 +42,7 @@ from ..execution import MLClientCtx
 from ..model import RunObject
 from ..utils import get_handler_extended, get_in, logger, set_paths
 from ..utils.clones import extract_source
+from ..utils.helpers import _resolve_handler_output
 from .base import BaseRuntime
 from .kubejob import KubejobRuntime
 from .remotesparkjob import RemoteSparkRuntime
@@ -313,8 +314,17 @@ class LocalRuntime(BaseRuntime, ParallelRunner):
                 sout, serr = exec_from_params(fn, runobj, context)
                 # If trackers where used, this is where we log all data collected to MLRun
                 context = trackers_manager.post_run(context)
+                # silent=True so the error in serr does not raise RunError here —
+                # exec_from_params already set the error state on context; raising
+                # would bypass `return context.to_dict()` below.
                 log_std(
-                    self._db_conn, runobj, sout, serr, skip=self.is_child, show=False
+                    self._db_conn,
+                    runobj,
+                    sout,
+                    serr,
+                    skip=self.is_child,
+                    show=False,
+                    silent=True,
                 )
                 return context.to_dict()
 
@@ -514,7 +524,9 @@ def exec_from_params(handler, runobj: RunObject, context: MLClientCtx, cwd=None)
                         ),
                     )(handler)(**kwargs)
                 else:
-                    val = handler(**kwargs)
+                    # Call the handler and resolve its return value: awaits it if
+                    # async, raises if it returned a generator, or returns as-is.
+                    val = _resolve_handler_output(handler(**kwargs), handler.__name__)
                 context.set_state("completed", commit=False)
             except mlrun.errors.MLRunTaskCancelledError as exc:
                 logger.warning("Run was aborted", err=err_to_str(exc))

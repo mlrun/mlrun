@@ -35,22 +35,59 @@ When a type hint is available for an argument, MLRun automatically parses the Da
 
 Use `run_function` as a `project` methods. For example:
 
-    # run the "train" function in myproject
-    run_results = myproject.run_function("train", inputs={"data": data_url})  
-    
-   
-The first parameter in `run_function` is either the function name (in the project), or a function object if you want to 
-use functions that you imported/created or modify a function spec, for example:
-
-    run_results = project.run_function(fn, params={"label_column": "label"}, inputs={'data': data_url})
-
-```{admonition} Run/simulate functions locally: 
-Functions can also run and be debugged locally by using the `local` runtime or by setting the `local=True` 
-parameter in the {py:meth}`~mlrun.runtimes.BaseRuntime.run` method (for batch functions).
+```python
+# run the "train" function in myproject
+run_results = myproject.run_function("train", inputs={"data": data_url})
 ```
 
-MLRun also supports iterative jobs that can run and track multiple child jobs (for hyperparameter tasks, AutoML, etc.). 
+The first parameter in `run_function` is either the function name (in the project), or a function object if you want to
+use functions that you imported/created or modify a function spec, for example:
+
+```python
+run_results = project.run_function(
+    fn, params={"label_column": "label"}, inputs={"data": data_url}
+)
+```
+
+```{admonition} Run/simulate functions locally:
+Functions can also run and be debugged locally by using the `local` runtime or by setting the `local=True`
+parameter in the {py:meth}`~mlrun.runtimes.BaseRuntime.run` method (for batch functions).
+It is supported also in Jupyter notebooks.
+```
+
+MLRun also supports iterative jobs that can run and track multiple child jobs (for hyperparameter tasks, AutoML, etc.).
 See {ref}`hyper-params` for details and examples.
+
+### Async handlers
+
+MLRun supports `async def` handler functions. When a handler is defined as a coroutine, MLRun automatically detects this and runs it to completion before committing the run result. No code changes are required beyond adding the `async` keyword to the handler definition.
+
+```python
+import asyncio
+import mlrun
+
+
+async def fetch_data(context: mlrun.MLClientCtx) -> int:
+    context.logger.info("Async handler started")
+    await asyncio.sleep(1)  # simulate async I/O
+    result_value = 42
+    context.log_result("async_result", result_value)
+    return result_value
+```
+
+Run the function exactly as you would a sync handler:
+
+```python
+fn = project.set_function(
+    "handler.py", name="async-fetch-data", kind="job", image="mlrun/mlrun"
+)
+run = fn.run(watch=True)
+print(run.output("async_result"))  # 42
+```
+
+```{admonition} Generators are not supported as handlers
+Sync generators (`def handler()` with `yield`) and async generators (`async def handler()` with `yield`) are **not** supported as MLRun job handler return types. Returning a generator raises `MLRunRuntimeError` and sets the run state to `error`.
+```
 
 <a id="result"></a>
 ## Run result object and UI

@@ -66,9 +66,7 @@ class TestNuclioRuntime(TestMLRunSystemModelMonitoring):
         self._logger.debug("Deploying nuclio function")
         deployment = function.deploy()
 
-        assert (
-            urlparse(deployment).hostname == urlparse(function.get_url()).hostname
-        )  # check function url
+        assert urlparse(deployment).hostname == urlparse(function.get_url()).hostname
 
     def test_mlrun_project_accessibility(self):
         fn = mlrun.code_to_function(
@@ -117,9 +115,7 @@ class TestNuclioRuntime(TestMLRunSystemModelMonitoring):
         self._logger.debug("Deploying nuclio function")
         deployment = function.deploy()
 
-        assert (
-            urlparse(deployment).hostname == urlparse(function.get_url()).hostname
-        )  # check function url
+        assert urlparse(deployment).hostname == urlparse(function.get_url()).hostname
 
         resp = function.invoke("/", {"x": "y"})
         assert resp == {"x": "y", "extra": 123}
@@ -170,9 +166,7 @@ class TestNuclioRuntime(TestMLRunSystemModelMonitoring):
         self._logger.debug("Deploying nuclio function with model selector")
         deployment = function.deploy()
 
-        assert (
-            urlparse(deployment).hostname == urlparse(function.get_url()).hostname
-        )  # check function url
+        assert urlparse(deployment).hostname == urlparse(function.get_url()).hostname
 
         resp = function.invoke("/", {"x": "y", "models": ["my-model"]})
         assert resp == {"my-model": {"extra": 123, "x": "y"}}
@@ -200,9 +194,7 @@ class TestNuclioRuntime(TestMLRunSystemModelMonitoring):
         )
         graph.to(model_runner).respond()
         deployment = function.deploy()
-        assert (
-            urlparse(deployment).hostname == urlparse(function.get_url()).hostname
-        )  # check function url
+        assert urlparse(deployment).hostname == urlparse(function.get_url()).hostname
 
         resp = function.invoke("/", {"something_with_meaning": "life"})
         assert resp == {"something_with_meaning": "life"}
@@ -266,9 +258,7 @@ class TestNuclioRuntime(TestMLRunSystemModelMonitoring):
         self._logger.debug("Deploying nuclio function")
         deployment = function.deploy()
 
-        assert (
-            urlparse(deployment).hostname == urlparse(function.get_url()).hostname
-        )  # check function url
+        assert urlparse(deployment).hostname == urlparse(function.get_url()).hostname
 
         resp = function.invoke("/", {"something_with_meaning": "life"})
         assert resp["prompt"] == [
@@ -343,9 +333,7 @@ class TestNuclioRuntime(TestMLRunSystemModelMonitoring):
         self._logger.debug("Deploying nuclio function")
         deployment = function.deploy()
 
-        assert (
-            urlparse(deployment).hostname == urlparse(function.get_url()).hostname
-        )  # check function url
+        assert urlparse(deployment).hostname == urlparse(function.get_url()).hostname
 
         resp = function.invoke("/", {"something_with_meaning": "life"})
         assert resp["prompt"] == [
@@ -386,9 +374,7 @@ class TestNuclioRuntime(TestMLRunSystemModelMonitoring):
 
         assert len(self.project.list_model_endpoints().endpoints) == 1
 
-        assert (
-            urlparse(deployment).hostname == urlparse(function.get_url()).hostname
-        )  # check function url
+        assert urlparse(deployment).hostname == urlparse(function.get_url()).hostname
 
     @pytest.mark.parametrize("raise_exception", [True, False])
     def test_deploy_model_runner_error_handler(self, raise_exception: bool):
@@ -419,9 +405,7 @@ class TestNuclioRuntime(TestMLRunSystemModelMonitoring):
         self._logger.debug("Deploying nuclio function")
         deployment = function.deploy()
 
-        assert (
-            urlparse(deployment).hostname == urlparse(function.get_url()).hostname
-        )  # check function url
+        assert urlparse(deployment).hostname == urlparse(function.get_url()).hostname
         resp = function.invoke("/", {"x": "y"})
         assert (
             resp

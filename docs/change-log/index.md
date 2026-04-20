@@ -3,7 +3,7 @@
 
 The change log lists updates per version, open issues, limitations, and deprecations.
 - [v1.11.0](#v1110)
-- [v1.10.2](#v1102) | [v1.10.1](#v1101) | [v1.10.0](#v1100)
+- [v1.10.3](#v1103) | [v1.10.2](#v1102) | [v1.10.1](#v1101) | [v1.10.0](#v1100)
 - [v1.9.2](#v192) | [v1.9.1](#v191) | [v1.9.0](#v190)
 - [v1.8.0](#v180)
 - [v1.7.2](#v172-16-january-2025) | [v1.7.1](#v171-2-december-2024) | [v1.7.0](#v170-1-november-2024)
@@ -115,6 +115,13 @@ ML-11820|Improved the time to access the monitoring page (V3IO).|
 |ML-12372|Fixed workflows pagination.|
 
 
+
+(#v1103)=
+## v1.10.3
+### Closed issues
+| ID    |Description                                                                 |
+|-------|----------------------------------------------------------------------------|
+|ML-12379|Fixed workflows pagination|
 
 (v1102)=
 ## v1.10.2 (February 2025)

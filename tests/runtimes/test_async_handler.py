@@ -12,20 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Unit tests for async job handler support (ML-11839).
-
-Tests cover:
-- Async handler executes correctly and logs outputs
-- Sync handler is unaffected by the async changes
-- Exception inside an async handler sets run state to ``error``
-- Sync and async generator returns raise ``MLRunRuntimeError``
-- Async handler dispatched correctly when a loop is already running (Jupyter path)
-
-Launch-based tests are parametrized over both execution paths:
-``packagers_enabled=False`` → ``exec_from_params`` direct path,
-``packagers_enabled=True`` → ``mlrun_handler_decorator`` path.
-"""
-
 import asyncio
 import pathlib
 
@@ -33,13 +19,12 @@ import pytest
 
 import mlrun
 import mlrun.launcher.local
-import mlrun.runtimes.utils
 from mlrun.utils.helpers import _run_async_handler
 
 assets_path = pathlib.Path(__file__).parent / "assets"
 _HANDLER_FILE = str(assets_path / "async_handlers.py")
 
-_parametrize_packagers = pytest.mark.parametrize("packagers_enabled", [False, True])
+parametrize_packagers = pytest.mark.parametrize("packagers_enabled", [False, True])
 
 
 @pytest.fixture(autouse=True)
@@ -62,7 +47,7 @@ def _launch(handler_name: str, packagers_enabled: bool = False) -> mlrun.run.Run
     return launcher.launch(runtime)
 
 
-@_parametrize_packagers
+@parametrize_packagers
 def test_async_handler_completes(packagers_enabled: bool) -> None:
     """Async handler runs to completion and outputs are logged."""
     result = _launch("async_handler", packagers_enabled=packagers_enabled)
@@ -70,7 +55,7 @@ def test_async_handler_completes(packagers_enabled: bool) -> None:
     assert result.status.results.get("async_result") == 42
 
 
-@_parametrize_packagers
+@parametrize_packagers
 def test_sync_handler_unaffected(packagers_enabled: bool) -> None:
     """Sync handler regression: continues to work correctly after async changes."""
     result = _launch("sync_handler", packagers_enabled=packagers_enabled)
@@ -78,7 +63,7 @@ def test_sync_handler_unaffected(packagers_enabled: bool) -> None:
     assert result.status.results.get("sync_result") == 99
 
 
-@_parametrize_packagers
+@parametrize_packagers
 def test_async_handler_exception(packagers_enabled: bool, capsys) -> None:
     """Exception inside an async handler is captured and logged to stderr."""
     _launch("async_handler_with_error", packagers_enabled=packagers_enabled)
@@ -86,7 +71,7 @@ def test_async_handler_exception(packagers_enabled: bool, capsys) -> None:
     assert "async error from handler" in captured.out
 
 
-@_parametrize_packagers
+@parametrize_packagers
 @pytest.mark.parametrize(
     "handler_name", ["sync_generator_handler", "async_generator_handler"]
 )
@@ -97,7 +82,7 @@ def test_generator_raises(packagers_enabled: bool, handler_name: str, capsys) ->
     assert "generator" in captured.out.lower()
 
 
-@_parametrize_packagers
+@parametrize_packagers
 def test_async_handler_inside_running_loop(packagers_enabled: bool) -> None:
     """Full-stack Jupyter path: async handler completes when _launch is called from within a running event loop.
 

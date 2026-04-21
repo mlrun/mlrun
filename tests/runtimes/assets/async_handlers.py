@@ -16,8 +16,7 @@ import asyncio
 
 
 async def async_handler(context):
-    """Async handler: simulates I/O, logs a result, and returns a value."""
-    await asyncio.sleep(0)  # yield to event loop to prove cooperative scheduling works
+    await asyncio.sleep(0)
     result = 42
     context.log_result("async_result", result)
     return result

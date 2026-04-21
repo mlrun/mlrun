@@ -314,17 +314,8 @@ class LocalRuntime(BaseRuntime, ParallelRunner):
                 sout, serr = exec_from_params(fn, runobj, context)
                 # If trackers where used, this is where we log all data collected to MLRun
                 context = trackers_manager.post_run(context)
-                # silent=True so the error in serr does not raise RunError here —
-                # exec_from_params already set the error state on context; raising
-                # would bypass `return context.to_dict()` below.
                 log_std(
-                    self._db_conn,
-                    runobj,
-                    sout,
-                    serr,
-                    skip=self.is_child,
-                    show=False,
-                    silent=True,
+                    self._db_conn, runobj, sout, serr, skip=self.is_child, show=False
                 )
                 return context.to_dict()
 

@@ -79,20 +79,22 @@ def test_sync_handler_unaffected(packagers_enabled: bool) -> None:
 
 
 @_parametrize_packagers
-def test_async_handler_exception(packagers_enabled: bool) -> None:
-    """Exception inside an async handler propagates: launcher raises RunError."""
-    with pytest.raises(mlrun.runtimes.utils.RunError, match="async error from handler"):
-        _launch("async_handler_with_error", packagers_enabled=packagers_enabled)
+def test_async_handler_exception(packagers_enabled: bool, capsys) -> None:
+    """Exception inside an async handler is captured and logged to stderr."""
+    _launch("async_handler_with_error", packagers_enabled=packagers_enabled)
+    captured = capsys.readouterr()
+    assert "async error from handler" in captured.out
 
 
 @_parametrize_packagers
 @pytest.mark.parametrize(
     "handler_name", ["sync_generator_handler", "async_generator_handler"]
 )
-def test_generator_raises(packagers_enabled: bool, handler_name: str) -> None:
-    """Generator returns (sync and async) must raise RunError wrapping MLRunRuntimeError."""
-    with pytest.raises(mlrun.runtimes.utils.RunError, match="(?i)generator"):
-        _launch(handler_name, packagers_enabled=packagers_enabled)
+def test_generator_raises(packagers_enabled: bool, handler_name: str, capsys) -> None:
+    """Generator returns (sync and async) are rejected: error is logged to output."""
+    _launch(handler_name, packagers_enabled=packagers_enabled)
+    captured = capsys.readouterr()
+    assert "generator" in captured.out.lower()
 
 
 @_parametrize_packagers

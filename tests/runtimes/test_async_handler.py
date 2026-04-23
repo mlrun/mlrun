@@ -19,7 +19,7 @@ import pytest
 
 import mlrun
 import mlrun.launcher.local
-from mlrun.utils.helpers import _run_async_handler
+from mlrun.runtimes.local import _run_async_handler
 
 assets_path = pathlib.Path(__file__).parent / "assets"
 _HANDLER_FILE = str(assets_path / "async_handlers.py")

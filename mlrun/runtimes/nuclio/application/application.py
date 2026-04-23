@@ -1170,7 +1170,6 @@ class ApplicationRuntime(nuclio_function.RemoteRuntime):
             artifact = project.log_code_file(
                 key=artifact_key,
                 local_path=source,
-                language="python",
                 code_type="function",
                 artifact_path=mlrun.common.constants.MLRUN_INTERNAL_ARTIFACT_PATH,
                 upload=True,

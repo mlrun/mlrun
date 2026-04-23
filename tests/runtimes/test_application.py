@@ -1142,7 +1142,6 @@ def test_upload_source_as_artifact(tmp_path):
     mock_project.log_code_file.assert_called_once_with(
         key="application-test-source",
         local_path=str(source_file),
-        language="python",
         code_type="function",
         artifact_path=mlrun.common.constants.MLRUN_INTERNAL_ARTIFACT_PATH,
         upload=True,

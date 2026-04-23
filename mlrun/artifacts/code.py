@@ -16,22 +16,6 @@ import mlrun.common.types
 
 from .base import Artifact, ArtifactSpec
 
-_PYTHON_SUFFIXES = (".py", ".ipynb")
-
-
-def _derive_language_from_path(path: str | None) -> str | None:
-    """Derive a language value from a file path's suffix.
-
-    Returns ``"python"`` for ``.py``/``.ipynb``, ``""`` for archives and unknown
-    suffixes (caller knows there's a path but can't infer the language), and
-    ``None`` when no path is available (nothing to infer from).
-    """
-    if not path:
-        return None
-    if path.lower().endswith(_PYTHON_SUFFIXES):
-        return "python"
-    return ""
-
 
 class CodeArtifactCodeType(mlrun.common.types.StrEnum):
     function = "function"
@@ -146,3 +130,20 @@ class CodeArtifact(Artifact):
     @spec.setter
     def spec(self, spec):
         self._spec = self._verify_dict(spec, "spec", CodeArtifactSpec)
+
+
+_PYTHON_SUFFIXES = (".py", ".ipynb")
+
+
+def _derive_language_from_path(path: str | None) -> str | None:
+    """Derive a language value from a file path's suffix.
+
+    Returns ``"python"`` for ``.py``/``.ipynb``, ``""`` for archives and unknown
+    suffixes (caller knows there's a path but can't infer the language), and
+    ``None`` when no path is available (nothing to infer from).
+    """
+    if not path:
+        return None
+    if path.lower().endswith(_PYTHON_SUFFIXES):
+        return "python"
+    return ""

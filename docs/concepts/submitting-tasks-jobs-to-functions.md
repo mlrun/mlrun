@@ -81,7 +81,7 @@ Run the function exactly as you would a sync handler:
 fn = project.set_function(
     "handler.py", name="async-fetch-data", kind="job", image="mlrun/mlrun"
 )
-run = fn.run(watch=True)
+run = fn.run()
 print(run.output("async_result"))  # 42
 ```
 

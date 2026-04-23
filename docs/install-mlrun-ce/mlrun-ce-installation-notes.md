@@ -12,7 +12,7 @@ This page lists additional steps or configuration options you may need to follow
 
 ## Advanced chart configuration
 
-Configurable values are documented in the `values.yaml`, and the `values.yaml` of all sub charts. Override those [in the normal methods](https://helm.sh/docs/chart_template_guide/values_files/).
+Configurable values are documented in the `values.yaml`, and the `values.yaml` of all sub charts. Override those in the normal methods.
 
 See also the [MLRun CE values file reference](https://github.com/mlrun/ce/blob/development/charts/mlrun-ce/values.yaml)
 ## Opt out of components

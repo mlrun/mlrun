@@ -265,7 +265,7 @@ def test_kafka_consumer_group_is_per_function_with_profile_prefix(
     create_topics_mock: Mock,
     monitoring_deployment: mm_dep.MonitoringDeployment,
 ) -> None:
-    """ML-11979: Consumer group = f"{profile.group}_{topic}".
+    """Consumer group = f"{profile.group}_{topic}".
 
     Each MM function gets its own consumer group so a rebalance in one
     function (e.g. stream HPA scaling) does not pause the others. The

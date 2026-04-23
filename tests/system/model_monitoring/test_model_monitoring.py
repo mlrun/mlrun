@@ -2017,12 +2017,12 @@ class TestModelMonitoringKafka(TestMLRunSystemModelMonitoring):
 @TestMLRunSystemModelMonitoring.skip_test_if_env_not_configured
 @pytest.mark.enterprise
 class TestKafkaConsumerGroupMigration(TestMLRunSystemModelMonitoring):
-    """ML-11979: verify Kafka consumer-group offset migration on upgrade.
+    """Verify Kafka consumer-group offset migration on upgrade.
 
-    Simulates a pre-ML-11979 cluster (MM functions all sharing the
-    ``"serving"`` consumer group) by pre-creating the stream topic and
-    committing offsets under ``"serving"``, then enabling model monitoring
-    with the new code and checking:
+    Simulates a legacy cluster (MM functions all sharing the ``"serving"``
+    consumer group) by pre-creating the stream topic and committing
+    offsets under ``"serving"``, then enabling model monitoring with the
+    new code and checking:
 
     1. The per-function group (``serving_<topic>``) receives the legacy
        offsets verbatim.
@@ -2152,7 +2152,7 @@ class TestKafkaConsumerGroupMigration(TestMLRunSystemModelMonitoring):
         self._delete_groups_and_topic(topic, [self._LEGACY_GROUP, new_group])
 
         # 1. Seed the legacy state: topic exists with committed offsets
-        #    under the shared "serving" group (what pre-ML-11979 produced).
+        #    under the shared "serving" group (what the legacy code produced).
         self._create_topic(topic)
         seeded = self._commit_offsets(
             group=self._LEGACY_GROUP, topic=topic, offset=self._LEGACY_OFFSET

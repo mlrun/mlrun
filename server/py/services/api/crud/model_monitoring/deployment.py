@@ -81,7 +81,7 @@ BASE_PERIOD_LOOKUP_TABLE = {1: 1, 2: 2, 20: 3, 60: 5, 120: 10, float("inf"): 20}
 # Fallback for ``DatastoreProfileKafkaStream.group`` when the profile has
 # no group set (``None``). Matches the pydantic default on that field so
 # an explicit-None profile behaves the same as the default one, and so
-# the legacy migration source group (pre-ML-11979) is well-defined.
+# the legacy migration source group is well-defined.
 _LEGACY_KAFKA_GROUP = "serving"
 
 
@@ -96,8 +96,8 @@ def _kafka_base_group(
 def _mm_kafka_consumer_group(base_group: str, topic: str) -> str:
     """Derive the per-function Kafka consumer group for model monitoring.
 
-    ML-11979: each MM function (stream/writer/controller/apps) must be in its
-    own consumer group so that a rebalance in one function (e.g. when the
+    Each MM function (stream/writer/controller/apps) must be in its own
+    consumer group so that a rebalance in one function (e.g. when the
     stream HPA scales) does not pause the others. The base group is taken
     from the user-supplied ``DatastoreProfileKafkaStream.group`` so that
     custom configurations (e.g. ``"prod"``) are preserved as a namespace
@@ -468,10 +468,10 @@ class MonitoringDeployment:
         topic = mlrun.common.model_monitoring.helpers.get_kafka_topic(
             project=self.project, function_name=function_name
         )
-        # ML-11979: per-function consumer group to isolate rebalances
-        # between MM functions (stream/writer/controller/apps). The
-        # base group is taken from the user's profile and the topic is
-        # appended to scope the group per project+function.
+        # Per-function consumer group to isolate rebalances between MM
+        # functions (stream/writer/controller/apps). The base group is
+        # taken from the user's profile and the topic is appended to
+        # scope the group per project+function.
         base_group = _kafka_base_group(kafka_profile)
         consumer_group = _mm_kafka_consumer_group(base_group, topic)
         profile_attributes = kafka_profile.attributes()
@@ -508,15 +508,15 @@ class MonitoringDeployment:
                 topic=topic,
                 error_message=mlrun.errors.err_to_str(exc),
             )
-            # ML-11979: when upgrading from the pre-PR shared consumer group
-            # (e.g. "serving"), copy committed offsets into the per-function
+            # When upgrading from the legacy shared consumer group (e.g.
+            # "serving"), copy committed offsets into the per-function
             # group so the consumer resumes where it left off instead of
-            # replaying from `initial_offset`. The helper self-detects whether
-            # migration is needed (new group has offsets → no-op; old group
-            # has no offsets for this topic → nothing to migrate), so no
-            # operator flag is required.
-            # TODO: Remove in 1.14.0 — one-time upgrade path from pre-ML-11979
-            # shared consumer group. See DEPRECATION.md.
+            # replaying from `initial_offset`. The helper self-detects
+            # whether migration is needed (new group has offsets → no-op;
+            # old group has no offsets for this topic → nothing to
+            # migrate), so no operator flag is required.
+            # TODO: Remove in 1.14.0 — one-time upgrade path from the
+            # legacy shared consumer group. See DEPRECATION.md.
             self._migrate_kafka_consumer_group_offsets(
                 kafka_profile=kafka_profile,
                 old_group=base_group,
@@ -536,7 +536,7 @@ class MonitoringDeployment:
         function.spec.max_replicas = stream_args.kafka.max_replicas
         self._set_scaling_metric_specs(function, stream_args.kafka)
 
-    # TODO: Remove in 1.14.0 — one-time upgrade path from pre-ML-11979
+    # TODO: Remove in 1.14.0 — one-time upgrade path from the legacy
     # shared consumer group to per-function groups. See DEPRECATION.md.
     def _migrate_kafka_consumer_group_offsets(
         self,

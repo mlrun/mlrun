@@ -40,7 +40,7 @@ on:
   workflow_dispatch:
     inputs:
       docker_registry:
-        description: 'Docker registry to pull images from (default: ghcr.io/, use registry.hub.docker.com/ for docker hub)'
+        description: 'Docker registry to pull images from (e.g ghcr.io/, or registry.hub.docker.com/ for docker hub).'
         required: true
         default: 'ghcr.io/'
       clean_resources_in_teardown:
@@ -208,8 +208,8 @@ jobs:
           -o StrictHostKeyChecking=no system-tests-branches-list.txt \
           ${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_SSH_USERNAME }}@${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_IP }}:/tmp/
 
-      # checking out to base branch and not the target(resolved) branch, to be able to run the changed preparation code
-      # before merging the changes to upstream.
+    # checking out to base branch and not the target(resolved) branch, to be able to run the changed preparation code
+    # before merging the changes to upstream.
     - name: Checkout base branch
       uses: actions/checkout@v6
 
@@ -261,13 +261,14 @@ jobs:
         echo "mlrun_docker_tag=$(echo ${{ steps.git_upstream_info.outputs.unstable_version_prefix }}-$mlrun_hash)" >> $GITHUB_OUTPUT
         echo "mlrun_ui_version=${{ steps.git_upstream_info.outputs.unstable_version_prefix }}-$ui_hash" >> $GITHUB_OUTPUT
         echo "mlrun_docker_registry=$( \
-          input_docker_registry=$INPUT_DOCKER_REGISTRY && \
-          echo ${input_docker_registry:-ghcr.io/})" >> $GITHUB_OUTPUT
+          effective_docker_registry="${INPUT_DOCKER_REGISTRY:-$SECRET_DOCKER_REGISTRY}" && \
+          echo "${effective_docker_registry:-ghcr.io/}")" >> $GITHUB_OUTPUT
         echo "mlrun_system_tests_clean_resources=$( \
           input_system_tests_clean_resources=$INPUT_CLEAN_RESOURCES_IN_TEARDOWN && \
           echo ${input_system_tests_clean_resources:-true})" >> $GITHUB_OUTPUT
         echo "override_iguazio_version=$INPUT_OVERRIDE_IGUAZIO_VERSION" >> $GITHUB_OUTPUT
       env:
+        SECRET_DOCKER_REGISTRY: ${{ secrets.SYSTEM_TESTS_ENTERPRISE_DOCKER_REGISTRY }}
         INPUT_DOCKER_REGISTRY: ${{ github.event.inputs.docker_registry }}
         INPUT_OVERRIDE_IGUAZIO_VERSION: ${{ github.event.inputs.override_iguazio_version }}
         INPUT_CLEAN_RESOURCES_IN_TEARDOWN: ${{ github.event.inputs.clean_resources_in_teardown }}
@@ -275,7 +276,8 @@ jobs:
     - name: Prepare System Test Environment and Install MLRun
       env:
         IP_ADDR_PREFIX: ${{ secrets.IP_ADDR_PREFIX }}
-        # AWS credentials are automatically available from configure-aws-credentials action
+
+      # AWS credentials are automatically available from configure-aws-credentials action
       timeout-minutes: 50
       run: |
         . venv/bin/activate

@@ -62,3 +62,4 @@ class _APIEndpointKeys(StrEnum):
 
     ACTION = "action"
     DESCRIPTION = "description"
+    BODY_MAPPINGS = "body_mappings"

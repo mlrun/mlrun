@@ -55,6 +55,93 @@ from mlrun.utils import get_caller_globals, logger, merge_requirements, set_path
 
 serving_subkind = "serving_v2"
 
+_GLOBAL_BODY_MAPPINGS_KEY = "*"
+
+
+class BodyMappings(mlrun.model.ModelObj):
+    """Directional parameter mappings for a single phase — input (REST → graph) or output (graph → REST).
+
+    The direction is determined by which parameter of ``add_endpoint_handler`` the instance
+    is passed to (``body_mappings`` for input, ``return_body_mapping`` for output), not by
+    the class itself.
+
+    Usage::
+
+        # Input: extract fields from the incoming REST request body
+        input_bm = BodyMappings()
+        input_bm.add_mapping("$.model", destination_path="model", mandatory=True)
+        input_bm.add_mapping("$.messages", destination_path="messages", mandatory=True)
+        input_bm.add_mapping("$.temperature", destination_path="temperature")
+
+        # Output: reshape the graph response before returning to the caller
+        output_bm = BodyMappings()
+        output_bm.add_mapping("message.content", destination_path="content", mandatory=True)
+        output_bm.add_mapping("finish_reason", destination_path="finish_reason")
+
+        config = APIHandlerConfig()
+        config.add_endpoint_handler(
+            "/v1/chat/completions",
+            HTTPMethod.POST,
+            body_mappings=input_bm,
+            return_body_mapping=output_bm,
+        )
+    """
+
+    _dict_fields = ["mappings"]
+
+    def __init__(self) -> None:
+        self.mappings: list[dict] = []
+
+    def add_mapping(
+        self,
+        source_json_path: str,
+        destination_path: str | None = None,
+        mandatory: bool = False,
+    ) -> None:
+        """Add a single field mapping.
+
+        :param source_json_path: JSONPath expression to extract the value from the source.
+                                 For input — extracts from the REST request body (e.g. ``"$.model"``).
+                                 For output — extracts from the graph response (e.g. ``"message.content"``).
+        :param destination_path: Where to place the extracted value.
+                                 For input — the parameter name passed into the graph.
+                                 For output — the field name in the REST response returned to the caller.
+                                 If ``None``, the field is validated for existence only and not passed anywhere.
+        :param mandatory: If ``True``, a missing field raises an error at request time.
+                          If ``False``, the field is silently ignored when absent.
+        :raises mlrun.errors.MLRunInvalidArgumentError: If mixing destination-bearing and
+            destination-less mappings on the same instance (config-time validation).
+        """
+        if not source_json_path:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "source_json_path must be a non-empty string"
+            )
+
+        # Validate: mixed destination_path mode is not allowed.
+        # All mappings must either all have destination_path or all omit it.
+        if self.mappings:
+            existing_has_dest = self.mappings[0].get("destination_path") is not None
+            new_has_dest = destination_path is not None
+            if existing_has_dest != new_has_dest:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    f"Mixed destination_path mode is not allowed on a single BodyMappings instance. "
+                    f"Existing mappings {'have' if existing_has_dest else 'do not have'} "
+                    f"destination_path, but the new mapping for source '{source_json_path}' "
+                    f"{'has' if new_has_dest else 'does not have'} destination_path. "
+                    f"Either all mappings must have destination_path or none of them."
+                )
+
+        self.mappings.append(
+            {
+                "source_json_path": source_json_path,
+                "destination_path": destination_path,
+                "mandatory": mandatory,
+            }
+        )
+
+    def __repr__(self) -> str:
+        return f"BodyMappings(mappings={self.mappings!r})"
+
 
 class APIHandlerConfig(mlrun.model.ModelObj):
     """Configuration for API handler in serving graph"""
@@ -70,8 +157,15 @@ class APIHandlerConfig(mlrun.model.ModelObj):
     ):
         self.enabled = enabled
         self._endpoints = endpoints or {}
-        self._body_map = body_map or {}
+        # _body_map holds BodyMappings keyed by endpoint_key ("METHOD:path",
+        # e.g. "POST:/v1/chat/completions"). The special key "*" holds the global
+        # input BodyMappings that applies to all endpoints.
+        self._body_map: dict[str, BodyMappings] = {}
         self.include_url_info = include_url_info
+        # Accept legacy dict[str, str] body_map passed via __init__ (e.g. from_dict round-trip)
+        if body_map:
+            for parameter_name, json_path in body_map.items():
+                self.add_body_mapping(parameter_name, json_path)
 
     @property
     def body_map(self) -> dict[str, str]:

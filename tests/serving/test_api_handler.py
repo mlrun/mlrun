@@ -26,7 +26,7 @@ import pytest
 import mlrun
 import mlrun.errors
 from mlrun.common.schemas.serving import APIHandlerAction, _APIEndpointKeys
-from mlrun.runtimes.nuclio.serving import APIHandlerConfig, ServingRuntime
+from mlrun.runtimes.nuclio.serving import APIHandlerConfig, BodyMappings, ServingRuntime
 from mlrun.serving import GraphContext
 from mlrun.serving.api_handler import _APIHandlerStep
 from mlrun.serving.server import (
@@ -59,6 +59,46 @@ class EchoStep:
         else:
             body = event
         return f"{self.prefix}{body}" if self.prefix else body
+
+
+class TestBodyMappings:
+    """Tests for BodyMappings class"""
+
+    def test_mixed_destination_path_raises(self) -> None:
+        """Test that mixing destination-bearing and destination-less mappings raises an error"""
+        bm = BodyMappings()
+        bm.add_mapping("$.model", destination_path="model")
+        with pytest.raises(
+            mlrun.errors.MLRunInvalidArgumentError,
+            match="Mixed destination_path mode is not allowed",
+        ):
+            bm.add_mapping("$.messages")  # no destination_path — mixed mode
+
+    def test_empty_source_json_path_raises(self) -> None:
+        """Test that empty source_json_path raises an error"""
+        bm = BodyMappings()
+        with pytest.raises(
+            mlrun.errors.MLRunInvalidArgumentError,
+            match="source_json_path must be a non-empty string",
+        ):
+            bm.add_mapping("")
+
+    def test_serialization_roundtrip(self) -> None:
+        """Test that BodyMappings serializes and deserializes correctly"""
+        bm = BodyMappings()
+        bm.add_mapping("$.model", destination_path="model", mandatory=True)
+        bm.add_mapping("$.messages", destination_path="messages", mandatory=False)
+
+        d = bm.to_dict()
+        assert d == {
+            "mappings": [
+                {"source_json_path": "$.model", "destination_path": "model", "mandatory": True},
+                {"source_json_path": "$.messages", "destination_path": "messages", "mandatory": False},
+            ]
+        }
+
+        bm2 = BodyMappings.from_dict(d)
+        assert bm2.mappings == bm.mappings
 
 
 class TestRequestContext:

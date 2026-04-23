@@ -1121,6 +1121,9 @@ class RunDBInterface(ABC):
     ) -> None:
         pass
 
+    def get_model_monitoring_url(self, project: str) -> str | None:
+        pass
+
     @abstractmethod
     def get_monitoring_function_summaries(
         self,

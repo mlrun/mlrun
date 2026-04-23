@@ -4067,6 +4067,89 @@ class MlrunProject(ModelObj):
                 "`project.disable_model_monitoring()` and then enable it using `project.enable_model_monitoring()`."
             )
 
+    def get_model_monitoring_url(self) -> str | None:
+        """
+        Get the HTTP URL of the model monitoring stream pod for this project.
+
+        :return: HTTP URL of the model monitoring stream pod, or None if no HTTP trigger is configured.
+        :raises mlrun.errors.MLRunNotFoundError: if the stream function is not deployed.
+        :raises mlrun.errors.MLRunPreconditionFailedError: if the stream function is not in ready state.
+        """
+        db = mlrun.db.get_run_db(secrets=self._secrets)
+        return db.get_model_monitoring_url(project=self.name)
+
+    def create_user_model_endpoint(
+        self,
+        name: str,
+        input_schema: list[str] | None = None,
+        output_schema: list[str] | None = None,
+        function_name: str | None = None,
+        function_tag: str | None = None,
+        creation_strategy: mm_constants.ModelEndpointCreationStrategy
+        | None = mm_constants.ModelEndpointCreationStrategy.INPLACE,
+        **kwargs,
+    ) -> mlrun.common.schemas.ModelEndpoint:
+        """
+        Create a user-defined model endpoint (``EndpointType.USER_EP``) for this project.
+
+        Use this when you have a model deployed outside of MLRun and want to register it
+        for monitoring purposes.
+
+        :param name:               Name of the model endpoint.
+        :param input_schema:       List of input feature names (maps to ``feature_names``).
+        :param output_schema:      List of output / label names (maps to ``label_names``).
+        :param function_name:      Name of an associated MLRun function (optional).
+        :param function_tag:       Tag of the associated function (optional).
+        :param creation_strategy: Strategy for creating or updating the model endpoint:
+            * **overwrite**:
+            1. If model endpoints with the same name exist, delete the `latest` one.
+            2. Create a new model endpoint entry and set it as `latest`.
+            * **inplace** (default):
+            1. If model endpoints with the same name exist, update the `latest` entry.
+            2. Otherwise, create a new entry.
+            * **archive**:
+            1. If model endpoints with the same name exist, preserve them.
+            2. Create a new model endpoint with the same name and set it to `latest`.
+        :param kwargs:             Advanced: additional ``ModelEndpointSpec`` or ``ModelEndpointMetadata``
+                                   field overrides (e.g. ``labels``, ``model_tags``).
+        :return: The created :py:class:`~mlrun.common.schemas.ModelEndpoint` object.
+        """
+        # Separate kwargs into metadata vs spec fields
+        metadata_field_names = set(
+            mlrun.common.schemas.ModelEndpointMetadata.__fields__
+        )
+        spec_fields = {}
+        metadata_fields = {}
+        for key, value in kwargs.items():
+            if key in metadata_field_names:
+                metadata_fields[key] = value
+            else:
+                spec_fields[key] = value
+
+        if function_name is not None:
+            spec_fields["function_name"] = function_name
+        if function_tag is not None:
+            spec_fields["function_tag"] = function_tag
+        if input_schema is not None:
+            spec_fields["feature_names"] = input_schema
+        if output_schema is not None:
+            spec_fields["label_names"] = output_schema
+
+        model_endpoint = mlrun.common.schemas.ModelEndpoint(
+            metadata=mlrun.common.schemas.ModelEndpointMetadata(
+                name=name,
+                project=self.name,
+                endpoint_type=mm_constants.EndpointType.USER_EP,
+                **metadata_fields,
+            ),
+            spec=mlrun.common.schemas.ModelEndpointSpec(**spec_fields),
+            status=mlrun.common.schemas.ModelEndpointStatus(),
+        )
+        db = mlrun.db.get_run_db(secrets=self._secrets)
+        return db.create_model_endpoint(
+            model_endpoint=model_endpoint, creation_strategy=creation_strategy
+        )
+
     def list_model_endpoints(
         self,
         names: Union[str, list[str]] | None = None,

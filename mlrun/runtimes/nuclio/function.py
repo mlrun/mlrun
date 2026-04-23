@@ -40,6 +40,7 @@ import mlrun.runtime_configuration_context
 import mlrun.utils
 import mlrun.utils.helpers
 from mlrun.common.schemas import AuthInfo, BatchingSpec
+from mlrun.common.schemas.model_monitoring import ModelEndpointInstruction
 from mlrun.config import config as mlconf
 from mlrun.errors import err_to_str
 from mlrun.lists import RunList
@@ -126,6 +127,8 @@ class NuclioSpec(KubeResourceSpec):
         "disable_default_http_trigger",
         "custom_scaling_metric_specs",
         "auth",
+        "model_endpoint_instructions",
+        "setup_monitoring",
     ]
 
     def __init__(
@@ -176,6 +179,8 @@ class NuclioSpec(KubeResourceSpec):
         track_models=None,
         auth=None,
         env_from=None,
+        model_endpoint_instructions=None,
+        setup_monitoring=False,
     ):
         super().__init__(
             command=command,
@@ -231,10 +236,31 @@ class NuclioSpec(KubeResourceSpec):
 
         self.disable_default_http_trigger = disable_default_http_trigger
         self.custom_scaling_metric_specs = custom_scaling_metric_specs or []
+        self.model_endpoint_instructions = model_endpoint_instructions or []
+        self.setup_monitoring = setup_monitoring
 
         # When True it will set Nuclio spec.noBaseImagesPull to False (negative logic)
         # indicate that the base image should be pulled from the container registry (not cached)
         self.base_image_pull = False
+
+    @property
+    def model_endpoint_instructions(self) -> list:
+        return self._model_endpoint_instructions
+
+    @model_endpoint_instructions.setter
+    def model_endpoint_instructions(
+        self,
+        model_endpoints_instructions: list[
+            typing.Union[ModelEndpointInstruction, dict]
+        ],
+    ):
+
+        self._model_endpoint_instructions = [
+            ModelEndpointInstruction.from_dict(instruction)
+            if isinstance(instruction, dict)
+            else instruction
+            for instruction in (model_endpoints_instructions or [])
+        ]
 
     def generate_nuclio_volumes(self):
         nuclio_volumes = []
@@ -334,6 +360,33 @@ class RemoteRuntime(KubeResource):
 
     def set_config(self, key, value):
         self.spec.config[key] = value
+        return self
+
+    def setup_model_monitoring(
+        self,
+        model_endpoint_instructions: typing.Union[
+            list[mlrun.common.schemas.model_monitoring.ModelEndpointInstruction],
+            list[dict],
+        ],
+    ) -> "RemoteRuntime":
+        """
+        Configure model endpoints to be created at deployment time.
+
+        Each instruction describes a ``USER_EP`` model endpoint that will be registered
+        when this function is deployed. Calling this method sets the ``setup_monitoring``
+        flag on the spec so the deployment stage knows to create the endpoints.
+
+        :param model_endpoint_instructions: List of
+            :py:class:`~mlrun.common.schemas.model_monitoring.ModelEndpointInstruction`
+            objects or equivalent dicts, one per model endpoint to register.
+        :return: The runtime object (``self``), for method chaining.
+        """
+        self.spec.model_endpoint_instructions = (
+            model_endpoint_instructions
+            if isinstance(model_endpoint_instructions, list)
+            else [model_endpoint_instructions]
+        )
+        self.spec.setup_monitoring = True
         return self
 
     def with_annotations(self, annotations: dict):

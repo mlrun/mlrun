@@ -326,10 +326,11 @@ class EndpointType(IntEnum):
     ROUTER = 2  # endpoint that is router
     LEAF_EP = 3  # end point that is a child of a router
     BATCH_EP = 4  # endpoint that is representing an offline batch endpoint
+    USER_EP = 5  # user-defined endpoint, not backed by a deployed function
 
     @classmethod
     def top_level_list(cls):
-        return [cls.NODE_EP, cls.ROUTER, cls.BATCH_EP]
+        return [cls.NODE_EP, cls.ROUTER, cls.BATCH_EP, cls.USER_EP]
 
 
 class EndpointMode(IntEnum):

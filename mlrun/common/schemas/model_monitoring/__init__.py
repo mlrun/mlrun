@@ -62,6 +62,7 @@ from .model_endpoints import (
     FeatureValues,
     ModelEndpoint,
     ModelEndpointDriftValues,
+    ModelEndpointInstruction,
     ModelEndpointList,
     ModelEndpointMetadata,
     ModelEndpointMonitoringMetric,

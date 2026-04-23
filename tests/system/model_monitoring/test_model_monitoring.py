@@ -2737,3 +2737,41 @@ class TestLLModelWithMonitoring(TestMLRunSystemModelMonitoring):
         for mep in meps.endpoints:
             # make sure stream processing worked and last_request is set
             assert mep.status.last_request is not None
+
+
+class TestModelMonitoringStreamHTTP(TestMLRunSystemModelMonitoring):
+    """Verify the HTTP trigger on the stream pod is reachable after enable_model_monitoring."""
+
+    project_name = "pr-mm-stream-http"
+    image: str | None = None
+
+    @pytest.mark.timeout(300)
+    def test_stream_http_trigger(self) -> None:
+        """
+        1. Enable model monitoring (deploys the stream pod with HTTP trigger).
+        2. Retrieve the stream URL via get_model_monitoring_url().
+        3. Send a minimal POST to the URL and verify a non-5xx response is returned
+           (the stream pod may return 400 for an unparseable payload, which is fine —
+           it proves the HTTP trigger is live).
+        """
+        import requests
+
+        self.set_mm_credentials()
+        self.project.enable_model_monitoring(
+            deploy_histogram_data_drift_app=False,
+            **({} if self.image is None else {"image": self.image}),
+        )
+
+        url = self.project.get_model_monitoring_url()
+        assert url is not None, (
+            "get_model_monitoring_url() returned None — the HTTP trigger was not added "
+            "to the stream function or the URL could not be resolved."
+        )
+        assert url.startswith("http"), f"Expected an HTTP URL, got: {url!r}"
+
+        # Send a minimal POST — we expect any non-5xx response (400 is acceptable,
+        # meaning the pod received the request but rejected the payload).
+        resp = requests.post(url, json={}, timeout=30)
+        assert resp.status_code < 500, (
+            f"Stream pod returned a server error {resp.status_code}: {resp.text}"
+        )

@@ -117,3 +117,83 @@ class TestUpdateControllerAuthToken:
         deployment = commons.get_monitoring_deployment()
 
         assert deployment._auth_token_name == self.TOKEN_NAME
+
+
+class TestGetModelMonitoringURL:
+    """Tests for the GET /projects/{project}/model-monitoring/model-monitoring-url endpoint."""
+
+    _PROJECT = "test-mm-url"
+    _URL_PATH = f"projects/{_PROJECT}/model-monitoring/model-monitoring-url"
+
+    @pytest.fixture(autouse=True)
+    def _bypass_auth(self):
+        with patch("framework.api.deps.authenticate_request"):
+            with patch(
+                "framework.utils.auth.verifier.AuthVerifier.query_project_permissions"
+            ):
+                yield
+
+    @pytest.fixture
+    def mock_get_function(self):
+        with patch("services.api.crud.Functions.get_function") as mock:
+            yield mock
+
+    def test_function_not_found_returns_404(self, client, mock_get_function):
+        mock_get_function.return_value = None
+        resp = client.get(self._URL_PATH)
+        assert resp.status_code == HTTPStatus.NOT_FOUND, resp.text
+
+    def test_function_not_ready_returns_412(self, client, mock_get_function):
+        mock_get_function.return_value = {"status": {"state": "deploying"}}
+        resp = client.get(self._URL_PATH)
+        assert resp.status_code == HTTPStatus.PRECONDITION_FAILED, resp.text
+
+    def test_returns_external_url(self, client, mock_get_function):
+        mock_get_function.return_value = {
+            "status": {
+                "state": "ready",
+                "external_invocation_urls": ["host:8080/path"],
+                "internal_invocation_urls": ["internal:8080"],
+            }
+        }
+        resp = client.get(self._URL_PATH)
+        assert resp.status_code == HTTPStatus.OK, resp.text
+        assert resp.json() == "http://host:8080/path"
+
+    def test_falls_back_to_internal_url(self, client, mock_get_function):
+        mock_get_function.return_value = {
+            "status": {
+                "state": "ready",
+                "external_invocation_urls": [],
+                "internal_invocation_urls": ["internal:8080"],
+            }
+        }
+        resp = client.get(self._URL_PATH)
+        assert resp.status_code == HTTPStatus.OK, resp.text
+        assert resp.json() == "http://internal:8080"
+
+    def test_falls_back_to_address(self, client, mock_get_function):
+        mock_get_function.return_value = {
+            "status": {
+                "state": "ready",
+                "external_invocation_urls": [],
+                "internal_invocation_urls": [],
+                "address": "addr:9090",
+            }
+        }
+        resp = client.get(self._URL_PATH)
+        assert resp.status_code == HTTPStatus.OK, resp.text
+        assert resp.json() == "http://addr:9090"
+
+    def test_returns_none_when_no_url(self, client, mock_get_function):
+        mock_get_function.return_value = {
+            "status": {
+                "state": "ready",
+                "external_invocation_urls": [],
+                "internal_invocation_urls": [],
+                "address": "",
+            }
+        }
+        resp = client.get(self._URL_PATH)
+        assert resp.status_code == HTTPStatus.OK, resp.text
+        assert resp.json() is None

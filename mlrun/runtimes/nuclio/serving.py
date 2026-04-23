@@ -570,6 +570,12 @@ class ServingRuntime(nuclio_function.RemoteRuntime):
             )
         return self.spec.graph
 
+    def setup_model_monitoring(self, model_endpoint_instructions, **kwargs):
+        raise NotImplementedError(
+            "setup_model_monitoring is not supported for serving functions. "
+            "Use set_tracking() to enable model monitoring for serving."
+        )
+
     def set_tracking(
         self,
         stream_path: str | None = None,

@@ -57,6 +57,7 @@ from mlrun.model_monitoring.db._schedules import (
 )
 from mlrun.model_monitoring.writer import ModelMonitoringWriter, WriterGraphFactory
 from mlrun.platforms.iguazio import split_path
+from mlrun.runtimes.nuclio.function import AsyncSpec
 from mlrun.utils import logger
 
 import framework.api.utils
@@ -661,6 +662,11 @@ class MonitoringDeployment:
             stream_args=config.model_endpoint_monitoring.serving_stream,
             ignore_stream_already_exists_failure=True,
         )
+
+        # Add an explicit HTTP trigger so the stream pod is reachable via HTTP.
+        # async mode: stream processing is I/O bound and benefits from async + many connections.
+        # apply_and_create_stream_trigger disables the default trigger, so we add one explicitly.
+        function.with_http(async_spec=AsyncSpec(enabled=True))
 
         # Apply feature store run configurations on the serving function
         run_config = fstore.RunConfig(function=function, local=False)

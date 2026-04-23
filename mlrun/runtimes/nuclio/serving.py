@@ -158,8 +158,7 @@ class APIHandlerConfig(mlrun.model.ModelObj):
         self.enabled = enabled
         self._endpoints = endpoints or {}
         # _body_map holds BodyMappings keyed by endpoint_key ("METHOD:path",
-        # e.g. "POST:/v1/chat/completions"). The special key "*" holds the global
-        # input BodyMappings that applies to all endpoints.
+        # e.g. "POST:/v1/chat/completions"). Populated via add_endpoint_handler(body_mappings=...).
         self._body_map: dict[str, BodyMappings] = {}
         self.include_url_info = include_url_info
         # Accept legacy dict[str, str] body_map passed via __init__ (e.g. from_dict round-trip)
@@ -167,18 +166,18 @@ class APIHandlerConfig(mlrun.model.ModelObj):
             for parameter_name, json_path in body_map.items():
                 self.add_body_mapping(parameter_name, json_path)
 
-    @property
-    def body_map(self) -> dict[str, str]:
-        """Get the body_map configuration as a dictionary."""
-        return self._body_map
-
-    @body_map.setter
-    def body_map(self, value: dict[str, str] | None) -> None:
-        """Set the body_map configuration from a dictionary."""
-        self._body_map = {}
-        if value:
-            for parameter_name, json_path in value.items():
-                self.add_body_mapping(parameter_name, json_path)
+    # @property
+    # def body_map(self) -> dict[str, str]:
+    #     """Get the body_map configuration as a dictionary."""
+    #     return self._body_map
+    #
+    # @body_map.setter
+    # def body_map(self, value: dict[str, str] | None) -> None:
+    #     """Set the body_map configuration from a dictionary."""
+    #     self._body_map = {}
+    #     if value:
+    #         for parameter_name, json_path in value.items():
+    #             self.add_body_mapping(parameter_name, json_path)
 
     @property
     def endpoints(self) -> dict[str, dict]:
@@ -191,6 +190,8 @@ class APIHandlerConfig(mlrun.model.ModelObj):
         self._endpoints = {}
         for endpoint_key, config in endpoints.items():
             method, path = self._parse_endpoint_key(endpoint_key)
+            bm_raw = config.get(_APIEndpointKeys.BODY_MAPPINGS)
+            body_mappings = BodyMappings.from_dict(bm_raw) if bm_raw else None
             self.add_endpoint_handler(
                 path=path,
                 http_method=method,
@@ -198,6 +199,7 @@ class APIHandlerConfig(mlrun.model.ModelObj):
                     config.get(_APIEndpointKeys.ACTION)
                 ),
                 description=config.get(_APIEndpointKeys.DESCRIPTION),
+                body_mappings=body_mappings,
             )
 
     def _parse_endpoint_key(self, endpoint_key: str) -> tuple[HTTPMethod, str]:
@@ -284,6 +286,7 @@ class APIHandlerConfig(mlrun.model.ModelObj):
         http_method: HTTPMethod | str = HTTPMethod.POST,
         action: schemas.serving.APIHandlerAction = schemas.serving.APIHandlerAction.ALLOW,
         description: str | None = None,
+        body_mappings: "BodyMappings | None" = None,
     ) -> None:
         """Add an endpoint handler configuration.
 
@@ -291,6 +294,9 @@ class APIHandlerConfig(mlrun.model.ModelObj):
         :param http_method: HTTP method for the endpoint (``HTTPMethod`` enum or string like ``"GET"``, ``"POST"``)
         :param action: Action to take for this endpoint (:py:class:`~mlrun.common.schemas.serving.APIHandlerAction`)
         :param description: Optional description of the endpoint
+        :param body_mappings: Optional per-endpoint input :class:`BodyMappings` (REST → graph).
+            Takes precedence over global body mappings for the same field.
+            If ``None``, only global body mappings apply (existing behavior).
         :raises mlrun.errors.MLRunValueError: If the path contains an invalid wildcard ``*`` pattern
         """
         http_method = self._validate_http_method(http_method)
@@ -313,6 +319,9 @@ class APIHandlerConfig(mlrun.model.ModelObj):
             _APIEndpointKeys.DESCRIPTION: description,
         }
 
+        if body_mappings is not None:
+            self._body_map[endpoint_key] = body_mappings
+
     def remove_endpoint_handler(
         self,
         path: str,
@@ -328,54 +337,55 @@ class APIHandlerConfig(mlrun.model.ModelObj):
         path = self._normalize_path(path)
         endpoint_key = serving_utils._combine_serving_endpoint_key(http_method, path)
         self._endpoints.pop(endpoint_key, None)
+        self._body_map.pop(endpoint_key, None)
 
-    def add_body_mapping(self, parameter_name: str, json_path: str) -> None:
-        """Add a JSONPath body mapping for extracting request parameters.
-
-        Maps a JSONPath expression to a parameter name. When a request is received,
-        the JSONPath will be evaluated against the request body and the result
-        will be passed as a named parameter to the handler function.
-
-        :param parameter_name: Name of the parameter to pass to the handler
-        :param json_path: JSONPath expression to extract the value from request body
-                         (e.g., ``'$.user.name'`` or ``'$.items[*].id'``)
-        :raises mlrun.errors.MLRunValueError: If json_path is not a valid JSONPath expression
-
-        Example::
-
-            config = APIHandlerConfig()
-            config.add_body_mapping("user_name", "$.user.name")
-            config.add_body_mapping("user_email", "$.user.contact.email")
-            config.add_body_mapping(
-                "item_ids", "$.items[*].id"
-            )  # Multiple matches return list
-        """
-        # Validate JSONPath expression by parsing it
-        try:
-            jsonpath_parse(json_path)
-        except (JsonPathLexerError, JsonPathParserError) as exc:
-            raise mlrun.errors.MLRunValueError(
-                f"Invalid JSON path expression for parameter '{parameter_name}': "
-                f"'{json_path}'. Error: {exc}"
-            ) from exc
-
-        # Warn if overriding an existing mapping
-        if parameter_name in self._body_map:
-            logger.warning(
-                "Overriding existing body mapping",
-                parameter_name=parameter_name,
-                old_json_path=self._body_map[parameter_name],
-                new_json_path=json_path,
-            )
-
-        self._body_map[parameter_name] = json_path
-
-    def remove_body_mapping(self, parameter_name: str) -> None:
-        """Remove a body mapping by parameter name.
-
-        :param parameter_name: Name of the parameter mapping to remove
-        """
-        self._body_map.pop(parameter_name, None)
+    # def add_body_mapping(self, parameter_name: str, json_path: str) -> None:
+    #     """Add a JSONPath body mapping for extracting request parameters.
+    #
+    #     Maps a JSONPath expression to a parameter name. When a request is received,
+    #     the JSONPath will be evaluated against the request body and the result
+    #     will be passed as a named parameter to the handler function.
+    #
+    #     :param parameter_name: Name of the parameter to pass to the handler
+    #     :param json_path: JSONPath expression to extract the value from request body
+    #                      (e.g., ``'$.user.name'`` or ``'$.items[*].id'``)
+    #     :raises mlrun.errors.MLRunValueError: If json_path is not a valid JSONPath expression
+    #
+    #     Example::
+    #
+    #         config = APIHandlerConfig()
+    #         config.add_body_mapping("user_name", "$.user.name")
+    #         config.add_body_mapping("user_email", "$.user.contact.email")
+    #         config.add_body_mapping(
+    #             "item_ids", "$.items[*].id"
+    #         )  # Multiple matches return list
+    #     """
+    #     # Validate JSONPath expression by parsing it
+    #     try:
+    #         jsonpath_parse(json_path)
+    #     except (JsonPathLexerError, JsonPathParserError) as exc:
+    #         raise mlrun.errors.MLRunValueError(
+    #             f"Invalid JSON path expression for parameter '{parameter_name}': "
+    #             f"'{json_path}'. Error: {exc}"
+    #         ) from exc
+    #
+    #     # Warn if overriding an existing mapping
+    #     if parameter_name in self._body_map:
+    #         logger.warning(
+    #             "Overriding existing body mapping",
+    #             parameter_name=parameter_name,
+    #             old_json_path=self._body_map[parameter_name],
+    #             new_json_path=json_path,
+    #         )
+    #
+    #     self._body_map[parameter_name] = json_path
+    #
+    # def remove_body_mapping(self, parameter_name: str) -> None:
+    #     """Remove a body mapping by parameter name.
+    #
+    #     :param parameter_name: Name of the parameter mapping to remove
+    #     """
+    #     self._body_map.pop(parameter_name, None)
 
 
 def new_v2_model_server(

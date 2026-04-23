@@ -56,9 +56,9 @@ class CodeArtifactSpec(ArtifactSpec):
         db_key=None,
         extra_data=None,
         body=None,
-        language=None,
-        code_type=None,
-        requirements=None,
+        language: str | None = None,
+        code_type: CodeArtifactCodeType | None = None,
+        requirements: list[str] | None = None,
     ):
         super().__init__(
             src_path=src_path,
@@ -74,6 +74,16 @@ class CodeArtifactSpec(ArtifactSpec):
         self.language = language
         self.code_type = code_type
         self.requirements = requirements
+
+    @classmethod
+    def from_dict(cls, struct=None, fields=None, deprecated_fields=None):
+        # Coerce serialized string to enum so the code_type attribute is
+        # always a CodeArtifactCodeType instance post-deserialization.
+        if struct and isinstance(struct.get("code_type"), str):
+            struct = {**struct, "code_type": CodeArtifactCodeType(struct["code_type"])}
+        return super().from_dict(
+            struct=struct, fields=fields, deprecated_fields=deprecated_fields
+        )
 
 
 class CodeArtifact(Artifact):
@@ -92,9 +102,9 @@ class CodeArtifact(Artifact):
         format=None,
         target_path=None,
         src_path=None,
-        language=None,
-        code_type=None,
-        requirements=None,
+        language: str | None = None,
+        code_type: str | CodeArtifactCodeType | None = None,
+        requirements: list[str] | None = None,
         **kwargs,
     ):
         """

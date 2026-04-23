@@ -785,10 +785,10 @@ class TestCodeArtifact:
     def test_create_with_language_and_code_type(self):
         artifact = mlrun.artifacts.CodeArtifact(
             key="my-code",
-            language="python:3.9",
+            language="python:3.11",
             code_type="workflow",
         )
-        assert artifact.spec.language == "python:3.9"
+        assert artifact.spec.language == "python:3.11"
         assert (
             artifact.spec.code_type
             == mlrun.artifacts.code.CodeArtifactCodeType.workflow
@@ -812,7 +812,7 @@ class TestCodeArtifact:
         requirements = ["pandas>=2.0", "numpy", "scikit-learn"]
         artifact = mlrun.artifacts.CodeArtifact(
             key="my-code",
-            language="python:3.9",
+            language="python:3.11",
             code_type="function",
             requirements=requirements,
         )
@@ -851,13 +851,13 @@ class TestCodeArtifact:
         requirements = ["pandas>=2.0", "numpy"]
         artifact = mlrun.artifacts.CodeArtifact(
             key="my-code",
-            language="python:3.9",
+            language="python:3.11",
             code_type="function",
             requirements=requirements,
         )
         artifact_dict = artifact.to_dict()
         assert artifact_dict["kind"] == "code"
-        assert artifact_dict["spec"]["language"] == "python:3.9"
+        assert artifact_dict["spec"]["language"] == "python:3.11"
         assert artifact_dict["spec"]["code_type"] == "function"
         assert artifact_dict["spec"]["requirements"] == requirements
 
@@ -866,6 +866,11 @@ class TestCodeArtifact:
         assert restored.spec.language == artifact.spec.language
         assert restored.spec.code_type == artifact.spec.code_type
         assert restored.spec.requirements == artifact.spec.requirements
+        # Spec's code_type is strictly typed — string in JSON must be coerced
+        # back to the enum on load.
+        assert isinstance(
+            restored.spec.code_type, mlrun.artifacts.code.CodeArtifactCodeType
+        )
 
     def test_registered_in_artifact_types(self):
         assert "code" in mlrun.artifacts.manager.artifact_types
@@ -898,7 +903,7 @@ class TestCodeArtifact:
         artifact = project.log_code_file(
             "my-func",
             body="def handler(): pass",
-            language="python:3.9",
+            language="python:3.11",
             code_type="function",
             requirements=requirements,
             is_inline=True,
@@ -906,7 +911,7 @@ class TestCodeArtifact:
         )
         assert isinstance(artifact, mlrun.artifacts.CodeArtifact)
         assert artifact.kind == "code"
-        assert artifact.spec.language == "python:3.9"
+        assert artifact.spec.language == "python:3.11"
         assert (
             artifact.spec.code_type
             == mlrun.artifacts.code.CodeArtifactCodeType.function

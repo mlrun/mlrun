@@ -58,9 +58,79 @@ It is supported also in Jupyter notebooks.
 MLRun also supports iterative jobs that can run and track multiple child jobs (for hyperparameter tasks, AutoML, etc.).
 See {ref}`hyper-params` for details and examples.
 
+### Handlers inside a class
+
+You can place set function handlers to methods inside a class and reference them with the
+`ClassName::method_name` syntax. MLRun instantiates the class and then calls the named method
+inside it. Instance methods, `@classmethod`, and `@staticmethod` are all supported.
+
+```python
+# handler.py
+import mlrun
+
+
+class PlainClass:
+    def run(self, context: mlrun.MLClientCtx) -> int:
+        context.log_result("result", 42)
+        return 42
+```
+
+Reference the method with the `ClassName::method_name` handler string:
+
+```python
+fn = project.set_function(
+    "handler.py",
+    name="my-job",
+    handler="PlainClass::run",
+)
+run = fn.run()
+print(run.output("result"))  # 42
+```
+
+#### Passing arguments to the constructor
+
+To initialize the class with custom arguments, define them in `__init__` and
+pass them at run time via the special `"_init_args"` key inside `params`.
+MLRun unpacks that dictionary as keyword arguments to the constructor before
+calling the handler method.
+
+If the constructor also accepts a `context` parameter (or `**kwargs`), MLRun
+forwards the run context automatically alongside any `_init_args` you supply — useful
+when you need the context available in other methods of the class beyond the handler.
+
+```python
+# handler.py
+import mlrun
+
+
+class ThresholdClass:
+    def __init__(self, context: mlrun.MLClientCtx, threshold: float = 0.5):
+        context.logger.debug("Initializing the class")
+        self.threshold = threshold
+
+    def run(self, context: mlrun.MLClientCtx) -> None:
+        value = 0.9  # extract the value from the context
+        context.log_result("above_threshold", value > self.threshold)
+```
+
+Pass constructor arguments at run time:
+
+```python
+fn = project.set_function(
+    "handler.py",
+    name="check-threshold-job",
+    handler="ThresholdClass::run",
+)
+run = fn.run(params={"_init_args": {"threshold": 0.9}})
+print(run.output("above_threshold"))  # True
+```
+
 ### Async handlers
 
-MLRun supports `async def` handler functions. When a handler is defined as a coroutine, MLRun automatically detects this and runs it to completion before committing the run result. No code changes are required beyond adding the `async` keyword to the handler definition.
+MLRun supports `async def` handler functions. When a handler is defined as a coroutine,
+MLRun automatically detects this and runs it to completion before committing the run result.
+No code changes are required beyond adding the `async` keyword to the handler definition.
+The `ClassName::method_name` syntax works with async handlers too (see the examples above).
 
 ```python
 import asyncio
@@ -86,7 +156,9 @@ print(run.output("async_result"))  # 42
 ```
 
 ```{admonition} Generators are not supported as handlers
-Sync generators (`def handler()` with `yield`) and async generators (`async def handler()` with `yield`) are **not** supported as MLRun job handler return types. Returning a generator raises `MLRunRuntimeError` and sets the run state to `error`.
+Sync generators (`def handler()` with `yield`) and async generators (`async def handler()` with `yield`)
+are **not** supported as MLRun job handler return types. Returning a generator raises `MLRunRuntimeError`
+and sets the run state to `error`.
 ```
 
 <a id="result"></a>

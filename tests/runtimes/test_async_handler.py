@@ -34,7 +34,11 @@ def _restore_packagers_enabled():
     mlrun.mlconf.packagers.enabled = original
 
 
-def _launch(handler_name: str, packagers_enabled: bool = False) -> mlrun.run.RunObject:
+def _launch(
+    handler_name: str,
+    packagers_enabled: bool = False,
+    params: dict | None = None,
+) -> mlrun.run.RunObject:
     """Run a handler from the async_handlers asset file via the local launcher."""
     mlrun.mlconf.packagers.enabled = packagers_enabled
     launcher = mlrun.launcher.local.ClientLocalLauncher(local=True)
@@ -44,7 +48,8 @@ def _launch(handler_name: str, packagers_enabled: bool = False) -> mlrun.run.Run
         filename=_HANDLER_FILE,
         handler=handler_name,
     )
-    return launcher.launch(runtime)
+    task = mlrun.new_task(params=params) if params else None
+    return launcher.launch(runtime, task=task)
 
 
 @parametrize_packagers
@@ -99,8 +104,6 @@ def test_async_handler_inside_running_loop(packagers_enabled: bool) -> None:
 
 
 def test__run_async_handler_returns_value() -> None:
-    """Unit test: _run_async_handler drives a coroutine to completion and returns its value."""
-
     async def coro() -> int:
         await asyncio.sleep(0)
         return 77
@@ -109,8 +112,6 @@ def test__run_async_handler_returns_value() -> None:
 
 
 def test__run_async_handler_propagates_exception() -> None:
-    """Unit test: _run_async_handler propagates exceptions raised inside the coroutine."""
-
     async def failing_coro() -> None:
         raise RuntimeError("boom")
 
@@ -118,13 +119,42 @@ def test__run_async_handler_propagates_exception() -> None:
         _run_async_handler(failing_coro())
 
 
+@parametrize_packagers
+@pytest.mark.parametrize(
+    "handler_name, result_key, expected, params",
+    [
+        ("AsyncHandlerClass::run", "class_async_result", 7, None),
+        ("AsyncHandlerClass::class_run", "classmethod_async_result", 11, None),
+        ("AsyncHandlerClass::static_run", "staticmethod_async_result", 13, None),
+        # _init_args are unpacked as kwargs to __init__; multiplier=2 → 7*2=14
+        (
+            "InitArgsHandlerClass::run",
+            "init_args_result",
+            14,
+            {"_init_args": {"multiplier": 2}},
+        ),
+        # sync handler: _init_args also work without async
+        (
+            "SyncInitArgsHandlerClass::run",
+            "above_threshold",
+            True,
+            {"_init_args": {"threshold": 0.9}},
+        ),
+    ],
+)
+def test_async_handler_in_class(
+    packagers_enabled: bool,
+    handler_name: str,
+    result_key: str,
+    expected: int,
+    params: dict | None,
+) -> None:
+    result = _launch(handler_name, packagers_enabled=packagers_enabled, params=params)
+    assert result.status.state == "completed"
+    assert result.status.results.get(result_key) == expected
+
+
 def test__run_async_handler_inside_running_loop() -> None:
-    """Unit test: _run_async_handler uses ThreadPoolExecutor when a loop is already running (Jupyter path).
-
-    Calling _run_async_handler from within an async function (where
-    asyncio.get_running_loop() succeeds) exercises the ThreadPoolExecutor branch.
-    """
-
     async def coro() -> int:
         await asyncio.sleep(0)
         return 55

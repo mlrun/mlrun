@@ -130,23 +130,121 @@ jobs:
     env:
       DOCKER_REGISTRY: "${{ secrets.ARTIFACTORY_URL }}/${{ inputs.artifactory_docker_repo }}/"
     steps:
-      - name: Generate GitHub App Token for ui repo
-        id: ui-app-token
-        uses: actions/create-github-app-token@v3
-        with:
-          app-id: ${{ secrets.GH_APP_ID }}
-          private-key: ${{ secrets.GH_APP_PRIVATE_KEY }}
-          owner: ${{ github.repository_owner }}
-          repositories: ui
-      - uses: convictional/trigger-workflow-and-wait@f69fa9eedd3c62a599220f4d5745230e237904be # 1.6.5
-        with:
-          owner: ${{ github.repository_owner }}
-          repo: ui
-          github_token: ${{ steps.ui-app-token.outputs.token }}
-          workflow_file_name: build.yaml
-          ref: ${{ needs.prepare-inputs.outputs.ui_ref }}
-          wait_interval: 60
-          client_payload: "{\"docker_registries\": \"${{ env.DOCKER_REGISTRY }}\", \"docker_repo\": \"\", \"runner\": \"mlrun-release\", \"version\": \"${{ needs.prepare-inputs.outputs.version }}\"}"
+      - name: Trigger UI build and wait for completion
+        env:
+          GH_APP_ID: ${{ secrets.GH_APP_ID }}
+          GH_APP_PRIVATE_KEY: ${{ secrets.GH_APP_PRIVATE_KEY }}
+          OWNER: ${{ github.repository_owner }}
+          UI_REF: ${{ needs.prepare-inputs.outputs.ui_ref }}
+          VERSION: ${{ needs.prepare-inputs.outputs.version }}
+          POLL_INTERVAL: 60
+          TIMEOUT_MINUTES: 120
+        run: |
+          set -euo pipefail
+
+          generate_jwt() {
+            local now=$(date +%s)
+            local iat=$((now - 60))
+            local exp=$((now + 540))  # 9 minutes (max 10)
+
+            local header=$(echo -n '{"alg":"RS256","typ":"JWT"}' | openssl base64 -e -A | tr '+/' '-_' | tr -d '=')
+            local payload=$(echo -n "{\"iat\":${iat},\"exp\":${exp},\"iss\":\"${GH_APP_ID}\"}" | openssl base64 -e -A | tr '+/' '-_' | tr -d '=')
+            local unsigned="${header}.${payload}"
+            local signature=$(echo -n "${unsigned}" | openssl dgst -sha256 -sign <(echo "${GH_APP_PRIVATE_KEY}") | openssl base64 -e -A | tr '+/' '-_' | tr -d '=')
+            echo "${unsigned}.${signature}"
+          }
+
+          generate_installation_token() {
+            local jwt=$(generate_jwt)
+            local installation_id=$(curl -sf -H "Authorization: Bearer ${jwt}" \
+              -H "Accept: application/vnd.github+json" \
+              "https://api.github.com/app/installations" \
+              | jq -r ".[] | select(.account.login==\"${OWNER}\") | .id")
+
+            curl -sf -X POST \
+              -H "Authorization: Bearer ${jwt}" \
+              -H "Accept: application/vnd.github+json" \
+              "https://api.github.com/app/installations/${installation_id}/access_tokens" \
+              -d "{\"repositories\":[\"ui\"]}" \
+              | jq -r '.token'
+          }
+
+          echo "Generating initial installation token..."
+          TOKEN=$(generate_installation_token)
+          TOKEN_CREATED_AT=$(date +%s)
+          TOKEN_LIFETIME=3300  # refresh after 55 minutes
+
+          echo "Triggering UI build workflow on ${OWNER}/ui@${UI_REF}..."
+          curl -sf -X POST \
+            -H "Authorization: token ${TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/${OWNER}/ui/actions/workflows/build.yaml/dispatches" \
+            -d "{\"ref\":\"${UI_REF}\",\"inputs\":{\"docker_registries\":\"${DOCKER_REGISTRY}\",\"docker_repo\":\"\",\"version\":\"${VERSION}\",\"runner\":\"mlrun-release\"}}"
+
+          echo "Waiting for workflow run to appear..."
+          sleep 10
+
+          CREATED_AFTER=$(date -u -d "2 minutes ago" +%Y-%m-%dT%H:%M:%S 2>/dev/null || date -u -v-2M +%Y-%m-%dT%H:%M:%S)
+          RUN_ID=""
+          for i in $(seq 1 30); do
+            RUN_ID=$(curl -sf \
+              -H "Authorization: token ${TOKEN}" \
+              -H "Accept: application/vnd.github+json" \
+              "https://api.github.com/repos/${OWNER}/ui/actions/workflows/build.yaml/runs?event=workflow_dispatch&created=>=${CREATED_AFTER}&per_page=5" \
+              | jq -r '.workflow_runs[0].id // empty')
+            if [ -n "${RUN_ID}" ]; then
+              echo "Found workflow run: ${RUN_ID}"
+              break
+            fi
+            echo "Run not found yet, retrying in 10s..."
+            sleep 10
+          done
+
+          if [ -z "${RUN_ID}" ]; then
+            echo "::error::Failed to find triggered workflow run"
+            exit 1
+          fi
+
+          echo "Polling run ${RUN_ID} for completion (timeout: ${TIMEOUT_MINUTES}m)..."
+          DEADLINE=$(($(date +%s) + TIMEOUT_MINUTES * 60))
+
+          while true; do
+            if [ $(date +%s) -gt ${DEADLINE} ]; then
+              echo "::error::Timed out waiting for UI build to complete"
+              exit 1
+            fi
+
+            # Refresh token if nearing expiry
+            ELAPSED=$(( $(date +%s) - TOKEN_CREATED_AT ))
+            if [ ${ELAPSED} -ge ${TOKEN_LIFETIME} ]; then
+              echo "Refreshing installation token..."
+              TOKEN=$(generate_installation_token)
+              TOKEN_CREATED_AT=$(date +%s)
+            fi
+
+            RESPONSE=$(curl -sf \
+              -H "Authorization: token ${TOKEN}" \
+              -H "Accept: application/vnd.github+json" \
+              "https://api.github.com/repos/${OWNER}/ui/actions/runs/${RUN_ID}")
+
+            STATUS=$(echo "${RESPONSE}" | jq -r '.status')
+            CONCLUSION=$(echo "${RESPONSE}" | jq -r '.conclusion')
+
+            echo "Status: ${STATUS}, Conclusion: ${CONCLUSION}"
+
+            if [ "${STATUS}" = "completed" ]; then
+              if [ "${CONCLUSION}" = "success" ]; then
+                echo "UI build completed successfully"
+                exit 0
+              else
+                echo "::error::UI build finished with conclusion: ${CONCLUSION}"
+                echo "Run URL: https://github.com/${OWNER}/ui/actions/runs/${RUN_ID}"
+                exit 1
+              fi
+            fi
+
+            sleep ${POLL_INTERVAL}
+          done
 
   publish-to-artifactory:
     name: Publish package to Artifactory PyPI

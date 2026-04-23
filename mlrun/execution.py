@@ -846,7 +846,11 @@ class MLClientCtx:
         :param labels:        A set of key/value labels to tag the artifact with
         :param target_path:   Absolute target path (instead of using artifact_path + local_path)
         :param db_key:        The key to use in the artifact DB table
-        :param language:      Programming language and version (e.g. "python:3.9")
+        :param language:      Programming language (e.g. "python").
+                              Free-text advisory metadata — no validation or
+                              enforcement is applied. If omitted, derived at
+                              construction time from the target/local path suffix
+                              (.py/.ipynb → "python"; archives/unknown → "").
         :param code_type:     Type of code: "function" or "workflow" (default: "function")
         :param requirements:  List of dependency strings (e.g. ["pandas>=2.0", "numpy"])
 

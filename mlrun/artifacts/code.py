@@ -16,6 +16,22 @@ import mlrun.common.types
 
 from .base import Artifact, ArtifactSpec
 
+_PYTHON_SUFFIXES = (".py", ".ipynb")
+
+
+def _derive_language_from_path(path: str | None) -> str | None:
+    """Derive a language value from a file path's suffix.
+
+    Returns ``"python"`` for ``.py``/``.ipynb``, ``""`` for archives and unknown
+    suffixes (caller knows there's a path but can't infer the language), and
+    ``None`` when no path is available (nothing to infer from).
+    """
+    if not path:
+        return None
+    if path.lower().endswith(_PYTHON_SUFFIXES):
+        return "python"
+    return ""
+
 
 class CodeArtifactCodeType(mlrun.common.types.StrEnum):
     function = "function"
@@ -87,7 +103,13 @@ class CodeArtifact(Artifact):
         :param format:       Optional file format
         :param target_path:  Absolute target path
         :param src_path:     Path to the local code file or archive
-        :param language:     Programming language and version (e.g. "python:3.9")
+        :param language:     Programming language (e.g. ``"python"``).
+                             Free-text advisory metadata — no validation or
+                             enforcement is applied, and the value is not consulted
+                             at resolution or execution time.
+                             When ``None``, derived from the ``target_path`` (or
+                             ``src_path``) suffix: ``.py``/``.ipynb`` → ``"python"``,
+                             archives/unknown → ``""``, no path → stays ``None``.
         :param code_type:    Type of code: "function" or "workflow" (default: "function")
         :param requirements: List of dependency strings (e.g. ["pandas>=2.0", "numpy"])
         """
@@ -99,6 +121,8 @@ class CodeArtifact(Artifact):
             src_path=src_path,
             **kwargs,
         )
+        if language is None:
+            language = _derive_language_from_path(target_path or src_path)
         self.spec.language = language
         self.spec.code_type = CodeArtifactCodeType(
             code_type or CodeArtifactCodeType.function

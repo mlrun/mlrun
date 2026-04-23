@@ -1809,7 +1809,11 @@ class MlrunProject(ModelObj):
         :param upload:        upload to datastore (default is True)
         :param labels:        a set of key/value labels to tag the artifact with
         :param target_path:   absolute target path (instead of using artifact_path + local_path)
-        :param language:      programming language and version (e.g. "python:3.9")
+        :param language:      programming language (e.g. "python").
+                              Free-text advisory metadata — no validation or
+                              enforcement is applied. If omitted, derived at
+                              construction time from the target/local path suffix
+                              (.py/.ipynb → "python"; archives/unknown → "").
         :param code_type:     type of code: "function" or "workflow" (default: "function")
         :param requirements:  list of dependency strings (e.g. ["pandas>=2.0", "numpy"])
 

@@ -818,6 +818,35 @@ class TestCodeArtifact:
         )
         assert artifact.spec.requirements == requirements
 
+    @pytest.mark.parametrize(
+        "target_path,src_path,language,expected",
+        [
+            # suffix → "python"
+            ("s3://bucket/funcs/foo.py", None, None, "python"),
+            ("FOO.PY", None, None, "python"),
+            ("notebook.ipynb", None, None, "python"),
+            # archives and unknown → ""
+            ("foo.zip", None, None, ""),
+            ("foo.tar.gz", None, None, ""),
+            ("foo.bin", None, None, ""),
+            # no target_path → fall back to src_path
+            (None, "/tmp/foo.py", None, "python"),
+            # target_path takes precedence over src_path
+            ("s3://bucket/foo.zip", "/tmp/foo.py", None, ""),
+            # explicit language wins over derivation (including "")
+            ("/tmp/foo.py", None, "custom", "custom"),
+            ("/tmp/foo.py", None, "", ""),
+        ],
+    )
+    def test_language_derivation(self, target_path, src_path, language, expected):
+        artifact = mlrun.artifacts.CodeArtifact(
+            key="k",
+            target_path=target_path,
+            src_path=src_path,
+            language=language,
+        )
+        assert artifact.spec.language == expected
+
     def test_serialization_roundtrip(self):
         requirements = ["pandas>=2.0", "numpy"]
         artifact = mlrun.artifacts.CodeArtifact(

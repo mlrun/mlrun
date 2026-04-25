@@ -29,6 +29,7 @@ import mlrun.common.runtimes.constants
 from mlrun.artifacts import (
     Artifact,
     CodeArtifact,
+    CodeArtifactCodeType,
     DatasetArtifact,
     DocumentArtifact,
     DocumentLoaderSpec,
@@ -831,7 +832,7 @@ class MLClientCtx:
         target_path="",
         db_key=None,
         language=None,
-        code_type: str | mlrun.artifacts.code.CodeArtifactCodeType | None = None,
+        code_type: str | CodeArtifactCodeType | None = None,
         requirements: list[str] | None = None,
         **kwargs,
     ) -> CodeArtifact:

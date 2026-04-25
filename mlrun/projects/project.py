@@ -83,6 +83,7 @@ from ..artifacts import (
     Artifact,
     ArtifactProducer,
     CodeArtifact,
+    CodeArtifactCodeType,
     DatasetArtifact,
     DocumentArtifact,
     DocumentLoaderSpec,
@@ -1790,11 +1791,12 @@ class MlrunProject(ModelObj):
         body=None,
         tag="",
         artifact_path=None,
-        upload=None,
+        upload=True,
         labels=None,
         target_path="",
+        db_key=None,
         language=None,
-        code_type: str | mlrun.artifacts.code.CodeArtifactCodeType | None = None,
+        code_type: str | CodeArtifactCodeType | None = None,
         requirements: list[str] | None = None,
         **kwargs,
     ) -> CodeArtifact:
@@ -1809,6 +1811,7 @@ class MlrunProject(ModelObj):
         :param upload:        upload to datastore (default is True)
         :param labels:        a set of key/value labels to tag the artifact with
         :param target_path:   absolute target path (instead of using artifact_path + local_path)
+        :param db_key:        the key to use in the artifact DB table
         :param language:      programming language (e.g. "python").
                               Free-text advisory metadata — no validation or
                               enforcement is applied. If omitted, derived at
@@ -1839,6 +1842,7 @@ class MlrunProject(ModelObj):
                 tag=tag,
                 upload=upload,
                 labels=labels,
+                db_key=db_key,
             ),
         )
         return item

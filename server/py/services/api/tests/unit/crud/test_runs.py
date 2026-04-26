@@ -1167,7 +1167,7 @@ class TestRuns(services.api.tests.unit.conftest.MockedK8sHelper):
             services.api.crud.Runs._delete_run_resources(db, project, uid, run)
 
 
-def _make_run(self, name: str, project: str = "proj") -> MagicMock:
+def _make_run(name: str, project: str = "proj") -> MagicMock:
     run = MagicMock()
     run.name = f"{project}-{name}"
     run.workflow_manifest.return_value = None
@@ -1183,9 +1183,9 @@ def test_empty_target_name_does_not_duplicate_runs(mock_resolve):
     """When target_name is empty, each run should be yielded exactly once."""
     pipelines = services.api.crud.pipelines.Pipelines()
     runs = [
-        self._make_run("run-a"),
-        self._make_run("run-b"),
-        self._make_run("run-c"),
+        _make_run("run-a"),
+        _make_run("run-b"),
+        _make_run("run-c"),
     ]
 
     result = list(pipelines._filter_runs_by_name(runs, target_name=""))
@@ -1203,9 +1203,9 @@ def test_empty_target_name_does_not_duplicate_runs(mock_resolve):
 def test_nonempty_target_name_filters_correctly(mock_resolve):
     """When target_name is provided, only matching runs should be yielded."""
     pipelines = services.api.crud.pipelines.Pipelines()
-    run_a = self._make_run("train-model")
-    run_b = self._make_run("deploy-model")
-    run_c = self._make_run("evaluate")
+    run_a = _make_run("train-model")
+    run_b = _make_run("deploy-model")
+    run_c = _make_run("evaluate")
     runs = [run_a, run_b, run_c]
 
     result = list(pipelines._filter_runs_by_name(runs, target_name="model"))
@@ -1222,7 +1222,7 @@ def test_nonempty_target_name_filters_correctly(mock_resolve):
 def test_no_matching_runs(mock_resolve):
     """When no runs match, an empty list should be returned."""
     pipelines = services.api.crud.pipelines.Pipelines()
-    runs = [self._make_run("train"), self._make_run("deploy")]
+    runs = [_make_run("train"), _make_run("deploy")]
 
     result = list(pipelines._filter_runs_by_name(runs, target_name="nonexistent"))
 

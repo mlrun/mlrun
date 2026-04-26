@@ -509,7 +509,7 @@ def test_with_source_archive_removes_inline_code(logs_stream):
     assert fn.spec.build.source == source
 
 
-def _create_runtime(self):
+def _create_runtime():
     runtime = mlrun.runtimes.nuclio.function.RemoteRuntime()
     runtime.metadata.name = "test-func"
     runtime.metadata.project = "test-project"
@@ -518,7 +518,7 @@ def _create_runtime(self):
 
 def test_get_state_raise_on_exception_true_raises():
     """When raise_on_exception=True, a RunDBError should propagate as ValueError."""
-    runtime = self._create_runtime()
+    runtime = _create_runtime()
     mock_db = MagicMock()
     mock_db.get_nuclio_deploy_status.side_effect = mlrun.db.RunDBError("not found")
 
@@ -529,7 +529,7 @@ def test_get_state_raise_on_exception_true_raises():
 
 def test_get_state_raise_on_exception_false_returns_empty():
     """When raise_on_exception=False, a RunDBError should be suppressed."""
-    runtime = self._create_runtime()
+    runtime = _create_runtime()
     mock_db = MagicMock()
     mock_db.get_nuclio_deploy_status.side_effect = mlrun.db.RunDBError("not found")
 
@@ -542,7 +542,7 @@ def test_get_state_raise_on_exception_false_returns_empty():
 
 def test_get_state_no_error_returns_status():
     """When no error occurs, _get_state returns the function status."""
-    runtime = self._create_runtime()
+    runtime = _create_runtime()
     runtime.status.state = "ready"
     mock_db = MagicMock()
     mock_db.get_nuclio_deploy_status.return_value = ("deploy log", 12345.0)

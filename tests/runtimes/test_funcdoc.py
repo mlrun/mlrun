@@ -306,7 +306,7 @@ def _get_default(code: str):
 def test_ast_code_call_defaults(code, expected):
     """ast_code should handle method-call default parameters without crashing."""
     default = _get_default(code)
-    result = ast_code(default)
+    result = funcdoc.ast_code(default)
     assert result == expected
 
 
@@ -327,7 +327,7 @@ def test_ast_code_call_defaults(code, expected):
 )
 def test_find_handlers_method_call_defaults(code, param_name, expected_default):
     """find_handlers should capture method-call defaults as strings."""
-    result = find_handlers(code, handlers=["handler"])
+    result = funcdoc.find_handlers(code, handlers=["handler"])
     assert len(result) == 1
     params = result[0]["params"]
     param = next(p for p in params if p["name"] == param_name)

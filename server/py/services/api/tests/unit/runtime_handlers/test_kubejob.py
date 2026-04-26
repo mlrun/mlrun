@@ -1181,11 +1181,12 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
         return mocked_responses[0].items
 
 
-def setup_method(self):
-    self.handler = KubeRuntimeHandler()
+@pytest.fixture
+def handler():
+    return KubeRuntimeHandler()
 
 
-def test_duplicated_runs_collected_as_list_with_correct_metadata():
+def test_duplicated_runs_collected_as_list_with_correct_metadata(handler):
     """
     Verify that when multiple runs share the same UID, all duplicates are
     collected into a list (not overwritten by a dict) and that the metadata
@@ -1225,7 +1226,7 @@ def test_duplicated_runs_collected_as_list_with_correct_metadata():
     mock_db.list_runs.return_value = [first_run, duplicate_run, another_duplicate]
     mock_session = unittest.mock.MagicMock()
 
-    project_run_uid_map = self.handler._list_runs_for_monitoring(
+    project_run_uid_map = handler._list_runs_for_monitoring(
         mock_db, mock_session, states=["running"]
     )
 
@@ -1235,7 +1236,7 @@ def test_duplicated_runs_collected_as_list_with_correct_metadata():
     assert project_run_uid_map[project][shared_uid] is first_run
 
 
-def test_duplicated_runs_logged_with_non_none_metadata():
+def test_duplicated_runs_logged_with_non_none_metadata(handler):
     """
     Verify that duplicated run entries contain actual metadata dicts,
     not None (which was the bug when .get(["metadata"]) was used).
@@ -1269,9 +1270,7 @@ def test_duplicated_runs_logged_with_non_none_metadata():
     with unittest.mock.patch(
         "services.api.runtime_handlers.base.logger"
     ) as mock_logger:
-        self.handler._list_runs_for_monitoring(
-            mock_db, mock_session, states=["running"]
-        )
+        handler._list_runs_for_monitoring(mock_db, mock_session, states=["running"])
 
         # Assert that the warning was called with duplicated_runs as a list
         mock_logger.warning.assert_called()
@@ -1294,7 +1293,7 @@ def test_duplicated_runs_logged_with_non_none_metadata():
         assert entry["duplicated_run"]["uid"] == shared_uid
 
 
-def test_multiple_duplicated_runs_all_collected():
+def test_multiple_duplicated_runs_all_collected(handler):
     """
     When there are 3 runs with the same UID, both duplicates should appear
     in the duplicated_runs list (the first one is kept as the monitored run).
@@ -1321,9 +1320,7 @@ def test_multiple_duplicated_runs_all_collected():
     with unittest.mock.patch(
         "services.api.runtime_handlers.base.logger"
     ) as mock_logger:
-        self.handler._list_runs_for_monitoring(
-            mock_db, mock_session, states=["running"]
-        )
+        handler._list_runs_for_monitoring(mock_db, mock_session, states=["running"])
 
         call_kwargs = mock_logger.warning.call_args
         duplicated_runs = call_kwargs.kwargs.get("duplicated_runs") or call_kwargs[
@@ -1335,7 +1332,7 @@ def test_multiple_duplicated_runs_all_collected():
         assert len(duplicated_runs) == 2
 
 
-def test_no_duplicates_no_warning():
+def test_no_duplicates_no_warning(handler):
     """
     When there are no duplicated runs, the duplicated_runs warning
     should not be logged.
@@ -1360,7 +1357,7 @@ def test_no_duplicates_no_warning():
     with unittest.mock.patch(
         "services.api.runtime_handlers.base.logger"
     ) as mock_logger:
-        result = self.handler._list_runs_for_monitoring(
+        result = handler._list_runs_for_monitoring(
             mock_db, mock_session, states=["running"]
         )
 

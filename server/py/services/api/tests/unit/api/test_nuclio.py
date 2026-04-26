@@ -313,7 +313,6 @@ def test_with_http_async_spec(
                 assert "async" not in trigger
 
 
-@staticmethod
 def _make_api_gateway(host: str, path: str, function_names: list[str]):
     """Build a minimal APIGateway schema with the given host, path and functions."""
     upstreams = [
@@ -342,12 +341,8 @@ def test_same_invoke_url_skips_full_deletion():
     removed functions (the elif branch), but not the full-URL-change
     branch.
     """
-    existing = self._make_api_gateway(
-        "https://my.host", "/api", ["proj/fn1", "proj/fn2"]
-    )
-    updated = self._make_api_gateway(
-        "https://my.host", "/api", ["proj/fn1", "proj/fn2"]
-    )
+    existing = _make_api_gateway("https://my.host", "/api", ["proj/fn1", "proj/fn2"])
+    updated = _make_api_gateway("https://my.host", "/api", ["proj/fn1", "proj/fn2"])
 
     # Sanity: both return the same URL string
     assert existing.get_invoke_url() == updated.get_invoke_url()
@@ -366,8 +361,8 @@ def test_different_invoke_url_triggers_deletion():
     """
     When the invoke URL really changed, the comparison should detect it.
     """
-    existing = self._make_api_gateway("https://old.host", "/api", ["proj/fn1"])
-    updated = self._make_api_gateway("https://new.host", "/api", ["proj/fn1"])
+    existing = _make_api_gateway("https://old.host", "/api", ["proj/fn1"])
+    updated = _make_api_gateway("https://new.host", "/api", ["proj/fn1"])
 
     # The URLs are different so the condition should be True
     assert existing.get_invoke_url() != updated.get_invoke_url()
@@ -378,10 +373,8 @@ def test_unused_functions_detected_when_url_unchanged():
     When the URL is the same but functions were removed, the elif branch
     should be reachable (it was unreachable before the fix).
     """
-    existing = self._make_api_gateway(
-        "https://my.host", "/api", ["proj/fn1", "proj/fn2"]
-    )
-    updated = self._make_api_gateway("https://my.host", "/api", ["proj/fn1"])
+    existing = _make_api_gateway("https://my.host", "/api", ["proj/fn1", "proj/fn2"])
+    updated = _make_api_gateway("https://my.host", "/api", ["proj/fn1"])
 
     # URL is the same
     assert existing.get_invoke_url() == updated.get_invoke_url()

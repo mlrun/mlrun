@@ -16,12 +16,15 @@
 # this is a template file for the deploy env file
 
 
-# Execution mode (optional, default: ssh).
+# Execution mode (optional). Inferred from KUBECONFIG when unset:
+# kubectl mode if KUBECONFIG is set, otherwise ssh.
 # - ssh:     SSH into a data node and run kubectl there.
-# - kubectl: Run kubectl locally against the cluster (uses KUBECONFIG below).
+# - kubectl: Run kubectl locally against the cluster.
 MODE:
 
-# Path to a kubeconfig file (kubectl mode only). Falls back to the kubectl default.
+# Path to a kubeconfig file. Setting this implies MODE=kubectl unless MODE is
+# set explicitly. Leave unset for ssh mode or to use the kubectl default
+# (KUBECONFIG env var or ~/.kube/config) with an explicit MODE: kubectl.
 KUBECONFIG:
 
 # Data node IPs/hostnames (e.g. [1.1.1.1, 1.1.1.2, 1.1.1.3]).

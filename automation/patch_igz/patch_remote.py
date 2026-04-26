@@ -83,11 +83,11 @@ class MLRunPatcher:
         self._reset_db = reset_db
         self._image_tag = image_tag
         self._patch_log_collector_image = bool(patch_log_collector_image)
-        self._mode = self._resolve_mode(mode)
         kubeconfig_value = kubeconfig or self._config.get("KUBECONFIG") or ""
         self._kubeconfig = (
             os.path.expanduser(kubeconfig_value) if kubeconfig_value else ""
         )
+        self._mode = self._resolve_mode(mode)
         self._validate_config()
         self._patch_mlrun_image = patch_mlrun_image
         self._skip_patch_api = skip_patch_api
@@ -287,12 +287,16 @@ class MLRunPatcher:
             raise RuntimeError(f"KUBECONFIG file not found: {self._kubeconfig}")
 
     def _resolve_mode(self, mode: str) -> str:
-        resolved = (mode or self._config.get("MODE") or Constants.mode_ssh).lower()
-        if resolved not in Constants.valid_modes:
-            raise ValueError(
-                f"Invalid mode '{resolved}'. Valid modes: {sorted(Constants.valid_modes)}"
-            )
-        return resolved
+        explicit = mode or self._config.get("MODE")
+        if explicit:
+            resolved = explicit.lower()
+            if resolved not in Constants.valid_modes:
+                raise ValueError(
+                    f"Invalid mode '{resolved}'. Valid modes: {sorted(Constants.valid_modes)}"
+                )
+            return resolved
+        # Infer: kubeconfig present => kubectl; else legacy ssh.
+        return Constants.mode_kubectl if self._kubeconfig else Constants.mode_ssh
 
     def _get_current_version(self) -> str:
         if "unstable" in self._image_tag:
@@ -856,13 +860,13 @@ class MLRunPatcher:
     "--mode",
     type=click.Choice([Constants.mode_ssh, Constants.mode_kubectl]),
     default=None,
-    help="Execution mode: 'ssh' (default) or 'kubectl'. Overrides the 'MODE' config field.",
+    help="Force execution mode. Defaults to ssh, or kubectl when --kubeconfig/KUBECONFIG is set.",
 )
 @click.option(
     "--kubeconfig",
     default="",
     type=str,
-    help="Path to a kubeconfig file (kubectl mode only). Overrides the 'KUBECONFIG' config field.",
+    help="Path to a kubeconfig file. Setting this implies kubectl mode unless --mode is given.",
 )
 @click.option(
     "-mig",

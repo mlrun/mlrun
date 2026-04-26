@@ -92,8 +92,16 @@ class TestBodyMappings:
         d = bm.to_dict()
         assert d == {
             "mappings": [
-                {"source_json_path": "$.model", "destination_path": "model", "mandatory": True},
-                {"source_json_path": "$.messages", "destination_path": "messages", "mandatory": False},
+                {
+                    "source_json_path": "$.model",
+                    "destination_path": "model",
+                    "mandatory": True,
+                },
+                {
+                    "source_json_path": "$.messages",
+                    "destination_path": "messages",
+                    "mandatory": False,
+                },
             ]
         }
 

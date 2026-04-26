@@ -32,7 +32,6 @@ import mlrun.runtimes.kubejob as kubejob_runtime
 import mlrun.runtimes.nuclio.function as nuclio_function
 import mlrun.runtimes.pod as pod_runtime
 import mlrun.serving.utils as serving_utils
-from mlrun.common.schemas.serving import _APIEndpointKeys
 from mlrun.datastore import get_kafka_brokers_from_dict, parse_kafka_url
 from mlrun.model import ObjectList
 from mlrun.runtimes.function_reference import FunctionReference
@@ -54,8 +53,6 @@ from mlrun.serving.states import (
 from mlrun.utils import get_caller_globals, logger, merge_requirements, set_paths
 
 serving_subkind = "serving_v2"
-
-_GLOBAL_BODY_MAPPINGS_KEY = "*"
 
 
 class BodyMappings(mlrun.model.ModelObj):
@@ -189,16 +186,6 @@ class APIHandlerConfig(mlrun.model.ModelObj):
         if endpoints:
             self.endpoints = endpoints
         self.include_url_info = include_url_info
-
-    @property
-    def body_map(self) -> dict[str, "BodyMappings"]:
-        """Get the current body mappings keyed by endpoint_key (``"METHOD:path"``)."""
-        return self._body_map
-
-    @body_map.setter
-    def body_map(self, value: dict[str, "BodyMappings"] | None) -> None:
-        """Replace the body mappings entirely."""
-        self._body_map = value or {}
 
     @property
     def endpoints(self) -> list["EndpointConfig"]:

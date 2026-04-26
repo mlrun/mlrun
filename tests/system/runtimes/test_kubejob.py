@@ -879,6 +879,17 @@ def print_df(df):
         finally:
             v3io_client.close()
 
+    @pytest.mark.parametrize("local", [True, False])
+    def test_async_handler_completes(self, local: bool) -> None:
+        """Async handler completes with correct output for both local and remote (K8s) execution."""
+        name = "async-fetch-data-local" if local else "async-fetch-data"
+        fn = self._make_async_handler_function(name=name)
+        run = fn.run(local=local)
+        assert run.state() == "completed", f"Unexpected state: {run.state()}"
+        assert run.output("async_result") == 42, (
+            f"Expected async_result=42, got {run.output('async_result')}"
+        )
+
     def _make_async_handler_function(
         self, name: str = "async-fetch-data"
     ) -> mlrun.runtimes.KubejobRuntime:
@@ -891,17 +902,6 @@ def print_df(df):
                 handler="fetch_data",
                 image=self.image,
             ),
-        )
-
-    @pytest.mark.parametrize("local", [True, False])
-    def test_async_handler_completes(self, local: bool) -> None:
-        """Async handler completes with correct output for both local and remote (K8s) execution."""
-        name = "async-fetch-data-local" if local else "async-fetch-data"
-        fn = self._make_async_handler_function(name=name)
-        run = fn.run(local=local)
-        assert run.state() == "completed", f"Unexpected state: {run.state()}"
-        assert run.output("async_result") == 42, (
-            f"Expected async_result=42, got {run.output('async_result')}"
         )
 
     def test_retry_job_exhausted(self):

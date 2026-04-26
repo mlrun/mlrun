@@ -34,24 +34,6 @@ def _restore_packagers_enabled():
     mlrun.mlconf.packagers.enabled = original
 
 
-def _launch(
-    handler_name: str,
-    packagers_enabled: bool = False,
-    params: dict | None = None,
-) -> mlrun.run.RunObject:
-    """Run a handler from the async_handlers asset file via the local launcher."""
-    mlrun.mlconf.packagers.enabled = packagers_enabled
-    launcher = mlrun.launcher.local.ClientLocalLauncher(local=True)
-    runtime = mlrun.code_to_function(
-        name="test-async",
-        kind="job",
-        filename=_HANDLER_FILE,
-        handler=handler_name,
-    )
-    task = mlrun.new_task(params=params) if params else None
-    return launcher.launch(runtime, task=task)
-
-
 @parametrize_packagers
 def test_async_handler_completes(packagers_enabled: bool) -> None:
     """Async handler runs to completion and outputs are logged."""
@@ -103,7 +85,7 @@ def test_async_handler_inside_running_loop(packagers_enabled: bool) -> None:
     assert result.status.results.get("async_result") == 42
 
 
-def test__run_async_handler_returns_value() -> None:
+def test_run_async_handler_returns_value() -> None:
     async def coro() -> int:
         await asyncio.sleep(0)
         return 77
@@ -111,7 +93,7 @@ def test__run_async_handler_returns_value() -> None:
     assert _run_async_handler(coro()) == 77
 
 
-def test__run_async_handler_propagates_exception() -> None:
+def test_run_async_handler_propagates_exception() -> None:
     async def failing_coro() -> None:
         raise RuntimeError("boom")
 
@@ -154,7 +136,7 @@ def test_async_handler_in_class(
     assert result.status.results.get(result_key) == expected
 
 
-def test__run_async_handler_inside_running_loop() -> None:
+def test_run_async_handler_inside_running_loop() -> None:
     async def coro() -> int:
         await asyncio.sleep(0)
         return 55
@@ -165,3 +147,21 @@ def test__run_async_handler_inside_running_loop() -> None:
         return _run_async_handler(coro())
 
     assert asyncio.run(call_from_running_loop()) == 55
+
+
+def _launch(
+    handler_name: str,
+    packagers_enabled: bool = False,
+    params: dict | None = None,
+) -> mlrun.run.RunObject:
+    """Run a handler from the async_handlers asset file via the local launcher."""
+    mlrun.mlconf.packagers.enabled = packagers_enabled
+    launcher = mlrun.launcher.local.ClientLocalLauncher(local=True)
+    runtime = mlrun.code_to_function(
+        name="test-async",
+        kind="job",
+        filename=_HANDLER_FILE,
+        handler=handler_name,
+    )
+    task = mlrun.new_task(params=params) if params else None
+    return launcher.launch(runtime, task=task)

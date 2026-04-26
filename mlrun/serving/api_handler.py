@@ -21,8 +21,6 @@ from typing import Any, Union
 from urllib.parse import parse_qs, unquote, urlsplit
 
 import nuclio_sdk
-from jsonpath_ng import parse as jsonpath_parse
-from jsonpath_ng.exceptions import JsonPathLexerError, JsonPathParserError
 
 import mlrun.common.schemas as schemas
 import mlrun.errors
@@ -31,7 +29,6 @@ import mlrun.serving.server
 import mlrun.serving.states
 import mlrun.serving.utils as serving_utils
 import mlrun.utils
-from mlrun.common.schemas.serving import _APIEndpointKeys
 from mlrun.serving.utils import _RequestContext
 
 
@@ -63,18 +60,6 @@ class _APIHandlerStep(mlrun.serving.states.TaskStep):
         else:
             self.config = mlrun.runtimes.nuclio.serving.APIHandlerConfig()
         self.context = context
-
-        # Parse JSONPath expressions during initialization for performance and early error detection
-        self._parsed_body_map = {}
-        if self.config.body_map:
-            for param_name, jsonpath_expr in self.config.body_map.items():
-                try:
-                    self._parsed_body_map[param_name] = jsonpath_parse(jsonpath_expr)
-                except (JsonPathLexerError, JsonPathParserError) as exc:
-                    raise mlrun.errors.MLRunInvalidArgumentError(
-                        f"Invalid JSON path expression for parameter '{param_name}': "
-                        f"'{jsonpath_expr}'. Error: {exc}"
-                    ) from exc
 
         # Pre-compile patterns in a single pass for performance.
         # Template patterns: /api/{user_id}/items → regex with named groups.

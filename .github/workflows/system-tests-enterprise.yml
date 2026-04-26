@@ -451,6 +451,22 @@ jobs:
       env:
         GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
 
+    - name: Start GitHub App token refresh daemon
+      env:
+        GH_APP_ID: ${{ secrets.GH_APP_ID }}
+        GH_APP_PRIVATE_KEY: ${{ secrets.GH_APP_PRIVATE_KEY }}
+      run: |
+        source .github/scripts/github-app-token.sh
+        DAEMON_PID=$(start_token_refresh_daemon \
+          "/tmp/.github-app-token" \
+          "$GITHUB_WORKSPACE/tests/system/env.yml" \
+          "MLRUN_SYSTEM_TESTS_GIT_TOKEN" \
+          "3300" \
+          "${{ github.repository_owner }}" \
+          "mlrun,private-system-tests")
+        echo "Token refresh daemon started (PID: ${DAEMON_PID})"
+        echo "TOKEN_REFRESH_PID=${DAEMON_PID}" >> $GITHUB_ENV
+
     - name: Pre Tests Requirements
       run: |
 

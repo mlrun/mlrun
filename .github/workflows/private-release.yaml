@@ -130,6 +130,11 @@ jobs:
     env:
       DOCKER_REGISTRY: "${{ secrets.ARTIFACTORY_URL }}/${{ inputs.artifactory_docker_repo }}/"
     steps:
+      - uses: actions/checkout@v6
+        with:
+          sparse-checkout: .github/scripts
+          sparse-checkout-cone-mode: false
+
       - name: Trigger UI build and wait for completion
         env:
           GH_APP_ID: ${{ secrets.GH_APP_ID }}
@@ -139,40 +144,14 @@ jobs:
           VERSION: ${{ needs.prepare-inputs.outputs.version }}
           POLL_INTERVAL: 60
           TIMEOUT_MINUTES: 120
+          TOKEN_LIFETIME: 3300
         run: |
           set -euo pipefail
-
-          generate_jwt() {
-            local now=$(date +%s)
-            local iat=$((now - 60))
-            local exp=$((now + 540))  # 9 minutes (max 10)
-
-            local header=$(echo -n '{"alg":"RS256","typ":"JWT"}' | openssl base64 -e -A | tr '+/' '-_' | tr -d '=')
-            local payload=$(echo -n "{\"iat\":${iat},\"exp\":${exp},\"iss\":\"${GH_APP_ID}\"}" | openssl base64 -e -A | tr '+/' '-_' | tr -d '=')
-            local unsigned="${header}.${payload}"
-            local signature=$(echo -n "${unsigned}" | openssl dgst -sha256 -sign <(echo "${GH_APP_PRIVATE_KEY}") | openssl base64 -e -A | tr '+/' '-_' | tr -d '=')
-            echo "${unsigned}.${signature}"
-          }
-
-          generate_installation_token() {
-            local jwt=$(generate_jwt)
-            local installation_id=$(curl -sf -H "Authorization: Bearer ${jwt}" \
-              -H "Accept: application/vnd.github+json" \
-              "https://api.github.com/app/installations" \
-              | jq -r ".[] | select(.account.login==\"${OWNER}\") | .id")
-
-            curl -sf -X POST \
-              -H "Authorization: Bearer ${jwt}" \
-              -H "Accept: application/vnd.github+json" \
-              "https://api.github.com/app/installations/${installation_id}/access_tokens" \
-              -d "{\"repositories\":[\"ui\"]}" \
-              | jq -r '.token'
-          }
+          source .github/scripts/github-app-token.sh
 
           echo "Generating initial installation token..."
-          TOKEN=$(generate_installation_token)
+          TOKEN=$(generate_installation_token "${OWNER}" "ui")
           TOKEN_CREATED_AT=$(date +%s)
-          TOKEN_LIFETIME=3300  # refresh after 55 minutes
 
           echo "Triggering UI build workflow on ${OWNER}/ui@${UI_REF}..."
           curl -sf -X POST \
@@ -214,11 +193,10 @@ jobs:
               exit 1
             fi
 
-            # Refresh token if nearing expiry
             ELAPSED=$(( $(date +%s) - TOKEN_CREATED_AT ))
             if [ ${ELAPSED} -ge ${TOKEN_LIFETIME} ]; then
               echo "Refreshing installation token..."
-              TOKEN=$(generate_installation_token)
+              TOKEN=$(generate_installation_token "${OWNER}" "ui")
               TOKEN_CREATED_AT=$(date +%s)
             fi
 

@@ -890,20 +890,6 @@ def print_df(df):
             f"Expected async_result=42, got {run.output('async_result')}"
         )
 
-    def _make_async_handler_function(
-        self, name: str = "async-fetch-data"
-    ) -> mlrun.runtimes.KubejobRuntime:
-        return cast(
-            mlrun.runtimes.KubejobRuntime,
-            cast(mlrun.MlrunProject, self.project).set_function(
-                str(self.assets_path / "async_handler.py"),
-                name=name,
-                kind="job",
-                handler="fetch_data",
-                image=self.image,
-            ),
-        )
-
     def test_retry_job_exhausted(self):
         code_path = str(self.assets_path / "raise_func.py")
 
@@ -983,3 +969,17 @@ def print_df(df):
                     f"{previous_start_time} >= {current_start_time}"
                 )
             previous_start_time = current_start_time
+
+    def _make_async_handler_function(
+        self, name: str = "async-fetch-data"
+    ) -> mlrun.runtimes.KubejobRuntime:
+        return cast(
+            mlrun.runtimes.KubejobRuntime,
+            cast(mlrun.MlrunProject, self.project).set_function(
+                str(self.assets_path / "async_handler.py"),
+                name=name,
+                kind="job",
+                handler="fetch_data",
+                image=self.image,
+            ),
+        )

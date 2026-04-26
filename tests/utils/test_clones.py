@@ -95,11 +95,11 @@ def test_load_artifact_success(tmp_path, project):
             project=project,
         )
 
-    expected_path = os.path.join(target_dir, "handler.py")
+    expected_local_file = os.path.join(target_dir, "handler.py")
 
-    # Assert returned path is under target_dir
-    assert result == expected_path
-    assert result.startswith(target_dir)
+    # Returned path is the directory (consistent with git/archive sources),
+    # so callers can use it as workdir + sys.path entry.
+    assert result == target_dir
 
     # Assert directory was actually created
     assert os.path.isdir(target_dir)
@@ -109,8 +109,8 @@ def test_load_artifact_success(tmp_path, project):
     # Assert get_dataitem is called with the artifact's target path
     mock_get_dataitem.assert_called_once_with(artifact_target_path)
 
-    # Assert download is called with the local destination path
-    mock_dataitem.download.assert_called_once_with(expected_path)
+    # Assert download is called with the local destination file path
+    mock_dataitem.download.assert_called_once_with(expected_local_file)
 
 
 @pytest.mark.parametrize(

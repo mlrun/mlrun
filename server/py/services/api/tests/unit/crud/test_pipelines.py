@@ -320,7 +320,7 @@ def test_list_pipelines_project_filtering(project, expected_ids):
 
 
 @pytest.fixture()
-def pipelines_crud(self):
+def pipelines_crud():
     return services.api.crud.pipelines.Pipelines()
 
 
@@ -404,7 +404,7 @@ def test_failed_run_deletion_logs_correct_run_id(pipelines_crud, monkeypatch):
 
 
 def test_failed_experiment_deletion_logs_correct_experiment_id(
-    self, pipelines_crud, monkeypatch
+    pipelines_crud, monkeypatch
 ):
     """
     When deleting multiple experiments concurrently, the warning log

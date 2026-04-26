@@ -217,16 +217,21 @@ def test_get_workflow_steps_called():
     assert steps[0]["metadata"]["name"] == "step1"
 
 
-def setup_method(self):
+@pytest.fixture
+def notifications_ctx():
     # Reset singleton so each test gets a fresh instance
     services.api.crud.Notifications._instance = None
-    self.notifications_crud = services.api.crud.Notifications()
-    self.session = MagicMock()
-    self.project = "test-project"
-    self.run_uid = "test-uid-123"
+
+    class _Ctx:
+        notifications_crud = services.api.crud.Notifications()
+        session = MagicMock()
+        project = "test-project"
+        run_uid = "test-uid-123"
+
+    return _Ctx()
 
 
-def _make_notification(self, name: str) -> mlrun.model.Notification:
+def _make_notification(name: str) -> mlrun.model.Notification:
     notification = mlrun.model.Notification()
     notification.name = name
     return notification
@@ -235,82 +240,85 @@ def _make_notification(self, name: str) -> mlrun.model.Notification:
 @patch("framework.utils.singletons.db.get_db")
 @patch("framework.utils.notifications.delete_notification_params_secret")
 def test_delete_all_notifications_cleans_up_all_secrets(
-    self, mock_delete_secret, mock_get_db
+    mock_delete_secret, mock_get_db, notifications_ctx
 ):
     """When name=None (delete all), secrets for ALL notifications should be cleaned up."""
-    notif_a = self._make_notification("slack-notif")
-    notif_b = self._make_notification("webhook-notif")
-    notif_c = self._make_notification("email-notif")
+    notif_a = _make_notification("slack-notif")
+    notif_b = _make_notification("webhook-notif")
+    notif_c = _make_notification("email-notif")
 
     mock_db = MagicMock()
     mock_get_db.return_value = mock_db
     mock_db.list_run_notifications.return_value = [notif_a, notif_b, notif_c]
 
-    self.notifications_crud.delete_run_notifications(
-        session=self.session,
+    notifications_ctx.notifications_crud.delete_run_notifications(
+        session=notifications_ctx.session,
         name=None,
-        run_uid=self.run_uid,
-        project=self.project,
+        run_uid=notifications_ctx.run_uid,
+        project=notifications_ctx.project,
     )
 
     # All three notification secrets should be cleaned up
     assert mock_delete_secret.call_count == 3
     mock_delete_secret.assert_has_calls(
         [
-            call(self.project, notif_a),
-            call(self.project, notif_b),
-            call(self.project, notif_c),
+            call(notifications_ctx.project, notif_a),
+            call(notifications_ctx.project, notif_b),
+            call(notifications_ctx.project, notif_c),
         ],
         any_order=False,
     )
 
     # The DB delete should also be called
     mock_db.delete_run_notifications.assert_called_once_with(
-        self.session, name=None, run_uid=self.run_uid, project=self.project
+        notifications_ctx.session,
+        name=None,
+        run_uid=notifications_ctx.run_uid,
+        project=notifications_ctx.project,
     )
 
 
 @patch("framework.utils.singletons.db.get_db")
 @patch("framework.utils.notifications.delete_notification_params_secret")
 def test_delete_by_name_cleans_up_only_matching_secret(
-    self, mock_delete_secret, mock_get_db
+    mock_delete_secret, mock_get_db, notifications_ctx
 ):
     """When name is specified, only the matching notification secret should be cleaned up."""
-    notif_a = self._make_notification("slack-notif")
-    notif_b = self._make_notification("webhook-notif")
+    notif_a = _make_notification("slack-notif")
+    notif_b = _make_notification("webhook-notif")
 
     mock_db = MagicMock()
     mock_get_db.return_value = mock_db
     mock_db.list_run_notifications.return_value = [notif_a, notif_b]
 
-    self.notifications_crud.delete_run_notifications(
-        session=self.session,
+    notifications_ctx.notifications_crud.delete_run_notifications(
+        session=notifications_ctx.session,
         name="webhook-notif",
-        run_uid=self.run_uid,
-        project=self.project,
+        run_uid=notifications_ctx.run_uid,
+        project=notifications_ctx.project,
     )
 
     # Only the webhook notification secret should be cleaned up
-    mock_delete_secret.assert_called_once_with(self.project, notif_b)
+    mock_delete_secret.assert_called_once_with(notifications_ctx.project, notif_b)
 
 
 @patch("framework.utils.singletons.db.get_db")
 @patch("framework.utils.notifications.delete_notification_params_secret")
 def test_delete_with_no_matching_name_skips_secret_cleanup(
-    self, mock_delete_secret, mock_get_db
+    mock_delete_secret, mock_get_db, notifications_ctx
 ):
     """When name doesn't match any notification, no secrets should be cleaned up."""
-    notif_a = self._make_notification("slack-notif")
+    notif_a = _make_notification("slack-notif")
 
     mock_db = MagicMock()
     mock_get_db.return_value = mock_db
     mock_db.list_run_notifications.return_value = [notif_a]
 
-    self.notifications_crud.delete_run_notifications(
-        session=self.session,
+    notifications_ctx.notifications_crud.delete_run_notifications(
+        session=notifications_ctx.session,
         name="nonexistent",
-        run_uid=self.run_uid,
-        project=self.project,
+        run_uid=notifications_ctx.run_uid,
+        project=notifications_ctx.project,
     )
 
     mock_delete_secret.assert_not_called()

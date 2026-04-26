@@ -57,7 +57,7 @@ def test_removeprefix_strips_exact_prefix(access_key, expected_secret_name):
         ("$ref:reference-token", "reference-token"),
     ],
 )
-def test_lstrip_incorrectly_strips_secret_names(self, access_key, expected_secret_name):
+def test_lstrip_incorrectly_strips_secret_names(access_key, expected_secret_name):
     """
     Demonstrate that lstrip produces wrong results for secret names
     starting with characters from the prefix set.

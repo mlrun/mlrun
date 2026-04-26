@@ -159,7 +159,6 @@ def test_str_split_self_returns_empty_filename():
     return_value={},
 )
 def test_get_files_returns_correct_filename_header(
-    self,
     mock_get_secrets,
     mock_get_obj_path,
     mock_store_manager,

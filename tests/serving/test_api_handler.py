@@ -26,7 +26,7 @@ import pytest
 import mlrun
 import mlrun.errors
 from mlrun.common.schemas.serving import APIHandlerAction, _APIEndpointKeys
-from mlrun.runtimes.nuclio.serving import APIHandlerConfig, BodyMappings, ServingRuntime
+from mlrun.runtimes.nuclio.serving import APIHandlerConfig, BodyMappings, EndpointConfig, ServingRuntime
 from mlrun.serving import GraphContext
 from mlrun.serving.api_handler import _APIHandlerStep
 from mlrun.serving.server import (
@@ -1117,7 +1117,7 @@ class TestAPIHandlerMockServer:
             server.wait_for_completion()
 
     def test_api_handler_body_map_path_conflict_at_init(self) -> None:
-        """Test that body_map vs path template conflicts are caught at init time"""
+        """Test that body_mappings destination_path vs path template conflicts are caught at init time"""
 
         def handler(**kwargs):
             return {"id": kwargs.get("id")}
@@ -1127,12 +1127,15 @@ class TestAPIHandlerMockServer:
             mlrun.new_function("test-param-conflict", kind="serving"),
         )
 
+        bm = BodyMappings()
+        bm.add_mapping("$.identifier", destination_path="id")  # destination_path="id" conflicts
+
         config = APIHandlerConfig()
-        config.add_body_mapping("id", "$.identifier")  # body_map extracts 'id'
         config.add_endpoint_handler(
             "/items/{id}",  # path also has 'id'
             HTTPMethod.POST,
             APIHandlerAction.ALLOW,
+            body_mappings=bm,
         )
         fn.set_api_handler_config(config)
 
@@ -1142,7 +1145,7 @@ class TestAPIHandlerMockServer:
         # Conflict should be raised at mock server init, not at request time
         with pytest.raises(
             mlrun.errors.MLRunValueError,
-            match="Configuration conflict.*body_map parameter.*id.*overlap with path template",
+            match="Configuration conflict.*body_mappings destination_path.*id.*overlap with path template",
         ):
             fn.to_mock_server()
 
@@ -2165,50 +2168,106 @@ class TestExtractQueryParams:
 
 
 class TestCompileEndpointPatterns:
-    """Tests for _compile_endpoint_patterns method"""
+    """Tests for _compile_patterns method"""
 
-    def test_compile_endpoint_patterns_no_templates(self) -> None:
-        """Test that endpoints without templates are skipped"""
+    def test_no_templates_produces_empty_pattern_list(self) -> None:
+        """Exact endpoints are not compiled — no template patterns produced."""
         config = APIHandlerConfig()
-        config.add_endpoint_handler(
-            "/api/users", HTTPMethod.GET, APIHandlerAction.ALLOW
-        )
-        config.add_endpoint_handler(
-            "/api/items", HTTPMethod.GET, APIHandlerAction.ALLOW
-        )
+        config.add_endpoint_handler("/api/users", HTTPMethod.GET, APIHandlerAction.ALLOW)
+        config.add_endpoint_handler("/api/items", HTTPMethod.GET, APIHandlerAction.ALLOW)
 
         handler = _APIHandlerStep(config=config)
-        # Should have no patterns (no path templates)
         assert len(handler._endpoint_patterns) == 0
+        assert len(handler._star_patterns) == 0
 
-    def test_compile_endpoint_patterns_with_templates(self) -> None:
-        """Test compiling patterns for endpoints with templates"""
+    def test_template_endpoints_produce_compiled_patterns(self) -> None:
+        """Template endpoints are compiled to regex patterns with named groups."""
         config = APIHandlerConfig()
-        config.add_endpoint_handler(
-            "/api/users/{user_id}", HTTPMethod.GET, APIHandlerAction.ALLOW
-        )
-        config.add_endpoint_handler(
-            "/api/items/{item_id}", HTTPMethod.POST, APIHandlerAction.ALLOW
-        )
+        config.add_endpoint_handler("/api/users/{user_id}", HTTPMethod.GET, APIHandlerAction.ALLOW)
+        config.add_endpoint_handler("/api/items/{item_id}", HTTPMethod.POST, APIHandlerAction.ALLOW)
 
         handler = _APIHandlerStep(config=config)
-        # Should have 2 patterns
         assert len(handler._endpoint_patterns) == 2
 
-        # Verify patterns are compiled
-        for (
-            method,
-            pattern,
-            endpoint_key,
-            endpoint_config,
-        ) in handler._endpoint_patterns:
+        for method, pattern, ep in handler._endpoint_patterns:
             assert isinstance(pattern, type(re.compile("")))
-            assert method in [
-                HTTPMethod.GET,
-                HTTPMethod.POST,
-                HTTPMethod.PUT,
-                HTTPMethod.DELETE,
-            ]
+            assert method in (HTTPMethod.GET, HTTPMethod.POST)
+
+    def test_star_endpoints_produce_star_patterns(self) -> None:
+        """Star endpoints are stored as prefix strings, not compiled regex."""
+        config = APIHandlerConfig()
+        config.add_endpoint_handler("/api/v1/*", HTTPMethod.POST, APIHandlerAction.ALLOW)
+
+        handler = _APIHandlerStep(config=config)
+        assert len(handler._star_patterns) == 1
+        assert len(handler._endpoint_patterns) == 0
+
+        method, prefix, ep = handler._star_patterns[0]
+        assert prefix == "/api/v1/"
+        assert method == HTTPMethod.POST
+
+
+    def test_same_endpoint_body_mappings_conflict_raises(self) -> None:
+        """body_mappings destination_path conflicting with the same endpoint's path param raises at init."""
+        bm = BodyMappings()
+        bm.add_mapping("$.id", destination_path="user_id")
+
+        config = APIHandlerConfig()
+        config.add_endpoint_handler(
+            "/api/{user_id}",
+            HTTPMethod.POST,
+            APIHandlerAction.ALLOW,
+            body_mappings=bm,
+        )
+
+        with pytest.raises(
+            mlrun.errors.MLRunValueError,
+            match="Configuration conflict.*user_id.*overlap with path template",
+        ):
+            _APIHandlerStep(config=config)
+
+    def test_star_endpoint_body_mappings_conflict_with_template_raises(self) -> None:
+        """Star endpoint body_mappings conflicting with a sub-template's path param raises at init."""
+        bm = BodyMappings()
+        bm.add_mapping("$.user_id", destination_path="user_id")
+
+        config = APIHandlerConfig()
+        config.add_endpoint_handler("/api/*", HTTPMethod.POST, APIHandlerAction.ALLOW, body_mappings=bm)
+        config.add_endpoint_handler("/api/{user_id}/data", HTTPMethod.POST, APIHandlerAction.ALLOW)
+
+        with pytest.raises(
+            mlrun.errors.MLRunValueError,
+            match="Configuration conflict.*user_id.*overlap with path template",
+        ):
+            _APIHandlerStep(config=config)
+
+    def test_no_conflict_different_methods(self) -> None:
+        """No conflict when body_mappings and template path param are on different HTTP methods."""
+        bm = BodyMappings()
+        bm.add_mapping("$.user_id", destination_path="user_id")
+
+        config = APIHandlerConfig()
+        config.add_endpoint_handler("/api/*", HTTPMethod.GET, APIHandlerAction.ALLOW, body_mappings=bm)
+        config.add_endpoint_handler("/api/{user_id}/data", HTTPMethod.POST, APIHandlerAction.ALLOW)
+
+        # No conflict — different methods, so no raise
+        _APIHandlerStep(config=config)
+
+    def test_no_conflict_non_overlapping_names(self) -> None:
+        """No conflict when destination_path names don't overlap with path param names."""
+        bm = BodyMappings()
+        bm.add_mapping("$.model", destination_path="model")
+
+        config = APIHandlerConfig()
+        config.add_endpoint_handler(
+            "/api/{user_id}",
+            HTTPMethod.POST,
+            APIHandlerAction.ALLOW,
+            body_mappings=bm,
+        )
+
+        # No conflict — "model" != "user_id"
+        _APIHandlerStep(config=config)
 
     def test_compile_endpoint_patterns_invalid_regex(self) -> None:
         """Test that invalid regex patterns raise error during initialization"""

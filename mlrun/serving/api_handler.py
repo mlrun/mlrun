@@ -64,8 +64,8 @@ class _APIHandlerStep(mlrun.serving.states.TaskStep):
         # Pre-compile patterns in a single pass for performance.
         # Template patterns: /api/{user_id}/items → regex with named groups.
         # Star patterns:     /api/v1/*           → plain prefix string.
-        self._endpoint_patterns: list[tuple[HTTPMethod, Pattern, str, dict]]
-        self._star_patterns: list[tuple[HTTPMethod, str, str, dict]]
+        self._endpoint_patterns: list[tuple[HTTPMethod, Pattern, "mlrun.runtimes.nuclio.serving.EndpointConfig"]]
+        self._star_patterns: list[tuple[HTTPMethod, str, "mlrun.runtimes.nuclio.serving.EndpointConfig"]]
         self._endpoint_patterns, self._star_patterns = self._compile_patterns()
 
         mlrun.utils.logger.debug("The context in API handler", context=self.context)
@@ -73,8 +73,8 @@ class _APIHandlerStep(mlrun.serving.states.TaskStep):
     def _compile_patterns(
         self,
     ) -> tuple[
-        list[tuple[HTTPMethod, Pattern, str, dict]],
-        list[tuple[HTTPMethod, str, str, dict]],
+        list[tuple[HTTPMethod, Pattern, "mlrun.runtimes.nuclio.serving.EndpointConfig"]],
+        list[tuple[HTTPMethod, str, "mlrun.runtimes.nuclio.serving.EndpointConfig"]],
     ]:
         """Compile all non-exact endpoint patterns in a single pass.
 
@@ -96,16 +96,15 @@ class _APIHandlerStep(mlrun.serving.states.TaskStep):
 
         :return: Tuple of (template_patterns, star_patterns) where
 
-            * ``template_patterns`` is a list of
-              ``(method, compiled_regex, endpoint_key, endpoint_config)``
-            * ``star_patterns`` is a list of
-              ``(method, prefix, endpoint_key, endpoint_config)``
+            * ``template_patterns`` is a list of ``(method, compiled_regex, EndpointConfig)``
+            * ``star_patterns`` is a list of ``(method, prefix, EndpointConfig)``
         """
-        template_patterns: list[tuple[HTTPMethod, Pattern, str, dict]] = []
-        star_patterns: list[tuple[HTTPMethod, str, str, dict]] = []
+        template_patterns: list[tuple[HTTPMethod, Pattern, "mlrun.runtimes.nuclio.serving.EndpointConfig"]] = []
+        star_patterns: list[tuple[HTTPMethod, str, "mlrun.runtimes.nuclio.serving.EndpointConfig"]] = []
 
-        for endpoint_key, endpoint_config in self.config._endpoints.items():
-            method, path_pattern = self.config._parse_endpoint_key(endpoint_key)
+        for ep in self.config.endpoints.values():
+            method = ep.http_method
+            path_pattern = ep.path
 
             if "*" in path_pattern:
                 # --- Star (wildcard) pattern ---
@@ -124,7 +123,7 @@ class _APIHandlerStep(mlrun.serving.states.TaskStep):
                 prefix = path_pattern.rstrip("*")
                 if not prefix.endswith("/"):
                     prefix += "/"
-                star_patterns.append((method, prefix, endpoint_key, endpoint_config))
+                star_patterns.append((method, prefix, ep))
 
             elif "{" in path_pattern:
                 # --- Template pattern ---
@@ -142,31 +141,87 @@ class _APIHandlerStep(mlrun.serving.states.TaskStep):
                 except re.error as exc:
                     raise mlrun.errors.MLRunValueError(
                         f"Failed to compile regex for endpoint pattern '{path_pattern}' "
-                        f"(key: {endpoint_key}): {exc}"
+                        f"(key: {ep.get_endpoint_key()}): {exc}"
                     ) from exc
-                template_patterns.append(
-                    (method, compiled, endpoint_key, endpoint_config)
-                )
+                template_patterns.append((method, compiled, ep))
             # else: exact endpoint – handled by dict lookup, no compilation needed
 
-        # Validate that body_map parameter names don't overlap with path template
-        # parameter names. This is a static conflict that can be caught early,
-        # before any request arrives.
-        if self._parsed_body_map and template_patterns:
-            body_map_names = set(self._parsed_body_map.keys())
-            for _, compiled_pattern, _, _ in template_patterns:
-                path_param_names = set(compiled_pattern.groupindex.keys())
-                overlapping = body_map_names & path_param_names
+        self._check_overlapping(template_patterns, star_patterns)
+        return template_patterns, star_patterns
+
+    def _check_overlapping(
+        self,
+        template_patterns: list[
+            tuple[HTTPMethod, Pattern, "mlrun.runtimes.nuclio.serving.EndpointConfig"]
+        ],
+        star_patterns: list[
+            tuple[HTTPMethod, str, "mlrun.runtimes.nuclio.serving.EndpointConfig"]
+        ],
+    ) -> None:
+        """Check that body_mappings destination_path names don't conflict with path
+        template parameter names that would be extracted on the same request.
+
+        Two sources of conflict for each template endpoint:
+        1. Same endpoint — the template endpoint itself has body_mappings with a conflicting name.
+        2. Star endpoint — a star endpoint whose prefix covers the template's path has
+           body_mappings with a conflicting name (its mappings apply to all requests under
+           its prefix, including requests that also match the template).
+
+        :raises mlrun.errors.MLRunValueError: On config-time conflict detection.
+
+        # Old per-endpoint-only check (kept for reference):
+        # for _, compiled_pattern, ep in template_patterns:
+        #     if not ep.body_mappings:
+        #         continue
+        #     dest_names = {
+        #         m["destination_path"]
+        #         for m in ep.body_mappings.mappings
+        #         if m.get("destination_path")
+        #     }
+        #     path_param_names = set(compiled_pattern.groupindex.keys())
+        #     overlapping = dest_names & path_param_names
+        #     if overlapping:
+        #         raise mlrun.errors.MLRunValueError(
+        #             f"Configuration conflict: body_mappings destination_path(s) "
+        #             f"{', '.join(sorted(overlapping))} overlap with path template "
+        #             f"parameter(s) in pattern '{compiled_pattern.pattern}' "
+        #             f"for endpoint '{ep.get_endpoint_key()}'. "
+        #             f"Rename the destination_path(s) or the path template "
+        #             f"placeholder(s) to avoid ambiguity."
+        #         )
+        """
+        for template_method, compiled_pattern, template_ep in template_patterns:
+            path_param_names = set(compiled_pattern.groupindex.keys())
+
+            # Source 1: same endpoint has body_mappings with conflicting destination_path
+            candidates = [(template_ep, "same endpoint")]
+
+            # Source 2: star endpoints whose prefix covers this template's path
+            for star_method, prefix, star_ep in star_patterns:
+                if star_method != template_method:
+                    continue
+                if template_ep.path.startswith(prefix):
+                    candidates.append((star_ep, f"star endpoint '{star_ep.get_endpoint_key()}'"))
+
+            for candidate_ep, source_desc in candidates:
+                if not candidate_ep.body_mappings:
+                    continue
+                dest_names = {
+                    m["destination_path"]
+                    for m in candidate_ep.body_mappings.mappings
+                    if m.get("destination_path")
+                }
+                overlapping = dest_names & path_param_names
                 if overlapping:
                     raise mlrun.errors.MLRunValueError(
-                        f"Configuration conflict: body_map parameter(s) "
-                        f"{', '.join(sorted(overlapping))} overlap with path template "
-                        f"parameter(s) in pattern '{compiled_pattern.pattern}'. "
-                        f"Rename the body_map parameter(s) or the path template "
+                        f"Configuration conflict: body_mappings destination_path(s) "
+                        f"{', '.join(sorted(overlapping))} from {source_desc} "
+                        f"overlap with path template parameter(s) in pattern "
+                        f"'{compiled_pattern.pattern}' "
+                        f"(endpoint '{template_ep.get_endpoint_key()}'). "
+                        f"Rename the destination_path(s) or the path template "
                         f"placeholder(s) to avoid ambiguity."
                     )
-
-        return template_patterns, star_patterns
 
     def _apply_parsed_body_map(self, body: dict) -> dict:
         """Apply pre-parsed JSONPath expressions to extract parameters from event body.

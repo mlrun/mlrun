@@ -195,7 +195,7 @@ class APIHandlerConfig(mlrun.model.ModelObj):
         return self._endpoints
 
     @endpoints.setter
-    def endpoints(self, endpoints: dict[str, dict | "EndpointConfig"]) -> None:
+    def endpoints(self, endpoints: dict[str, dict | EndpointConfig]) -> None:
         """Set the endpoints from a dict of raw dicts (deserialization) or EndpointConfig objects."""
         self._endpoints = {}
         for endpoint_key, ep in endpoints.items():

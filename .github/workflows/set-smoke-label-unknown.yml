@@ -55,7 +55,7 @@ jobs:
 
       - name: Set Smoke tests Unknown label
         if: steps.pr.outputs.pr_number != ''
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         with:
           script: |
             const addRemoveLabels = require('./automation/scripts/add-remove-labels.js')

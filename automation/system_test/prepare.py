@@ -639,6 +639,7 @@ class SystemTestPreparer:
                 # we force because by default provctl doesn't allow downgrading between version but due to system tests
                 # running on multiple branches this might occur.
                 "--force",
+                "--docker-pull-push-concurrency=8",
                 f"--override-mlrun-ui-version={self._mlrun_ui_version}"
                 if self._mlrun_ui_version
                 else "",

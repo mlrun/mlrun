@@ -91,7 +91,7 @@ jobs:
           sparse-checkout: automation/scripts
 
       - name: Set label on PR
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         with:
           script: |
             const addRemoveLabels = require('./automation/scripts/add-remove-labels.js')

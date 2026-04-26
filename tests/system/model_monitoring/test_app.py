@@ -14,6 +14,7 @@
 
 import concurrent.futures
 import json
+import os
 import pickle
 import tempfile
 import time
@@ -430,7 +431,9 @@ class TestMonitoringAppFlow(TestMLRunSystemModelMonitoring, _V3IORecordsChecker)
         )
 
     def _set_and_deploy_monitoring_apps(self) -> None:
-        with concurrent.futures.ThreadPoolExecutor() as executor:
+        with concurrent.futures.ThreadPoolExecutor(
+            max_workers=1 if (os.cpu_count() or 1) <= 8 else None
+        ) as executor:
             for app_data in self.apps_data:
                 if app_data.deploy:
                     fn = self.project.set_model_monitoring_function(

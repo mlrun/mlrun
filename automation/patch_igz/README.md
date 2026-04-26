@@ -13,6 +13,13 @@ make install-automation-requirements
 * From mlrun root dir run ./automation/patch_igz/patch_remote.py
 * If requesting to reset DB, DB_USER must be defined in patch_env.yml
 
+## Execution modes
+
+* `ssh` (default): SSH into a data node and run kubectl there.
+* `kubectl`: Run kubectl locally against the cluster (no SSH credentials required).
+
+Select via `MODE` in the config file or `--mode {ssh,kubectl}`. In kubectl mode, point at a cluster via `KUBECONFIG` / `--kubeconfig`, or rely on the kubectl default.
+
 WARNING: This may not persist after system restart
 
 Troubleshooting:

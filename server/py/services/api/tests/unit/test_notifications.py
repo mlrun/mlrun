@@ -231,12 +231,6 @@ def notifications_ctx():
     return _Ctx()
 
 
-def _make_notification(name: str) -> mlrun.model.Notification:
-    notification = mlrun.model.Notification()
-    notification.name = name
-    return notification
-
-
 @patch("framework.utils.singletons.db.get_db")
 @patch("framework.utils.notifications.delete_notification_params_secret")
 def test_delete_all_notifications_cleans_up_all_secrets(
@@ -322,3 +316,9 @@ def test_delete_with_no_matching_name_skips_secret_cleanup(
     )
 
     mock_delete_secret.assert_not_called()
+
+
+def _make_notification(name: str) -> mlrun.model.Notification:
+    notification = mlrun.model.Notification()
+    notification.name = name
+    return notification

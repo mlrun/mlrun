@@ -529,13 +529,6 @@ def test_with_source_archive_removes_inline_code(logs_stream):
     assert fn.spec.build.source == source
 
 
-def _create_runtime():
-    runtime = mlrun.runtimes.nuclio.function.RemoteRuntime()
-    runtime.metadata.name = "test-func"
-    runtime.metadata.project = "test-project"
-    return runtime
-
-
 def test_get_state_raise_on_exception_true_raises():
     """When raise_on_exception=True, a RunDBError should propagate as ValueError."""
     runtime = _create_runtime()
@@ -572,3 +565,10 @@ def test_get_state_no_error_returns_status():
         assert state == "ready"
         assert text == "deploy log"
         assert timestamp == 12345.0
+
+
+def _create_runtime():
+    runtime = mlrun.runtimes.nuclio.function.RemoteRuntime()
+    runtime.metadata.name = "test-func"
+    runtime.metadata.project = "test-project"
+    return runtime

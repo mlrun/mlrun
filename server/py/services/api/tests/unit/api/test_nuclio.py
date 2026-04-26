@@ -313,26 +313,6 @@ def test_with_http_async_spec(
                 assert "async" not in trigger
 
 
-def _make_api_gateway(host: str, path: str, function_names: list[str]):
-    """Build a minimal APIGateway schema with the given host, path and functions."""
-    upstreams = [
-        mlrun.common.schemas.APIGatewayUpstream(
-            nucliofunction={"name": name},
-            percentage=100 // len(function_names),
-        )
-        for name in function_names
-    ]
-    return mlrun.common.schemas.APIGateway(
-        metadata=mlrun.common.schemas.APIGatewayMetadata(name="gw"),
-        spec=mlrun.common.schemas.APIGatewaySpec(
-            name="gw",
-            host=host,
-            path=path,
-            upstreams=upstreams,
-        ),
-    )
-
-
 def test_same_invoke_url_skips_full_deletion():
     """
     When the existing and new API gateway have the same invoke URL,
@@ -386,3 +366,23 @@ def test_unused_functions_detected_when_url_unchanged():
         if func not in updated.get_function_names()
     ]
     assert unused_functions == ["proj/fn2"]
+
+
+def _make_api_gateway(host: str, path: str, function_names: list[str]):
+    """Build a minimal APIGateway schema with the given host, path and functions."""
+    upstreams = [
+        mlrun.common.schemas.APIGatewayUpstream(
+            nucliofunction={"name": name},
+            percentage=100 // len(function_names),
+        )
+        for name in function_names
+    ]
+    return mlrun.common.schemas.APIGateway(
+        metadata=mlrun.common.schemas.APIGatewayMetadata(name="gw"),
+        spec=mlrun.common.schemas.APIGatewaySpec(
+            name="gw",
+            host=host,
+            path=path,
+            upstreams=upstreams,
+        ),
+    )

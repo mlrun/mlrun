@@ -1167,13 +1167,6 @@ class TestRuns(services.api.tests.unit.conftest.MockedK8sHelper):
             services.api.crud.Runs._delete_run_resources(db, project, uid, run)
 
 
-def _make_run(name: str, project: str = "proj") -> MagicMock:
-    run = MagicMock()
-    run.name = f"{project}-{name}"
-    run.workflow_manifest.return_value = None
-    return run
-
-
 @patch.object(
     services.api.crud.pipelines.Pipelines,
     "_resolve_project_from_pipeline",
@@ -1314,3 +1307,10 @@ async def test_failed_deletion_references_correct_run_in_second_chunk():
         )
         assert "uid-1" in deleted_uids
         assert "uid-3" in deleted_uids
+
+
+def _make_run(name: str, project: str = "proj") -> MagicMock:
+    run = MagicMock()
+    run.name = f"{project}-{name}"
+    run.workflow_manifest.return_value = None
+    return run

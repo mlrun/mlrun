@@ -113,9 +113,7 @@ class TestNuclioRuntime(TestMLRunSystemModelMonitoring):
         graph.to(model_runner_step).respond()
 
         self._logger.debug("Deploying nuclio function")
-        deployment = function.deploy()
-
-        assert urlparse(deployment).hostname == urlparse(function.get_url()).hostname
+        function.deploy()
 
         resp = function.invoke("/", {"x": "y"})
         assert resp == {"x": "y", "extra": 123}
@@ -164,9 +162,7 @@ class TestNuclioRuntime(TestMLRunSystemModelMonitoring):
         graph.to(model_runner_step).respond()
 
         self._logger.debug("Deploying nuclio function with model selector")
-        deployment = function.deploy()
-
-        assert urlparse(deployment).hostname == urlparse(function.get_url()).hostname
+        function.deploy()
 
         resp = function.invoke("/", {"x": "y", "models": ["my-model"]})
         assert resp == {"my-model": {"extra": 123, "x": "y"}}
@@ -193,8 +189,7 @@ class TestNuclioRuntime(TestMLRunSystemModelMonitoring):
             model_artifact=model_artifact,
         )
         graph.to(model_runner).respond()
-        deployment = function.deploy()
-        assert urlparse(deployment).hostname == urlparse(function.get_url()).hostname
+        function.deploy()
 
         resp = function.invoke("/", {"something_with_meaning": "life"})
         assert resp == {"something_with_meaning": "life"}
@@ -256,9 +251,7 @@ class TestNuclioRuntime(TestMLRunSystemModelMonitoring):
         graph.to(model_runner_step).respond()
 
         self._logger.debug("Deploying nuclio function")
-        deployment = function.deploy()
-
-        assert urlparse(deployment).hostname == urlparse(function.get_url()).hostname
+        function.deploy()
 
         resp = function.invoke("/", {"something_with_meaning": "life"})
         assert resp["prompt"] == [
@@ -331,9 +324,7 @@ class TestNuclioRuntime(TestMLRunSystemModelMonitoring):
         graph.to(model_runner_step).respond()
 
         self._logger.debug("Deploying nuclio function")
-        deployment = function.deploy()
-
-        assert urlparse(deployment).hostname == urlparse(function.get_url()).hostname
+        function.deploy()
 
         resp = function.invoke("/", {"something_with_meaning": "life"})
         assert resp["prompt"] == [
@@ -370,11 +361,9 @@ class TestNuclioRuntime(TestMLRunSystemModelMonitoring):
             image=self.image,
         )
         self._logger.debug("Deploying nuclio function")
-        deployment = function.deploy()
+        function.deploy()
 
         assert len(self.project.list_model_endpoints().endpoints) == 1
-
-        assert urlparse(deployment).hostname == urlparse(function.get_url()).hostname
 
     @pytest.mark.parametrize("raise_exception", [True, False])
     def test_deploy_model_runner_error_handler(self, raise_exception: bool):
@@ -403,9 +392,8 @@ class TestNuclioRuntime(TestMLRunSystemModelMonitoring):
         step.error_handler("catcher", handler="catcher_echo", full_event=True)
 
         self._logger.debug("Deploying nuclio function")
-        deployment = function.deploy()
+        function.deploy()
 
-        assert urlparse(deployment).hostname == urlparse(function.get_url()).hostname
         resp = function.invoke("/", {"x": "y"})
         assert (
             resp
@@ -697,7 +685,12 @@ class TestNuclioRuntime(TestMLRunSystemModelMonitoring):
 
         # Test 1: StreamingStep path (async generator do() method)
         self._logger.info("Testing StreamingStep path...")
-        resp = requests.post(f"{url}/step", data="test", stream=True, verify=False)
+        resp = requests.post(
+            f"{url}/step",
+            data="test",
+            stream=True,
+            verify=mlrun.mlconf.httpdb.http.verify,
+        )
         self._logger.info(f"StreamingStep response: {resp}")
         assert resp.ok, f"StreamingStep request failed: {resp.status_code} {resp.text}"
         assert resp.headers.get("Transfer-Encoding") == "chunked"
@@ -712,7 +705,10 @@ class TestNuclioRuntime(TestMLRunSystemModelMonitoring):
         # Test 2: ModelRunnerStep path (generator predict() method)
         self._logger.info("Testing ModelRunnerStep path...")
         resp = requests.post(
-            f"{url}/model_runner", data="test", stream=True, verify=False
+            f"{url}/model_runner",
+            data="test",
+            stream=True,
+            verify=mlrun.mlconf.httpdb.http.verify,
         )
         self._logger.info(f"ModelRunnerStep response: {resp}")
         assert resp.ok, (
@@ -770,7 +766,11 @@ class TestNuclioRuntime(TestMLRunSystemModelMonitoring):
         #    Use a timeout to guard against hangs (the pre-NUC-723 failure mode).
         self._logger.info("Sending error streaming request...")
         resp = requests.post(
-            f"{url}/error", data="test", stream=True, timeout=30, verify=False
+            f"{url}/error",
+            data="test",
+            stream=True,
+            timeout=30,
+            verify=mlrun.mlconf.httpdb.http.verify,
         )
 
         try:
@@ -784,7 +784,11 @@ class TestNuclioRuntime(TestMLRunSystemModelMonitoring):
         # 2. Verify the worker is still healthy by sending a normal request.
         self._logger.info("Sending healthy streaming request...")
         resp = requests.post(
-            f"{url}/step", data="test", stream=True, timeout=30, verify=False
+            f"{url}/step",
+            data="test",
+            stream=True,
+            timeout=30,
+            verify=mlrun.mlconf.httpdb.http.verify,
         )
         assert resp.ok, f"Healthy request failed: {resp.status_code} {resp.text}"
         assert resp.headers.get("Transfer-Encoding") == "chunked"

@@ -178,45 +178,43 @@ class APIHandlerConfig(mlrun.model.ModelObj):
     def __init__(
         self,
         enabled: bool = True,
-        endpoints: list[dict | "EndpointConfig"] | None = None,
+        endpoints: dict[str, dict | EndpointConfig] | None = None,
         include_url_info: bool = False,
     ):
         self.enabled = enabled
-        self._endpoints: list[EndpointConfig] = []
+        self._endpoints: dict[str, EndpointConfig] = {}
         if endpoints:
             self.endpoints = endpoints
         self.include_url_info = include_url_info
 
     @property
-    def endpoints(self) -> list["EndpointConfig"]:
-        """Get the endpoints configuration as a list of EndpointConfig objects."""
+    def endpoints(self) -> dict[str, "EndpointConfig"]:
+        """Get the endpoints as a dict keyed by endpoint key (``"METHOD:path"``)."""
         return self._endpoints
 
     @endpoints.setter
-    def endpoints(self, endpoints: list[dict | "EndpointConfig"]) -> None:
-        """Set the endpoints configuration from a list of dicts or EndpointConfig objects."""
-        self._endpoints = []
-        for ep in endpoints:
+    def endpoints(self, endpoints: dict[str, dict | "EndpointConfig"]) -> None:
+        """Set the endpoints from a dict of raw dicts (deserialization) or EndpointConfig objects."""
+        self._endpoints = {}
+        for endpoint_key, ep in endpoints.items():
             if isinstance(ep, EndpointConfig):
-                self._endpoints.append(ep)
-                continue
-            # dict → deserialization path
-            # Manually deserialize nested BodyMappings since ModelObj does not do it automatically
-            body_mappings_dict = ep.get("body_mappings")
-            body_mappings = (
-                BodyMappings.from_dict(body_mappings_dict)
-                if body_mappings_dict
-                else None
-            )
-            self._endpoints.append(
-                EndpointConfig(
+                self._endpoints[endpoint_key] = ep
+            else:
+                # dict → deserialization path
+                # Manually deserialize nested BodyMappings since ModelObj does not do it automatically
+                body_mappings_dict = ep.get("body_mappings")
+                body_mappings = (
+                    BodyMappings.from_dict(body_mappings_dict)
+                    if body_mappings_dict
+                    else None
+                )
+                self._endpoints[endpoint_key] = EndpointConfig(
                     path=ep.get("path", ""),
                     http_method=ep.get("http_method", HTTPMethod.POST),
                     action=ep.get("action", schemas.APIHandlerAction.ALLOW),
                     description=ep.get("description"),
                     body_mappings=body_mappings,
                 )
-            )
 
     def _parse_endpoint_key(self, endpoint_key: str) -> tuple[HTTPMethod, str]:
         """Parse endpoint key 'METHOD:path' back to method and path components."""
@@ -289,7 +287,7 @@ class APIHandlerConfig(mlrun.model.ModelObj):
             f"with value '{http_method}'. Valid values are: {', '.join(m.value for m in HTTPMethod)}"
         )
 
-    def get_endpoint_config(self, method: HTTPMethod | str, path: str) -> dict | None:
+    def get_endpoint_config(self, method: HTTPMethod | str, path: str) -> "EndpointConfig | None":
         """Get endpoint configuration for a specific method and path."""
         method = self._validate_http_method(method)
         path = self._normalize_path(path)
@@ -300,7 +298,7 @@ class APIHandlerConfig(mlrun.model.ModelObj):
         self,
         path: str,
         http_method: HTTPMethod | str = HTTPMethod.POST,
-        action: schemas.serving.APIHandlerAction = schemas.serving.APIHandlerAction.ALLOW,
+        action: schemas.APIHandlerAction = schemas.APIHandlerAction.ALLOW,
         description: str | None = None,
         body_mappings: "BodyMappings | None" = None,
     ) -> None:
@@ -318,7 +316,14 @@ class APIHandlerConfig(mlrun.model.ModelObj):
         http_method = self._validate_http_method(http_method)
         path = self._normalize_path(path)
         self._validate_path(path)
-        endpoint_key = serving_utils._combine_serving_endpoint_key(http_method, path)
+        ep = EndpointConfig(
+            path=path,
+            http_method=http_method,
+            action=action,
+            description=description,
+            body_mappings=body_mappings,
+        )
+        endpoint_key = ep.get_endpoint_key()
 
         # Warn if overriding an existing endpoint
         if endpoint_key in self._endpoints:
@@ -326,17 +331,11 @@ class APIHandlerConfig(mlrun.model.ModelObj):
                 "Overriding existing endpoint handler configuration",
                 method=http_method.value,
                 path=path,
-                old_action=self._endpoints[endpoint_key].get(_APIEndpointKeys.ACTION),
+                old_action=self._endpoints[endpoint_key].action,
                 new_action=str(action),
             )
 
-        self._endpoints[endpoint_key] = {
-            _APIEndpointKeys.ACTION: str(action),
-            _APIEndpointKeys.DESCRIPTION: description,
-        }
-
-        if body_mappings is not None:
-            self._body_map[endpoint_key] = body_mappings
+        self._endpoints[endpoint_key] = ep
 
     def remove_endpoint_handler(
         self,
@@ -353,7 +352,6 @@ class APIHandlerConfig(mlrun.model.ModelObj):
         path = self._normalize_path(path)
         endpoint_key = serving_utils._combine_serving_endpoint_key(http_method, path)
         self._endpoints.pop(endpoint_key, None)
-        self._body_map.pop(endpoint_key, None)
 
     # def add_body_mapping(self, parameter_name: str, json_path: str) -> None:
     #     """Add a JSONPath body mapping for extracting request parameters.

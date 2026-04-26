@@ -80,7 +80,7 @@ class TestNotifications(tests.system.base.TestMLRunSystem):
             "function-from-module",
             kind="job",
             project=self.project_name,
-            image="mlrun/mlrun",
+            image=mlrun.mlconf.function_defaults.image_by_kind.job,
         )
         run = function.run(
             handler="json.dumps",
@@ -331,7 +331,7 @@ class TestNotifications(tests.system.base.TestMLRunSystem):
             "function-from-module",
             kind="job",
             project=self.project_name,
-            image="mlrun/mlrun",
+            image=mlrun.mlconf.function_defaults.image_by_kind.job,
         )
 
         run = function.run(
@@ -358,7 +358,7 @@ class TestNotifications(tests.system.base.TestMLRunSystem):
             kind="job",
             project=self.project_name,
             filename=code_path,
-            image="mlrun/mlrun",
+            image=mlrun.mlconf.function_defaults.image_by_kind.job,
         )
         self.project.set_function(sleep_func)
         self.project.sync_functions(save=True)

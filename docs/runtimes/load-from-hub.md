@@ -15,6 +15,7 @@ The examples in this page assume that you are working in a project and that all 
 **In this section**
 
 - [Functions](#functions)
+- [Steps](#steps)
 - [Modules](#modules)
 - [Custom hub](#custom-hub)
 
@@ -32,7 +33,6 @@ Each function has a docstring that explains how to use it. The functions are cat
 There are two ways to import a function from the hub:
 - {py:meth}`~mlrun.import_function`: creates a function object that you can use as relevant, for example running it as a job
 - {py:meth}`~mlrun.projects.MlrunProject.set_function`: adds or update a function object to your project
-
 
 #### Use `import_function`
 This example uses the aggregate function, which perform a rolling aggregation of artifacts. This example also adds a custom aggregation function that the aggregate hub function will use when it runs.
@@ -124,6 +124,31 @@ aggregate_run = aggregate_function.run(
     local=True,
 )
 ```
+
+## Steps
+in addition to MLRun's {ref}`predefined steps<building-graphs>`, you can import external steps from the MLRun hub,
+and also import steps you already saved to an external hub. Importing steps simplifies your process by providing
+a wider range of steps to choose from, for example: guardrails, classifiers, translators, PDF parsers.
+Steps can be added at any time (not related to a specific release).
+
+### SDK
+- {py:meth}`~mlrun.get_hub_step`: returns a HubStep object containing metadata of the step and downloads the source code file into the `local_path` (by default, the current working directory). 
+
+### Load a step from the hub
+There are two ways to import a step from the hub:
+
+**Use the step as defined in the hub**
+- Add the step to the graph with the hub path, for example:<br>
+   `graph.add_step(class_name="hub://my_step", name="my_hub_step", ..)`
+
+**Import a step and modify it before using it**
+1. Import the step. The `steps` directory must be part of the user source archive. <br>
+   `my_step = mlrun.get_hub_step(url="hub://my_hub/my_step:1.0.0", local_path = "./steps")`
+2. Modify the step code.
+3. Add the step to the graph:<br>
+   `graph.add_step("steps.my_step.MyStep")`
+
+See {ref}`hub-steps` for a full example of importing steps into your graph.
 
 ## Modules
 There are two types of modules: generic and model monitoring application. You can also add modules to your own hub, making them easily accessible for sharing.

@@ -402,6 +402,38 @@ def resolve_jwt_username(token: str, raise_on_error: bool = False) -> str | None
         return None
 
 
+def resolve_jwt_expiration(
+    token: str, raise_on_error: bool = False
+) -> int | float | None:
+    """
+    Extract the 'exp' claim from a JWT token.
+
+    The token is decoded without signature verification since it has already
+    been verified earlier during the authentication process.
+
+    :param token: The JWT token string.
+    :param raise_on_error: Whether to raise an error or log a warning on failure.
+    :return: The 'exp' claim value, or None if not present or extraction fails.
+    """
+    try:
+        # This method is used from the client side after receiving this token from the server, there's no need or
+        # ability to verify its signature here.
+        value = _decode_token_unverified(token).get(Claims.EXPIRATION)
+    except mlrun.errors.MLRunInvalidArgumentError as exc:
+        mlrun.utils.helpers.raise_or_log_error(
+            f"Failed to decode JWT token: {exc}", raise_on_error
+        )
+        return None
+
+    if value is not None and not isinstance(value, (int, float)):
+        mlrun.utils.helpers.raise_or_log_error(
+            f"Invalid expiration claim: {value}", raise_on_error
+        )
+        return None
+
+    return value
+
+
 def is_token_expired(token: str, buffer_seconds: int = 0) -> bool:
     """
     Check if a JWT token is expired based on its 'exp' claim.
@@ -413,9 +445,8 @@ def is_token_expired(token: str, buffer_seconds: int = 0) -> bool:
 
     # This method is used for caching and/or extra validation purposes in addition to the main verification flow,
     # so we decode without signature verification here.
-    decoded_token = _decode_token_unverified(token)
-    expiration = decoded_token.get(Claims.EXPIRATION)
-    if not expiration:
+    expiration = resolve_jwt_expiration(token, raise_on_error=True)
+    if expiration is None:
         raise mlrun.errors.MLRunInvalidArgumentError(
             "Token is missing the 'exp' (expiration) claim"
         )

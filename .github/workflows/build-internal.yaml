@@ -53,6 +53,11 @@ on:
         default: ''
         type: string
         required: false
+      pr_base_sha:
+        description: 'Pinned SHA of the PR base branch to rebase onto'
+        default: ''
+        type: string
+        required: false
       cache_tag_suffix:
         description: 'The suffix to add to the cache tag'
         default: ''
@@ -100,13 +105,29 @@ jobs:
           docker run --rm -v "$GITHUB_WORKSPACE:/workspace" alpine sh -c "rm -rf /workspace/server/common/proto/build /workspace/server/go/proto/build" || true
         fi       
     - uses: actions/checkout@v6
-      if: github.event.inputs.pr_number == ''
+      if: inputs.pr_number == ''
 
     - uses: actions/checkout@v6
-      if: github.event.inputs.pr_number != ''
+      if: inputs.pr_number != ''
       with:
         fetch-depth: 0
-        ref: refs/pull/${{ github.event.inputs.pr_number }}/merge
+        ref: refs/pull/${{ inputs.pr_number }}/head
+
+    - name: Rebase PR onto base branch
+      if: inputs.pr_number != ''
+      run: |
+        git config user.name "github-actions[bot]"
+        git config user.email "github-actions[bot]@users.noreply.github.com"
+        BASE_SHA="${{ inputs.pr_base_sha }}"
+
+        git fetch origin "${BASE_SHA}"
+        if ! git rebase "${BASE_SHA}"; then
+          echo "::error::Rebase of PR #${{ inputs.pr_number }} onto ${BASE_SHA} failed due to conflicts. Please rebase your branch locally and push."
+          git rebase --abort
+          exit 1
+        fi
+
+        echo "Rebased onto ${BASE_SHA}"
 
     # since github-actions gives us 14G only, and fills it up with some garbage
     - name: Freeing up disk space
@@ -173,7 +194,7 @@ jobs:
 
     - name: Docker login (quay.io)
       continue-on-error: true
-      if: github.event.inputs.pr_number == ''
+      if: inputs.pr_number == ''
       uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # 4.1.0
       with:
         registry: quay.io
@@ -181,7 +202,7 @@ jobs:
         password: ${{ secrets.QUAY_IO_DOCKER_REGISTRY_PASSWORD }}
 
     - name: Docker login (docker.com)
-      if: github.event.inputs.pr_number == ''
+      if: inputs.pr_number == ''
       continue-on-error: true
       uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # 4.1.0
       with:

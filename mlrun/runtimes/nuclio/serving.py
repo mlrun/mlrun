@@ -143,63 +143,92 @@ class BodyMappings(mlrun.model.ModelObj):
         return f"BodyMappings(mappings={self.mappings!r})"
 
 
+class EndpointConfig(mlrun.model.ModelObj):
+    """Configuration for a single API endpoint — routing and input mapping in one object."""
+
+    _dict_fields = ["path", "http_method", "action", "description", "body_mappings"]
+
+    def __init__(
+        self,
+        path: str = "",
+        http_method: HTTPMethod | str = HTTPMethod.POST,
+        action: schemas.APIHandlerAction = schemas.APIHandlerAction.ALLOW,
+        description: str | None = None,
+        body_mappings: BodyMappings | None = None,
+    ) -> None:
+        self.path = path
+        self.http_method = HTTPMethod(http_method) if isinstance(http_method, str) else http_method
+        self.action = action
+        self.description = description
+        self.body_mappings = body_mappings
+
+    def get_endpoint_key(self) -> str:
+        """Return the endpoint key in the format 'METHOD:path', e.g. 'POST:/v1/chat/completions'."""
+        return f"{self.http_method.value}:{self.path}"
+
+    def __repr__(self) -> str:
+        return (
+            f"EndpointConfig(path={self.path!r}, http_method={self.http_method!r}, "
+            f"action={self.action!r}, body_mappings={self.body_mappings!r})"
+        )
+
+
 class APIHandlerConfig(mlrun.model.ModelObj):
     """Configuration for API handler in serving graph"""
 
-    _dict_fields = ["enabled", "endpoints", "body_map", "include_url_info"]
+    _dict_fields = ["enabled", "endpoints", "include_url_info"]
 
     def __init__(
         self,
         enabled: bool = True,
-        endpoints: dict[str, dict] | None = None,
-        body_map: dict[str, str] | None = None,
+        endpoints: list[dict | "EndpointConfig"] | None = None,
         include_url_info: bool = False,
     ):
         self.enabled = enabled
-        self._endpoints = endpoints or {}
-        # _body_map holds BodyMappings keyed by endpoint_key ("METHOD:path",
-        # e.g. "POST:/v1/chat/completions"). Populated via add_endpoint_handler(body_mappings=...).
-        self._body_map: dict[str, BodyMappings] = {}
+        self._endpoints: list[EndpointConfig] = []
+        if endpoints:
+            self.endpoints = endpoints
         self.include_url_info = include_url_info
-        # Accept legacy dict[str, str] body_map passed via __init__ (e.g. from_dict round-trip)
-        if body_map:
-            for parameter_name, json_path in body_map.items():
-                self.add_body_mapping(parameter_name, json_path)
-
-    # @property
-    # def body_map(self) -> dict[str, str]:
-    #     """Get the body_map configuration as a dictionary."""
-    #     return self._body_map
-    #
-    # @body_map.setter
-    # def body_map(self, value: dict[str, str] | None) -> None:
-    #     """Set the body_map configuration from a dictionary."""
-    #     self._body_map = {}
-    #     if value:
-    #         for parameter_name, json_path in value.items():
-    #             self.add_body_mapping(parameter_name, json_path)
 
     @property
-    def endpoints(self) -> dict[str, dict]:
-        """Get the endpoints configuration as a dictionary."""
+    def body_map(self) -> dict[str, "BodyMappings"]:
+        """Get the current body mappings keyed by endpoint_key (``"METHOD:path"``)."""
+        return self._body_map
+
+    @body_map.setter
+    def body_map(self, value: dict[str, "BodyMappings"] | None) -> None:
+        """Replace the body mappings entirely."""
+        self._body_map = value or {}
+
+    @property
+    def endpoints(self) -> list["EndpointConfig"]:
+        """Get the endpoints configuration as a list of EndpointConfig objects."""
         return self._endpoints
 
     @endpoints.setter
-    def endpoints(self, endpoints: dict[str, dict]) -> None:
-        """Set the endpoints configuration from a dictionary."""
-        self._endpoints = {}
-        for endpoint_key, config in endpoints.items():
-            method, path = self._parse_endpoint_key(endpoint_key)
-            bm_raw = config.get(_APIEndpointKeys.BODY_MAPPINGS)
-            body_mappings = BodyMappings.from_dict(bm_raw) if bm_raw else None
-            self.add_endpoint_handler(
-                path=path,
-                http_method=method,
-                action=schemas.serving.APIHandlerAction(
-                    config.get(_APIEndpointKeys.ACTION)
-                ),
-                description=config.get(_APIEndpointKeys.DESCRIPTION),
-                body_mappings=body_mappings,
+    def endpoints(self, endpoints: list[dict | "EndpointConfig"]) -> None:
+        """Set the endpoints configuration from a list of dicts or EndpointConfig objects."""
+        self._endpoints = []
+        for ep in endpoints:
+            if isinstance(ep, EndpointConfig):
+                self._endpoints.append(ep)
+                continue
+            # dict → deserialization path
+            # Manually deserialize nested BodyMappings since ModelObj does not do it automatically
+            body_mappings_dict = ep.get("body_mappings")
+            body_mappings = (
+                BodyMappings.from_dict(body_mappings_dict)
+                if body_mappings_dict
+                else None
+            )
+            self._endpoints.append(
+                EndpointConfig(
+                    path=ep.get("path", ""),
+                    http_method=ep.get("http_method", HTTPMethod.POST),
+                    action=ep.get("action", schemas.APIHandlerAction.ALLOW),
+                    description=ep.get("description"),
+                    body_mappings=body_mappings,
+                )
             )
 
     def _parse_endpoint_key(self, endpoint_key: str) -> tuple[HTTPMethod, str]:

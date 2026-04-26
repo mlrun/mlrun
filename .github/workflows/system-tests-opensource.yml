@@ -461,6 +461,15 @@ jobs:
         echo "Listing Helm releases after cleanup:"
         helm list --all-namespaces
 
+    - name: Generate GitHub App Token
+      id: github-app-token
+      uses: actions/create-github-app-token@v3
+      with:
+        app-id: ${{ secrets.GH_APP_ID }}
+        private-key: ${{ secrets.GH_APP_PRIVATE_KEY }}
+        owner: ${{ github.repository_owner }}
+        repositories: mlrun,private-system-tests
+
     - name: Prepare system tests env
       run: |
         # Define get_host_ip function
@@ -483,7 +492,7 @@ jobs:
         source venv/bin/activate
         python automation/system_test/prepare.py env \
           --mlrun-dbpath "$MLRUN_DBPATH" \
-          --github-access-token "${{ secrets.SYSTEM_TEST_GITHUB_ACCESS_TOKEN }}" \
+          --github-access-token "${{ steps.github-app-token.outputs.token }}" \
           --openai-base-url "${{ secrets.OPENAI_BASE_URL }}" \
           --openai-api-key "${{ secrets.OPENAI_API_KEY }}"  
 

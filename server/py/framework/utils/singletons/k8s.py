@@ -1391,6 +1391,7 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
         :param token_name: The logical name for the token.
         :param token: The offline token string (JWT).
         :param expiration: The token's expiration timestamp (int UNIX epoch).
+        :param issued_at: The token's issued at timestamp (int UNIX epoch).
         :param force: If True, forces an update of the secret even if the expiration
                       is not later than the existing one.
         :param namespace: Kubernetes namespace for the secret.

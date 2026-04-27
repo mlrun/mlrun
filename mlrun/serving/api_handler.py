@@ -20,6 +20,7 @@ from re import Pattern
 from typing import Any, Union
 from urllib.parse import parse_qs, unquote, urlsplit
 
+import jsonpath_ng
 import nuclio_sdk
 
 import mlrun.common.schemas as schemas
@@ -29,7 +30,7 @@ import mlrun.serving.server
 import mlrun.serving.states
 import mlrun.serving.utils as serving_utils
 import mlrun.utils
-from mlrun.serving.utils import _RequestContext
+from mlrun.serving.utils import _RequestContext, check_body_and_path_parameters_overlapping
 
 
 class _APIHandlerStep(mlrun.serving.states.TaskStep):
@@ -61,16 +62,22 @@ class _APIHandlerStep(mlrun.serving.states.TaskStep):
             self.config = mlrun.runtimes.nuclio.serving.APIHandlerConfig()
         self.context = context
 
-        # Pre-compile patterns in a single pass for performance.
+        # Pre-compile patterns and body maps in a single pass for performance.
         # Template patterns: /api/{user_id}/items → regex with named groups.
         # Star patterns:     /api/v1/*           → plain prefix string.
+        # Body map cache:    endpoint key → {destination_path: (compiled_expr, mandatory)}
         self._endpoint_patterns: list[
             tuple[HTTPMethod, Pattern, mlrun.runtimes.nuclio.serving.EndpointConfig]
         ]
         self._star_patterns: list[
             tuple[HTTPMethod, str, mlrun.runtimes.nuclio.serving.EndpointConfig]
         ]
-        self._endpoint_patterns, self._star_patterns = self._compile_patterns()
+        self._parsed_body_map: dict[str, dict[str, tuple[Any, bool]]]
+        (
+            self._endpoint_patterns,
+            self._star_patterns,
+            self._parsed_body_map,
+        ) = self._compile_patterns()
 
         mlrun.utils.logger.debug("The context in API handler", context=self.context)
 
@@ -81,8 +88,9 @@ class _APIHandlerStep(mlrun.serving.states.TaskStep):
             tuple[HTTPMethod, Pattern, "mlrun.runtimes.nuclio.serving.EndpointConfig"]
         ],
         list[tuple[HTTPMethod, str, "mlrun.runtimes.nuclio.serving.EndpointConfig"]],
+        dict[str, dict[str, tuple[Any, bool]]],
     ]:
-        """Compile all non-exact endpoint patterns in a single pass.
+        """Compile all non-exact endpoint patterns and input body maps in a single pass.
 
         Exact endpoints (no ``{`` or ``*``) are handled by O(1) dict lookup at
         request time and do not need pre-compilation.
@@ -100,10 +108,11 @@ class _APIHandlerStep(mlrun.serving.states.TaskStep):
             Matches any path that starts with the prefix and has at least one
             additional character after it.
 
-        :return: Tuple of (template_patterns, star_patterns) where
+        :return: Tuple of (template_patterns, star_patterns, parsed_body_map) where
 
             * ``template_patterns`` is a list of ``(method, compiled_regex, EndpointConfig)``
             * ``star_patterns`` is a list of ``(method, prefix, EndpointConfig)``
+            * ``parsed_body_map`` maps endpoint key → ``{destination_path: (compiled_expr, mandatory)}``
         """
         template_patterns: list[
             tuple[HTTPMethod, Pattern, mlrun.runtimes.nuclio.serving.EndpointConfig]
@@ -111,6 +120,7 @@ class _APIHandlerStep(mlrun.serving.states.TaskStep):
         star_patterns: list[
             tuple[HTTPMethod, str, mlrun.runtimes.nuclio.serving.EndpointConfig]
         ] = []
+        parsed_body_map: dict[str, dict[str, tuple[Any, bool]]] = {}
 
         for ep in self.config.endpoints.values():
             method = ep.http_method
@@ -156,28 +166,47 @@ class _APIHandlerStep(mlrun.serving.states.TaskStep):
                 template_patterns.append((method, compiled, ep))
             # else: exact endpoint – handled by dict lookup, no compilation needed
 
+            # Compile input_body_mappings for this endpoint (any pattern type)
+            if ep.input_body_mappings:
+                compiled_map: dict[str, tuple[Any, bool]] = {}
+                for mapping in ep.input_body_mappings.mappings:
+                    compiled_expr = jsonpath_ng.parse(mapping["source_json_path"])
+                    compiled_map[mapping["destination_path"]] = (
+                        compiled_expr,
+                        mapping["mandatory"],
+                    )
+                parsed_body_map[ep.get_endpoint_key()] = compiled_map
+
         # Sort star patterns by prefix length descending — longer prefix = more specific = higher priority
         star_patterns.sort(key=lambda x: len(x[1]), reverse=True)
+        check_body_and_path_parameters_overlapping(template_patterns, star_patterns)
+        return template_patterns, star_patterns, parsed_body_map
 
-        self._check_overlapping(template_patterns, star_patterns)
-        return template_patterns, star_patterns
-
-    def _apply_parsed_body_map(self, body: dict) -> dict:
-        """Apply pre-parsed JSONPath expressions to extract parameters from event body.
+    def _apply_body_map(
+        self,
+        body: dict,
+        effective_map: dict[str, tuple[Any, bool]],
+    ) -> dict:
+        """Apply a compiled body map to extract parameters from the event body.
 
         :param body: The event body dict to extract parameters from.
-        :return: Dict of extracted parameters (missing JSONPath matches are silently skipped).
+        :param effective_map: Merged map of ``{destination_path: (compiled_expr, mandatory)}``.
+        :return: Dict of extracted parameters.
+        :raises mlrun.errors.MLRunBadRequestError: If a mandatory field is missing.
         """
         result = {}
-        for param_name, parsed_expr in self._parsed_body_map.items():
-            matches = parsed_expr.find(body)
+        for dest_path, (compiled_expr, mandatory) in effective_map.items():
+            matches = compiled_expr.find(body)
             if not matches:
+                if mandatory:
+                    raise mlrun.errors.MLRunBadRequestError(
+                        f"Mandatory field '{dest_path}' not found in request body"
+                    )
                 continue
-            # Single match: return value; multiple matches: return list
             if len(matches) == 1:
-                result[param_name] = matches[0].value
+                result[dest_path] = matches[0].value
             else:
-                result[param_name] = [match.value for match in matches]
+                result[dest_path] = [match.value for match in matches]
         return result
 
     @staticmethod
@@ -277,79 +306,46 @@ class _APIHandlerStep(mlrun.serving.states.TaskStep):
                 query_params=query_params,
             )
 
-            # Find matching endpoint
-            matching_endpoint_key, path_params = self._match_endpoint(
-                method, normalized_path
-            )
+            # Find all matching endpoints (highest priority first)
+            matches = self._collect_endpoint_matches(method, normalized_path)
+            ep, path_params = matches[0] if matches else (None, {})
 
-            if not matching_endpoint_key:
-                # Check if path exists with any method (for 405 vs 404 distinction)
-                # Note: Only checking exact paths for performance; templated paths will return 404
-                path_exists = False
-                for key in self.config._endpoints.keys():
-                    _, endpoint_path = self.config._parse_endpoint_key(key)
-                    if endpoint_path == normalized_path:
-                        path_exists = True
-                        break
-
-                if path_exists:
-                    # Path exists but method not allowed (405)
-                    mlrun.utils.logger.warning(
-                        "Method not allowed for endpoint",
-                        method=method.value,
-                        path=normalized_path,
-                    )
-                    raise mlrun.errors.MLRunMethodNotAllowedError(
-                        f"Method not allowed: {method.value} {normalized_path}"
-                    )
-                else:
-                    # No matching endpoint found (404)
-                    mlrun.utils.logger.warning(
-                        "No matching endpoint found",
-                        method=method.value,
-                        path=normalized_path,
-                    )
-                    raise mlrun.errors.MLRunNotFoundError(
-                        f"Endpoint not found: {method.value} {normalized_path}"
-                    )
-
-            # Get endpoint definition
-            endpoint_def = self.config._endpoints[matching_endpoint_key]
-            action = endpoint_def[_APIEndpointKeys.ACTION]
-
-            # Parse the endpoint key for logging
-            matched_method, matched_path = self.config._parse_endpoint_key(
-                matching_endpoint_key
-            )
-
+            if ep is None:
+                self._raise_not_found_endpoint(method, normalized_path)
+    
             mlrun.utils.logger.debug(
                 "Found matching endpoint",
                 method=method.value,
                 path=normalized_path,
-                matched_path=matched_path,
-                action=action,
+                matched_path=ep.path,
+                action=ep.action,
             )
 
             # Handle the action
-            if action == schemas.APIHandlerAction.ALLOW:
-                # Extract body_map parameters if configured
+            if ep.action == schemas.APIHandlerAction.ALLOW:
+                # Build the effective body map by merging all matches lowest→highest priority,
+                # so the most specific endpoint's mappings win on conflict.
+                effective_map: dict[str, tuple[Any, bool]] = {}
+                for matched_ep, _ in reversed(matches):
+                    ep_key = matched_ep.get_endpoint_key()
+                    if ep_key in self._parsed_body_map:
+                        effective_map.update(self._parsed_body_map[ep_key])
+
                 body_params = {}
-                if self._parsed_body_map:
+                if effective_map:
                     body = event.body if hasattr(event, "body") else event
                     if isinstance(body, dict):
                         try:
-                            body_params = self._apply_parsed_body_map(body)
+                            body_params = self._apply_body_map(body, effective_map)
                             mlrun.utils.logger.debug(
-                                "Applied body_map transformation",
-                                body_map=self.config.body_map,
+                                "Applied input body mapping",
                                 extracted_params=list(body_params.keys()),
                             )
                         except Exception as exc:
                             raise mlrun.errors.MLRunBadRequestError(
-                                f"Failed to process body_map transformation: {exc}"
+                                f"Failed to process body mapping: {exc}"
                             ) from exc
-                    # Non-dict body (e.g. None, string, bytes): body_map does not apply
-                    # to this endpoint's format — silently skip, same as a JSONPath miss.
+                    # Non-dict body (e.g. None, string, bytes): body mappings do not apply — silently skip.
 
                 # Build system-injected URL params when include_url_info is enabled.
                 # mlrun_request_path holds the normalized path of the matched request.
@@ -381,13 +377,13 @@ class _APIHandlerStep(mlrun.serving.states.TaskStep):
 
                 # Pass the event to the next step in the graph
                 return event
-            elif action == schemas.APIHandlerAction.FORBID:
+            elif ep.action == schemas.APIHandlerAction.FORBID:
                 # Reject the request
                 raise mlrun.errors.MLRunAccessDeniedError(
                     f"Access forbidden to {method.value} {normalized_path}"
                 )
             else:
-                raise mlrun.errors.MLRunInternalServerError(f"Unknown action: {action}")
+                raise mlrun.errors.MLRunInternalServerError(f"Unknown action: {ep.action}")
 
         except Exception as exc:
             # Log the error and re-raise
@@ -398,6 +394,33 @@ class _APIHandlerStep(mlrun.serving.states.TaskStep):
                 path=getattr(event, "path", "unknown"),
             )
             raise
+    
+    def _raise_not_found_endpoint(self, method: str, normalized_path: str) -> None:
+        # Check if path exists with any method (for 405 vs 404 distinction)
+        path_exists = any(
+            e.path == normalized_path
+            for e in self.config.endpoints.values()
+        )
+        if path_exists:
+            # Path exists but method not allowed (405)
+            mlrun.utils.logger.warning(
+                "Method not allowed for endpoint",
+                method=method.value,
+                path=normalized_path,
+            )
+            raise mlrun.errors.MLRunMethodNotAllowedError(
+                f"Method not allowed: {method.value} {normalized_path}"
+            )
+        else:
+            # No matching endpoint found (404)
+            mlrun.utils.logger.warning(
+                "No matching endpoint found",
+                method=method.value,
+                path=normalized_path,
+            )
+            raise mlrun.errors.MLRunNotFoundError(
+                f"Endpoint not found: {method.value} {normalized_path}"
+            )
 
     def _collect_endpoint_matches(
         self, method: HTTPMethod, path: str
@@ -419,9 +442,9 @@ class _APIHandlerStep(mlrun.serving.states.TaskStep):
         ] = []
 
         # Phase 1: Exact match
-        endpoint_key = serving_utils._combine_serving_endpoint_key(method, path)
-        if endpoint_key in self.config._endpoints:
-            matches.append((self.config._endpoints[endpoint_key], {}))
+        endpoint_key = serving_utils.combine_serving_endpoint_key(method, path)
+        if endpoint_key in self.config.endpoints:
+            matches.append((self.config.endpoints[endpoint_key], {}))
 
         # Phase 2: Template matches
         for pattern_method, compiled_pattern, ep in self._endpoint_patterns:

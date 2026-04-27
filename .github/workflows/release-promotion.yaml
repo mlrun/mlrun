@@ -229,13 +229,7 @@ jobs:
     steps:
       - name: Setup Python 3.11 venv
         run: |
-          echo "--- Diagnostics ---"
-          which python3.11
-          python3.11 --version
-          python3.11 -c "import ensurepip; print('ensurepip OK')"
-          df -h /
-          echo "---"
-          python3.11 -m venv --verbose $GITHUB_WORKSPACE/.venv-promotion
+          python3.11 -m venv $GITHUB_WORKSPACE/.venv-promotion
           echo "$GITHUB_WORKSPACE/.venv-promotion/bin" >> $GITHUB_PATH
 
       - name: Download package from source PyPI repo

@@ -156,9 +156,10 @@ class _APIHandlerStep(mlrun.serving.states.TaskStep):
                 template_patterns.append((method, compiled, ep))
             # else: exact endpoint – handled by dict lookup, no compilation needed
 
-        serving_utils.check_body_and_path_parameters_overlapping(
-            template_patterns, star_patterns
-        )
+        # Sort star patterns by prefix length descending — longer prefix = more specific = higher priority
+        star_patterns.sort(key=lambda x: len(x[1]), reverse=True)
+
+        self._check_overlapping(template_patterns, star_patterns)
         return template_patterns, star_patterns
 
     def _apply_parsed_body_map(self, body: dict) -> dict:
@@ -398,65 +399,61 @@ class _APIHandlerStep(mlrun.serving.states.TaskStep):
             )
             raise
 
-    def _match_endpoint(
+    def _collect_endpoint_matches(
         self, method: HTTPMethod, path: str
-    ) -> tuple[str | None, dict[str, str]]:
-        """Find matching endpoint key for the given method and path.
+    ) -> list[tuple["mlrun.runtimes.nuclio.serving.EndpointConfig", dict[str, str]]]:
+        """Collect all matching endpoints for the given method and path, ordered by priority.
 
-        Uses a three-phase search strategy with strict precedence:
-        1. Fast exact match lookup (O(1) dict lookup)
-        2. Pre-compiled regex pattern matching for path templates (O(n), insertion order)
-        3. Star (wildcard) prefix matching (O(n), insertion order)
+        Priority (highest first):
+        1. Exact match
+        2. Template match  (/api/{id})
+        3. Star match      (/api/*) — ordered by prefix length descending, so /a/b/c/*
+           has higher priority than /a/b/* which has higher priority than /a/*
 
         :param method: HTTP method to match
         :param path: Request path to match
-        :return: Tuple of (endpoint_key, extracted_path_params) or (None, {}) if no match.
-                 Path params are always strings (extracted from URL segments).
+        :return: List of (EndpointConfig, path_params) tuples, highest priority first.
         """
-        # Phase 1: Fast path for exact matches (no path parameters)
-        endpoint_key = serving_utils.combine_serving_endpoint_key(method, path)
-        if endpoint_key in self.config._endpoints:
-            return endpoint_key, {}
+        matches: list[
+            tuple[mlrun.runtimes.nuclio.serving.EndpointConfig, dict[str, str]]
+        ] = []
 
-        # Phase 2: Try pre-compiled regex patterns for path templates
-        for (
-            pattern_method,
-            compiled_pattern,
-            pattern_endpoint_key,
-            _,
-        ) in self._endpoint_patterns:
+        # Phase 1: Exact match
+        endpoint_key = serving_utils._combine_serving_endpoint_key(method, path)
+        if endpoint_key in self.config._endpoints:
+            matches.append((self.config._endpoints[endpoint_key], {}))
+
+        # Phase 2: Template matches
+        for pattern_method, compiled_pattern, ep in self._endpoint_patterns:
             if pattern_method != method:
                 continue
-
             match = compiled_pattern.match(path)
             if match:
-                # Extract path parameters from named groups
-                # Note: URL-decode path segments to handle encoded characters
                 path_params = {
                     name: unquote(value) for name, value in match.groupdict().items()
                 }
-                return pattern_endpoint_key, path_params
+                matches.append((ep, path_params))
 
-        # Phase 3: Try star (wildcard) patterns for prefix matching
-        # Ensure path ends with / for comparison with prefix
-        # Using trailing slash ensures /apiv2/users doesn't match /api/* prefix
-        # Path must be strictly "under" the prefix, not equal to it
+        # Phase 3: Star matches
         path_with_slash = path if path.endswith("/") else path + "/"
-        for (
-            star_method,
-            prefix,
-            star_endpoint_key,
-            _,
-        ) in self._star_patterns:
+        for star_method, prefix, ep in self._star_patterns:
             if star_method != method:
                 continue
-
-            # Path must start with prefix AND be longer than prefix (at least one more char)
-            # This ensures /api/ doesn't match /api/* (only /api/something does)
             if path_with_slash.startswith(prefix) and len(path_with_slash) > len(
                 prefix
             ):
-                # Star patterns don't extract parameters
-                return star_endpoint_key, {}
+                matches.append((ep, {}))
 
-        return None, {}
+        return matches
+
+    def _match_endpoint(
+        self, method: HTTPMethod, path: str
+    ) -> tuple["mlrun.runtimes.nuclio.serving.EndpointConfig | None", dict[str, str]]:
+        """Return the highest-priority matching EndpointConfig for the given method and path.
+
+        :param method: HTTP method to match
+        :param path: Request path to match
+        :return: Tuple of (EndpointConfig, path_params) or (None, {}) if no match.
+        """
+        matches = self._collect_endpoint_matches(method, path)
+        return matches[0] if matches else (None, {})

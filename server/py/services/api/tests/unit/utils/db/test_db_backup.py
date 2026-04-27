@@ -142,6 +142,33 @@ def test_backup_and_load_mysql_with_password(mock_db_dsn, mock_is_file_result):
         assert not os.path.exists(entry["path"])
 
 
+@pytest.mark.parametrize(
+    "password,expected_value_in_file",
+    [
+        # Backslash → escaped to a double backslash
+        ("a\\b", "a\\\\b"),
+        # Double-quote → escaped to backslash-quote (terminator-safe)
+        ('a"b', 'a\\"b'),
+        # Both together — order-sensitive: backslash must be escaped first
+        # so we don't double-escape the backslash we just wrote in front of "
+        ('p\\a"ss', 'p\\\\a\\"ss'),
+        # Plain ASCII passes through untouched
+        ("plain", "plain"),
+    ],
+)
+def test_mysql_defaults_file_escapes_special_chars(
+    password: str, expected_value_in_file: str
+) -> None:
+    cm = services.api.utils.db.backup.DBBackupUtil._mysql_defaults_file(
+        {"password": password}
+    )
+    with cm as defaults_arg:
+        path = defaults_arg.removeprefix("--defaults-extra-file=").rstrip()
+        with open(path) as f:
+            content = f.read()
+    assert content == f'[client]\npassword="{expected_value_in_file}"\n'
+
+
 def test_load_backup_file_does_not_exist_sqlite(
     mock_db_dsn, mock_shutil_copy, mock_is_file_result
 ):

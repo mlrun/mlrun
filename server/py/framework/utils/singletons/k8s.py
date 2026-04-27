@@ -1405,7 +1405,7 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
         annotations = {}
         if auth_info.username:
             annotations[mlrun_constants.InternalAnnotations.auth_username] = (
-                mlrun.k8s_utils.sanitize_label_value(auth_info.username)
+                mlrun.k8s_utils.sanitize_annotation_value(auth_info.username)
             )
 
         create = False

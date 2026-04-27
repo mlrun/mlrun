@@ -145,6 +145,19 @@ def sanitize_label_value(value: str) -> str:
     return sanitized
 
 
+def sanitize_annotation_value(value: str) -> str:
+    """
+    Sanitize a value for use as a Kubernetes annotation value.
+
+    Unlike label values, annotation values do not need to begin and end with an
+    alphanumeric character, so leading/trailing punctuation is preserved.
+
+    :param value: arbitrary string to sanitize for use as an annotation value
+    :return:      string with disallowed characters replaced and truncated to 63
+    """
+    return re.sub(r"[^a-zA-Z0-9_.-]", "-", value[:63])
+
+
 def verify_label_key(key: str, allow_k8s_prefix: bool = False):
     """
     Verify that the label key is valid for Kubernetes.

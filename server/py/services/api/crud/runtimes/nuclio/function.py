@@ -375,8 +375,9 @@ def _set_function_metadata(function, config):
 
 def _apply_escaped_config(config, parent_key, items: dict):
     for key, value in items.items():
-        # Adding escaping to the key to prevent it from being split by dots if it contains any
-        mlrun.utils.update_in(config, f"{parent_key}.\\{key}\\", value)
+        # Escape any literal dots in the key so they aren't treated as separators
+        escaped_key = key.replace(".", "\\.")
+        mlrun.utils.update_in(config, f"{parent_key}.{escaped_key}", value)
 
 
 def _enrich_config_spec(

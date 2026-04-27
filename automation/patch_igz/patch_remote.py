@@ -269,7 +269,9 @@ class MLRunPatcher:
         mandatory_fields = set(Constants.common_mandatory_fields)
         if self._mode == Constants.mode_ssh:
             mandatory_fields |= Constants.ssh_mandatory_fields
-        missing_fields = mandatory_fields - set(self._config.keys())
+        missing_fields = {
+            field for field in mandatory_fields if not self._config.get(field)
+        }
         if len(missing_fields) > 0:
             raise RuntimeError(f"Mandatory options not defined: {missing_fields}")
 
@@ -711,12 +713,15 @@ class MLRunPatcher:
     ) -> str:
         logger.debug("Exec local: %s", " ".join(cmd))
         buf = io.StringIO()
-        for line in self._execute_local_proc_interactive(cmd, env):
-            buf.write(line)
-            if live:
-                print(line, end="")
-        output = buf.getvalue()
-        return output
+        try:
+            for line in self._execute_local_proc_interactive(cmd, env):
+                buf.write(line)
+                if live:
+                    print(line, end="")
+        except subprocess.CalledProcessError as exc:
+            exc.output = buf.getvalue()
+            raise
+        return buf.getvalue()
 
     def _exec_remote(self, cmd: list[str], live=False) -> str:
         if self._mode == Constants.mode_kubectl:
@@ -757,8 +762,9 @@ class MLRunPatcher:
         try:
             return self._exec_local(cmd, live=live, env=env)
         except subprocess.CalledProcessError as exc:
+            output = (exc.output or "").strip()
             raise RuntimeError(
-                f"Command '{cmd_str}' finished with failure ({exc.returncode})"
+                f"Command '{cmd_str}' finished with failure ({exc.returncode})\n{output}"
             ) from exc
 
     def _resolve_overwrite_registry(self):

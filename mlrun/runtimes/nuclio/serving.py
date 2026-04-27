@@ -224,15 +224,6 @@ class APIHandlerConfig(mlrun.model.ModelObj):
                     input_body_mappings=input_body_mappings,
                 )
 
-    def _parse_endpoint_key(self, endpoint_key: str) -> tuple[HTTPMethod, str]:
-        """Parse endpoint key 'METHOD:path' back to method and path components."""
-        try:
-            return serving_utils.split_serving_endpoint_key(endpoint_key)
-        except (ValueError, AttributeError) as e:
-            raise ValueError(
-                f"Invalid endpoint key format '{endpoint_key}'. Expected 'METHOD:path'"
-            ) from e
-
     @staticmethod
     def _normalize_path(path: str) -> str:
         """Normalize path to ensure it starts with a forward slash.

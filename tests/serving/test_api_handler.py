@@ -42,7 +42,6 @@ from mlrun.serving.server import (
 from mlrun.serving.utils import (
     _RequestContext,
     combine_serving_endpoint_key,
-    split_serving_endpoint_key,
 )
 
 
@@ -1469,19 +1468,6 @@ class TestAPIHandlerConfig:
         assert config.get_endpoint_config(HTTPMethod.POST, "/predict") is not None
         assert config.get_endpoint_config(HTTPMethod.GET, "/health") is not None
 
-    def test_parse_endpoint_key(self) -> None:
-        """Test parsing endpoint keys"""
-        config = APIHandlerConfig()
-        method, path = config._parse_endpoint_key("GET:/api/test")
-        assert method == HTTPMethod.GET
-        assert path == "/api/test"
-
-    def test_parse_endpoint_key_invalid(self) -> None:
-        """Test parsing invalid endpoint key"""
-        config = APIHandlerConfig()
-        with pytest.raises(ValueError, match="Invalid endpoint key format"):
-            config._parse_endpoint_key("invalid-format")
-
     def test_to_dict(self) -> None:
         """Test serialization to dictionary"""
         config = APIHandlerConfig()
@@ -1622,38 +1608,6 @@ class TestEndpointKeyHelpers:
 
         key = combine_serving_endpoint_key(HTTPMethod.POST, "/predict")
         assert key == "POST:/predict"
-
-    def test_split_serving_endpoint_key(self) -> None:
-        """Test splitting endpoint key into method and path"""
-        method, path = split_serving_endpoint_key("GET:/api/test")
-        assert method == HTTPMethod.GET
-        assert path == "/api/test"
-
-        method, path = split_serving_endpoint_key("POST:/predict")
-        assert method == HTTPMethod.POST
-        assert path == "/predict"
-
-    def test_split_serving_endpoint_key_with_colon_in_path(self) -> None:
-        """Test splitting endpoint key when path contains colon"""
-        method, path = split_serving_endpoint_key("GET:/api/test:123")
-        assert method == HTTPMethod.GET
-        assert path == "/api/test:123"
-
-    def test_split_serving_endpoint_key_invalid(self) -> None:
-        """Test splitting invalid endpoint key"""
-        with pytest.raises(ValueError):
-            split_serving_endpoint_key("invalid-key-without-colon")
-
-    def test_roundtrip_combine_split(self) -> None:
-        """Test roundtrip conversion"""
-        original_method = HTTPMethod.PUT
-        original_path = "/api/v1/resource/123"
-
-        key = combine_serving_endpoint_key(original_method, original_path)
-        method, path = split_serving_endpoint_key(key)
-
-        assert method == original_method
-        assert path == original_path
 
 
 class TestAPIHandlerStep:

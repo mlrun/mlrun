@@ -30,7 +30,10 @@ import mlrun.serving.server
 import mlrun.serving.states
 import mlrun.serving.utils as serving_utils
 import mlrun.utils
-from mlrun.serving.utils import _RequestContext, check_body_and_path_parameters_overlapping
+from mlrun.serving.utils import (
+    _RequestContext,
+    check_body_and_path_parameters_overlapping,
+)
 
 
 class _APIHandlerStep(mlrun.serving.states.TaskStep):
@@ -312,7 +315,7 @@ class _APIHandlerStep(mlrun.serving.states.TaskStep):
 
             if ep is None:
                 self._raise_not_found_endpoint(method, normalized_path)
-    
+
             mlrun.utils.logger.debug(
                 "Found matching endpoint",
                 method=method.value,
@@ -383,7 +386,9 @@ class _APIHandlerStep(mlrun.serving.states.TaskStep):
                     f"Access forbidden to {method.value} {normalized_path}"
                 )
             else:
-                raise mlrun.errors.MLRunInternalServerError(f"Unknown action: {ep.action}")
+                raise mlrun.errors.MLRunInternalServerError(
+                    f"Unknown action: {ep.action}"
+                )
 
         except Exception as exc:
             # Log the error and re-raise
@@ -394,12 +399,11 @@ class _APIHandlerStep(mlrun.serving.states.TaskStep):
                 path=getattr(event, "path", "unknown"),
             )
             raise
-    
+
     def _raise_not_found_endpoint(self, method: str, normalized_path: str) -> None:
         # Check if path exists with any method (for 405 vs 404 distinction)
         path_exists = any(
-            e.path == normalized_path
-            for e in self.config.endpoints.values()
+            e.path == normalized_path for e in self.config.endpoints.values()
         )
         if path_exists:
             # Path exists but method not allowed (405)

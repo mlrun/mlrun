@@ -1490,21 +1490,7 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
 
         # Convert new_expiration to datetime for comparison
         new_exp_dt = datetime.fromtimestamp(new_expiration, tz=UTC)
-        if new_exp_dt > existing_exp:
-            return True
-
-        existing_iat = self._decode_secret_timestamp(k8s_secret, "tokenIssuedAt")
-
-        # If no isued at could be decoded, assume it needs an update
-        if existing_iat is None:
-            return True
-
-        # Convert new_issued_at to datetime for comparison
-        new_iat_dt = datetime.fromtimestamp(new_issued_at, tz=UTC)
-        if new_iat_dt > existing_iat:
-            return True
-
-        return False
+        return new_exp_dt > existing_exp
 
     def list_user_token_secrets(
         self,

@@ -130,7 +130,7 @@ jobs:
   trigger-and-wait-for-ui-image-building:
     name: Build and push UI image to Artifactory
     needs: prepare-inputs
-    uses: mlrun/ui/.github/workflows/build.yaml@development
+    uses: mlrun/ui/.github/workflows/build.yaml@fix/reusable-workflow-call
     with:
       docker_registries: ${{ needs.prepare-inputs.outputs.docker_registry }}
       version: ${{ needs.prepare-inputs.outputs.version }}

@@ -14,7 +14,7 @@ genai_serving
 gpu_utilization
 genai_serving_graph
 openai-model
-hf-model-image-classification
+hf-model-batch-serving-graph
 ```
 
 **See also**

@@ -13,10 +13,11 @@ You can also write your own steps using standard Python functions or custom func
 available-steps
 model-serving-steps
 remote-steps
+hub-steps
 writing-custom-steps
 router-steps
 router
 ```
 **See also**
-- [Queues and streams](../serving/remote-execution.ipynb#queues-and-streams).
+- [Queues and streams](../serving/remote-execution.ipynb#queues-and-streams)
 - {ref}`Importing steps from the MLRun hub<load-from-hub>`

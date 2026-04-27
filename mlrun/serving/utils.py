@@ -182,12 +182,12 @@ class RouterToDict(StepToDict):
         return super().to_dict(exclude=["routes"], strip=strip)
 
 
-def _combine_serving_endpoint_key(method: HTTPMethod, path: str) -> str:
+def combine_serving_endpoint_key(method: HTTPMethod, path: str) -> str:
     """Combine method and path to create a unique endpoint key"""
     return f"{method.value}:{path}"
 
 
-def _split_serving_endpoint_key(endpoint_key: str) -> tuple[HTTPMethod, str]:
+def split_serving_endpoint_key(endpoint_key: str) -> tuple[HTTPMethod, str]:
     """Split the endpoint key into method and path"""
     method_str, path = endpoint_key.split(":", 1)
     return HTTPMethod(method_str), path

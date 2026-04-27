@@ -26,7 +26,11 @@ import pytest
 import mlrun
 import mlrun.errors
 from mlrun.common.schemas.serving import APIHandlerAction, _APIEndpointKeys
-from mlrun.runtimes.nuclio.serving import APIHandlerConfig, BodyMappings, EndpointConfig, ServingRuntime
+from mlrun.runtimes.nuclio.serving import (
+    APIHandlerConfig,
+    BodyMappings,
+    ServingRuntime,
+)
 from mlrun.serving import GraphContext
 from mlrun.serving.api_handler import _APIHandlerStep
 from mlrun.serving.server import (
@@ -36,9 +40,9 @@ from mlrun.serving.server import (
     _add_api_handler_step_to_graph,
 )
 from mlrun.serving.utils import (
-    _combine_serving_endpoint_key,
     _RequestContext,
-    _split_serving_endpoint_key,
+    combine_serving_endpoint_key,
+    split_serving_endpoint_key,
 )
 
 
@@ -1128,7 +1132,9 @@ class TestAPIHandlerMockServer:
         )
 
         bm = BodyMappings()
-        bm.add_mapping("$.identifier", destination_path="id")  # destination_path="id" conflicts
+        bm.add_mapping(
+            "$.identifier", destination_path="id"
+        )  # destination_path="id" conflicts
 
         config = APIHandlerConfig()
         config.add_endpoint_handler(
@@ -1611,40 +1617,40 @@ class TestEndpointKeyHelpers:
 
     def test_combine_serving_endpoint_key(self) -> None:
         """Test combining method and path into endpoint key"""
-        key = _combine_serving_endpoint_key(HTTPMethod.GET, "/api/test")
+        key = combine_serving_endpoint_key(HTTPMethod.GET, "/api/test")
         assert key == "GET:/api/test"
 
-        key = _combine_serving_endpoint_key(HTTPMethod.POST, "/predict")
+        key = combine_serving_endpoint_key(HTTPMethod.POST, "/predict")
         assert key == "POST:/predict"
 
     def test_split_serving_endpoint_key(self) -> None:
         """Test splitting endpoint key into method and path"""
-        method, path = _split_serving_endpoint_key("GET:/api/test")
+        method, path = split_serving_endpoint_key("GET:/api/test")
         assert method == HTTPMethod.GET
         assert path == "/api/test"
 
-        method, path = _split_serving_endpoint_key("POST:/predict")
+        method, path = split_serving_endpoint_key("POST:/predict")
         assert method == HTTPMethod.POST
         assert path == "/predict"
 
     def test_split_serving_endpoint_key_with_colon_in_path(self) -> None:
         """Test splitting endpoint key when path contains colon"""
-        method, path = _split_serving_endpoint_key("GET:/api/test:123")
+        method, path = split_serving_endpoint_key("GET:/api/test:123")
         assert method == HTTPMethod.GET
         assert path == "/api/test:123"
 
     def test_split_serving_endpoint_key_invalid(self) -> None:
         """Test splitting invalid endpoint key"""
         with pytest.raises(ValueError):
-            _split_serving_endpoint_key("invalid-key-without-colon")
+            split_serving_endpoint_key("invalid-key-without-colon")
 
     def test_roundtrip_combine_split(self) -> None:
         """Test roundtrip conversion"""
         original_method = HTTPMethod.PUT
         original_path = "/api/v1/resource/123"
 
-        key = _combine_serving_endpoint_key(original_method, original_path)
-        method, path = _split_serving_endpoint_key(key)
+        key = combine_serving_endpoint_key(original_method, original_path)
+        method, path = split_serving_endpoint_key(key)
 
         assert method == original_method
         assert path == original_path
@@ -2173,8 +2179,12 @@ class TestCompileEndpointPatterns:
     def test_no_templates_produces_empty_pattern_list(self) -> None:
         """Exact endpoints are not compiled — no template patterns produced."""
         config = APIHandlerConfig()
-        config.add_endpoint_handler("/api/users", HTTPMethod.GET, APIHandlerAction.ALLOW)
-        config.add_endpoint_handler("/api/items", HTTPMethod.GET, APIHandlerAction.ALLOW)
+        config.add_endpoint_handler(
+            "/api/users", HTTPMethod.GET, APIHandlerAction.ALLOW
+        )
+        config.add_endpoint_handler(
+            "/api/items", HTTPMethod.GET, APIHandlerAction.ALLOW
+        )
 
         handler = _APIHandlerStep(config=config)
         assert len(handler._endpoint_patterns) == 0
@@ -2183,8 +2193,12 @@ class TestCompileEndpointPatterns:
     def test_template_endpoints_produce_compiled_patterns(self) -> None:
         """Template endpoints are compiled to regex patterns with named groups."""
         config = APIHandlerConfig()
-        config.add_endpoint_handler("/api/users/{user_id}", HTTPMethod.GET, APIHandlerAction.ALLOW)
-        config.add_endpoint_handler("/api/items/{item_id}", HTTPMethod.POST, APIHandlerAction.ALLOW)
+        config.add_endpoint_handler(
+            "/api/users/{user_id}", HTTPMethod.GET, APIHandlerAction.ALLOW
+        )
+        config.add_endpoint_handler(
+            "/api/items/{item_id}", HTTPMethod.POST, APIHandlerAction.ALLOW
+        )
 
         handler = _APIHandlerStep(config=config)
         assert len(handler._endpoint_patterns) == 2
@@ -2196,7 +2210,9 @@ class TestCompileEndpointPatterns:
     def test_star_endpoints_produce_star_patterns(self) -> None:
         """Star endpoints are stored as prefix strings, not compiled regex."""
         config = APIHandlerConfig()
-        config.add_endpoint_handler("/api/v1/*", HTTPMethod.POST, APIHandlerAction.ALLOW)
+        config.add_endpoint_handler(
+            "/api/v1/*", HTTPMethod.POST, APIHandlerAction.ALLOW
+        )
 
         handler = _APIHandlerStep(config=config)
         assert len(handler._star_patterns) == 1
@@ -2205,7 +2221,6 @@ class TestCompileEndpointPatterns:
         method, prefix, ep = handler._star_patterns[0]
         assert prefix == "/api/v1/"
         assert method == HTTPMethod.POST
-
 
     def test_same_endpoint_body_mappings_conflict_raises(self) -> None:
         """input_body_mappings destination_path conflicting with the same endpoint's path param raises at init."""
@@ -2232,8 +2247,12 @@ class TestCompileEndpointPatterns:
         bm.add_mapping("$.user_id", destination_path="user_id")
 
         config = APIHandlerConfig()
-        config.add_endpoint_handler("/api/*", HTTPMethod.POST, APIHandlerAction.ALLOW, input_body_mappings=bm)
-        config.add_endpoint_handler("/api/{user_id}/data", HTTPMethod.POST, APIHandlerAction.ALLOW)
+        config.add_endpoint_handler(
+            "/api/*", HTTPMethod.POST, APIHandlerAction.ALLOW, input_body_mappings=bm
+        )
+        config.add_endpoint_handler(
+            "/api/{user_id}/data", HTTPMethod.POST, APIHandlerAction.ALLOW
+        )
 
         with pytest.raises(
             mlrun.errors.MLRunValueError,
@@ -2247,8 +2266,12 @@ class TestCompileEndpointPatterns:
         bm.add_mapping("$.user_id", destination_path="user_id")
 
         config = APIHandlerConfig()
-        config.add_endpoint_handler("/api/*", HTTPMethod.GET, APIHandlerAction.ALLOW, input_body_mappings=bm)
-        config.add_endpoint_handler("/api/{user_id}/data", HTTPMethod.POST, APIHandlerAction.ALLOW)
+        config.add_endpoint_handler(
+            "/api/*", HTTPMethod.GET, APIHandlerAction.ALLOW, input_body_mappings=bm
+        )
+        config.add_endpoint_handler(
+            "/api/{user_id}/data", HTTPMethod.POST, APIHandlerAction.ALLOW
+        )
 
         # No conflict — different methods, so no raise
         _APIHandlerStep(config=config)

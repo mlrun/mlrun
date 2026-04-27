@@ -143,7 +143,13 @@ class BodyMappings(mlrun.model.ModelObj):
 class EndpointConfig(mlrun.model.ModelObj):
     """Configuration for a single API endpoint — routing and input mapping in one object."""
 
-    _dict_fields = ["path", "http_method", "action", "description", "input_body_mappings"]
+    _dict_fields = [
+        "path",
+        "http_method",
+        "action",
+        "description",
+        "input_body_mappings",
+    ]
 
     def __init__(
         self,
@@ -163,7 +169,7 @@ class EndpointConfig(mlrun.model.ModelObj):
 
     def get_endpoint_key(self) -> str:
         """Return the endpoint key in the format 'METHOD:path', e.g. 'POST:/v1/chat/completions'."""
-        return f"{self.http_method.value}:{self.path}"
+        return serving_utils.combine_serving_endpoint_key(self.http_method, self.path)
 
     def __repr__(self) -> str:
         return (
@@ -221,7 +227,7 @@ class APIHandlerConfig(mlrun.model.ModelObj):
     def _parse_endpoint_key(self, endpoint_key: str) -> tuple[HTTPMethod, str]:
         """Parse endpoint key 'METHOD:path' back to method and path components."""
         try:
-            return serving_utils._split_serving_endpoint_key(endpoint_key)
+            return serving_utils.split_serving_endpoint_key(endpoint_key)
         except (ValueError, AttributeError) as e:
             raise ValueError(
                 f"Invalid endpoint key format '{endpoint_key}'. Expected 'METHOD:path'"
@@ -295,7 +301,7 @@ class APIHandlerConfig(mlrun.model.ModelObj):
         """Get endpoint configuration for a specific method and path."""
         method = self._validate_http_method(method)
         path = self._normalize_path(path)
-        endpoint_key = serving_utils._combine_serving_endpoint_key(method, path)
+        endpoint_key = serving_utils.combine_serving_endpoint_key(method, path)
         return self._endpoints.get(endpoint_key)
 
     def add_endpoint_handler(
@@ -353,7 +359,7 @@ class APIHandlerConfig(mlrun.model.ModelObj):
         """
         http_method = self._validate_http_method(http_method)
         path = self._normalize_path(path)
-        endpoint_key = serving_utils._combine_serving_endpoint_key(http_method, path)
+        endpoint_key = serving_utils.combine_serving_endpoint_key(http_method, path)
         self._endpoints.pop(endpoint_key, None)
 
 

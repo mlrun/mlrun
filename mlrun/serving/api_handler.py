@@ -64,8 +64,12 @@ class _APIHandlerStep(mlrun.serving.states.TaskStep):
         # Pre-compile patterns in a single pass for performance.
         # Template patterns: /api/{user_id}/items → regex with named groups.
         # Star patterns:     /api/v1/*           → plain prefix string.
-        self._endpoint_patterns: list[tuple[HTTPMethod, Pattern, "mlrun.runtimes.nuclio.serving.EndpointConfig"]]
-        self._star_patterns: list[tuple[HTTPMethod, str, "mlrun.runtimes.nuclio.serving.EndpointConfig"]]
+        self._endpoint_patterns: list[
+            tuple[HTTPMethod, Pattern, mlrun.runtimes.nuclio.serving.EndpointConfig]
+        ]
+        self._star_patterns: list[
+            tuple[HTTPMethod, str, mlrun.runtimes.nuclio.serving.EndpointConfig]
+        ]
         self._endpoint_patterns, self._star_patterns = self._compile_patterns()
 
         mlrun.utils.logger.debug("The context in API handler", context=self.context)
@@ -73,7 +77,9 @@ class _APIHandlerStep(mlrun.serving.states.TaskStep):
     def _compile_patterns(
         self,
     ) -> tuple[
-        list[tuple[HTTPMethod, Pattern, "mlrun.runtimes.nuclio.serving.EndpointConfig"]],
+        list[
+            tuple[HTTPMethod, Pattern, "mlrun.runtimes.nuclio.serving.EndpointConfig"]
+        ],
         list[tuple[HTTPMethod, str, "mlrun.runtimes.nuclio.serving.EndpointConfig"]],
     ]:
         """Compile all non-exact endpoint patterns in a single pass.
@@ -99,8 +105,12 @@ class _APIHandlerStep(mlrun.serving.states.TaskStep):
             * ``template_patterns`` is a list of ``(method, compiled_regex, EndpointConfig)``
             * ``star_patterns`` is a list of ``(method, prefix, EndpointConfig)``
         """
-        template_patterns: list[tuple[HTTPMethod, Pattern, "mlrun.runtimes.nuclio.serving.EndpointConfig"]] = []
-        star_patterns: list[tuple[HTTPMethod, str, "mlrun.runtimes.nuclio.serving.EndpointConfig"]] = []
+        template_patterns: list[
+            tuple[HTTPMethod, Pattern, mlrun.runtimes.nuclio.serving.EndpointConfig]
+        ] = []
+        star_patterns: list[
+            tuple[HTTPMethod, str, mlrun.runtimes.nuclio.serving.EndpointConfig]
+        ] = []
 
         for ep in self.config.endpoints.values():
             method = ep.http_method
@@ -201,7 +211,9 @@ class _APIHandlerStep(mlrun.serving.states.TaskStep):
                 if star_method != template_method:
                     continue
                 if template_ep.path.startswith(prefix):
-                    candidates.append((star_ep, f"star endpoint '{star_ep.get_endpoint_key()}'"))
+                    candidates.append(
+                        (star_ep, f"star endpoint '{star_ep.get_endpoint_key()}'")
+                    )
 
             for candidate_ep, source_desc in candidates:
                 if not candidate_ep.input_body_mappings:
@@ -476,7 +488,7 @@ class _APIHandlerStep(mlrun.serving.states.TaskStep):
                  Path params are always strings (extracted from URL segments).
         """
         # Phase 1: Fast path for exact matches (no path parameters)
-        endpoint_key = serving_utils._combine_serving_endpoint_key(method, path)
+        endpoint_key = serving_utils.combine_serving_endpoint_key(method, path)
         if endpoint_key in self.config._endpoints:
             return endpoint_key, {}
 

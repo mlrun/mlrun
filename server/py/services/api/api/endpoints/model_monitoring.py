@@ -630,44 +630,6 @@ async def get_model_monitoring_url(
         action=mlrun.common.schemas.AuthorizationAction.read,
         auth_info=auth_info,
     )
-    func = await run_in_threadpool(
-        services.api.crud.Functions().get_function,
-        db_session,
-        mm_constants.MonitoringFunctionNames.STREAM,
-        project,
-    )
-    if not func:
-        raise mlrun.errors.MLRunNotFoundError(
-            f"Model monitoring stream function not found for project {project!r}. "
-            f"Run `project.enable_model_monitoring()` first."
-        )
+    import services.api.crud.model_monitoring.helpers as mm_crud_helpers
 
-    status = func.get("status", {})
-    state = status.get("state", "")
-
-    if state != "ready":
-        raise mlrun.errors.MLRunPreconditionFailedError(
-            f"Model monitoring stream function is not ready "
-            f"(state={state!r}) for project {project!r}."
-        )
-
-    # Resolve URL with same priority order as nuclio serving functions
-    external_urls = status.get("external_invocation_urls") or []
-    internal_urls = status.get("internal_invocation_urls") or []
-    address = status.get("address", "")
-
-    if external_urls and external_urls[0]:
-        return f"http://{external_urls[0]}"
-    if internal_urls and internal_urls[0]:
-        return f"http://{internal_urls[0]}"
-    if address:
-        return f"http://{address}"
-
-    # No HTTP trigger configured yet — placeholder until HTTP trigger is added to stream function
-    logger.warning(
-        "Model monitoring stream function has no HTTP invocation URL. "
-        "An HTTP trigger must be added to the stream function.",
-        project=project,
-        function_name=mm_constants.MonitoringFunctionNames.STREAM,
-    )
-    return None
+    return await mm_crud_helpers.get_stream_url(db_session=db_session, project=project)

@@ -339,6 +339,14 @@ class EndpointMode(IntEnum):
     BATCH_LEGACY = 2  # legacy batch mode, used for endpoints created through the batch inference job
 
 
+class NuclioMonitoringEnvVars(MonitoringStrEnum):
+    """Environment variable names injected into nuclio/application functions when setup_monitoring=True."""
+
+    MODEL_MONITORING_URL = "MODEL_MONITORING_URL"
+    MODEL_ENDPOINT_UID = "MODEL_ENDPOINT_UID"
+    MODEL_ENDPOINTS_MAP = "MODEL_ENDPOINTS_MAP"
+
+
 class MonitoringFunctionNames(MonitoringStrEnum):
     STREAM = "model-monitoring-stream"
     APPLICATION_CONTROLLER = "model-monitoring-controller"

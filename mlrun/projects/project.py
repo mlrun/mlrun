@@ -90,6 +90,7 @@ from ..artifacts import (
 )
 from ..artifacts.manager import ArtifactManager, dict_to_artifact, extend_artifact_path
 from ..common.runtimes.constants import RunStates
+from ..common.schemas.model_monitoring import ModelEndpointInstruction
 from ..datastore import store_manager
 from ..features import Feature
 from ..model import EntrypointParam, ImageBuilder, ModelObj
@@ -4087,8 +4088,9 @@ class MlrunProject(ModelObj):
         function_tag: str | None = None,
         creation_strategy: mm_constants.ModelEndpointCreationStrategy
         | None = mm_constants.ModelEndpointCreationStrategy.INPLACE,
+        model_endpoint_instruction: ModelEndpointInstruction | None = None,
         **kwargs,
-    ) -> mlrun.common.schemas.ModelEndpoint:
+    ) -> tuple[str, str]:
         """
         Create a user-defined model endpoint (``EndpointType.USER_EP``) for this project.
 
@@ -4110,10 +4112,25 @@ class MlrunProject(ModelObj):
             * **archive**:
             1. If model endpoints with the same name exist, preserve them.
             2. Create a new model endpoint with the same name and set it to `latest`.
+        :param model_endpoint_instruction: Optional instruction for the model endpoint, which can be used to provide
+            data as above.
         :param kwargs:             Advanced: additional ``ModelEndpointSpec`` or ``ModelEndpointMetadata``
                                    field overrides (e.g. ``labels``, ``model_tags``).
-        :return: The created :py:class:`~mlrun.common.schemas.ModelEndpoint` object.
+        :return: A tuple stands for the created mlrun.common.schemas.ModelEndpoint name and uid.
         """
+        if model_endpoint_instruction is not None and any(
+            [
+                input_schema,
+                output_schema,
+                function_name,
+                function_tag,
+            ]
+        ):
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Cannot provide both model_endpoint_instruction and individual parameters. "
+                "Please choose one of the options."
+            )
+
         # Separate kwargs into metadata vs spec fields
         metadata_field_names = set(
             mlrun.common.schemas.ModelEndpointMetadata.__fields__
@@ -4135,6 +4152,16 @@ class MlrunProject(ModelObj):
         if output_schema is not None:
             spec_fields["label_names"] = output_schema
 
+        if model_endpoint_instruction is not None:
+            if model_endpoint_instruction.function_name is not None:
+                spec_fields["function_name"] = model_endpoint_instruction.function_name
+            if model_endpoint_instruction.function_tag is not None:
+                spec_fields["function_tag"] = model_endpoint_instruction.function_tag
+            if model_endpoint_instruction.input_schema is not None:
+                spec_fields["feature_names"] = model_endpoint_instruction.input_schema
+            if model_endpoint_instruction.output_schema is not None:
+                spec_fields["label_names"] = model_endpoint_instruction.output_schema
+
         model_endpoint = mlrun.common.schemas.ModelEndpoint(
             metadata=mlrun.common.schemas.ModelEndpointMetadata(
                 name=name,
@@ -4146,9 +4173,10 @@ class MlrunProject(ModelObj):
             status=mlrun.common.schemas.ModelEndpointStatus(),
         )
         db = mlrun.db.get_run_db(secrets=self._secrets)
-        return db.create_model_endpoint(
+        endpoint = db.create_model_endpoint(
             model_endpoint=model_endpoint, creation_strategy=creation_strategy
         )
+        return endpoint.metadata.name, endpoint.metadata.uid
 
     def list_model_endpoints(
         self,

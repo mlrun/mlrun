@@ -2739,20 +2739,30 @@ class TestLLModelWithMonitoring(TestMLRunSystemModelMonitoring):
             assert mep.status.last_request is not None
 
 
-class TestModelMonitoringStreamHTTP(TestMLRunSystemModelMonitoring):
-    """Verify the HTTP trigger on the stream pod is reachable after enable_model_monitoring."""
+class TestGetModelMonitoringURL(TestMLRunSystemModelMonitoring):
+    """
+    System / CRUD tests for get_model_monitoring_url.
 
-    project_name = "pr-mm-stream-http"
+    Validates the full call chain:
+      project.get_model_monitoring_url()
+        → GET /projects/{project}/model-monitoring/model-monitoring-url
+          → services.api.crud.Functions.get_function (real DB)
+            → resolves URL from nuclio status
+    """
+
+    project_name = "pr-mm-get-url"
     image: str | None = None
 
+    def test_raises_before_monitoring_is_enabled(self) -> None:
+        """CRUD returns 404 when the stream function has not been deployed yet."""
+        with pytest.raises(mlrun.errors.MLRunNotFoundError):
+            self.project.get_model_monitoring_url()
+
     @pytest.mark.timeout(300)
-    def test_stream_http_trigger(self) -> None:
+    def test_returns_url_after_enable_model_monitoring(self) -> None:
         """
-        1. Enable model monitoring (deploys the stream pod with HTTP trigger).
-        2. Retrieve the stream URL via get_model_monitoring_url().
-        3. Send a minimal POST to the URL and verify a non-5xx response is returned
-           (the stream pod may return 400 for an unparseable payload, which is fine —
-           it proves the HTTP trigger is live).
+        After enable_model_monitoring the stream pod is deployed with an HTTP trigger.
+        The CRUD endpoint must resolve and return a valid URL.
         """
         import requests
 
@@ -2769,9 +2779,130 @@ class TestModelMonitoringStreamHTTP(TestMLRunSystemModelMonitoring):
         )
         assert url.startswith("http"), f"Expected an HTTP URL, got: {url!r}"
 
-        # Send a minimal POST — we expect any non-5xx response (400 is acceptable,
-        # meaning the pod received the request but rejected the payload).
+        # Smoke-test: send a minimal POST to confirm the HTTP trigger is live.
+        # A non-5xx response is sufficient — 400 (bad payload) is acceptable.
         resp = requests.post(url, json={}, timeout=30)
         assert resp.status_code < 500, (
             f"Stream pod returned a server error {resp.status_code}: {resp.text}"
+        )
+
+
+class TestNuclioAppModelEndpointCreation(TestMLRunSystemModelMonitoring):
+    """
+    System / CRUD tests for model endpoint creation during nuclio function deployment.
+
+    Full sequence:
+      1. enable_model_monitoring  (deploys stream pod with HTTP trigger)
+      2. code_to_function(kind="nuclio") + setup_model_monitoring()
+      3. deploy()
+      4. assert MODEL_MONITORING_URL / MODEL_ENDPOINT_UID env vars are injected
+      5. assert model endpoint(s) exist in the DB
+    """
+
+    project_name = "pr-nuclio-me-creation"
+    image: str | None = "artifactory.iguazeng.com:10557/roys/mlrun:1.11.0"
+
+    def _deploy_nuclio_fn_with_monitoring(
+        self,
+        fn_name: str,
+        instructions: list,
+    ):
+        fn = mlrun.code_to_function(fn_name, kind="nuclio")
+        fn.setup_model_monitoring(
+            model_endpoint_instructions=instructions[0],
+            extra_model_endpoint_instructions=instructions[1:]
+            if len(instructions) > 1
+            else None,
+        )
+        fn.deploy()
+        return fn
+
+    @pytest.mark.timeout(600)
+    def test_single_endpoint_env_vars_injected(self) -> None:
+        """
+        After deploy, the function spec must contain MODEL_MONITORING_URL and
+        MODEL_ENDPOINT_UID env vars, and a model endpoint must exist in the DB.
+        """
+        from mlrun.common.schemas.model_monitoring.constants import (
+            NuclioMonitoringEnvVars,
+        )
+        from mlrun.common.schemas.model_monitoring.model_endpoints import (
+            ModelEndpointInstruction,
+        )
+
+        self.set_mm_credentials()
+        self.project.enable_model_monitoring(
+            deploy_histogram_data_drift_app=False,
+            **({} if self.image is None else {"image": self.image}),
+        )
+
+        fn_name = "nuclio-single-ep"
+        fn = self._deploy_nuclio_fn_with_monitoring(
+            fn_name=fn_name,
+            instructions=[ModelEndpointInstruction(name="ep1")],
+        )
+
+        # Verify env vars were injected into the deployed function spec
+        env = {e["name"]: e["value"] for e in (fn.spec.env or [])}
+        assert NuclioMonitoringEnvVars.MODEL_MONITORING_URL in env, (
+            "MODEL_MONITORING_URL not injected"
+        )
+        assert env[NuclioMonitoringEnvVars.MODEL_MONITORING_URL].startswith("http"), (
+            f"Unexpected URL: {env[NuclioMonitoringEnvVars.MODEL_MONITORING_URL]!r}"
+        )
+        assert NuclioMonitoringEnvVars.MODEL_ENDPOINT_UID in env, (
+            "MODEL_ENDPOINT_UID not injected"
+        )
+        assert NuclioMonitoringEnvVars.MODEL_ENDPOINTS_MAP not in env, (
+            "MODEL_ENDPOINTS_MAP should not be present for a single endpoint"
+        )
+
+        # Verify model endpoint was created
+        endpoints = self.project.list_model_endpoints(name="ep1")
+        assert len(endpoints) >= 1, "Expected at least one model endpoint named 'ep1'"
+
+    @pytest.mark.timeout(600)
+    def test_multiple_endpoints_map_injected(self) -> None:
+        """
+        With two instructions, MODEL_ENDPOINTS_MAP must be injected as a JSON
+        mapping {name: uid} and two model endpoints must exist in the DB.
+        """
+        from mlrun.common.schemas.model_monitoring.constants import (
+            NuclioMonitoringEnvVars,
+        )
+        from mlrun.common.schemas.model_monitoring.model_endpoints import (
+            ModelEndpointInstruction,
+        )
+
+        self.set_mm_credentials()
+        self.project.enable_model_monitoring(
+            deploy_histogram_data_drift_app=False,
+            **({} if self.image is None else {"image": self.image}),
+        )
+
+        fn_name = "nuclio-multi-ep"
+        fn = self._deploy_nuclio_fn_with_monitoring(
+            fn_name=fn_name,
+            instructions=[
+                ModelEndpointInstruction(name="ep1"),
+                ModelEndpointInstruction(name="ep2"),
+            ],
+        )
+
+        env = {e["name"]: e["value"] for e in (fn.spec.env or [])}
+        assert NuclioMonitoringEnvVars.MODEL_MONITORING_URL in env
+        assert NuclioMonitoringEnvVars.MODEL_ENDPOINT_UID in env
+        assert NuclioMonitoringEnvVars.MODEL_ENDPOINTS_MAP in env, (
+            "MODEL_ENDPOINTS_MAP not injected for multiple endpoints"
+        )
+
+        endpoints_map = json.loads(env[NuclioMonitoringEnvVars.MODEL_ENDPOINTS_MAP])
+        assert set(endpoints_map.keys()) == {"ep1", "ep2"}, (
+            f"Unexpected endpoints map keys: {set(endpoints_map.keys())}"
+        )
+
+        endpoints = self.project.list_model_endpoints()
+        ep_names = {ep.metadata.name for ep in endpoints}
+        assert {"ep1", "ep2"}.issubset(ep_names), (
+            f"Expected ep1 and ep2 in DB, found: {ep_names}"
         )

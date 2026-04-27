@@ -21,6 +21,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 import mlrun.common.schemas
+import mlrun.errors
 import mlrun.runtimes.nuclio.function
 import mlrun.utils.helpers
 

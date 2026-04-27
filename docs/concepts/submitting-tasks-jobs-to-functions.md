@@ -90,7 +90,7 @@ print(run.output("result"))  # 42
 #### Passing arguments to the constructor
 
 To initialize the class with custom arguments, define them in `__init__` and
-pass them at run time via the special `"_init_args"` key inside `params`.
+pass them at runtime via the special `"_init_args"` key inside `params`.
 MLRun unpacks that dictionary as keyword arguments to the constructor before
 calling the handler method.
 

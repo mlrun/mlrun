@@ -104,7 +104,9 @@ class APIGateway(_APIGatewayBaseModel):
         ]
 
     def get_invoke_url(self):
-        if self.spec.host and self.spec.path:
+        if not self.spec.host:
+            return ""
+        if self.spec.path:
             return f"{self.spec.host.rstrip('/')}/{self.spec.path.lstrip('/')}".rstrip(
                 "/"
             )

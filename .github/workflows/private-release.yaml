@@ -66,6 +66,7 @@ jobs:
       version: ${{ steps.resolve.outputs.version }}
       previous_version: ${{ steps.resolve.outputs.previous_version }}
       ui_ref: ${{ steps.resolve.outputs.ui_ref }}
+      docker_registry: ${{ steps.resolve.outputs.docker_registry }}
     steps:
       - uses: actions/checkout@v6
         with:
@@ -91,11 +92,14 @@ jobs:
           echo "version=$version" >> $GITHUB_OUTPUT
           echo "previous_version=$(python ./automation/version/version_file.py current-version)" >> $GITHUB_OUTPUT
           echo "ui_ref=${UI_REF_INPUT:-`echo ${{ github.ref_name }}`}" >> $GITHUB_OUTPUT
+          echo "docker_registry=${ARTIFACTORY_URL}/${ARTIFACTORY_DOCKER_REPO}/" >> $GITHUB_OUTPUT
           cat $GITHUB_OUTPUT
         env:
           BUMP_VERSION_MODE_INPUT: ${{ github.event.inputs.bump_version_mode }}
           VERSION_INPUT: ${{ github.event.inputs.version }}
           ARTIFACTORY_PYPI_REPO: ${{ github.event.inputs.artifactory_pypi_repo }}
+          ARTIFACTORY_URL: ${{ secrets.ARTIFACTORY_URL }}
+          ARTIFACTORY_DOCKER_REPO: ${{ github.event.inputs.artifactory_docker_repo }}
           UI_REF_INPUT: ${{ github.event.inputs.ui_ref }}
 
       - name: Display calculated version
@@ -125,104 +129,14 @@ jobs:
 
   trigger-and-wait-for-ui-image-building:
     name: Build and push UI image to Artifactory
-    runs-on: mlrun-release
     needs: prepare-inputs
-    env:
-      DOCKER_REGISTRY: "${{ secrets.ARTIFACTORY_URL }}/${{ inputs.artifactory_docker_repo }}/"
-    steps:
-      - uses: actions/checkout@v6
-        with:
-          sparse-checkout: .github/scripts
-          sparse-checkout-cone-mode: false
-
-      - name: Trigger UI build and wait for completion
-        env:
-          GH_APP_ID: ${{ secrets.GH_APP_ID }}
-          GH_APP_PRIVATE_KEY: ${{ secrets.GH_APP_PRIVATE_KEY }}
-          OWNER: ${{ github.repository_owner }}
-          UI_REF: ${{ needs.prepare-inputs.outputs.ui_ref }}
-          VERSION: ${{ needs.prepare-inputs.outputs.version }}
-          POLL_INTERVAL: 60
-          TIMEOUT_MINUTES: 120
-          TOKEN_LIFETIME: 3300
-        run: |
-          set -euo pipefail
-          source .github/scripts/github-app-token.sh
-
-          echo "Generating initial installation token..."
-          TOKEN=$(generate_installation_token "${OWNER}" "ui")
-          TOKEN_CREATED_AT=$(date +%s)
-
-          echo "Triggering UI build workflow on ${OWNER}/ui@${UI_REF}..."
-          curl -sf -X POST \
-            -H "Authorization: token ${TOKEN}" \
-            -H "Accept: application/vnd.github+json" \
-            "https://api.github.com/repos/${OWNER}/ui/actions/workflows/build.yaml/dispatches" \
-            -d "{\"ref\":\"${UI_REF}\",\"inputs\":{\"docker_registries\":\"${DOCKER_REGISTRY}\",\"docker_repo\":\"\",\"version\":\"${VERSION}\",\"runner\":\"mlrun-release\"}}"
-
-          echo "Waiting for workflow run to appear..."
-          sleep 10
-
-          CREATED_AFTER=$(date -u -d "2 minutes ago" +%Y-%m-%dT%H:%M:%S 2>/dev/null || date -u -v-2M +%Y-%m-%dT%H:%M:%S)
-          RUN_ID=""
-          for i in $(seq 1 30); do
-            RUN_ID=$(curl -sf \
-              -H "Authorization: token ${TOKEN}" \
-              -H "Accept: application/vnd.github+json" \
-              "https://api.github.com/repos/${OWNER}/ui/actions/workflows/build.yaml/runs?event=workflow_dispatch&created=>=${CREATED_AFTER}&per_page=5" \
-              | jq -r '.workflow_runs[0].id // empty')
-            if [ -n "${RUN_ID}" ]; then
-              echo "Found workflow run: ${RUN_ID}"
-              break
-            fi
-            echo "Run not found yet, retrying in 10s..."
-            sleep 10
-          done
-
-          if [ -z "${RUN_ID}" ]; then
-            echo "::error::Failed to find triggered workflow run"
-            exit 1
-          fi
-
-          echo "Polling run ${RUN_ID} for completion (timeout: ${TIMEOUT_MINUTES}m)..."
-          DEADLINE=$(($(date +%s) + TIMEOUT_MINUTES * 60))
-
-          while true; do
-            if [ $(date +%s) -gt ${DEADLINE} ]; then
-              echo "::error::Timed out waiting for UI build to complete"
-              exit 1
-            fi
-
-            ELAPSED=$(( $(date +%s) - TOKEN_CREATED_AT ))
-            if [ ${ELAPSED} -ge ${TOKEN_LIFETIME} ]; then
-              echo "Refreshing installation token..."
-              TOKEN=$(generate_installation_token "${OWNER}" "ui")
-              TOKEN_CREATED_AT=$(date +%s)
-            fi
-
-            RESPONSE=$(curl -sf \
-              -H "Authorization: token ${TOKEN}" \
-              -H "Accept: application/vnd.github+json" \
-              "https://api.github.com/repos/${OWNER}/ui/actions/runs/${RUN_ID}")
-
-            STATUS=$(echo "${RESPONSE}" | jq -r '.status')
-            CONCLUSION=$(echo "${RESPONSE}" | jq -r '.conclusion')
-
-            echo "Status: ${STATUS}, Conclusion: ${CONCLUSION}"
-
-            if [ "${STATUS}" = "completed" ]; then
-              if [ "${CONCLUSION}" = "success" ]; then
-                echo "UI build completed successfully"
-                exit 0
-              else
-                echo "::error::UI build finished with conclusion: ${CONCLUSION}"
-                echo "Run URL: https://github.com/${OWNER}/ui/actions/runs/${RUN_ID}"
-                exit 1
-              fi
-            fi
-
-            sleep ${POLL_INTERVAL}
-          done
+    uses: mlrun/ui/.github/workflows/build.yaml@development
+    with:
+      docker_registries: ${{ needs.prepare-inputs.outputs.docker_registry }}
+      version: ${{ needs.prepare-inputs.outputs.version }}
+      runner: mlrun-release
+      ref: ${{ needs.prepare-inputs.outputs.ui_ref }}
+    secrets: inherit
 
   publish-to-artifactory:
     name: Publish package to Artifactory PyPI

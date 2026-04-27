@@ -36,6 +36,13 @@ class AlembicUtil:
         logger.debug("Performing alembic schema migrations")
         alembic.command.upgrade(self._alembic_config, "head")
 
+    @property
+    def latest_revision(self) -> str:
+        return self._latest_revision
+
+    def get_current_revision(self) -> str | None:
+        return self._get_current_revision()
+
     def is_schema_migration_needed(self):
         current_revision = self._get_current_revision()
         logger.debug(

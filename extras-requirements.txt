@@ -45,7 +45,7 @@ databricks-sdk~=0.20.0
 # sqlalchemy version should be aligned with mlrun-api due to common use with the model monitoring database
 sqlalchemy~=2.0
 dask==2024.8
-distributed==2024.8
+distributed==2026.1.0
 # TimescaleDB dependencies - optional for model monitoring
 psycopg[binary,pool]~=3.2
 snowflake-connector-python~=4.3

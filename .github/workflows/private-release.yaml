@@ -66,7 +66,6 @@ jobs:
       version: ${{ steps.resolve.outputs.version }}
       previous_version: ${{ steps.resolve.outputs.previous_version }}
       ui_ref: ${{ steps.resolve.outputs.ui_ref }}
-      docker_registry: ${{ steps.resolve.outputs.docker_registry }}
     steps:
       - uses: actions/checkout@v6
         with:
@@ -92,7 +91,6 @@ jobs:
           echo "version=$version" >> $GITHUB_OUTPUT
           echo "previous_version=$(python ./automation/version/version_file.py current-version)" >> $GITHUB_OUTPUT
           echo "ui_ref=${UI_REF_INPUT:-`echo ${{ github.ref_name }}`}" >> $GITHUB_OUTPUT
-          echo "docker_registry=${ARTIFACTORY_URL}/${ARTIFACTORY_DOCKER_REPO}/" >> $GITHUB_OUTPUT
           cat $GITHUB_OUTPUT
         env:
           BUMP_VERSION_MODE_INPUT: ${{ github.event.inputs.bump_version_mode }}
@@ -132,7 +130,7 @@ jobs:
     needs: prepare-inputs
     uses: mlrun/ui/.github/workflows/build.yaml@fix/reusable-workflow-call
     with:
-      docker_registries: ${{ needs.prepare-inputs.outputs.docker_registry }}
+      artifactory_docker_repo: ${{ inputs.artifactory_docker_repo }}
       version: ${{ needs.prepare-inputs.outputs.version }}
       runner: mlrun-release
       ref: ${{ needs.prepare-inputs.outputs.ui_ref }}

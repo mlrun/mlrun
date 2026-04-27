@@ -113,7 +113,7 @@ class ThresholdClass:
         context.log_result("above_threshold", value > self.threshold)
 ```
 
-Pass constructor arguments at run time:
+Pass constructor arguments at runtime:
 
 ```python
 fn = project.set_function(

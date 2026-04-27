@@ -233,7 +233,6 @@ def test_ignore_underscore():
 def test_annotate_mod():
     code = """
     import mlrun
-from mlrun.runtimes.funcdoc import ast_code, find_handlers
 
     def handler(data: mlrun.DataItem):
         ...

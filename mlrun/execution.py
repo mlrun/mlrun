@@ -28,6 +28,8 @@ import mlrun.common.formatters
 import mlrun.common.runtimes.constants
 from mlrun.artifacts import (
     Artifact,
+    CodeArtifact,
+    CodeArtifactCodeType,
     DatasetArtifact,
     DocumentArtifact,
     DocumentLoaderSpec,
@@ -806,6 +808,70 @@ class MLClientCtx:
             self._artifacts_manager.log_artifact(
                 self,
                 ds,
+                local_path=local_path,
+                artifact_path=extend_artifact_path(artifact_path, self.artifact_path),
+                target_path=target_path,
+                tag=tag,
+                upload=upload,
+                db_key=db_key,
+                labels=labels,
+            ),
+        )
+        self._update_run()
+        return item
+
+    def log_code_file(
+        self,
+        key,
+        local_path=None,
+        body=None,
+        tag="",
+        artifact_path=None,
+        upload=True,
+        labels=None,
+        target_path="",
+        db_key=None,
+        language=None,
+        code_type: str | CodeArtifactCodeType | None = None,
+        requirements: list[str] | None = None,
+        **kwargs,
+    ) -> CodeArtifact:
+        """Log a code artifact and optionally upload it to datastore
+
+        :param key:           Artifact key
+        :param local_path:    Path to the local code file or archive (.zip, .tar.gz)
+        :param body:          Inline code content (string)
+        :param tag:           Version tag
+        :param artifact_path: Target artifact path (when not using the default)
+        :param upload:        Upload to datastore (default is True)
+        :param labels:        A set of key/value labels to tag the artifact with
+        :param target_path:   Absolute target path (instead of using artifact_path + local_path)
+        :param db_key:        The key to use in the artifact DB table
+        :param language:      Programming language (e.g. "python").
+                              Free-text advisory metadata — no validation or
+                              enforcement is applied. If omitted, derived at
+                              construction time from the target/local path suffix
+                              (.py/.ipynb → "python"; archives/unknown → "").
+        :param code_type:     Type of code: "function" or "workflow" (default: "function")
+        :param requirements:  List of dependency strings (e.g. ["pandas>=2.0", "numpy"])
+
+        :returns: Code artifact object
+        """
+        code = CodeArtifact(
+            key,
+            body=body,
+            src_path=local_path,
+            language=language,
+            code_type=code_type,
+            requirements=requirements,
+            **kwargs,
+        )
+
+        item = cast(
+            CodeArtifact,
+            self._artifacts_manager.log_artifact(
+                self,
+                code,
                 local_path=local_path,
                 artifact_path=extend_artifact_path(artifact_path, self.artifact_path),
                 target_path=target_path,

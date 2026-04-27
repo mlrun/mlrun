@@ -1155,8 +1155,8 @@ def test_update_in():
 def test_update_in_with_dotted_keys(keys, val):
     obj = {}
     # Join the keys list with dots to form a single key string.
-    # If a key in the list has dots, wrap it with escaping (\\).
-    key = ".".join([key if "." not in key else f"\\{key}\\" for key in keys])
+    # Escape any literal dots within a key so they aren't treated as separators.
+    key = ".".join(k.replace(".", "\\.") for k in keys)
     update_in(obj, key, val)
     for key in keys:
         obj = obj.get(key)

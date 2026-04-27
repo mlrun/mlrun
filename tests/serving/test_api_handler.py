@@ -1135,7 +1135,7 @@ class TestAPIHandlerMockServer:
             "/items/{id}",  # path also has 'id'
             HTTPMethod.POST,
             APIHandlerAction.ALLOW,
-            body_mappings=bm,
+            input_body_mappings=bm,
         )
         fn.set_api_handler_config(config)
 
@@ -1145,7 +1145,7 @@ class TestAPIHandlerMockServer:
         # Conflict should be raised at mock server init, not at request time
         with pytest.raises(
             mlrun.errors.MLRunValueError,
-            match="Configuration conflict.*body_mappings destination_path.*id.*overlap with path template",
+            match="Configuration conflict.*input_body_mappings destination_path.*id.*overlap with path template",
         ):
             fn.to_mock_server()
 
@@ -2208,7 +2208,7 @@ class TestCompileEndpointPatterns:
 
 
     def test_same_endpoint_body_mappings_conflict_raises(self) -> None:
-        """body_mappings destination_path conflicting with the same endpoint's path param raises at init."""
+        """input_body_mappings destination_path conflicting with the same endpoint's path param raises at init."""
         bm = BodyMappings()
         bm.add_mapping("$.id", destination_path="user_id")
 
@@ -2217,7 +2217,7 @@ class TestCompileEndpointPatterns:
             "/api/{user_id}",
             HTTPMethod.POST,
             APIHandlerAction.ALLOW,
-            body_mappings=bm,
+            input_body_mappings=bm,
         )
 
         with pytest.raises(
@@ -2227,12 +2227,12 @@ class TestCompileEndpointPatterns:
             _APIHandlerStep(config=config)
 
     def test_star_endpoint_body_mappings_conflict_with_template_raises(self) -> None:
-        """Star endpoint body_mappings conflicting with a sub-template's path param raises at init."""
+        """Star endpoint input_body_mappings conflicting with a sub-template's path param raises at init."""
         bm = BodyMappings()
         bm.add_mapping("$.user_id", destination_path="user_id")
 
         config = APIHandlerConfig()
-        config.add_endpoint_handler("/api/*", HTTPMethod.POST, APIHandlerAction.ALLOW, body_mappings=bm)
+        config.add_endpoint_handler("/api/*", HTTPMethod.POST, APIHandlerAction.ALLOW, input_body_mappings=bm)
         config.add_endpoint_handler("/api/{user_id}/data", HTTPMethod.POST, APIHandlerAction.ALLOW)
 
         with pytest.raises(
@@ -2242,12 +2242,12 @@ class TestCompileEndpointPatterns:
             _APIHandlerStep(config=config)
 
     def test_no_conflict_different_methods(self) -> None:
-        """No conflict when body_mappings and template path param are on different HTTP methods."""
+        """No conflict when input_body_mappings and template path param are on different HTTP methods."""
         bm = BodyMappings()
         bm.add_mapping("$.user_id", destination_path="user_id")
 
         config = APIHandlerConfig()
-        config.add_endpoint_handler("/api/*", HTTPMethod.GET, APIHandlerAction.ALLOW, body_mappings=bm)
+        config.add_endpoint_handler("/api/*", HTTPMethod.GET, APIHandlerAction.ALLOW, input_body_mappings=bm)
         config.add_endpoint_handler("/api/{user_id}/data", HTTPMethod.POST, APIHandlerAction.ALLOW)
 
         # No conflict — different methods, so no raise
@@ -2263,7 +2263,7 @@ class TestCompileEndpointPatterns:
             "/api/{user_id}",
             HTTPMethod.POST,
             APIHandlerAction.ALLOW,
-            body_mappings=bm,
+            input_body_mappings=bm,
         )
 
         # No conflict — "model" != "user_id"

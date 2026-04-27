@@ -143,7 +143,7 @@ class BodyMappings(mlrun.model.ModelObj):
 class EndpointConfig(mlrun.model.ModelObj):
     """Configuration for a single API endpoint — routing and input mapping in one object."""
 
-    _dict_fields = ["path", "http_method", "action", "description", "body_mappings"]
+    _dict_fields = ["path", "http_method", "action", "description", "input_body_mappings"]
 
     def __init__(
         self,
@@ -151,7 +151,7 @@ class EndpointConfig(mlrun.model.ModelObj):
         http_method: HTTPMethod | str = HTTPMethod.POST,
         action: schemas.APIHandlerAction = schemas.APIHandlerAction.ALLOW,
         description: str | None = None,
-        body_mappings: BodyMappings | None = None,
+        input_body_mappings: BodyMappings | None = None,
     ) -> None:
         self.path = path
         self.http_method = (
@@ -159,7 +159,7 @@ class EndpointConfig(mlrun.model.ModelObj):
         )
         self.action = action
         self.description = description
-        self.body_mappings = body_mappings
+        self.input_body_mappings = input_body_mappings
 
     def get_endpoint_key(self) -> str:
         """Return the endpoint key in the format 'METHOD:path', e.g. 'POST:/v1/chat/completions'."""
@@ -168,7 +168,7 @@ class EndpointConfig(mlrun.model.ModelObj):
     def __repr__(self) -> str:
         return (
             f"EndpointConfig(path={self.path!r}, http_method={self.http_method!r}, "
-            f"action={self.action!r}, body_mappings={self.body_mappings!r})"
+            f"action={self.action!r}, input_body_mappings={self.input_body_mappings!r})"
         )
 
 
@@ -204,8 +204,8 @@ class APIHandlerConfig(mlrun.model.ModelObj):
             else:
                 # dict → deserialization path
                 # Manually deserialize nested BodyMappings since ModelObj does not do it automatically
-                body_mappings_dict = ep.get("body_mappings")
-                body_mappings = (
+                body_mappings_dict = ep.get("input_body_mappings")
+                input_body_mappings = (
                     BodyMappings.from_dict(body_mappings_dict)
                     if body_mappings_dict
                     else None
@@ -215,7 +215,7 @@ class APIHandlerConfig(mlrun.model.ModelObj):
                     http_method=ep.get("http_method", HTTPMethod.POST),
                     action=ep.get("action", schemas.APIHandlerAction.ALLOW),
                     description=ep.get("description"),
-                    body_mappings=body_mappings,
+                    input_body_mappings=input_body_mappings,
                 )
 
     def _parse_endpoint_key(self, endpoint_key: str) -> tuple[HTTPMethod, str]:
@@ -304,7 +304,7 @@ class APIHandlerConfig(mlrun.model.ModelObj):
         http_method: HTTPMethod | str = HTTPMethod.POST,
         action: schemas.APIHandlerAction = schemas.APIHandlerAction.ALLOW,
         description: str | None = None,
-        body_mappings: "BodyMappings | None" = None,
+        input_body_mappings: "BodyMappings | None" = None,
     ) -> None:
         """Add an endpoint handler configuration.
 
@@ -312,7 +312,7 @@ class APIHandlerConfig(mlrun.model.ModelObj):
         :param http_method: HTTP method for the endpoint (``HTTPMethod`` enum or string like ``"GET"``, ``"POST"``)
         :param action: Action to take for this endpoint (:py:class:`~mlrun.common.schemas.APIHandlerAction`)
         :param description: Optional description of the endpoint
-        :param body_mappings: Optional input :class:`BodyMappings` for this endpoint (REST → graph).
+        :param input_body_mappings: Optional input :class:`BodyMappings` for this endpoint (REST → graph).
             If ``None``, the request body is passed through as-is.
         :raises mlrun.errors.MLRunValueError: If the path contains an invalid wildcard ``*`` pattern
         """
@@ -324,7 +324,7 @@ class APIHandlerConfig(mlrun.model.ModelObj):
             http_method=http_method,
             action=action,
             description=description,
-            body_mappings=body_mappings,
+            input_body_mappings=input_body_mappings,
         )
         endpoint_key = ep.get_endpoint_key()
 

@@ -158,31 +158,31 @@ class _APIHandlerStep(mlrun.serving.states.TaskStep):
             tuple[HTTPMethod, str, "mlrun.runtimes.nuclio.serving.EndpointConfig"]
         ],
     ) -> None:
-        """Check that body_mappings destination_path names don't conflict with path
+        """Check that input_body_mappings destination_path names don't conflict with path
         template parameter names that would be extracted on the same request.
 
         Two sources of conflict for each template endpoint:
-        1. Same endpoint — the template endpoint itself has body_mappings with a conflicting name.
+        1. Same endpoint — the template endpoint itself has input_body_mappings with a conflicting name.
         2. Star endpoint — a star endpoint whose prefix covers the template's path has
-           body_mappings with a conflicting name (its mappings apply to all requests under
+           input_body_mappings with a conflicting name (its mappings apply to all requests under
            its prefix, including requests that also match the template).
 
         :raises mlrun.errors.MLRunValueError: On config-time conflict detection.
 
         # Old per-endpoint-only check (kept for reference):
         # for _, compiled_pattern, ep in template_patterns:
-        #     if not ep.body_mappings:
+        #     if not ep.input_body_mappings:
         #         continue
         #     dest_names = {
         #         m["destination_path"]
-        #         for m in ep.body_mappings.mappings
+        #         for m in ep.input_body_mappings.mappings
         #         if m.get("destination_path")
         #     }
         #     path_param_names = set(compiled_pattern.groupindex.keys())
         #     overlapping = dest_names & path_param_names
         #     if overlapping:
         #         raise mlrun.errors.MLRunValueError(
-        #             f"Configuration conflict: body_mappings destination_path(s) "
+        #             f"Configuration conflict: input_body_mappings destination_path(s) "
         #             f"{', '.join(sorted(overlapping))} overlap with path template "
         #             f"parameter(s) in pattern '{compiled_pattern.pattern}' "
         #             f"for endpoint '{ep.get_endpoint_key()}'. "
@@ -193,7 +193,7 @@ class _APIHandlerStep(mlrun.serving.states.TaskStep):
         for template_method, compiled_pattern, template_ep in template_patterns:
             path_param_names = set(compiled_pattern.groupindex.keys())
 
-            # Source 1: same endpoint has body_mappings with conflicting destination_path
+            # Source 1: same endpoint has input_body_mappings with conflicting destination_path
             candidates = [(template_ep, "same endpoint")]
 
             # Source 2: star endpoints whose prefix covers this template's path
@@ -204,17 +204,17 @@ class _APIHandlerStep(mlrun.serving.states.TaskStep):
                     candidates.append((star_ep, f"star endpoint '{star_ep.get_endpoint_key()}'"))
 
             for candidate_ep, source_desc in candidates:
-                if not candidate_ep.body_mappings:
+                if not candidate_ep.input_body_mappings:
                     continue
                 dest_names = {
                     m["destination_path"]
-                    for m in candidate_ep.body_mappings.mappings
+                    for m in candidate_ep.input_body_mappings.mappings
                     if m.get("destination_path")
                 }
                 overlapping = dest_names & path_param_names
                 if overlapping:
                     raise mlrun.errors.MLRunValueError(
-                        f"Configuration conflict: body_mappings destination_path(s) "
+                        f"Configuration conflict: input_body_mappings destination_path(s) "
                         f"{', '.join(sorted(overlapping))} from {source_desc} "
                         f"overlap with path template parameter(s) in pattern "
                         f"'{compiled_pattern.pattern}' "

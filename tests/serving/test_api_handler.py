@@ -280,7 +280,10 @@ class TestPathTemplateRegex:
         )
         assert len(matches) == 1
         ep, params = matches[0]
-        assert ep.get_endpoint_key() == "GET:/orgs/{org_id}/repos/{repo_id}/issues/{issue_id}"
+        assert (
+            ep.get_endpoint_key()
+            == "GET:/orgs/{org_id}/repos/{repo_id}/issues/{issue_id}"
+        )
         assert params == {"org_id": "mlrun", "repo_id": "mlrun", "issue_id": "42"}
 
         # Test second pattern with 2 parameters
@@ -328,7 +331,9 @@ class TestPathTemplateRegex:
         ]
 
         for path_value, expected in test_cases:
-            matches = step._collect_endpoint_matches(HTTPMethod.GET, f"/items/{path_value}")
+            matches = step._collect_endpoint_matches(
+                HTTPMethod.GET, f"/items/{path_value}"
+            )
             assert len(matches) == 1
             ep, params = matches[0]
             assert ep.get_endpoint_key() == "GET:/items/{item_id}"
@@ -526,7 +531,9 @@ class TestStarPatternMatching:
         assert ep.get_endpoint_key() == "GET:/api/*"
         assert params == {}
 
-        matches = step._collect_endpoint_matches(HTTPMethod.GET, "/api/deeply/nested/path")
+        matches = step._collect_endpoint_matches(
+            HTTPMethod.GET, "/api/deeply/nested/path"
+        )
         assert len(matches) == 1
         ep, params = matches[0]
         assert ep.get_endpoint_key() == "GET:/api/*"
@@ -540,7 +547,8 @@ class TestStarPatternMatching:
             match="wildcard.*must be at the end",
         ):
             config.add_endpoint_handler(
-                "/api/*/users", HTTPMethod.GET,
+                "/api/*/users",
+                HTTPMethod.GET,
                 APIHandlerAction.ALLOW,
                 "Invalid star position",
             )
@@ -917,12 +925,13 @@ class TestIncludeUrlInfo:
 
     def test_include_url_info_combined_with_existing_params(self) -> None:
         """mlrun_request_path is available alongside path, query, and body params"""
-        config = APIHandlerConfig(
-            include_url_info=True,
-            body_map={"question": "$.q"},
-        )
+        bm = BodyMappings()
+        bm.add_mapping("$.q", destination_path="question")
+
+        config = APIHandlerConfig(include_url_info=True)
         config.add_endpoint_handler(
-            "/api/{model_id}/ask", HTTPMethod.POST, APIHandlerAction.ALLOW
+            "/api/{model_id}/ask", HTTPMethod.POST, APIHandlerAction.ALLOW,
+            input_body_mappings=bm,
         )
         step = _APIHandlerStep(config=config)
 

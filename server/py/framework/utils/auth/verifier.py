@@ -14,7 +14,12 @@
 
 import asyncio
 import base64
+import hashlib
+import time
 import typing
+from collections import OrderedDict
+from copy import deepcopy
+from functools import partial
 
 import fastapi
 
@@ -22,6 +27,7 @@ import mlrun
 import mlrun.common.schemas as schemas
 import mlrun.utils.helpers
 import mlrun.utils.singleton
+from mlrun.auth.utils import resolve_jwt_expiration
 from mlrun.common.types import AuthenticationMode
 from mlrun.utils import logger
 
@@ -32,6 +38,8 @@ import framework.utils.clients.iguazio.v4
 
 
 class AuthVerifier(metaclass=mlrun.utils.singleton.Singleton):
+    _token_cache: OrderedDict[bytes, tuple[asyncio.Task[schemas.AuthInfo], float]]
+
     def __init__(self) -> None:
         super().__init__()
         self._resources_prefix = mlrun.mlconf.httpdb.authorization.namespaces.resources
@@ -46,6 +54,8 @@ class AuthVerifier(metaclass=mlrun.utils.singleton.Singleton):
             self._auth_provider = framework.utils.auth.providers.opa.Provider()
         else:
             raise NotImplementedError("Unsupported authorization mode")
+
+        self._token_cache = OrderedDict()
 
     async def filter_project_resources_by_permissions(
         self,
@@ -375,23 +385,35 @@ class AuthVerifier(metaclass=mlrun.utils.singleton.Singleton):
         return mlrun.mlconf.is_iguazio_v4_mode()
 
     @staticmethod
-    def _parse_basic_auth(header):
+    def _parse_auth_header(
+        headers: typing.Mapping[str, str], prefix: str
+    ) -> str | None:
+        header = headers.get(schemas.HeaderNames.authorization, "")
+
+        # Authorization schemes are case insensitive
+        if header.lower().startswith(prefix.lower()):
+            return header[len(prefix) :]
+
+    @staticmethod
+    def _parse_basic_auth(b64value: str) -> tuple[str, str]:
         """
-        parse_basic_auth('Basic YnVnczpidW5ueQ==')
-        ['bugs', 'bunny']
+        parse_basic_auth('YnVnczpidW5ueQ==')
+        ('bugs', 'bunny')
         """
-        b64value = header[len(schemas.AuthorizationHeaderPrefixes.basic) :]
         value = base64.b64decode(b64value).decode()
-        return value.split(":", 1)
+        username, password = value.split(":", 1)
+        return username, password
 
     def _authenticate_basic(
         self, headers: typing.Mapping[str, str]
     ) -> schemas.AuthInfo:
-        header = headers.get(schemas.HeaderNames.authorization, "")
-        if not header.startswith(schemas.AuthorizationHeaderPrefixes.basic):
+        basic_auth = self._parse_auth_header(
+            headers, schemas.AuthorizationHeaderPrefixes.basic
+        )
+        if basic_auth is None:
             raise mlrun.errors.MLRunUnauthorizedError("Missing basic auth header")
 
-        username, password = self._parse_basic_auth(header)
+        username, password = self._parse_basic_auth(basic_auth)
         if (
             username != mlrun.mlconf.httpdb.authentication.basic.username
             or password != mlrun.mlconf.httpdb.authentication.basic.password
@@ -405,11 +427,13 @@ class AuthVerifier(metaclass=mlrun.utils.singleton.Singleton):
     def _authenticate_bearer(
         self, headers: typing.Mapping[str, str]
     ) -> schemas.AuthInfo:
-        header = headers.get(schemas.HeaderNames.authorization, "")
-        if not header.startswith(schemas.AuthorizationHeaderPrefixes.bearer):
+        token = self._parse_auth_header(
+            headers, schemas.AuthorizationHeaderPrefixes.bearer
+        )
+
+        if token is None:
             raise mlrun.errors.MLRunUnauthorizedError("Missing bearer auth header")
 
-        token = header[len(schemas.AuthorizationHeaderPrefixes.bearer) :]
         if token != mlrun.mlconf.httpdb.authentication.bearer.token:
             raise mlrun.errors.MLRunUnauthorizedError("Token did not match")
 
@@ -427,9 +451,88 @@ class AuthVerifier(metaclass=mlrun.utils.singleton.Singleton):
             ]
         return auth_info
 
-    @staticmethod
     async def _authenticate_iguazio_v4(
+        self,
         request: fastapi.Request,
     ) -> schemas.AuthInfo:
-        iguazio_client = framework.utils.clients.iguazio.v4.AsyncClient()
-        return await iguazio_client.verify_request_session(request)
+        token = self._parse_auth_header(
+            request.headers, schemas.AuthorizationHeaderPrefixes.bearer
+        )
+
+        if token is None:
+            iguazio_client = framework.utils.clients.iguazio.v4.AsyncClient()
+            return await iguazio_client.verify_request_session(request)
+
+        token_expires_at = resolve_jwt_expiration(token)
+        curr_time = time.time()
+
+        if token_expires_at is None or token_expires_at <= curr_time:
+            # No expiry or an expired token means no caching
+            iguazio_client = framework.utils.clients.iguazio.v4.AsyncClient()
+            return await iguazio_client.verify_request_session(request)
+
+        key = self._token_cache_key(token)
+        task_with_expiry = self._token_cache.get(key)
+
+        if task_with_expiry is None or task_with_expiry[1] <= curr_time:
+            # No task or an expired task means we have to create a new task
+            is_existing_key = task_with_expiry is not None
+
+            iguazio_client = framework.utils.clients.iguazio.v4.AsyncClient()
+            task = asyncio.create_task(iguazio_client.verify_request_session(request))
+            task.add_done_callback(partial(self._on_verify_complete, key))
+
+            task_expires_at = min(
+                curr_time + self._token_cache_ttl_seconds,
+                token_expires_at,
+            )
+
+            task_with_expiry = task, task_expires_at
+            self._token_cache[key] = task_with_expiry
+        else:
+            # We can reuse the old task
+            is_existing_key = True
+
+        if is_existing_key:
+            # If the token was already in the cache the cache size did not
+            # change. We just need to mark the token as the most recently used
+            self._token_cache.move_to_end(key)
+
+        elif len(self._token_cache) > self._token_cache_max_size:
+            # If the cache grew beyond the max size with the new item we pop
+            # the least recently used one
+            self._token_cache.popitem(last=False)
+
+        # We shield the task since it can be shared between multiple
+        # verifications and cancellation could have unexpected side effects
+        auth_info = await asyncio.shield(task_with_expiry[0])
+
+        # We dont want the auth info in the cache to ever be modified,
+        # especially since later calls are known to add sensitive data to the
+        # auth info that we do not want in the cache like the original request
+        # headers.
+        return deepcopy(auth_info)
+
+    @staticmethod
+    def _token_cache_key(token: str) -> bytes:
+        return hashlib.sha256(token.encode()).digest()
+
+    @property
+    def _token_cache_max_size(self) -> int:
+        return mlrun.mlconf.httpdb.authentication.iguazio.token_cache.max_size
+
+    @property
+    def _token_cache_ttl_seconds(self) -> float:
+        return mlrun.mlconf.httpdb.authentication.iguazio.token_cache.ttl_seconds
+
+    def _on_verify_complete(
+        self, key: bytes, task: asyncio.Task[schemas.AuthInfo]
+    ) -> None:
+        # We evict from the cache on failure to make sure we dont block tokens
+        # on things like temporary connectivity issues
+        if not task.cancelled() and task.exception() is None:
+            return
+
+        task_with_expiry = self._token_cache.get(key)
+        if task_with_expiry is not None and task_with_expiry[0] is task:
+            del self._token_cache[key]

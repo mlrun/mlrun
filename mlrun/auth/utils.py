@@ -36,6 +36,7 @@ class Claims:
     SUBJECT = "sub"
     EXPIRATION = "exp"
     PREFERRED_USERNAME = "preferred_username"
+    ISSUED_AT = "iat"
 
 
 def load_offline_token(
@@ -310,6 +311,11 @@ def extract_and_validate_tokens_info(
                     raise mlrun.errors.MLRunInvalidArgumentError(
                         f"Offline token '{token_name}' is missing the 'sub' (subject) claim"
                     )
+                # Validate token issued_at existence
+                if not decoded_token.get(Claims.ISSUED_AT):
+                    raise mlrun.errors.MLRunInvalidArgumentError(
+                        f"Offline token '{token_name}' is missing the 'iat' (issued at) claim"
+                    )
 
                 # Validate token belongs to the authenticated user
                 token_sub = decoded_token.get(Claims.SUBJECT)
@@ -331,6 +337,7 @@ def extract_and_validate_tokens_info(
                 # Store token info
                 token_values[secret_token.name] = {
                     "token_exp": decoded_token.get(Claims.EXPIRATION),
+                    "token_iat": decoded_token.get(Claims.ISSUED_AT),
                     "token": secret_token.token,
                 }
             except mlrun.errors.MLRunInvalidArgumentError as exc:
@@ -402,6 +409,38 @@ def resolve_jwt_username(token: str, raise_on_error: bool = False) -> str | None
         return None
 
 
+def resolve_jwt_expiration(
+    token: str, raise_on_error: bool = False
+) -> int | float | None:
+    """
+    Extract the 'exp' claim from a JWT token.
+
+    The token is decoded without signature verification since it has already
+    been verified earlier during the authentication process.
+
+    :param token: The JWT token string.
+    :param raise_on_error: Whether to raise an error or log a warning on failure.
+    :return: The 'exp' claim value, or None if not present or extraction fails.
+    """
+    try:
+        # This method is used from the client side after receiving this token from the server, there's no need or
+        # ability to verify its signature here.
+        value = _decode_token_unverified(token).get(Claims.EXPIRATION)
+    except mlrun.errors.MLRunInvalidArgumentError as exc:
+        mlrun.utils.helpers.raise_or_log_error(
+            f"Failed to decode JWT token: {exc}", raise_on_error
+        )
+        return None
+
+    if value is not None and not isinstance(value, (int, float)):
+        mlrun.utils.helpers.raise_or_log_error(
+            f"Invalid expiration claim: {value}", raise_on_error
+        )
+        return None
+
+    return value
+
+
 def is_token_expired(token: str, buffer_seconds: int = 0) -> bool:
     """
     Check if a JWT token is expired based on its 'exp' claim.
@@ -413,9 +452,8 @@ def is_token_expired(token: str, buffer_seconds: int = 0) -> bool:
 
     # This method is used for caching and/or extra validation purposes in addition to the main verification flow,
     # so we decode without signature verification here.
-    decoded_token = _decode_token_unverified(token)
-    expiration = decoded_token.get(Claims.EXPIRATION)
-    if not expiration:
+    expiration = resolve_jwt_expiration(token, raise_on_error=True)
+    if expiration is None:
         raise mlrun.errors.MLRunInvalidArgumentError(
             "Token is missing the 'exp' (expiration) claim"
         )

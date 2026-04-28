@@ -29,6 +29,9 @@ runs:
         if [ -f /usr/local/bin/k3s ] || [ -f /usr/local/bin/k3s-uninstall.sh ] || pgrep -f k3s >/dev/null 2>&1; then
           K3S_INSTALLED=true
           echo "Found existing K3S installation, cleaning up..."
+        elif [ -d /sys/fs/cgroup/kubepods.slice ]; then
+          K3S_INSTALLED=true
+          echo "Found orphaned kubepods cgroup (leftover from prior K3S run), cleaning up..."
         else
           echo "No existing K3S installation found, skipping cleanup"
         fi
@@ -65,12 +68,22 @@ runs:
           sudo rm -rf /etc/rancher /var/lib/rancher /var/lib/kubelet /var/lib/cni /run/k3s 2>/dev/null || true
           sudo rm -f /etc/systemd/system/k3s* /usr/local/bin/k3s* 2>/dev/null || true
           
+          # Kill orphaned K3S pod processes that survived containerd-shim death
+          # (reparented to PID 1 but still in kubepods cgroup)
+          if [ -d /sys/fs/cgroup/kubepods.slice ]; then
+            echo "Killing orphaned kubepods processes..."
+            sudo find /sys/fs/cgroup/kubepods.slice -name "cgroup.procs" -exec cat {} \; 2>/dev/null \
+              | sort -u | xargs -r sudo kill -9 2>/dev/null || true
+            sleep 2
+            sudo find /sys/fs/cgroup/kubepods.slice -maxdepth 0 -exec rmdir {} \; 2>/dev/null || true
+          fi
+
           # Clean up containers/images only if Docker is running
           if command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1; then
             echo "Cleaning up Docker containers and images..."
             docker system prune -af || true
           fi
-          
+
           echo "=== Cleanup completed ==="
         fi
         

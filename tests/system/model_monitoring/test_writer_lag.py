@@ -60,7 +60,7 @@ class TestWriterLag(TestMLRunSystemModelMonitoring):
         lag_threshold = 5
         lag_event_cooldown = 1
         self.project.enable_model_monitoring(
-            image=self.image or "mlrun/mlrun",
+            image=self.image or mlrun.mlconf.function_defaults.image_by_kind.job,
             lag_threshold=lag_threshold,
             lag_event_cooldown=lag_event_cooldown,
         )

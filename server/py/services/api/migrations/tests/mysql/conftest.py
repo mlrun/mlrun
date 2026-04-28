@@ -24,22 +24,6 @@ import framework.utils.db.utils
 import framework.utils.singletons.db
 
 
-# TODO: Remove me once we squash all old alembic revisions that create FKs
-# that reference non-unique columns.
-def _set_mysql_session_variables(dbapi_connection, connection_record):
-    """
-    Event listener to set MySQL session variables on every new connection.
-    This ensures FK constraints can reference non-unique columns (MySQL 8.4+).
-    """
-    cursor = dbapi_connection.cursor()
-    try:
-        # MySQL 8.4+ requires unique keys for FK references by default.
-        # Disable this restriction at session level for each connection.
-        cursor.execute("SET SESSION restrict_fk_on_non_standard_key = OFF")
-    finally:
-        cursor.close()
-
-
 @pytest.fixture(scope="session")
 def alembic_engine(
     _mysql_engine: sqlalchemy.engine.Engine,
@@ -48,14 +32,6 @@ def alembic_engine(
     Engine bound to the MySQL container – used by pytest-alembic's
     `alembic_runner` fixture.
     """
-    # Ensure every new connection gets the relaxed FK session variable.
-    sqlalchemy.event.listen(
-        _mysql_engine,
-        "connect",
-        _set_mysql_session_variables,
-    )
-    # Close any existing connections so subsequent ones get the listener.
-    _mysql_engine.dispose()
 
     os.environ["MLRUN_HTTPDB__DSN"] = _mysql_engine.url.render_as_string(
         hide_password=False,

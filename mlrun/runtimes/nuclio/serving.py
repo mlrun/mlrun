@@ -193,8 +193,8 @@ class APIHandlerConfig(mlrun.model.ModelObj):
     ) -> None:
         """Add an endpoint handler configuration.
 
-        :param path: URL path for the endpoint (e.g., '/v1/models' or '/api/v1/*')
-        :param http_method: HTTP method for the endpoint (HTTPMethod enum or string like 'GET', 'POST')
+        :param path: URL path for the endpoint (e.g., ``/v1/models`` or ``/api/v1/*``)
+        :param http_method: HTTP method for the endpoint (``HTTPMethod`` enum or string like ``"GET"``, ``"POST"``)
         :param action: Action to take for this endpoint (:py:class:`~mlrun.common.schemas.serving.APIHandlerAction`)
         :param description: Optional description of the endpoint
         :raises mlrun.errors.MLRunValueError: If the path contains an invalid wildcard ``*`` pattern
@@ -227,7 +227,8 @@ class APIHandlerConfig(mlrun.model.ModelObj):
         """Remove an endpoint handler configuration.
 
         :param path: URL path for the endpoint to remove
-        :param http_method: HTTP method for the endpoint to remove (HTTPMethod enum or string like 'GET', 'POST')
+        :param http_method: HTTP method for the endpoint to remove (`HTTPMethod` enum or string like
+                            ``'GET'``, ``'POST'``)
         """
         http_method = self._validate_http_method(http_method)
         path = self._normalize_path(path)
@@ -243,7 +244,7 @@ class APIHandlerConfig(mlrun.model.ModelObj):
 
         :param parameter_name: Name of the parameter to pass to the handler
         :param json_path: JSONPath expression to extract the value from request body
-                         (e.g., '$.user.name' or '$.items[*].id')
+                         (e.g., ``'$.user.name'`` or ``'$.items[*].id'``)
         :raises mlrun.errors.MLRunValueError: If json_path is not a valid JSONPath expression
 
         Example::

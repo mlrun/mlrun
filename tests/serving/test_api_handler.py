@@ -1380,13 +1380,10 @@ class TestAPIHandlerConfig:
 
     def test_init_with_parameters(self) -> None:
         """Test APIHandlerConfig initialization with parameters"""
-        endpoints = {
-            "GET:/health": {
-                _APIEndpointKeys.ACTION: "allow",
-                _APIEndpointKeys.DESCRIPTION: "Health",
-            }
-        }
-        config = APIHandlerConfig(enabled=False, endpoints=endpoints)
+        config = APIHandlerConfig(enabled=False)
+        config.add_endpoint_handler(
+            "/health", HTTPMethod.GET, APIHandlerAction.ALLOW, "Health"
+        )
         assert config.enabled is False
         assert "GET:/health" in config.endpoints
 
@@ -1399,8 +1396,8 @@ class TestAPIHandlerConfig:
 
         endpoint_config = config.get_endpoint_config(HTTPMethod.POST, "/api/predict")
         assert endpoint_config is not None
-        assert endpoint_config[_APIEndpointKeys.ACTION] == "allow"
-        assert endpoint_config[_APIEndpointKeys.DESCRIPTION] == "Prediction"
+        assert endpoint_config.action == APIHandlerAction.ALLOW
+        assert endpoint_config.description == "Prediction"
 
     def test_add_multiple_endpoints(self) -> None:
         """Test adding multiple endpoint handlers"""
@@ -1528,17 +1525,8 @@ class TestAPIHandlerConfig:
     def test_endpoints_property_setter(self) -> None:
         """Test setting endpoints via property"""
         config = APIHandlerConfig()
-        endpoints = {
-            "POST:/predict": {
-                _APIEndpointKeys.ACTION: "allow",
-                _APIEndpointKeys.DESCRIPTION: "Predict",
-            },
-            "GET:/health": {
-                _APIEndpointKeys.ACTION: "allow",
-                _APIEndpointKeys.DESCRIPTION: "Health",
-            },
-        }
-        config.endpoints = endpoints
+        config.add_endpoint_handler("/predict", HTTPMethod.POST, APIHandlerAction.ALLOW, "Predict")
+        config.add_endpoint_handler("/health", HTTPMethod.GET, APIHandlerAction.ALLOW, "Health")
 
         assert len(config.endpoints) == 2
         assert config.get_endpoint_config(HTTPMethod.POST, "/predict") is not None
@@ -1560,14 +1548,19 @@ class TestAPIHandlerConfig:
             "enabled": True,
             "endpoints": {
                 "POST:/predict": {
-                    _APIEndpointKeys.ACTION: "allow",
-                    _APIEndpointKeys.DESCRIPTION: "Prediction",
+                    "action": "allow",
+                    "description": "Prediction",
+                    "path": "/predict",
+                    "http_method": "POST",
                 }
             },
         }
         config = APIHandlerConfig.from_dict(data)
         assert config.enabled is True
-        assert config.get_endpoint_config(HTTPMethod.POST, "/predict") is not None
+        ep = config.get_endpoint_config(HTTPMethod.POST, "/predict")
+        assert ep is not None
+        assert ep.action == APIHandlerAction.ALLOW
+        assert ep.description == "Prediction"
 
     def test_add_endpoint_handler_override_warning(
         self, caplog: pytest.LogCaptureFixture
@@ -1594,8 +1587,8 @@ class TestAPIHandlerConfig:
 
         # Verify the endpoint was updated
         endpoint_config = config.get_endpoint_config(HTTPMethod.POST, "/api/test")
-        assert endpoint_config[_APIEndpointKeys.ACTION] == "forbid"
-        assert endpoint_config[_APIEndpointKeys.DESCRIPTION] == "Second config"
+        assert endpoint_config.action == APIHandlerAction.FORBID
+        assert endpoint_config.description == "Second config"
 
     def test_add_endpoint_star_not_at_end_raises(self) -> None:
         """SDK rejects '*' that is not at the tail of the path at config time."""

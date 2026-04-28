@@ -225,3 +225,52 @@ class TestS3StoreExceptionHandling:
         # Test with size=0 (should be treated as no size)
         range_header = S3Store.get_range(0, 50)
         assert range_header == "bytes=50-"
+
+
+class TestS3StoreAnonymousAccessFallback:
+    """Tests for ML-11829: S3Store should use the AWS default credential chain
+    (IAM roles, IRSA, etc.) when no explicit credentials are provided, and only
+    fall back to anonymous access when no credentials are available at all.
+    """
+
+    @patch("mlrun.datastore.s3.S3Store._has_default_credentials", return_value=True)
+    @patch("boto3.resource")
+    @patch("mlrun.datastore.s3.DataStore.__init__", return_value=None)
+    @patch("mlrun.datastore.s3.S3Store._get_secret_or_env", return_value=None)
+    def test_no_anonymous_when_default_credentials_available(
+        self,
+        mock_get_secret: Mock,
+        mock_init: Mock,
+        mock_boto3_resource: Mock,
+        mock_has_creds: Mock,
+    ):
+        """When IAM role or other default credentials exist, request signing stays enabled."""
+        mock_resource = Mock()
+        mock_boto3_resource.return_value = mock_resource
+
+        S3Store(parent=None, schema="s3", name="test", endpoint="bucket")
+
+        mock_resource.meta.client.meta.events.register.assert_not_called()
+
+    @patch("mlrun.datastore.s3.S3Store._has_default_credentials", return_value=False)
+    @patch("boto3.resource")
+    @patch("mlrun.datastore.s3.DataStore.__init__", return_value=None)
+    @patch("mlrun.datastore.s3.S3Store._get_secret_or_env", return_value=None)
+    def test_anonymous_when_no_credentials_available(
+        self,
+        mock_get_secret: Mock,
+        mock_init: Mock,
+        mock_boto3_resource: Mock,
+        mock_has_creds: Mock,
+    ):
+        """When no credentials are available at all, falls back to anonymous access."""
+        mock_resource = Mock()
+        mock_boto3_resource.return_value = mock_resource
+
+        S3Store(parent=None, schema="s3", name="test", endpoint="bucket")
+
+        mock_resource.meta.client.meta.events.register.assert_called_once()
+        assert (
+            mock_resource.meta.client.meta.events.register.call_args[0][0]
+            == "choose-signer.s3.*"
+        )

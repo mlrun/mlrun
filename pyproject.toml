@@ -170,6 +170,7 @@ ignore_imports = [
     "server.py.framework.utils.notifications -> services",
     "server.py.framework.tests.unit.common_fixtures -> services",
     "server.py.framework.tests.unit.db.common_fixtures -> services",
+    "server.py.framework.tests.integration.db.* -> services",
 ]
 
 [tool.coverage.run]

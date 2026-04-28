@@ -127,8 +127,11 @@ class NuclioSpec(KubeResourceSpec):
         "disable_default_http_trigger",
         "custom_scaling_metric_specs",
         "auth",
-        "model_endpoint_instructions",
         "setup_monitoring",
+    ]
+    # model_endpoints_instructions requires custom serialization (list of pydantic objects → dicts)
+    _fields_to_serialize = KubeResourceSpec._fields_to_serialize + [
+        "model_endpoints_instructions",
     ]
 
     def __init__(
@@ -242,6 +245,14 @@ class NuclioSpec(KubeResourceSpec):
         # When True it will set Nuclio spec.noBaseImagesPull to False (negative logic)
         # indicate that the base image should be pulled from the container registry (not cached)
         self.base_image_pull = False
+
+    def _serialize_field(self, struct, field_name=None, strip=False):
+        if field_name == "model_endpoints_instructions":
+            return [
+                inst.to_dict() if hasattr(inst, "to_dict") else inst
+                for inst in self._model_endpoints_instructions
+            ]
+        return super()._serialize_field(struct, field_name, strip)
 
     @property
     def model_endpoints_instructions(self) -> list:

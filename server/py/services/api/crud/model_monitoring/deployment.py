@@ -2208,7 +2208,7 @@ class MonitoringDeployment:
         import services.api.crud.model_monitoring.helpers as mm_crud_helpers
 
         raw_instructions = (function.get("spec") or {}).get(
-            "model_endpoint_instructions"
+            "model_endpoints_instructions"
         ) or []
 
         # Validate and normalize instructions

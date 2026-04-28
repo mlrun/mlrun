@@ -247,9 +247,9 @@ class TestPathTemplateRegex:
 
         # Should have one compiled pattern
         assert len(step._endpoint_patterns) == 1
-        method, pattern, key, _ = step._endpoint_patterns[0]
+        method, pattern, ep = step._endpoint_patterns[0]
         assert method == HTTPMethod.GET
-        assert key == "GET:/users/{user_id}"
+        assert ep.get_endpoint_key() == "GET:/users/{user_id}"
 
         # Test pattern match
         match = pattern.match("/users/123")
@@ -275,10 +275,10 @@ class TestPathTemplateRegex:
         assert len(step._endpoint_patterns) == 2
 
         # Test first pattern with 3 parameters
-        match, params = step._match_endpoint(
+        ep, params = step._match_endpoint(
             HTTPMethod.GET, "/orgs/mlrun/repos/mlrun/issues/42"
         )
-        assert match == "GET:/orgs/{org_id}/repos/{repo_id}/issues/{issue_id}"
+        assert ep.get_endpoint_key() == "GET:/orgs/{org_id}/repos/{repo_id}/issues/{issue_id}"
         assert params == {
             "org_id": "mlrun",
             "repo_id": "mlrun",
@@ -286,10 +286,10 @@ class TestPathTemplateRegex:
         }
 
         # Test second pattern with 2 parameters
-        match, params = step._match_endpoint(
+        ep, params = step._match_endpoint(
             HTTPMethod.POST, "/api/users/123/posts/456"
         )
-        assert match == "POST:/api/users/{user_id}/posts/{post_id}"
+        assert ep.get_endpoint_key() == "POST:/api/users/{user_id}/posts/{post_id}"
         assert params == {"user_id": "123", "post_id": "456"}
 
     def test_url_encoded_path_params(self) -> None:
@@ -303,8 +303,8 @@ class TestPathTemplateRegex:
         assert len(step._endpoint_patterns) == 1
 
         # Test with URL-encoded filename
-        match, params = step._match_endpoint(HTTPMethod.GET, "/files/my%20file.txt")
-        assert match == "GET:/files/{filename}"
+        ep, params = step._match_endpoint(HTTPMethod.GET, "/files/my%20file.txt")
+        assert ep.get_endpoint_key() == "GET:/files/{filename}"
         assert params == {"filename": "my file.txt"}  # Decoded
 
     def test_special_characters_in_path(self) -> None:
@@ -326,8 +326,8 @@ class TestPathTemplateRegex:
         ]
 
         for path_value, expected in test_cases:
-            match, params = step._match_endpoint(HTTPMethod.GET, f"/items/{path_value}")
-            assert match == "GET:/items/{item_id}"
+            ep, params = step._match_endpoint(HTTPMethod.GET, f"/items/{path_value}")
+            assert ep.get_endpoint_key() == "GET:/items/{item_id}"
             assert params == {"item_id": expected}
 
     def test_regex_does_not_match_across_slashes(self) -> None:
@@ -341,13 +341,13 @@ class TestPathTemplateRegex:
         assert len(step._endpoint_patterns) == 1
 
         # Should NOT match - extra path segment
-        match, params = step._match_endpoint(HTTPMethod.GET, "/api/v1/v2/users")
-        assert match is None
+        ep, params = step._match_endpoint(HTTPMethod.GET, "/api/v1/v2/users")
+        assert ep is None
         assert params == {}
 
         # Should match - single segment
-        match, params = step._match_endpoint(HTTPMethod.GET, "/api/v1/users")
-        assert match == "GET:/api/{version}/users"
+        ep, params = step._match_endpoint(HTTPMethod.GET, "/api/v1/users")
+        assert ep.get_endpoint_key() == "GET:/api/{version}/users"
         assert params == {"version": "v1"}
 
     def test_exact_match_preferred_over_template(self) -> None:
@@ -364,13 +364,13 @@ class TestPathTemplateRegex:
         assert len(step._endpoint_patterns) == 1  # Only /users/{user_id} has template
 
         # /users/me should match exact endpoint, not template
-        match, params = step._match_endpoint(HTTPMethod.GET, "/users/me")
-        assert match == "GET:/users/me"
+        ep, params = step._match_endpoint(HTTPMethod.GET, "/users/me")
+        assert ep.get_endpoint_key() == "GET:/users/me"
         assert params == {}
 
         # /users/123 should match template
-        match, params = step._match_endpoint(HTTPMethod.GET, "/users/123")
-        assert match == "GET:/users/{user_id}"
+        ep, params = step._match_endpoint(HTTPMethod.GET, "/users/123")
+        assert ep.get_endpoint_key() == "GET:/users/{user_id}"
         assert params == {"user_id": "123"}
 
     def test_no_pattern_for_exact_endpoints(self) -> None:
@@ -407,12 +407,12 @@ class TestPathTemplateRegex:
         assert len(step._endpoint_patterns) == 1
 
         # Exact matches work
-        match, params = step._match_endpoint(HTTPMethod.GET, "/api/health")
-        assert match == "GET:/api/health"
+        ep, params = step._match_endpoint(HTTPMethod.GET, "/api/health")
+        assert ep.get_endpoint_key() == "GET:/api/health"
 
         # Template matches work
-        match, params = step._match_endpoint(HTTPMethod.GET, "/api/users/42")
-        assert match == "GET:/api/users/{id}"
+        ep, params = step._match_endpoint(HTTPMethod.GET, "/api/users/42")
+        assert ep.get_endpoint_key() == "GET:/api/users/{id}"
         assert params == {"id": "42"}
 
     def test_regex_anchor_prevents_partial_match(self) -> None:
@@ -424,7 +424,7 @@ class TestPathTemplateRegex:
 
         step = _APIHandlerStep(config=config)
         assert len(step._endpoint_patterns) == 1
-        _, pattern, _, _ = step._endpoint_patterns[0]
+        _, pattern, _ = step._endpoint_patterns[0]
 
         # Should not match - extra prefix
         assert pattern.match("/prefix/api/v1") is None
@@ -464,20 +464,26 @@ class TestPathTemplateRegex:
         assert result is not None  # Should return event successfully
 
     def test_empty_path_parameter_name(self) -> None:
-        """Test that empty parameter names in templates are handled"""
+        """Test that empty braces in a path are treated as a literal, not a template.
+
+        "/api/{}" contains "{}" but the substitution regex requires at least one
+        character inside the braces, so it is left as a literal escaped pattern.
+        It therefore compiles fine and only matches the exact string "/api/{}".
+        """
         config = APIHandlerConfig()
-        # This is malformed, but we handle it gracefully
-        config._endpoints["GET:/api/{}"] = {
-            _APIEndpointKeys.ACTION: "allow",
-            _APIEndpointKeys.DESCRIPTION: "Malformed",
-        }
+        config.add_endpoint_handler("/api/{}", HTTPMethod.GET, APIHandlerAction.ALLOW)
 
         step = _APIHandlerStep(config=config)
+        # Treated as a template path (has "{"), so it goes through compile — one pattern built
         assert len(step._endpoint_patterns) == 1
 
-        # Should not crash, and pattern should not match
-        match, params = step._match_endpoint(HTTPMethod.GET, "/api/test")
-        # The regex compilation should handle this gracefully
+        # Does NOT match "/api/test" — only matches the literal "/api/{}"
+        ep, params = step._match_endpoint(HTTPMethod.GET, "/api/test")
+        assert ep is None
+
+        # Matches the literal path exactly
+        ep, params = step._match_endpoint(HTTPMethod.GET, "/api/{}")
+        assert ep is not None
 
 
 class TestStarPatternMatching:

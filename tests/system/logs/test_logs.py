@@ -49,7 +49,7 @@ class TestLogCollector(tests.system.base.TestMLRunSystem):
             handler="handler",
             project=proj.name,
             filename=code_path,
-            image="mlrun/mlrun",
+            image=mlrun.mlconf.function_defaults.image_by_kind.job,
         )
         run = function.run(params={"life_cycle_seconds": life_cycle_seconds})
 

@@ -14,6 +14,7 @@
 
 import concurrent.futures
 import json
+import os
 import pickle
 import tempfile
 import time
@@ -430,14 +431,18 @@ class TestMonitoringAppFlow(TestMLRunSystemModelMonitoring, _V3IORecordsChecker)
         )
 
     def _set_and_deploy_monitoring_apps(self) -> None:
-        with concurrent.futures.ThreadPoolExecutor() as executor:
+        with concurrent.futures.ThreadPoolExecutor(
+            max_workers=1 if (os.cpu_count() or 1) <= 8 else None
+        ) as executor:
             for app_data in self.apps_data:
                 if app_data.deploy:
                     fn = self.project.set_model_monitoring_function(
                         func=app_data.abs_path,
                         application_class=app_data.class_.__name__,
                         name=app_data.class_.NAME,
-                        image="mlrun/mlrun" if self.image is None else self.image,
+                        image=mlrun.mlconf.function_defaults.image_by_kind.job
+                        if self.image is None
+                        else self.image,
                         requirements=app_data.requirements,
                         **app_data.kwargs,
                     )
@@ -1017,7 +1022,9 @@ class TestRecordResults(TestMLRunSystemModelMonitoring, _V3IORecordsChecker):
             application_class=self.app_data.class_.__name__,
             name=self.app_data.class_.NAME,
             requirements=self.app_data.requirements,
-            image="mlrun/mlrun" if self.image is None else self.image,
+            image=mlrun.mlconf.function_defaults.image_by_kind.job
+            if self.image is None
+            else self.image,
             **self.app_data.kwargs,
         )
         self.project.deploy_function(fn)
@@ -1178,7 +1185,9 @@ class TestServingJobEndpoint(TestMLRunSystemModelMonitoring, _V3IORecordsChecker
                 func=self.app_data["url"],
                 application_class=self.app_data["class_name"],
                 name=self.app_data["app_name"],
-                image="mlrun/mlrun" if self.image is None else self.image,
+                image=mlrun.mlconf.function_defaults.image_by_kind.job
+                if self.image is None
+                else self.image,
                 local_path=temp_path,
             )
             self.project.deploy_function(fn)
@@ -1355,17 +1364,17 @@ class TestModelMonitoringInitialize(TestMLRunSystemModelMonitoring):
         ]
         with pytest.raises(mlrun.errors.MLRunNotFoundError):
             self.project.update_model_monitoring_controller(
-                image=self.image or "mlrun/mlrun"
+                image=self.image or mlrun.mlconf.function_defaults.image_by_kind.job
             )
         self.set_mm_credentials()
         self.project.enable_model_monitoring(
-            image=self.image or "mlrun/mlrun",
+            image=self.image or mlrun.mlconf.function_defaults.image_by_kind.job,
             wait_for_deployment=True,
         )
 
         with pytest.raises(mlrun.errors.MLRunConflictError):
             self.project.enable_model_monitoring(
-                image=self.image or "mlrun/mlrun",
+                image=self.image or mlrun.mlconf.function_defaults.image_by_kind.job,
             )
 
         controller = self.project.get_function(
@@ -1388,7 +1397,9 @@ class TestModelMonitoringInitialize(TestMLRunSystemModelMonitoring):
             assert func.status.state == "ready"
 
         self.project.update_model_monitoring_controller(
-            image=self.image or "mlrun/mlrun", base_period=1, wait_for_deployment=True
+            image=self.image or mlrun.mlconf.function_defaults.image_by_kind.job,
+            base_period=1,
+            wait_for_deployment=True,
         )
         controller = self.project.get_function(
             key=mm_constants.MonitoringFunctionNames.APPLICATION_CONTROLLER,
@@ -1518,7 +1529,9 @@ class TestModelMonitoringInitialize(TestMLRunSystemModelMonitoring):
             func=demo_app.abs_path,
             application_class=demo_app.class_.__name__,
             name=demo_app.class_.NAME,
-            image="mlrun/mlrun" if self.image is None else self.image,
+            image=mlrun.mlconf.function_defaults.image_by_kind.job
+            if self.image is None
+            else self.image,
             requirements=demo_app.requirements,
             **demo_app.kwargs,
         )
@@ -1569,7 +1582,7 @@ class TestUpdateControllerPreservesAuthToken(TestMLRunSystemModelMonitoring):
         token_name = "test-auth-token"
         with mlrun.RuntimeConfigurationContext(auth_token_name=token_name):
             self.project.enable_model_monitoring(
-                image=self.image or "mlrun/mlrun",
+                image=self.image or mlrun.mlconf.function_defaults.image_by_kind.job,
                 deploy_histogram_data_drift_app=False,
                 wait_for_deployment=True,
             )
@@ -1583,7 +1596,7 @@ class TestUpdateControllerPreservesAuthToken(TestMLRunSystemModelMonitoring):
 
         # Update controller (no RuntimeConfigurationContext active)
         self.project.update_model_monitoring_controller(
-            image=self.image or "mlrun/mlrun",
+            image=self.image or mlrun.mlconf.function_defaults.image_by_kind.job,
             base_period=1,
             wait_for_deployment=True,
         )
@@ -1833,7 +1846,7 @@ class TestMonitoredServings(TestMLRunSystemModelMonitoring):
     def test_different_kind_of_serving(self) -> None:
         self.function_name = "serving-router"
         self.project.enable_model_monitoring(
-            image=self.image or "mlrun/mlrun",
+            image=self.image or mlrun.mlconf.function_defaults.image_by_kind.job,
             base_period=1,
             deploy_histogram_data_drift_app=False,
         )
@@ -1888,7 +1901,7 @@ class TestMonitoredServings(TestMLRunSystemModelMonitoring):
     def test_tracking(self) -> None:
         self.function_name = "serving-1"
         self.project.enable_model_monitoring(
-            image=self.image or "mlrun/mlrun",
+            image=self.image or mlrun.mlconf.function_defaults.image_by_kind.job,
             base_period=1,
             deploy_histogram_data_drift_app=False,
         )
@@ -1977,7 +1990,7 @@ class TestMonitoredServings(TestMLRunSystemModelMonitoring):
             )
 
         self.project.enable_model_monitoring(
-            image=self.image or "mlrun/mlrun",
+            image=self.image or mlrun.mlconf.function_defaults.image_by_kind.job,
             wait_for_deployment=True,
         )
 
@@ -1987,14 +2000,14 @@ class TestMonitoredServings(TestMLRunSystemModelMonitoring):
             match="The following model-montioring infrastructure functions are already deployed, aborting: ",
         ):
             self.project.enable_model_monitoring(
-                image=self.image or "mlrun/mlrun",
+                image=self.image or mlrun.mlconf.function_defaults.image_by_kind.job,
                 wait_for_deployment=True,
             )
 
         # disable + enable should succeed
         self.project.disable_model_monitoring()
         self.project.enable_model_monitoring(
-            image=self.image or "mlrun/mlrun",
+            image=self.image or mlrun.mlconf.function_defaults.image_by_kind.job,
             wait_for_deployment=True,
         )
 
@@ -2013,7 +2026,7 @@ class TestMonitoredServings(TestMLRunSystemModelMonitoring):
     def test_monitored_model_runner_with_labels(self):
         self.function_name = "model-runner-function"
         self.project.enable_model_monitoring(
-            image=self.image or "mlrun/mlrun",
+            image=self.image or mlrun.mlconf.function_defaults.image_by_kind.job,
             base_period=1,
             deploy_histogram_data_drift_app=True,
         )

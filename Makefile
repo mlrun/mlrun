@@ -226,6 +226,14 @@ create-migration-mysql: ## Create a DB migration (MLRUN_MIGRATION_MESSAGE must b
 create-migration: create-migration-mysql
 	@echo "Migrations created successfully"
 
+.PHONY: squash-migrations-mysql
+squash-migrations-mysql: ## Squash migrations up to MLRUN_SQUASH_REVISION into a single migration (MLRUN_SQUASH_REVISION must be set)
+	MLRUN_MYSQL_IMAGE=$(MLRUN_MYSQL_IMAGE) ./automation/scripts/squash_migrations_mysql.sh
+
+.PHONY: squash-migrations
+squash-migrations: squash-migrations-mysql
+	@echo "Migrations squashed successfully"
+
 .PHONY: bump-version
 bump-version: ## Bump version in all needed places in code
 ifndef MLRUN_NEW_VERSION

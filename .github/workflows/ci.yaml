@@ -264,7 +264,7 @@ jobs:
       with:
         python-version: ${{ matrix.python-version }}
 
-    - uses: astral-sh/setup-uv@cec208311dfd045dd5311c1add060b2062131d57 # 8.0.0
+    - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # 8.1.0
       with:
           python-version: ${{ matrix.python-version }}
           enable-cache: true
@@ -426,45 +426,3 @@ jobs:
           path: tests/coverage_reports/combined_diff.html
           retention-days: 30
 
-  label-oss-system-test-unknown:
-    name: Label PR with Smoke Unknown
-    if: github.event_name == 'pull_request'
-    runs-on: ubuntu-latest
-    steps:
-      - name: Set Smoke tests Unknown label
-        run: |
-          PR="${{ github.event.pull_request.number }}"
-          API_URL="https://api.github.com/repos/${{ github.repository }}/issues/${PR}/labels"
-
-          REPO_LABELS_URL="https://api.github.com/repos/${{ github.repository }}/labels"
-
-          # Ensure the Unknown label exists with gray color
-          curl -sS -X PATCH \
-            -H "Authorization: token ${GITHUB_TOKEN}" \
-            -H "Accept: application/vnd.github+json" \
-            -d '{"color":"c5def5"}' \
-            "${REPO_LABELS_URL}/Smoke tests%3A%20Unknown" || \
-          curl -sS -X POST \
-            -H "Authorization: token ${GITHUB_TOKEN}" \
-            -H "Accept: application/vnd.github+json" \
-            -d '{"name":"Smoke tests: Unknown","color":"c5def5"}' \
-            "${REPO_LABELS_URL}"
-
-          # Remove Pass and Fail labels (ignore errors if not present)
-          curl -sS -X DELETE \
-            -H "Authorization: token ${GITHUB_TOKEN}" \
-            -H "Accept: application/vnd.github+json" \
-            "${API_URL}/Smoke tests%3A%20Pass" || true
-          curl -sS -X DELETE \
-            -H "Authorization: token ${GITHUB_TOKEN}" \
-            -H "Accept: application/vnd.github+json" \
-            "${API_URL}/Smoke tests%3A%20Fail" || true
-
-          # Add Unknown label
-          curl -sS -X POST \
-            -H "Authorization: token ${GITHUB_TOKEN}" \
-            -H "Accept: application/vnd.github+json" \
-            -d '{"labels":["Smoke tests: Unknown"]}' \
-            "${API_URL}"
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

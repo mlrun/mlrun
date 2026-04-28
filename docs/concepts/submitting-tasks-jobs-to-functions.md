@@ -60,7 +60,7 @@ See {ref}`hyper-params` for details and examples.
 
 ### Handlers inside a class
 
-You can place set function handlers to methods inside a class and reference them with the
+You can set function handlers to methods inside a class and reference them with the
 `ClassName::method_name` syntax. MLRun instantiates the class and then calls the named method
 inside it. Instance methods, `@classmethod`, and `@staticmethod` are all supported.
 

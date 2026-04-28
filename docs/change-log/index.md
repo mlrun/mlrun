@@ -1551,7 +1551,7 @@ with a drill-down to view the steps and their details. [Tech Preview]
 |ML-12078|When Model-monitoring is enabled with V3io configured as default artifact storage, each model-endpoint creates 25 directories per day. |Run a daily cron job to delete parquet partition directories older than a week.|v1.11.0|
 |ML-12185|A split graph with a collector as a merge step does not fail deployment nor invoke and produce a false response. |Do not use the collector step as the merge step.|v1.11.0|
 |ML-12378|When using HTTP streaming, async does not work but works in the same manner as sync.|NA|v1.11.0|
-
+|ML-12458|Schedules only work with UTC timezone.|Use UTC instead of other timezones.|V1.11.0|
 
 ## Limitations
 

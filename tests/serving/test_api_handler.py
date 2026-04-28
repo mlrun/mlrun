@@ -275,20 +275,20 @@ class TestPathTemplateRegex:
         assert len(step._endpoint_patterns) == 2
 
         # Test first pattern with 3 parameters
-        ep, params = step._match_endpoint(
+        matches = step._collect_endpoint_matches(
             HTTPMethod.GET, "/orgs/mlrun/repos/mlrun/issues/42"
         )
+        assert len(matches) == 1
+        ep, params = matches[0]
         assert ep.get_endpoint_key() == "GET:/orgs/{org_id}/repos/{repo_id}/issues/{issue_id}"
-        assert params == {
-            "org_id": "mlrun",
-            "repo_id": "mlrun",
-            "issue_id": "42",
-        }
+        assert params == {"org_id": "mlrun", "repo_id": "mlrun", "issue_id": "42"}
 
         # Test second pattern with 2 parameters
-        ep, params = step._match_endpoint(
+        matches = step._collect_endpoint_matches(
             HTTPMethod.POST, "/api/users/123/posts/456"
         )
+        assert len(matches) == 1
+        ep, params = matches[0]
         assert ep.get_endpoint_key() == "POST:/api/users/{user_id}/posts/{post_id}"
         assert params == {"user_id": "123", "post_id": "456"}
 
@@ -303,7 +303,9 @@ class TestPathTemplateRegex:
         assert len(step._endpoint_patterns) == 1
 
         # Test with URL-encoded filename
-        ep, params = step._match_endpoint(HTTPMethod.GET, "/files/my%20file.txt")
+        matches = step._collect_endpoint_matches(HTTPMethod.GET, "/files/my%20file.txt")
+        assert len(matches) == 1
+        ep, params = matches[0]
         assert ep.get_endpoint_key() == "GET:/files/{filename}"
         assert params == {"filename": "my file.txt"}  # Decoded
 
@@ -326,7 +328,9 @@ class TestPathTemplateRegex:
         ]
 
         for path_value, expected in test_cases:
-            ep, params = step._match_endpoint(HTTPMethod.GET, f"/items/{path_value}")
+            matches = step._collect_endpoint_matches(HTTPMethod.GET, f"/items/{path_value}")
+            assert len(matches) == 1
+            ep, params = matches[0]
             assert ep.get_endpoint_key() == "GET:/items/{item_id}"
             assert params == {"item_id": expected}
 
@@ -341,12 +345,13 @@ class TestPathTemplateRegex:
         assert len(step._endpoint_patterns) == 1
 
         # Should NOT match - extra path segment
-        ep, params = step._match_endpoint(HTTPMethod.GET, "/api/v1/v2/users")
-        assert ep is None
-        assert params == {}
+        matches = step._collect_endpoint_matches(HTTPMethod.GET, "/api/v1/v2/users")
+        assert matches == []
 
         # Should match - single segment
-        ep, params = step._match_endpoint(HTTPMethod.GET, "/api/v1/users")
+        matches = step._collect_endpoint_matches(HTTPMethod.GET, "/api/v1/users")
+        assert len(matches) == 1
+        ep, params = matches[0]
         assert ep.get_endpoint_key() == "GET:/api/{version}/users"
         assert params == {"version": "v1"}
 
@@ -363,13 +368,17 @@ class TestPathTemplateRegex:
         step = _APIHandlerStep(config=config)
         assert len(step._endpoint_patterns) == 1  # Only /users/{user_id} has template
 
-        # /users/me should match exact endpoint, not template
-        ep, params = step._match_endpoint(HTTPMethod.GET, "/users/me")
+        # /users/me should match exact endpoint only, not template
+        matches = step._collect_endpoint_matches(HTTPMethod.GET, "/users/me")
+        assert len(matches) == 1
+        ep, params = matches[0]
         assert ep.get_endpoint_key() == "GET:/users/me"
         assert params == {}
 
-        # /users/123 should match template
-        ep, params = step._match_endpoint(HTTPMethod.GET, "/users/123")
+        # /users/123 should match template only
+        matches = step._collect_endpoint_matches(HTTPMethod.GET, "/users/123")
+        assert len(matches) == 1
+        ep, params = matches[0]
         assert ep.get_endpoint_key() == "GET:/users/{user_id}"
         assert params == {"user_id": "123"}
 
@@ -407,11 +416,15 @@ class TestPathTemplateRegex:
         assert len(step._endpoint_patterns) == 1
 
         # Exact matches work
-        ep, params = step._match_endpoint(HTTPMethod.GET, "/api/health")
+        matches = step._collect_endpoint_matches(HTTPMethod.GET, "/api/health")
+        assert len(matches) == 1
+        ep, params = matches[0]
         assert ep.get_endpoint_key() == "GET:/api/health"
 
         # Template matches work
-        ep, params = step._match_endpoint(HTTPMethod.GET, "/api/users/42")
+        matches = step._collect_endpoint_matches(HTTPMethod.GET, "/api/users/42")
+        assert len(matches) == 1
+        ep, params = matches[0]
         assert ep.get_endpoint_key() == "GET:/api/users/{id}"
         assert params == {"id": "42"}
 
@@ -478,12 +491,14 @@ class TestPathTemplateRegex:
         assert len(step._endpoint_patterns) == 1
 
         # Does NOT match "/api/test" — only matches the literal "/api/{}"
-        ep, params = step._match_endpoint(HTTPMethod.GET, "/api/test")
-        assert ep is None
+        matches = step._collect_endpoint_matches(HTTPMethod.GET, "/api/test")
+        assert matches == []
 
         # Matches the literal path exactly
-        ep, params = step._match_endpoint(HTTPMethod.GET, "/api/{}")
-        assert ep is not None
+        matches = step._collect_endpoint_matches(HTTPMethod.GET, "/api/{}")
+        assert len(matches) == 1
+        ep, params = matches[0]
+        assert ep.get_endpoint_key() == "GET:/api/{}"
 
 
 class TestStarPatternMatching:
@@ -519,7 +534,9 @@ class TestStarPatternMatching:
             match="wildcard.*must be at the end",
         ):
             config.add_endpoint_handler(
-                "/api/*/users", HTTPMethod.GET, APIHandlerAction.ALLOW
+                "/api/*/users", HTTPMethod.GET,
+                APIHandlerAction.ALLOW,
+                "Invalid star position",
             )
 
     def test_star_patterns_not_in_endpoint_patterns(self) -> None:
@@ -699,18 +716,20 @@ class TestStarPatternMatching:
         config = APIHandlerConfig()
         # /api/{a}/resource is registered first
         config.add_endpoint_handler(
-            "/api/{a}/resource", HTTPMethod.GET, APIHandlerAction.ALLOW, "First template"
+            "/api/{a}/resource", HTTPMethod.GET, APIHandlerAction.ALLOW
         )
         # Register a second overlapping template with a different param name
         config.add_endpoint_handler(
-            "/api/{b}/resource", HTTPMethod.GET, APIHandlerAction.ALLOW, "Second template"
+            "/api/{b}/resource", HTTPMethod.GET, APIHandlerAction.ALLOW
         )
 
         step = _APIHandlerStep(config=config)
         assert len(step._endpoint_patterns) == 2
 
-        # First-inserted template should win — params carry its name
-        ep, params = step._match_endpoint(HTTPMethod.GET, "/api/foo/resource")
+        # First-inserted template should be highest priority — params carry its name
+        matches = step._collect_endpoint_matches(HTTPMethod.GET, "/api/foo/resource")
+        assert len(matches) == 2
+        ep, params = matches[0]
         assert ep.get_endpoint_key() == "GET:/api/{a}/resource"
         assert params == {"a": "foo"}
 

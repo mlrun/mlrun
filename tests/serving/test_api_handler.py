@@ -1004,11 +1004,11 @@ class TestAPIHandlerMockServer:
             server.wait_for_completion()
 
     def test_api_handler_body_map_with_path_query(self) -> None:
-        """Test combining body_map, path params, and query params"""
+        """Test combining input_body_mappings, path params, and query params"""
 
         def handler(body, **kwargs):
             return {
-                "model": kwargs.get("model"),  # from body_map
+                "model": kwargs.get("model"),  # from input_body_mappings
                 "version": kwargs.get("version"),  # from path
                 "format": kwargs.get("format"),  # from query
             }
@@ -1018,12 +1018,15 @@ class TestAPIHandlerMockServer:
             mlrun.new_function("test-all-param-sources", kind="serving"),
         )
 
+        bm = BodyMappings()
+        bm.add_mapping("$.model_name", destination_path="model")
+
         config = APIHandlerConfig()
-        config.add_body_mapping("model", "$.model_name")
         config.add_endpoint_handler(
             "/predict/{version}",
             HTTPMethod.POST,
             APIHandlerAction.ALLOW,
+            input_body_mappings=bm,
         )
         fn.set_api_handler_config(config)
 
@@ -1797,14 +1800,18 @@ class TestAPIHandlerStep:
             step.do(event)
 
     def test_run_body_map_with_missing_body(self) -> None:
-        """body_map is silently skipped when the request body is not a dict.
+        """input_body_mappings is silently skipped when the request body is not a dict.
 
-        Different endpoints share the same body_map config, so endpoints whose
-        body format is not a dict (e.g. a GET with no body) must not fail.
+        Endpoints whose body format is not a dict (e.g. a POST with no body)
+        must not fail even when input_body_mappings is configured.
         """
+        bm = BodyMappings()
+        bm.add_mapping("$.name", destination_path="user_name")
+
         config = APIHandlerConfig()
-        config.body_map = {"$.name": "user_name"}
-        config.add_endpoint_handler("/test", HTTPMethod.POST, APIHandlerAction.ALLOW)
+        config.add_endpoint_handler(
+            "/test", HTTPMethod.POST, APIHandlerAction.ALLOW, input_body_mappings=bm
+        )
 
         step = _APIHandlerStep(config=config)
         event = MockEvent(body=None, method="POST", path="/test")
@@ -1814,17 +1821,21 @@ class TestAPIHandlerStep:
         assert result.body is None
 
     def test_run_body_map_dict_body_no_fields_match(self) -> None:
-        """body_map is silently skipped when the dict body has no matching fields.
+        """input_body_mappings is silently skipped when the dict body has no matching fields.
 
-        When body_map is configured globally but a particular endpoint's body does
-        not contain the mapped fields, the original body must be passed through
-        unchanged (not dropped). This covers the multi-endpoint case where different
-        endpoints have different body schemas.
+        When input_body_mappings is configured but the request body does not contain
+        the mapped fields, the original body must be passed through unchanged (not
+        dropped), alongside any extracted path params.
         """
+        bm = BodyMappings()
+        bm.add_mapping("$.user_name", destination_path="name")
+
         config = APIHandlerConfig()
-        config.add_body_mapping("name", "$.user_name")
         config.add_endpoint_handler(
-            "/test/{item_id}", HTTPMethod.POST, APIHandlerAction.ALLOW
+            "/test/{item_id}",
+            HTTPMethod.POST,
+            APIHandlerAction.ALLOW,
+            input_body_mappings=bm,
         )
 
         step = _APIHandlerStep(config=config)
@@ -2317,11 +2328,16 @@ class TestBodyMapMappedBodyUnpacking:
 
     @staticmethod
     def _make_body_map_serving_fn(engine: str) -> ServingRuntime:
+        bm = BodyMappings()
+        bm.add_mapping("$.text", destination_path="message")
+
         config = APIHandlerConfig()
         config.add_endpoint_handler(
-            "/stream/data", HTTPMethod.POST, APIHandlerAction.ALLOW
+            "/stream/data",
+            HTTPMethod.POST,
+            APIHandlerAction.ALLOW,
+            input_body_mappings=bm,
         )
-        config.add_body_mapping("message", "$.text")
 
         fn = mlrun.new_function("test-body-map", kind="serving")
         fn.set_api_handler_config(config)

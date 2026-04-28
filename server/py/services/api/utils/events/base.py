@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import abc
+import typing
 
 import mlrun.common.schemas
 
@@ -62,7 +63,7 @@ class BaseEventClient:
         duration_seconds: float | None = None,
         scope: list[str] | None = None,
         versions: dict | None = None,
-    ):
+    ) -> typing.Any | None:
         """
         Generate a DB migration lifecycle event
         :param action: required, started, completed or failed

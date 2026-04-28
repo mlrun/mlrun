@@ -152,19 +152,21 @@ def _migrate_existing_data(
     db_util = DBUtil()
     db_util.wait_for_db_liveness()
     db_util.set_configurations()
-    migration_scope: list[str] = []
-    migration_versions: dict = {}
+    migration_operations: dict[str, tuple] = {}
     if engine.name != mlrun.common.db.dialects.Dialects.SQLITE:
         (
             is_migration_needed,
             is_backup_needed,
-            migration_scope,
-            migration_versions,
+            migration_operations,
         ) = _resolve_needed_operations(alembic_util)
     else:
         # ON SQLite, we don't have schema migrations, so we don't need to check for them
         is_migration_needed = False
         is_backup_needed = False
+
+    migration_scope, migration_versions = _operations_to_scope_and_versions(
+        migration_operations
+    )
 
     if not perform_migrations_if_needed and is_migration_needed:
         state = mlrun.common.schemas.APIStates.waiting_for_migrations
@@ -179,18 +181,16 @@ def _migrate_existing_data(
 
     mlrun.utils.logger.info("Creating initial data")
     mlrun.mlconf.httpdb.state = mlrun.common.schemas.APIStates.migrations_in_progress
-    migration_start_monotonic: float | None = None
-    if is_migration_needed:
-        migration_start_monotonic = time.monotonic()
-        _publish_db_migration_event(
-            mlrun.common.schemas.MigrationEventActions.started,
-            scope=migration_scope,
-            versions=migration_versions,
-        )
 
     db_session = framework.db.session.create_session()
     try:
         if is_migration_needed:
+            migration_start_monotonic = time.monotonic()
+            _publish_db_migration_event(
+                mlrun.common.schemas.MigrationEventActions.started,
+                scope=migration_scope,
+                versions=migration_versions,
+            )
             try:
                 # DB backup runs inside the migration try/except so a backup
                 # failure transitions the API to migrations_failed and emits
@@ -217,16 +217,14 @@ def _migrate_existing_data(
                     versions=migration_versions,
                 )
                 raise
+            _publish_db_migration_event(
+                mlrun.common.schemas.MigrationEventActions.completed,
+                duration_seconds=_elapsed_since(migration_start_monotonic),
+                scope=migration_scope,
+                versions=migration_versions,
+            )
     finally:
         framework.db.session.close_session(db_session)
-
-    if is_migration_needed:
-        _publish_db_migration_event(
-            mlrun.common.schemas.MigrationEventActions.completed,
-            duration_seconds=_elapsed_since(migration_start_monotonic),
-            scope=migration_scope,
-            versions=migration_versions,
-        )
 
     # if the above process actually ran a migration - initializations that were skipped on the API initialization
     # should happen - we can't do it here because it requires an asyncio loop which can't be accessible here
@@ -263,7 +261,7 @@ def update_default_configuration_data():
 
 def _resolve_needed_operations(
     alembic_util: services.api.utils.db.alembic.AlembicUtil,
-) -> tuple[bool, bool, list[str], dict]:
+) -> tuple[bool, bool, dict[str, tuple]]:
     is_schema_migration_needed = alembic_util.is_schema_migration_needed()
     is_data_migration_needed = (
         not _is_latest_data_version()
@@ -274,16 +272,17 @@ def _resolve_needed_operations(
         mlrun.mlconf.httpdb.db.backup.mode == "enabled" and is_migration_needed
     )
 
-    scope: list[str] = []
-    versions: dict = {}
+    operations: dict[str, tuple] = {}
     if is_schema_migration_needed:
-        scope.append("schema")
-        versions["current_schema_revision"] = alembic_util.get_current_revision()
-        versions["target_schema_revision"] = alembic_util.latest_revision
+        operations["schema"] = (
+            alembic_util.get_current_revision(),
+            alembic_util.latest_revision,
+        )
     if is_data_migration_needed:
-        scope.append("data")
-        versions["current_data_version"] = _get_current_data_version()
-        versions["target_data_version"] = latest_data_version
+        operations["data"] = (
+            _get_current_data_version(),
+            latest_data_version,
+        )
 
     mlrun.utils.logger.info(
         "Checking if migration is needed",
@@ -293,7 +292,7 @@ def _resolve_needed_operations(
         is_migration_needed=is_migration_needed,
     )
 
-    return is_migration_needed, is_backup_needed, scope, versions
+    return is_migration_needed, is_backup_needed, operations
 
 
 def _get_current_data_version() -> int | None:
@@ -370,6 +369,21 @@ def _elapsed_since(start_monotonic: float | None) -> float | None:
     if start_monotonic is None:
         return None
     return time.monotonic() - start_monotonic
+
+
+def _operations_to_scope_and_versions(
+    operations: dict[str, tuple],
+) -> tuple[list[str], dict]:
+    versions: dict = {}
+    if "schema" in operations:
+        current, target = operations["schema"]
+        versions["current_schema_revision"] = current
+        versions["target_schema_revision"] = target
+    if "data" in operations:
+        current, target = operations["data"]
+        versions["current_data_version"] = current
+        versions["target_data_version"] = target
+    return list(operations.keys()), versions
 
 
 def _is_latest_data_version():

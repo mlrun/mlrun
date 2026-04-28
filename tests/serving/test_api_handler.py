@@ -930,7 +930,9 @@ class TestIncludeUrlInfo:
 
         config = APIHandlerConfig(include_url_info=True)
         config.add_endpoint_handler(
-            "/api/{model_id}/ask", HTTPMethod.POST, APIHandlerAction.ALLOW,
+            "/api/{model_id}/ask",
+            HTTPMethod.POST,
+            APIHandlerAction.ALLOW,
             input_body_mappings=bm,
         )
         step = _APIHandlerStep(config=config)
@@ -1525,8 +1527,12 @@ class TestAPIHandlerConfig:
     def test_endpoints_property_setter(self) -> None:
         """Test setting endpoints via property"""
         config = APIHandlerConfig()
-        config.add_endpoint_handler("/predict", HTTPMethod.POST, APIHandlerAction.ALLOW, "Predict")
-        config.add_endpoint_handler("/health", HTTPMethod.GET, APIHandlerAction.ALLOW, "Health")
+        config.add_endpoint_handler(
+            "/predict", HTTPMethod.POST, APIHandlerAction.ALLOW, "Predict"
+        )
+        config.add_endpoint_handler(
+            "/health", HTTPMethod.GET, APIHandlerAction.ALLOW, "Health"
+        )
 
         assert len(config.endpoints) == 2
         assert config.get_endpoint_config(HTTPMethod.POST, "/predict") is not None

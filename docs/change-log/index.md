@@ -42,9 +42,9 @@ See a full description of KFP, Python, and the workflow engines in {ref}`local-r
 |ML-9565|Serving graphs now support API handlers, used to expose endpoints and interfaces. See [API handler](../serving/api-handler.md).|
 |ML-10258|MLRun can process multiple events asynchronously with HTTP triggers. Throughput is maximized, and bottlenecks are minimized. See [Async mode](../genai/deployment/gpu_utilization.md#async-mode).|
 |ML-10839|MLRun supports model serving with batched events: an invoked function is processed with an aggregated event (a single event holding multiple events), reducing GPU utilization. The trigger forwards the batch of events based on either timespan or the number of accumulated events. Both are user-configurable. See [Batching](../genai/deployment/gpu_utilization.md#batching), [Batching example](../serving/model-serving-steps.md#example-with-batching), and {ref}`hf-model-batch-serving-graph`.|
-|ML-10863|MLRun supports model stream responses that return tokens, rather than waiting until all the tokens are generated. This significantly reduces the latency for initial response and improves the overall user experience in gen AI workflows. See  [HTTP streaming step](../serving/model-serving-steps.md#http-streaming-step) and {py:class}`~mlrun.runtimes.ServingRuntime.set_streaming` and {py:class}`~storey.transformations.Collector`.|
+|ML-10863|MLRun supports model stream responses that return tokens, rather than waiting until all the tokens are generated. This significantly reduces the latency for initial response and improves the overall user experience in gen AI workflows. See [HTTP streaming step](../serving/model-serving-steps.md#http-streaming-step) and {py:class}`~mlrun.runtimes.ServingRuntime.set_streaming` and {py:class}`~storey.transformations.Collector`.|
 |ML-10753|MLRun supports cyclic serving graphs, used to implement agent-feedback loops. See [Cyclic graph example](../serving/getting-started.md#cyclic-graph) and {py:meth}`~mlrun.serving.states.BaseStep.cycle_to`.|
-|10097|New `ChoiceByField` step that routes events to downstream steps based on an event field that contains the step name or names. See {py:class}`~`
+|10097|New `ChoiceByField` step that routes events to downstream steps based on an event field that contains the step name or names. See [ChoiceByField](../serving/basic-steps.html#choicebyfield) and {py:class}`~`.|
 |10099|New `RemoteFunctionStep` that calls remote functions, for example another Nuclio function. See [RemoteFunctionStep](../serving/remote-steps.md#remotefunctionstep) and {py:class}`~mlrun.serving.remote.RemoteFunctionStep`.|
   
 
@@ -84,7 +84,7 @@ See a full description of KFP, Python, and the workflow engines in {ref}`local-r
 ### MLRun hub
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
-|10357|You can now import steps from the MLRun hub or your own private hub. See  .|
+|10357|You can now import steps from the MLRun hub or your own private hub. See [Load steps from the hub](../runtimes/load-from-hub.html#steps) and {py:class}`~mlrun.hub.step.get_hub_step`.|
 
 ### Documentation
 | ID    |Description                                                                 |

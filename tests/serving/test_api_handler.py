@@ -514,15 +514,21 @@ class TestStarPatternMatching:
         assert len(step._endpoint_patterns) == 0
 
         # Should match paths under /api/
-        ep, params = step._match_endpoint(HTTPMethod.GET, "/api/users")
+        matches = step._collect_endpoint_matches(HTTPMethod.GET, "/api/users")
+        assert len(matches) == 1
+        ep, params = matches[0]
         assert ep.get_endpoint_key() == "GET:/api/*"
         assert params == {}
 
-        ep, params = step._match_endpoint(HTTPMethod.GET, "/api/items/123")
+        matches = step._collect_endpoint_matches(HTTPMethod.GET, "/api/items/123")
+        assert len(matches) == 1
+        ep, params = matches[0]
         assert ep.get_endpoint_key() == "GET:/api/*"
         assert params == {}
 
-        ep, params = step._match_endpoint(HTTPMethod.GET, "/api/deeply/nested/path")
+        matches = step._collect_endpoint_matches(HTTPMethod.GET, "/api/deeply/nested/path")
+        assert len(matches) == 1
+        ep, params = matches[0]
         assert ep.get_endpoint_key() == "GET:/api/*"
         assert params == {}
 
@@ -561,13 +567,20 @@ class TestStarPatternMatching:
 
         step = _APIHandlerStep(config=config)
 
-        # Exact match should win
-        ep, params = step._match_endpoint(HTTPMethod.GET, "/api/health")
+        # Exact match should be highest priority, star match also present
+        matches = step._collect_endpoint_matches(HTTPMethod.GET, "/api/health")
+        assert len(matches) == 2
+        ep, params = matches[0]
         assert ep.get_endpoint_key() == "GET:/api/health"
         assert params == {}
+        ep, params = matches[1]
+        assert ep.get_endpoint_key() == "GET:/api/*"
+        assert params == {}
 
-        # Non-exact path should fall through to star
-        ep, params = step._match_endpoint(HTTPMethod.GET, "/api/other")
+        # Non-exact path matches star only
+        matches = step._collect_endpoint_matches(HTTPMethod.GET, "/api/other")
+        assert len(matches) == 1
+        ep, params = matches[0]
         assert ep.get_endpoint_key() == "GET:/api/*"
         assert params == {}
 
@@ -581,10 +594,15 @@ class TestStarPatternMatching:
 
         step = _APIHandlerStep(config=config)
 
-        # Template match should win over star match
-        ep, params = step._match_endpoint(HTTPMethod.GET, "/api/users")
+        # Template match is highest priority, star match also present
+        matches = step._collect_endpoint_matches(HTTPMethod.GET, "/api/users")
+        assert len(matches) == 2
+        ep, params = matches[0]
         assert ep.get_endpoint_key() == "GET:/api/{resource}"
         assert params == {"resource": "users"}
+        ep, params = matches[1]
+        assert ep.get_endpoint_key() == "GET:/api/*"
+        assert params == {}
 
     def test_precedence_all_three_types(self) -> None:
         """Test full precedence: exact > template > star"""
@@ -600,18 +618,33 @@ class TestStarPatternMatching:
 
         step = _APIHandlerStep(config=config)
 
-        # Exact match wins
-        ep, params = step._match_endpoint(HTTPMethod.GET, "/api/v2/users")
+        # Exact match is highest priority (exact + template + star all match)
+        matches = step._collect_endpoint_matches(HTTPMethod.GET, "/api/v2/users")
+        assert len(matches) == 3
+        ep, params = matches[0]
         assert ep.get_endpoint_key() == "GET:/api/v2/users"
         assert params == {}
+        ep, params = matches[1]
+        assert ep.get_endpoint_key() == "GET:/api/{version}/users"
+        assert params == {"version": "v2"}
+        ep, params = matches[2]
+        assert ep.get_endpoint_key() == "GET:/api/*"
+        assert params == {}
 
-        # Template match wins over star
-        ep, params = step._match_endpoint(HTTPMethod.GET, "/api/v1/users")
+        # Template match is highest priority (template + star match)
+        matches = step._collect_endpoint_matches(HTTPMethod.GET, "/api/v1/users")
+        assert len(matches) == 2
+        ep, params = matches[0]
         assert ep.get_endpoint_key() == "GET:/api/{version}/users"
         assert params == {"version": "v1"}
+        ep, params = matches[1]
+        assert ep.get_endpoint_key() == "GET:/api/*"
+        assert params == {}
 
-        # Star match for paths not covered by exact/template
-        ep, params = step._match_endpoint(HTTPMethod.GET, "/api/v1/items")
+        # Star match only
+        matches = step._collect_endpoint_matches(HTTPMethod.GET, "/api/v1/items")
+        assert len(matches) == 1
+        ep, params = matches[0]
         assert ep.get_endpoint_key() == "GET:/api/*"
         assert params == {}
 
@@ -625,13 +658,20 @@ class TestStarPatternMatching:
         step = _APIHandlerStep(config=config)
         assert len(step._star_patterns) == 2
 
-        # /api/v1/ prefix added first, should match first
-        ep, params = step._match_endpoint(HTTPMethod.GET, "/api/v1/users")
+        # More specific star matches first, less specific also present
+        matches = step._collect_endpoint_matches(HTTPMethod.GET, "/api/v1/users")
+        assert len(matches) == 2
+        ep, params = matches[0]
         assert ep.get_endpoint_key() == "GET:/api/v1/*"
         assert params == {}
+        ep, params = matches[1]
+        assert ep.get_endpoint_key() == "GET:/api/*"
+        assert params == {}
 
-        # /api/other should fall through to second star pattern
-        ep, params = step._match_endpoint(HTTPMethod.GET, "/api/v2/users")
+        # Only the less specific star matches
+        matches = step._collect_endpoint_matches(HTTPMethod.GET, "/api/v2/users")
+        assert len(matches) == 1
+        ep, params = matches[0]
         assert ep.get_endpoint_key() == "GET:/api/*"
         assert params == {}
 
@@ -643,13 +683,14 @@ class TestStarPatternMatching:
         step = _APIHandlerStep(config=config)
 
         # GET should match
-        ep, params = step._match_endpoint(HTTPMethod.GET, "/api/users")
+        matches = step._collect_endpoint_matches(HTTPMethod.GET, "/api/users")
+        assert len(matches) == 1
+        ep, params = matches[0]
         assert ep.get_endpoint_key() == "GET:/api/*"
 
         # POST should not match GET star pattern
-        ep, params = step._match_endpoint(HTTPMethod.POST, "/api/users")
-        assert ep is None
-        assert params == {}
+        matches = step._collect_endpoint_matches(HTTPMethod.POST, "/api/users")
+        assert matches == []
 
     def test_star_no_match_outside_prefix(self) -> None:
         """Test that star patterns only match paths under their prefix"""
@@ -659,14 +700,12 @@ class TestStarPatternMatching:
         step = _APIHandlerStep(config=config)
 
         # Path not under /api/ should not match
-        ep, params = step._match_endpoint(HTTPMethod.GET, "/other/path")
-        assert ep is None
-        assert params == {}
+        matches = step._collect_endpoint_matches(HTTPMethod.GET, "/other/path")
+        assert matches == []
 
         # /apiv2 should not match /api/*
-        ep, params = step._match_endpoint(HTTPMethod.GET, "/apiv2/users")
-        assert ep is None
-        assert params == {}
+        matches = step._collect_endpoint_matches(HTTPMethod.GET, "/apiv2/users")
+        assert matches == []
 
     def test_star_prefix_slash_handling(self) -> None:
         """Test that star patterns: /api/* matches /api/something"""
@@ -682,12 +721,13 @@ class TestStarPatternMatching:
         assert prefix == "/api/"  # Prefix should have trailing slash
 
         # /api alone should NOT match (it's the exact prefix, not under it)
-        ep, params = step._match_endpoint(HTTPMethod.GET, "/api")
-        assert ep is None
-        assert params == {}
+        matches = step._collect_endpoint_matches(HTTPMethod.GET, "/api")
+        assert matches == []
 
         # /api/anything should match
-        ep, params = step._match_endpoint(HTTPMethod.GET, "/api/something")
+        matches = step._collect_endpoint_matches(HTTPMethod.GET, "/api/something")
+        assert len(matches) == 1
+        ep, params = matches[0]
         assert ep.get_endpoint_key() == "GET:/api/*"
         assert params == {}
 
@@ -743,16 +783,20 @@ class TestStarPatternMatching:
         assert len(step._star_patterns) == 2
 
         # GET /read should match /read/*
-        ep, params = step._match_endpoint(HTTPMethod.GET, "/read/something")
+        matches = step._collect_endpoint_matches(HTTPMethod.GET, "/read/something")
+        assert len(matches) == 1
+        ep, params = matches[0]
         assert ep.get_endpoint_key() == "GET:/read/*"
 
         # POST /write should match /write/*
-        ep, params = step._match_endpoint(HTTPMethod.POST, "/write/something")
+        matches = step._collect_endpoint_matches(HTTPMethod.POST, "/write/something")
+        assert len(matches) == 1
+        ep, params = matches[0]
         assert ep.get_endpoint_key() == "POST:/write/*"
 
         # GET /write should NOT match (wrong method)
-        ep, params = step._match_endpoint(HTTPMethod.GET, "/write/something")
-        assert ep is None
+        matches = step._collect_endpoint_matches(HTTPMethod.GET, "/write/something")
+        assert matches == []
 
 
 class TestIncludeUrlInfo:

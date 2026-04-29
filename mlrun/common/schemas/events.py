@@ -22,6 +22,7 @@ class EventsModes(mlrun.common.types.StrEnum):
 
 class EventClientKinds(mlrun.common.types.StrEnum):
     iguazio = "iguazio"
+    iguazio_v4 = "iguazio-v4"
     nop = "nop"
 
 
@@ -34,3 +35,10 @@ class SecretEventActions(mlrun.common.types.StrEnum):
 class AuthSecretEventActions(mlrun.common.types.StrEnum):
     created = "created"
     updated = "updated"
+
+
+class MigrationEventActions(mlrun.common.types.StrEnum):
+    required = "required"
+    started = "started"
+    completed = "completed"
+    failed = "failed"

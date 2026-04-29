@@ -1754,13 +1754,8 @@ class TestAPIHandlerStep:
 
         step = _APIHandlerStep(config=config)
 
-        match, path_params = step._match_endpoint(HTTPMethod.POST, "/api/test")
-        assert match is None
-        assert path_params == {}
-
-        match, path_params = step._match_endpoint(HTTPMethod.GET, "/different/path")
-        assert match is None
-        assert path_params == {}
+        assert step._collect_endpoint_matches(HTTPMethod.POST, "/api/test") == []
+        assert step._collect_endpoint_matches(HTTPMethod.GET, "/different/path") == []
 
     def test_run_path_template_method_not_allowed(self) -> None:
         """Test that wrong method on path-template endpoint returns 404.

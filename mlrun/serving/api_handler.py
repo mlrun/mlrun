@@ -479,15 +479,3 @@ class _APIHandlerStep(mlrun.serving.states.TaskStep):
                 matches.append((ep, {}))
 
         return matches
-
-    def _match_endpoint(
-        self, method: HTTPMethod, path: str
-    ) -> tuple["mlrun.runtimes.nuclio.serving.EndpointConfig | None", dict[str, str]]:
-        """Return the highest-priority matching EndpointConfig for the given method and path.
-
-        :param method: HTTP method to match
-        :param path: Request path to match
-        :return: Tuple of (EndpointConfig, path_params) or (None, {}) if no match.
-        """
-        matches = self._collect_endpoint_matches(method, path)
-        return matches[0] if matches else (None, {})

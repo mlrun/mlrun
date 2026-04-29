@@ -4515,7 +4515,7 @@ class MlrunProject(ModelObj):
             * True: The values passed in this call replace the project's stored values for commands
               and requirements. Parameters not explicitly passed retain their stored values.
 
-            To remove existing stored values, use ``overwrite_build_params=True`` and pass the values 
+            To remove existing stored values, use ``overwrite_build_params=True`` and pass the values
             explicitly like this ``(commands=[""], requirements=[""])``.
 
         :param extra_args:  A string containing additional builder arguments in the format of command-line options,

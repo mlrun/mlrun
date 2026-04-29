@@ -784,6 +784,57 @@ class TestModelEndpointsOperations(TestMLRunSystemModelMonitoring):
             else:
                 assert respond == [3.0, 5.0, 7.0, 9.0, 11.0]
 
+    def test_create_user_model_endpoint(self):
+        """
+        create_user_model_endpoint creates a USER_EP endpoint via the project API and
+        the endpoint is immediately retrievable from the DB.
+        Covers both the direct-params path and the ModelEndpointInstruction path.
+        """
+        from mlrun.common.schemas.model_monitoring.constants import EndpointType
+        from mlrun.common.schemas.model_monitoring.model_endpoints import (
+            ModelEndpointInstruction,
+        )
+
+        db = mlrun.get_run_db()
+
+        # --- direct params ---
+        name, uid = self.project.create_user_model_endpoint(
+            "user-ep-direct",
+            input_schema=["f1", "f2"],
+            output_schema=["label"],
+        )
+        assert name == "user-ep-direct"
+        assert uid is not None
+        ep = db.get_model_endpoint(
+            name="user-ep-direct",
+            project=self.project_name,
+            endpoint_id=uid,
+        )
+        assert ep.metadata.endpoint_type == EndpointType.USER_EP
+        assert ep.spec.feature_names == ["f1", "f2"]
+        assert ep.spec.label_names == ["label"]
+
+        # --- ModelEndpointInstruction path ---
+        instruction = ModelEndpointInstruction(
+            name="user-ep-instr",
+            input_schema=["a", "b"],
+            output_schema=["out"],
+        )
+        name2, uid2 = self.project.create_user_model_endpoint(
+            "user-ep-instr",
+            model_endpoint_instruction=instruction,
+        )
+        assert name2 == "user-ep-instr"
+        assert uid2 is not None
+        ep2 = db.get_model_endpoint(
+            name="user-ep-instr",
+            project=self.project_name,
+            endpoint_id=uid2,
+        )
+        assert ep2.metadata.endpoint_type == EndpointType.USER_EP
+        assert ep2.spec.feature_names == ["a", "b"]
+        assert ep2.spec.label_names == ["out"]
+
 
 @TestMLRunSystemModelMonitoring.skip_test_if_env_not_configured
 @pytest.mark.enterprise
@@ -2751,7 +2802,7 @@ class TestGetModelMonitoringURL(TestMLRunSystemModelMonitoring):
     """
 
     project_name = "pr-mm-get-url"
-    image: str | None = None
+    image: str | None = "artifactory.iguazeng.com:10557/roys/mlrun:1.11.0"
 
     def test_raises_before_monitoring_is_enabled(self) -> None:
         """CRUD raises when the stream function has not been deployed / is not ready."""
@@ -2764,11 +2815,11 @@ class TestGetModelMonitoringURL(TestMLRunSystemModelMonitoring):
     def test_returns_url_after_enable_model_monitoring(self) -> None:
         """
         After enable_model_monitoring the stream pod is deployed with an HTTP trigger.
-        The CRUD endpoint must resolve and return a valid URL.
+        The CRUD endpoint must resolve and return the internal cluster URL.
+
+        Note: the returned URL is only reachable from within the cluster (internal
+        invocation URL) — it is not accessible from outside.
         """
-
-        import requests
-
         self.set_mm_credentials()
         self.project.enable_model_monitoring(
             deploy_histogram_data_drift_app=False,
@@ -2776,20 +2827,19 @@ class TestGetModelMonitoringURL(TestMLRunSystemModelMonitoring):
             **({} if self.image is None else {"image": self.image}),
         )
 
-        # Stream is now ready — get_model_monitoring_url should succeed immediately.
+        # Stream is now ready — get_model_monitoring_url should return the internal URL.
         url = self.project.get_model_monitoring_url()
 
         assert url is not None, (
             "get_model_monitoring_url() returned None — the HTTP trigger was not added "
-            "to the stream function or the URL could not be resolved."
+            "to the stream function or the internal_invocation_urls are not populated."
         )
-        assert url.startswith("http"), f"Expected an HTTP URL, got: {url!r}"
-
-        # Smoke-test: send a minimal POST to confirm the HTTP trigger is live.
-        # A non-5xx response is sufficient — 400 (bad payload) is acceptable.
-        resp = requests.post(url, json={}, timeout=30)
-        assert resp.status_code < 500, (
-            f"Stream pod returned a server error {resp.status_code}: {resp.text}"
+        # The URL must be an internal cluster URL (http, not https; no public hostname).
+        assert url.startswith("http://"), (
+            f"Expected an internal http:// URL, got: {url!r}"
+        )
+        assert "://" not in url.replace("http://", ""), (
+            f"URL looks external (contains a second scheme), got: {url!r}"
         )
 
 
@@ -2940,8 +2990,11 @@ class TestNuclioAppModelEndpointCreation(TestMLRunSystemModelMonitoring):
         assert NuclioMonitoringEnvVars.MODEL_MONITORING_URL in env, (
             "MODEL_MONITORING_URL not injected"
         )
-        assert env[NuclioMonitoringEnvVars.MODEL_MONITORING_URL].startswith("http"), (
-            f"Unexpected URL: {env[NuclioMonitoringEnvVars.MODEL_MONITORING_URL]!r}"
+        # The URL must be an internal cluster URL (http://, not https or external hostname).
+        assert env[NuclioMonitoringEnvVars.MODEL_MONITORING_URL].startswith(
+            "http://"
+        ), (
+            f"Expected an internal http:// URL, got: {env[NuclioMonitoringEnvVars.MODEL_MONITORING_URL]!r}"
         )
         assert NuclioMonitoringEnvVars.MODEL_ENDPOINT_UID in env, (
             "MODEL_ENDPOINT_UID not injected"

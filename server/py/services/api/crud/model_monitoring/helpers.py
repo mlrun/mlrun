@@ -52,11 +52,15 @@ async def get_stream_url(
     project: str,
 ) -> str | None:
     """
-    Return the HTTP URL of the model monitoring stream pod for *project*.
+    Return the internal cluster HTTP URL of the model monitoring stream pod for *project*.
+
+    The URL is resolved from the nuclio function's internal_invocation_urls, which are
+    only reachable from within the Kubernetes cluster (e.g. from other nuclio functions
+    or pods running in the same cluster). It is NOT an externally accessible URL.
 
     :param db_session: A session that manages the current dialog with the database.
     :param project:    Project name.
-    :return: HTTP URL of the stream pod, or None when no HTTP trigger is configured.
+    :return: Internal cluster HTTP URL of the stream pod, or None when no HTTP trigger is configured.
     :raises MLRunNotFoundError: if the stream function is not deployed.
     :raises MLRunPreconditionFailedError: if the stream function is not in ready state.
     """
@@ -80,16 +84,9 @@ async def get_stream_url(
             f"(state={state!r}) for project {project!r}."
         )
 
-    external_urls = status.get("external_invocation_urls") or []
     internal_urls = status.get("internal_invocation_urls") or []
-    address = status.get("address", "")
-
-    if external_urls and external_urls[0]:
-        return f"http://{external_urls[0]}"
     if internal_urls and internal_urls[0]:
         return f"http://{internal_urls[0]}"
-    if address:
-        return f"http://{address}"
 
     return None
 

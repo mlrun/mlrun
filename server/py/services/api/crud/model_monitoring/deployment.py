@@ -665,7 +665,6 @@ class MonitoringDeployment:
 
         # Add an explicit HTTP trigger so the stream pod is reachable via HTTP.
         # async mode: stream processing is I/O bound and benefits from async + many connections.
-        # apply_and_create_stream_trigger disables the default trigger, so we add one explicitly.
         function.with_http(async_spec=AsyncSpec(enabled=True))
 
         # Apply feature store run configurations on the serving function

@@ -149,23 +149,12 @@ class TestGetModelMonitoringURL:
         resp = client.get(self._URL_PATH)
         assert resp.status_code == HTTPStatus.PRECONDITION_FAILED, resp.text
 
-    def test_returns_external_url(self, client, mock_get_function):
+    def test_returns_internal_url(self, client, mock_get_function):
+        # Even when external_invocation_urls is populated, always use the internal URL.
         mock_get_function.return_value = {
             "status": {
                 "state": "ready",
-                "external_invocation_urls": ["host:8080/path"],
-                "internal_invocation_urls": ["internal:8080"],
-            }
-        }
-        resp = client.get(self._URL_PATH)
-        assert resp.status_code == HTTPStatus.OK, resp.text
-        assert resp.json() == "http://host:8080/path"
-
-    def test_falls_back_to_internal_url(self, client, mock_get_function):
-        mock_get_function.return_value = {
-            "status": {
-                "state": "ready",
-                "external_invocation_urls": [],
+                "external_invocation_urls": ["external-host:8080/path"],
                 "internal_invocation_urls": ["internal:8080"],
             }
         }
@@ -173,26 +162,13 @@ class TestGetModelMonitoringURL:
         assert resp.status_code == HTTPStatus.OK, resp.text
         assert resp.json() == "http://internal:8080"
 
-    def test_falls_back_to_address(self, client, mock_get_function):
+    def test_returns_none_when_no_internal_url(self, client, mock_get_function):
+        # No internal_invocation_urls → return None (external URL is not used).
         mock_get_function.return_value = {
             "status": {
                 "state": "ready",
-                "external_invocation_urls": [],
+                "external_invocation_urls": ["external-host:8080/path"],
                 "internal_invocation_urls": [],
-                "address": "addr:9090",
-            }
-        }
-        resp = client.get(self._URL_PATH)
-        assert resp.status_code == HTTPStatus.OK, resp.text
-        assert resp.json() == "http://addr:9090"
-
-    def test_returns_none_when_no_url(self, client, mock_get_function):
-        mock_get_function.return_value = {
-            "status": {
-                "state": "ready",
-                "external_invocation_urls": [],
-                "internal_invocation_urls": [],
-                "address": "",
             }
         }
         resp = client.get(self._URL_PATH)

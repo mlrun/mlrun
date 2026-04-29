@@ -612,16 +612,17 @@ async def get_model_monitoring_url(
     db_session: Session = Depends(deps.get_db_session),
 ) -> str | None:
     """
-    Get the HTTP URL of the model monitoring stream pod for the given project.
+    Get the internal cluster HTTP URL of the model monitoring stream pod for the given project.
 
     Verifies that the stream function is deployed and in a ready state, then returns
-    its HTTP invocation URL using the same priority order as nuclio serving functions:
-    external_invocation_urls > internal_invocation_urls > address (legacy).
+    its internal_invocation_url. The returned URL is only reachable from within the
+    Kubernetes cluster and is intended for use by other pods/functions running in the
+    same cluster (e.g. nuclio functions sending prediction data to the stream pod).
 
     :param project:    The name of the project.
     :param auth_info:  The auth info of the request.
     :param db_session: A session that manages the current dialog with the database.
-    :return: HTTP URL of the model monitoring stream pod, or None if no HTTP trigger is configured.
+    :return: Internal cluster HTTP URL of the stream pod, or None if no HTTP trigger is configured.
     :raises MLRunNotFoundError: if the stream function is not deployed.
     :raises MLRunPreconditionFailedError: if the stream function is not in ready state.
     """

@@ -613,7 +613,11 @@ class TestStarPatternMatching:
         assert params == {}
 
     def test_precedence_all_three_types(self) -> None:
-        """Test full precedence: exact > template > star"""
+        """Test full precedence: exact > template > star.
+
+        When an exact match is found, templates are skipped (siblings, not parents).
+        Star patterns are always collected — they are true parent scopes.
+        """
         config = APIHandlerConfig()
         # Add in reverse precedence order to ensure ordering is correct
         config.add_endpoint_handler("/api/*", HTTPMethod.GET, APIHandlerAction.FORBID)
@@ -626,20 +630,17 @@ class TestStarPatternMatching:
 
         step = _APIHandlerStep(config=config)
 
-        # Exact match is highest priority (exact + template + star all match)
+        # Exact match found → template skipped, star still collected
         matches = step._collect_endpoint_matches(HTTPMethod.GET, "/api/v2/users")
-        assert len(matches) == 3
+        assert len(matches) == 2
         ep, params = matches[0]
         assert ep.get_endpoint_key() == "GET:/api/v2/users"
         assert params == {}
         ep, params = matches[1]
-        assert ep.get_endpoint_key() == "GET:/api/{version}/users"
-        assert params == {"version": "v2"}
-        ep, params = matches[2]
         assert ep.get_endpoint_key() == "GET:/api/*"
         assert params == {}
 
-        # Template match is highest priority (template + star match)
+        # No exact match → template + star both collected
         matches = step._collect_endpoint_matches(HTTPMethod.GET, "/api/v1/users")
         assert len(matches) == 2
         ep, params = matches[0]
@@ -649,7 +650,7 @@ class TestStarPatternMatching:
         assert ep.get_endpoint_key() == "GET:/api/*"
         assert params == {}
 
-        # Star match only
+        # No exact, no template match → star only
         matches = step._collect_endpoint_matches(HTTPMethod.GET, "/api/v1/items")
         assert len(matches) == 1
         ep, params = matches[0]
@@ -1725,8 +1726,10 @@ class TestAPIHandlerStep:
 
         step = _APIHandlerStep(config=config)
 
-        match, path_params = step._match_endpoint(HTTPMethod.GET, "/api/test")
-        assert match == "GET:/api/test"
+        matches = step._collect_endpoint_matches(HTTPMethod.GET, "/api/test")
+        assert len(matches) == 1
+        ep, path_params = matches[0]
+        assert ep.get_endpoint_key() == "GET:/api/test"
         assert path_params == {}
 
     def test_match_endpoint_path_template(self) -> None:
@@ -1738,8 +1741,10 @@ class TestAPIHandlerStep:
 
         step = _APIHandlerStep(config=config)
 
-        match, path_params = step._match_endpoint(HTTPMethod.GET, "/api/items/abc-123")
-        assert match == "GET:/api/items/{item_id}"
+        matches = step._collect_endpoint_matches(HTTPMethod.GET, "/api/items/abc-123")
+        assert len(matches) == 1
+        ep, path_params = matches[0]
+        assert ep.get_endpoint_key() == "GET:/api/items/{item_id}"
         assert path_params == {"item_id": "abc-123"}
 
     def test_match_endpoint_no_match(self) -> None:

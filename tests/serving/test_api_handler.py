@@ -1953,6 +1953,179 @@ class TestAPIHandlerStep:
         assert "extra_data" not in result.body
 
 
+class TestBodyMapHierarchy:
+    """Tests for hierarchical body map merging across star → exact/template endpoints."""
+
+    def _make_config(
+        self,
+        star_bm: BodyMappings | None,
+        exact_bm: BodyMappings | None,
+        star_first: bool,
+    ) -> APIHandlerConfig:
+        """Build config with star and exact endpoint, in either insertion order."""
+        config = APIHandlerConfig()
+        if star_first:
+            config.add_endpoint_handler(
+                "/*",
+                HTTPMethod.POST,
+                APIHandlerAction.ALLOW,
+                input_body_mappings=star_bm,
+            )
+            config.add_endpoint_handler(
+                "/predict",
+                HTTPMethod.POST,
+                APIHandlerAction.ALLOW,
+                input_body_mappings=exact_bm,
+            )
+        else:
+            config.add_endpoint_handler(
+                "/predict",
+                HTTPMethod.POST,
+                APIHandlerAction.ALLOW,
+                input_body_mappings=exact_bm,
+            )
+            config.add_endpoint_handler(
+                "/*",
+                HTTPMethod.POST,
+                APIHandlerAction.ALLOW,
+                input_body_mappings=star_bm,
+            )
+        return config
+
+    @pytest.mark.parametrize("star_first", [True, False])
+    def test_star_body_map_inherited_when_exact_has_none(
+        self, star_first: bool
+    ) -> None:
+        """Star body map is applied to exact sub-path when exact has no body mapping.
+
+        Insertion order must not affect the result.
+        """
+        star_bm = BodyMappings()
+        star_bm.add_mapping("$.model", destination_path="model", mandatory=True)
+
+        config = self._make_config(
+            star_bm=star_bm, exact_bm=None, star_first=star_first
+        )
+        step = _APIHandlerStep(config=config)
+        event = MockEvent(
+            body={"model": "gpt-4", "extra": "ignored"},
+            method="POST",
+            path="/predict",
+        )
+
+        result = step.do(event)
+
+        assert isinstance(result.body, _RequestContext)
+        assert result.body["model"] == "gpt-4"
+        assert "extra" not in result.body
+
+    @pytest.mark.parametrize("star_first", [True, False])
+    def test_star_mandatory_inherited_raises_when_field_missing(
+        self, star_first: bool
+    ) -> None:
+        """Star mandatory mapping raises when field missing and exact has no body mapping.
+
+        Insertion order must not affect the result.
+        """
+        star_bm = BodyMappings()
+        star_bm.add_mapping("$.model", destination_path="model", mandatory=True)
+
+        config = self._make_config(
+            star_bm=star_bm, exact_bm=None, star_first=star_first
+        )
+        step = _APIHandlerStep(config=config)
+        event = MockEvent(body={"other": "value"}, method="POST", path="/predict")
+
+        with pytest.raises(
+            mlrun.errors.MLRunBadRequestError,
+            match="Mandatory field 'model' not found",
+        ):
+            step.do(event)
+
+    @pytest.mark.parametrize("star_first", [True, False])
+    def test_exact_optional_overrides_star_mandatory(self, star_first: bool) -> None:
+        """Exact endpoint's mandatory=False overrides star's mandatory=True for the same field.
+
+        When the field is missing, no error is raised because the exact mapping wins.
+        Insertion order must not affect the result.
+        """
+        star_bm = BodyMappings()
+        star_bm.add_mapping("$.model", destination_path="model", mandatory=True)
+
+        exact_bm = BodyMappings()
+        exact_bm.add_mapping("$.model", destination_path="model", mandatory=False)
+
+        config = self._make_config(
+            star_bm=star_bm, exact_bm=exact_bm, star_first=star_first
+        )
+        step = _APIHandlerStep(config=config)
+        event = MockEvent(body={"other": "value"}, method="POST", path="/predict")
+
+        # exact's mandatory=False wins → no error even though star says mandatory=True.
+        # Field is missing so nothing was extracted → original body passed through as-is.
+        result = step.do(event)
+        assert result.body == {"other": "value"}
+        assert not isinstance(result.body, _RequestContext)
+
+    @pytest.mark.parametrize("star_first", [True, False])
+    def test_exact_mandatory_overrides_star_optional(self, star_first: bool) -> None:
+        """Exact endpoint's mandatory=True overrides star's mandatory=False for the same field.
+
+        When the field is missing, an error IS raised because the exact mapping wins.
+        Insertion order must not affect the result.
+        """
+        star_bm = BodyMappings()
+        star_bm.add_mapping("$.model", destination_path="model", mandatory=False)
+
+        exact_bm = BodyMappings()
+        exact_bm.add_mapping("$.model", destination_path="model", mandatory=True)
+
+        config = self._make_config(
+            star_bm=star_bm, exact_bm=exact_bm, star_first=star_first
+        )
+        step = _APIHandlerStep(config=config)
+        event = MockEvent(body={"other": "value"}, method="POST", path="/predict")
+
+        with pytest.raises(
+            mlrun.errors.MLRunBadRequestError,
+            match="Mandatory field 'model' not found",
+        ):
+            step.do(event)
+
+    @pytest.mark.parametrize("star_first", [True, False])
+    def test_star_and_exact_mappings_combined(self, star_first: bool) -> None:
+        """Star and exact each map a different field — both are extracted.
+
+        Body has 3 keys: 'model' (mapped by star), 'temperature' (mapped by exact),
+        and 'extra' (not mapped by either). Only 'model' and 'temperature' must appear
+        in the context; 'extra' must not.
+
+        Insertion order must not affect the result.
+        """
+        star_bm = BodyMappings()
+        star_bm.add_mapping("$.model", destination_path="model")
+
+        exact_bm = BodyMappings()
+        exact_bm.add_mapping("$.temperature", destination_path="temperature")
+
+        config = self._make_config(
+            star_bm=star_bm, exact_bm=exact_bm, star_first=star_first
+        )
+        step = _APIHandlerStep(config=config)
+        event = MockEvent(
+            body={"model": "gpt-4", "temperature": 0.7, "extra": "ignored"},
+            method="POST",
+            path="/predict",
+        )
+
+        result = step.do(event)
+
+        assert isinstance(result.body, _RequestContext)
+        assert result.body["model"] == "gpt-4"
+        assert result.body["temperature"] == 0.7
+        assert "extra" not in result.body
+
+
 class TestAddAPIHandlerStepToGraph:
     """Direct tests for _add_api_handler_step_to_graph function"""
 

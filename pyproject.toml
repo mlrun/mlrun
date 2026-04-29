@@ -50,19 +50,20 @@ python-version = "3.11"
 generate-hashes = true
 universal = true
 
-[tool.pytest.ini_options]
-addopts = "-v -rf --disable-warnings --import-mode=importlib"
-pythonpath = "./server/py" # This allows running server side tests from the project root directory
+[tool.pytest]
+addopts = ["-v", "-rf", "--disable-warnings", "--import-mode=importlib"]
+pythonpath = ["./server/py"] # This allows running server side tests from the project root directory
 python_files = [
     "tests/*/test_*.py",
     "tests/test_*.py",
     "server/py/*/tests/unit/test_*.py",
     "server/py/*/tests/unit/*/test_*.py",
 ]
-timeout = 1800  # 30 minutes per test
+timeout = "1800"  # 30 minutes per test
 log_cli = true
 log_level = "DEBUG"
 asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
 markers = [
     "collect_pod_logs: collect pod logs on test failure for debugging",
 ]

@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import abc
+import typing
 
 import mlrun.common.schemas
 
@@ -54,3 +55,26 @@ class BaseEventClient:
         :return: event object to emit
         """
         pass
+
+    def generate_db_migration_event(
+        self,
+        action: mlrun.common.schemas.MigrationEventActions,
+        error: BaseException | str | None = None,
+        duration_seconds: float | None = None,
+        scope: list[str] | None = None,
+        versions: dict | None = None,
+    ) -> typing.Any | None:
+        """
+        Generate a DB migration lifecycle event
+        :param action: required, started, completed or failed
+        :param error: optional error (only used for failed)
+        :param duration_seconds: optional elapsed time since started; reported
+            on completed and failed events
+        :param scope: which migration kinds are involved (e.g. ["schema"], ["data"],
+            or ["schema", "data"])
+        :param versions: schema/data version context, e.g.
+            {"current_schema_revision": "...", "target_schema_revision": "...",
+             "current_data_version": 9, "target_data_version": 10}
+        :return: event object to emit, or None if the client doesn't support this event
+        """
+        return None

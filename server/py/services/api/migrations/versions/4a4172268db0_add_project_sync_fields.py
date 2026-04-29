@@ -27,7 +27,7 @@ import framework.db.sqldb.sql_types
 
 # revision identifiers, used by Alembic.
 revision = "4a4172268db0"
-down_revision = "24a254635f94"
+down_revision = "8712e85b0281"
 branch_labels = None
 depends_on = None
 

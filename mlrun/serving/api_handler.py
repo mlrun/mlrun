@@ -433,9 +433,13 @@ class _APIHandlerStep(mlrun.serving.states.TaskStep):
 
         Priority (highest first):
         1. Exact match
-        2. Template match  (/api/{id})
-        3. Star match      (/api/*) — ordered by prefix length descending, so /a/b/c/*
-           has higher priority than /a/b/* which has higher priority than /a/*
+        2. Template match  (/api/{id})  — skipped when an exact match is found, because
+           templates are siblings of exact paths (same depth), not parents.  Including
+           them when an exact match exists would inject spurious path parameters and
+           unintended body-map inheritance.
+        3. Star match      (/api/*) — always collected even when an exact match exists,
+           because stars are true parent scopes.  Ordered by prefix length descending,
+           so /a/b/c/* has higher priority than /a/b/* which has higher priority than /a/*.
 
         :param method: HTTP method to match
         :param path: Request path to match
@@ -447,21 +451,24 @@ class _APIHandlerStep(mlrun.serving.states.TaskStep):
 
         # Phase 1: Exact match
         endpoint_key = serving_utils.combine_serving_endpoint_key(method, path)
-        if endpoint_key in self.config.endpoints:
+        exact_found = endpoint_key in self.config.endpoints
+        if exact_found:
             matches.append((self.config.endpoints[endpoint_key], {}))
 
-        # Phase 2: Template matches
-        for pattern_method, compiled_pattern, ep in self._endpoint_patterns:
-            if pattern_method != method:
-                continue
-            match = compiled_pattern.match(path)
-            if match:
-                path_params = {
-                    name: unquote(value) for name, value in match.groupdict().items()
-                }
-                matches.append((ep, path_params))
+        # Phase 2: Template matches — skipped when an exact match was found
+        if not exact_found:
+            for pattern_method, compiled_pattern, ep in self._endpoint_patterns:
+                if pattern_method != method:
+                    continue
+                match = compiled_pattern.match(path)
+                if match:
+                    path_params = {
+                        name: unquote(value)
+                        for name, value in match.groupdict().items()
+                    }
+                    matches.append((ep, path_params))
 
-        # Phase 3: Star matches
+        # Phase 3: Star matches — always collected (true parent scopes)
         path_with_slash = path if path.endswith("/") else path + "/"
         for star_method, prefix, ep in self._star_patterns:
             if star_method != method:

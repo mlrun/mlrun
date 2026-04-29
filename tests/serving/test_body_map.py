@@ -23,8 +23,9 @@ import pytest
 
 import mlrun
 from mlrun.common.schemas.serving import APIHandlerAction
-from mlrun.runtimes.nuclio.serving import APIHandlerConfig, ServingRuntime
-from mlrun.serving.api_handler import _APIHandlerStep
+from mlrun.runtimes.nuclio.serving import APIHandlerConfig, BodyMappings, ServingRuntime
+from mlrun.serving.api_handler import _APIHandlerStep, _RequestContext
+from mlrun.serving.server import MockEvent
 
 
 # ---------------------------------------------------------------------------
@@ -656,3 +657,257 @@ def test_api_handler_with_body_map_and_processing_step(rundb_mock):
         assert resp == "Result: arg1=hello, arg2=world"
     finally:
         server.wait_for_completion()
+
+
+# ---------------------------------------------------------------------------
+# Per-endpoint BodyMappings — mandatory field behavior
+# ---------------------------------------------------------------------------
+class TestPerEndpointBodyMappings:
+    """Unit tests for per-endpoint input_body_mappings: extraction and mandatory enforcement."""
+
+    def test_mandatory_field_missing_raises(self) -> None:
+        """mandatory=True raises MLRunBadRequestError when the field is absent from the body."""
+        bm = BodyMappings()
+        bm.add_mapping("$.model", destination_path="model", mandatory=True)
+
+        config = APIHandlerConfig()
+        config.add_endpoint_handler(
+            "/predict", HTTPMethod.POST, APIHandlerAction.ALLOW, input_body_mappings=bm
+        )
+
+        step = _APIHandlerStep(config=config)
+        event = MockEvent(body={"messages": ["hello"]}, method="POST", path="/predict")
+
+        with pytest.raises(
+            mlrun.errors.MLRunBadRequestError,
+            match="Mandatory field 'model' not found",
+        ):
+            step.do(event)
+
+    @pytest.mark.parametrize("mandatory", [True, False])
+    def test_mapped_field_extracted(self, mandatory: bool) -> None:
+        """Mapped field is extracted correctly regardless of mandatory flag when present.
+
+        Only the declared destination ('model') must appear in the context.
+        An unrelated body key ('extra_data') must NOT be extracted.
+        """
+        bm = BodyMappings()
+        bm.add_mapping("$.model", destination_path="model", mandatory=mandatory)
+
+        config = APIHandlerConfig()
+        config.add_endpoint_handler(
+            "/predict", HTTPMethod.POST, APIHandlerAction.ALLOW, input_body_mappings=bm
+        )
+
+        step = _APIHandlerStep(config=config)
+        event = MockEvent(
+            body={"model": "gpt-4", "extra_data": "ignored"},
+            method="POST",
+            path="/predict",
+        )
+
+        result = step.do(event)
+
+        assert isinstance(result.body, _RequestContext)
+        assert result.body["model"] == "gpt-4"
+        assert "extra_data" not in result.body
+
+
+# ---------------------------------------------------------------------------
+# Hierarchical body map merging across star → exact/template endpoints
+# ---------------------------------------------------------------------------
+class TestBodyMapHierarchy:
+    """Tests for hierarchical body map merging across star → exact/template endpoints."""
+
+    # All tests send a request to /predict/1.
+    # The sub-endpoint is parametrized as exact, template, or specific-star.
+    _REQUEST_PATH = "/predict/1"
+    _SUB_ENDPOINT_PATHS = [
+        "/predict/1",         # exact
+        "/predict/{item_id}", # template — also extracts item_id="1"
+        "/predict/*",         # specific star
+    ]
+
+    def _make_config(
+        self,
+        star_bm: BodyMappings | None,
+        explicit_bm: BodyMappings | None,
+        star_first: bool,
+        explicit_path: str = "/predict/1",
+    ) -> APIHandlerConfig:
+        """Build config with a broad '/*' star and one explicit endpoint.
+
+        Insertion order is controlled by star_first.
+        """
+        config = APIHandlerConfig()
+        if star_first:
+            config.add_endpoint_handler(
+                "/*", HTTPMethod.POST, APIHandlerAction.ALLOW, input_body_mappings=star_bm
+            )
+            config.add_endpoint_handler(
+                explicit_path, HTTPMethod.POST, APIHandlerAction.ALLOW, input_body_mappings=explicit_bm
+            )
+        else:
+            config.add_endpoint_handler(
+                explicit_path, HTTPMethod.POST, APIHandlerAction.ALLOW, input_body_mappings=explicit_bm
+            )
+            config.add_endpoint_handler(
+                "/*", HTTPMethod.POST, APIHandlerAction.ALLOW, input_body_mappings=star_bm
+            )
+        return config
+
+    @pytest.mark.parametrize("star_first", [True, False])
+    @pytest.mark.parametrize("explicit_path", _SUB_ENDPOINT_PATHS)
+    def test_star_body_map_inherited_when_sub_has_none(
+        self, star_first: bool, explicit_path: str
+    ) -> None:
+        """Star body map is applied to sub-path when sub has no body mapping.
+
+        For template paths, the path parameter is also extracted alongside the
+        inherited body mapping field. Insertion order must not affect the result.
+        """
+        star_bm = BodyMappings()
+        star_bm.add_mapping("$.model", destination_path="model", mandatory=True)
+
+        config = self._make_config(
+            star_bm=star_bm, explicit_bm=None, star_first=star_first, explicit_path=explicit_path
+        )
+        step = _APIHandlerStep(config=config)
+        event = MockEvent(
+            body={"model": "gpt-4", "extra": "ignored"},
+            method="POST",
+            path=self._REQUEST_PATH,
+        )
+
+        result = step.do(event)
+
+        assert isinstance(result.body, _RequestContext)
+        assert result.body["model"] == "gpt-4"
+        assert "extra" not in result.body
+        if explicit_path == "/predict/{item_id}":
+            assert result.body["item_id"] == "1"
+
+    @pytest.mark.parametrize("star_first", [True, False])
+    @pytest.mark.parametrize("explicit_path", _SUB_ENDPOINT_PATHS)
+    def test_star_mandatory_inherited_raises_when_field_missing(
+        self, star_first: bool, explicit_path: str
+    ) -> None:
+        """Star mandatory mapping raises when field missing and sub has no body mapping.
+
+        Insertion order must not affect the result.
+        """
+        star_bm = BodyMappings()
+        star_bm.add_mapping("$.model", destination_path="model", mandatory=True)
+
+        config = self._make_config(
+            star_bm=star_bm, explicit_bm=None, star_first=star_first, explicit_path=explicit_path
+        )
+        step = _APIHandlerStep(config=config)
+        event = MockEvent(body={"other": "value"}, method="POST", path=self._REQUEST_PATH)
+
+        with pytest.raises(
+            mlrun.errors.MLRunBadRequestError,
+            match="Mandatory field 'model' not found",
+        ):
+            step.do(event)
+
+    @pytest.mark.parametrize("star_first", [True, False])
+    @pytest.mark.parametrize("explicit_path", _SUB_ENDPOINT_PATHS)
+    def test_explicit_optional_overrides_star_mandatory(
+        self, star_first: bool, explicit_path: str
+    ) -> None:
+        """More specific endpoint's mandatory=False overrides broad star's mandatory=True.
+
+        When the field is missing, no error is raised because the explicit mapping wins.
+        Insertion order must not affect the result.
+        """
+        star_bm = BodyMappings()
+        star_bm.add_mapping("$.model", destination_path="model", mandatory=True)
+
+        explicit_bm = BodyMappings()
+        explicit_bm.add_mapping("$.model", destination_path="model", mandatory=False)
+
+        config = self._make_config(
+            star_bm=star_bm, explicit_bm=explicit_bm,
+            star_first=star_first, explicit_path=explicit_path,
+        )
+        step = _APIHandlerStep(config=config)
+        event = MockEvent(body={"other": "value"}, method="POST", path=self._REQUEST_PATH)
+
+        # explicit's mandatory=False wins → no error, field missing → not extracted.
+        # For template paths, path params still create a _RequestContext.
+        result = step.do(event)
+        assert "model" not in result.body
+        if explicit_path == "/predict/{item_id}":
+            assert isinstance(result.body, _RequestContext)
+            assert result.body["item_id"] == "1"
+        else:
+            # No params extracted at all → original body passed through unchanged
+            assert result.body == {"other": "value"}
+
+    @pytest.mark.parametrize("star_first", [True, False])
+    @pytest.mark.parametrize("explicit_path", _SUB_ENDPOINT_PATHS)
+    def test_explicit_mandatory_overrides_star_optional(
+        self, star_first: bool, explicit_path: str
+    ) -> None:
+        """More specific endpoint's mandatory=True overrides broad star's mandatory=False.
+
+        When the field is missing, an error IS raised because the explicit mapping wins.
+        Insertion order must not affect the result.
+        """
+        star_bm = BodyMappings()
+        star_bm.add_mapping("$.model", destination_path="model", mandatory=False)
+
+        explicit_bm = BodyMappings()
+        explicit_bm.add_mapping("$.model", destination_path="model", mandatory=True)
+
+        config = self._make_config(
+            star_bm=star_bm, explicit_bm=explicit_bm,
+            star_first=star_first, explicit_path=explicit_path,
+        )
+        step = _APIHandlerStep(config=config)
+        event = MockEvent(body={"other": "value"}, method="POST", path=self._REQUEST_PATH)
+
+        with pytest.raises(
+            mlrun.errors.MLRunBadRequestError,
+            match="Mandatory field 'model' not found",
+        ):
+            step.do(event)
+
+    @pytest.mark.parametrize("star_first", [True, False])
+    @pytest.mark.parametrize("explicit_path", _SUB_ENDPOINT_PATHS)
+    def test_star_and_sub_mappings_combined(
+        self, star_first: bool, explicit_path: str
+    ) -> None:
+        """Star and sub-path each map a different field — both are extracted.
+
+        Body has 3 keys: 'model' (mapped by star), 'temperature' (mapped by sub-path),
+        and 'extra' (not mapped by either). Only 'model' and 'temperature' must appear
+        in the context; 'extra' must not. For template paths, the path param is also
+        extracted. Insertion order must not affect the result.
+        """
+        star_bm = BodyMappings()
+        star_bm.add_mapping("$.model", destination_path="model")
+
+        explicit_bm = BodyMappings()
+        explicit_bm.add_mapping("$.temperature", destination_path="temperature")
+
+        config = self._make_config(
+            star_bm=star_bm, explicit_bm=explicit_bm,
+            star_first=star_first, explicit_path=explicit_path,
+        )
+        step = _APIHandlerStep(config=config)
+        event = MockEvent(
+            body={"model": "gpt-4", "temperature": 0.7, "extra": "ignored"},
+            method="POST",
+            path=self._REQUEST_PATH,
+        )
+
+        result = step.do(event)
+
+        assert isinstance(result.body, _RequestContext)
+        assert result.body["model"] == "gpt-4"
+        assert result.body["temperature"] == 0.7
+        assert "extra" not in result.body
+        if explicit_path == "/predict/{item_id}":
+            assert result.body["item_id"] == "1"

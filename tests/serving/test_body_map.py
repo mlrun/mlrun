@@ -47,92 +47,100 @@ class PrefixStep:
 # APIHandlerConfig body_map tests (config-level)
 # ---------------------------------------------------------------------------
 class TestAPIHandlerConfigBodyMap:
-    """Tests for body_map on the APIHandlerConfig level"""
-
-    def test_config_with_body_map(self) -> None:
-        """Test creating APIHandlerConfig with a body_map"""
-        body_map = {"model_name": "$.model", "input_data": "$.data.inputs"}
-        config = APIHandlerConfig(body_map=body_map)
-        assert config.body_map == body_map
-
-    def test_config_without_body_map(self) -> None:
-        """Test that body_map defaults to empty dict"""
-        config = APIHandlerConfig()
-        assert config.body_map == {}
+    """Tests for per-endpoint input_body_mappings on APIHandlerConfig."""
 
     def test_body_map_serialization_roundtrip(self) -> None:
-        """Test body_map survives to_dict / from_dict round-trip"""
-        body_map = {"user_name": "$.name", "user_email": "$.contact.email"}
-        config = APIHandlerConfig(body_map=body_map)
-        config.add_endpoint_handler(
-            "/users", HTTPMethod.POST, APIHandlerAction.ALLOW, "Create user"
-        )
+        """EndpointConfig with input_body_mappings survives to_dict / from_dict round-trip."""
+        bm = BodyMappings()
+        bm.add_mapping("$.name", destination_path="user_name")
+        bm.add_mapping("$.contact.email", destination_path="user_email")
 
-        # Serialize
-        config_dict = config.to_dict()
-        assert config_dict["body_map"] == body_map
-
-        # Deserialize
-        restored = APIHandlerConfig.from_dict(config_dict)
-        assert restored.body_map == body_map
-
-    def test_body_map_shared_across_endpoints(self) -> None:
-        """Test that body_map applies to all endpoints (not per-endpoint)"""
-        body_map = {"input": "$.data"}
-        config = APIHandlerConfig(body_map=body_map)
-        config.add_endpoint_handler("/predict", HTTPMethod.POST, APIHandlerAction.ALLOW)
-        config.add_endpoint_handler(
-            "/classify", HTTPMethod.POST, APIHandlerAction.ALLOW
-        )
-
-        # body_map is on the config, not on individual endpoints
-        assert config.body_map == body_map
-        predict_cfg = config.get_endpoint_config(HTTPMethod.POST, "/predict")
-        classify_cfg = config.get_endpoint_config(HTTPMethod.POST, "/classify")
-        assert "body_map" not in predict_cfg
-        assert "body_map" not in classify_cfg
-
-    @staticmethod
-    def test_add_body_mapping() -> None:
-        """Test add_body_mapping helper method"""
         config = APIHandlerConfig()
-        assert config.body_map == {}
+        config.add_endpoint_handler(
+            "/users", HTTPMethod.POST, APIHandlerAction.ALLOW, "Create user",
+            input_body_mappings=bm,
+        )
 
-        # Add first mapping
-        config.add_body_mapping("user_name", "$.user.name")
-        assert config.body_map == {"user_name": "$.user.name"}
+        restored = APIHandlerConfig.from_dict(config.to_dict())
 
-        # Add second mapping
-        config.add_body_mapping("user_email", "$.user.contact.email")
-        assert config.body_map == {
-            "user_name": "$.user.name",
-            "user_email": "$.user.contact.email",
-        }
+        ep = restored.get_endpoint_config(HTTPMethod.POST, "/users")
+        assert ep.input_body_mappings.to_dict() == bm.to_dict()
 
-        # Add mapping with wildcard (multiple matches)
-        config.add_body_mapping("item_ids", "$.items[*].id")
-        assert config.body_map == {
-            "user_name": "$.user.name",
-            "user_email": "$.user.contact.email",
-            "item_ids": "$.items[*].id",
-        }
+    def test_add_body_mapping_on_specific_endpoint(self) -> None:
+        """input_body_mappings is scoped to its endpoint — other endpoints are unaffected."""
+        bm = BodyMappings()
+        bm.add_mapping("$.data", destination_path="input")
 
-    @staticmethod
-    def test_add_body_mapping_overwrites_existing(caplog) -> None:
-        """Test that add_body_mapping overwrites existing mappings and logs warning"""
+        config = APIHandlerConfig()
+        config.add_endpoint_handler(
+            "/predict", HTTPMethod.POST, APIHandlerAction.ALLOW,
+            input_body_mappings=bm,
+        )
+        config.add_endpoint_handler("/classify", HTTPMethod.POST, APIHandlerAction.ALLOW)
 
-        config = APIHandlerConfig(body_map={"param": "$.old.path"})
+        predict_ep = config.get_endpoint_config(HTTPMethod.POST, "/predict")
+        classify_ep = config.get_endpoint_config(HTTPMethod.POST, "/classify")
+
+        assert predict_ep.input_body_mappings is not None
+        assert predict_ep.input_body_mappings.mappings[0]["destination_path"] == "input"
+        assert classify_ep.input_body_mappings is None
+
+    def test_add_mapping_same_source_overrides_destination(self, caplog) -> None:
+        """Calling add_mapping twice with the same source_json_path overwrites the destination.
+
+        The second call with the same source but different destination_path must win.
+        get_endpoint_config must return the updated destination.
+        """
+        bm = BodyMappings()
+        bm.add_mapping("$.model", destination_path="model_old")
 
         with caplog.at_level(logging.WARNING):
-            config.add_body_mapping("param", "$.new.path")
+            bm.add_mapping("$.model", destination_path="model_new")
 
-        assert config.body_map == {"param": "$.new.path"}
-
-        # Verify warning was logged
-        assert any(
-            "Overriding existing body mapping" in record.message
-            for record in caplog.records
+        config = APIHandlerConfig()
+        config.add_endpoint_handler(
+            "/predict", HTTPMethod.POST, APIHandlerAction.ALLOW, input_body_mappings=bm
         )
+
+        ep = config.get_endpoint_config(HTTPMethod.POST, "/predict")
+        mappings = ep.input_body_mappings.mappings
+        # Only one entry — the second add_mapping replaced the first
+        assert len(mappings) == 1
+        assert mappings[0]["source_json_path"] == "$.model"
+        assert mappings[0]["destination_path"] == "model_new"
+        assert any("Overriding existing body mapping" in record.message for record in caplog.records)
+
+    def test_add_mapping_same_destination_overrides_source(self, caplog) -> None:
+        """Calling add_mapping twice with the same destination_path overwrites the source.
+
+        The second call with the same destination but different source_json_path must win.
+        """
+        bm = BodyMappings()
+        bm.add_mapping("$.model_old", destination_path="model")
+
+        with caplog.at_level(logging.WARNING):
+            bm.add_mapping("$.model_new", destination_path="model")
+
+        mappings = bm.mappings
+        assert len(mappings) == 1
+        assert mappings[0]["source_json_path"] == "$.model_new"
+        assert mappings[0]["destination_path"] == "model"
+        assert any("Overriding existing body mapping" in record.message for record in caplog.records)
+
+    def test_invalid_jsonpath_raises_at_step_init(self) -> None:
+        """Invalid JSONPath in input_body_mappings raises MLRunValueError at _APIHandlerStep init."""
+        bm = BodyMappings()
+        bm.mappings = [
+            {"source_json_path": "$.invalid[[[syntax", "destination_path": "bad_param", "mandatory": False}
+        ]
+
+        config = APIHandlerConfig()
+        config.add_endpoint_handler(
+            "/predict", HTTPMethod.POST, APIHandlerAction.ALLOW, input_body_mappings=bm
+        )
+
+        with pytest.raises(mlrun.errors.MLRunValueError, match="Invalid JSONPath expression"):
+            _APIHandlerStep(config=config)
 
     @staticmethod
     def test_remove_body_mapping() -> None:

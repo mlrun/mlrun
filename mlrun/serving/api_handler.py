@@ -190,7 +190,13 @@ class _APIHandlerStep(mlrun.serving.states.TaskStep):
             if ep.input_body_mappings:
                 compiled_map: dict[str, tuple[Any, bool]] = {}
                 for mapping in ep.input_body_mappings.mappings:
-                    compiled_expr = jsonpath_ng.parse(mapping["source_json_path"])
+                    try:
+                        compiled_expr = jsonpath_ng.parse(mapping["source_json_path"])
+                    except Exception as e:
+                        raise mlrun.errors.MLRunValueError(
+                            f"Invalid JSONPath expression '{mapping['source_json_path']}' "
+                            f"in endpoint '{ep.get_endpoint_key()}': {e}"
+                        ) from e
                     compiled_map[mapping["destination_path"]] = (
                         compiled_expr,
                         mapping["mandatory"],

@@ -128,6 +128,28 @@ class BodyMappings(mlrun.model.ModelObj):
                     f"Either all mappings must have destination_path or none of them."
                 )
 
+        # Check for duplicate source_json_path or destination_path — overwrite and warn if found.
+        # destination_path=None means "validate existence only"; don't treat two None-dest
+        # mappings as duplicates of each other — they may guard different source fields.
+        for i, existing in enumerate(self.mappings):
+            dest_conflict = (
+                destination_path is not None
+                and existing.get("destination_path") == destination_path
+            )
+            if existing["source_json_path"] == source_json_path or dest_conflict:
+                mlrun.utils.logger.warning(
+                    "Overriding existing body mapping",
+                    source_json_path=source_json_path,
+                    old_destination=existing.get("destination_path"),
+                    new_destination=destination_path,
+                )
+                self.mappings[i] = {
+                    "source_json_path": source_json_path,
+                    "destination_path": destination_path,
+                    "mandatory": mandatory,
+                }
+                return
+
         self.mappings.append(
             {
                 "source_json_path": source_json_path,

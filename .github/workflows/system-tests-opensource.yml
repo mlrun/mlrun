@@ -360,17 +360,22 @@ jobs:
       env:
         DOCKER_USERNAME: ${{ secrets.DOCKER_HUB_DOCKER_REGISTRY_USERNAME }}
         DOCKER_PASSWORD: ${{ secrets.DOCKER_HUB_DOCKER_REGISTRY_PASSWORD }}
-        GHCR_USERNAME: ${{ github.actor }}
-        GHCR_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
+        ARTIFACTORY_REGISTRY_URL: ${{ secrets.ARTIFACTORY_DOCKER_REGISTRY_URL }}
+        ARTIFACTORY_USERNAME: ${{ secrets.ARTIFACTORY_DOCKER_REGISTRY_USERNAME }}
+        ARTIFACTORY_PASSWORD: ${{ secrets.ARTIFACTORY_DOCKER_REGISTRY_PASSWORD }}
       run: |
         echo "=== Creating K3S registries configuration ==="
 
         # Create the K3S config directory if it doesn't exist
         sudo mkdir -p /etc/rancher/k3s
 
-        # Create registries.yaml with Docker Hub and GHCR authentication
-        # This configures containerd to authenticate when pulling from docker.io and ghcr.io
-        # and sets up a local registry mirror for testing
+        if [ -z "${ARTIFACTORY_REGISTRY_URL}" ]; then
+          echo "::error::Missing ARTIFACTORY_DOCKER_REGISTRY_URL secret"
+          exit 1
+        fi
+
+        # Create registries.yaml with Docker Hub authentication and Artifactory mirrors
+        # for ghcr.io / gcr.io image pulls
         sudo tee "/etc/rancher/k3s/registries.yaml" > /dev/null << EOF
         mirrors:
           registry.localhost:
@@ -379,15 +384,21 @@ jobs:
           docker.io:
             endpoint:
             - https://registry-1.docker.io
+          ghcr.io:
+            endpoint:
+            - https://${ARTIFACTORY_REGISTRY_URL}
+          gcr.io:
+            endpoint:
+            - https://${ARTIFACTORY_REGISTRY_URL}
         configs:
           "registry-1.docker.io":
             auth:
               username: ${DOCKER_USERNAME}
               password: ${DOCKER_PASSWORD}
-          "ghcr.io":
+          "${ARTIFACTORY_REGISTRY_URL}":
             auth:
-              username: ${GHCR_USERNAME}
-              password: ${GHCR_PASSWORD}
+              username: ${ARTIFACTORY_USERNAME}
+              password: ${ARTIFACTORY_PASSWORD}
         EOF
 
         echo "✓ Registries configuration created at /etc/rancher/k3s/registries.yaml"

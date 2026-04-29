@@ -1723,7 +1723,7 @@ class TestAPIHandlerStep:
         assert isinstance(step.config, APIHandlerConfig)
         assert step.config.endpoints == {}
 
-    def test_match_endpoint_exact(self) -> None:
+    def test_collect_matches_exact(self) -> None:
         """Test exact endpoint matching"""
         config = APIHandlerConfig()
         config.add_endpoint_handler("/api/test", HTTPMethod.GET, APIHandlerAction.ALLOW)
@@ -1736,7 +1736,7 @@ class TestAPIHandlerStep:
         assert ep.get_endpoint_key() == "GET:/api/test"
         assert path_params == {}
 
-    def test_match_endpoint_path_template(self) -> None:
+    def test_collect_matches_path_template(self) -> None:
         """Test endpoint matching for path-template endpoints"""
         config = APIHandlerConfig()
         config.add_endpoint_handler(
@@ -1751,7 +1751,7 @@ class TestAPIHandlerStep:
         assert ep.get_endpoint_key() == "GET:/api/items/{item_id}"
         assert path_params == {"item_id": "abc-123"}
 
-    def test_match_endpoint_no_match(self) -> None:
+    def test_collect_matches_no_match(self) -> None:
         """Test endpoint matching when no match found"""
         config = APIHandlerConfig()
         config.add_endpoint_handler("/api/test", HTTPMethod.GET, APIHandlerAction.ALLOW)

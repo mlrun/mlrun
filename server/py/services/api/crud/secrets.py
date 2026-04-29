@@ -518,10 +518,13 @@ class Secrets(
                          Use "*" to list all users' tokens (admin only).
         :return: ListSecretTokensResponse containing token names and expirations.
         """
-        target_user_id = self._get_user_id(auth_info, username)
+        assert auth_info.username is not None, (
+            "secret token handling is only supported in enterprise where this is always filled"
+        )
+        target_username = username or auth_info.username
 
         secret_tokens = self.secrets_provider.list_user_token_secrets(
-            user_id=target_user_id,
+            username=target_username,
         )
 
         return mlrun.common.schemas.ListSecretTokensResponse(

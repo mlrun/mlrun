@@ -101,7 +101,7 @@ class SecretProviderInterface(ABC):
     @abstractmethod
     def list_user_token_secrets(
         self,
-        user_id: str,
+        username: str,
         namespace: str | None = None,
     ) -> list[mlrun.common.schemas.SecretTokenInfo]:
         pass
@@ -207,6 +207,7 @@ class InMemorySecretProvider(SecretProviderInterface):
             "expiration": datetime.fromtimestamp(expiration, tz=UTC),
             "issued_at": datetime.fromtimestamp(issued_at, tz=UTC),
             "user_id": auth_info.user_id,
+            "username": auth_info.username,
             "token_name": token_name,
         }
         return mlrun.common.schemas.SecretEventActions.created
@@ -222,7 +223,7 @@ class InMemorySecretProvider(SecretProviderInterface):
 
     def list_user_token_secrets(
         self,
-        user_id: str,
+        username: str,
         namespace: str | None = None,
     ) -> list[mlrun.common.schemas.SecretTokenInfo]:
         secret_names = list(self.secrets_map.keys())
@@ -231,9 +232,11 @@ class InMemorySecretProvider(SecretProviderInterface):
                 name=self.secrets_map[secret_name]["token_name"],
                 expiration=self.secrets_map[secret_name]["expiration"],
                 issued_at=self.secrets_map[secret_name]["issued_at"],
+                user_id=self.secrets_map[secret_name]["user_id"],
+                username=self.secrets_map[secret_name]["username"],
             )
             for secret_name in secret_names
-            if self.secrets_map[secret_name]["user_id"] == user_id
+            if username == "*" or self.secrets_map[secret_name]["username"] == username
         ]
 
     def delete_user_token_secret(

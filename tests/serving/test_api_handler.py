@@ -25,7 +25,7 @@ import pytest
 
 import mlrun
 import mlrun.errors
-from mlrun.common.schemas.serving import APIHandlerAction, _APIEndpointKeys
+from mlrun.common.schemas.serving import APIHandlerAction
 from mlrun.runtimes.nuclio.serving import (
     APIHandlerConfig,
     BodyMappings,
@@ -1631,8 +1631,10 @@ class TestSetAPIHandlerConfig:
             "enabled": True,
             "endpoints": {
                 "POST:/predict": {
-                    _APIEndpointKeys.ACTION: "allow",
-                    _APIEndpointKeys.DESCRIPTION: "Prediction",
+                    "action": "allow",
+                    "description": "Prediction",
+                    "path": "/predict",
+                    "http_method": "POST",
                 }
             },
         }
@@ -1704,8 +1706,10 @@ class TestAPIHandlerStep:
             "enabled": True,
             "endpoints": {
                 "POST:/predict": {
-                    _APIEndpointKeys.ACTION: "allow",
-                    _APIEndpointKeys.DESCRIPTION: "Predict",
+                    "action": "allow",
+                    "description": "Predict",
+                    "path": "/predict",
+                    "http_method": "POST",
                 }
             },
         }

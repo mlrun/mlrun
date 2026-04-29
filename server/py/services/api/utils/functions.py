@@ -18,6 +18,7 @@ from http import HTTPStatus
 
 import mlrun.common.schemas
 import mlrun.datastore
+import mlrun.errors
 import mlrun.utils
 from mlrun.errors import err_to_str
 from mlrun.run import new_function
@@ -141,7 +142,16 @@ def enrich_function_from_code_artifact(
     function: "mlrun.runtimes.base.BaseRuntime",
     project: str,
 ):
-    """Resolve store:// code artifact and merge its requirements into function build spec.
+    """Resolve store:// code artifact and enrich the function build spec from it.
+
+    When ``function.spec.build.source`` is a store:// URI:
+
+    1. Validates that the artifact is a CodeArtifact (kind == "code").
+    2. Merges artifact ``spec.requirements`` into ``function.spec.build.requirements``
+       (user requirements win on conflict).
+    3. Defaults ``function.spec.build.load_source_on_run`` to True when unset, so
+       the source is fetched at runtime rather than baked into a build image.
+       An explicit user value (True/False) is preserved.
 
     :param function: The function object to enrich
     :param project:  Project name for artifact resolution
@@ -156,10 +166,20 @@ def enrich_function_from_code_artifact(
 
     try:
         artifact = mlrun.datastore.get_store_resource(source, project=project)
+    except mlrun.errors.MLRunBaseError:
+        # Preserve typed MLRun errors so HTTP status mapping (e.g. 404 for
+        # MLRunNotFoundError) is not collapsed into a generic 400.
+        raise
     except Exception as exc:
         raise mlrun.errors.MLRunInvalidArgumentError(
             f"Cannot resolve code artifact {source}: {err_to_str(exc)}"
         ) from exc
+
+    if artifact.kind != "code":
+        raise mlrun.errors.MLRunInvalidArgumentError(
+            f"Source {source} resolves to a {artifact.kind!r} artifact; "
+            "expected a code artifact (kind='code')."
+        )
 
     artifact_requirements = getattr(artifact.spec, "requirements", None)
     if artifact_requirements:
@@ -167,3 +187,12 @@ def enrich_function_from_code_artifact(
             reqs_priority=function.spec.build.requirements or [],
             reqs_secondary=artifact_requirements,
         )
+
+    # Default load_source_on_run for store:// jobs so the pod fetches the
+    # artifact at startup. An explicit user value (True/False) is preserved.
+    if function.spec.build.load_source_on_run is None:
+        logger.debug(
+            "Defaulting load_source_on_run=True for store:// source",
+            source=source,
+        )
+        function.spec.build.load_source_on_run = True

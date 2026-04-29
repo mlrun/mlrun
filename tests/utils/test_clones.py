@@ -104,13 +104,74 @@ def test_load_artifact_success(tmp_path, project):
     # Assert directory was actually created
     assert os.path.isdir(target_dir)
 
-    mock_get_resource.assert_called_once_with(source_uri, project=project)
+    mock_get_resource.assert_called_once_with(
+        source_uri, project=project, secrets=None, data_store_secrets=None
+    )
 
     # Assert get_dataitem is called with the artifact's target path
-    mock_get_dataitem.assert_called_once_with(artifact_target_path)
+    mock_get_dataitem.assert_called_once_with(artifact_target_path, secrets=None)
 
     # Assert download is called with the local destination file path
     mock_dataitem.download.assert_called_once_with(expected_local_file)
+
+
+def test_load_artifact_forwards_secrets(tmp_path):
+    """Secrets passed to load_source_code are threaded to the resolver and downloader.
+
+    Required so artifacts whose target path lives on a credential-protected
+    store (S3/GCS/Azure) can still be fetched when the caller provides creds.
+    """
+    source_uri = "store://artifacts/project/handler.py"
+    target_dir = str(tmp_path / "target")
+    artifact_target_path = "s3://bucket/artifacts/handler.py"
+    secrets = {"AWS_ACCESS_KEY_ID": "k", "AWS_SECRET_ACCESS_KEY": "s"}
+
+    mock_artifact = unittest.mock.MagicMock()
+    mock_artifact.get_target_path.return_value = artifact_target_path
+    mock_artifact.spec.src_path = "handler.py"
+    mock_dataitem = unittest.mock.MagicMock()
+
+    with (
+        unittest.mock.patch.object(mlrun.datastore, "is_store_uri", return_value=True),
+        unittest.mock.patch.object(
+            mlrun.datastore, "get_store_resource", return_value=mock_artifact
+        ) as mock_get_resource,
+        unittest.mock.patch(
+            "mlrun.get_dataitem", return_value=mock_dataitem
+        ) as mock_get_dataitem,
+    ):
+        mlrun.utils.clones.load_source_code(
+            source_uri=source_uri,
+            target_dir=target_dir,
+            secrets=secrets,
+        )
+
+    mock_get_resource.assert_called_once_with(
+        source_uri,
+        project=None,
+        secrets=secrets,
+        data_store_secrets=secrets,
+    )
+    mock_get_dataitem.assert_called_once_with(artifact_target_path, secrets=secrets)
+
+
+def test_extract_source_store_uri_forwards_secrets():
+    """extract_source forwards its secrets parameter through to load_source_code."""
+    secrets = {"AWS_ACCESS_KEY_ID": "k"}
+    with unittest.mock.patch("mlrun.utils.clones.load_source_code") as mock_load:
+        mock_load.return_value = "/tmp/code/my_func.py"
+        mlrun.utils.clones.extract_source(
+            source="store://artifacts/proj/my_func",
+            workdir="/tmp/workdir",
+            project="proj",
+            secrets=secrets,
+        )
+        mock_load.assert_called_once_with(
+            source_uri="store://artifacts/proj/my_func",
+            target_dir="/tmp/workdir",
+            project="proj",
+            secrets=secrets,
+        )
 
 
 @pytest.mark.parametrize(
@@ -237,6 +298,7 @@ def test_extract_source_store_uri_delegates_to_load_source_code():
             source_uri="store://artifacts/proj/my_func",
             target_dir="/tmp/workdir",
             project="proj",
+            secrets=None,
         )
         assert result == "/tmp/code/my_func.py"
 
@@ -253,6 +315,7 @@ def test_extract_source_store_uri_without_project():
             source_uri="store://artifacts/proj/my_func",
             target_dir="/tmp/workdir",
             project=None,
+            secrets=None,
         )
 
 
@@ -260,7 +323,6 @@ def test_extract_source_store_uri_default_workdir():
     """extract_source with store:// and no workdir uses default ./code dir."""
     with unittest.mock.patch("mlrun.utils.clones.load_source_code") as mock_load:
         mock_load.return_value = "/tmp/code/my_func.py"
-        import os
 
         expected_target = os.path.realpath("./code")
         mlrun.utils.clones.extract_source(
@@ -271,6 +333,7 @@ def test_extract_source_store_uri_default_workdir():
             source_uri="store://artifacts/proj/my_func",
             target_dir=expected_target,
             project="proj",
+            secrets=None,
         )
 
 

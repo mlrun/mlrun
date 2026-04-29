@@ -22,8 +22,6 @@ from sqlalchemy.orm import Session
 
 import mlrun.common.constants as mlrun_constants
 import mlrun.common.schemas
-import mlrun.model
-import mlrun.runtimes.kubejob
 import tests.conftest
 from mlrun.common.runtimes.constants import PodPhases, RunStates
 from mlrun.common.types import AuthenticationMode
@@ -36,7 +34,6 @@ import framework.utils.singletons.db
 import services.api.crud
 from framework.utils.singletons.db import get_db
 from services.api.runtime_handlers import get_runtime_handler
-from services.api.runtime_handlers.kubejob import KubeRuntimeHandler
 from services.api.tests.unit.runtime_handlers.base import TestRuntimeHandlerBase
 
 
@@ -1176,41 +1173,6 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
 
         assert reason == "Error"
         assert message == "OOMKilled"
-
-    def test_store_uri_source_defaults_load_source_on_run_to_true(self):
-        """store:// source with unset load_source_on_run defaults to True."""
-        runtime = mlrun.runtimes.kubejob.KubejobRuntime()
-        runtime.metadata.name = "test-func"
-        runtime.spec.build.source = "store://artifacts/proj/my_code"
-        # load_source_on_run left as default (None)
-
-        run = mlrun.model.RunObject()
-        run.metadata.name = "test-run"
-        run.spec.handler = "main"
-
-        handler = KubeRuntimeHandler()
-        cmd, args, extra_env = handler._get_cmd_args(runtime, run)
-
-        assert "--source" in args
-        assert "store://artifacts/proj/my_code" in args
-        assert runtime.spec.build.load_source_on_run is True
-
-    def test_store_uri_source_preserves_explicit_false(self):
-        """store:// source with explicit load_source_on_run=False is preserved."""
-        runtime = mlrun.runtimes.kubejob.KubejobRuntime()
-        runtime.metadata.name = "test-func"
-        runtime.spec.build.source = "store://artifacts/proj/my_code"
-        runtime.spec.build.load_source_on_run = False  # explicit user value
-
-        run = mlrun.model.RunObject()
-        run.metadata.name = "test-run"
-        run.spec.handler = "main"
-
-        handler = KubeRuntimeHandler()
-        handler._get_cmd_args(runtime, run)
-
-        # explicit False is honored — no override
-        assert runtime.spec.build.load_source_on_run is False
 
     def _mock_list_resources_pods(self, pod=None):
         pod = pod or self.completed_job_pod

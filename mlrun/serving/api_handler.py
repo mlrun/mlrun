@@ -125,6 +125,10 @@ class _APIHandlerStep(mlrun.serving.states.TaskStep):
         ] = []
         parsed_body_map: dict[str, dict[str, tuple[Any, bool]]] = {}
 
+        # Tracks normalized template shapes per method to detect overlapping templates.
+        # e.g. /a/{key} and /a/{user_id} both normalize to /a/{*} → conflict.
+        seen_template_shapes: dict[tuple[HTTPMethod, str], str] = {}
+
         for ep in self.config.endpoints.values():
             method = ep.http_method
             path_pattern = ep.path
@@ -150,6 +154,19 @@ class _APIHandlerStep(mlrun.serving.states.TaskStep):
 
             elif "{" in path_pattern:
                 # --- Template pattern ---
+                # Detect overlapping templates: /a/{key} and /a/{user_id} are ambiguous.
+                # Normalize by replacing all {param} placeholders with {*} and check for
+                # duplicates per HTTP method.
+                shape = re.sub(r"\{[^}]*\}", "{*}", path_pattern)
+                shape_key = (method, shape)
+                if shape_key in seen_template_shapes:
+                    raise mlrun.errors.MLRunValueError(
+                        f"Overlapping template endpoints for {method.value}: "
+                        f"'{path_pattern}' and '{seen_template_shapes[shape_key]}' "
+                        f"match the same set of paths"
+                    )
+                seen_template_shapes[shape_key] = path_pattern
+
                 # Convert {param} placeholders to named regex capture groups.
                 # Example: /api/{user_id}/data → ^/api/(?P<user_id>[^/]+)/data$
                 regex_pattern = re.escape(path_pattern)

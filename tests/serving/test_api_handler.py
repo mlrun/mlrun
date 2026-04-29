@@ -760,28 +760,6 @@ class TestStarPatternMatching:
         with pytest.raises(mlrun.errors.MLRunAccessDeniedError):
             step.do(event)
 
-    def test_template_insertion_order(self) -> None:
-        """Within template patterns, the first registered pattern wins when multiple templates match."""
-        config = APIHandlerConfig()
-        # /api/{a}/resource is registered first
-        config.add_endpoint_handler(
-            "/api/{a}/resource", HTTPMethod.GET, APIHandlerAction.ALLOW
-        )
-        # Register a second overlapping template with a different param name
-        config.add_endpoint_handler(
-            "/api/{b}/resource", HTTPMethod.GET, APIHandlerAction.ALLOW
-        )
-
-        step = _APIHandlerStep(config=config)
-        assert len(step._endpoint_patterns) == 2
-
-        # First-inserted template should be highest priority — params carry its name
-        matches = step._collect_endpoint_matches(HTTPMethod.GET, "/api/foo/resource")
-        assert len(matches) == 2
-        ep, params = matches[0]
-        assert ep.get_endpoint_key() == "GET:/api/{a}/resource"
-        assert params == {"a": "foo"}
-
     def test_multiple_star_patterns_different_methods(self) -> None:
         """Test multiple star patterns with different HTTP methods"""
         config = APIHandlerConfig()
@@ -2262,6 +2240,36 @@ class TestCompileEndpointPatterns:
         method, prefix, ep = handler._star_patterns[0]
         assert prefix == "/api/v1/"
         assert method == HTTPMethod.POST
+
+    def test_overlapping_template_endpoints_raises(self) -> None:
+        """Two template endpoints that match the same set of paths raise at init time.
+
+        /a/{key} and /a/{user_id} both normalize to /a/{*} — ambiguous for any
+        request to /a/<value>, so the second registration must be rejected.
+        """
+        config = APIHandlerConfig()
+        config.add_endpoint_handler("/a/{key}", HTTPMethod.GET, APIHandlerAction.ALLOW)
+        config.add_endpoint_handler(
+            "/a/{user_id}", HTTPMethod.GET, APIHandlerAction.FORBID
+        )
+
+        with pytest.raises(
+            mlrun.errors.MLRunValueError,
+            match="Overlapping template endpoints.*GET.*/a/\\{user_id\\}.*and.*\\/a\\/\\{key\\}",
+        ):
+            _APIHandlerStep(config=config)
+
+    def test_overlapping_template_different_methods_allowed(self) -> None:
+        """Same template shape on different HTTP methods is not a conflict."""
+        config = APIHandlerConfig()
+        config.add_endpoint_handler("/a/{key}", HTTPMethod.GET, APIHandlerAction.ALLOW)
+        config.add_endpoint_handler(
+            "/a/{user_id}", HTTPMethod.POST, APIHandlerAction.ALLOW
+        )
+
+        # Should not raise — different methods cannot overlap
+        step = _APIHandlerStep(config=config)
+        assert len(step._endpoint_patterns) == 2
 
     def test_same_endpoint_body_mappings_conflict_raises(self) -> None:
         """input_body_mappings destination_path conflicting with the same endpoint's path param raises at init."""

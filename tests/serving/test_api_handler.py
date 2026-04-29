@@ -1904,6 +1904,54 @@ class TestAPIHandlerStep:
         assert result.body.original_body == original_body
         assert result.body["item_id"] == "42"
 
+    def test_run_body_map_mandatory_field_missing_raises(self) -> None:
+        """mandatory=True on a body mapping raises MLRunBadRequestError when the field
+        is absent from the request body."""
+        bm = BodyMappings()
+        bm.add_mapping("$.model", destination_path="model", mandatory=True)
+
+        config = APIHandlerConfig()
+        config.add_endpoint_handler(
+            "/predict", HTTPMethod.POST, APIHandlerAction.ALLOW, input_body_mappings=bm
+        )
+
+        step = _APIHandlerStep(config=config)
+        event = MockEvent(body={"messages": ["hello"]}, method="POST", path="/predict")
+
+        with pytest.raises(
+            mlrun.errors.MLRunBadRequestError,
+            match="Mandatory field 'model' not found",
+        ):
+            step.do(event)
+
+    @pytest.mark.parametrize("mandatory", [True, False])
+    def test_run_body_map_mapped_field_extracted(self, mandatory: bool) -> None:
+        """Mapped field is extracted correctly regardless of mandatory flag when present.
+
+        Only the declared mapping destination ('model') must appear in the context.
+        An unrelated key in the body ('extra_data') must NOT be extracted.
+        """
+        bm = BodyMappings()
+        bm.add_mapping("$.model", destination_path="model", mandatory=mandatory)
+
+        config = APIHandlerConfig()
+        config.add_endpoint_handler(
+            "/predict", HTTPMethod.POST, APIHandlerAction.ALLOW, input_body_mappings=bm
+        )
+
+        step = _APIHandlerStep(config=config)
+        event = MockEvent(
+            body={"model": "gpt-4", "extra_data": "ignored"},
+            method="POST",
+            path="/predict",
+        )
+
+        result = step.do(event)
+
+        assert isinstance(result.body, _RequestContext)
+        assert result.body["model"] == "gpt-4"
+        assert "extra_data" not in result.body
+
 
 class TestAddAPIHandlerStepToGraph:
     """Direct tests for _add_api_handler_step_to_graph function"""

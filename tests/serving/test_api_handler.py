@@ -1905,7 +1905,6 @@ class TestAPIHandlerStep:
         assert result.body["item_id"] == "42"
 
 
-
 class TestAddAPIHandlerStepToGraph:
     """Direct tests for _add_api_handler_step_to_graph function"""
 

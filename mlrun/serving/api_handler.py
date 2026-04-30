@@ -291,6 +291,35 @@ class _APIHandlerStep(mlrun.serving.states.TaskStep):
 
         return normalized_path, query_params
 
+    def _merge_body_maps(
+        self,
+        matches: list[tuple[Any, dict]],
+    ) -> dict[str, tuple[Any, bool]]:
+        """Merge input body maps from all matched endpoints, lowest priority first.
+
+        Most specific endpoint wins on conflict:
+        - Same destination → higher-priority source overwrites (dict key collision).
+        - Same source, different destination → stale destination is removed so the
+          value is not passed to two destinations at once.
+
+        :param matches: Ordered list of ``(EndpointConfig, path_params)`` from
+                        :meth:`_collect_endpoint_matches` (index 0 = highest priority).
+        :return: Merged map of ``{destination_path: (compiled_expr, mandatory)}``.
+        """
+        effective_map: dict[str, tuple[Any, bool]] = {}
+        src_to_dest: dict[str, str] = {}  # str(expr) → current destination
+        for matched_ep, _ in reversed(matches):
+            ep_key = matched_ep.get_endpoint_key()
+            if ep_key not in self._parsed_body_map:
+                continue
+            for dest, (expr, mandatory) in self._parsed_body_map[ep_key].items():
+                src = str(expr)
+                if src in src_to_dest:
+                    effective_map.pop(src_to_dest[src])
+                effective_map[dest] = (expr, mandatory)
+                src_to_dest[src] = dest
+        return effective_map
+
     def do(
         self, event: Union[nuclio_sdk.Event, "mlrun.serving.server.MockEvent"]
     ) -> Union[nuclio_sdk.Event, "mlrun.serving.server.MockEvent"]:
@@ -349,13 +378,7 @@ class _APIHandlerStep(mlrun.serving.states.TaskStep):
 
             # Handle the action
             if ep.action == schemas.APIHandlerAction.ALLOW:
-                # Build the effective body map by merging all matches lowest→highest priority,
-                # so the most specific endpoint's mappings win on conflict.
-                effective_map: dict[str, tuple[Any, bool]] = {}
-                for matched_ep, _ in reversed(matches):
-                    ep_key = matched_ep.get_endpoint_key()
-                    if ep_key in self._parsed_body_map:
-                        effective_map.update(self._parsed_body_map[ep_key])
+                effective_map = self._merge_body_maps(matches)
 
                 body_params = {}
                 if effective_map:

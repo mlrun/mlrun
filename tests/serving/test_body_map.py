@@ -57,7 +57,10 @@ class TestAPIHandlerConfigBodyMap:
 
         config = APIHandlerConfig()
         config.add_endpoint_handler(
-            "/users", HTTPMethod.POST, APIHandlerAction.ALLOW, "Create user",
+            "/users",
+            HTTPMethod.POST,
+            APIHandlerAction.ALLOW,
+            "Create user",
             input_body_mappings=bm,
         )
 
@@ -73,10 +76,14 @@ class TestAPIHandlerConfigBodyMap:
 
         config = APIHandlerConfig()
         config.add_endpoint_handler(
-            "/predict", HTTPMethod.POST, APIHandlerAction.ALLOW,
+            "/predict",
+            HTTPMethod.POST,
+            APIHandlerAction.ALLOW,
             input_body_mappings=bm,
         )
-        config.add_endpoint_handler("/classify", HTTPMethod.POST, APIHandlerAction.ALLOW)
+        config.add_endpoint_handler(
+            "/classify", HTTPMethod.POST, APIHandlerAction.ALLOW
+        )
 
         predict_ep = config.get_endpoint_config(HTTPMethod.POST, "/predict")
         classify_ep = config.get_endpoint_config(HTTPMethod.POST, "/classify")
@@ -108,7 +115,10 @@ class TestAPIHandlerConfigBodyMap:
         assert len(mappings) == 1
         assert mappings[0]["source_json_path"] == "$.model"
         assert mappings[0]["destination_path"] == "model_new"
-        assert any("Overriding existing body mapping" in record.message for record in caplog.records)
+        assert any(
+            "Overriding existing body mapping" in record.message
+            for record in caplog.records
+        )
 
     def test_add_mapping_same_destination_overrides_source(self, caplog) -> None:
         """Calling add_mapping twice with the same destination_path overwrites the source.
@@ -125,13 +135,20 @@ class TestAPIHandlerConfigBodyMap:
         assert len(mappings) == 1
         assert mappings[0]["source_json_path"] == "$.model_new"
         assert mappings[0]["destination_path"] == "model"
-        assert any("Overriding existing body mapping" in record.message for record in caplog.records)
+        assert any(
+            "Overriding existing body mapping" in record.message
+            for record in caplog.records
+        )
 
     def test_invalid_jsonpath_raises_at_step_init(self) -> None:
         """Invalid JSONPath in input_body_mappings raises MLRunValueError at _APIHandlerStep init."""
         bm = BodyMappings()
         bm.mappings = [
-            {"source_json_path": "$.invalid[[[syntax", "destination_path": "bad_param", "mandatory": False}
+            {
+                "source_json_path": "$.invalid[[[syntax",
+                "destination_path": "bad_param",
+                "mandatory": False,
+            }
         ]
 
         config = APIHandlerConfig()
@@ -139,7 +156,9 @@ class TestAPIHandlerConfigBodyMap:
             "/predict", HTTPMethod.POST, APIHandlerAction.ALLOW, input_body_mappings=bm
         )
 
-        with pytest.raises(mlrun.errors.MLRunValueError, match="Invalid JSONPath expression"):
+        with pytest.raises(
+            mlrun.errors.MLRunValueError, match="Invalid JSONPath expression"
+        ):
             _APIHandlerStep(config=config)
 
     @staticmethod
@@ -731,9 +750,9 @@ class TestBodyMapHierarchy:
     # The sub-endpoint is parametrized as exact, template, or specific-star.
     _REQUEST_PATH = "/predict/1"
     _SUB_ENDPOINT_PATHS = [
-        "/predict/1",         # exact
-        "/predict/{item_id}", # template — also extracts item_id="1"
-        "/predict/*",         # specific star
+        "/predict/1",  # exact
+        "/predict/{item_id}",  # template — also extracts item_id="1"
+        "/predict/*",  # specific star
     ]
 
     def _make_config(
@@ -750,17 +769,29 @@ class TestBodyMapHierarchy:
         config = APIHandlerConfig()
         if star_first:
             config.add_endpoint_handler(
-                "/*", HTTPMethod.POST, APIHandlerAction.ALLOW, input_body_mappings=star_bm
+                "/*",
+                HTTPMethod.POST,
+                APIHandlerAction.ALLOW,
+                input_body_mappings=star_bm,
             )
             config.add_endpoint_handler(
-                explicit_path, HTTPMethod.POST, APIHandlerAction.ALLOW, input_body_mappings=explicit_bm
+                explicit_path,
+                HTTPMethod.POST,
+                APIHandlerAction.ALLOW,
+                input_body_mappings=explicit_bm,
             )
         else:
             config.add_endpoint_handler(
-                explicit_path, HTTPMethod.POST, APIHandlerAction.ALLOW, input_body_mappings=explicit_bm
+                explicit_path,
+                HTTPMethod.POST,
+                APIHandlerAction.ALLOW,
+                input_body_mappings=explicit_bm,
             )
             config.add_endpoint_handler(
-                "/*", HTTPMethod.POST, APIHandlerAction.ALLOW, input_body_mappings=star_bm
+                "/*",
+                HTTPMethod.POST,
+                APIHandlerAction.ALLOW,
+                input_body_mappings=star_bm,
             )
         return config
 
@@ -778,7 +809,10 @@ class TestBodyMapHierarchy:
         star_bm.add_mapping("$.model", destination_path="model", mandatory=True)
 
         config = self._make_config(
-            star_bm=star_bm, explicit_bm=None, star_first=star_first, explicit_path=explicit_path
+            star_bm=star_bm,
+            explicit_bm=None,
+            star_first=star_first,
+            explicit_path=explicit_path,
         )
         step = _APIHandlerStep(config=config)
         event = MockEvent(
@@ -808,10 +842,15 @@ class TestBodyMapHierarchy:
         star_bm.add_mapping("$.model", destination_path="model", mandatory=True)
 
         config = self._make_config(
-            star_bm=star_bm, explicit_bm=None, star_first=star_first, explicit_path=explicit_path
+            star_bm=star_bm,
+            explicit_bm=None,
+            star_first=star_first,
+            explicit_path=explicit_path,
         )
         step = _APIHandlerStep(config=config)
-        event = MockEvent(body={"other": "value"}, method="POST", path=self._REQUEST_PATH)
+        event = MockEvent(
+            body={"other": "value"}, method="POST", path=self._REQUEST_PATH
+        )
 
         with pytest.raises(
             mlrun.errors.MLRunBadRequestError,
@@ -821,31 +860,40 @@ class TestBodyMapHierarchy:
 
     @pytest.mark.parametrize("star_first", [True, False])
     @pytest.mark.parametrize("explicit_path", _SUB_ENDPOINT_PATHS)
+    @pytest.mark.parametrize("explicit_dest", ["model", "model_renamed"])
     def test_explicit_optional_overrides_star_mandatory(
-        self, star_first: bool, explicit_path: str
+        self, star_first: bool, explicit_path: str, explicit_dest: str
     ) -> None:
         """More specific endpoint's mandatory=False overrides broad star's mandatory=True.
 
         When the field is missing, no error is raised because the explicit mapping wins.
+        Covers both same-destination and renamed-destination cases.
         Insertion order must not affect the result.
         """
         star_bm = BodyMappings()
         star_bm.add_mapping("$.model", destination_path="model", mandatory=True)
 
         explicit_bm = BodyMappings()
-        explicit_bm.add_mapping("$.model", destination_path="model", mandatory=False)
+        explicit_bm.add_mapping(
+            "$.model", destination_path=explicit_dest, mandatory=False
+        )
 
         config = self._make_config(
-            star_bm=star_bm, explicit_bm=explicit_bm,
-            star_first=star_first, explicit_path=explicit_path,
+            star_bm=star_bm,
+            explicit_bm=explicit_bm,
+            star_first=star_first,
+            explicit_path=explicit_path,
         )
         step = _APIHandlerStep(config=config)
-        event = MockEvent(body={"other": "value"}, method="POST", path=self._REQUEST_PATH)
+        event = MockEvent(
+            body={"other": "value"}, method="POST", path=self._REQUEST_PATH
+        )
 
         # explicit's mandatory=False wins → no error, field missing → not extracted.
         # For template paths, path params still create a _RequestContext.
         result = step.do(event)
         assert "model" not in result.body
+        assert explicit_dest not in result.body
         if explicit_path == "/predict/{item_id}":
             assert isinstance(result.body, _RequestContext)
             assert result.body["item_id"] == "1"
@@ -870,11 +918,15 @@ class TestBodyMapHierarchy:
         explicit_bm.add_mapping("$.model", destination_path="model", mandatory=True)
 
         config = self._make_config(
-            star_bm=star_bm, explicit_bm=explicit_bm,
-            star_first=star_first, explicit_path=explicit_path,
+            star_bm=star_bm,
+            explicit_bm=explicit_bm,
+            star_first=star_first,
+            explicit_path=explicit_path,
         )
         step = _APIHandlerStep(config=config)
-        event = MockEvent(body={"other": "value"}, method="POST", path=self._REQUEST_PATH)
+        event = MockEvent(
+            body={"other": "value"}, method="POST", path=self._REQUEST_PATH
+        )
 
         with pytest.raises(
             mlrun.errors.MLRunBadRequestError,
@@ -901,8 +953,10 @@ class TestBodyMapHierarchy:
         explicit_bm.add_mapping("$.temperature", destination_path="temperature")
 
         config = self._make_config(
-            star_bm=star_bm, explicit_bm=explicit_bm,
-            star_first=star_first, explicit_path=explicit_path,
+            star_bm=star_bm,
+            explicit_bm=explicit_bm,
+            star_first=star_first,
+            explicit_path=explicit_path,
         )
         step = _APIHandlerStep(config=config)
         event = MockEvent(
@@ -919,3 +973,38 @@ class TestBodyMapHierarchy:
         assert "extra" not in result.body
         if explicit_path == "/predict/{item_id}":
             assert result.body["item_id"] == "1"
+
+    @pytest.mark.parametrize("star_first", [True, False])
+    @pytest.mark.parametrize("explicit_path", _SUB_ENDPOINT_PATHS)
+    def test_same_source_different_dest_specific_wins(
+        self, star_first: bool, explicit_path: str
+    ) -> None:
+        """Same source_json_path on star and specific endpoint — only specific destination survives.
+
+        Star maps $.model → model_star; specific maps $.model → model_specific.
+        After merge, only model_specific must be present; model_star must be gone.
+        """
+        star_bm = BodyMappings()
+        star_bm.add_mapping("$.model", destination_path="model_star")
+
+        explicit_bm = BodyMappings()
+        explicit_bm.add_mapping("$.model", destination_path="model_specific")
+
+        config = self._make_config(
+            star_bm=star_bm,
+            explicit_bm=explicit_bm,
+            star_first=star_first,
+            explicit_path=explicit_path,
+        )
+        step = _APIHandlerStep(config=config)
+        event = MockEvent(
+            body={"model": "gpt-4"},
+            method="POST",
+            path=self._REQUEST_PATH,
+        )
+
+        result = step.do(event)
+
+        assert isinstance(result.body, _RequestContext)
+        assert result.body["model_specific"] == "gpt-4"
+        assert "model_star" not in result.body

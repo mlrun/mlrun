@@ -470,6 +470,7 @@ with warnings.catch_warnings():
                 "project",
                 "iteration",
                 "start_time",
+                "name",
             ),
         )
 

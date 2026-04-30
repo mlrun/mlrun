@@ -114,14 +114,12 @@ ML-11820|Improved the time to access the monitoring page (V3IO).|
 |ML-12328|Fixed KFP experiments pagination.|
 |ML-12372|Fixed workflows pagination.|
 
-
-
 (#v1103)=
 ## v1.10.3
 ### Closed issues
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
-|ML-12379|Fixed workflows pagination|
+|ML-12379|Fixed workflows pagination.|
 
 (v1102)=
 ## v1.10.2 (February 2025)

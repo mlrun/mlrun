@@ -597,7 +597,7 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
         )
 
     def resolve_auth_secret_name(self, access_key: str) -> str:
-        hashed_access_key = self._hash_access_key(access_key)
+        hashed_access_key = self._hash_label(access_key)
         return mlrun.mlconf.secret_stores.kubernetes.auth_secret_name.format(
             hashed_access_key=hashed_access_key
         )
@@ -1173,10 +1173,6 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
         )
 
     @staticmethod
-    def _hash_access_key(access_key: str):
-        return hashlib.sha224(access_key.encode()).hexdigest()
-
-    @staticmethod
     def _hash_label(value: str) -> str:
         return hashlib.sha224(value.encode()).hexdigest()
 
@@ -1366,10 +1362,6 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
 
         return client.Configuration.get_default_copy()
 
-    @staticmethod
-    def _hash_access_key(access_key: str):
-        return hashlib.sha224(access_key.encode()).hexdigest()
-
     def store_user_token_secret(
         self,
         auth_info: mlrun.common.schemas.AuthInfo,
@@ -1403,9 +1395,12 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
         """
         user_id = auth_info.user_id
         username = auth_info.username
-        assert user_id is not None and username is not None, (
-            "secret token handling is only supported in enterprise where these are always filled"
-        )
+
+        if user_id is None or username is None:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "secret token handling is only supported in enterprise where"
+                "auth_info.user_id and auth_info.username should always be filled"
+            )
 
         labels = {
             mlrun_constants.MLRunInternalLabels.auth_userid: user_id,

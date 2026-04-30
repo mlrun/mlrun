@@ -386,10 +386,10 @@ jobs:
             - https://registry-1.docker.io
           ghcr.io:
             endpoint:
-            - https://${ARTIFACTORY_REGISTRY_URL}
+            - https://${ARTIFACTORY_REGISTRY_URL#https://}
           gcr.io:
             endpoint:
-            - https://${ARTIFACTORY_REGISTRY_URL}
+            - https://${ARTIFACTORY_REGISTRY_URL#https://}
         configs:
           "registry-1.docker.io":
             auth:

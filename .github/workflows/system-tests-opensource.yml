@@ -514,6 +514,7 @@ jobs:
         # pip-install mlrun from a local HTTP server instead of cloning from GitHub.
         # This avoids GitHub rate-limiting when multiple kaniko builds run concurrently.
         pip install build --quiet
+        rm -rf /tmp/mlrun-wheels && mkdir -p /tmp/mlrun-wheels
         python -m build --wheel --outdir /tmp/mlrun-wheels . --quiet
         # Use a fixed name so the URL is predictable
         mv /tmp/mlrun-wheels/*.whl /tmp/mlrun-wheels/mlrun-pr-rebased-development.whl

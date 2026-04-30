@@ -37,7 +37,7 @@ def upgrade():
     inspector = sa.inspect(op.get_bind())
     existing = {idx["name"] for idx in inspector.get_indexes(_table_name)}
     if _index_name in existing:
-        op.drop_index(_index_name, table_name=_table_name)
+        return
     op.create_index(
         _index_name,
         _table_name,

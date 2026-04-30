@@ -619,9 +619,10 @@ class OpenAIProfile(DatastoreProfile):
 
 class HuggingFaceProfile(DatastoreProfile):
     type: str = pydantic.v1.Field("huggingface")
-    _private_attributes = ("token", "model_kwargs")
+    _private_attributes = ("token", "endpoint", "model_kwargs")
     task: str | None = None
     token: str | None = None
+    endpoint: str | None = None
     device: typing.Union[int, str] | None = None
     device_map: typing.Union[str, dict[str, typing.Union[int, str]], None] = None
     trust_remote_code: bool = None
@@ -631,12 +632,13 @@ class HuggingFaceProfile(DatastoreProfile):
         keys = {
             "HF_TASK": self.task,
             "HF_TOKEN": self.token,
+            "HF_ENDPOINT": self.endpoint,
             "HF_DEVICE": self.device,
             "HF_DEVICE_MAP": self.device_map,
             "HF_TRUST_REMOTE_CODE": self.trust_remote_code,
             "HF_MODEL_KWARGS": self.model_kwargs,
         }
-        return {k: v for k, v in keys.items() if v}
+        return {k: v for k, v in keys.items() if v is not None}
 
     def url(self, subpath):
         return f"{self.type}://{subpath.lstrip('/')}"

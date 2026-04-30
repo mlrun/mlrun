@@ -294,6 +294,43 @@ class TestAPIHandlerStepBodyMap:
         assert classify_result.body["input"] == "cats"
         assert "model_name" not in classify_result.body
 
+    def test_different_http_methods_independent(self) -> None:
+        """GET and POST on the same path have independent body mappings."""
+        get_bm = BodyMappings()
+        get_bm.add_mapping("$.query", destination_path="q")
+
+        post_bm = BodyMappings()
+        post_bm.add_mapping("$.model", destination_path="model")
+
+        config = APIHandlerConfig()
+        config.add_endpoint_handler(
+            "/predict",
+            HTTPMethod.GET,
+            APIHandlerAction.ALLOW,
+            input_body_mappings=get_bm,
+        )
+        config.add_endpoint_handler(
+            "/predict",
+            HTTPMethod.POST,
+            APIHandlerAction.ALLOW,
+            input_body_mappings=post_bm,
+        )
+        step = _APIHandlerStep(config=config)
+
+        shared_body = {"query": "hello", "model": "gpt-4"}
+
+        get_result = step.do(MockEvent(body=shared_body, method="GET", path="/predict"))
+        assert isinstance(get_result.body, _RequestContext)
+        assert get_result.body["q"] == "hello"
+        assert "model" not in get_result.body
+
+        post_result = step.do(
+            MockEvent(body=shared_body, method="POST", path="/predict")
+        )
+        assert isinstance(post_result.body, _RequestContext)
+        assert post_result.body["model"] == "gpt-4"
+        assert "q" not in post_result.body
+
 
 # ---------------------------------------------------------------------------
 # End-to-end mock-server tests
@@ -425,6 +462,50 @@ class TestBodyMapMockServer:
 
             resp2 = server.test("/classify", method="POST", body=shared_body)
             assert resp2 == {"input": [1, 2]}
+        finally:
+            server.wait_for_completion()
+
+    @staticmethod
+    def test_multi_match_body_map_merge_e2e() -> None:
+        """E2e: star + specific endpoint both have body maps — merged result reaches the handler."""
+
+        def echo_handler(body, **kwargs):
+            return kwargs
+
+        fn = cast(
+            ServingRuntime, mlrun.new_function("test-multi-match-merge", kind="serving")
+        )
+
+        star_bm = BodyMappings()
+        star_bm.add_mapping("$.model", destination_path="model")
+
+        specific_bm = BodyMappings()
+        specific_bm.add_mapping("$.temperature", destination_path="temperature")
+
+        config = APIHandlerConfig()
+        config.add_endpoint_handler(
+            "/*", HTTPMethod.POST, APIHandlerAction.ALLOW, input_body_mappings=star_bm
+        )
+        config.add_endpoint_handler(
+            "/predict",
+            HTTPMethod.POST,
+            APIHandlerAction.ALLOW,
+            input_body_mappings=specific_bm,
+        )
+        fn.set_api_handler_config(config)
+
+        graph = fn.set_topology("flow", engine="sync")
+        graph.to(name="echo", handler=echo_handler).respond()
+
+        server = fn.to_mock_server()
+        try:
+            resp = server.test(
+                "/predict",
+                method="POST",
+                body={"model": "gpt-4", "temperature": 0.7, "extra": "ignored"},
+            )
+            # star contributes "model", specific contributes "temperature", extra is dropped
+            assert resp == {"model": "gpt-4", "temperature": 0.7}
         finally:
             server.wait_for_completion()
 
@@ -919,3 +1000,40 @@ class TestBodyMapHierarchy:
         assert isinstance(result.body, _RequestContext)
         assert result.body["model_specific"] == "gpt-4"
         assert "model_star" not in result.body
+
+    def test_forbid_star_body_map_still_merged_when_specific_allows(self) -> None:
+        """FORBID star body map is still merged when a more specific ALLOW endpoint matches.
+
+        Action (ALLOW/FORBID) is taken from the most specific match only.
+        Body maps from all matches — including FORBID ones — are always merged.
+        """
+        star_bm = BodyMappings()
+        star_bm.add_mapping("$.model", destination_path="model")
+
+        specific_bm = BodyMappings()
+        specific_bm.add_mapping("$.temperature", destination_path="temperature")
+
+        config = APIHandlerConfig()
+        config.add_endpoint_handler(
+            "/*", HTTPMethod.POST, APIHandlerAction.FORBID, input_body_mappings=star_bm
+        )
+        config.add_endpoint_handler(
+            "/predict",
+            HTTPMethod.POST,
+            APIHandlerAction.ALLOW,
+            input_body_mappings=specific_bm,
+        )
+        step = _APIHandlerStep(config=config)
+
+        event = MockEvent(
+            body={"model": "gpt-4", "temperature": 0.7},
+            method="POST",
+            path="/predict",
+        )
+        result = step.do(event)
+
+        # Most specific match is ALLOW → request goes through
+        # Both star (FORBID) and specific (ALLOW) body maps are merged
+        assert isinstance(result.body, _RequestContext)
+        assert result.body["model"] == "gpt-4"
+        assert result.body["temperature"] == 0.7

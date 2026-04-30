@@ -199,133 +199,102 @@ class TestAPIHandlerConfigBodyMap:
 # _APIHandlerStep body_map integration tests
 # ---------------------------------------------------------------------------
 class TestAPIHandlerStepBodyMap:
-    """Tests for body_map integration in _APIHandlerStep"""
+    """Tests for input_body_mappings integration in _APIHandlerStep."""
 
     @staticmethod
-    def test_invalid_jsonpath_raises_error_on_init() -> None:
-        """Test that invalid JSONPath expression raises error during initialization"""
-        import mlrun.errors
-
-        config = APIHandlerConfig(body_map={"param": "$.invalid[[[syntax"})
+    def _make_step(mappings: dict[str, str], path: str = "/predict") -> "_APIHandlerStep":
+        """Build a step with a single endpoint that has the given source→dest mappings."""
+        bm = BodyMappings()
+        for dest, src in mappings.items():
+            bm.add_mapping(src, destination_path=dest)
+        config = APIHandlerConfig()
         config.add_endpoint_handler(
-            "/predict", HTTPMethod.POST, APIHandlerAction.ALLOW, "Test"
-        )
-
-        # Should raise during step initialization, not during request handling
-        with pytest.raises(
-            mlrun.errors.MLRunInvalidArgumentError,
-            match=r"Invalid JSON path expression for parameter 'param'",
-        ):
-            _APIHandlerStep(config=config)
-
-    @staticmethod
-    def _make_step_with_body_map(body_map, path="/predict"):
-        """Helper to create an _APIHandlerStep with a config-level body_map"""
-        config = APIHandlerConfig(body_map=body_map)
-        config.add_endpoint_handler(
-            path, HTTPMethod.POST, APIHandlerAction.ALLOW, "Test"
+            path, HTTPMethod.POST, APIHandlerAction.ALLOW, input_body_mappings=bm
         )
         return _APIHandlerStep(config=config)
 
-    @staticmethod
-    def test_body_map_transforms_event_body() -> None:
-        """Test that body_map transforms the event body via JSONPath"""
-        body_map = {
+    def test_body_map_transforms_event_body(self) -> None:
+        """input_body_mappings extracts fields from the request body via JSONPath."""
+        step = self._make_step({
             "model_name": "$.request.model",
             "input_data": "$.request.data",
-        }
-        step = TestAPIHandlerStepBodyMap._make_step_with_body_map(body_map)
+        })
 
-        event = MagicMock()
-        event.method = HTTPMethod.POST
-        event.path = "/predict"
-        event.body = {
-            "request": {
-                "model": "my-model",
-                "data": [1, 2, 3],
-            },
-            "metadata": {"trace_id": "abc"},
-        }
+        event = MockEvent(
+            body={"request": {"model": "my-model", "data": [1, 2, 3]}, "metadata": "ignored"},
+            method="POST",
+            path="/predict",
+        )
 
         result = step.do(event)
-        assert result.body == {"model_name": "my-model", "input_data": [1, 2, 3]}
+        assert isinstance(result.body, _RequestContext)
+        assert result.body["model_name"] == "my-model"
+        assert result.body["input_data"] == [1, 2, 3]
+        assert "metadata" not in result.body
 
-    @staticmethod
-    def test_body_map_missing_params_skipped() -> None:
-        """Test that missing body_map params are silently skipped."""
-        body_map = {
+    def test_body_map_missing_params_skipped(self) -> None:
+        """Missing JSONPath fields are silently skipped when mandatory=False (default)."""
+        step = self._make_step({
             "name": "$.name",
             "missing": "$.nonexistent.path",
-        }
-        step = TestAPIHandlerStepBodyMap._make_step_with_body_map(body_map)
+        })
 
-        event = MagicMock()
-        event.method = HTTPMethod.POST
-        event.path = "/predict"
-        event.body = {"name": "test-model"}
+        event = MockEvent(body={"name": "test-model"}, method="POST", path="/predict")
 
         result = step.do(event)
-        # Only the matched field is present; missing JSONPath is silently skipped.
+        assert isinstance(result.body, _RequestContext)
         assert result.body["name"] == "test-model"
         assert "missing" not in result.body
 
     def test_no_body_map_passes_event_through(self) -> None:
-        """Test that without body_map the event passes through unchanged"""
-        config = APIHandlerConfig()  # no body_map
+        """Endpoint with no input_body_mappings passes the body through unchanged."""
+        config = APIHandlerConfig()
         config.add_endpoint_handler("/predict", HTTPMethod.POST, APIHandlerAction.ALLOW)
-
         step = _APIHandlerStep(config=config)
 
-        event = MagicMock()
-        event.method = HTTPMethod.POST
-        event.path = "/predict"
         original_body = {"data": [1, 2, 3]}
-        event.body = original_body
+        event = MockEvent(body=original_body, method="POST", path="/predict")
 
         result = step.do(event)
         assert result.body is original_body
 
-    @staticmethod
-    def test_body_map_non_dict_body_skipped() -> None:
-        """Test that non-dict body is silently skipped when body_map is configured."""
-        body_map = {"param": "$.field"}
-        step = TestAPIHandlerStepBodyMap._make_step_with_body_map(body_map)
+    def test_body_map_non_dict_body_skipped(self) -> None:
+        """Non-dict body is passed through unchanged even when mappings are configured."""
+        step = self._make_step({"param": "$.field"})
 
-        event = MagicMock()
-        event.method = HTTPMethod.POST
-        event.path = "/predict"
-        event.body = "plain string body"
+        event = MockEvent(body="plain string body", method="POST", path="/predict")
 
         result = step.do(event)
-        # body_map cannot apply to a non-dict body; original body is passed through unchanged.
         assert result.body == "plain string body"
 
-    def test_body_map_applies_to_all_endpoints(self) -> None:
-        """Test that the same body_map is applied regardless of which endpoint matched"""
-        body_map = {"input": "$.payload.data"}
-        config = APIHandlerConfig(body_map=body_map)
-        config.add_endpoint_handler("/predict", HTTPMethod.POST, APIHandlerAction.ALLOW)
-        config.add_endpoint_handler(
-            "/classify", HTTPMethod.POST, APIHandlerAction.ALLOW
-        )
+    def test_different_body_maps_per_endpoint(self) -> None:
+        """Each endpoint has its own input_body_mappings — only the matched one applies."""
+        predict_bm = BodyMappings()
+        predict_bm.add_mapping("$.request.model", destination_path="model_name")
 
+        classify_bm = BodyMappings()
+        classify_bm.add_mapping("$.payload.data", destination_path="input")
+
+        config = APIHandlerConfig()
+        config.add_endpoint_handler(
+            "/predict", HTTPMethod.POST, APIHandlerAction.ALLOW, input_body_mappings=predict_bm
+        )
+        config.add_endpoint_handler(
+            "/classify", HTTPMethod.POST, APIHandlerAction.ALLOW, input_body_mappings=classify_bm
+        )
         step = _APIHandlerStep(config=config)
 
-        # Test /predict
-        event = MagicMock()
-        event.method = HTTPMethod.POST
-        event.path = "/predict"
-        event.body = {"payload": {"data": [1, 2]}}
-        result = step.do(event)
-        assert result.body == {"input": [1, 2]}
+        shared_body = {"request": {"model": "gpt-4"}, "payload": {"data": "cats"}}
 
-        # Test /classify -- same body_map applies
-        event2 = MagicMock()
-        event2.method = HTTPMethod.POST
-        event2.path = "/classify"
-        event2.body = {"payload": {"data": "cats"}}
-        result2 = step.do(event2)
-        assert result2.body == {"input": "cats"}
+        predict_result = step.do(MockEvent(body=shared_body, method="POST", path="/predict"))
+        assert isinstance(predict_result.body, _RequestContext)
+        assert predict_result.body["model_name"] == "gpt-4"
+        assert "input" not in predict_result.body
+
+        classify_result = step.do(MockEvent(body=shared_body, method="POST", path="/classify"))
+        assert isinstance(classify_result.body, _RequestContext)
+        assert classify_result.body["input"] == "cats"
+        assert "model_name" not in classify_result.body
 
 
 # ---------------------------------------------------------------------------

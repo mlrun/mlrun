@@ -14,9 +14,10 @@
 
 name: Smoke Tests
 
-# Stub — real implementation lives on feature/smoke.
-# This file exists on development so the workflow is dispatchable.
-# Trigger with --ref feature/smoke to run the full implementation.
+permissions:
+  contents: read
+  pull-requests: write
+  packages: write
 
 on:
   workflow_dispatch:
@@ -25,11 +26,6 @@ on:
         description: 'PR number to target for labeling (and optionally to build from)'
         required: false
         default: ''
-      build_from_pr:
-        description: 'Build Docker images and run tests from the PR branch (vs upstream). Requires pr_number.'
-        required: false
-        default: false
-        type: boolean
       clean_resources_in_teardown:
         description: 'Clean test resources upon teardown'
         required: true
@@ -48,7 +44,83 @@ on:
           - 'false'
 
 jobs:
-  stub:
+  run-smoke-tests:
+    name: Run Smoke Tests
+    uses: ./.github/workflows/system-tests-opensource.yml
+    with:
+      pr_number: ${{ inputs.pr_number }}
+      pytest_markers: 'not enterprise and smoke'
+      clean_resources_in_teardown: ${{ inputs.clean_resources_in_teardown }}
+      debug_enabled: ${{ inputs.debug_enabled }}
+    secrets: inherit
+
+  post-results:
+    name: Post smoke test results
     runs-on: ubuntu-latest
+    if: always() && inputs.pr_number != ''
+    needs: run-smoke-tests
+    permissions:
+      pull-requests: write
     steps:
-      - run: echo "This is a stub - NOP."
+      - name: Determine label and outcome
+        id: outcome
+        run: |
+          OUTCOME="${{ needs.run-smoke-tests.result }}"
+
+          if [ "$OUTCOME" = "success" ]; then
+            STATUS="Pass"
+            EMOJI="✅"
+            COLOR="0e8a16"
+          else
+            STATUS="Fail"
+            EMOJI="❌"
+            COLOR="d93f0b"
+          fi
+
+          LABEL="Smoke tests: ${STATUS}"
+          SOURCE="PR branch"
+
+          echo "label=${LABEL}"   >> $GITHUB_OUTPUT
+          echo "color=${COLOR}"   >> $GITHUB_OUTPUT
+          echo "emoji=${EMOJI}"   >> $GITHUB_OUTPUT
+          echo "status=${STATUS}" >> $GITHUB_OUTPUT
+          echo "source=${SOURCE}" >> $GITHUB_OUTPUT
+
+      - uses: actions/checkout@v6
+        with:
+          sparse-checkout: automation/scripts
+
+      - name: Set label on PR
+        uses: actions/github-script@v9
+        with:
+          script: |
+            const addRemoveLabels = require('./automation/scripts/add-remove-labels.js')
+            await addRemoveLabels({
+              github, context,
+              prNumber: ${{ inputs.pr_number }},
+              labelsToAdd: [{ name: '${{ steps.outcome.outputs.label }}', color: '${{ steps.outcome.outputs.color }}' }],
+              labelsToRemove: ['Smoke tests: Pass', 'Smoke tests: Fail', 'Smoke tests: Unknown']
+            })
+
+      - name: Build comment body
+        run: |
+          RUN_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          BASE_REF="${{ needs.run-smoke-tests.outputs.pr_base_ref }}"
+          BASE_SHA="${{ needs.run-smoke-tests.outputs.pr_base_sha }}"
+          REBASE_COUNT="${{ needs.run-smoke-tests.outputs.rebase_commit_count }}"
+
+          BRANCH_URL="${{ github.server_url }}/${{ github.repository }}/commits/${BASE_REF}"
+          if [ "${REBASE_COUNT}" = "0" ] || [ -z "${REBASE_COUNT}" ]; then
+            REBASE_TEXT="on"
+          else
+            REBASE_TEXT="rebased ${REBASE_COUNT} commits to"
+          fi
+          echo "Smoke Tests [${{ steps.outcome.outputs.status }}](${RUN_URL}) ${{ steps.outcome.outputs.emoji }} with the PR ${REBASE_TEXT} [\`${BASE_REF}\`](${BRANCH_URL}) HEAD \`${BASE_SHA:0:8}\`" > comment.md
+
+      - name: Post comment to PR
+        uses: thollander/actions-comment-pull-request@24bffb9b452ba05a4f3f77933840a6a841d1b32b
+        with:
+          pr-number: ${{ inputs.pr_number }}
+          file-path: comment.md
+          comment-tag: smoke_test_result
+          mode: recreate

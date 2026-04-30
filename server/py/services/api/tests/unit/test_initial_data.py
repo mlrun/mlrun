@@ -739,6 +739,63 @@ def test_migrate_monitoring_functions_labels():
             assert key not in func_labels, f"{func_name} has an unexpected label"
 
 
+def test_publish_db_migration_event_emits(monkeypatch: pytest.MonkeyPatch):
+    fake_event = object()
+    fake_client = unittest.mock.MagicMock()
+    fake_client.generate_db_migration_event.return_value = fake_event
+    monkeypatch.setattr(
+        "services.api.utils.events.events_factory.EventsFactory.get_events_client",
+        lambda *a, **kw: fake_client,
+    )
+    services.api.initial_data._publish_db_migration_event(
+        mlrun.common.schemas.MigrationEventActions.completed,
+        duration_seconds=2.5,
+        scope=["schema", "data"],
+        versions={"current_schema_revision": "abc", "target_schema_revision": "def"},
+    )
+    fake_client.generate_db_migration_event.assert_called_once_with(
+        mlrun.common.schemas.MigrationEventActions.completed,
+        error=None,
+        duration_seconds=2.5,
+        scope=["schema", "data"],
+        versions={"current_schema_revision": "abc", "target_schema_revision": "def"},
+    )
+    fake_client.emit.assert_called_once_with(fake_event)
+
+
+def test_publish_db_migration_event_skips_when_event_is_none(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    # default base client returns None -> emit must not be called
+    fake_client = unittest.mock.MagicMock()
+    fake_client.generate_db_migration_event.return_value = None
+    monkeypatch.setattr(
+        "services.api.utils.events.events_factory.EventsFactory.get_events_client",
+        lambda *a, **kw: fake_client,
+    )
+    services.api.initial_data._publish_db_migration_event(
+        mlrun.common.schemas.MigrationEventActions.required
+    )
+    fake_client.emit.assert_not_called()
+
+
+def test_publish_db_migration_event_swallows_factory_errors(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    def _boom(*_a, **_kw):
+        raise RuntimeError("factory broken")
+
+    monkeypatch.setattr(
+        "services.api.utils.events.events_factory.EventsFactory.get_events_client",
+        _boom,
+    )
+    # must not raise
+    services.api.initial_data._publish_db_migration_event(
+        mlrun.common.schemas.MigrationEventActions.failed,
+        error=RuntimeError("boom"),
+    )
+
+
 def _initialize_db_without_schema() -> tuple[
     framework.db.sqldb.db.SQLDB, sqlalchemy.orm.Session
 ]:

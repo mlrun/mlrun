@@ -447,6 +447,10 @@ default_config = {
             "iguazio": {
                 "session_verification_endpoint": "data_sessions/verifications/app_service",
                 "authentication_endpoint": "api/v1/authentication/refresh-access-token",
+                "token_cache": {
+                    "max_size": 128,
+                    "ttl_seconds": 30,
+                },
             },
             "service_account": {
                 # the following are the default values for k8s service accounts, but may be changed per deployment

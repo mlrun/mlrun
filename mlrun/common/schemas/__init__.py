@@ -84,6 +84,7 @@ from .events import (
     AuthSecretEventActions,
     EventClientKinds,
     EventsModes,
+    MigrationEventActions,
     SecretEventActions,
 )
 from .feature_store import (

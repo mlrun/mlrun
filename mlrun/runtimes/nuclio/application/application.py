@@ -1165,11 +1165,12 @@ class ApplicationRuntime(nuclio_function.RemoteRuntime):
             project=project_name,
         )
 
-        # Upload the file as an artifact to an internal path with system-generated label
+        # Upload the file as a code artifact to an internal path with system-generated label
         try:
-            artifact = project.log_artifact(
-                item=artifact_key,
+            artifact = project.log_code_file(
+                key=artifact_key,
                 local_path=source,
+                code_type="function",
                 artifact_path=mlrun.common.constants.MLRUN_INTERNAL_ARTIFACT_PATH,
                 upload=True,
                 labels={

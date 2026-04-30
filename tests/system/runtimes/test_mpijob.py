@@ -38,7 +38,7 @@ class TestMpiJobRuntime(tests.system.base.TestMLRunSystem):
             handler="handler",
             project=self.project_name,
             filename=code_path,
-            image="mlrun/mlrun",
+            image=mlrun.mlconf.function_defaults.image_by_kind.job,
         )
         mpijob_function.spec.replicas = replicas
 

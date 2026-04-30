@@ -22,3 +22,8 @@ def process_mapped_data(
         "titles": book_titles,
         "count": len(book_titles),
     }
+
+
+def echo_kwargs(body, **kwargs) -> dict:
+    """Return all extracted kwargs — used to verify body map merging."""
+    return kwargs

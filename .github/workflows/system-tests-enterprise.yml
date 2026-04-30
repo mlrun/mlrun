@@ -297,6 +297,15 @@ jobs:
           --mlrun-commit "${{ steps.computed_params.outputs.mlrun_hash }}" \
           --override-image-registry "${{ steps.computed_params.outputs.mlrun_docker_registry }}"
 
+    - name: Generate GitHub App Token
+      id: github-app-token
+      uses: actions/create-github-app-token@v3
+      with:
+        app-id: ${{ secrets.GH_APP_ID }}
+        private-key: ${{ secrets.GH_APP_PRIVATE_KEY }}
+        owner: ${{ github.repository_owner }}
+        repositories: mlrun,private-system-tests
+
     - name: Prepare System Test env.yml and MLRun installation from current branch
       timeout-minutes: 5
       run: |
@@ -309,7 +318,7 @@ jobs:
           --access-key "${{ secrets.LATEST_SYSTEM_TEST_ACCESS_KEY }}" \
           --slack-webhook-url "${{ secrets.LATEST_SYSTEM_TEST_SLACK_WEBHOOK_URL }}" \
           --branch "${{ needs.prepare-system-tests-enterprise-ci.outputs.mlrunBranch }}" \
-          --github-access-token "${{ secrets.SYSTEM_TEST_GITHUB_ACCESS_TOKEN }}" \
+          --github-access-token "${{ steps.github-app-token.outputs.token }}" \
           --openai-base-url "${{ secrets.OPENAI_BASE_URL }}" \
           --openai-api-key "${{ secrets.OPENAI_API_KEY }}" \
           --save-to-path "$GITHUB_WORKSPACE/env.yml" \
@@ -441,6 +450,22 @@ jobs:
         test -f "$GITHUB_WORKSPACE/tests/system/env.yml"
       env:
         GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+
+    - name: Start GitHub App token refresh daemon
+      env:
+        GH_APP_ID: ${{ secrets.GH_APP_ID }}
+        GH_APP_PRIVATE_KEY: ${{ secrets.GH_APP_PRIVATE_KEY }}
+      run: |
+        source .github/scripts/github-app-token.sh
+        DAEMON_PID=$(start_token_refresh_daemon \
+          "/tmp/.github-app-token" \
+          "$GITHUB_WORKSPACE/tests/system/env.yml" \
+          "MLRUN_SYSTEM_TESTS_GIT_TOKEN" \
+          "3300" \
+          "${{ github.repository_owner }}" \
+          "mlrun,private-system-tests")
+        echo "Token refresh daemon started (PID: ${DAEMON_PID})"
+        echo "TOKEN_REFRESH_PID=${DAEMON_PID}" >> $GITHUB_ENV
 
     - name: Pre Tests Requirements
       run: |

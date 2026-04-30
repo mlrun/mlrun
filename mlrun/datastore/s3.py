@@ -118,19 +118,34 @@ class S3Store(DataStore):
                 endpoint_url=endpoint_url,
             )
         else:
-            # from env variables
+            # No explicit credentials provided. Let boto3 use the default
+            # credential chain (env vars, instance profile, IRSA, etc.).
             self.s3 = boto3.resource(
                 "s3", region_name=region, endpoint_url=endpoint_url
             )
-            if not token_file:
-                # If not using credentials, boto will still attempt to sign the requests, and will fail any operations
-                # due to no credentials found. These commands disable signing and allow anonymous mode (same as
-                # anon in the storage_options when working with fsspec).
+            if not token_file and not self._has_default_credentials():
+                # No credentials available through any provider — fall back to
+                # anonymous (unsigned) access for public buckets.
                 from botocore.handlers import disable_signing
 
                 self.s3.meta.client.meta.events.register(
                     "choose-signer.s3.*", disable_signing
                 )
+
+    @staticmethod
+    def _has_default_credentials() -> bool:
+        """Check if the AWS default credential chain can provide credentials.
+
+        Returns True if credentials are available through any provider
+        (environment variables, instance profile, IRSA, config files, etc.).
+        This avoids falling back to anonymous access when IAM roles or other
+        implicit credential sources are available (e.g., on EKS).
+        """
+        try:
+            credentials = boto3.Session().get_credentials()
+            return credentials is not None and credentials.access_key is not None
+        except Exception:
+            return False
 
     @staticmethod
     def get_range(size, offset):

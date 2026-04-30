@@ -18,6 +18,7 @@ import os
 import pathlib
 import random
 import string
+import time
 import typing
 
 import alembic
@@ -51,6 +52,7 @@ import framework.db.sqldb.sql_session
 import framework.utils.pagination_cache
 import services.api.utils.db.alembic
 import services.api.utils.db.backup
+import services.api.utils.events.events_factory
 import services.api.utils.scheduler
 from framework.utils.db.utils import DBUtil
 
@@ -150,26 +152,32 @@ def _migrate_existing_data(
     db_util = DBUtil()
     db_util.wait_for_db_liveness()
     db_util.set_configurations()
+    migration_operations: dict[str, tuple] = {}
     if engine.name != mlrun.common.db.dialects.Dialects.SQLITE:
         (
             is_migration_needed,
             is_backup_needed,
+            migration_operations,
         ) = _resolve_needed_operations(alembic_util)
     else:
         # ON SQLite, we don't have schema migrations, so we don't need to check for them
         is_migration_needed = False
         is_backup_needed = False
 
+    migration_scope, migration_versions = _operations_to_scope_and_versions(
+        migration_operations
+    )
+
     if not perform_migrations_if_needed and is_migration_needed:
         state = mlrun.common.schemas.APIStates.waiting_for_migrations
         mlrun.utils.logger.info("Migration is needed, changing API state", state=state)
         mlrun.mlconf.httpdb.state = state
+        _publish_db_migration_event(
+            mlrun.common.schemas.MigrationEventActions.required,
+            scope=migration_scope,
+            versions=migration_versions,
+        )
         return
-
-    if is_backup_needed:
-        mlrun.utils.logger.info("DB Backup is needed, backing up...")
-        db_backup = services.api.utils.db.backup.DBBackupUtil()
-        db_backup.backup_database()
 
     mlrun.utils.logger.info("Creating initial data")
     mlrun.mlconf.httpdb.state = mlrun.common.schemas.APIStates.migrations_in_progress
@@ -177,17 +185,44 @@ def _migrate_existing_data(
     db_session = framework.db.session.create_session()
     try:
         if is_migration_needed:
+            migration_start_monotonic = time.monotonic()
+            _publish_db_migration_event(
+                mlrun.common.schemas.MigrationEventActions.started,
+                scope=migration_scope,
+                versions=migration_versions,
+            )
             try:
+                # DB backup runs inside the migration try/except so a backup
+                # failure transitions the API to migrations_failed and emits
+                # the Failed event — it's part of the migration window from
+                # an operator's perspective.
+                if is_backup_needed:
+                    mlrun.utils.logger.info("DB Backup is needed, backing up...")
+                    db_backup = services.api.utils.db.backup.DBBackupUtil()
+                    db_backup.backup_database()
                 _perform_schema_migrations(alembic_util)
                 _add_initial_data(db_session)
                 _perform_data_migrations(db_session)
-            except Exception:
+            except Exception as exc:
                 state = mlrun.common.schemas.APIStates.migrations_failed
                 mlrun.utils.logger.warning(
                     "Migrations failed, changing API state", state=state
                 )
                 mlrun.mlconf.httpdb.state = state
+                _publish_db_migration_event(
+                    mlrun.common.schemas.MigrationEventActions.failed,
+                    error=exc,
+                    duration_seconds=_elapsed_since(migration_start_monotonic),
+                    scope=migration_scope,
+                    versions=migration_versions,
+                )
                 raise
+            _publish_db_migration_event(
+                mlrun.common.schemas.MigrationEventActions.completed,
+                duration_seconds=_elapsed_since(migration_start_monotonic),
+                scope=migration_scope,
+                versions=migration_versions,
+            )
     finally:
         framework.db.session.close_session(db_session)
 
@@ -226,7 +261,7 @@ def update_default_configuration_data():
 
 def _resolve_needed_operations(
     alembic_util: services.api.utils.db.alembic.AlembicUtil,
-) -> tuple[bool, bool]:
+) -> tuple[bool, bool, dict[str, tuple]]:
     is_schema_migration_needed = alembic_util.is_schema_migration_needed()
     is_data_migration_needed = (
         not _is_latest_data_version()
@@ -236,6 +271,19 @@ def _resolve_needed_operations(
     is_backup_needed = (
         mlrun.mlconf.httpdb.db.backup.mode == "enabled" and is_migration_needed
     )
+
+    operations: dict[str, tuple] = {}
+    if is_schema_migration_needed:
+        operations["schema"] = (
+            alembic_util.get_current_revision(),
+            alembic_util.latest_revision,
+        )
+    if is_data_migration_needed:
+        operations["data"] = (
+            _get_current_data_version(),
+            latest_data_version,
+        )
+
     mlrun.utils.logger.info(
         "Checking if migration is needed",
         is_schema_migration_needed=is_schema_migration_needed,
@@ -244,7 +292,27 @@ def _resolve_needed_operations(
         is_migration_needed=is_migration_needed,
     )
 
-    return is_migration_needed, is_backup_needed
+    return is_migration_needed, is_backup_needed, operations
+
+
+def _get_current_data_version() -> int | None:
+    db_session = framework.db.session.create_session()
+    db = framework.db.sqldb.db.SQLDB()
+    try:
+        version = _resolve_current_data_version(db, db_session)
+    finally:
+        framework.db.session.close_session(db_session)
+    if version is None:
+        return None
+    try:
+        return int(version)
+    except (TypeError, ValueError) as exc:
+        mlrun.utils.logger.warning(
+            "Could not parse current data version, treating as unknown",
+            version=version,
+            exc=mlrun.errors.err_to_str(exc),
+        )
+        return None
 
 
 def _create_alembic_util() -> services.api.utils.db.alembic.AlembicUtil:
@@ -262,6 +330,60 @@ def _perform_schema_migrations(alembic_util: services.api.utils.db.alembic.Alemb
     if alembic_util:
         mlrun.utils.logger.info("Performing schema migration")
         alembic_util.init_alembic()
+
+
+def _publish_db_migration_event(
+    action: mlrun.common.schemas.MigrationEventActions,
+    error: BaseException | None = None,
+    duration_seconds: float | None = None,
+    scope: list[str] | None = None,
+    versions: dict | None = None,
+) -> None:
+    """
+    Best-effort publish of a DB migration lifecycle event.
+    Failures must not break startup or the migration flow.
+    """
+    try:
+        events_client = (
+            services.api.utils.events.events_factory.EventsFactory.get_events_client()
+        )
+        event = events_client.generate_db_migration_event(
+            action,
+            error=error,
+            duration_seconds=duration_seconds,
+            scope=scope,
+            versions=versions,
+        )
+        if event is None:
+            return
+        events_client.emit(event)
+    except Exception as publish_exc:
+        mlrun.utils.logger.warning(
+            "Failed to publish DB migration event",
+            action=action,
+            exc=mlrun.errors.err_to_str(publish_exc),
+        )
+
+
+def _elapsed_since(start_monotonic: float | None) -> float | None:
+    if start_monotonic is None:
+        return None
+    return time.monotonic() - start_monotonic
+
+
+def _operations_to_scope_and_versions(
+    operations: dict[str, tuple],
+) -> tuple[list[str], dict]:
+    versions: dict = {}
+    if "schema" in operations:
+        current, target = operations["schema"]
+        versions["current_schema_revision"] = current
+        versions["target_schema_revision"] = target
+    if "data" in operations:
+        current, target = operations["data"]
+        versions["current_data_version"] = current
+        versions["target_data_version"] = target
+    return list(operations.keys()), versions
 
 
 def _is_latest_data_version():

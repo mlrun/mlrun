@@ -38,6 +38,8 @@ def _create_jwt_token(payload: dict, add_defaults: bool = True) -> str:
     if add_defaults:
         if "exp" not in payload:
             payload["exp"] = time.time() + 3600
+        if "iat" not in payload:
+            payload["iat"] = time.time() - 3600
         if "sub" not in payload:
             payload["sub"] = "test-user"
 
@@ -242,7 +244,7 @@ def test_load_and_prepare_secret_tokens_valid(
     # Generate valid JWT tokens with the specified user IDs
     tokens = []
     for idx, user_id in enumerate(token_user_ids):
-        jwt_token = _create_jwt_token({"sub": user_id, "exp": 9999999999})
+        jwt_token = _create_jwt_token({"sub": user_id, "iat": 1, "exp": 9999999999})
         tokens.append({"name": f"token{idx + 1}", "token": jwt_token})
 
     content = {"secretTokens": tokens}
@@ -289,7 +291,9 @@ def test_load_secret_tokens_from_file_invalid(tmp_path, content, monkeypatch):
             lambda: [
                 mlrun.common.schemas.SecretToken(
                     name="",
-                    token=_create_jwt_token({"sub": "user-123", "exp": 9999999999}),
+                    token=_create_jwt_token(
+                        {"sub": "user-123", "iat": 1, "exp": 9999999999}
+                    ),
                 ),
             ],
             mlrun.errors.MLRunRuntimeError,
@@ -299,11 +303,15 @@ def test_load_secret_tokens_from_file_invalid(tmp_path, content, monkeypatch):
             lambda: [
                 mlrun.common.schemas.SecretToken(
                     name="dup",
-                    token=_create_jwt_token({"sub": "user-123", "exp": 9999999999}),
+                    token=_create_jwt_token(
+                        {"sub": "user-123", "iat": 1, "exp": 9999999999}
+                    ),
                 ),
                 mlrun.common.schemas.SecretToken(
                     name="dup",
-                    token=_create_jwt_token({"sub": "user-123", "exp": 9999999999}),
+                    token=_create_jwt_token(
+                        {"sub": "user-123", "iat": 1, "exp": 9999999999}
+                    ),
                 ),
             ],
             mlrun.errors.MLRunRuntimeError,
@@ -399,18 +407,18 @@ def _write_file(tmp_path, name: str, content) -> str:
         (
             {
                 "token_name": "token1",
-                "token_payload": {"sub": "user-123", "exp": 9999999999},
+                "token_payload": {"sub": "user-123", "iat": 1, "exp": 9999999999},
                 "add_defaults": True,
             },
             {
                 "token_name": "token2",
-                "token_payload": {"sub": "user-123", "exp": 9999999999},
+                "token_payload": {"sub": "user-123", "iat": 1, "exp": 9999999999},
                 "add_defaults": True,
             },
             None,
             None,
-            {"sub": "user-123", "exp": 9999999999},
-            {"sub": "user-123", "exp": 9999999999},
+            {"sub": "user-123", "iat": 1, "exp": 9999999999},
+            {"sub": "user-123", "iat": 1, "exp": 9999999999},
             "user-123",
         ),
         # Missing expiration claim
@@ -422,7 +430,7 @@ def _write_file(tmp_path, name: str, content) -> str:
             },
             {
                 "token_name": "token2",
-                "token_payload": {"sub": "user-123", "exp": 9999999999},
+                "token_payload": {"sub": "user-123", "iat": 1, "exp": 9999999999},
                 "add_defaults": True,
             },
             mlrun.errors.MLRunInvalidArgumentError,
@@ -435,12 +443,12 @@ def _write_file(tmp_path, name: str, content) -> str:
         (
             {
                 "token_name": "token1",
-                "token_payload": {"exp": 9999999999},
+                "token_payload": {"iat": 1, "exp": 9999999999},
                 "add_defaults": False,
             },
             {
                 "token_name": "token2",
-                "token_payload": {"sub": "user-123", "exp": 9999999999},
+                "token_payload": {"sub": "user-123", "iat": 1, "exp": 9999999999},
                 "add_defaults": True,
             },
             mlrun.errors.MLRunInvalidArgumentError,
@@ -453,12 +461,12 @@ def _write_file(tmp_path, name: str, content) -> str:
         (
             {
                 "token_name": "token1",
-                "token_payload": {"sub": "different-user", "exp": 9999999999},
+                "token_payload": {"sub": "different-user", "iat": 1, "exp": 9999999999},
                 "add_defaults": True,
             },
             {
                 "token_name": "token2",
-                "token_payload": {"sub": "different-user", "exp": 9999999999},
+                "token_payload": {"sub": "different-user", "iat": 1, "exp": 9999999999},
                 "add_defaults": True,
             },
             mlrun.errors.MLRunInvalidArgumentError,
@@ -472,12 +480,12 @@ def _write_file(tmp_path, name: str, content) -> str:
         (
             {
                 "token_name": "token1",
-                "token_payload": {"sub": "user-123", "exp": 9999999999},
+                "token_payload": {"sub": "user-123", "iat": 1, "exp": 9999999999},
                 "add_defaults": True,
             },
             {
                 "token_name": "token1",
-                "token_payload": {"sub": "user-123", "exp": 9999999999},
+                "token_payload": {"sub": "user-123", "iat": 1, "exp": 9999999999},
                 "add_defaults": True,
             },
             mlrun.errors.MLRunRuntimeError,
@@ -490,12 +498,12 @@ def _write_file(tmp_path, name: str, content) -> str:
         (
             {
                 "token_name": "",
-                "token_payload": {"sub": "user-123", "exp": 9999999999},
+                "token_payload": {"sub": "user-123", "iat": 1, "exp": 9999999999},
                 "add_defaults": True,
             },
             {
                 "token_name": "token2",
-                "token_payload": {"sub": "user-123", "exp": 9999999999},
+                "token_payload": {"sub": "user-123", "iat": 1, "exp": 9999999999},
                 "add_defaults": True,
             },
             mlrun.errors.MLRunRuntimeError,
@@ -679,7 +687,9 @@ def test_resolve_jwt_username_invalid_token():
             lambda: [
                 mlrun.common.schemas.SecretToken(
                     name="valid_token",
-                    token=_create_jwt_token({"sub": "user-123", "exp": 9999999999}),
+                    token=_create_jwt_token(
+                        {"sub": "user-123", "iat": 1, "exp": 9999999999}
+                    ),
                 ),
                 mlrun.common.schemas.SecretToken(
                     name="invalid_token",
@@ -700,7 +710,9 @@ def test_resolve_jwt_username_invalid_token():
                 ),
                 mlrun.common.schemas.SecretToken(
                     name="good_token",
-                    token=_create_jwt_token({"sub": "user-123", "exp": 9999999999}),
+                    token=_create_jwt_token(
+                        {"sub": "user-123", "iat": 1, "exp": 9999999999}
+                    ),
                 ),
             ],
             "user-123",
@@ -717,7 +729,9 @@ def test_resolve_jwt_username_invalid_token():
                 ),
                 mlrun.common.schemas.SecretToken(
                     name="good_token",
-                    token=_create_jwt_token({"sub": "user-123", "exp": 9999999999}),
+                    token=_create_jwt_token(
+                        {"sub": "user-123", "iat": 1, "exp": 9999999999}
+                    ),
                 ),
             ],
             "user-123",
@@ -730,11 +744,15 @@ def test_resolve_jwt_username_invalid_token():
             lambda: [
                 mlrun.common.schemas.SecretToken(
                     name="no_sub",
-                    token=_create_jwt_token({"exp": 9999999999}, add_defaults=False),
+                    token=_create_jwt_token(
+                        {"iat": 1, "exp": 9999999999}, add_defaults=False
+                    ),
                 ),
                 mlrun.common.schemas.SecretToken(
                     name="good_token",
-                    token=_create_jwt_token({"sub": "user-123", "exp": 9999999999}),
+                    token=_create_jwt_token(
+                        {"sub": "user-123", "iat": 1, "exp": 9999999999}
+                    ),
                 ),
             ],
             "user-123",
@@ -765,11 +783,15 @@ def test_resolve_jwt_username_invalid_token():
             lambda: [
                 mlrun.common.schemas.SecretToken(
                     name="wrong_user",
-                    token=_create_jwt_token({"sub": "other-user", "exp": 9999999999}),
+                    token=_create_jwt_token(
+                        {"sub": "other-user", "iat": 1, "exp": 9999999999}
+                    ),
                 ),
                 mlrun.common.schemas.SecretToken(
                     name="good_token",
-                    token=_create_jwt_token({"sub": "user-123", "exp": 9999999999}),
+                    token=_create_jwt_token(
+                        {"sub": "user-123", "iat": 1, "exp": 9999999999}
+                    ),
                 ),
             ],
             "user-123",
@@ -782,7 +804,9 @@ def test_resolve_jwt_username_invalid_token():
             lambda: [
                 mlrun.common.schemas.SecretToken(
                     name="valid_token",
-                    token=_create_jwt_token({"sub": "user-123", "exp": 9999999999}),
+                    token=_create_jwt_token(
+                        {"sub": "user-123", "iat": 1, "exp": 9999999999}
+                    ),
                 ),
                 mlrun.common.schemas.SecretToken(
                     name="invalid_token",
@@ -825,7 +849,7 @@ def test_extract_and_validate_tokens_info_skip_invalid(
 def test_load_and_prepare_secret_tokens_skips_invalid(tmp_path, monkeypatch):
     """Test that load_and_prepare_secret_tokens with raise_on_error=False skips
     invalid tokens and still returns the valid ones (simulates the import mlrun flow)."""
-    valid_jwt = _create_jwt_token({"sub": "user-123", "exp": 9999999999})
+    valid_jwt = _create_jwt_token({"sub": "user-123", "iat": 1, "exp": 9999999999})
     tokens = [
         {"name": "good_token", "token": valid_jwt},
         {"name": "bad_token", "token": "corrupted-jwt-data"},

@@ -40,6 +40,10 @@ mlrun.serving
    :members:
    :undoc-members:
 
+.. automodule:: mlrun.serving.steps
+   :members:
+   :undoc-members:
+
 .. autoclass:: mlrun.serving.utils.StepToDict
    :members:
 

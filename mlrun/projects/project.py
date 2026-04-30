@@ -82,6 +82,8 @@ from mlrun_pipelines.models import PipelineNodeWrapper
 from ..artifacts import (
     Artifact,
     ArtifactProducer,
+    CodeArtifact,
+    CodeArtifactCodeType,
     DatasetArtifact,
     DocumentArtifact,
     DocumentLoaderSpec,
@@ -1778,6 +1780,69 @@ class MlrunProject(ModelObj):
                 tag=tag,
                 upload=upload,
                 labels=labels,
+            ),
+        )
+        return item
+
+    def log_code_file(
+        self,
+        key,
+        local_path=None,
+        body=None,
+        tag="",
+        artifact_path=None,
+        upload=True,
+        labels=None,
+        target_path="",
+        db_key=None,
+        language=None,
+        code_type: str | CodeArtifactCodeType | None = None,
+        requirements: list[str] | None = None,
+        **kwargs,
+    ) -> CodeArtifact:
+        """
+        Log a code artifact and optionally upload it to datastore.
+
+        :param key:           artifact key
+        :param local_path:    path to the local code file or archive (.zip, .tar.gz)
+        :param body:          inline code content (string)
+        :param tag:           version tag
+        :param artifact_path: target artifact path (when not using the default)
+        :param upload:        upload to datastore (default is True)
+        :param labels:        a set of key/value labels to tag the artifact with
+        :param target_path:   absolute target path (instead of using artifact_path + local_path)
+        :param db_key:        the key to use in the artifact DB table
+        :param language:      programming language (e.g. "python").
+                              Free-text advisory metadata — no validation or
+                              enforcement is applied. If omitted, derived at
+                              construction time from the target/local path suffix
+                              (.py/.ipynb → "python"; archives/unknown → "").
+        :param code_type:     type of code: "function" or "workflow" (default: "function")
+        :param requirements:  list of dependency strings (e.g. ["pandas>=2.0", "numpy"])
+
+        :returns: code artifact object
+        """
+        code = CodeArtifact(
+            key,
+            body=body,
+            src_path=local_path,
+            language=language,
+            code_type=code_type,
+            requirements=requirements,
+            **kwargs,
+        )
+
+        item = cast(
+            CodeArtifact,
+            self.log_artifact(
+                code,
+                local_path=local_path,
+                artifact_path=artifact_path,
+                target_path=target_path,
+                tag=tag,
+                upload=upload,
+                labels=labels,
+                db_key=db_key,
             ),
         )
         return item

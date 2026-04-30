@@ -619,7 +619,7 @@ class OpenAIProfile(DatastoreProfile):
 
 class HuggingFaceProfile(DatastoreProfile):
     type: str = pydantic.v1.Field("huggingface")
-    _private_attributes = ("token", "endpoint", "model_kwargs")
+    _private_attributes = ("token", "model_kwargs")
     task: str | None = None
     token: str | None = None
     endpoint: str | None = None

@@ -505,7 +505,23 @@ jobs:
           --mlrun-dbpath "$MLRUN_DBPATH" \
           --github-access-token "${{ steps.github-app-token.outputs.token }}" \
           --openai-base-url "${{ secrets.OPENAI_BASE_URL }}" \
-          --openai-api-key "${{ secrets.OPENAI_API_KEY }}"  
+          --openai-api-key "${{ secrets.OPENAI_API_KEY }}"
+
+    - name: Build and serve MLRun wheel for kaniko builds
+      run: |
+        source venv/bin/activate
+        # Build a wheel from the already-rebased source tree so kaniko pods can
+        # pip-install mlrun from a local HTTP server instead of cloning from GitHub.
+        # This avoids GitHub rate-limiting when multiple kaniko builds run concurrently.
+        pip install build --quiet
+        python -m build --wheel --outdir /tmp/mlrun-wheels . --quiet
+        # Use a fixed name so the URL is predictable
+        mv /tmp/mlrun-wheels/*.whl /tmp/mlrun-wheels/mlrun-pr-rebased-development.whl
+        # Serve on the node IP so Kubernetes pods can reach it
+        NODE_IP=$(hostname -I | awk '{print $1}')
+        python3 -m http.server 9000 --directory /tmp/mlrun-wheels &
+        echo "MLRUN_WHEEL_NODE_IP=${NODE_IP}" >> $GITHUB_ENV
+        echo "MLRun wheel available at: http://${NODE_IP}:9000/mlrun-pr-rebased-development.whl"
 
     - name: Install MLRun CE helm chart
       uses: nick-fields/retry@ad984534de44a9489a53aefd81eb77f87c70dc60 # v4.0.0
@@ -537,7 +553,7 @@ jobs:
               --helm-timeout=15m \
               --override-mlrun-api-image="${{ needs.prepare-inputs.outputs.mlrun_docker_registry }}${{ needs.prepare-inputs.outputs.mlrun_docker_repo }}/mlrun-api:${{ needs.prepare-inputs.outputs.mlrun_docker_tag }}" \
               --override-mlrun-log-collector-image="${{ needs.prepare-inputs.outputs.mlrun_docker_registry }}${{ needs.prepare-inputs.outputs.mlrun_docker_repo }}/log-collector:${{ needs.prepare-inputs.outputs.mlrun_docker_tag }}" \
-              --set 'mlrun.api.extraEnvKeyValue.MLRUN_HTTPDB__BUILDER__MLRUN_VERSION_SPECIFIER="mlrun[complete] @ git+https://github.com/mlrun/mlrun@${{ needs.prepare-inputs.outputs.mlrun_version_specifier }}"' \
+              --set 'mlrun.api.extraEnvKeyValue.MLRUN_HTTPDB__BUILDER__MLRUN_VERSION_SPECIFIER="mlrun[complete] @ http://${{ env.MLRUN_WHEEL_NODE_IP }}:9000/mlrun-pr-rebased-development.whl"' \
               --set mlrun.api.extraEnvKeyValue.MLRUN_IMAGES_REGISTRY="${{ needs.prepare-inputs.outputs.mlrun_docker_registry }}" \
               --set mlrun.api.extraEnvKeyValue.MLRUN_IMAGES_TAG="${{ needs.prepare-inputs.outputs.mlrun_docker_tag }}" \
               --set mlrun.api.extraEnvKeyValue.MLRUN_DEFAULT_BASE_IMAGE="${{ needs.prepare-inputs.outputs.mlrun_docker_registry }}${{ needs.prepare-inputs.outputs.mlrun_docker_repo }}/mlrun:${{ needs.prepare-inputs.outputs.mlrun_docker_tag }}" \

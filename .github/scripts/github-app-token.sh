@@ -87,7 +87,19 @@ start_token_refresh_daemon() {
   local owner="${5:-${GITHUB_REPOSITORY_OWNER}}"
   local repos="${6:-}"
 
-  local initial_token=$(generate_installation_token "${owner}" "${repos}")
+  for cmd in openssl curl jq; do
+    if ! command -v "${cmd}" >/dev/null 2>&1; then
+      echo "ERROR: Required command '${cmd}' not found" >&2
+      return 1
+    fi
+  done
+
+  local initial_token
+  initial_token=$(generate_installation_token "${owner}" "${repos}")
+  if [ $? -ne 0 ] || [ -z "${initial_token}" ]; then
+    echo "ERROR: Failed to generate initial token" >&2
+    return 1
+  fi
   echo "${initial_token}" > "${token_file}"
 
   if [ -n "${env_yml_file}" ] && [ -f "${env_yml_file}" ]; then
@@ -101,8 +113,9 @@ start_token_refresh_daemon() {
     exec </dev/null >>"${token_file}.log" 2>&1
     while true; do
       sleep "${refresh_interval}"
-      local new_token=$(generate_installation_token "${owner}" "${repos}" 2>/dev/null)
-      if [ -n "${new_token}" ] && [ "${new_token}" != "null" ]; then
+      local new_token
+      new_token=$(generate_installation_token "${owner}" "${repos}" 2>&1)
+      if [ $? -eq 0 ] && [ -n "${new_token}" ] && [ "${new_token}" != "null" ]; then
         echo "${new_token}" > "${token_file}"
         if [ -n "${env_yml_file}" ] && [ -f "${env_yml_file}" ]; then
           _update_env_yml "${env_yml_file}" "${env_var_name}" "${new_token}"

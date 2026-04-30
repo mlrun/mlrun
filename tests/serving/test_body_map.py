@@ -528,10 +528,9 @@ class TestBodyMapMockServer:
 
 
 def test_api_handler_with_body_map_and_processing_step(rundb_mock):
-    """Test API handler with body_map followed by a processing step in the graph."""
+    """Test API handler with input_body_mappings followed by a processing step in the graph."""
 
     def pass_through(body, arg1, arg2):
-        """Handler that passes through the mapped values"""
         return {"arg1": arg1, "arg2": arg2}
 
     fn = cast(
@@ -539,15 +538,14 @@ def test_api_handler_with_body_map_and_processing_step(rundb_mock):
         mlrun.new_function("test-func", kind="serving", image="mlrun/mlrun"),
     )
 
-    # Configure API handler with body mapping
+    bm = BodyMappings()
+    bm.add_mapping("$.data.field1", destination_path="arg1")
+    bm.add_mapping("$.data.nested.field2", destination_path="arg2")
+
     config = APIHandlerConfig()
-    config.add_body_mapping("arg1", "$.data.field1")
-    config.add_body_mapping("arg2", "$.data.nested.field2")
     config.add_endpoint_handler(
-        "/predict",
-        HTTPMethod.POST,
-        APIHandlerAction.ALLOW,
-        "Predict with body_map",
+        "/predict", HTTPMethod.POST, APIHandlerAction.ALLOW,
+        "Predict with body_map", input_body_mappings=bm,
     )
     fn.set_api_handler_config(config)
 

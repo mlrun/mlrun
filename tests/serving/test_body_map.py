@@ -163,45 +163,36 @@ class TestAPIHandlerConfigBodyMap:
 
     @staticmethod
     def test_remove_body_mapping() -> None:
-        """Test remove_body_mapping helper method"""
-        config = APIHandlerConfig(
-            body_map={
-                "user_name": "$.user.name",
-                "user_email": "$.user.contact.email",
-                "item_ids": "$.items[*].id",
-            }
-        )
+        """remove_mapping removes entries by destination_path."""
+        bm = BodyMappings()
+        bm.add_mapping("$.user.name", destination_path="user_name")
+        bm.add_mapping("$.user.contact.email", destination_path="user_email")
+        bm.add_mapping("$.items[*].id", destination_path="item_ids")
 
-        # Remove one mapping
-        config.remove_body_mapping("user_email")
-        assert config.body_map == {
-            "user_name": "$.user.name",
-            "item_ids": "$.items[*].id",
-        }
+        bm.remove_mapping("user_email")
+        assert [m["destination_path"] for m in bm.mappings] == ["user_name", "item_ids"]
 
-        # Remove another
-        config.remove_body_mapping("item_ids")
-        assert config.body_map == {"user_name": "$.user.name"}
+        bm.remove_mapping("item_ids")
+        assert [m["destination_path"] for m in bm.mappings] == ["user_name"]
 
-        # Remove last one
-        config.remove_body_mapping("user_name")
-        assert config.body_map == {}
+        bm.remove_mapping("user_name")
+        assert bm.mappings == []
 
     @staticmethod
     def test_remove_body_mapping_nonexistent() -> None:
-        """Test that removing non-existent mapping doesn't raise error"""
-        config = APIHandlerConfig(body_map={"param": "$.path"})
-        config.remove_body_mapping("nonexistent")  # Should not raise
-        assert config.body_map == {"param": "$.path"}
+        """remove_mapping is a no-op when destination_path is not found."""
+        bm = BodyMappings()
+        bm.add_mapping("$.path", destination_path="param")
+        bm.remove_mapping("nonexistent")  # Should not raise
+        assert len(bm.mappings) == 1
+        assert bm.mappings[0]["destination_path"] == "param"
 
     @staticmethod
     def test_remove_body_mapping_when_empty() -> None:
-        """Test removing mapping when body_map is empty"""
-        config = APIHandlerConfig()
-        assert config.body_map == {}
-        config.remove_body_mapping("param")  # Should not raise
-        assert config.body_map == {}
-
+        """remove_mapping is a no-op on an empty BodyMappings."""
+        bm = BodyMappings()
+        bm.remove_mapping("param")  # Should not raise
+        assert bm.mappings == []
 
 
 # ---------------------------------------------------------------------------

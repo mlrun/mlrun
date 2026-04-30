@@ -158,6 +158,15 @@ class BodyMappings(mlrun.model.ModelObj):
             }
         )
 
+    def remove_mapping(self, destination_path: str) -> None:
+        """Remove the mapping with the given destination_path. No-op if not found.
+
+        :param destination_path: The destination key to remove.
+        """
+        self.mappings = [
+            m for m in self.mappings if m.get("destination_path") != destination_path
+        ]
+
     def __repr__(self) -> str:
         return f"BodyMappings(mappings={self.mappings!r})"
 

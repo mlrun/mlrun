@@ -92,7 +92,7 @@ class SecretProviderInterface(ABC):
     @abstractmethod
     def get_user_token_secret_value(
         self,
-        username: str,
+        user_id: str,
         token_name: str,
         namespace: str | None = None,
     ) -> str:

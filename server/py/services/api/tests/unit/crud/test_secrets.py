@@ -1094,7 +1094,7 @@ async def test_delete_secret_tokens_success(mock_iguazio_client):
     assert result.username == auth_info.username
 
     mock_secrets_provider.list_user_token_secrets.assert_called_once_with(
-        user_id=auth_info.user_id
+        username=auth_info.username
     )
 
     # Revocation is skipped in bulk delete, only K8s secrets are deleted

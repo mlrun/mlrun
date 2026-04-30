@@ -642,7 +642,7 @@ def test_store_user_token_secret_rejects_missing_username(k8s_helper):
     k8s_helper.list_secrets = mock.MagicMock(return_value=[])
 
     auth_info = mlrun.common.schemas.AuthInfo(user_id="test-user-id", username=None)
-    with pytest.raises(AssertionError):
+    with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
         k8s_helper.store_user_token_secret(
             auth_info=auth_info,
             token_name="my-token",

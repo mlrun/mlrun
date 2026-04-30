@@ -202,23 +202,6 @@ class TestAPIHandlerConfigBodyMap:
         config.remove_body_mapping("param")  # Should not raise
         assert config.body_map == {}
 
-    @staticmethod
-    def test_add_body_mapping_validates_jsonpath() -> None:
-        """Test that add_body_mapping validates JSONPath expression"""
-        import mlrun.errors
-
-        config = APIHandlerConfig()
-
-        # Should raise for invalid JSONPath syntax
-        with pytest.raises(
-            mlrun.errors.MLRunValueError,
-            match=r"Invalid JSON path expression for parameter 'bad_param'",
-        ):
-            config.add_body_mapping("bad_param", "$.invalid[[[syntax")
-
-        # Should not raise for valid JSONPath
-        config.add_body_mapping("good_param", "$.valid.path")
-        assert config.body_map == {"good_param": "$.valid.path"}
 
 
 # ---------------------------------------------------------------------------

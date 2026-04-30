@@ -35,7 +35,7 @@ generate_installation_token() {
   local repos="${2:-}"
 
   local jwt=$(generate_jwt)
-  local installation_id=$(curl -sf \
+  local installation_id=$(curl -sf --connect-timeout 10 --max-time 30 \
     -H "Authorization: Bearer ${jwt}" \
     -H "Accept: application/vnd.github+json" \
     "https://api.github.com/app/installations" \
@@ -51,7 +51,7 @@ generate_installation_token() {
     data=$(echo "${repos}" | jq -R 'split(",") | map(gsub("^\\s+|\\s+$";"")) | {"repositories": .}')
   fi
 
-  local token=$(curl -sf -X POST \
+  local token=$(curl -sf --connect-timeout 10 --max-time 30 -X POST \
     -H "Authorization: Bearer ${jwt}" \
     -H "Accept: application/vnd.github+json" \
     "https://api.github.com/app/installations/${installation_id}/access_tokens" \
@@ -95,6 +95,10 @@ start_token_refresh_daemon() {
   fi
 
   (
+    # Detach from the parent's stdout/stderr so that the command substitution
+    # used by callers (DAEMON_PID=$(start_token_refresh_daemon ...)) is not
+    # kept open by this infinite loop, which would cause the step to hang.
+    exec </dev/null >>"${token_file}.log" 2>&1
     while true; do
       sleep "${refresh_interval}"
       local new_token=$(generate_installation_token "${owner}" "${repos}" 2>/dev/null)
@@ -103,9 +107,9 @@ start_token_refresh_daemon() {
         if [ -n "${env_yml_file}" ] && [ -f "${env_yml_file}" ]; then
           _update_env_yml "${env_yml_file}" "${env_var_name}" "${new_token}"
         fi
-        echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) Token refreshed" >&2
+        echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) Token refreshed"
       else
-        echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) WARNING: Token refresh failed, will retry" >&2
+        echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) WARNING: Token refresh failed, will retry"
       fi
     done
   ) &

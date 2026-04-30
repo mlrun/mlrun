@@ -87,11 +87,12 @@ class TestBodyMappings:
             bm.add_mapping("")
 
     def test_serialization_roundtrip(self) -> None:
-        """Test that BodyMappings serializes and deserializes correctly"""
+        """BodyMappings and APIHandlerConfig both survive to_dict / from_dict round-trips."""
         bm = BodyMappings()
         bm.add_mapping("$.model", destination_path="model", mandatory=True)
         bm.add_mapping("$.messages", destination_path="messages", mandatory=False)
 
+        # BodyMappings standalone roundtrip
         d = bm.to_dict()
         assert d == {
             "mappings": [
@@ -107,9 +108,21 @@ class TestBodyMappings:
                 },
             ]
         }
-
         bm2 = BodyMappings.from_dict(d)
         assert bm2.mappings == bm.mappings
+
+        # APIHandlerConfig roundtrip — nested BodyMappings must survive deserialization
+        config = APIHandlerConfig()
+        config.add_endpoint_handler(
+            "/users",
+            HTTPMethod.POST,
+            APIHandlerAction.ALLOW,
+            "Create user",
+            input_body_mappings=bm,
+        )
+        restored = APIHandlerConfig.from_dict(config.to_dict())
+        ep = restored.get_endpoint_config(HTTPMethod.POST, "/users")
+        assert ep.input_body_mappings.to_dict() == bm.to_dict()
 
 
 class TestRequestContext:
@@ -935,35 +948,26 @@ class TestAPIHandlerMockServer:
     """Test API handler with mock server integration"""
 
     def test_api_handler_minimal(self) -> None:
-        """Test minimal API handler functionality"""
+        """Minimal e2e: set_api_handler_config auto-injects _APIHandlerStep, body passes through unchanged."""
         fn = cast(
             ServingRuntime, mlrun.new_function("test-api-minimal", kind="serving")
         )
 
-        # Set API handler config using the set_api_handler_config method
         config = APIHandlerConfig()
         config.add_endpoint_handler(
-            "/some/path",  # Use a more realistic path
-            HTTPMethod.GET,
-            APIHandlerAction.ALLOW,
-            "Health check",
+            "/some/path", HTTPMethod.GET, APIHandlerAction.ALLOW, "Health check"
         )
 
-        # Set the config on the function - this should automatically add _APIHandlerStep
+        # set_api_handler_config should automatically add _APIHandlerStep — no manual wiring needed
         fn.set_api_handler_config(config)
 
-        # Set topology but don't manually add _APIHandlerStep - it should be automatic
         graph = fn.set_topology("flow", engine="sync")
-        # Add a responder step since we removed the respond() from the API handler
         graph.to(name="echo", handler="(event)").respond()
 
         server = fn.to_mock_server()
         try:
-            resp = server.test(
-                "/some/path",
-                method="GET",
-                body="ping",
-            )
+            # No input_body_mappings configured → body passed through as-is
+            resp = server.test("/some/path", method="GET", body="ping")
             assert resp == "ping"
         finally:
             server.wait_for_completion()

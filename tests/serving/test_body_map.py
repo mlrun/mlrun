@@ -17,7 +17,6 @@
 import logging
 from http import HTTPMethod
 from typing import cast
-from unittest.mock import MagicMock
 
 import pytest
 
@@ -48,26 +47,6 @@ class PrefixStep:
 # ---------------------------------------------------------------------------
 class TestAPIHandlerConfigBodyMap:
     """Tests for per-endpoint input_body_mappings on APIHandlerConfig."""
-
-    def test_body_map_serialization_roundtrip(self) -> None:
-        """EndpointConfig with input_body_mappings survives to_dict / from_dict round-trip."""
-        bm = BodyMappings()
-        bm.add_mapping("$.name", destination_path="user_name")
-        bm.add_mapping("$.contact.email", destination_path="user_email")
-
-        config = APIHandlerConfig()
-        config.add_endpoint_handler(
-            "/users",
-            HTTPMethod.POST,
-            APIHandlerAction.ALLOW,
-            "Create user",
-            input_body_mappings=bm,
-        )
-
-        restored = APIHandlerConfig.from_dict(config.to_dict())
-
-        ep = restored.get_endpoint_config(HTTPMethod.POST, "/users")
-        assert ep.input_body_mappings.to_dict() == bm.to_dict()
 
     def test_add_body_mapping_on_specific_endpoint(self) -> None:
         """input_body_mappings is scoped to its endpoint — other endpoints are unaffected."""
@@ -202,7 +181,9 @@ class TestAPIHandlerStepBodyMap:
     """Tests for input_body_mappings integration in _APIHandlerStep."""
 
     @staticmethod
-    def _make_step(mappings: dict[str, str], path: str = "/predict") -> "_APIHandlerStep":
+    def _make_step(
+        mappings: dict[str, str], path: str = "/predict"
+    ) -> "_APIHandlerStep":
         """Build a step with a single endpoint that has the given source→dest mappings."""
         bm = BodyMappings()
         for dest, src in mappings.items():
@@ -215,13 +196,18 @@ class TestAPIHandlerStepBodyMap:
 
     def test_body_map_transforms_event_body(self) -> None:
         """input_body_mappings extracts fields from the request body via JSONPath."""
-        step = self._make_step({
-            "model_name": "$.request.model",
-            "input_data": "$.request.data",
-        })
+        step = self._make_step(
+            {
+                "model_name": "$.request.model",
+                "input_data": "$.request.data",
+            }
+        )
 
         event = MockEvent(
-            body={"request": {"model": "my-model", "data": [1, 2, 3]}, "metadata": "ignored"},
+            body={
+                "request": {"model": "my-model", "data": [1, 2, 3]},
+                "metadata": "ignored",
+            },
             method="POST",
             path="/predict",
         )
@@ -234,10 +220,12 @@ class TestAPIHandlerStepBodyMap:
 
     def test_body_map_missing_params_skipped(self) -> None:
         """Missing JSONPath fields are silently skipped when mandatory=False (default)."""
-        step = self._make_step({
-            "name": "$.name",
-            "missing": "$.nonexistent.path",
-        })
+        step = self._make_step(
+            {
+                "name": "$.name",
+                "missing": "$.nonexistent.path",
+            }
+        )
 
         event = MockEvent(body={"name": "test-model"}, method="POST", path="/predict")
 
@@ -277,21 +265,31 @@ class TestAPIHandlerStepBodyMap:
 
         config = APIHandlerConfig()
         config.add_endpoint_handler(
-            "/predict", HTTPMethod.POST, APIHandlerAction.ALLOW, input_body_mappings=predict_bm
+            "/predict",
+            HTTPMethod.POST,
+            APIHandlerAction.ALLOW,
+            input_body_mappings=predict_bm,
         )
         config.add_endpoint_handler(
-            "/classify", HTTPMethod.POST, APIHandlerAction.ALLOW, input_body_mappings=classify_bm
+            "/classify",
+            HTTPMethod.POST,
+            APIHandlerAction.ALLOW,
+            input_body_mappings=classify_bm,
         )
         step = _APIHandlerStep(config=config)
 
         shared_body = {"request": {"model": "gpt-4"}, "payload": {"data": "cats"}}
 
-        predict_result = step.do(MockEvent(body=shared_body, method="POST", path="/predict"))
+        predict_result = step.do(
+            MockEvent(body=shared_body, method="POST", path="/predict")
+        )
         assert isinstance(predict_result.body, _RequestContext)
         assert predict_result.body["model_name"] == "gpt-4"
         assert "input" not in predict_result.body
 
-        classify_result = step.do(MockEvent(body=shared_body, method="POST", path="/classify"))
+        classify_result = step.do(
+            MockEvent(body=shared_body, method="POST", path="/classify")
+        )
         assert isinstance(classify_result.body, _RequestContext)
         assert classify_result.body["input"] == "cats"
         assert "model_name" not in classify_result.body
@@ -318,8 +316,11 @@ class TestBodyMapMockServer:
 
         config = APIHandlerConfig()
         config.add_endpoint_handler(
-            "/predict", HTTPMethod.POST, APIHandlerAction.ALLOW,
-            "Prediction with body_map", input_body_mappings=bm,
+            "/predict",
+            HTTPMethod.POST,
+            APIHandlerAction.ALLOW,
+            "Prediction with body_map",
+            input_body_mappings=bm,
         )
         fn.set_api_handler_config(config)
 
@@ -329,8 +330,12 @@ class TestBodyMapMockServer:
         server = fn.to_mock_server()
         try:
             resp = server.test(
-                "/predict", method="POST",
-                body={"request": {"model": "my-model", "data": [1, 2, 3]}, "extra_field": "ignored"},
+                "/predict",
+                method="POST",
+                body={
+                    "request": {"model": "my-model", "data": [1, 2, 3]},
+                    "extra_field": "ignored",
+                },
             )
             assert resp == {"model_name": "my-model", "input_data": [1, 2, 3]}
         finally:
@@ -343,7 +348,9 @@ class TestBodyMapMockServer:
         def echo_handler(body, **kwargs):
             return kwargs
 
-        fn = cast(ServingRuntime, mlrun.new_function("test-body-map-missing", kind="serving"))
+        fn = cast(
+            ServingRuntime, mlrun.new_function("test-body-map-missing", kind="serving")
+        )
 
         bm = BodyMappings()
         bm.add_mapping("$.user.name", destination_path="name")
@@ -352,8 +359,11 @@ class TestBodyMapMockServer:
 
         config = APIHandlerConfig()
         config.add_endpoint_handler(
-            "/register", HTTPMethod.POST, APIHandlerAction.ALLOW,
-            "Register with body_map", input_body_mappings=bm,
+            "/register",
+            HTTPMethod.POST,
+            APIHandlerAction.ALLOW,
+            "Register with body_map",
+            input_body_mappings=bm,
         )
         fn.set_api_handler_config(config)
 
@@ -363,28 +373,11 @@ class TestBodyMapMockServer:
         server = fn.to_mock_server()
         try:
             resp = server.test(
-                "/register", method="POST",
+                "/register",
+                method="POST",
                 body={"user": {"name": "Alice", "email": "alice@example.com"}},
             )
             assert resp == {"name": "Alice", "email": "alice@example.com"}
-        finally:
-            server.wait_for_completion()
-
-    def test_endpoint_without_body_map_unaffected(self) -> None:
-        """Endpoint with no input_body_mappings passes the body through unchanged."""
-        fn = cast(ServingRuntime, mlrun.new_function("test-no-body-map", kind="serving"))
-
-        config = APIHandlerConfig()
-        config.add_endpoint_handler("/health", HTTPMethod.GET, APIHandlerAction.ALLOW, "Health check")
-        fn.set_api_handler_config(config)
-
-        graph = fn.set_topology("flow", engine="sync")
-        graph.to(name="echo", handler="(event)").respond()
-
-        server = fn.to_mock_server()
-        try:
-            resp = server.test("/health", method="GET", body="ping")
-            assert resp == "ping"
         finally:
             server.wait_for_completion()
 
@@ -395,7 +388,9 @@ class TestBodyMapMockServer:
         def echo_handler(body, **kwargs):
             return kwargs
 
-        fn = cast(ServingRuntime, mlrun.new_function("test-body-map-multi", kind="serving"))
+        fn = cast(
+            ServingRuntime, mlrun.new_function("test-body-map-multi", kind="serving")
+        )
 
         predict_bm = BodyMappings()
         predict_bm.add_mapping("$.request.model", destination_path="model_name")
@@ -405,10 +400,16 @@ class TestBodyMapMockServer:
 
         config = APIHandlerConfig()
         config.add_endpoint_handler(
-            "/predict", HTTPMethod.POST, APIHandlerAction.ALLOW, input_body_mappings=predict_bm
+            "/predict",
+            HTTPMethod.POST,
+            APIHandlerAction.ALLOW,
+            input_body_mappings=predict_bm,
         )
         config.add_endpoint_handler(
-            "/classify", HTTPMethod.POST, APIHandlerAction.ALLOW, input_body_mappings=classify_bm
+            "/classify",
+            HTTPMethod.POST,
+            APIHandlerAction.ALLOW,
+            input_body_mappings=classify_bm,
         )
         fn.set_api_handler_config(config)
 
@@ -434,15 +435,20 @@ class TestBodyMapMockServer:
         def fun(body, book):
             return f"{book} - this is the book"
 
-        fn = cast(ServingRuntime, mlrun.new_function("test-body-map-kwargs", kind="serving"))
+        fn = cast(
+            ServingRuntime, mlrun.new_function("test-body-map-kwargs", kind="serving")
+        )
 
         bm = BodyMappings()
         bm.add_mapping("$.age", destination_path="book")
 
         config = APIHandlerConfig()
         config.add_endpoint_handler(
-            "/predict", HTTPMethod.POST, APIHandlerAction.ALLOW,
-            "Kwargs handler", input_body_mappings=bm,
+            "/predict",
+            HTTPMethod.POST,
+            APIHandlerAction.ALLOW,
+            "Kwargs handler",
+            input_body_mappings=bm,
         )
         fn.set_api_handler_config(config)
 
@@ -452,7 +458,8 @@ class TestBodyMapMockServer:
         server = fn.to_mock_server()
         try:
             resp = server.test(
-                "/predict", method="POST",
+                "/predict",
+                method="POST",
                 body={"firstName": "John", "lastName": "doe", "age": 26},
             )
             assert resp == "26 - this is the book"
@@ -466,7 +473,10 @@ class TestBodyMapMockServer:
         def handler(body, name, age):
             return f"{name} is {age} years old"
 
-        fn = cast(ServingRuntime, mlrun.new_function("test-body-map-multi-kwargs", kind="serving"))
+        fn = cast(
+            ServingRuntime,
+            mlrun.new_function("test-body-map-multi-kwargs", kind="serving"),
+        )
 
         bm = BodyMappings()
         bm.add_mapping("$.firstName", destination_path="name")
@@ -484,7 +494,8 @@ class TestBodyMapMockServer:
         server = fn.to_mock_server()
         try:
             resp = server.test(
-                "/predict", method="POST",
+                "/predict",
+                method="POST",
                 body={"firstName": "John", "lastName": "doe", "age": 26},
             )
             assert resp == "John is 26 years old"
@@ -498,7 +509,9 @@ class TestBodyMapMockServer:
         def my_step(first_arg, param1, param2):
             return f"Received: {first_arg}, {param1=} and {param2=}"
 
-        fn = cast(ServingRuntime, mlrun.new_function("test-nested-extraction", kind="serving"))
+        fn = cast(
+            ServingRuntime, mlrun.new_function("test-nested-extraction", kind="serving")
+        )
 
         bm = BodyMappings()
         bm.add_mapping("$.field1", destination_path="param1")
@@ -516,8 +529,13 @@ class TestBodyMapMockServer:
         server = fn.to_mock_server()
         try:
             resp = server.test(
-                "/predict", method="POST",
-                body={"field1": "value1", "nested": {"field2": "value2"}, "extra": "ignored"},
+                "/predict",
+                method="POST",
+                body={
+                    "field1": "value1",
+                    "nested": {"field2": "value2"},
+                    "extra": "ignored",
+                },
             )
             assert resp == (
                 "Received: {'field1': 'value1', 'nested': {'field2': 'value2'}, "
@@ -544,8 +562,11 @@ def test_api_handler_with_body_map_and_processing_step(rundb_mock):
 
     config = APIHandlerConfig()
     config.add_endpoint_handler(
-        "/predict", HTTPMethod.POST, APIHandlerAction.ALLOW,
-        "Predict with body_map", input_body_mappings=bm,
+        "/predict",
+        HTTPMethod.POST,
+        APIHandlerAction.ALLOW,
+        "Predict with body_map",
+        input_body_mappings=bm,
     )
     fn.set_api_handler_config(config)
 

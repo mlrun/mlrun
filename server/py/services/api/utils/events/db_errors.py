@@ -36,7 +36,7 @@ CATEGORY_POOL_TIMEOUT = "pool_timeout"
 # Conservative mapping — each entry must be unambiguously a "cannot connect"
 # failure. Lock waits, deadlocks, and query timeouts are query-level and stay
 # off the map to keep the false-positive rate at zero.
-_MYSQL_CATEGORIES: dict[int, str] = {
+MYSQL_CATEGORIES: dict[int, str] = {
     2002: CATEGORY_DISCONNECT,  # CR_CONNECTION_ERROR — can't connect via socket
     2003: CATEGORY_DISCONNECT,  # CR_CONN_HOST_ERROR — can't connect via TCP
     2005: CATEGORY_DISCONNECT,  # CR_UNKNOWN_HOST
@@ -47,7 +47,7 @@ _MYSQL_CATEGORIES: dict[int, str] = {
 
 # PostgreSQL SQLSTATEs surfaced via psycopg2 ``pgcode`` / psycopg3 ``sqlstate``.
 # See https://www.postgresql.org/docs/current/errcodes-appendix.html.
-_PG_CATEGORIES: dict[str, str] = {
+PG_CATEGORIES: dict[str, str] = {
     # Class 08 — Connection Exception
     "08000": CATEGORY_DISCONNECT,
     "08001": CATEGORY_DISCONNECT,  # sqlclient_unable_to_establish_sqlconnection
@@ -63,7 +63,7 @@ _PG_CATEGORIES: dict[str, str] = {
     "53300": CATEGORY_TOO_MANY_CONNECTIONS,  # too_many_connections
 }
 
-_SUPPORTED_DIALECTS: frozenset[str] = frozenset(
+SUPPORTED_DIALECTS: frozenset[str] = frozenset(
     {
         mlrun.common.db.dialects.Dialects.MYSQL,
         mlrun.common.db.dialects.Dialects.POSTGRESQL,
@@ -102,13 +102,13 @@ def classify(
 
     mysql_code = _extract_mysql_code(original)
     if mysql_code is not None:
-        category = _MYSQL_CATEGORIES.get(mysql_code)
+        category = MYSQL_CATEGORIES.get(mysql_code)
         if category is not None:
             return category, mysql_code
 
     pg_code = _extract_pg_sqlstate(original)
     if pg_code is not None:
-        category = _PG_CATEGORIES.get(pg_code)
+        category = PG_CATEGORIES.get(pg_code)
         if category is not None:
             return category, pg_code
 
@@ -163,7 +163,7 @@ def register(engine: sqlalchemy.engine.Engine) -> None:
     engines are wired up; SQLite and any other dialect are skipped because
     we have no driver-code mapping for them.
     """
-    if engine.dialect.name not in _SUPPORTED_DIALECTS:
+    if engine.dialect.name not in SUPPORTED_DIALECTS:
         return
     if id(engine) in _registered_engines:
         return

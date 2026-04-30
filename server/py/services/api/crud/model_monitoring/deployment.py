@@ -2233,7 +2233,9 @@ class MonitoringDeployment:
         )
         if stream_url is None:
             logger.warning(
-                "Model monitoring stream function has no HTTP trigger URL",
+                "Model monitoring stream has no HTTP trigger — MODEL_MONITORING_URL will "
+                "not be injected. HTTP trigger support was added in 1.12.0; the stream "
+                "pod may have been deployed with an older version.",
                 project=project,
             )
 

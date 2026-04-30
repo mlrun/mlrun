@@ -127,7 +127,6 @@ class NuclioSpec(KubeResourceSpec):
         "disable_default_http_trigger",
         "custom_scaling_metric_specs",
         "auth",
-        "setup_monitoring",
     ]
     # model_endpoints_instructions requires custom serialization (list of pydantic objects → dicts)
     _fields_to_serialize = KubeResourceSpec._fields_to_serialize + [
@@ -182,8 +181,7 @@ class NuclioSpec(KubeResourceSpec):
         track_models=None,
         auth=None,
         env_from=None,
-        model_endpoint_instructions=None,
-        setup_monitoring=False,
+        model_endpoints_instructions=None,
     ):
         super().__init__(
             command=command,
@@ -239,8 +237,7 @@ class NuclioSpec(KubeResourceSpec):
 
         self.disable_default_http_trigger = disable_default_http_trigger
         self.custom_scaling_metric_specs = custom_scaling_metric_specs or []
-        self.model_endpoints_instructions = model_endpoint_instructions or []
-        self.setup_monitoring = setup_monitoring
+        self.model_endpoints_instructions = model_endpoints_instructions or []
 
         # When True it will set Nuclio spec.noBaseImagesPull to False (negative logic)
         # indicate that the base image should be pulled from the container registry (not cached)
@@ -375,7 +372,7 @@ class RemoteRuntime(KubeResource):
 
     def setup_model_monitoring(
         self,
-        model_endpoint_instructions: ModelEndpointInstruction | None = None,
+        general_model_endpoint_instructions: ModelEndpointInstruction | None = None,
         extra_model_endpoint_instructions: typing.Union[
             list[mlrun.common.schemas.model_monitoring.ModelEndpointInstruction],
             list[dict],
@@ -387,10 +384,10 @@ class RemoteRuntime(KubeResource):
         Optional configure  custom model endpoint or extra model endpoints to be created at deployment time.
 
         Each instruction describes a ``USER_EP`` model endpoint that will be registered
-        when this function is deployed. Calling this method sets the ``setup_monitoring``
+        when this function is deployed. Calling this method sets the ``track_models``
         flag on the spec so the deployment stage knows to create the endpoints.
 
-        :param model_endpoint_instructions: Optional ModelEndpointInstruction parameter for main model endpoint
+        :param general_model_endpoint_instructions: Optional ModelEndpointInstruction parameter for main model endpoint
             instructions, if not provided a default one will be created with the USER_EP endpoint type and the default
             name f'{function_name}_model_endpoint'.
         :param extra_model_endpoint_instructions: List of ModelEndpointInstruction
@@ -402,28 +399,30 @@ class RemoteRuntime(KubeResource):
                 "model_endpoints_instructions will be overridden by setup_model_monitoring. "
                 "if you want to set custom model endpoints, please pass them as parameters to this method"
             )
-        if model_endpoint_instructions is None:
+        if general_model_endpoint_instructions is None:
             self.spec.model_endpoints_instructions = [
                 ModelEndpointInstruction(name=f"{self.metadata.name}_model_endpoint")
             ]
         else:
             self.spec.model_endpoints_instructions = [
-                model_endpoint_instructions
-                if isinstance(model_endpoint_instructions, ModelEndpointInstruction)
-                else ModelEndpointInstruction.from_dict(model_endpoint_instructions)
+                general_model_endpoint_instructions
+                if isinstance(
+                    general_model_endpoint_instructions, ModelEndpointInstruction
+                )
+                else ModelEndpointInstruction.from_dict(
+                    general_model_endpoint_instructions
+                )
             ]
         if extra_model_endpoint_instructions:
             if isinstance(extra_model_endpoint_instructions[0], dict):
                 extra_model_endpoint_instructions = [
-                    ModelEndpointInstruction.from_dict(
-                        extra_model_endpoint_instructions
-                    )
-                    for extra_model_endpoint_instructions in extra_model_endpoint_instructions
+                    ModelEndpointInstruction.from_dict(instruction)
+                    for instruction in extra_model_endpoint_instructions
                 ]
             self.spec.model_endpoints_instructions.extend(
                 extra_model_endpoint_instructions
             )
-        self.spec.setup_monitoring = True
+        self.spec.track_models = True
         return self
 
     def with_annotations(self, annotations: dict):
@@ -865,7 +864,7 @@ class RemoteRuntime(KubeResource):
         verbose=False,
         builder_env: dict | None = None,
         force_build: bool = False,
-        setup_monitoring: bool | None = None,
+        track_models: bool | None = None,
     ):
         """Deploy the nuclio function to the cluster
 
@@ -874,10 +873,9 @@ class RemoteRuntime(KubeResource):
         :param verbose:    set True for verbose logging
         :param builder_env: env vars dict for source archive config/credentials e.g. builder_env={"GIT_TOKEN": token}
         :param force_build: set True for force building the image
-        :param setup_monitoring: setup monitoring allow override state of self.spec.setup_monitoring,
-            if not provided it will use the value in the spec, which is False by default, and will be set to True if
-            setup_model_monitoring was called. by setting to True model endpoint connected to the RemoteRuntime will be
-            created at deployment time.
+        :param track_models: override state of self.spec.track_models. If not provided, uses the spec value (False
+            by default, True after setup_model_monitoring() is called). When True, model endpoints are created at
+            deployment time.
         """
 
         old_http_session = getattr(self, "_http_session", None)
@@ -895,10 +893,10 @@ class RemoteRuntime(KubeResource):
         if tag:
             self.metadata.tag = tag
 
-        self.spec.setup_monitoring = (
-            self.spec.setup_monitoring if setup_monitoring is None else setup_monitoring
+        self.spec.track_models = (
+            self.spec.track_models if track_models is None else track_models
         )
-        if self.spec.setup_monitoring and not self.spec.model_endpoints_instructions:
+        if self.spec.track_models and not self.spec.model_endpoints_instructions:
             self.setup_model_monitoring()
 
         # Attempt auto-mounting, before sending to remote build

@@ -340,7 +340,7 @@ class EndpointMode(IntEnum):
 
 
 class NuclioMonitoringEnvVars(MonitoringStrEnum):
-    """Environment variable names injected into nuclio/application functions when setup_monitoring=True."""
+    """Environment variable names injected into nuclio/application functions when track_models=True."""
 
     MODEL_MONITORING_URL = "MODEL_MONITORING_URL"
     MODEL_ENDPOINT_UID = "MODEL_ENDPOINT_UID"

@@ -4271,7 +4271,7 @@ class HTTPRunDB(RunDBInterface):
         """
         resp = self.api_call(
             method=mlrun.common.types.HTTPMethod.GET,
-            path=f"projects/{project}/model-monitoring/model-monitoring-url",
+            path=f"projects/{project}/model-monitoring/stream-pod-http-url",
         )
         return resp.json()
 

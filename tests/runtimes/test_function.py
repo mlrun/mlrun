@@ -525,3 +525,74 @@ def test_with_source_archive_removes_inline_code(logs_stream):
 
     # assert that the source was set correctly
     assert fn.spec.build.source == source
+
+
+class TestSetupModelMonitoring:
+    def _nuclio_fn(self, name="test-fn"):
+        return mlrun.new_function(name, kind="nuclio")
+
+    def test_extra_instructions_as_dicts(self):
+        from mlrun.common.schemas.model_monitoring.model_endpoints import (
+            ModelEndpointInstruction,
+        )
+
+        fn = self._nuclio_fn()
+        extra = [
+            {"name": "ep-extra-1", "input_schema": ["f1"]},
+            {"name": "ep-extra-2", "output_schema": ["label"]},
+        ]
+        fn.setup_model_monitoring(extra_model_endpoint_instructions=extra)
+
+        instructions = fn.spec.model_endpoints_instructions
+        assert len(instructions) == 3  # 1 default + 2 extra
+        assert all(isinstance(i, ModelEndpointInstruction) for i in instructions)
+        names = [i.name for i in instructions]
+        assert "ep-extra-1" in names
+        assert "ep-extra-2" in names
+        extra1 = next(i for i in instructions if i.name == "ep-extra-1")
+        assert extra1.input_schema == ["f1"]
+        extra2 = next(i for i in instructions if i.name == "ep-extra-2")
+        assert extra2.output_schema == ["label"]
+
+    def test_extra_instructions_as_objects(self):
+        from mlrun.common.schemas.model_monitoring.model_endpoints import (
+            ModelEndpointInstruction,
+        )
+
+        fn = self._nuclio_fn()
+        extra = [
+            ModelEndpointInstruction(name="ep-obj-1"),
+            ModelEndpointInstruction(name="ep-obj-2", input_schema=["x"]),
+        ]
+        fn.setup_model_monitoring(extra_model_endpoint_instructions=extra)
+
+        instructions = fn.spec.model_endpoints_instructions
+        assert len(instructions) == 3
+        assert all(isinstance(i, ModelEndpointInstruction) for i in instructions)
+        names = [i.name for i in instructions]
+        assert "ep-obj-1" in names
+        assert "ep-obj-2" in names
+
+    def test_extra_instructions_with_explicit_primary(self):
+        from mlrun.common.schemas.model_monitoring.model_endpoints import (
+            ModelEndpointInstruction,
+        )
+
+        fn = self._nuclio_fn()
+        primary = ModelEndpointInstruction(name="primary-ep")
+        extra = [{"name": "extra-ep"}]
+        fn.setup_model_monitoring(
+            general_model_endpoint_instructions=primary,
+            extra_model_endpoint_instructions=extra,
+        )
+
+        instructions = fn.spec.model_endpoints_instructions
+        assert len(instructions) == 2
+        assert instructions[0].name == "primary-ep"
+        assert instructions[1].name == "extra-ep"
+        assert fn.spec.track_models is True
+
+    def test_returns_self_for_chaining(self):
+        fn = self._nuclio_fn()
+        result = fn.setup_model_monitoring()
+        assert result is fn

@@ -72,9 +72,8 @@ async def start_model_endpoint_creation_background_task(
 
     elif kind in (
         RuntimeKinds.remote,
-        RuntimeKinds.nuclio,
         RuntimeKinds.application,
-    ) and (function.get("spec") or {}).get("setup_monitoring"):
+    ) and (function.get("spec") or {}).get("track_models"):
         (
             model_endpoints_instructions,
             function,

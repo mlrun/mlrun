@@ -601,7 +601,7 @@ async def get_model_endpoint_drift_over_time(
 
 
 @router.get(
-    "/model-monitoring-url",
+    "/stream-pod-http-url",
     status_code=http.HTTPStatus.OK.value,
 )
 async def get_model_monitoring_url(

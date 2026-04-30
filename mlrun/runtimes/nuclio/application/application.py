@@ -89,6 +89,7 @@ class ApplicationSpec(nuclio_function.NuclioSpec):
         track_models=None,
         internal_application_port=None,
         application_ports=None,
+        model_endpoints_instructions=None,
         auth=None,
         env_from=None,
     ):
@@ -138,6 +139,7 @@ class ApplicationSpec(nuclio_function.NuclioSpec):
             state_thresholds=state_thresholds,
             disable_default_http_trigger=disable_default_http_trigger,
             custom_scaling_metric_specs=custom_scaling_metric_specs,
+            model_endpoints_instructions=model_endpoints_instructions,
             auth=auth,
         )
 

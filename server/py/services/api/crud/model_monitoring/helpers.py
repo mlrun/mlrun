@@ -86,7 +86,8 @@ async def get_stream_url(
 
     internal_urls = status.get("internal_invocation_urls") or []
     if internal_urls and internal_urls[0]:
-        return f"http://{internal_urls[0]}"
+        url = internal_urls[0]
+        return url if url.startswith("http") else f"http://{url}"
 
     return None
 

@@ -121,10 +121,10 @@ class TestUpdateControllerAuthToken:
 
 
 class TestGetModelMonitoringURL:
-    """Tests for the GET /projects/{project}/model-monitoring/model-monitoring-url endpoint."""
+    """Tests for the GET /projects/{project}/model-monitoring/stream-pod-http-url endpoint."""
 
     _PROJECT = "test-mm-url"
-    _URL_PATH = f"projects/{_PROJECT}/model-monitoring/model-monitoring-url"
+    _URL_PATH = f"projects/{_PROJECT}/model-monitoring/stream-pod-http-url"
 
     @pytest.fixture(autouse=True)
     def _bypass_auth(self):

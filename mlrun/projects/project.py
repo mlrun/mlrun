@@ -4373,27 +4373,31 @@ class MlrunProject(ModelObj):
     ) -> typing.Union[BuildStatus, PipelineNodeWrapper]:
         """deploy ML function, build container with its dependencies
 
-        :param function:            name of the function (in the project) or function object
-        :param with_mlrun:          add the current mlrun package to the container build
-        :param skip_deployed:       skip the build if we already have an image for the function
-        :param image:               target image name/path
-        :param base_image:          base image name/path (commands and source code will be added to it)
-        :param commands:            list of docker build (RUN) commands e.g. ['pip install pandas']
-        :param secret_name:         k8s secret for accessing the docker registry
-        :param requirements:        list of python packages, defaults to None
-        :param requirements_file:   pip requirements file path, defaults to None
-        :param mlrun_version_specifier:  which mlrun package version to include (if not current)
-        :param builder_env:         Kaniko builder pod env vars dict (for config/credentials)
-            e.g. builder_env={"GIT_TOKEN": token}, does not work yet in KFP
-        :param overwrite_build_params:  Overwrite existing build configuration (currently only
-            applies to requirements and commands).
+                :param function:            name of the function (in the project) or function object
+                :param with_mlrun:          add the current mlrun package to the container build
+                :param skip_deployed:       skip the build if we already have an image for the function
+                :param image:               target image name/path
+                :param base_image:          base image name/path (commands and source code will be added to it)
+                :param commands:            list of docker build (RUN) commands e.g. ['pip install pandas']
+                :param secret_name:         k8s secret for accessing the docker registry
+                :param requirements:        list of python packages, defaults to None
+                :param requirements_file:   pip requirements file path, defaults to None
+                :param mlrun_version_specifier:  which mlrun package version to include (if not current)
+                :param builder_env:         Kaniko builder pod env vars dict (for config/credentials)
+                    e.g. builder_env={"GIT_TOKEN": token}, does not work yet in KFP
+                :param overwrite_build_params: Overwrite existing build configuration (currently only
+                    applies to requirements and commands).
 
-            * False: The new params are merged with the existing
-            * True: The existing params are replaced by the new ones.
+                    * False: The values passed in this call are merged with the project's stored values.
+                    * True: The values passed in this call replace the project's stored values for commands
+                      and requirements. Parameters not explicitly passed retain their stored values.
+        
+                    To remove existing stored values, use ``overwrite_build_params=True`` and pass the values
+                    explicitly like this ``(commands=[""], requirements=[""])``.
 
-        :param extra_args:  A string containing additional builder arguments in the format of command-line options,
-            e.g. extra_args="--skip-tls-verify --build-arg A=val"
-        :param force_build:  force building the image, even when no changes were made
+                :param extra_args:  A string containing additional builder arguments in the format of command-line options,
+                    e.g. extra_args="--skip-tls-verify --build-arg A=val"
+                :param force_build:  force building the image, even when no changes were made
         """
         return build_function(
             function,
@@ -4439,11 +4443,15 @@ class MlrunProject(ModelObj):
         :param secret_name:     k8s secret for accessing the docker registry
         :param requirements: a list of packages to install on the built image
         :param requirements_file: requirements file to install on the built image
-        :param overwrite_build_params:  Overwrite existing build configuration (currently only
+        :param overwrite_build_params: Overwrite existing build configuration (currently only
             applies to requirements and commands).
 
-            * False: The new params are merged with the existing
-            * True: The existing params are replaced by the new ones.
+            * False: The values passed in this call are merged with the project's stored values.
+            * True: The values passed in this call replace the project's stored values for commands
+              and requirements. Parameters not explicitly passed retain their stored values.
+
+            To remove existing stored values, use ``overwrite_build_params=True`` and pass the values
+            explicitly like this ``(commands=[""], requirements=[""])``.
 
         :param builder_env: Kaniko builder pod env vars dict (for config/credentials)
             e.g. builder_env={"GIT_TOKEN": token}, does not work yet in KFP

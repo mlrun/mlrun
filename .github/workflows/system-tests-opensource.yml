@@ -117,7 +117,22 @@ jobs:
           
           # if the action is running on a PR, we need to get the latest commit hash from the PR branch
           if [ -n "$PR_NUM" ]; then
-            echo "mlrun_hash=pr$PR_NUM" >> $GITHUB_OUTPUT
+            # Include the PR HEAD SHA in the hash so each commit produces a unique
+            # docker tag. Without this, all commits to the same PR overwrite the
+            # `pr<NUM>` tag and cached images on self-hosted runners (or in
+            # Artifactory pull-through cache) can serve stale content under the
+            # same tag.
+            PR_HEAD_SHA=$(curl -sS \
+              -H "Authorization: token ${GH_TOKEN}" \
+              -H "Accept: application/vnd.github+json" \
+              "https://api.github.com/repos/${{ github.repository }}/pulls/${PR_NUM}" \
+              | jq -r '.head.sha')
+            if [ -z "$PR_HEAD_SHA" ] || [ "$PR_HEAD_SHA" = "null" ]; then
+              echo "::error::Failed to resolve PR #${PR_NUM} HEAD SHA"
+              exit 1
+            fi
+            PR_HEAD_SHORT=$(echo "$PR_HEAD_SHA" | cut -c1-8)
+            echo "mlrun_hash=pr${PR_NUM}-${PR_HEAD_SHORT}" >> $GITHUB_OUTPUT
           else
             echo "mlrun_hash=$( \
               cd /tmp && \
@@ -141,6 +156,7 @@ jobs:
           echo "unstable_version_prefix=$(cat automation/version/unstable_version_prefix)" >> $GITHUB_OUTPUT
         env:
           PR_NUMBER: ${{ inputs.pr_number }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Set computed versions params
         id: computed_params

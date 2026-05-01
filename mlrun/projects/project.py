@@ -2654,7 +2654,7 @@ class MlrunProject(ModelObj):
     def enable_model_monitoring(
         self,
         base_period: int = 10,
-        image: str = "mlrun/mlrun",
+        image: str | None = None,
         *,
         deploy_histogram_data_drift_app: bool = True,
         wait_for_deployment: bool = False,
@@ -2675,7 +2675,8 @@ class MlrunProject(ModelObj):
                                                   (which is also the minimum value for production environments).
         :param image:                             The image of the model monitoring controller, writer, monitoring
                                                   stream & histogram data drift functions, which are real time nuclio
-                                                  functions. By default, the image is mlrun/mlrun.
+                                                  functions. Defaults to
+                                                  ``mlrun.mlconf.function_defaults.image_by_kind.nuclio``.
         :param deploy_histogram_data_drift_app:   If true, deploy the default histogram-based data drift application:
             :py:class:`~mlrun.model_monitoring.applications.histogram_data_drift.HistogramDataDriftApplication`.
             If false, and you want to deploy the histogram data drift application

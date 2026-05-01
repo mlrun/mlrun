@@ -142,7 +142,7 @@ async def _common_parameters(
 def enable_model_monitoring(
     commons: Annotated[_CommonParams, Depends(_common_parameters)],
     base_period: int = 10,
-    image: str = "mlrun/mlrun",
+    image: str | None = None,
     deploy_histogram_data_drift_app: bool = True,
     fetch_credentials_from_sys_config: bool = Query(
         False,
@@ -172,7 +172,8 @@ def enable_model_monitoring(
                                               function triggers. By default, the base period is 10 minutes.
     :param image:                             The image of the model monitoring controller, writer & monitoring
                                               stream functions, which are real time nuclio functions.
-                                              By default, the image is mlrun/mlrun.
+                                              Defaults to
+                                              ``mlrun.mlconf.function_defaults.image_by_kind.nuclio``.
     :param deploy_histogram_data_drift_app:   If true, deploy the default histogram-based data drift application.
     :param fetch_credentials_from_sys_config: Deprecated. If true, fetch the credentials from the system configuration.
     :param lag_threshold:                     Lag threshold in minutes for writer lag detection.

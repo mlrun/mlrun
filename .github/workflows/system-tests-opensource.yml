@@ -560,26 +560,6 @@ jobs:
         echo "MLRUN_WHEEL_NODE_IP=${NODE_IP}" >> $GITHUB_ENV
         echo "MLRun wheel available at: http://${NODE_IP}:9000/mlrun-pr-rebased-development.whl"
 
-    - name: Wait for MLRun base image pre-stage
-      run: |
-        if [ -z "${MLRUN_PRESTAGE_PID}" ]; then
-          echo "No pre-stage PID found, skipping wait."
-          exit 0
-        fi
-        echo "Waiting for MLRun image pre-stage to finish (PID: ${MLRUN_PRESTAGE_PID})..."
-        while kill -0 "${MLRUN_PRESTAGE_PID}" 2>/dev/null; do
-          echo "  still running... ($(cat /tmp/mlrun-prestage.log 2>/dev/null | tail -1))"
-          sleep 15
-        done
-        echo "=== Pre-stage log ==="
-        cat /tmp/mlrun-prestage.log || true
-        if grep -q "\[prestage\] Done\." /tmp/mlrun-prestage.log 2>/dev/null; then
-          echo "✓ MLRun base image pre-staged successfully"
-        else
-          echo "✗ Pre-stage did not complete — helm install may fail if mlrun-api validates the base image"
-          exit 1
-        fi
-
     - name: Install MLRun CE helm chart
       uses: nick-fields/retry@ad984534de44a9489a53aefd81eb77f87c70dc60 # v4.0.0
       with:
@@ -709,6 +689,29 @@ jobs:
           "mlrun,private-system-tests")
         echo "Token refresh daemon started (PID: ${DAEMON_PID})"
         echo "TOKEN_REFRESH_PID=${DAEMON_PID}" >> $GITHUB_ENV
+
+    - name: Wait for MLRun base image pre-stage
+      # The pre-stage's only consumer is kaniko (function builds in pytest).
+      # Helm install does not pull mlrun/mlrun so we let pre-stage run in
+      # parallel with helm install.
+      run: |
+        if [ -z "${MLRUN_PRESTAGE_PID}" ]; then
+          echo "No pre-stage PID found, skipping wait."
+          exit 0
+        fi
+        echo "Waiting for MLRun image pre-stage to finish (PID: ${MLRUN_PRESTAGE_PID})..."
+        while kill -0 "${MLRUN_PRESTAGE_PID}" 2>/dev/null; do
+          echo "  still running... ($(cat /tmp/mlrun-prestage.log 2>/dev/null | tail -1))"
+          sleep 15
+        done
+        echo "=== Pre-stage log ==="
+        cat /tmp/mlrun-prestage.log || true
+        if grep -q "\[prestage\] Done\." /tmp/mlrun-prestage.log 2>/dev/null; then
+          echo "✓ MLRun base image pre-staged successfully"
+        else
+          echo "✗ Pre-stage did not complete — kaniko builds in pytest will fail with image-not-found"
+          exit 1
+        fi
 
     - name: Run system tests
       id: system-tests

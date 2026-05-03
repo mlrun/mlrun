@@ -18,7 +18,7 @@ The `*` prefix indicates a router class (not a simple processing step).
 ```
 ### Examples
 - {ref}`graph-example`
-- - {ref}`working-with-rag`
+- {ref}`working-with-rag`
 
 ## VotingEnsemble
 ### Description

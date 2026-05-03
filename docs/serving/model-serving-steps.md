@@ -7,7 +7,7 @@ Learn about the ModelRunnerStep and the HTTP streaming step.
 - [HTTP streaming step](#http-streaming-step)
 
 ## ModelRunnerStep
-
+This icon in the UI indicates a modelrunnerstep: <img src="../_static/images/steps-model-runner.png" alt="steps-model-runner" width="30"/>.
 ### Description
 
 The {py:class}`~mlrun.serving.states.ModelRunnerStep` gives you an advanced way to run multiple models on each event with control 

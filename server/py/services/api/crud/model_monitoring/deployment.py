@@ -78,6 +78,33 @@ _HISTOGRAM_DATA_DRIFT_APP_PATH = str(
 )
 BASE_PERIOD_LOOKUP_TABLE = {1: 1, 2: 2, 20: 3, 60: 5, 120: 10, float("inf"): 20}
 
+# Fallback for ``DatastoreProfileKafkaStream.group`` when the profile has
+# no group set (``None``). Matches the pydantic default on that field so
+# an explicit-None profile behaves the same as the default one, and so
+# the legacy migration source group is well-defined.
+_LEGACY_KAFKA_GROUP = "serving"
+
+
+def _kafka_base_group(
+    kafka_profile: "mlrun.datastore.datastore_profile.DatastoreProfileKafkaStream",
+) -> str:
+    """Resolve the profile's base consumer group, falling back to the
+    legacy default when the profile has ``group=None``."""
+    return kafka_profile.group or _LEGACY_KAFKA_GROUP
+
+
+def _mm_kafka_consumer_group(base_group: str, topic: str) -> str:
+    """Derive the per-function Kafka consumer group for model monitoring.
+
+    Each MM function (stream/writer/controller/apps) must be in its own
+    consumer group so that a rebalance in one function (e.g. when the
+    stream HPA scales) does not pause the others. The base group is taken
+    from the user-supplied ``DatastoreProfileKafkaStream.group`` so that
+    custom configurations (e.g. ``"prod"``) are preserved as a namespace
+    prefix rather than silently discarded.
+    """
+    return f"{base_group}_{topic}"
+
 
 class MonitoringDeployment:
     def __init__(
@@ -441,11 +468,17 @@ class MonitoringDeployment:
         topic = mlrun.common.model_monitoring.helpers.get_kafka_topic(
             project=self.project, function_name=function_name
         )
+        # Per-function consumer group to isolate rebalances between MM
+        # functions (stream/writer/controller/apps). The base group is
+        # taken from the user's profile and the topic is appended to
+        # scope the group per project+function.
+        base_group = _kafka_base_group(kafka_profile)
+        consumer_group = _mm_kafka_consumer_group(base_group, topic)
         profile_attributes = kafka_profile.attributes()
         stream_source = mlrun.datastore.sources.KafkaSource(
             brokers=kafka_profile.brokers,
             topics=[topic],
-            group=kafka_profile.group,
+            group=consumer_group,
             initial_offset=kafka_profile.initial_offset,
             partitions=kafka_profile.partitions,
             attributes={
@@ -466,15 +499,30 @@ class MonitoringDeployment:
                 num_partitions=num_partitions, replication_factor=replication_factor
             )
         except kafka.errors.TopicAlreadyExistsError as exc:
-            if ignore_stream_already_exists_failure:
-                logger.info(
-                    "Kafka topic of model monitoring stream already exists. "
-                    "Skipping topic creation and using `earliest` offset",
-                    project=self.project,
-                    error_message=mlrun.errors.err_to_str(exc),
-                )
-            else:
+            if not ignore_stream_already_exists_failure:
                 raise exc
+            logger.info(
+                "Kafka topic of model monitoring stream already exists. "
+                "Skipping topic creation",
+                project=self.project,
+                topic=topic,
+                error_message=mlrun.errors.err_to_str(exc),
+            )
+            # When upgrading from the legacy shared consumer group (e.g.
+            # "serving"), copy committed offsets into the per-function
+            # group so the consumer resumes where it left off instead of
+            # replaying from `initial_offset`. The helper self-detects
+            # whether migration is needed (new group has offsets → no-op;
+            # old group has no offsets for this topic → nothing to
+            # migrate), so no operator flag is required.
+            # TODO: Remove in 1.14.0 — one-time upgrade path from the
+            # legacy shared consumer group. See DEPRECATION.md.
+            self._migrate_kafka_consumer_group_offsets(
+                kafka_profile=kafka_profile,
+                old_group=base_group,
+                new_group=consumer_group,
+                topic=topic,
+            )
 
         function = stream_source.add_nuclio_trigger(function)
         if nuclio_annotations := profile_attributes.get("nuclio_annotations"):
@@ -487,6 +535,96 @@ class MonitoringDeployment:
         function.spec.min_replicas = stream_args.kafka.min_replicas
         function.spec.max_replicas = stream_args.kafka.max_replicas
         self._set_scaling_metric_specs(function, stream_args.kafka)
+
+    # TODO: Remove in 1.14.0 — one-time upgrade path from the legacy
+    # shared consumer group to per-function groups. See DEPRECATION.md.
+    def _migrate_kafka_consumer_group_offsets(
+        self,
+        *,
+        kafka_profile: mlrun.datastore.datastore_profile.DatastoreProfileKafkaStream,
+        old_group: str,
+        new_group: str,
+        topic: str,
+    ) -> None:
+        """One-time migration of committed offsets from *old_group* to *new_group*.
+
+        Idempotent: if *new_group* already has any offset for *topic*, returns
+        immediately. If *old_group* has no offsets for *topic*, returns
+        without committing anything.
+
+        Raises on Kafka failure; callers MUST NOT silently swallow the error
+        because a failed migration means the new consumer group will start
+        from ``initial_offset`` (``earliest``) and replay the topic from the
+        beginning, duplicating every already-processed event.
+        """
+        from kafka import KafkaConsumer, TopicPartition
+        from kafka.admin import KafkaAdminClient
+        from kafka.structs import OffsetAndMetadata
+
+        profile_attributes = kafka_profile.attributes()
+        kafka_params = mlrun.datastore.utils.KafkaParameters(profile_attributes)
+        admin = KafkaAdminClient(
+            bootstrap_servers=kafka_profile.brokers, **kafka_params.admin()
+        )
+        try:
+            new_offsets = admin.list_consumer_group_offsets(new_group)
+            if any(tp.topic == topic for tp in new_offsets):
+                logger.info(
+                    "Per-function consumer group already has offsets for topic, "
+                    "migration already applied",
+                    project=self.project,
+                    new_group=new_group,
+                    topic=topic,
+                )
+                return
+
+            old_offsets = admin.list_consumer_group_offsets(old_group)
+            topic_offsets = {
+                tp: offset for tp, offset in old_offsets.items() if tp.topic == topic
+            }
+            if not topic_offsets:
+                logger.info(
+                    "Legacy consumer group has no offsets for topic, "
+                    "nothing to migrate",
+                    project=self.project,
+                    old_group=old_group,
+                    topic=topic,
+                )
+                return
+        finally:
+            admin.close()
+
+        # kafka-python's admin client has no offset-commit API, so we use
+        # a temporary consumer bound to the new group to commit the offsets.
+        consumer = KafkaConsumer(
+            bootstrap_servers=kafka_profile.brokers,
+            group_id=new_group,
+            enable_auto_commit=False,
+            **kafka_params.consumer(),
+        )
+        try:
+            partitions = [
+                TopicPartition(tp.topic, tp.partition) for tp in topic_offsets
+            ]
+            consumer.assign(partitions)
+            consumer.commit(
+                {
+                    TopicPartition(tp.topic, tp.partition): OffsetAndMetadata(
+                        offset.offset, offset.metadata, offset.leader_epoch
+                    )
+                    for tp, offset in topic_offsets.items()
+                }
+            )
+            logger.info(
+                "Migrated consumer group offsets to per-function group",
+                project=self.project,
+                old_group=old_group,
+                new_group=new_group,
+                topic=topic,
+                partitions=len(topic_offsets),
+            )
+        finally:
+            consumer.close()
 
     @staticmethod
     def create_model_monitoring_stream(
@@ -1251,15 +1389,18 @@ class MonitoringDeployment:
     ):
         import kafka
 
-        consumer = kafka.KafkaConsumer(
-            bootstrap_servers=self.__stream_profile.brokers,
-            group_id=self.__stream_profile.group,
-        )
+        base_group = _kafka_base_group(self.__stream_profile)
         # Iterate over each function and get the stream stats
         for function in function_summaries:
             normalized_function_name = mlrun.utils.normalize_name(function.name)
             topic = mlrun.common.model_monitoring.helpers.get_kafka_topic(
                 project=self.project, function_name=normalized_function_name
+            )
+            # Use the per-function consumer group so the reported
+            # committed/lag reflects what the MM function actually consumed.
+            consumer = kafka.KafkaConsumer(
+                bootstrap_servers=self.__stream_profile.brokers,
+                group_id=_mm_kafka_consumer_group(base_group, topic),
             )
             try:
                 partitions = consumer.partitions_for_topic(topic)
@@ -1306,6 +1447,8 @@ class MonitoringDeployment:
                     topic=topic,
                     error_message=mlrun.errors.err_to_str(exc),
                 )
+            finally:
+                consumer.close()
 
     async def _get_function_summary_applications(
         self,

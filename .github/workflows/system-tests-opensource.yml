@@ -117,7 +117,19 @@ jobs:
           
           # if the action is running on a PR, we need to get the latest commit hash from the PR branch
           if [ -n "$PR_NUM" ]; then
-            echo "mlrun_hash=pr$PR_NUM" >> $GITHUB_OUTPUT
+            PR_HEAD_SHA=$(curl -sS \
+              -H "Authorization: token ${GH_TOKEN}" \
+              -H "Accept: application/vnd.github+json" \
+              "https://api.github.com/repos/${{ github.repository }}/pulls/${PR_NUM}" \
+              | jq -r '.head.sha')
+            if [ -z "$PR_HEAD_SHA" ] || [ "$PR_HEAD_SHA" = "null" ]; then
+              echo "::error::Failed to resolve PR #${PR_NUM} HEAD SHA"
+              exit 1
+            fi
+            # Include the PR HEAD SHA in the mlrun hash so each commit produces a unique
+            # docker tag and wrong use of cached image is prevented
+            PR_HEAD_SHORT=$(echo "$PR_HEAD_SHA" | cut -c1-8)
+            echo "mlrun_hash=pr${PR_NUM}-${PR_HEAD_SHORT}" >> $GITHUB_OUTPUT
           else
             echo "mlrun_hash=$( \
               cd /tmp && \
@@ -141,6 +153,7 @@ jobs:
           echo "unstable_version_prefix=$(cat automation/version/unstable_version_prefix)" >> $GITHUB_OUTPUT
         env:
           PR_NUMBER: ${{ inputs.pr_number }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Set computed versions params
         id: computed_params
@@ -386,10 +399,10 @@ jobs:
             - https://registry-1.docker.io
           ghcr.io:
             endpoint:
-            - https://${ARTIFACTORY_REGISTRY_URL}
+            - https://${ARTIFACTORY_REGISTRY_URL#https://}
           gcr.io:
             endpoint:
-            - https://${ARTIFACTORY_REGISTRY_URL}
+            - https://${ARTIFACTORY_REGISTRY_URL#https://}
         configs:
           "registry-1.docker.io":
             auth:
@@ -430,6 +443,26 @@ jobs:
         kubectl -n kube-system rollout restart deployment coredns
         
         echo "✓ Registry configuration applied successfully"
+
+    - name: Pre-stage MLRun base image to local registry
+      run: |
+        MLRUN_IMAGE="${{ needs.prepare-inputs.outputs.mlrun_docker_registry }}${{ needs.prepare-inputs.outputs.mlrun_docker_repo }}/mlrun:${{ needs.prepare-inputs.outputs.mlrun_docker_tag }}"
+        LOCAL_IMAGE="localhost:32000/${{ needs.prepare-inputs.outputs.mlrun_docker_repo }}/mlrun:${{ needs.prepare-inputs.outputs.mlrun_docker_tag }}"
+
+        echo "Starting background pre-stage: ${MLRUN_IMAGE} → local registry"
+        (
+          set -e
+          echo "[prestage] Pulling ${MLRUN_IMAGE} via crictl (Artifactory mirror)..."
+          sudo crictl pull "${MLRUN_IMAGE}"
+          echo "[prestage] Tagging as ${LOCAL_IMAGE}..."
+          sudo k3s ctr images tag "${MLRUN_IMAGE}" "${LOCAL_IMAGE}"
+          echo "[prestage] Pushing to local registry (plain HTTP)..."
+          sudo k3s ctr images push --plain-http "${LOCAL_IMAGE}"
+          echo "[prestage] Done."
+        ) > /tmp/mlrun-prestage.log 2>&1 &
+        PRESTAGE_PID=$!
+        echo "MLRUN_PRESTAGE_PID=${PRESTAGE_PID}" >> $GITHUB_ENV
+        echo "Pre-stage running in background (PID: ${PRESTAGE_PID})"
 
     - name: Setup K3S storage and check cluster health
       run: |
@@ -505,7 +538,24 @@ jobs:
           --mlrun-dbpath "$MLRUN_DBPATH" \
           --github-access-token "${{ steps.github-app-token.outputs.token }}" \
           --openai-base-url "${{ secrets.OPENAI_BASE_URL }}" \
-          --openai-api-key "${{ secrets.OPENAI_API_KEY }}"  
+          --openai-api-key "${{ secrets.OPENAI_API_KEY }}"
+
+    - name: Build and serve MLRun wheel for kaniko builds
+      run: |
+        source venv/bin/activate
+        # Build a wheel from the already-rebased source tree so kaniko pods can
+        # pip-install mlrun from a local HTTP server instead of cloning from GitHub.
+        # This avoids GitHub rate-limiting when multiple kaniko builds run concurrently.
+        pip install build --quiet
+        rm -rf /tmp/mlrun-wheels && mkdir -p /tmp/mlrun-wheels
+        python -m build --wheel --outdir /tmp/mlrun-wheels . --quiet
+        # Use a fixed name so the URL is predictable
+        mv /tmp/mlrun-wheels/*.whl /tmp/mlrun-wheels/mlrun-pr-rebased-development.whl
+        # Serve on the node IP so Kubernetes pods can reach it
+        NODE_IP=$(hostname -I | awk '{print $1}')
+        python3 -m http.server 9000 --directory /tmp/mlrun-wheels &
+        echo "MLRUN_WHEEL_NODE_IP=${NODE_IP}" >> $GITHUB_ENV
+        echo "MLRun wheel available at: http://${NODE_IP}:9000/mlrun-pr-rebased-development.whl"
 
     - name: Install MLRun CE helm chart
       uses: nick-fields/retry@ad984534de44a9489a53aefd81eb77f87c70dc60 # v4.0.0
@@ -537,15 +587,15 @@ jobs:
               --helm-timeout=15m \
               --override-mlrun-api-image="${{ needs.prepare-inputs.outputs.mlrun_docker_registry }}${{ needs.prepare-inputs.outputs.mlrun_docker_repo }}/mlrun-api:${{ needs.prepare-inputs.outputs.mlrun_docker_tag }}" \
               --override-mlrun-log-collector-image="${{ needs.prepare-inputs.outputs.mlrun_docker_registry }}${{ needs.prepare-inputs.outputs.mlrun_docker_repo }}/log-collector:${{ needs.prepare-inputs.outputs.mlrun_docker_tag }}" \
-              --set 'mlrun.api.extraEnvKeyValue.MLRUN_HTTPDB__BUILDER__MLRUN_VERSION_SPECIFIER="mlrun[complete] @ git+https://github.com/mlrun/mlrun@${{ needs.prepare-inputs.outputs.mlrun_version_specifier }}"' \
+              --set 'mlrun.api.extraEnvKeyValue.MLRUN_HTTPDB__BUILDER__MLRUN_VERSION_SPECIFIER="mlrun[complete] @ http://${{ env.MLRUN_WHEEL_NODE_IP }}:9000/mlrun-pr-rebased-development.whl"' \
               --set mlrun.api.extraEnvKeyValue.MLRUN_IMAGES_REGISTRY="${{ needs.prepare-inputs.outputs.mlrun_docker_registry }}" \
               --set mlrun.api.extraEnvKeyValue.MLRUN_IMAGES_TAG="${{ needs.prepare-inputs.outputs.mlrun_docker_tag }}" \
-              --set mlrun.api.extraEnvKeyValue.MLRUN_DEFAULT_BASE_IMAGE="${{ needs.prepare-inputs.outputs.mlrun_docker_registry }}${{ needs.prepare-inputs.outputs.mlrun_docker_repo }}/mlrun:${{ needs.prepare-inputs.outputs.mlrun_docker_tag }}" \
-              --set mlrun.api.extraEnvKeyValue.MLRUN_FUNCTION_DEFAULTS__IMAGE_BY_KIND__JOB="${{ needs.prepare-inputs.outputs.mlrun_docker_registry }}${{ needs.prepare-inputs.outputs.mlrun_docker_repo }}/mlrun:${{ needs.prepare-inputs.outputs.mlrun_docker_tag }}" \
-              --set mlrun.api.extraEnvKeyValue.MLRUN_FUNCTION_DEFAULTS__IMAGE_BY_KIND__SERVING="${{ needs.prepare-inputs.outputs.mlrun_docker_registry }}${{ needs.prepare-inputs.outputs.mlrun_docker_repo }}/mlrun:${{ needs.prepare-inputs.outputs.mlrun_docker_tag }}" \
-              --set mlrun.api.extraEnvKeyValue.MLRUN_FUNCTION_DEFAULTS__IMAGE_BY_KIND__NUCLIO="${{ needs.prepare-inputs.outputs.mlrun_docker_registry }}${{ needs.prepare-inputs.outputs.mlrun_docker_repo }}/mlrun:${{ needs.prepare-inputs.outputs.mlrun_docker_tag }}" \
-              --set mlrun.api.extraEnvKeyValue.MLRUN_FUNCTION_DEFAULTS__IMAGE_BY_KIND__REMOTE="${{ needs.prepare-inputs.outputs.mlrun_docker_registry }}${{ needs.prepare-inputs.outputs.mlrun_docker_repo }}/mlrun:${{ needs.prepare-inputs.outputs.mlrun_docker_tag }}" \
-              --set mlrun.api.extraEnvKeyValue.MLRUN_FUNCTION_DEFAULTS__IMAGE_BY_KIND__MPIJOB="${{ needs.prepare-inputs.outputs.mlrun_docker_registry }}${{ needs.prepare-inputs.outputs.mlrun_docker_repo }}/mlrun:${{ needs.prepare-inputs.outputs.mlrun_docker_tag }}" \
+              --set mlrun.api.extraEnvKeyValue.MLRUN_DEFAULT_BASE_IMAGE="registry.localhost/${{ needs.prepare-inputs.outputs.mlrun_docker_repo }}/mlrun:${{ needs.prepare-inputs.outputs.mlrun_docker_tag }}" \
+              --set mlrun.api.extraEnvKeyValue.MLRUN_FUNCTION_DEFAULTS__IMAGE_BY_KIND__JOB="registry.localhost/${{ needs.prepare-inputs.outputs.mlrun_docker_repo }}/mlrun:${{ needs.prepare-inputs.outputs.mlrun_docker_tag }}" \
+              --set mlrun.api.extraEnvKeyValue.MLRUN_FUNCTION_DEFAULTS__IMAGE_BY_KIND__SERVING="registry.localhost/${{ needs.prepare-inputs.outputs.mlrun_docker_repo }}/mlrun:${{ needs.prepare-inputs.outputs.mlrun_docker_tag }}" \
+              --set mlrun.api.extraEnvKeyValue.MLRUN_FUNCTION_DEFAULTS__IMAGE_BY_KIND__NUCLIO="registry.localhost/${{ needs.prepare-inputs.outputs.mlrun_docker_repo }}/mlrun:${{ needs.prepare-inputs.outputs.mlrun_docker_tag }}" \
+              --set mlrun.api.extraEnvKeyValue.MLRUN_FUNCTION_DEFAULTS__IMAGE_BY_KIND__REMOTE="registry.localhost/${{ needs.prepare-inputs.outputs.mlrun_docker_repo }}/mlrun:${{ needs.prepare-inputs.outputs.mlrun_docker_tag }}" \
+              --set mlrun.api.extraEnvKeyValue.MLRUN_FUNCTION_DEFAULTS__IMAGE_BY_KIND__MPIJOB="registry.localhost/${{ needs.prepare-inputs.outputs.mlrun_docker_repo }}/mlrun:${{ needs.prepare-inputs.outputs.mlrun_docker_tag }}" \
               --set 'mlrun.api.extraEnvKeyValue.MLRUN_HTTPDB__SCHEDULING__MIN_ALLOWED_INTERVAL="0 seconds"' \
               --set mlrun.api.extraEnvKeyValue.MLRUN_MODEL_ENDPOINT_MONITORING__PARQUET_BATCHING_MAX_EVENTS="100" \
               --set jupyterNotebook.enabled=false \
@@ -636,6 +686,29 @@ jobs:
           "mlrun,private-system-tests")
         echo "Token refresh daemon started (PID: ${DAEMON_PID})"
         echo "TOKEN_REFRESH_PID=${DAEMON_PID}" >> $GITHUB_ENV
+
+    - name: Wait for MLRun base image pre-stage
+      # The pre-stage's only consumer is kaniko (function builds in pytest).
+      # Helm install does not pull mlrun/mlrun so we let pre-stage run in
+      # parallel with helm install.
+      run: |
+        if [ -z "${MLRUN_PRESTAGE_PID}" ]; then
+          echo "No pre-stage PID found, skipping wait."
+          exit 0
+        fi
+        echo "Waiting for MLRun image pre-stage to finish (PID: ${MLRUN_PRESTAGE_PID})..."
+        while kill -0 "${MLRUN_PRESTAGE_PID}" 2>/dev/null; do
+          echo "  still running... ($(cat /tmp/mlrun-prestage.log 2>/dev/null | tail -1))"
+          sleep 15
+        done
+        echo "=== Pre-stage log ==="
+        cat /tmp/mlrun-prestage.log || true
+        if grep -q "\[prestage\] Done\." /tmp/mlrun-prestage.log 2>/dev/null; then
+          echo "✓ MLRun base image pre-staged successfully"
+        else
+          echo "✗ Pre-stage did not complete — kaniko builds in pytest will fail with image-not-found"
+          exit 1
+        fi
 
     - name: Run system tests
       id: system-tests

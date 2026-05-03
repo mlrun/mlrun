@@ -1767,8 +1767,7 @@ def format_run(run: PipelineRun, with_project=False) -> dict:
         ):
             run[key] = None
 
-    # pipelines are yet to populate the status or workflow has failed
-    # as observed https://jira.iguazeng.com/browse/ML-5195
+    # pipelines are yet to populate the status or workflow has failed as observed (ML-5195)
     # set to unknown to ensure a status is returned
     if run.get("status", None) is None:
         run["status"] = inflection.titleize(

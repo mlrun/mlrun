@@ -76,8 +76,8 @@ DB_CONNECTION_EVENTS: dict[
 
 class Client(base_events.BaseEventClient):
     """
-    Events client for Iguazio v4 — publishes events through the Iguazio (orca) SDK
-    using catalog event configs.
+    Events client for Iguazio v4. Publishes events through the Iguazio (orca)
+    SDK using catalog event configs.
     """
 
     def __init__(self, **_kwargs):
@@ -221,7 +221,6 @@ class Client(base_events.BaseEventClient):
 
     @staticmethod
     def _truncate(value: str, limit: int) -> str:
-        """Trim ``value`` so the returned string is at most ``limit`` characters."""
         if len(value) <= limit:
             return value
         if limit <= len(TRUNCATION_SUFFIX):

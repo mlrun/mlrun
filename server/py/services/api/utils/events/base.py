@@ -94,7 +94,7 @@ class BaseEventClient:
         :param error_category: short label classifying the failure (e.g.
             ``disconnect``, ``lock_wait_timeout``, ``deadlock``, ``query_timeout``,
             ``too_many_connections``, ``pool_timeout``)
-        :param error_code: optional driver error code — pymysql int errno or
+        :param error_code: optional driver error code: pymysql int errno or
             PostgreSQL SQLSTATE string (e.g. ``1205`` or ``"40P01"``)
         :param dialect: SQLAlchemy dialect name (e.g. ``mysql``, ``postgresql``)
         :return: event object to emit, or None if the client doesn't support this event

@@ -15,15 +15,15 @@
 Integration tests for ``Platform.MLRun.DB.Connection.Failed`` against a real
 MySQL or PostgreSQL container. Selected via ``MLRUN_TEST_DB={mysql,postgres}``.
 
-The mapping is intentionally conservative — only true "cannot connect"
+The mapping is intentionally conservative: only true "cannot connect"
 failures (driver-level disconnects, ``too_many_connections``, pool checkout
 timeout) emit the event. Everything else, including lock waits, deadlocks,
 query timeouts, and integrity violations, must NOT trigger it.
 
 These tests exercise the wiring against a real driver and verify the
 no-false-positive contract for the most plausible noise sources:
-  * Lock wait timeout — common under contention; must NOT emit.
-  * Integrity violation — user error; must NOT emit.
+  * Lock wait timeout: common under contention; must NOT emit.
+  * Integrity violation: user error; must NOT emit.
 
 True-positive disconnect detection is covered by the unit tests
 (test_db_errors.py) and was verified end-to-end on the lab during PR review.
@@ -78,7 +78,7 @@ def test_lock_wait_timeout_does_not_emit_event(
     stub_events_client: list,
 ) -> None:
     """
-    Lock wait timeouts are NOT a connection failure — the connection is fine,
+    Lock wait timeouts are NOT a connection failure: the connection is fine,
     another transaction held a row lock too long. Must NOT emit the event.
     """
     if _is_mysql(registered_engine):

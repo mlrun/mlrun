@@ -34,19 +34,17 @@ CATEGORY_TOO_MANY_CONNECTIONS = "too_many_connections"
 CATEGORY_POOL_TIMEOUT = "pool_timeout"
 CATEGORY_AUTH_FAILED = "auth_failed"
 
-# Conservative mapping — each entry must be unambiguously a "cannot connect"
-# failure. Lock waits, deadlocks, and query timeouts are query-level and stay
-# off the map to keep the false-positive rate at zero.
+# Each entry must be unambiguously a "cannot connect" failure. Query-level
+# errors (lock waits, deadlocks, query timeouts) stay off the map.
+# CATEGORY_AUTH_FAILED covers credential-rotation cases where the API cannot
+# open a session at all, e.g. RDS password rotation not yet propagated.
 MYSQL_CATEGORIES: dict[int, str] = {
-    2002: CATEGORY_DISCONNECT,  # CR_CONNECTION_ERROR — can't connect via socket
-    2003: CATEGORY_DISCONNECT,  # CR_CONN_HOST_ERROR — can't connect via TCP
+    2002: CATEGORY_DISCONNECT,  # CR_CONNECTION_ERROR (socket)
+    2003: CATEGORY_DISCONNECT,  # CR_CONN_HOST_ERROR (TCP)
     2005: CATEGORY_DISCONNECT,  # CR_UNKNOWN_HOST
     2006: CATEGORY_DISCONNECT,  # CR_SERVER_GONE_ERROR
     2013: CATEGORY_DISCONNECT,  # CR_SERVER_LOST
     1040: CATEGORY_TOO_MANY_CONNECTIONS,  # ER_CON_COUNT_ERROR
-    # Class 28 equivalents — auth blocks the API from establishing a session.
-    # Realistic trigger: RDS/managed-DB password rotation that hasn't propagated
-    # to the API's secret yet.
     1044: CATEGORY_AUTH_FAILED,  # ER_DBACCESS_DENIED_ERROR
     1045: CATEGORY_AUTH_FAILED,  # ER_ACCESS_DENIED_ERROR
     1698: CATEGORY_AUTH_FAILED,  # ER_ACCESS_DENIED_NO_PASSWORD_ERROR
@@ -55,23 +53,21 @@ MYSQL_CATEGORIES: dict[int, str] = {
 # PostgreSQL SQLSTATEs surfaced via psycopg2 ``pgcode`` / psycopg3 ``sqlstate``.
 # See https://www.postgresql.org/docs/current/errcodes-appendix.html.
 PG_CATEGORIES: dict[str, str] = {
-    # Class 08 — Connection Exception
+    # Class 08 (connection_exception)
     "08000": CATEGORY_DISCONNECT,
     "08001": CATEGORY_DISCONNECT,  # sqlclient_unable_to_establish_sqlconnection
     "08003": CATEGORY_DISCONNECT,  # connection_does_not_exist
     "08004": CATEGORY_DISCONNECT,  # sqlserver_rejected_establishment_of_sqlconnection
     "08006": CATEGORY_DISCONNECT,  # connection_failure
     # 08007 (transaction_resolution_unknown) is intentionally NOT mapped:
-    # it fires when the COMMIT ack is lost, which means the txn may actually
-    # have committed. Reporting it as Connection.Failed would be misleading.
+    # it fires when the COMMIT ack is lost, so the txn may have actually
+    # committed; reporting it as Connection.Failed would be misleading.
     "57P01": CATEGORY_DISCONNECT,  # admin_shutdown
     "57P02": CATEGORY_DISCONNECT,  # crash_shutdown
     "57P03": CATEGORY_DISCONNECT,  # cannot_connect_now
     "53300": CATEGORY_TOO_MANY_CONNECTIONS,  # too_many_connections
-    # Class 28 — Invalid Authorization Specification. Auth blocks the API from
-    # establishing a session; realistic trigger is RDS/managed-DB password
-    # rotation that hasn't propagated to the API's secret yet.
-    "28000": CATEGORY_AUTH_FAILED,  # invalid_authorization_specification
+    # Class 28 (invalid_authorization_specification)
+    "28000": CATEGORY_AUTH_FAILED,
     "28P01": CATEGORY_AUTH_FAILED,  # invalid_password
 }
 
@@ -103,9 +99,8 @@ def classify(
     original = ctx.original_exception
 
     if getattr(ctx, "is_disconnect", False):
-        # SQLSTATE first — it's a 5-char string from psycopg2/3, far more
-        # specific than a stray ``args[0]`` int (which can be an OS errno on
-        # a wrapped network exception, not a pymysql errno).
+        # Prefer SQLSTATE: ``args[0]`` may be an OS errno on a wrapped network
+        # exception, not a pymysql errno.
         code = _extract_pg_sqlstate(original) or _extract_mysql_code(original)
         return CATEGORY_DISCONNECT, code
 
@@ -138,8 +133,8 @@ def publish_connection_failed(
 
     Throttled to one emission per process per
     ``mlconf.events.db_connection.min_emit_interval_seconds``. The throttle
-    slot is only consumed when an event is actually emitted, so a no-op client
-    (e.g. ``NopClient``) does not burn the window. Never raises.
+    slot is consumed only on successful delivery; a no-op client or a
+    raising ``emit`` leave the slot free so the next DB error can retry.
 
     :return: True if an event was emitted, False if throttled or unsupported.
     """
@@ -170,10 +165,9 @@ def publish_connection_failed(
 
 def register(engine: sqlalchemy.engine.Engine) -> None:
     """
-    Attach the ``handle_error`` listener to ``engine``. The listener never
-    interferes with the original exception flow. Only MySQL and PostgreSQL
-    engines are wired up; SQLite and any other dialect are skipped because
-    we have no driver-code mapping for them.
+    Attach the ``handle_error`` listener to ``engine``. Only MySQL and
+    PostgreSQL are wired up; other dialects are skipped (no driver-code
+    mapping). The listener never alters exception flow.
     """
     if engine.dialect.name not in SUPPORTED_DIALECTS:
         return
@@ -186,13 +180,13 @@ def register(engine: sqlalchemy.engine.Engine) -> None:
 def register_for_default_engine() -> None:
     """
     Attach the connection-failed listener to the runtime MLRun engine.
-    Safe to call multiple times — the engine is a process-wide singleton.
+    Safe to call multiple times (the engine is a process-wide singleton).
     """
     try:
         engine = framework.db.sqldb.sql_session.get_engine()
     except (RuntimeError, AttributeError) as exc:
         logger.warning(
-            "Failed to resolve DB engine — skipping connection event listener",
+            "Failed to resolve DB engine, skipping connection event listener",
             exc_info=exc,
         )
         return
@@ -200,13 +194,11 @@ def register_for_default_engine() -> None:
 
 
 def _on_dbapi_error(ctx: sqlalchemy.engine.ExceptionContext) -> None:
-    """``handle_error`` listener — never raises."""
+    """``handle_error`` listener; never raises."""
     try:
-        # ``ctx.engine`` is None exactly during the pool's pre-ping probe.
-        # Pre-ping is self-healing (discards stale connections, opens fresh
-        # ones), so we suppress the event there. A real outage will still
-        # surface — the fresh-connect attempt that follows fires
-        # ``handle_error`` again with the engine set, and that path emits.
+        # ``ctx.engine`` is None during the pool's pre-ping probe, which is
+        # self-healing. A real outage surfaces on the fresh-connect attempt
+        # that follows, where ``ctx.engine`` is set and we emit.
         if ctx.engine is None:
             return
         category, code = classify(ctx)
@@ -227,13 +219,9 @@ def _on_dbapi_error(ctx: sqlalchemy.engine.ExceptionContext) -> None:
 
 def _extract_mysql_code(exc: BaseException | None) -> int | None:
     """
-    pymysql exposes ``args == (errno, message)``. Returns the int errno or
-    None if ``exc`` is not a pymysql exception.
-
-    The module check guards against unrelated exceptions whose first arg
-    happens to be an int (e.g. ``OSError(110, "Connection timed out")``
-    propagated through psycopg) — without it those would be reported as
-    a MySQL errno on a PG disconnect, masking the SQLSTATE.
+    Return the pymysql errno (``exc.args[0]``), or None if ``exc`` is not a
+    pymysql exception. The module check prevents misreporting an unrelated
+    int arg (e.g. an OSError errno on a PG disconnect) as a MySQL errno.
     """
     if exc is None:
         return None
@@ -247,9 +235,8 @@ def _extract_mysql_code(exc: BaseException | None) -> int | None:
 
 def _extract_pg_sqlstate(exc: BaseException | None) -> str | None:
     """
-    psycopg2 exposes the SQLSTATE on ``.pgcode``; psycopg3 on ``.sqlstate``.
-    SQLAlchemy preserves these on the original DBAPI exception. Returns the
-    5-char SQLSTATE string or None.
+    Return the psycopg SQLSTATE (``.pgcode`` for psycopg2, ``.sqlstate`` for
+    psycopg3), or None if ``exc`` carries neither.
     """
     if exc is None:
         return None

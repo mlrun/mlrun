@@ -89,8 +89,8 @@ def test_classify_mysql_codes(exc, is_disconnect, expected_category, expected_co
 @pytest.mark.parametrize(
     "exc",
     [
-        # Lock waits, deadlocks, and query timeouts are query-level — must NOT
-        # trigger a connection-failed event (the spec is "cannot connect").
+        # Lock waits, deadlocks, and query timeouts are query-level. They
+        # must NOT trigger a connection-failed event.
         pymysql.err.OperationalError(1205, "Lock wait timeout exceeded"),
         pymysql.err.OperationalError(1213, "Deadlock found"),
         pymysql.err.OperationalError(3024, "Query execution was interrupted"),
@@ -171,7 +171,7 @@ def test_classify_postgres_disconnect_prefers_sqlstate_over_stray_int_arg():
     """
     On a PG disconnect, ``args[0]`` may be an OS errno (e.g. 110 from a
     network-level OSError wrapped by SQLAlchemy). The reported error_code
-    must be the SQLSTATE — the stray int must not leak through.
+    must be the SQLSTATE; the stray int must not leak through.
     """
 
     class _MixedError(Exception):
@@ -189,7 +189,7 @@ def test_classify_postgres_disconnect_prefers_sqlstate_over_stray_int_arg():
 
 
 def test_classify_postgres_unknown_sqlstate_returns_none():
-    """Non-fatal SQLSTATE (e.g. 23505 unique violation) — must not trigger event."""
+    """Non-fatal SQLSTATE (e.g. 23505 unique violation) must not trigger event."""
     exc = _PsycopgLikeError("23505", "unique_violation")
     category, code = db_errors.classify(_ctx(exc, dialect_name="postgresql"))
     assert category is None
@@ -239,7 +239,7 @@ def test_publish_emits_event_via_factory(monkeypatch):
 
 
 def test_publish_no_event_from_nop_client_does_not_consume_throttle(monkeypatch):
-    """A NopClient returns None — emit is skipped AND the throttle slot stays free."""
+    """A NopClient returns None: emit is skipped AND the throttle slot stays free."""
     nop_client = unittest.mock.MagicMock()
     nop_client.generate_db_connection_event.return_value = None
     real_client = unittest.mock.MagicMock()

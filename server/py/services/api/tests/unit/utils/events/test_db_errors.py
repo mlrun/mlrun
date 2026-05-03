@@ -60,6 +60,24 @@ def mysql_engine(monkeypatch):
             db_errors.CATEGORY_TOO_MANY_CONNECTIONS,
             1040,
         ),
+        (
+            pymysql.err.OperationalError(1045, "Access denied for user"),
+            False,
+            db_errors.CATEGORY_AUTH_FAILED,
+            1045,
+        ),
+        (
+            pymysql.err.OperationalError(1044, "Access denied for user to db"),
+            False,
+            db_errors.CATEGORY_AUTH_FAILED,
+            1044,
+        ),
+        (
+            pymysql.err.OperationalError(1698, "Access denied (no password)"),
+            False,
+            db_errors.CATEGORY_AUTH_FAILED,
+            1698,
+        ),
     ],
 )
 def test_classify_mysql_codes(exc, is_disconnect, expected_category, expected_code):
@@ -109,6 +127,11 @@ class _PsycopgLikeError(Exception):
         ("57P03", db_errors.CATEGORY_DISCONNECT),  # cannot_connect_now
         ("57P01", db_errors.CATEGORY_DISCONNECT),  # admin_shutdown
         ("53300", db_errors.CATEGORY_TOO_MANY_CONNECTIONS),
+        (
+            "28000",
+            db_errors.CATEGORY_AUTH_FAILED,
+        ),  # invalid_authorization_specification
+        ("28P01", db_errors.CATEGORY_AUTH_FAILED),  # invalid_password
     ],
 )
 def test_classify_postgres_sqlstates(sqlstate, expected_category):

@@ -32,6 +32,7 @@ import services.api.utils.events.events_factory as events_factory
 CATEGORY_DISCONNECT = "disconnect"
 CATEGORY_TOO_MANY_CONNECTIONS = "too_many_connections"
 CATEGORY_POOL_TIMEOUT = "pool_timeout"
+CATEGORY_AUTH_FAILED = "auth_failed"
 
 # Conservative mapping — each entry must be unambiguously a "cannot connect"
 # failure. Lock waits, deadlocks, and query timeouts are query-level and stay
@@ -43,6 +44,12 @@ MYSQL_CATEGORIES: dict[int, str] = {
     2006: CATEGORY_DISCONNECT,  # CR_SERVER_GONE_ERROR
     2013: CATEGORY_DISCONNECT,  # CR_SERVER_LOST
     1040: CATEGORY_TOO_MANY_CONNECTIONS,  # ER_CON_COUNT_ERROR
+    # Class 28 equivalents — auth blocks the API from establishing a session.
+    # Realistic trigger: RDS/managed-DB password rotation that hasn't propagated
+    # to the API's secret yet.
+    1044: CATEGORY_AUTH_FAILED,  # ER_DBACCESS_DENIED_ERROR
+    1045: CATEGORY_AUTH_FAILED,  # ER_ACCESS_DENIED_ERROR
+    1698: CATEGORY_AUTH_FAILED,  # ER_ACCESS_DENIED_NO_PASSWORD_ERROR
 }
 
 # PostgreSQL SQLSTATEs surfaced via psycopg2 ``pgcode`` / psycopg3 ``sqlstate``.
@@ -61,6 +68,11 @@ PG_CATEGORIES: dict[str, str] = {
     "57P02": CATEGORY_DISCONNECT,  # crash_shutdown
     "57P03": CATEGORY_DISCONNECT,  # cannot_connect_now
     "53300": CATEGORY_TOO_MANY_CONNECTIONS,  # too_many_connections
+    # Class 28 — Invalid Authorization Specification. Auth blocks the API from
+    # establishing a session; realistic trigger is RDS/managed-DB password
+    # rotation that hasn't propagated to the API's secret yet.
+    "28000": CATEGORY_AUTH_FAILED,  # invalid_authorization_specification
+    "28P01": CATEGORY_AUTH_FAILED,  # invalid_password
 }
 
 SUPPORTED_DIALECTS: frozenset[str] = frozenset(
@@ -208,7 +220,7 @@ def _on_dbapi_error(ctx: sqlalchemy.engine.ExceptionContext) -> None:
         )
     except Exception as exc:
         logger.warning(
-            "DB error event listener raised — swallowing",
+            "Failed to handle DB error event, ignoring",
             exc_info=exc,
         )
 

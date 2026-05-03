@@ -63,7 +63,7 @@ PG_CATEGORIES: dict[str, str] = {
     "08006": CATEGORY_DISCONNECT,  # connection_failure
     # 08007 (transaction_resolution_unknown) is intentionally NOT mapped:
     # it fires when the COMMIT ack is lost, which means the txn may actually
-    # have committed. Reporting it as ConnectionFailed would be misleading.
+    # have committed. Reporting it as Connection.Failed would be misleading.
     "57P01": CATEGORY_DISCONNECT,  # admin_shutdown
     "57P02": CATEGORY_DISCONNECT,  # crash_shutdown
     "57P03": CATEGORY_DISCONNECT,  # cannot_connect_now

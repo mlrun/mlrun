@@ -97,7 +97,7 @@ def test_classify_mysql_codes(exc, is_disconnect, expected_category, expected_co
     ],
 )
 def test_classify_mysql_query_level_errors_skipped(exc):
-    """Conservative mapping: query-level errors don't fire ConnectionFailed."""
+    """Conservative mapping: query-level errors don't fire Connection.Failed."""
     category, code = db_errors.classify(_ctx(exc))
     assert category is None
     assert code is None
@@ -150,7 +150,7 @@ def test_classify_postgres_sqlstates(sqlstate, expected_category):
     ],
 )
 def test_classify_postgres_query_level_sqlstates_skipped(sqlstate):
-    """Conservative mapping: query-level SQLSTATEs don't fire ConnectionFailed."""
+    """Conservative mapping: query-level SQLSTATEs don't fire Connection.Failed."""
     exc = _PsycopgLikeError(sqlstate)
     category, code = db_errors.classify(_ctx(exc, dialect_name="postgresql"))
     assert category is None

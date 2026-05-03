@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """
-Integration tests for ``Platform.MLRun.DB.ConnectionFailed`` against a real
+Integration tests for ``Platform.MLRun.DB.Connection.Failed`` against a real
 MySQL or PostgreSQL container. Selected via ``MLRUN_TEST_DB={mysql,postgres}``.
 
 The mapping is intentionally conservative — only true "cannot connect"
@@ -130,7 +130,7 @@ def test_lock_wait_timeout_does_not_emit_event(
             conn.execute(sqlalchemy.text("DROP TABLE conn_event_lock_test"))
 
     assert stub_events_client == [], (
-        "lock wait timeout must not trigger ConnectionFailed (false-positive risk)"
+        "lock wait timeout must not trigger Connection.Failed (false-positive risk)"
     )
 
 

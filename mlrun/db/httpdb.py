@@ -4044,24 +4044,25 @@ class HTTPRunDB(RunDBInterface):
         self,
         project: str,
         base_period: int = 10,
-        image: str = "mlrun/mlrun",
+        image: str | None = None,
     ) -> None:
         """
         Redeploy model monitoring application controller function.
 
-        :param project:                  Project name.
-        :param base_period:              The time period in minutes in which the model monitoring controller function
-                                         triggers. By default, the base period is 10 minutes.
-        :param image: The image of the model monitoring controller function.
-                                         By default, the image is mlrun/mlrun.
+        :param project:     Project name.
+        :param base_period: The time period in minutes in which the model monitoring controller function
+                            triggers. By default, the base period is 10 minutes.
+        :param image:       The image of the model monitoring controller function.
+                            Defaults to
+                            ``mlrun.mlconf.function_defaults.image_by_kind.nuclio``.
         """
+        params = {"base_period": base_period}
+        if image is not None:
+            params["image"] = image
         self.api_call(
             method=mlrun.common.types.HTTPMethod.PATCH,
             path=f"projects/{project}/model-monitoring/controller",
-            params={
-                "base_period": base_period,
-                "image": image,
-            },
+            params=params,
         )
 
     def enable_model_monitoring(

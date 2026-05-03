@@ -2742,7 +2742,7 @@ class MlrunProject(ModelObj):
     def update_model_monitoring_controller(
         self,
         base_period: int = 10,
-        image: str = "mlrun/mlrun",
+        image: str | None = None,
         *,
         wait_for_deployment: bool = False,
     ) -> None:
@@ -2753,7 +2753,8 @@ class MlrunProject(ModelObj):
                                     is triggered. By default, the base period is 10 minutes.
         :param image:               The image of the model monitoring controller, writer & monitoring
                                     stream functions, which are real time nuclio functions.
-                                    By default, the image is mlrun/mlrun.
+                                    Defaults to
+                                    ``mlrun.mlconf.function_defaults.image_by_kind.nuclio``.
         :param wait_for_deployment: If true, return only after the deployment is done on the backend.
                                     Otherwise, deploy the controller on the background.
         """

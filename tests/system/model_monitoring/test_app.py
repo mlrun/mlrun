@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import concurrent.futures
+import ipaddress
 import json
 import pickle
 import tempfile
@@ -566,7 +567,7 @@ class TestMonitoringAppFlow(TestMLRunSystemModelMonitoring, _V3IORecordsChecker)
     def _workaround_ml_12522_force_http_for_nodeport(
         fn: mlrun.runtimes.nuclio.serving.ServingRuntime,
     ) -> None:
-        """Workaround for https://ecliptos.atlassian.net/browse/ML-12522.
+        """Workaround for ML-12522.
 
         Nuclio reports ``status.external_invocation_urls`` as scheme-less.
         Since mlrun #9578, ``_resolve_invocation_url`` prepends ``https://``
@@ -580,8 +581,6 @@ class TestMonitoringAppFlow(TestMLRunSystemModelMonitoring, _V3IORecordsChecker)
         invocations through ``APIGateway.invoke_url`` and
         ``_resolve_invocation_url`` defaults back to ``http://``.
         """
-        import ipaddress
-
         for i, url in enumerate(fn.status.external_invocation_urls or []):
             if "://" in url or "/" in url:
                 continue

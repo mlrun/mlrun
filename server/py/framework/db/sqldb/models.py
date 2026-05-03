@@ -352,7 +352,7 @@ with warnings.catch_warnings():
         __tablename__ = "artifacts_v2"
         __table_args__ = (
             UniqueConstraint("uid", "project", "key", name="_artifacts_v2_uc"),
-            # Used when enriching workflow status with run artifacts. See https://iguazio.atlassian.net/browse/ML-6770
+            # Used when enriching workflow status with run artifacts. See ML-6770.
             Index(
                 "idx_artifacts_producer_id_best_iteration_and_project",
                 "project",
@@ -360,17 +360,17 @@ with warnings.catch_warnings():
                 "best_iteration",
             ),
             # Used to speed up querying artifact tags which is frequently done by UI with project and category.
-            # See https://iguazio.atlassian.net/browse/ML-7266
+            # See ML-7266.
             Index(
                 "idx_project_kind",
                 "project",
                 "kind",
             ),
             # Used for calculating the project counters more efficiently.
-            # See https://iguazio.atlassian.net/browse/ML-8556
+            # See ML-8556.
             Index("idx_project_kind_key", "project", "kind", "key"),
             # Used explicitly in list_artifacts, as most of the queries request best_iteration, and all always sort by
-            # updated. See https://iguazio.atlassian.net/browse/ML-9189
+            # updated. See ML-9189.
             Index(
                 "idx_project_bi_updated", "project", "best_iteration", "kind", "updated"
             ),

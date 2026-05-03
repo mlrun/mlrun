@@ -38,6 +38,7 @@ from .base import (
     DirArtifact,
     LinkArtifact,
 )
+from .code import CodeArtifact
 from .dataset import (
     DatasetArtifact,
     TableArtifact,
@@ -62,6 +63,7 @@ artifact_types = {
     "plotly": PlotlyArtifact,
     "document": DocumentArtifact,
     "llm-prompt": LLMPromptArtifact,
+    "code": CodeArtifact,
 }
 
 

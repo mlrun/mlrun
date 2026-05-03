@@ -904,6 +904,13 @@ default_config = {
         "verbose": False,
         # used for igz client when emitting events
         "access_key": "",
+        "db_connection": {
+            # Per-process throttle: at most one Platform.MLRun.DB.Connection.Failed
+            # event every N seconds. Iguazio's event service has its own
+            # throttling; this is a local cap so a sustained outage doesn't emit
+            # one event per failed query.
+            "min_emit_interval_seconds": 60,
+        },
     },
     "grafana_url": "",
     "alerts": {

@@ -283,9 +283,9 @@ jobs:
         INCLUDE_PYTHON_VERSION_SUFFIX=${{ matrix.include-suffix }} \
         make push-${{ matrix.image-name }}
 
-    # We need to clean up images that have been pushed to avoid filling up disk space on self hosted runners
     - name: Clean docker images
-      if: inputs.is_private_release == true
+      if: always()
       run: |
-        # Remove any docker image with mlrun/ in the name
-        docker images --format '{{.Repository}}:{{.Tag}}' | grep 'mlrun/' | xargs -r docker rmi -f && docker image prune -f
+        docker images --format '{{.Repository}}:{{.Tag}}' | grep 'mlrun/' | xargs -r docker rmi -f || true
+        docker image prune -af || true
+        docker builder prune -f --filter "until=720h" || true

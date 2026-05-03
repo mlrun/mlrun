@@ -41,7 +41,7 @@ def upgrade():
     op.create_index(
         _index_name,
         _table_name,
-        ["project", "iteration", "start_time"],
+        ["project", "iteration", "start_time", "name"],
         unique=False,
     )
     # ### end Alembic commands ###

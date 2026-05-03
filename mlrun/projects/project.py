@@ -4173,12 +4173,14 @@ class MlrunProject(ModelObj):
         :param function_name: The name of the function to filter by
         :param function_tag: The tag of the function to filter by
         :param labels: Filter model endpoints by label key-value pairs or key existence. This can be provided as:
+
             - A dictionary in the format `{"label": "value"}` to match specific label key-value pairs,
-            or `{"label": None}` to check for key existence.
+              or `{"label": None}` to check for key existence.
             - A list of strings formatted as `"label=value"` to match specific label key-value pairs,
-            or just `"label"` for key existence.
+              or just `"label"` for key existence.
             - A comma-separated string formatted as `"label1=value1,label2"` to match entities with
-            the specified key-value pairs or key existence.
+              the specified key-value pairs or key existence.
+
         :param start:           The start time to filter by.Corresponding to the `created` field.
         :param end:             The end time to filter by. Corresponding to the `created` field.
         :param top_level:       If true will return only routers and endpoint that are NOT children of any router.
@@ -4383,14 +4385,18 @@ class MlrunProject(ModelObj):
         :param mlrun_version_specifier:  which mlrun package version to include (if not current)
         :param builder_env:         Kaniko builder pod env vars dict (for config/credentials)
             e.g. builder_env={"GIT_TOKEN": token}, does not work yet in KFP
-        :param overwrite_build_params:  Overwrite existing build configuration (currently applies to
-            requirements and commands)
+        :param overwrite_build_params: Overwrite existing build configuration (currently only
+            applies to requirements and commands).
 
-            * False: The new params are merged with the existing
-            * True: The existing params are replaced by the new ones
+            * False: The values passed in this call are merged with the project's stored values.
+            * True: The values passed in this call replace the project's stored values for commands
+              and requirements. Parameters not explicitly passed retain their stored values.
 
-        :param extra_args:  A string containing additional builder arguments in the format of command-line options,
-            e.g. extra_args="--skip-tls-verify --build-arg A=val"
+            To remove existing stored values, use ``overwrite_build_params=True`` and pass the values
+            explicitly like this ``(commands=[""], requirements=[""])``.
+
+        :param extra_args:  A string containing additional builder arguments in the format of,
+            command-line options e.g. extra_args="--skip-tls-verify --build-arg A=val"
         :param force_build:  force building the image, even when no changes were made
         """
         return build_function(
@@ -4437,11 +4443,15 @@ class MlrunProject(ModelObj):
         :param secret_name:     k8s secret for accessing the docker registry
         :param requirements: a list of packages to install on the built image
         :param requirements_file: requirements file to install on the built image
-        :param overwrite_build_params:  Overwrite existing build configuration (currently applies to
-            requirements and commands)
+        :param overwrite_build_params: Overwrite existing build configuration (currently only
+            applies to requirements and commands).
 
-            * False: The new params are merged with the existing
-            * True: The existing params are replaced by the new ones
+            * False: The values passed in this call are merged with the project's stored values.
+            * True: The values passed in this call replace the project's stored values for commands
+              and requirements. Parameters not explicitly passed retain their stored values.
+
+            To remove existing stored values, use ``overwrite_build_params=True`` and pass the values
+            explicitly like this ``(commands=[""], requirements=[""])``.
 
         :param builder_env: Kaniko builder pod env vars dict (for config/credentials)
             e.g. builder_env={"GIT_TOKEN": token}, does not work yet in KFP
@@ -4506,11 +4516,15 @@ class MlrunProject(ModelObj):
         :param mlrun_version_specifier:  which mlrun package version to include (if not current)
         :param builder_env:     Kaniko builder pod env vars dict (for config/credentials)
             e.g. builder_env={"GIT_TOKEN": token}, does not work yet in KFP
-        :param overwrite_build_params:  Overwrite existing build configuration (currently applies to
-            requirements and commands)
+        :param overwrite_build_params: Overwrite existing build configuration (currently only
+            applies to requirements and commands).
 
-            * False: The new params are merged with the existing
-            * True: The existing params are replaced by the new ones
+            * False: The values passed in this call are merged with the project's stored values.
+            * True: The values passed in this call replace the project's stored values for commands
+              and requirements. Parameters not explicitly passed retain their stored values.
+
+            To remove existing stored values, use ``overwrite_build_params=True`` and pass the values
+            explicitly like this ``(commands=[""], requirements=[""])``.
 
         :param extra_args:  A string containing additional builder arguments in the format of command-line options,
             e.g. extra_args="--skip-tls-verify --build-arg A=val"

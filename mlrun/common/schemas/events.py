@@ -42,3 +42,7 @@ class MigrationEventActions(mlrun.common.types.StrEnum):
     started = "started"
     completed = "completed"
     failed = "failed"
+
+
+class DBConnectionEventActions(mlrun.common.types.StrEnum):
+    failed = "failed"

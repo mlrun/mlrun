@@ -250,3 +250,213 @@ def test_kafka_source_no_hpa_target_when_not_configured(
         stream_args.kafka.target_cpu = original_target_cpu
 
     assert fn.spec.custom_scaling_metric_specs == []
+
+
+def _kafka_trigger_group(fn: mlrun.runtimes.ServingRuntime) -> str:
+    return fn.spec.config["spec.triggers.kafka"]["attributes"]["consumerGroup"]
+
+
+def _kafka_trigger_topic(fn: mlrun.runtimes.ServingRuntime) -> str:
+    return fn.spec.config["spec.triggers.kafka"]["attributes"]["topics"][0]
+
+
+@patch("mlrun.datastore.sources.KafkaSource.create_topics")
+def test_kafka_consumer_group_is_per_function_with_profile_prefix(
+    create_topics_mock: Mock,
+    monitoring_deployment: mm_dep.MonitoringDeployment,
+) -> None:
+    """Consumer group = f"{profile.group}_{topic}".
+
+    Each MM function gets its own consumer group so a rebalance in one
+    function (e.g. stream HPA scaling) does not pause the others. The
+    user-supplied profile ``group`` is preserved as a prefix rather than
+    silently discarded.
+    """
+    kafka_profile = DatastoreProfileKafkaStream(
+        name="test-kafka-profile",
+        brokers=["localhost:9092"],
+        topics=[],
+        # Custom group — must be honored, not overridden.
+        group="prod",
+    )
+
+    fn = mlrun.runtimes.ServingRuntime()
+    monitoring_deployment._apply_and_create_kafka_source(
+        kafka_profile=kafka_profile,
+        function=fn,
+        function_name="model-monitoring-stream",
+        stream_args=mlrun.mlconf.model_endpoint_monitoring.serving_stream,
+        ignore_stream_already_exists_failure=True,
+    )
+
+    topic = _kafka_trigger_topic(fn)
+    group = _kafka_trigger_group(fn)
+    assert group == f"prod_{topic}", (
+        "Consumer group should be '<profile.group>_<topic>' "
+        f"(got {group!r}, topic={topic!r})"
+    )
+
+
+@patch("mlrun.datastore.sources.KafkaSource.create_topics")
+def test_kafka_consumer_group_defaults_to_serving_when_profile_group_is_none(
+    create_topics_mock: Mock,
+    monitoring_deployment: mm_dep.MonitoringDeployment,
+) -> None:
+    """If the profile group is None, the prefix falls back to 'serving'."""
+    kafka_profile = DatastoreProfileKafkaStream(
+        name="test-kafka-profile",
+        brokers=["localhost:9092"],
+        topics=[],
+        group=None,
+    )
+
+    fn = mlrun.runtimes.ServingRuntime()
+    monitoring_deployment._apply_and_create_kafka_source(
+        kafka_profile=kafka_profile,
+        function=fn,
+        function_name="model-monitoring-writer",
+        stream_args=mlrun.mlconf.model_endpoint_monitoring.writer_stream_args,
+        ignore_stream_already_exists_failure=True,
+    )
+
+    topic = _kafka_trigger_topic(fn)
+    group = _kafka_trigger_group(fn)
+    assert group == f"serving_{topic}"
+
+
+@patch(
+    "mlrun.datastore.sources.KafkaSource.create_topics",
+    side_effect=kafka.errors.TopicAlreadyExistsError(),
+)
+@patch(
+    "services.api.crud.model_monitoring.deployment.MonitoringDeployment"
+    "._migrate_kafka_consumer_group_offsets",
+)
+def test_kafka_migration_invoked_on_topic_already_exists(
+    migrate_offsets_mock: Mock,
+    create_topics_mock: Mock,
+    monitoring_deployment: mm_dep.MonitoringDeployment,
+) -> None:
+    """When the topic already exists on a tolerant call path, migration
+    is invoked with the profile group as the source and the per-function
+    group as the destination. Idempotency lives inside the helper, so it
+    runs on every re-enable and short-circuits itself."""
+    kafka_profile = DatastoreProfileKafkaStream(
+        name="test-kafka-profile",
+        brokers=["localhost:9092"],
+        topics=[],
+        group="prod",
+    )
+
+    fn = mlrun.runtimes.ServingRuntime()
+    monitoring_deployment._apply_and_create_kafka_source(
+        kafka_profile=kafka_profile,
+        function=fn,
+        function_name="model-monitoring-stream",
+        stream_args=mlrun.mlconf.model_endpoint_monitoring.serving_stream,
+        ignore_stream_already_exists_failure=True,
+    )
+
+    migrate_offsets_mock.assert_called_once()
+    call_kwargs = migrate_offsets_mock.call_args.kwargs
+    assert call_kwargs["old_group"] == "prod"
+    assert call_kwargs["new_group"] == f"prod_{call_kwargs['topic']}"
+
+
+@patch(
+    "mlrun.datastore.sources.KafkaSource.create_topics",
+    side_effect=kafka.errors.TopicAlreadyExistsError(),
+)
+@patch(
+    "services.api.crud.model_monitoring.deployment.MonitoringDeployment"
+    "._migrate_kafka_consumer_group_offsets",
+)
+def test_kafka_migration_invoked_for_all_mm_functions(
+    migrate_offsets_mock: Mock,
+    create_topics_mock: Mock,
+    monitoring_deployment: mm_dep.MonitoringDeployment,
+) -> None:
+    """Pre-PR, every MM function shared the same ``kafka_profile.group``.
+    Migration must therefore run for writer/controller/apps too — not only
+    for the stream function."""
+    kafka_profile = DatastoreProfileKafkaStream(
+        name="test-kafka-profile",
+        brokers=["localhost:9092"],
+        topics=[],
+    )
+
+    fn = mlrun.runtimes.ServingRuntime()
+    monitoring_deployment._apply_and_create_kafka_source(
+        kafka_profile=kafka_profile,
+        function=fn,
+        function_name="model-monitoring-writer",
+        stream_args=mlrun.mlconf.model_endpoint_monitoring.writer_stream_args,
+        ignore_stream_already_exists_failure=True,
+    )
+
+    migrate_offsets_mock.assert_called_once()
+
+
+@patch(
+    "mlrun.datastore.sources.KafkaSource.create_topics",
+    side_effect=kafka.errors.TopicAlreadyExistsError(),
+)
+def test_kafka_migration_raises_on_kafka_failure(
+    create_topics_mock: Mock,
+    monitoring_deployment: mm_dep.MonitoringDeployment,
+) -> None:
+    """A failed migration must propagate: silently falling back to
+    ``initial_offset=earliest`` would replay the whole topic and duplicate
+    every already-processed event."""
+    kafka_profile = DatastoreProfileKafkaStream(
+        name="test-kafka-profile",
+        brokers=["localhost:9092"],
+        topics=[],
+    )
+
+    with patch(
+        "kafka.admin.KafkaAdminClient",
+        side_effect=kafka.errors.NoBrokersAvailable(),
+    ):
+        fn = mlrun.runtimes.ServingRuntime()
+        with pytest.raises(kafka.errors.NoBrokersAvailable):
+            monitoring_deployment._apply_and_create_kafka_source(
+                kafka_profile=kafka_profile,
+                function=fn,
+                function_name="model-monitoring-stream",
+                stream_args=mlrun.mlconf.model_endpoint_monitoring.serving_stream,
+                ignore_stream_already_exists_failure=True,
+            )
+
+
+@patch(
+    "mlrun.datastore.sources.KafkaSource.create_topics",
+    side_effect=kafka.errors.TopicAlreadyExistsError(),
+)
+def test_kafka_migration_not_invoked_when_ignore_flag_false(
+    create_topics_mock: Mock,
+    monitoring_deployment: mm_dep.MonitoringDeployment,
+) -> None:
+    """When ``ignore_stream_already_exists_failure=False`` (e.g. controller
+    deploy without overwrite), ``TopicAlreadyExistsError`` must propagate
+    as it always has — migration logic is only triggered on the tolerant
+    branch."""
+    kafka_profile = DatastoreProfileKafkaStream(
+        name="test-kafka-profile",
+        brokers=["localhost:9092"],
+        topics=[],
+    )
+
+    fn = mlrun.runtimes.ServingRuntime()
+    with patch.object(
+        monitoring_deployment, "_migrate_kafka_consumer_group_offsets"
+    ) as migrate_offsets_mock:
+        with pytest.raises(kafka.errors.TopicAlreadyExistsError):
+            monitoring_deployment._apply_and_create_kafka_source(
+                kafka_profile=kafka_profile,
+                function=fn,
+                function_name="model-monitoring-controller",
+                stream_args=mlrun.mlconf.model_endpoint_monitoring.controller_stream_args,
+                ignore_stream_already_exists_failure=False,
+            )
+    migrate_offsets_mock.assert_not_called()

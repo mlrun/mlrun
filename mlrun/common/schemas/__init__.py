@@ -82,6 +82,7 @@ from .constants import (
 from .datastore_profile import DatastoreProfile
 from .events import (
     AuthSecretEventActions,
+    DBConnectionEventActions,
     EventClientKinds,
     EventsModes,
     MigrationEventActions,

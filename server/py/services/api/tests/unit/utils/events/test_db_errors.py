@@ -270,6 +270,71 @@ def test_publish_no_event_from_nop_client_does_not_consume_throttle(monkeypatch)
     real_client.emit.assert_called_once()
 
 
+def test_publish_releases_slot_when_emit_raises(monkeypatch):
+    """
+    If ``client.emit`` raises (e.g. events service unreachable), no event was
+    delivered, so the throttle slot must be released so the next DB error
+    within the window can retry.
+    """
+    fake_client = unittest.mock.MagicMock()
+    fake_client.generate_db_connection_event.return_value = object()
+    fake_client.emit.side_effect = [
+        RuntimeError("events service unreachable"),
+        None,
+    ]
+    monkeypatch.setattr(
+        db_errors.events_factory.EventsFactory,
+        "get_events_client",
+        unittest.mock.MagicMock(return_value=fake_client),
+    )
+    monkeypatch.setattr(
+        mlrun.mlconf.events.db_connection, "min_emit_interval_seconds", 60
+    )
+    fake_now = {"value": 1000.0}
+    monkeypatch.setattr(db_errors.time, "monotonic", lambda: fake_now["value"])
+
+    err = pymysql.err.OperationalError(2013, "Lost connection")
+    # First emit fails; slot must be released so we are not locked out.
+    assert (
+        db_errors.publish_connection_failed(err, "mysql", db_errors.CATEGORY_DISCONNECT)
+        is False
+    )
+    # Same instant: a slot was released, so the next attempt can claim & emit.
+    assert (
+        db_errors.publish_connection_failed(err, "mysql", db_errors.CATEGORY_DISCONNECT)
+        is True
+    )
+    assert fake_client.emit.call_count == 2
+
+
+def test_publish_keeps_slot_after_success(monkeypatch):
+    """A successful emit must keep the slot consumed (otherwise no throttle)."""
+    fake_client = unittest.mock.MagicMock()
+    fake_client.generate_db_connection_event.return_value = object()
+    monkeypatch.setattr(
+        db_errors.events_factory.EventsFactory,
+        "get_events_client",
+        unittest.mock.MagicMock(return_value=fake_client),
+    )
+    monkeypatch.setattr(
+        mlrun.mlconf.events.db_connection, "min_emit_interval_seconds", 60
+    )
+    fake_now = {"value": 1000.0}
+    monkeypatch.setattr(db_errors.time, "monotonic", lambda: fake_now["value"])
+
+    err = pymysql.err.OperationalError(2013, "Lost connection")
+    assert (
+        db_errors.publish_connection_failed(err, "mysql", db_errors.CATEGORY_DISCONNECT)
+        is True
+    )
+    fake_now["value"] += 30
+    assert (
+        db_errors.publish_connection_failed(err, "mysql", db_errors.CATEGORY_DISCONNECT)
+        is False
+    )
+    assert fake_client.emit.call_count == 1
+
+
 def test_publish_swallows_factory_exception(monkeypatch):
     monkeypatch.setattr(
         db_errors.events_factory.EventsFactory,

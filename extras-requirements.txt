@@ -48,4 +48,4 @@ dask==2024.8
 distributed==2024.8
 # TimescaleDB dependencies - optional for model monitoring
 psycopg[binary,pool]~=3.2
-snowflake-connector-python~=4.3
+snowflake-connector-python~=4.4

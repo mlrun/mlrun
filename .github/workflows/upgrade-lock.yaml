@@ -36,6 +36,15 @@ jobs:
     - name: Upgrade dependencies in the lock file with uv
       run: make upgrade-mlrun-deps-lock
 
+    - name: Generate GitHub App Token
+      id: github-app-token
+      uses: actions/create-github-app-token@v3
+      with:
+        app-id: ${{ secrets.GH_APP_ID }}
+        private-key: ${{ secrets.GH_APP_PRIVATE_KEY }}
+        owner: ${{ github.repository_owner }}
+        repositories: mlrun
+
     - name: Format PR title
       id: format-title
       run: |
@@ -54,7 +63,4 @@ jobs:
         commit-message: Upgrade uv lock files
         branch: "automated/uv-lock-upgrade-${{ github.ref_name }}"
         delete-branch: true
-        # See:
-        # https://github.com/peter-evans/create-pull-request?tab=readme-ov-file#token
-        # Fine-grained Personal Access Token (PAT) with contents: write and pull-requests: write scopes.
-        token: ${{ secrets.MLRUN_PR_PAT }}
+        token: ${{ steps.github-app-token.outputs.token }}

@@ -22,7 +22,6 @@ from services.api.migrations.tests.base.migrations_tests import (  # noqa
     test_single_head_revision,
     test_up_down_consistency,
     test_upgrade,
-    test_notification_params_to_secret_params,
     test_background_task_label_migration_handles_duplicates,
 )
 

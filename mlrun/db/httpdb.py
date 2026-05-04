@@ -566,6 +566,10 @@ class HTTPRunDB(RunDBInterface):
             )
             config.kfp_image = server_cfg.get("kfp_image") or config.kfp_image
             config.kfp_url = server_cfg.get("kfp_url") or config.kfp_url
+            config.kfp_default_workflow_timeout = (
+                server_cfg.get("kfp_default_workflow_timeout")
+                or config.kfp_default_workflow_timeout
+            )
             config.dask_kfp_image = (
                 server_cfg.get("dask_kfp_image") or config.dask_kfp_image
             )
@@ -686,6 +690,13 @@ class HTTPRunDB(RunDBInterface):
                     )
 
                 config.auth_with_oauth_token.enabled = True
+
+            default_runtime_image_by_kind = (
+                server_cfg.get("default_runtime_image_by_kind") or {}
+            )
+            for kind, image_value in default_runtime_image_by_kind.items():
+                if hasattr(config.function_defaults.image_by_kind, kind):
+                    setattr(config.function_defaults.image_by_kind, kind, image_value)
 
         except Exception as exc:
             logger.warning(
@@ -1055,12 +1066,14 @@ class HTTPRunDB(RunDBInterface):
         :param uid: Unique ID of the run, or a list of run UIDs.
         :param project: Project that the runs belongs to. If not specified, the active project will be used.
         :param labels: Filter runs by label key-value pairs or key existence. This can be provided as:
-            - A dictionary in the format `{"label": "value"}` to match specific label key-value pairs,
-            or `{"label": None}` to check for key existence.
-            - A list of strings formatted as `"label=value"` to match specific label key-value pairs,
-            or just `"label"` for key existence.
-            - A comma-separated string formatted as `"label1=value1,label2"` to match entities with
-            the specified key-value pairs or key existence.
+
+                       - A dictionary in the format `{"label": "value"}` to match specific label key-value pairs,
+                         or `{"label": None}` to check for key existence.
+                       - A list of strings formatted as `"label=value"` to match specific label key-value pairs,
+                         or just `"label"` for key existence.
+                       - A comma-separated string formatted as `"label1=value1,label2"` to match entities with
+                         the specified key-value pairs or key existence.
+
         :param states: List only runs whose state is one of the provided states.
         :param sort: Whether to sort the result according to their start time. Otherwise, results will be
             returned by their internal order in the DB (order will not be guaranteed).
@@ -1184,12 +1197,14 @@ class HTTPRunDB(RunDBInterface):
         :param name: Name of the task which the runs belong to.
         :param project: Project to which the runs belong.
         :param labels: Filter runs by label key-value pairs or key existence. This can be provided as:
-            - A dictionary in the format `{"label": "value"}` to match specific label key-value pairs,
-            or `{"label": None}` to check for key existence.
-            - A list of strings formatted as `"label=value"` to match specific label key-value pairs,
-            or just `"label"` for key existence.
-            - A comma-separated string formatted as `"label1=value1,label2"` to match entities with
-            the specified key-value pairs or key existence.
+
+                        - A dictionary in the format `{"label": "value"}` to match specific label key-value pairs,
+                          or `{"label": None}` to check for key existence.
+                        - A list of strings formatted as `"label=value"` to match specific label key-value pairs,
+                          or just `"label"` for key existence.
+                        - A comma-separated string formatted as `"label1=value1,label2"` to match entities with
+                          the specified key-value pairs or key existence.
+
         :param state: Filter only runs which are in this state.
         :param days_ago: Filter runs whose start time is newer than this parameter.
         """
@@ -1372,12 +1387,14 @@ class HTTPRunDB(RunDBInterface):
         :param project: Project name.
         :param tag: Return artifacts assigned this tag.
         :param labels: Filter artifacts by label key-value pairs or key existence. This can be provided as:
-            - A dictionary in the format `{"label": "value"}` to match specific label key-value pairs,
-            or `{"label": None}` to check for key existence.
-            - A list of strings formatted as `"label=value"` to match specific label key-value pairs,
-            or just `"label"` for key existence.
-            - A comma-separated string formatted as `"label1=value1,label2"` to match entities with
-            the specified key-value pairs or key existence.
+
+                       - A dictionary in the format `{"label": "value"}` to match specific label key-value pairs,
+                         or `{"label": None}` to check for key existence.
+                       - A list of strings formatted as `"label=value"` to match specific label key-value pairs,
+                         or just `"label"` for key existence.
+                       - A comma-separated string formatted as `"label1=value1,label2"` to match entities with
+                         the specified key-value pairs or key existence.
+
         :param since: Return artifacts updated after this date (as datetime object).
         :param until: Return artifacts updated before this date (as datetime object).
         :param iter: Return artifacts from a specific iteration (where ``iter=0`` means the root iteration). If
@@ -3026,12 +3043,14 @@ class HTTPRunDB(RunDBInterface):
         :param tag: Match feature-vectors with specific tag.
         :param state: Match feature-vectors with a specific state.
         :param labels: Filter feature-vectors by label key-value pairs or key existence. This can be provided as:
-            - A dictionary in the format `{"label": "value"}` to match specific label key-value pairs,
-            or `{"label": None}` to check for key existence.
-            - A list of strings formatted as `"label=value"` to match specific label key-value pairs,
-            or just `"label"` for key existence.
-            - A comma-separated string formatted as `"label1=value1,label2"` to match entities with
-            the specified key-value pairs or key existence.
+
+                       - A dictionary in the format `{"label": "value"}` to match specific label key-value pairs,
+                         or `{"label": None}` to check for key existence.
+                       - A list of strings formatted as `"label=value"` to match specific label key-value pairs,
+                         or just `"label"` for key existence.
+                       - A comma-separated string formatted as `"label1=value1,label2"` to match entities with
+                         the specified key-value pairs or key existence.
+
         :param partition_by: Field to group results by. Only allowed value is `name`. When `partition_by` is specified,
             the `partition_sort_by` parameter must be provided as well.
         :param rows_per_partition: How many top rows (per sorting defined by `partition_sort_by` and `partition_order`)
@@ -3276,12 +3295,14 @@ class HTTPRunDB(RunDBInterface):
             - ``full``  - Return full project objects.
 
         :param labels: Filter projects by label key-value pairs or key existence. This can be provided as:
-            - A dictionary in the format `{"label": "value"}` to match specific label key-value pairs,
-            or `{"label": None}` to check for key existence.
-            - A list of strings formatted as `"label=value"` to match specific label key-value pairs,
-            or just `"label"` for key existence.
-            - A comma-separated string formatted as `"label1=value1,label2"` to match entities with
-            the specified key-value pairs or key existence.
+
+                       - A dictionary in the format `{"label": "value"}` to match specific label key-value pairs,
+                         or `{"label": None}` to check for key existence.
+                       - A list of strings formatted as `"label=value"` to match specific label key-value pairs,
+                         or just `"label"` for key existence.
+                       - A comma-separated string formatted as `"label1=value1,label2"` to match entities with
+                         the specified key-value pairs or key existence.
+
         :param state: Filter by project's state. Can be either ``online`` or ``archived``.
         """
         labels = self._parse_labels(labels)
@@ -4023,31 +4044,32 @@ class HTTPRunDB(RunDBInterface):
         self,
         project: str,
         base_period: int = 10,
-        image: str = "mlrun/mlrun",
+        image: str | None = None,
     ) -> None:
         """
         Redeploy model monitoring application controller function.
 
-        :param project:                  Project name.
-        :param base_period:              The time period in minutes in which the model monitoring controller function
-                                         triggers. By default, the base period is 10 minutes.
-        :param image: The image of the model monitoring controller function.
-                                         By default, the image is mlrun/mlrun.
+        :param project:     Project name.
+        :param base_period: The time period in minutes in which the model monitoring controller function
+                            triggers. By default, the base period is 10 minutes.
+        :param image:       The image of the model monitoring controller function.
+                            Defaults to
+                            ``mlrun.mlconf.function_defaults.image_by_kind.nuclio``.
         """
+        params = {"base_period": base_period}
+        if image is not None:
+            params["image"] = image
         self.api_call(
             method=mlrun.common.types.HTTPMethod.PATCH,
             path=f"projects/{project}/model-monitoring/controller",
-            params={
-                "base_period": base_period,
-                "image": image,
-            },
+            params=params,
         )
 
     def enable_model_monitoring(
         self,
         project: str,
         base_period: int = 10,
-        image: str = "mlrun/mlrun",
+        image: str | None = None,
         deploy_histogram_data_drift_app: bool = True,
         fetch_credentials_from_sys_config: bool = False,
         lag_threshold: int | None = None,
@@ -4066,7 +4088,8 @@ class HTTPRunDB(RunDBInterface):
                                                   function triggers. By default, the base period is 10 minutes.
         :param image:                             The image of the model monitoring controller, writer & monitoring
                                                   stream functions, which are real time nuclio functions.
-                                                  By default, the image is mlrun/mlrun.
+                                                  Defaults to
+                                                  ``mlrun.mlconf.function_defaults.image_by_kind.nuclio``.
         :param deploy_histogram_data_drift_app:   If true, deploy the default histogram-based data drift application.
         :param fetch_credentials_from_sys_config: If true, fetch the credentials from the system configuration.
         :param lag_threshold:                     Lag threshold in minutes for writer lag detection.
@@ -4077,11 +4100,14 @@ class HTTPRunDB(RunDBInterface):
 
         params = {
             "base_period": base_period,
-            "image": image,
             "deploy_histogram_data_drift_app": deploy_histogram_data_drift_app,
             "fetch_credentials_from_sys_config": fetch_credentials_from_sys_config,
             "auth_token_name": auth_token_name,
         }
+        # Only forward `image` when caller specified one — otherwise let the
+        # API server resolve it from `function_defaults.image_by_kind.nuclio`.
+        if image is not None:
+            params["image"] = image
         if lag_threshold is not None:
             params["lag_threshold"] = lag_threshold
         if lag_event_cooldown is not None:

@@ -20,6 +20,7 @@ import pytest
 import requests
 import tiktoken
 
+import mlrun
 from mlrun.datastore.datastore_profile import (
     OpenAIProfile,
 )
@@ -244,6 +245,7 @@ class TestOpenAIModelRunner(TestMLRunSystem):
             f"{url}/v2/models/{mlrun_model_name}/infer",
             data=json.dumps(BATCH_INPUT_DATA[0]),
             stream=True,
+            verify=mlrun.mlconf.httpdb.http.verify,
         )
         assert resp.ok, f"Streaming request failed: {resp.status_code} {resp.text}"
         assert resp.headers.get("Transfer-Encoding") == "chunked"

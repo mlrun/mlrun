@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import datetime
 import unittest
 import unittest.mock
 from contextlib import AbstractContextManager
@@ -75,6 +76,27 @@ class TestAlertsCooldown(TestAlertsBase):
             (
                 "15s",
                 alert_objects.ResetPolicy.AUTO,
+                does_not_raise(),
+            ),
+            # Valid: "0" / "0s" are equivalent to no cooldown — allowed for any reset policy
+            (
+                "0",
+                alert_objects.ResetPolicy.AUTO,
+                does_not_raise(),
+            ),
+            (
+                "0s",
+                alert_objects.ResetPolicy.AUTO,
+                does_not_raise(),
+            ),
+            (
+                "0",
+                alert_objects.ResetPolicy.MANUAL,
+                does_not_raise(),
+            ),
+            (
+                "0s",
+                alert_objects.ResetPolicy.MANUAL,
                 does_not_raise(),
             ),
         ],
@@ -360,7 +382,101 @@ class TestAlertsCooldown(TestAlertsBase):
             assert call_kwargs.get("clear_cooldown") is True
             assert call_kwargs.get("obj") == {}
 
-        alert = services.alerts.crud.Alerts().get_alert(
-            session=db, project=project, name=alert_name
+        assert (
+            services.alerts.crud.Alerts()
+            .get_alert(session=db, project=project, name=alert_name)
+            .state
+            == alert_objects.AlertActiveState.INACTIVE
         )
-        assert alert.state == alert_objects.AlertActiveState.INACTIVE
+
+    @unittest.mock.patch.object(
+        framework.utils.singletons.db.SQLDB,
+        "update_alert_activation",
+        return_value=None,
+    )
+    @unittest.mock.patch.object(
+        services.alerts.crud.AlertActivation,
+        "store_alert_activation",
+        return_value=None,
+    )
+    async def test_reset_cooled_down_alerts(
+        self,
+        mocked_update_alert_activation,
+        mocked_store_alert_activation,
+        db: sqlalchemy.orm.Session,
+        k8s_secrets_mock: K8sSecretsMock,
+        reset_alert_caches,
+    ):
+        """reset_cooled_down_alerts() resets only alerts whose cooldown has elapsed."""
+        project = "project-name"
+
+        # Alert whose cooldown has elapsed — should be reset
+        elapsed_name = "elapsed-cooldown-alert"
+        elapsed_data = services.alerts.tests.unit.crud.utils.generate_alert_data(
+            project=project,
+            name=elapsed_name,
+            entity=services.alerts.tests.unit.crud.utils.generate_alert_entity(
+                project=project,
+            ),
+            reset_policy=alert_objects.ResetPolicy.AUTO,
+            cooldown_period="1m",
+        )
+        elapsed_alert = services.alerts.crud.Alerts().store_alert(
+            session=db,
+            project=project,
+            name=elapsed_name,
+            alert_data=elapsed_data,
+        )
+        framework.utils.singletons.db.get_db().store_alert_state(
+            session=db,
+            project=project,
+            name=elapsed_name,
+            last_updated=None,
+            active=True,
+            alert_id=elapsed_alert.id,
+            cooldown_end_time=datetime.datetime.now(datetime.UTC)
+            - datetime.timedelta(seconds=1),
+        )
+
+        # Alert still within cooldown — should NOT be reset
+        active_name = "active-cooldown-alert"
+        active_data = services.alerts.tests.unit.crud.utils.generate_alert_data(
+            project=project,
+            name=active_name,
+            entity=services.alerts.tests.unit.crud.utils.generate_alert_entity(
+                project=project,
+            ),
+            reset_policy=alert_objects.ResetPolicy.AUTO,
+            cooldown_period="1m",
+        )
+        active_alert = services.alerts.crud.Alerts().store_alert(
+            session=db,
+            project=project,
+            name=active_name,
+            alert_data=active_data,
+        )
+        framework.utils.singletons.db.get_db().store_alert_state(
+            session=db,
+            project=project,
+            name=active_name,
+            last_updated=None,
+            active=True,
+            alert_id=active_alert.id,
+            cooldown_end_time=datetime.datetime.now(datetime.UTC)
+            + datetime.timedelta(minutes=5),
+        )
+
+        services.alerts.crud.Alerts().reset_cooled_down_alerts(session=db)
+
+        assert (
+            services.alerts.crud.Alerts()
+            .get_alert(session=db, project=project, name=elapsed_name)
+            .state
+            == alert_objects.AlertActiveState.INACTIVE
+        )
+        assert (
+            services.alerts.crud.Alerts()
+            .get_alert(session=db, project=project, name=active_name)
+            .state
+            == alert_objects.AlertActiveState.ACTIVE
+        )

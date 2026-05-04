@@ -12,11 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import contextlib
 import datetime
 import os
 import pathlib
 import shutil
 import subprocess
+import tempfile
 
 import mlrun
 import mlrun.common.db.dialects
@@ -108,14 +110,15 @@ class DBBackupUtil:
 
         mlrun.utils.logger.debug("Backing up mysql DB data", backup_path=backup_path)
         dsn_data = DBUtil.get_parsed_dsn().as_dict()
-        self._run_shell_command(
-            "mysqldump --single-transaction --routines --triggers "
-            f"--max_allowed_packet={mlrun.mlconf.httpdb.db.backup.max_allowed_packet} "
-            f"-h {dsn_data['host']} "
-            f"-P {dsn_data['port']} "
-            f"-u {dsn_data['username']} "
-            f"{dsn_data['database']} > {backup_path}"
-        )
+        with self._mysql_defaults_file(dsn_data) as defaults_arg:
+            self._run_shell_command(
+                f"mysqldump {defaults_arg}--single-transaction --routines --triggers "
+                f"--max_allowed_packet={mlrun.mlconf.httpdb.db.backup.max_allowed_packet} "
+                f"-h {dsn_data['host']} "
+                f"-P {dsn_data['port']} "
+                f"-u {dsn_data['username']} "
+                f"{dsn_data['database']} > {backup_path}"
+            )
 
     def _load_database_backup_mysql(self, backup_file_name: str) -> None:
         """
@@ -130,13 +133,45 @@ class DBBackupUtil:
             backup_path=backup_path,
         )
         dsn_data = DBUtil.get_parsed_dsn().as_dict()
-        self._run_shell_command(
-            "mysql "
-            f"-h {dsn_data['host']} "
-            f"-P {dsn_data['port']} "
-            f"-u {dsn_data['username']} "
-            f"{dsn_data['database']} < {backup_path}"
+        with self._mysql_defaults_file(dsn_data) as defaults_arg:
+            self._run_shell_command(
+                f"mysql {defaults_arg}"
+                f"-h {dsn_data['host']} "
+                f"-P {dsn_data['port']} "
+                f"-u {dsn_data['username']} "
+                f"{dsn_data['database']} < {backup_path}"
+            )
+
+    @staticmethod
+    @contextlib.contextmanager
+    def _mysql_defaults_file(dsn_data: dict):
+        # When the DSN carries a password, write a 0600 [client] options file
+        # and yield a `--defaults-extra-file=<path> ` argument fragment so the
+        # password never appears in the (debug-logged) shell command, in `ps`,
+        # or in `/proc/<pid>/environ`. Unlike MYSQL_PWD, this is not deprecated
+        # in MySQL 8.4+. The file is unlinked on context exit.
+        password = dsn_data.get("password")
+        if not password:
+            yield ""
+            return
+
+        # Escape backslash and double-quote so values with these characters
+        # round-trip through the option file format.
+        escaped = password.replace("\\", "\\\\").replace('"', '\\"')
+        # NamedTemporaryFile uses mkstemp under the hood, which creates the
+        # file with mode 0600.
+        fp = tempfile.NamedTemporaryFile(
+            mode="w", suffix=".cnf", delete=False, encoding="utf-8"
         )
+        try:
+            fp.write(f'[client]\npassword="{escaped}"\n')
+            fp.close()
+            yield f"--defaults-extra-file={fp.name} "
+        finally:
+            try:
+                os.unlink(fp.name)
+            except FileNotFoundError:
+                pass
 
     def _rotate_backup(self) -> None:
         db_dir_path = self._get_db_dir_path()

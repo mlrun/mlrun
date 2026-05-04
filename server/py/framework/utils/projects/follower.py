@@ -122,8 +122,7 @@ class Member(
             created_project = None
             if not is_running_in_background:
                 # not running in background means long-project creation operation might stale
-                # its db session, so we need to create a new one
-                # https://jira.iguazeng.com/browse/ML-5764
+                # its db session, so we need to create a new one (ML-5764)
                 created_project = framework.db.session.run_function_with_new_db_session(
                     self.get_project, project.metadata.name, auth_info
                 )

@@ -18,7 +18,7 @@
 - [ ] If I introduced a deprecation:
   - [ ] I followed the [Deprecation Guidelines](./DEPRECATION.md)
   - [ ] I updated the relevant Jira ticket for documentation
-- [ ] Please run [Smoke-tests](https://github.com/mlrun/mlrun/actions/workflows/system-tests-opensource.yml) workflow, providing it the PR number as input (upon success, the workflow run will add label "Smoke tests: Pass" to the RP)
+- [ ] Please run [Smoke-tests](https://github.com/mlrun/mlrun/actions/workflows/smoke-tests.yml) workflow, providing it the PR number as input (upon success, the workflow run will add label "Smoke tests: Pass" to the RP)
 
 ---
 

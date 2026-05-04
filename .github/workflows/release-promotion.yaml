@@ -229,7 +229,7 @@ jobs:
     steps:
       - name: Setup Python 3.11 venv
         run: |
-          python3.11 -m venv $GITHUB_WORKSPACE/.venv-promotion
+          python3.11 -m venv --clear $GITHUB_WORKSPACE/.venv-promotion
           echo "$GITHUB_WORKSPACE/.venv-promotion/bin" >> $GITHUB_PATH
 
       - name: Download package from source PyPI repo
@@ -247,7 +247,7 @@ jobs:
 
       - name: Set up uv
         if: github.event.inputs.skip_publish_pypi != 'true'
-        uses: astral-sh/setup-uv@cec208311dfd045dd5311c1add060b2062131d57 # 8.0.0
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # 8.1.0
 
       - name: Upload package to target PyPI repo
         if: github.event.inputs.skip_publish_pypi != 'true'

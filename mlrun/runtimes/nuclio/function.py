@@ -1137,6 +1137,8 @@ class RemoteRuntime(KubeResource):
             logger.debug("Invoking function", method=method, path=path)
             if not getattr(self, "_http_session", None):
                 self._http_session = requests.Session()
+            if mlconf.httpdb.http.verify is False:
+                http_client_kwargs.setdefault("verify", False)
             resp = self._http_session.request(
                 method, path, headers=headers, **http_client_kwargs
             )
@@ -1457,9 +1459,10 @@ class RemoteRuntime(KubeResource):
             return url
 
         if self.status.external_invocation_urls:
-            return mlrun.utils.helpers.join_urls(
-                f"http://{self.status.external_invocation_urls[0]}", path
-            )
+            external_url = self.status.external_invocation_urls[0]
+            if "://" not in external_url:
+                external_url = f"https://{external_url}"
+            return mlrun.utils.helpers.join_urls(external_url, path)
 
         if not self.status.address:
             # if there is no address

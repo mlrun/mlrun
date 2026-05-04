@@ -211,6 +211,51 @@ def test_dataset_stats():
             assert dataset_artifact.status.stats is not None
 
 
+def test_dataset_stats_with_ignore_preview_limits():
+    """Test that stats=False is respected even when ignore_preview_limits=True.
+
+    Before the fix, an operator precedence bug caused `or ignore_preview_limits`
+    to be evaluated outside of the `stats is None and (...)` group, meaning
+    stats were computed even when the user explicitly disabled them with
+    stats=False.
+    """
+    raw_data = {
+        "first_name": ["Jason", "Molly", "Tina", "Jake", "Amy"],
+        "last_name": ["Miller", "Jacobson", "Ali", "Milner", "Cooze"],
+        "age": [42, 52, 36, 24, 73],
+        "testScore": [25, 94, 57, 62, 70],
+    }
+    df = pandas.DataFrame(
+        raw_data, columns=["first_name", "last_name", "age", "testScore"]
+    )
+
+    # stats=False with ignore_preview_limits=True should NOT compute stats
+    artifact = mlrun.artifacts.dataset.DatasetArtifact(
+        df=df, stats=False, ignore_preview_limits=True
+    )
+    assert artifact.status.stats is None, (
+        "stats should be None when user explicitly sets stats=False, "
+        "even with ignore_preview_limits=True"
+    )
+
+    # stats=None (auto) with ignore_preview_limits=True should compute stats
+    artifact = mlrun.artifacts.dataset.DatasetArtifact(
+        df=df, stats=None, ignore_preview_limits=True
+    )
+    assert artifact.status.stats is not None, (
+        "stats should be computed when stats=None (auto mode) "
+        "and ignore_preview_limits=True"
+    )
+
+    # stats=True with ignore_preview_limits=True should compute stats
+    artifact = mlrun.artifacts.dataset.DatasetArtifact(
+        df=df, stats=True, ignore_preview_limits=True
+    )
+    assert artifact.status.stats is not None, (
+        "stats should be computed when stats=True, regardless of ignore_preview_limits"
+    )
+
+
 def test_get_log_dataset_dont_duplicate_index_column(ensure_project):
     source_url = mlrun.get_sample_path("data/iris/iris.data.raw.csv")
     df = mlrun.get_dataitem(source_url).as_df()

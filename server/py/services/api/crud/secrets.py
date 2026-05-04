@@ -468,12 +468,14 @@ class Secrets(
         for token_name, token_info in tokens_values.items():
             token = token_info["token"]
             expiration = token_info["token_exp"]
+            issued_at = token_info["token_iat"]
 
             action = self.secrets_provider.store_user_token_secret(
                 auth_info=auth_info,
                 token_name=token_name,
                 token=token,
                 expiration=expiration,
+                issued_at=issued_at,
                 force=force,
             )
             if action is not None:

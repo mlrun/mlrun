@@ -259,6 +259,7 @@ class LocalRuntime(BaseRuntime, ParallelRunner):
                 self.spec.build.source,
                 self.spec.build.source_code_target_dir,
                 secrets=execution._secrets_manager,
+                project=self.metadata.project,
             )
             if workdir and not workdir.startswith("/"):
                 execution._current_workdir = os.path.join(target_dir, workdir)

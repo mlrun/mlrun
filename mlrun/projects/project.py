@@ -48,6 +48,7 @@ import mlrun.common.schemas.artifact
 import mlrun.common.schemas.model_monitoring.constants as mm_constants
 import mlrun.common.schemas.notification
 import mlrun.common.secrets
+import mlrun.datastore
 import mlrun.datastore.datastore_profile
 import mlrun.db
 import mlrun.errors
@@ -2655,7 +2656,7 @@ class MlrunProject(ModelObj):
     def enable_model_monitoring(
         self,
         base_period: int = 10,
-        image: str = "mlrun/mlrun",
+        image: str | None = None,
         *,
         deploy_histogram_data_drift_app: bool = True,
         wait_for_deployment: bool = False,
@@ -2676,7 +2677,8 @@ class MlrunProject(ModelObj):
                                                   (which is also the minimum value for production environments).
         :param image:                             The image of the model monitoring controller, writer, monitoring
                                                   stream & histogram data drift functions, which are real time nuclio
-                                                  functions. By default, the image is mlrun/mlrun.
+                                                  functions. Defaults to
+                                                  ``mlrun.mlconf.function_defaults.image_by_kind.nuclio``.
         :param deploy_histogram_data_drift_app:   If true, deploy the default histogram-based data drift application:
             :py:class:`~mlrun.model_monitoring.applications.histogram_data_drift.HistogramDataDriftApplication`.
             If false, and you want to deploy the histogram data drift application
@@ -2742,7 +2744,7 @@ class MlrunProject(ModelObj):
     def update_model_monitoring_controller(
         self,
         base_period: int = 10,
-        image: str = "mlrun/mlrun",
+        image: str | None = None,
         *,
         wait_for_deployment: bool = False,
     ) -> None:
@@ -2753,7 +2755,8 @@ class MlrunProject(ModelObj):
                                     is triggered. By default, the base period is 10 minutes.
         :param image:               The image of the model monitoring controller, writer & monitoring
                                     stream functions, which are real time nuclio functions.
-                                    By default, the image is mlrun/mlrun.
+                                    Defaults to
+                                    ``mlrun.mlconf.function_defaults.image_by_kind.nuclio``.
         :param wait_for_deployment: If true, return only after the deployment is done on the backend.
                                     Otherwise, deploy the controller on the background.
         """
@@ -6220,6 +6223,22 @@ def _init_function_from_dict(
         func = new_function(
             name, image=image, kind=kind or "job", handler=handler, tag=tag
         )
+
+    elif mlrun.utils.is_store_uri(url):
+        # store:// artifact URI — store as-is in spec.build.source, resolve at run/deploy time
+        if with_repo:
+            raise ValueError(
+                "with_repo=True is not supported with store:// artifact URIs. "
+                "The artifact already provides the code source."
+            )
+        func = new_function(
+            name,
+            image=image,
+            kind=kind or "job",
+            handler=handler,
+            tag=tag,
+        )
+        func.spec.build.source = url
 
     elif is_yaml_path(url) or url.startswith("db://") or url.startswith("hub://"):
         func = import_function(url, new_name=name)

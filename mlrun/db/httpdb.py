@@ -4044,31 +4044,32 @@ class HTTPRunDB(RunDBInterface):
         self,
         project: str,
         base_period: int = 10,
-        image: str = "mlrun/mlrun",
+        image: str | None = None,
     ) -> None:
         """
         Redeploy model monitoring application controller function.
 
-        :param project:                  Project name.
-        :param base_period:              The time period in minutes in which the model monitoring controller function
-                                         triggers. By default, the base period is 10 minutes.
-        :param image: The image of the model monitoring controller function.
-                                         By default, the image is mlrun/mlrun.
+        :param project:     Project name.
+        :param base_period: The time period in minutes in which the model monitoring controller function
+                            triggers. By default, the base period is 10 minutes.
+        :param image:       The image of the model monitoring controller function.
+                            Defaults to
+                            ``mlrun.mlconf.function_defaults.image_by_kind.nuclio``.
         """
+        params = {"base_period": base_period}
+        if image is not None:
+            params["image"] = image
         self.api_call(
             method=mlrun.common.types.HTTPMethod.PATCH,
             path=f"projects/{project}/model-monitoring/controller",
-            params={
-                "base_period": base_period,
-                "image": image,
-            },
+            params=params,
         )
 
     def enable_model_monitoring(
         self,
         project: str,
         base_period: int = 10,
-        image: str = "mlrun/mlrun",
+        image: str | None = None,
         deploy_histogram_data_drift_app: bool = True,
         fetch_credentials_from_sys_config: bool = False,
         lag_threshold: int | None = None,
@@ -4087,7 +4088,8 @@ class HTTPRunDB(RunDBInterface):
                                                   function triggers. By default, the base period is 10 minutes.
         :param image:                             The image of the model monitoring controller, writer & monitoring
                                                   stream functions, which are real time nuclio functions.
-                                                  By default, the image is mlrun/mlrun.
+                                                  Defaults to
+                                                  ``mlrun.mlconf.function_defaults.image_by_kind.nuclio``.
         :param deploy_histogram_data_drift_app:   If true, deploy the default histogram-based data drift application.
         :param fetch_credentials_from_sys_config: If true, fetch the credentials from the system configuration.
         :param lag_threshold:                     Lag threshold in minutes for writer lag detection.
@@ -4098,11 +4100,14 @@ class HTTPRunDB(RunDBInterface):
 
         params = {
             "base_period": base_period,
-            "image": image,
             "deploy_histogram_data_drift_app": deploy_histogram_data_drift_app,
             "fetch_credentials_from_sys_config": fetch_credentials_from_sys_config,
             "auth_token_name": auth_token_name,
         }
+        # Only forward `image` when caller specified one — otherwise let the
+        # API server resolve it from `function_defaults.image_by_kind.nuclio`.
+        if image is not None:
+            params["image"] = image
         if lag_threshold is not None:
             params["lag_threshold"] = lag_threshold
         if lag_event_cooldown is not None:

@@ -83,6 +83,14 @@ _missing = object()
 hub_prefix = "hub://"
 DB_SCHEMA = "store"
 
+
+def is_store_uri(url):
+    """detect if the uri starts with the store schema prefix"""
+    if not url:
+        return False
+    return url.startswith(DB_SCHEMA + "://")
+
+
 LEGAL_TIME_UNITS = ["year", "month", "day", "hour", "minute", "second"]
 DEFAULT_TIME_PARTITIONS = ["year", "month", "day", "hour"]
 DEFAULT_TIME_PARTITIONING_GRANULARITY = "hour"
@@ -871,7 +879,7 @@ def remove_tag_from_artifact_uri(uri: str) -> str | None:
         "store://models/remote-model-project/my_model#0@tree" => unchanged (no tag)
     """
     add_store = False
-    if mlrun.datastore.is_store_uri(uri):
+    if is_store_uri(uri):
         uri = uri.removeprefix(DB_SCHEMA + "://")
         add_store = True
     uri = re.sub(r"(#[^:@\s]*)?:[^@^:\s]+(?=(@|\^|$))", lambda m: m.group(1) or "", uri)

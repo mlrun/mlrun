@@ -357,6 +357,7 @@ default_config = {
                     "start_logs": "enabled",
                     "stop_logs": "enabled",
                     "retry_jobs": "enabled",
+                    "project_sync_2pc": "disabled",
                 },
             },
             "worker": {

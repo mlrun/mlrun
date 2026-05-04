@@ -379,7 +379,7 @@ To upgrade the MLRun server:
 ### Runtimes
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
-|ML-8642|{py:meth}`~mlrun.runtimes.ServingRuntime.add_model` and {py:meth}`~mlrun.serving.RouterStep.add_route` have a new parameter, `creation_strategy`. that defines whether / how endpoints are created or updated.|
+|ML-8642|{py:meth}`~mlrun.runtimes.ServingRuntime.add_model` and {py:meth}`~mlrun.serving.RouterStep.add_route` have a new parameter, `creation_strategy`, that defines whether / how endpoints are created or updated.|
 
 ### Breaking changes
 | ID    |Description                                                                 |

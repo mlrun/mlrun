@@ -10,7 +10,7 @@ You can also write your own steps using standard Python functions or custom func
 
 ```{toctree}
 :maxdepth: 1
-available-steps
+basic-steps
 model-serving-steps
 remote-steps
 hub-steps

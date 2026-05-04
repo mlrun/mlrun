@@ -36,6 +36,7 @@ class Claims:
     SUBJECT = "sub"
     EXPIRATION = "exp"
     PREFERRED_USERNAME = "preferred_username"
+    ISSUED_AT = "iat"
 
 
 def load_offline_token(
@@ -310,6 +311,11 @@ def extract_and_validate_tokens_info(
                     raise mlrun.errors.MLRunInvalidArgumentError(
                         f"Offline token '{token_name}' is missing the 'sub' (subject) claim"
                     )
+                # Validate token issued_at existence
+                if not decoded_token.get(Claims.ISSUED_AT):
+                    raise mlrun.errors.MLRunInvalidArgumentError(
+                        f"Offline token '{token_name}' is missing the 'iat' (issued at) claim"
+                    )
 
                 # Validate token belongs to the authenticated user
                 token_sub = decoded_token.get(Claims.SUBJECT)
@@ -331,6 +337,7 @@ def extract_and_validate_tokens_info(
                 # Store token info
                 token_values[secret_token.name] = {
                     "token_exp": decoded_token.get(Claims.EXPIRATION),
+                    "token_iat": decoded_token.get(Claims.ISSUED_AT),
                     "token": secret_token.token,
                 }
             except mlrun.errors.MLRunInvalidArgumentError as exc:

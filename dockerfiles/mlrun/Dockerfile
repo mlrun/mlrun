@@ -65,7 +65,7 @@ ENV UV_SYSTEM_PYTHON=true UV_LINK_MODE=copy UV_COMPILE_BYTECODE=1
 # Install MLRun:
 # no-deps to ignore existing dependencies, just add the locked requirements
 # mainly because of how the image is built with conda.
-# see https://iguazio.atlassian.net/browse/ML-8712 for example
+# see ML-8712 for example
 # where 'tqdm' is given by conda env but will get remove if we omit the `--no-deps`.
 RUN --mount=from=uv-image,source=/uv,target=/bin/uv \
     --mount=type=cache,id=pip-${MLRUN_PYTHON_VERSION},target=/root/.cache/uv \

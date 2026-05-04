@@ -229,7 +229,7 @@ jobs:
     steps:
       - name: Setup Python 3.11 venv
         run: |
-          python3.11 -m venv $GITHUB_WORKSPACE/.venv-promotion
+          python3.11 -m venv --clear $GITHUB_WORKSPACE/.venv-promotion
           echo "$GITHUB_WORKSPACE/.venv-promotion/bin" >> $GITHUB_PATH
 
       - name: Download package from source PyPI repo

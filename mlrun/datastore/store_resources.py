@@ -23,14 +23,8 @@ from mlrun.utils.helpers import parse_artifact_uri
 from ..common.helpers import parse_versioned_object_uri
 from ..platforms.iguazio import parse_path
 from ..utils import DB_SCHEMA, StorePrefix
+from ..utils.helpers import is_store_uri
 from .targets import get_online_target
-
-
-def is_store_uri(url):
-    """detect if the uri starts with the store schema prefix"""
-    if not url:
-        return False
-    return url.startswith(DB_SCHEMA + "://")
 
 
 def parse_store_uri(url):

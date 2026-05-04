@@ -24,7 +24,7 @@ from git import Repo
 
 import mlrun
 
-from .helpers import logger
+from .helpers import is_store_uri, logger
 
 
 def _remove_directory_contents(target_dir):
@@ -191,9 +191,20 @@ def clone_git(url: str, context: str, secrets=None, clone: bool = True):
     return url, repo
 
 
-def extract_source(source: str, workdir=None, secrets=None, clone=True):
+def extract_source(source: str, workdir=None, secrets=None, clone=True, project=None):
     if not source:
         return
+    if is_store_uri(source):
+        # `clone` is git/archive-specific (it controls whether to wipe the
+        # target dir before fetching) — not applicable to store:// URIs,
+        # where _load_store_artifact downloads a single file.
+        target_dir = workdir or os.path.realpath("./code")
+        return load_source_code(
+            source_uri=source,
+            target_dir=target_dir,
+            project=project,
+            secrets=secrets,
+        )
     clone = clone if workdir else False
     target_dir = workdir or os.path.realpath("./code")
     if source.endswith(".zip"):
@@ -217,6 +228,7 @@ def load_source_code(
     source_uri: str,
     target_dir: str,
     project: str | None = None,
+    secrets=None,
 ) -> str:
     """
     Load source code from various sources into a target directory.
@@ -232,8 +244,10 @@ def load_source_code(
     :param source_uri: Source URI (store://, git://, or archive URL)
     :param target_dir: Target directory where source will be placed
     :param project:    Optional project name (used for store:// URIs)
+    :param secrets:    Optional secrets used to access secured data stores
+                       (forwarded to the store:// resolver)
 
-    :returns: Path to the loaded source (file path for store://, directory for git/archives)
+    :returns: Path to the directory containing the loaded source.
     """
     if not source_uri:
         raise mlrun.errors.MLRunInvalidArgumentError("source_uri is required")
@@ -242,7 +256,7 @@ def load_source_code(
 
     # Handle store:// artifact URIs
     if mlrun.datastore.is_store_uri(source_uri):
-        return _load_store_artifact(source_uri, target_dir, project)
+        return _load_store_artifact(source_uri, target_dir, project, secrets=secrets)
 
     # Handle git:// URLs
     if source_uri.startswith("git://"):
@@ -262,6 +276,7 @@ def _load_store_artifact(
     source_uri: str,
     target_dir: str,
     project: str | None = None,
+    secrets=None,
 ) -> str:
     """
     Load a single-file artifact from the MLRun artifact store.
@@ -269,11 +284,20 @@ def _load_store_artifact(
     :param source_uri: Artifact URI (store://artifacts/project/key)
     :param target_dir: Target directory where the file will be placed
     :param project:    Optional project name (extracted from URI if not provided)
+    :param secrets:    Optional secrets used to access secured data stores
+                       (forwarded to the artifact resolver and the data-item
+                       download for cases where the artifact target path lives
+                       on a credential-protected store)
 
-    :returns: Path to the loaded file
+    :returns: Path to the directory containing the loaded source file.
     """
     # Resolve the artifact from the store
-    artifact = mlrun.datastore.get_store_resource(source_uri, project=project)
+    artifact = mlrun.datastore.get_store_resource(
+        source_uri,
+        project=project,
+        secrets=secrets,
+        data_store_secrets=secrets,
+    )
 
     # Get the target path where the artifact content is stored
     artifact_target_path = artifact.get_target_path()
@@ -294,13 +318,17 @@ def _load_store_artifact(
 
     # Download the artifact content to the target directory
     try:
-        mlrun.get_dataitem(artifact_target_path).download(local_file_path)
+        mlrun.get_dataitem(artifact_target_path, secrets=secrets).download(
+            local_file_path
+        )
     except Exception as exc:
         raise mlrun.errors.MLRunRuntimeError(
             f"Failed to download artifact from {artifact_target_path} to {local_file_path}"
         ) from exc
 
-    return local_file_path
+    # Return the directory (not the file path) so that callers like _pre_run()
+    # can set it as the working directory and add it to sys.path for imports.
+    return target_dir
 
 
 def _load_git_source(source_uri: str, target_dir: str) -> str:

@@ -16,13 +16,26 @@
 # this is a template file for the deploy env file
 
 
-# Data node IPs/hostnames (required) (e.g. [1.1.1.1, 1.1.1.2, 1.1.1.3])
+# Execution mode (optional). Inferred from KUBECONFIG when unset:
+# kubectl mode if KUBECONFIG is set, otherwise ssh.
+# - ssh:     SSH into a data node and run kubectl there.
+# - kubectl: Run kubectl locally against the cluster.
+MODE:
+
+# Path to a kubeconfig file. Setting this implies MODE=kubectl unless MODE is
+# set explicitly. Leave unset for ssh mode or to use the kubectl default
+# (KUBECONFIG env var or ~/.kube/config) with an explicit MODE: kubectl.
+KUBECONFIG:
+
+# Data node IPs/hostnames (e.g. [1.1.1.1, 1.1.1.2, 1.1.1.3]).
+# Required for MODE=ssh. In kubectl mode, only set when pushing to per-node
+# Iguazio datanode registries (multi-node image replication).
 DATA_NODES:
 
-# Username for ssh (required)
+# Username for ssh (required when MODE=ssh)
 SSH_USER:
 
-# Password for above user (required)
+# Password for above user (required when MODE=ssh)
 SSH_PASSWORD:
 
 # Docker registry you can push to. Make sure you are logged into it before running the script (required)

@@ -96,6 +96,8 @@ jobs:
           BUMP_VERSION_MODE_INPUT: ${{ github.event.inputs.bump_version_mode }}
           VERSION_INPUT: ${{ github.event.inputs.version }}
           ARTIFACTORY_PYPI_REPO: ${{ github.event.inputs.artifactory_pypi_repo }}
+          ARTIFACTORY_URL: ${{ secrets.ARTIFACTORY_URL }}
+          ARTIFACTORY_DOCKER_REPO: ${{ github.event.inputs.artifactory_docker_repo }}
           UI_REF_INPUT: ${{ github.event.inputs.ui_ref }}
 
       - name: Display calculated version
@@ -125,28 +127,14 @@ jobs:
 
   trigger-and-wait-for-ui-image-building:
     name: Build and push UI image to Artifactory
-    runs-on: mlrun-release
     needs: prepare-inputs
-    env:
-      DOCKER_REGISTRY: "${{ secrets.ARTIFACTORY_URL }}/${{ inputs.artifactory_docker_repo }}/"
-    steps:
-      - name: Generate GitHub App Token for ui repo
-        id: ui-app-token
-        uses: actions/create-github-app-token@v3
-        with:
-          app-id: ${{ secrets.GH_APP_ID }}
-          private-key: ${{ secrets.GH_APP_PRIVATE_KEY }}
-          owner: ${{ github.repository_owner }}
-          repositories: ui
-      - uses: convictional/trigger-workflow-and-wait@f69fa9eedd3c62a599220f4d5745230e237904be # 1.6.5
-        with:
-          owner: ${{ github.repository_owner }}
-          repo: ui
-          github_token: ${{ steps.ui-app-token.outputs.token }}
-          workflow_file_name: build.yaml
-          ref: ${{ needs.prepare-inputs.outputs.ui_ref }}
-          wait_interval: 60
-          client_payload: "{\"docker_registries\": \"${{ env.DOCKER_REGISTRY }}\", \"docker_repo\": \"\", \"runner\": \"mlrun-release\", \"version\": \"${{ needs.prepare-inputs.outputs.version }}\"}"
+    uses: mlrun/ui/.github/workflows/build.yaml@fix/reusable-workflow-call
+    with:
+      artifactory_docker_repo: ${{ inputs.artifactory_docker_repo }}
+      version: ${{ needs.prepare-inputs.outputs.version }}
+      runner: mlrun-release
+      ref: ${{ needs.prepare-inputs.outputs.ui_ref }}
+    secrets: inherit
 
   publish-to-artifactory:
     name: Publish package to Artifactory PyPI

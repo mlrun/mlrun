@@ -15,6 +15,7 @@
 """API Handler implementation for serving graphs"""
 
 import re
+from dataclasses import dataclass, field
 from http import HTTPMethod
 from re import Pattern
 from typing import Any, Union
@@ -34,6 +35,14 @@ from mlrun.serving.utils import (
     _RequestContext,
     check_body_and_path_parameters_overlapping,
 )
+
+
+@dataclass
+class EndpointMatch:
+    """A single matched endpoint with its extracted path parameters."""
+
+    endpoint: "mlrun.runtimes.nuclio.serving.EndpointConfig"
+    path_params: dict[str, str] = field(default_factory=dict)
 
 
 class _APIHandlerStep(mlrun.serving.states.TaskStep):
@@ -293,7 +302,7 @@ class _APIHandlerStep(mlrun.serving.states.TaskStep):
 
     def _merge_body_maps(
         self,
-        matches: list[tuple[Any, dict]],
+        matches: list[EndpointMatch],
     ) -> dict[str, tuple[Any, bool]]:
         """Merge input body maps from all matched endpoints, lowest priority first.
 
@@ -302,14 +311,15 @@ class _APIHandlerStep(mlrun.serving.states.TaskStep):
         - Same source, different destination → stale destination is removed so the
           value is not passed to two destinations at once.
 
-        :param matches: Ordered list of ``(EndpointConfig, path_params)`` from
+        :param matches: Ordered list of :class:`EndpointMatch` from
                         :meth:`_collect_endpoint_matches` (index 0 = highest priority).
         :return: Merged map of ``{destination_path: (compiled_expr, mandatory)}``.
         """
         effective_map: dict[str, tuple[Any, bool]] = {}
         src_to_dest: dict[str, str] = {}  # str(expr) → current destination
-        for matched_ep, _ in reversed(matches):
-            ep_key = matched_ep.get_endpoint_key()
+
+        for match in reversed(matches):
+            ep_key = match.endpoint.get_endpoint_key()
             if ep_key not in self._parsed_body_map:
                 continue
             for dest, (expr, mandatory) in self._parsed_body_map[ep_key].items():
@@ -363,10 +373,12 @@ class _APIHandlerStep(mlrun.serving.states.TaskStep):
 
             # Find all matching endpoints (highest priority first)
             matches = self._collect_endpoint_matches(method, normalized_path)
-            ep, path_params = matches[0] if matches else (None, {})
-
-            if ep is None:
+            if not matches:
                 self._raise_not_found_endpoint(method, normalized_path)
+
+            first_match = matches[0]
+            ep = first_match.endpoint
+            path_params = first_match.path_params
 
             mlrun.utils.logger.debug(
                 "Found matching endpoint",
@@ -474,7 +486,7 @@ class _APIHandlerStep(mlrun.serving.states.TaskStep):
 
     def _collect_endpoint_matches(
         self, method: HTTPMethod, path: str
-    ) -> list[tuple["mlrun.runtimes.nuclio.serving.EndpointConfig", dict[str, str]]]:
+    ) -> list[EndpointMatch]:
         """Collect all matching endpoints for the given method and path, ordered by priority.
 
         Priority (highest first):
@@ -489,17 +501,15 @@ class _APIHandlerStep(mlrun.serving.states.TaskStep):
 
         :param method: HTTP method to match
         :param path: Request path to match
-        :return: List of (EndpointConfig, path_params) tuples, highest priority first.
+        :return: List of :class:`EndpointMatch`, highest priority first.
         """
-        matches: list[
-            tuple[mlrun.runtimes.nuclio.serving.EndpointConfig, dict[str, str]]
-        ] = []
+        matches: list[EndpointMatch] = []
 
         # Phase 1: Exact match
         endpoint_key = serving_utils.combine_serving_endpoint_key(method, path)
         exact_found = endpoint_key in self.config.endpoints
         if exact_found:
-            matches.append((self.config.endpoints[endpoint_key], {}))
+            matches.append(EndpointMatch(self.config.endpoints[endpoint_key]))
 
         # Phase 2: Template matches — skipped when an exact match was found
         if not exact_found:
@@ -512,7 +522,7 @@ class _APIHandlerStep(mlrun.serving.states.TaskStep):
                         name: unquote(value)
                         for name, value in match.groupdict().items()
                     }
-                    matches.append((ep, path_params))
+                    matches.append(EndpointMatch(ep, path_params))
 
         # Phase 3: Star matches — always collected (true parent scopes)
         path_with_slash = path if path.endswith("/") else path + "/"
@@ -522,6 +532,6 @@ class _APIHandlerStep(mlrun.serving.states.TaskStep):
             if path_with_slash.startswith(prefix) and len(path_with_slash) > len(
                 prefix
             ):
-                matches.append((ep, {}))
+                matches.append(EndpointMatch(ep))
 
         return matches

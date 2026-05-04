@@ -21,6 +21,7 @@ from pathlib import Path
 import mlrun.utils
 from mlrun.package.utils._supported_format import SupportedFormat
 
+
 def _is_within_directory(directory, target):
     abs_directory = os.path.realpath(directory)
     abs_target = os.path.realpath(target)
@@ -33,6 +34,7 @@ def _safe_extract(tar, path=".", members=None, *, numeric_owner=False):
         if not _is_within_directory(path, member_path):
             raise Exception(f"Path traversal attempt: {member.name}")
     tar.extractall(path, members, numeric_owner=numeric_owner)
+
 
 class _Archiver(ABC):
     """

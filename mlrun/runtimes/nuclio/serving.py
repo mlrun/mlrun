@@ -384,6 +384,14 @@ class APIHandlerConfig(mlrun.model.ModelObj):
         endpoint_key = serving_utils.combine_serving_endpoint_key(http_method, path)
         self._endpoints.pop(endpoint_key, None)
 
+    def to_dict(self, fields=None, exclude=None, strip=False):
+        d = super().to_dict(fields=fields, exclude=exclude, strip=strip)
+        if d.get("endpoints"):
+            d["endpoints"] = {
+                k: v.to_dict(strip=strip) for k, v in self._endpoints.items()
+            }
+        return d
+
 
 def new_v2_model_server(
     name,

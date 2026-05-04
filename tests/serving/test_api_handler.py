@@ -14,6 +14,7 @@
 
 """Unit tests for the API Handler implementation"""
 
+import json
 import logging
 import re
 from collections.abc import Iterator
@@ -120,7 +121,13 @@ class TestBodyMappings:
             "Create user",
             input_body_mappings=bm,
         )
-        restored = APIHandlerConfig.from_dict(config.to_dict())
+        config_dict = config.to_dict()
+
+        # to_dict() must produce plain dicts only — no EndpointConfig objects —
+        # otherwise JSON serialization (e.g. for deploy API call) will fail
+        json.dumps(config_dict)  # raises TypeError if any value is not serializable
+
+        restored = APIHandlerConfig.from_dict(config_dict)
         ep = restored.get_endpoint_config(HTTPMethod.POST, "/users")
         assert ep.input_body_mappings.to_dict() == bm.to_dict()
 

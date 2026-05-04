@@ -328,10 +328,16 @@ def build_function(
     :param builder_env:     Kaniko builder pod env vars dict (for config/credentials)
         e.g. builder_env={"GIT_TOKEN": token}, does not work yet in KFP
     :param project_object:  Override the project object to use, will default to the project set in the runtime context.
-    :param overwrite_build_params:  Overwrite existing build configuration (currently applies to
-        requirements and commands)
-        * False: The new params are merged with the existing
-        * True: The existing params are replaced by the new ones
+    :param overwrite_build_params: Overwrite existing build configuration (currently only
+            applies to requirements and commands).
+
+            * False: The values passed in this call are merged with the project's stored values.
+            * True: The values passed in this call replace the project's stored values for commands
+              and requirements. Parameters not explicitly passed retain their stored values.
+
+            To remove existing stored values, use ``overwrite_build_params=True`` and pass the values
+            explicitly like this ``(commands=[""], requirements=[""])``.
+
     :param extra_args:  A string containing additional builder arguments in the format of command-line options,
         e.g. extra_args="--skip-tls-verify --build-arg A=val"
     :param force_build: Force building the image, even when no changes were made

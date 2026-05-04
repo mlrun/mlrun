@@ -723,7 +723,7 @@ def test_store_secret_tokens_missing_tokens(
 
 
 def test_store_secret_tokens_incorrect_user_id():
-    token_payload = {"exp": 9999999999, "sub": "user-id-123"}
+    token_payload = {"exp": 9999999999, "iat": 1, "sub": "user-id-123"}
     secret_tokens = [
         mlrun.common.schemas.SecretToken(
             name="token1", token=_generate_token(token_payload)
@@ -744,7 +744,7 @@ def test_store_secret_tokens_incorrect_user_id():
 
 
 def test_store_secret_tokens_duplicate_names():
-    token_payload = {"exp": 9999999999, "sub": "user-id-123"}
+    token_payload = {"exp": 9999999999, "iat": 1, "sub": "user-id-123"}
 
     secret_tokens = [
         mlrun.common.schemas.SecretToken(
@@ -784,24 +784,42 @@ def test_store_secret_tokens_invalid_offline_token_jwt_decode(mock_iguazio_clien
 @pytest.mark.parametrize(
     "payload, expected_err_msg",
     [
-        ({"sub": "user-id-123"}, r"missing the 'exp' \(expiration\) claim"),  # no exp
         (
-            {"sub": "user-id-123", "exp": None},
+            {"sub": "user-id-123", "iat": 1},
+            r"missing the 'exp' \(expiration\) claim",
+        ),  # no exp
+        (
+            {"sub": "user-id-123", "exp": None, "iat": 1},
             r"missing the 'exp' \(expiration\) claim",
         ),  # exp is None
         (
-            {"sub": "user-id-123", "exp": ""},
+            {"sub": "user-id-123", "exp": "", "iat": 1},
             r"missing the 'exp' \(expiration\) claim",
         ),  # exp is empty
-        ({"exp": 9999999999}, r"missing the 'sub' \(subject\) claim"),  # no sub
         (
-            {"sub": None, "exp": 9999999999},
+            {"exp": 9999999999, "iat": 1},
+            r"missing the 'sub' \(subject\) claim",
+        ),  # no sub
+        (
+            {"sub": None, "exp": 9999999999, "iat": 1},
             r"missing the 'sub' \(subject\) claim",
         ),  # sub is None
         (
-            {"sub": "", "exp": 9999999999},
+            {"sub": "", "exp": 9999999999, "iat": 1},
             r"missing the 'sub' \(subject\) claim",
         ),  # sub is empty
+        (
+            {"sub": "user-id-123", "exp": 9999999999},
+            r"missing the 'iat' \(issued at\) claim",
+        ),  # no iat
+        (
+            {"sub": "user-id-123", "exp": 9999999999, "iat": None},
+            r"missing the 'iat' \(issued at\) claim",
+        ),  # iat is None
+        (
+            {"sub": "user-id-123", "exp": 9999999999, "iat": ""},
+            r"missing the 'iat' \(issued at\) claim",
+        ),  # iat is empty
     ],
 )
 def test_store_secret_tokens_missing_required_claims_in_offline_token(
@@ -825,7 +843,7 @@ def test_store_secret_tokens_missing_required_claims_in_offline_token(
 
 
 def test_store_secret_tokens_return_values(mock_iguazio_client):
-    token_payload = {"sub": "user-id-123", "exp": 9999999999}
+    token_payload = {"sub": "user-id-123", "exp": 9999999999, "iat": 1}
     secret_tokens = [
         mlrun.common.schemas.SecretToken(
             name="token1", token=_generate_token(token_payload)
@@ -868,7 +886,7 @@ def test_store_secret_tokens_refresh_access_tokens_failure(mock_iguazio_client):
     secret_tokens = [
         mlrun.common.schemas.SecretToken(
             name="token1",
-            token=_generate_token({"sub": "user-id-123", "exp": 9999999999}),
+            token=_generate_token({"sub": "user-id-123", "exp": 9999999999, "iat": 1}),
         ),
     ]
 
@@ -887,14 +905,16 @@ def test_list_secret_tokens_returns_tokens():
     auth_info = mlrun.common.schemas.AuthInfo(
         username="dummy-user", user_id="user-id-123"
     )
+    iat1 = datetime.datetime(2025, 6, 26, 22, 6, 31, tzinfo=datetime.UTC)
     exp1 = datetime.datetime(2025, 6, 26, 23, 6, 31, tzinfo=datetime.UTC)
+    iat2 = datetime.datetime(2025, 9, 11, 11, 0, 0, tzinfo=datetime.UTC)
     exp2 = datetime.datetime(2025, 9, 11, 12, 0, 0, tzinfo=datetime.UTC)
     expected_tokens = [
         mlrun.common.schemas.SecretTokenInfo(
-            name="jupyter", expiration=exp1, user_id="user-id-123"
+            name="jupyter", expiration=exp1, issued_at=iat1, user_id="user-id-123"
         ),
         mlrun.common.schemas.SecretTokenInfo(
-            name="my-token", expiration=exp2, user_id="user-id-123"
+            name="my-token", expiration=exp2, issued_at=iat2, user_id="user-id-123"
         ),
     ]
 
@@ -910,9 +930,11 @@ def test_list_secret_tokens_returns_tokens():
     assert len(response.secret_tokens) == 2
     assert response.secret_tokens[0].name == "jupyter"
     assert response.secret_tokens[0].expiration == exp1
+    assert response.secret_tokens[0].issued_at == iat1
     assert response.secret_tokens[0].user_id == "user-id-123"
     assert response.secret_tokens[1].name == "my-token"
     assert response.secret_tokens[1].expiration == exp2
+    assert response.secret_tokens[1].issued_at == iat2
     assert response.secret_tokens[1].user_id == "user-id-123"
 
     mock_secrets_provider.list_user_token_secrets.assert_called_once_with(
@@ -1037,11 +1059,13 @@ async def test_delete_secret_tokens_success(mock_iguazio_client):
         mlrun.common.schemas.SecretTokenInfo(
             name="token-1",
             expiration=datetime.datetime.now(),
+            issued_at=datetime.datetime.now(),
             user_id=auth_info.user_id,
         ),
         mlrun.common.schemas.SecretTokenInfo(
             name="token-2",
             expiration=datetime.datetime.now(),
+            issued_at=datetime.datetime.now(),
             user_id=auth_info.user_id,
         ),
     ]
@@ -1087,16 +1111,19 @@ async def test_delete_secret_tokens_partial_failure(mock_iguazio_client):
         mlrun.common.schemas.SecretTokenInfo(
             name="token-1",
             expiration=datetime.datetime.now(),
+            issued_at=datetime.datetime.now(),
             user_id=auth_info.user_id,
         ),
         mlrun.common.schemas.SecretTokenInfo(
             name="token-2",
             expiration=datetime.datetime.now(),
+            issued_at=datetime.datetime.now(),
             user_id=auth_info.user_id,
         ),
         mlrun.common.schemas.SecretTokenInfo(
             name="token-3",
             expiration=datetime.datetime.now(),
+            issued_at=datetime.datetime.now(),
             user_id=auth_info.user_id,
         ),
     ]

@@ -35,6 +35,7 @@ class ClientSpec(pydantic.v1.BaseModel):
     spark_operator_version: str | None
     kfp_image: str | None
     kfp_url: str | None
+    kfp_default_workflow_timeout: str | None
     dask_kfp_image: str | None
     api_url: str | None
     nuclio_version: str | None
@@ -71,3 +72,4 @@ class ClientSpec(pydantic.v1.BaseModel):
     oauth_internal_token_endpoint: str | None
     oauth_external_token_endpoint: str | None
     authorization_namespaces_resources: str | None
+    default_runtime_image_by_kind: dict[str, str] | None

@@ -88,7 +88,7 @@ class TestMLRunSystem:
 
         cls.uploaded_code = False
 
-        if "MLRUN_IGUAZIO_API_URL" in env:
+        if "MLRUN_IGUAZIO_API_URL" in env and "V3IO_ACCESS_KEY" in env:
             cls._igz_mgmt_client = igz_mgmt.Client(
                 endpoint=env["MLRUN_IGUAZIO_API_URL"],
                 access_key=env["V3IO_ACCESS_KEY"],

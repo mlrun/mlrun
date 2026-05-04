@@ -23,10 +23,82 @@ In deep learning models, attention mechanisms are used to focus on different par
 
 ## Inference optimization
 
-### Batch Size
+### Async mode
+```{admonition} Note
+Requires Nuclio 1.15.3 or higher.
+```
+MLRun can process events asynchronously within a batch, sending a response as soon as the event completes. For example, a data pipeline sends multiple events (e.g., customer data for personalization) to the GenAI model. The system processes each event asynchronously, and events to complete independently of one another. Responses are sent back to the pipeline as soon as they are ready, without waiting for the entire batch to complete. Throughput is maximized, and bottlenecks are minimized.
 
-Batch size is an important hyperparameter that can have a significant impact on GPU utilization. Increasing the batch size can lead to better GPU utilization and can lead to a speedup in inference time. However, increasing the batch size leads to higher latency. Static batching is not as optimal as dynamic batching for LLMs since not all inputs produce completion tokens at the same time, leading to the longest input to halt the rest. However, the big improvement here comes not just from GPU utilization but by increasing throughput.
+By default, async mode is disabled. Enable it with the async_spec parameter of {py:meth}~mlrun.runtimes.RemoteRuntime.with_http:
+```
+# Example for serving
+from mlrun import get_or_create_project
 
+project = get_or_create_project(project_name, context=f"./{project_name}")
+func = project.set_function(name=serving_func_name, kind="serving", image="mlrun/mlrun", func="func_file.py")
+
+graph = func.set_topology("flow", engine="async")
+graph.to(
+            RemoteStep(
+                name="remote_echo",
+                url=url,
+                body_expression="event['inputs']",
+                result_path="resp",
+                retries=0,
+                max_in_flight=16,
+                timeout=100,
+            )
+        ).respond()
+
+async_spec = mlrun.runtimes.nuclio.function.AsyncSpec(
+                enabled=True, max_connections=500, connection_availability_timeout=30
+            )
+
+func.with_http(async_spec=async_spec)
+```
+
+Disable async mode by:
+
+- Using X.enabled=False property in those classes, for example:
+ `async_spec = mlrun.runtimes.nuclio.function.AsyncSpec(enabled=False)`
+- Set `async_spec=None` when calling `with_http` to reset the modes to its default configurations
+
+
+### Batching
+```{admonition} Note
+Requires Nuclio 1.15.3 or higher.
+```
+Processing multiple inputs simultaneously is far more efficient than sequential execution, resulting in faster inference and optimal GPU utilization.
+
+GPUs utilization is higher when executing several tasks in parallel rather than per request. Parallel execution requires a higher memory and causes some increase in latency, but the resulting cost is usually less significant compared to the GPU. GPU is an expensive resource and is underutilized if all requests are processed in sequence.
+
+A typical use case: you submit a batch of text samples for classification (e.g., sentiment analysis or topic detection). The system aggregates the requests into a single batch based on the configured batch size or timeout. The gen AI model processes the batch in one inference call, and individual results are mapped back to the respective requests. You receive the classification results for each text sample.
+
+By default, batching mode is disabled. To enable it and set the batching size, use the batching_spec parameter of {py:meth}`~mlrun.runtimes.RemoteRuntime.with_http`:
+
+```
+from mlrun import get_or_create_project
+
+project = get_or_create_project(project_name, context=f"./{project_name}")
+func = project.set_function(
+            name="batching-handler-func",
+            func=code_path,
+            image=self.image,
+            kind="nuclio",
+)
+
+function.with_http(
+            batching_spec=mlrun.common.schemas.BatchingSpec(
+                enabled=True, size=5, timeout="5s"
+            )
+        )
+```
+Disable batch mode by:
+- Using X.enabled=False property in those classes, for example:
+ `batching_spec = mlrun.runtimes.nuclio.function.BatchSpec(enabled=False)`
+- Set `batching_spec=None` when calling `with_http` to reset the modes to its default configurations
+
+See how to use batching in a serving graph in {ref}hf-model-image-classification.
 ### GPU allocation
 
 When running multiple models, it is important to allocate the GPUs dynamically per demand. MLRun uses Nuclio for serverless functions, which can free up the GPU when the function is not running or when it scales down. This can lead to better GPU utilization.

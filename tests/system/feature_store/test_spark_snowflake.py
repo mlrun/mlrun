@@ -21,6 +21,7 @@ from datetime import UTC, datetime, timedelta
 import pandas as pd
 import pytest
 import snowflake.connector
+from tzlocal import get_localzone
 
 import mlrun.errors
 import mlrun.feature_store as fstore
@@ -53,14 +54,14 @@ class TestSnowFlakeSourceAndTarget(SparkHadoopTestBase):
 
     @classmethod
     def custom_setup_class(cls):
-        cls.configure_namespace("snowflake")
-        cls.env = os.environ
-        cls.configure_image_deployment(Deployment.Remote)
         snowflake_missing_keys = get_missing_snowflake_spark_parameters()
         if snowflake_missing_keys:
             pytest.skip(
                 f"The following snowflake keys are missing: {snowflake_missing_keys}"
             )
+        cls.configure_namespace("snowflake")
+        cls.env = os.environ
+        cls.configure_image_deployment(Deployment.Remote)
         cls.snowflake_spark_parameters = get_snowflake_spark_parameters()
         cls.database = cls.snowflake_spark_parameters["database"]
         account = cls.snowflake_spark_parameters["url"].replace(
@@ -95,7 +96,7 @@ class TestSnowFlakeSourceAndTarget(SparkHadoopTestBase):
         super().teardown_method(method)
         for table_name in self.tables_to_drop:
             drop_query = (
-                f"DROP TABLE IF EXISTS {self.database}.{self.schema}.{table_name}"
+                f"DROP TABLE IF EXISTS {self.database}.{self.db_schema}.{table_name}"
             )
             self.cursor.execute(drop_query)
         self.cursor.close()
@@ -118,12 +119,12 @@ class TestSnowFlakeSourceAndTarget(SparkHadoopTestBase):
             for i in range(20)
         ]
         create_table_query = (
-            f"CREATE TABLE IF NOT EXISTS {self.database}.{self.schema}.{self.source_table} "
+            f"CREATE TABLE IF NOT EXISTS {self.database}.{self.db_schema}.{self.source_table} "
             f"(ID INT,NAME VARCHAR(255),AGE INT, LICENSE_DATE TIMESTAMP_LTZ)"
         )
         self.cursor.execute(create_table_query)
         insert_query = (
-            f"INSERT INTO {self.database}.{self.schema}.{self.source_table}"
+            f"INSERT INTO {self.database}.{self.db_schema}.{self.source_table}"
             f" (ID ,NAME,AGE, LICENSE_DATE) VALUES (%s, %s, %s, %s)"
         )
         self.cursor.executemany(insert_query, data_values)
@@ -164,7 +165,7 @@ class TestSnowFlakeSourceAndTarget(SparkHadoopTestBase):
         expected_df = source_df.sort_values(by="ID").head(number_of_rows)
         if not passthrough:
             result_data = self.cursor.execute(
-                f"select * from {self.database}.{self.schema}.{result_table}"
+                f"select * from {self.database}.{self.db_schema}.{result_table}"
             ).fetchall()
             column_names = [desc[0] for desc in self.cursor.description]
             result_df = pd.DataFrame(result_data, columns=column_names)
@@ -194,10 +195,10 @@ class TestSnowFlakeSourceAndTarget(SparkHadoopTestBase):
         target = SnowflakeTarget(
             "snowflake_target",
             table_name=self.source_table,
-            db_schema=self.schema,
+            db_schema=self.db_schema,
             **self.snowflake_spark_parameters,
         )
-        table_path = f"{self.database}.{self.schema}.{self.source_table}"
+        table_path = f"{self.database}.{self.db_schema}.{self.source_table}"
         self.cursor.execute(f"select * from {table_path}").fetchall()
         target.purge()
         with pytest.raises(
@@ -248,7 +249,7 @@ class TestSnowFlakeSourceAndTarget(SparkHadoopTestBase):
         target = SnowflakeTarget(
             "snowflake_target_for_ingest",
             table_name=result_table,
-            db_schema=self.schema,
+            db_schema=self.db_schema,
             **self.snowflake_spark_parameters,
         )
         fset_obj = fstore.FeatureSet(
@@ -279,6 +280,17 @@ class TestSnowFlakeSourceAndTarget(SparkHadoopTestBase):
         )
         result_df = result.to_dataframe()
         result_df = result_df.reset_index(drop=False)
+        if self.run_local:
+            local_tz = get_localzone()
+            # result_df["time_stamp"] is read as timezone-naive, we need to localize it to UTC (as snowflake config)
+            # and then convert to local timezone before comparing to the original dataframe
+            result_df["time_stamp"] = (
+                result_df["time_stamp"]
+                .dt.tz_localize("UTC")
+                .dt.tz_convert(local_tz)
+                .dt.tz_localize(None)
+            )
+
         pd.testing.assert_frame_equal(
             sort_df(df, "id"), sort_df(result_df, "id"), check_dtype=False
         )
@@ -325,7 +337,7 @@ class TestSnowFlakeSourceAndTarget(SparkHadoopTestBase):
         target = SnowflakeTarget(
             "snowflake_target_for_get_offline_features",
             table_name=get_offline_table,
-            db_schema=self.schema,
+            db_schema=self.db_schema,
             **self.snowflake_spark_parameters,
         )
         with pytest.raises(

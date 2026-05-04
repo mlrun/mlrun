@@ -109,3 +109,78 @@ def test_get_generator(
             assert generator.df.keys().to_list() == ["p1", "p2"]
         elif strategy in ["grid", "random"]:
             assert sorted(list(generator.hyperparams.keys())) == ["p1", "p2"]
+
+
+def test_selector_max_with_negative_values():
+    """Regression test: max selector must work when all values are negative.
+
+    Bug: sys.float_info.min (smallest positive float ~2.2e-308) was used as
+    the initial best_val, so negative values were never selected.
+    """
+    results = [
+        _make_task(1, "completed", {"loss": -0.5}),
+        _make_task(2, "completed", {"loss": -0.1}),
+        _make_task(3, "completed", {"loss": -0.9}),
+    ]
+    best_item, best_id = mlrun.runtimes.generators.selector(results, "max.loss")
+    # -0.1 is the maximum among [-0.5, -0.1, -0.9]
+    assert best_id == 2
+    assert best_item == 1
+
+
+def test_selector_min_with_positive_values():
+    results = [
+        _make_task(1, "completed", {"accuracy": 0.7}),
+        _make_task(2, "completed", {"accuracy": 0.3}),
+        _make_task(3, "completed", {"accuracy": 0.9}),
+    ]
+    best_item, best_id = mlrun.runtimes.generators.selector(results, "min.accuracy")
+    assert best_id == 2
+    assert best_item == 1
+
+
+def test_selector_max_with_positive_values():
+    results = [
+        _make_task(1, "completed", {"accuracy": 0.7}),
+        _make_task(2, "completed", {"accuracy": 0.9}),
+        _make_task(3, "completed", {"accuracy": 0.3}),
+    ]
+    best_item, best_id = mlrun.runtimes.generators.selector(results, "max.accuracy")
+    assert best_id == 2
+    assert best_item == 1
+
+
+def test_selector_max_with_mixed_sign_values():
+    results = [
+        _make_task(1, "completed", {"metric": -2.0}),
+        _make_task(2, "completed", {"metric": 0.5}),
+        _make_task(3, "completed", {"metric": -1.0}),
+    ]
+    best_item, best_id = mlrun.runtimes.generators.selector(results, "max.metric")
+    assert best_id == 2
+    assert best_item == 1
+
+
+def test_selector_skips_error_tasks():
+    results = [
+        _make_task(1, "error", {"accuracy": 1.0}),
+        _make_task(2, "completed", {"accuracy": 0.5}),
+        _make_task(3, "completed", {"accuracy": 0.8}),
+    ]
+    best_item, best_id = mlrun.runtimes.generators.selector(results, "max.accuracy")
+    assert best_id == 3
+    assert best_item == 2
+
+
+def test_selector_no_criteria():
+    results = [_make_task(1, "completed", {"accuracy": 0.9})]
+    best_item, best_id = mlrun.runtimes.generators.selector(results, None)
+    assert best_item == 0
+    assert best_id == 0
+
+
+def _make_task(iteration, state, results):
+    return {
+        "metadata": {"iteration": iteration},
+        "status": {"state": state, "results": results},
+    }

@@ -1128,7 +1128,7 @@ def test_upload_source_as_artifact(tmp_path):
     mock_artifact.uri = "store://artifacts/test-project/application-test-source"
 
     mock_project = unittest.mock.MagicMock()
-    mock_project.log_artifact.return_value = mock_artifact
+    mock_project.log_code_file.return_value = mock_artifact
 
     with unittest.mock.patch(
         "mlrun.get_or_create_project", return_value=mock_project
@@ -1139,9 +1139,10 @@ def test_upload_source_as_artifact(tmp_path):
     mock_get_project.assert_called_once_with("test-project")
 
     # Verify artifact was logged with correct parameters
-    mock_project.log_artifact.assert_called_once_with(
-        item="application-test-source",
+    mock_project.log_code_file.assert_called_once_with(
+        key="application-test-source",
         local_path=str(source_file),
+        code_type="function",
         artifact_path=mlrun.common.constants.MLRUN_INTERNAL_ARTIFACT_PATH,
         upload=True,
         labels={

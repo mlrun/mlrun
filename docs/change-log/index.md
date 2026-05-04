@@ -45,7 +45,7 @@ See a full description of KFP, Python, and the workflow engines in {ref}`local-r
 |ML-10863|MLRun supports model stream responses that return tokens, rather than waiting until all the tokens are generated. This significantly reduces the latency for initial response and improves the overall user experience in gen AI workflows. See [HTTP streaming step](../serving/model-serving-steps.md#http-streaming-step) and {py:class}`~mlrun.runtimes.ServingRuntime.set_streaming` and {py:class}`~storey.transformations.Collector`.|
 |ML-10753|MLRun supports cyclic serving graphs, used to implement agent-feedback loops. See [Cyclic graph example](../serving/getting-started.md#cyclic-graph) and {py:meth}`~mlrun.serving.states.BaseStep.cycle_to`.|
 |10097|New `ChoiceByField` step that routes events to downstream steps based on an event field that contains the step name or names. See [ChoiceByField](../serving/basic-steps.ipynb#choicebyfield) and {py:class}`~mlrun.serving.steps.ChoiceByField`.|
-|10099|New `RemoteFunctionStep` that calls remote functions, for example another Nuclio function. See [RemoteFunctionStep](../serving/remote-steps.md#remotefunctionstep) and {py:class}`~mlrun.serving.remote.RemoteFunctionStep`.|
+|10099|New `RemoteFunctionStep` that calls remote functions, for example another Nuclio function. See [RemoteFunctionStep](../serving/remote-steps.ipynb#remotefunctionstep) and {py:class}`~mlrun.serving.remote.RemoteFunctionStep`.|
   
 
 ### Model monitoring

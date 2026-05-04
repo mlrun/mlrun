@@ -167,7 +167,7 @@ class MonitoringDeployment:
     def deploy_monitoring_functions(
         self,
         base_period: int = 10,
-        image: str = "mlrun/mlrun",
+        image: str | None = None,
         deploy_histogram_data_drift_app: bool = True,
         fetch_credentials_from_sys_config: bool = False,
         lag_threshold: int | None = None,
@@ -180,12 +180,14 @@ class MonitoringDeployment:
                                                   function triggers. By default, the base period is 10 minutes.
         :param image:                             The image of the model monitoring controller, writer & monitoring
                                                   stream functions, which are real time nuclio function.
-                                                  By default, the image is mlrun/mlrun.
+                                                  Defaults to ``mlrun.mlconf.function_defaults.image_by_kind.nuclio``.
         :param deploy_histogram_data_drift_app:   If true, deploy the default histogram-based data drift application.
         :param fetch_credentials_from_sys_config: If true, fetch the credentials from the system configuration.
         :param lag_threshold:                     Lag threshold in minutes for writer lag detection.
         :param lag_event_cooldown:                Cooldown in minutes between consecutive lag events per worker.
         """
+        if image is None:
+            image = mlrun.mlconf.function_defaults.image_by_kind.nuclio
         # check if credentials should be fetched from the system configuration or if they are already been set.
         if fetch_credentials_from_sys_config:
             self.set_credentials()
@@ -233,7 +235,7 @@ class MonitoringDeployment:
             self.deploy_histogram_data_drift_app(image=image)
 
     def deploy_model_monitoring_stream_processing(
-        self, stream_image: str = "mlrun/mlrun", overwrite: bool = False
+        self, stream_image: str | None = None, overwrite: bool = False
     ) -> None:
         """
         Deploying model monitoring stream real time nuclio function. The goal of this real time function is
@@ -241,9 +243,11 @@ class MonitoringDeployment:
         It processes the new events into statistics that are then written to statistics databases.
 
         :param stream_image:                The image of the model monitoring stream function.
-                                            By default, the image is mlrun/mlrun.
+                                            Defaults to ``mlrun.mlconf.function_defaults.image_by_kind.nuclio``.
         :param overwrite:                   If true, overwrite the existing model monitoring stream. Default is False.
         """
+        if stream_image is None:
+            stream_image = mlrun.mlconf.function_defaults.image_by_kind.nuclio
 
         if overwrite or self._should_deploy_function(
             function_name=mm_constants.MonitoringFunctionNames.STREAM
@@ -281,7 +285,7 @@ class MonitoringDeployment:
     def deploy_model_monitoring_controller(
         self,
         base_period: int,
-        controller_image: str = "mlrun/mlrun",
+        controller_image: str | None = None,
         overwrite: bool = False,
     ) -> None:
         """
@@ -292,10 +296,12 @@ class MonitoringDeployment:
         :param base_period:                 The time period in minutes in which the model monitoring controller function
                                             triggers. By default, the base period is 10 minutes.
         :param controller_image:            The image of the model monitoring controller function.
-                                            By default, the image is mlrun/mlrun.
+                                            Defaults to ``mlrun.mlconf.function_defaults.image_by_kind.nuclio``.
         :param overwrite:                   If true, overwrite the existing model monitoring controller.
                                             By default, False.
         """
+        if controller_image is None:
+            controller_image = mlrun.mlconf.function_defaults.image_by_kind.nuclio
         if overwrite or self._should_deploy_function(
             function_name=mm_constants.MonitoringFunctionNames.APPLICATION_CONTROLLER
         ):
@@ -343,7 +349,7 @@ class MonitoringDeployment:
 
     def deploy_model_monitoring_writer_application(
         self,
-        writer_image: str = "mlrun/mlrun",
+        writer_image: str | None = None,
         overwrite: bool = False,
         lag_threshold: int | None = None,
         lag_event_cooldown: int | None = None,
@@ -355,13 +361,15 @@ class MonitoringDeployment:
         It processes and writes the result to the databases.
 
         :param writer_image:                The image of the model monitoring writer function.
-                                            By default, the image is mlrun/mlrun.
+                                            Defaults to ``mlrun.mlconf.function_defaults.image_by_kind.nuclio``.
         :param overwrite:                   If true, overwrite the existing model monitoring writer. Default is False.
         :param lag_threshold:               Lag threshold in minutes for writer lag detection.
         :param lag_event_cooldown:          Cooldown in minutes between consecutive lag events per worker.
         :param base_period:                 The monitoring controller base period in minutes, used to
                                             compute default lag values.
         """
+        if writer_image is None:
+            writer_image = mlrun.mlconf.function_defaults.image_by_kind.nuclio
 
         if overwrite or self._should_deploy_function(
             function_name=mm_constants.MonitoringFunctionNames.WRITER

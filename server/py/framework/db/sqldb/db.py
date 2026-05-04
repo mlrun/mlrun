@@ -3374,7 +3374,25 @@ class SQLDB(DBInterface):
 
     # ---- Projects ----
     def create_project(self, session: Session, project: mlrun.common.schemas.Project):
-        logger.debug("Creating project in DB", project_name=project.metadata.name)
+        self._insert_project_record(
+            session, project, state=project.status.state
+        )
+
+    def _insert_project_record(
+        self,
+        session: Session,
+        project: mlrun.common.schemas.Project,
+        *,
+        state: mlrun.common.schemas.ProjectState,
+        phase: int | None = None,
+        op_id: UUID | None = None,
+        updated_at: datetime | None = None,
+    ):
+        logger.debug(
+            "Creating project in DB",
+            project_name=project.metadata.name,
+            state=state,
+        )
         created = datetime.now(UTC)
         project.metadata.created = created
         # TODO: handle taking out the functions/workflows/artifacts out of the project and save them separately
@@ -3382,7 +3400,10 @@ class SQLDB(DBInterface):
             name=project.metadata.name,
             description=project.spec.description,
             source=project.spec.source,
-            state=project.status.state,
+            state=state,
+            phase=phase,
+            op_id=op_id,
+            updated_at=updated_at,
             created=created,
             owner=project.spec.owner,
             default_function_node_selector=project.spec.default_function_node_selector,
@@ -3471,8 +3492,216 @@ class SQLDB(DBInterface):
         logger.debug(
             "Deleting project from DB", name=name, deletion_strategy=deletion_strategy
         )
-        self._delete_project_summary(session, name)
-        self._delete(session, Project, name=name)
+        self._delete_project_summary(session, name, auto_commit=False)
+        self._delete(session, Project, name=name, auto_commit=False)
+        session.commit()
+
+    def begin_create_project(
+        self, session: Session, project: mlrun.common.schemas.Project
+    ) -> tuple[UUID, datetime]:
+        """
+        Insert a project row in the transitional 'creating' state with phase=0
+        and a fresh op_id, ready to be picked up by the 2PC create trigger flow.
+
+        :returns: (op_id, updated_at) — the caller may use op_id to coordinate followers.
+        """
+        op_id, updated_at = self._generate_op_id()
+        self._insert_project_record(
+            session,
+            project,
+            state=mlrun.common.schemas.ProjectState.creating,
+            phase=0,
+            op_id=op_id,
+            updated_at=updated_at,
+        )
+        return op_id, updated_at
+
+    def begin_delete_project(
+        self, session: Session, name: str
+    ) -> tuple[UUID, datetime]:
+        """
+        Atomically transition an existing project from 'online' to 'deleting'
+        (phase=0) with a fresh op_id, ready for the 2PC delete trigger flow.
+
+        :raises MLRunNotFoundError: project does not exist.
+        :raises MLRunPreconditionFailedError: project is not in state 'online'.
+        :returns: (op_id, updated_at).
+        """
+        project_record = self._get_project_record(session, name, for_update=True)
+        self._verify_project_sync_state(
+            project_record,
+            expected_state=mlrun.common.schemas.ProjectState.online,
+        )
+        op_id, updated_at = self._generate_op_id()
+        project_record.state = mlrun.common.schemas.ProjectState.deleting
+        project_record.phase = 0
+        project_record.op_id = op_id
+        project_record.updated_at = updated_at
+        self._upsert(session, [project_record])
+        return op_id, updated_at
+
+    def advance_create_project_to_commit(
+        self, session: Session, name: str, op_id: UUID
+    ) -> None:
+        """
+        Advance a creating project from phase=0 to phase=1 (prepare → commit).
+
+        :raises MLRunNotFoundError: project does not exist.
+        :raises MLRunPreconditionFailedError: state, phase, or op_id mismatch.
+        """
+        project_record = self._get_project_record(session, name, for_update=True)
+        self._verify_project_sync_state(
+            project_record,
+            expected_state=mlrun.common.schemas.ProjectState.creating,
+            expected_phase=0,
+            expected_op_id=op_id,
+        )
+        project_record.phase = 1
+        self._upsert(session, [project_record])
+
+    def advance_delete_project_to_commit(
+        self, session: Session, name: str, op_id: UUID
+    ) -> None:
+        """
+        Advance a deleting project from phase=0 to phase=1 (prepare → commit).
+
+        :raises MLRunNotFoundError: project does not exist.
+        :raises MLRunPreconditionFailedError: state, phase, or op_id mismatch.
+        """
+        project_record = self._get_project_record(session, name, for_update=True)
+        self._verify_project_sync_state(
+            project_record,
+            expected_state=mlrun.common.schemas.ProjectState.deleting,
+            expected_phase=0,
+            expected_op_id=op_id,
+        )
+        project_record.phase = 1
+        self._upsert(session, [project_record])
+
+    def complete_create_project(
+        self, session: Session, name: str, op_id: UUID
+    ) -> None:
+        """
+        Finalize a creating project by transitioning state to 'online'
+        once commit has succeeded on all followers.
+
+        :raises MLRunNotFoundError: project does not exist.
+        :raises MLRunPreconditionFailedError: state, phase, or op_id mismatch.
+        """
+        project_record = self._get_project_record(session, name, for_update=True)
+        self._verify_project_sync_state(
+            project_record,
+            expected_state=mlrun.common.schemas.ProjectState.creating,
+            expected_phase=1,
+            expected_op_id=op_id,
+        )
+        project_record.state = mlrun.common.schemas.ProjectState.online
+        self._upsert(session, [project_record])
+
+    def begin_update_project(
+        self,
+        session: Session,
+        name: str,
+        project: mlrun.common.schemas.Project,
+    ) -> tuple[UUID, datetime]:
+        """
+        Apply spec changes from `project` to an existing project under FOR UPDATE,
+        verify state==online, and stamp a fresh op_id with phase=0. State is
+        preserved at 'online'. Concurrent updates are allowed — only state is
+        verified, not phase or op_id; followers must use the op_id timestamp
+        (UUID v7) to discard out-of-order writes.
+
+        :raises MLRunNotFoundError: project does not exist.
+        :raises MLRunPreconditionFailedError: project is not in state 'online'.
+        :returns: (op_id, updated_at).
+        """
+        project_record = self._get_project_record(session, name, for_update=True)
+        self._verify_project_sync_state(
+            project_record,
+            expected_state=mlrun.common.schemas.ProjectState.online,
+        )
+        op_id, updated_at = self._generate_op_id()
+        self._update_project_record_from_project(
+            session,
+            project_record,
+            project,
+            state=mlrun.common.schemas.ProjectState.online,
+            phase=0,
+            op_id=op_id,
+            updated_at=updated_at,
+        )
+        return op_id, updated_at
+
+    def complete_update_project(
+        self, session: Session, name: str, op_id: UUID
+    ) -> None:
+        """
+        Mark an update operation finished by clearing phase to NULL, but only
+        if our op_id is still the latest one on the project — otherwise a
+        newer update has taken over and will manage its own completion.
+
+        :raises MLRunNotFoundError: project does not exist.
+        :raises MLRunPreconditionFailedError: state is not 'online' (only
+            checked when our op_id still rules — implies an unexpected
+            state transition).
+        """
+        project_record = self._get_project_record(session, name, for_update=True)
+        if project_record.op_id != op_id:
+            # Superseded by a newer op; let it manage phase. Commit to release
+            # the FOR UPDATE lock without writing anything.
+            session.commit()
+            return
+        self._verify_project_sync_state(
+            project_record,
+            expected_state=mlrun.common.schemas.ProjectState.online,
+        )
+        project_record.phase = None
+        self._upsert(session, [project_record])
+
+    def complete_delete_project(
+        self, session: Session, name: str, op_id: UUID
+    ) -> None:
+        """
+        Finalize a deleting project by removing the row, gated on the project
+        still being in (deleting, phase=1) for this op_id. The verify and
+        delete happen in a single transaction so the FOR UPDATE lock from the
+        verifying SELECT is held until the row is gone.
+
+        :raises MLRunNotFoundError: project does not exist.
+        :raises MLRunPreconditionFailedError: state, phase, or op_id mismatch.
+        """
+        project_record = self._get_project_record(session, name, for_update=True)
+        self._verify_project_sync_state(
+            project_record,
+            expected_state=mlrun.common.schemas.ProjectState.deleting,
+            expected_phase=1,
+            expected_op_id=op_id,
+        )
+        self.delete_project(session, name)
+
+    @staticmethod
+    def _verify_project_sync_state(
+        project_record: Project,
+        *,
+        expected_state: mlrun.common.schemas.ProjectState | None = None,
+        expected_phase: int | None = None,
+        expected_op_id: UUID | None = None,
+    ) -> None:
+        if expected_state is not None and project_record.state != expected_state:
+            raise mlrun.errors.MLRunPreconditionFailedError(
+                f"Project {project_record.name}: expected state {expected_state}, "
+                f"got {project_record.state}"
+            )
+        if expected_phase is not None and project_record.phase != expected_phase:
+            raise mlrun.errors.MLRunPreconditionFailedError(
+                f"Project {project_record.name}: expected phase {expected_phase}, "
+                f"got {project_record.phase}"
+            )
+        if expected_op_id is not None and project_record.op_id != expected_op_id:
+            raise mlrun.errors.MLRunPreconditionFailedError(
+                f"Project {project_record.name}: expected op_id {expected_op_id}, "
+                f"got {project_record.op_id}"
+            )
 
     def list_projects(
         self,
@@ -3703,9 +3932,11 @@ class SQLDB(DBInterface):
         self,
         session: Session,
         name: str,
+        *,
+        auto_commit: bool = True,
     ):
         logger.debug("Deleting project summary from DB", name=name)
-        self._delete(session, ProjectSummary, project=name)
+        self._delete(session, ProjectSummary, project=name, auto_commit=auto_commit)
 
     async def get_project_resources_counters(
         self,
@@ -4199,6 +4430,11 @@ class SQLDB(DBInterface):
         session: Session,
         project_record: Project,
         project: mlrun.common.schemas.Project,
+        *,
+        state: mlrun.common.schemas.ProjectState | None = None,
+        phase: int | None = None,
+        op_id: UUID | None = None,
+        updated_at: datetime | None = None,
     ):
         project.metadata.created = project_record.created
         project_dict = project.dict()
@@ -4207,10 +4443,18 @@ class SQLDB(DBInterface):
         project_record.description = project.spec.description
         project_record.source = project.spec.source
         project_record.owner = project.spec.owner
-        project_record.state = project.status.state
         project_record.default_function_node_selector = (
             project.spec.default_function_node_selector
         )
+
+        project_record.state = state if state is not None else project.status.state
+        if phase is not None:
+            project_record.phase = phase
+        if op_id is not None:
+            project_record.op_id = op_id
+        if updated_at is not None:
+            project_record.updated_at = updated_at
+
         labels = project.metadata.labels or {}
         update_labels(project_record, labels)
         self._upsert(session, [project_record])
@@ -6114,11 +6358,12 @@ class SQLDB(DBInterface):
 
         return query
 
-    def _delete(self, session, cls, query=None, **kw):
+    def _delete(self, session, cls, query=None, *, auto_commit: bool = True, **kw):
         query = query or session.query(cls).filter_by(**kw)
         for obj in query:
             session.delete(obj)
-        session.commit()
+        if auto_commit:
+            session.commit()
 
     def _find_labels(self, session, cls, label_cls, labels):
         return session.query(cls).join(label_cls).filter(label_cls.name.in_(labels))
@@ -8718,7 +8963,6 @@ class SQLDB(DBInterface):
         # the right.
         timestamp = (uuid.int >> 80) / 1000
         return datetime.fromtimestamp(timestamp, UTC)
-
 
 class SQLiteDB(SQLDB):
     @staticmethod

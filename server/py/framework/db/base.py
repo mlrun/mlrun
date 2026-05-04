@@ -14,6 +14,7 @@
 
 import datetime
 import typing
+import uuid
 from abc import ABC, abstractmethod
 from typing import Any, Optional, Union
 
@@ -580,6 +581,76 @@ class DBInterface(ABC):
         name: str,
         deletion_strategy: mlrun.common.schemas.DeletionStrategy = mlrun.common.schemas.DeletionStrategy.default(),
     ):
+        pass
+
+    @abstractmethod
+    def begin_create_project(
+        self,
+        session,
+        project: mlrun.common.schemas.Project,
+    ) -> tuple[uuid.UUID, datetime.datetime]:
+        pass
+
+    @abstractmethod
+    def begin_delete_project(
+        self,
+        session,
+        name: str,
+    ) -> tuple[uuid.UUID, datetime.datetime]:
+        pass
+
+    @abstractmethod
+    def advance_create_project_to_commit(
+        self,
+        session,
+        name: str,
+        op_id: uuid.UUID,
+    ) -> None:
+        pass
+
+    @abstractmethod
+    def advance_delete_project_to_commit(
+        self,
+        session,
+        name: str,
+        op_id: uuid.UUID,
+    ) -> None:
+        pass
+
+    @abstractmethod
+    def complete_create_project(
+        self,
+        session,
+        name: str,
+        op_id: uuid.UUID,
+    ) -> None:
+        pass
+
+    @abstractmethod
+    def complete_delete_project(
+        self,
+        session,
+        name: str,
+        op_id: uuid.UUID,
+    ) -> None:
+        pass
+
+    @abstractmethod
+    def begin_update_project(
+        self,
+        session,
+        name: str,
+        project: mlrun.common.schemas.Project,
+    ) -> tuple[uuid.UUID, datetime.datetime]:
+        pass
+
+    @abstractmethod
+    def complete_update_project(
+        self,
+        session,
+        name: str,
+        op_id: uuid.UUID,
+    ) -> None:
         pass
 
     def get_project_summary(

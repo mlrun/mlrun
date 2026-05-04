@@ -22,6 +22,29 @@ from mlrun.common.schemas.serving import APIHandlerAction
 from mlrun.runtimes.nuclio.serving import APIHandlerConfig, BodyMappings
 
 
+def assert_endpoint_configs_equal(
+    actual: dict, expected: dict, context: str = ""
+) -> None:
+    """Assert two endpoint dicts are equal by comparing all EndpointConfig fields."""
+    prefix = f"{context}: " if context else ""
+    assert set(actual.keys()) == set(expected.keys()), (
+        f"{prefix}endpoint keys differ: {set(actual.keys())} != {set(expected.keys())}"
+    )
+    for key in expected:
+        a, e = actual[key], expected[key]
+        assert a.path == e.path, f"{prefix}[{key}] path: {a.path!r} != {e.path!r}"
+        assert a.http_method == e.http_method, (
+            f"{prefix}[{key}] http_method: {a.http_method} != {e.http_method}"
+        )
+        assert a.action == e.action, f"{prefix}[{key}] action: {a.action} != {e.action}"
+        assert a.description == e.description, (
+            f"{prefix}[{key}] description: {a.description!r} != {e.description!r}"
+        )
+        a_bm = a.input_body_mappings.to_dict() if a.input_body_mappings else None
+        e_bm = e.input_body_mappings.to_dict() if e.input_body_mappings else None
+        assert a_bm == e_bm
+
+
 @tests.system.base.TestMLRunSystem.skip_test_if_env_not_configured
 class TestServingAPIHandler(tests.system.base.TestMLRunSystem):
     """System tests for serving function API handler functionality."""
@@ -78,8 +101,10 @@ class TestServingAPIHandler(tests.system.base.TestMLRunSystem):
         )
         # Convert back to APIHandlerConfig for comparison
         spec_config = APIHandlerConfig.from_dict(function.spec.api_handler_config)
-        assert spec_config.endpoints == config.endpoints, (
-            "API handler endpoints should match the config set"
+        assert_endpoint_configs_equal(
+            spec_config.endpoints,
+            config.endpoints,
+            context="API handler endpoints should match the config set",
         )
         self._logger.debug(
             "API handler config correctly set in function spec",
@@ -195,7 +220,7 @@ class TestServingAPIHandler(tests.system.base.TestMLRunSystem):
 
         self._logger.info("Body mapping API handler test passed")
 
-    def test_api_handler_body_map_inheritance_and_http_method_isolation(self) -> None:
+    def test_body_map_merge_and_method_isolation(self) -> None:
         """Test two scenarios in one deployment:
 
         1. Hierarchical merge: star /*  maps $.model, specific /api/v1/predict maps $.temperature.

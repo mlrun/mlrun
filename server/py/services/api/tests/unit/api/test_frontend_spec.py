@@ -12,7 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import base64
 import http
+import json
 import unittest.mock
 
 import deepdiff
@@ -215,6 +217,114 @@ def test_get_frontend_spec_nuclio_streams(
         assert response.status_code == http.HTTPStatus.OK.value
         assert frontend_spec.feature_flags.nuclio_streams == test_case.get(
             "expected_feature_flag"
+        )
+
+
+def test_get_frontend_spec_preemption_nodes(
+    db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
+) -> None:
+    empty_node_selector = base64.b64encode(json.dumps({}).encode("utf-8"))
+    empty_tolerations = base64.b64encode(json.dumps([]).encode("utf-8"))
+    non_empty_node_selector = base64.b64encode(
+        json.dumps({"node-lifecycle": "preemptible"}).encode("utf-8")
+    )
+    non_empty_tolerations = base64.b64encode(
+        json.dumps(
+            [{"key": "preemptible", "operator": "Exists", "effect": "NoSchedule"}]
+        ).encode("utf-8")
+    )
+    for test_case in [
+        {
+            "node_selector": empty_node_selector,
+            "tolerations": empty_tolerations,
+            "expected_feature_flag": mlrun.common.schemas.PreemptionNodesFeatureFlag.disabled,
+        },
+        {
+            "node_selector": non_empty_node_selector,
+            "tolerations": empty_tolerations,
+            "expected_feature_flag": mlrun.common.schemas.PreemptionNodesFeatureFlag.enabled,
+        },
+        {
+            "node_selector": empty_node_selector,
+            "tolerations": non_empty_tolerations,
+            "expected_feature_flag": mlrun.common.schemas.PreemptionNodesFeatureFlag.enabled,
+        },
+    ]:
+        mlrun.mlconf.preemptible_nodes.node_selector = test_case["node_selector"]
+        mlrun.mlconf.preemptible_nodes.tolerations = test_case["tolerations"]
+
+        response = client.get("frontend-spec")
+        assert response.status_code == http.HTTPStatus.OK.value
+        frontend_spec = mlrun.common.schemas.FrontendSpec(**response.json())
+        assert (
+            frontend_spec.feature_flags.preemption_nodes
+            == test_case["expected_feature_flag"]
+        )
+
+
+def test_get_frontend_spec_function_priority_class_names(
+    db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient
+) -> None:
+    igz_workload_high = "igz-workload-high"
+    igz_workload_medium = "igz-workload-medium"
+    igz_workload_low = "igz-workload-low"
+    for test_case in [
+        {
+            "default": "",
+            "valid": "",
+            "expected_default": "",
+            "expected_valid": [],
+        },
+        {
+            "default": igz_workload_medium,
+            "valid": igz_workload_medium,
+            "expected_default": igz_workload_medium,
+            "expected_valid": [igz_workload_medium],
+        },
+        {
+            "default": igz_workload_medium,
+            "valid": ",".join(
+                [igz_workload_high, igz_workload_medium, igz_workload_low]
+            ),
+            "expected_default": igz_workload_medium,
+            "expected_valid": [
+                igz_workload_high,
+                igz_workload_medium,
+                igz_workload_low,
+            ],
+        },
+        {
+            # Duplicates in the CSV should be de-duplicated by the endpoint.
+            "default": igz_workload_medium,
+            "valid": ",".join(
+                [
+                    igz_workload_high,
+                    igz_workload_medium,
+                    igz_workload_low,
+                    igz_workload_medium,
+                ]
+            ),
+            "expected_default": igz_workload_medium,
+            "expected_valid": [
+                igz_workload_high,
+                igz_workload_medium,
+                igz_workload_low,
+            ],
+        },
+    ]:
+        mlrun.mlconf.default_function_priority_class_name = test_case["default"]
+        mlrun.mlconf.valid_function_priority_class_names = test_case["valid"]
+
+        response = client.get("frontend-spec")
+        assert response.status_code == http.HTTPStatus.OK.value
+        frontend_spec = mlrun.common.schemas.FrontendSpec(**response.json())
+        assert (
+            frontend_spec.default_function_priority_class_name
+            == test_case["expected_default"]
+        )
+        assert (
+            frontend_spec.valid_function_priority_class_names
+            == test_case["expected_valid"]
         )
 
 

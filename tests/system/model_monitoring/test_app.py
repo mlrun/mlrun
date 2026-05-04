@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import concurrent.futures
+import ipaddress
 import json
 import pickle
 import tempfile
@@ -426,6 +427,7 @@ class TestMonitoringAppFlow(TestMLRunSystemModelMonitoring, _V3IORecordsChecker)
             base_period=self.app_interval,
             **({} if self.image is None else {"image": self.image}),
             deploy_histogram_data_drift_app=deploy_histogram_data_drift_app,
+            wait_for_deployment=True,
         )
 
     def _set_and_deploy_monitoring_apps(self) -> None:
@@ -436,7 +438,9 @@ class TestMonitoringAppFlow(TestMLRunSystemModelMonitoring, _V3IORecordsChecker)
                         func=app_data.abs_path,
                         application_class=app_data.class_.__name__,
                         name=app_data.class_.NAME,
-                        image="mlrun/mlrun" if self.image is None else self.image,
+                        image=mlrun.mlconf.function_defaults.image_by_kind.job
+                        if self.image is None
+                        else self.image,
                         requirements=app_data.requirements,
                         **app_data.kwargs,
                     )
@@ -556,7 +560,36 @@ class TestMonitoringAppFlow(TestMLRunSystemModelMonitoring, _V3IORecordsChecker)
             serving_fn.spec.image = serving_fn.spec.build.image = cls.image
 
         serving_fn.deploy()
+        cls._workaround_ml_12522_force_http_for_nodeport(serving_fn)
         return serving_fn
+
+    @staticmethod
+    def _workaround_ml_12522_force_http_for_nodeport(
+        fn: mlrun.runtimes.nuclio.serving.ServingRuntime,
+    ) -> None:
+        """Workaround for ML-12522.
+
+        Nuclio reports ``status.external_invocation_urls`` as scheme-less.
+        Since mlrun #9578, ``_resolve_invocation_url`` prepends ``https://``
+        to scheme-less external URLs, which breaks plain-HTTP NodePort
+        setups (open-source CE / k3s) with ``SSL: WRONG_VERSION_NUMBER``.
+        Iguazio setups expose functions via TLS-terminated ingress
+        (hostname/path form) and must keep the ``https://`` default.
+
+        Only rewrite the NodePort form (IPv4 ``host:port`` with no path)
+        to ``http://`` here. Remove once ML-12522 routes API-gateway
+        invocations through ``APIGateway.invoke_url`` and
+        ``_resolve_invocation_url`` defaults back to ``http://``.
+        """
+        for i, url in enumerate(fn.status.external_invocation_urls or []):
+            if "://" in url or "/" in url:
+                continue
+            host = url.split(":", 1)[0]
+            try:
+                ipaddress.ip_address(host)
+            except ValueError:
+                continue
+            fn.status.external_invocation_urls[i] = f"http://{url}"
 
     @classmethod
     def _infer(
@@ -854,16 +887,21 @@ class TestMonitoringAppFlow(TestMLRunSystemModelMonitoring, _V3IORecordsChecker)
 
         self._log_model(with_training_set)
 
-        self._submit_controller_and_deploy_writer(
-            deploy_histogram_data_drift_app=_DefaultDataDriftAppData in self.apps_data
-        )
         with concurrent.futures.ThreadPoolExecutor() as executor:
-            executor.submit(self._set_and_deploy_monitoring_apps)
-            future = executor.submit(
+            infra_future = executor.submit(
+                self._submit_controller_and_deploy_writer,
+                _DefaultDataDriftAppData in self.apps_data,
+            )
+            monitoring_apps_future = executor.submit(
+                self._set_and_deploy_monitoring_apps
+            )
+            serving_future = executor.submit(
                 self._deploy_model_serving, with_training_set, with_model_runner
             )
 
-        serving_fn = future.result()
+        infra_future.result()
+        monitoring_apps_future.result()
+        serving_fn = serving_future.result()
         self._add_error_alert()
 
         time.sleep(5)
@@ -1011,7 +1049,9 @@ class TestRecordResults(TestMLRunSystemModelMonitoring, _V3IORecordsChecker):
             application_class=self.app_data.class_.__name__,
             name=self.app_data.class_.NAME,
             requirements=self.app_data.requirements,
-            image="mlrun/mlrun" if self.image is None else self.image,
+            image=mlrun.mlconf.function_defaults.image_by_kind.job
+            if self.image is None
+            else self.image,
             **self.app_data.kwargs,
         )
         self.project.deploy_function(fn)
@@ -1172,7 +1212,9 @@ class TestServingJobEndpoint(TestMLRunSystemModelMonitoring, _V3IORecordsChecker
                 func=self.app_data["url"],
                 application_class=self.app_data["class_name"],
                 name=self.app_data["app_name"],
-                image="mlrun/mlrun" if self.image is None else self.image,
+                image=mlrun.mlconf.function_defaults.image_by_kind.job
+                if self.image is None
+                else self.image,
                 local_path=temp_path,
             )
             self.project.deploy_function(fn)
@@ -1349,17 +1391,17 @@ class TestModelMonitoringInitialize(TestMLRunSystemModelMonitoring):
         ]
         with pytest.raises(mlrun.errors.MLRunNotFoundError):
             self.project.update_model_monitoring_controller(
-                image=self.image or "mlrun/mlrun"
+                image=self.image or mlrun.mlconf.function_defaults.image_by_kind.job
             )
         self.set_mm_credentials()
         self.project.enable_model_monitoring(
-            image=self.image or "mlrun/mlrun",
+            image=self.image or mlrun.mlconf.function_defaults.image_by_kind.job,
             wait_for_deployment=True,
         )
 
         with pytest.raises(mlrun.errors.MLRunConflictError):
             self.project.enable_model_monitoring(
-                image=self.image or "mlrun/mlrun",
+                image=self.image or mlrun.mlconf.function_defaults.image_by_kind.job,
             )
 
         controller = self.project.get_function(
@@ -1382,7 +1424,9 @@ class TestModelMonitoringInitialize(TestMLRunSystemModelMonitoring):
             assert func.status.state == "ready"
 
         self.project.update_model_monitoring_controller(
-            image=self.image or "mlrun/mlrun", base_period=1, wait_for_deployment=True
+            image=self.image or mlrun.mlconf.function_defaults.image_by_kind.job,
+            base_period=1,
+            wait_for_deployment=True,
         )
         controller = self.project.get_function(
             key=mm_constants.MonitoringFunctionNames.APPLICATION_CONTROLLER,
@@ -1512,7 +1556,9 @@ class TestModelMonitoringInitialize(TestMLRunSystemModelMonitoring):
             func=demo_app.abs_path,
             application_class=demo_app.class_.__name__,
             name=demo_app.class_.NAME,
-            image="mlrun/mlrun" if self.image is None else self.image,
+            image=mlrun.mlconf.function_defaults.image_by_kind.job
+            if self.image is None
+            else self.image,
             requirements=demo_app.requirements,
             **demo_app.kwargs,
         )
@@ -1563,7 +1609,7 @@ class TestUpdateControllerPreservesAuthToken(TestMLRunSystemModelMonitoring):
         token_name = "test-auth-token"
         with mlrun.RuntimeConfigurationContext(auth_token_name=token_name):
             self.project.enable_model_monitoring(
-                image=self.image or "mlrun/mlrun",
+                image=self.image or mlrun.mlconf.function_defaults.image_by_kind.job,
                 deploy_histogram_data_drift_app=False,
                 wait_for_deployment=True,
             )
@@ -1577,7 +1623,7 @@ class TestUpdateControllerPreservesAuthToken(TestMLRunSystemModelMonitoring):
 
         # Update controller (no RuntimeConfigurationContext active)
         self.project.update_model_monitoring_controller(
-            image=self.image or "mlrun/mlrun",
+            image=self.image or mlrun.mlconf.function_defaults.image_by_kind.job,
             base_period=1,
             wait_for_deployment=True,
         )
@@ -1827,7 +1873,7 @@ class TestMonitoredServings(TestMLRunSystemModelMonitoring):
     def test_different_kind_of_serving(self) -> None:
         self.function_name = "serving-router"
         self.project.enable_model_monitoring(
-            image=self.image or "mlrun/mlrun",
+            image=self.image or mlrun.mlconf.function_defaults.image_by_kind.job,
             base_period=1,
             deploy_histogram_data_drift_app=False,
         )
@@ -1882,7 +1928,7 @@ class TestMonitoredServings(TestMLRunSystemModelMonitoring):
     def test_tracking(self) -> None:
         self.function_name = "serving-1"
         self.project.enable_model_monitoring(
-            image=self.image or "mlrun/mlrun",
+            image=self.image or mlrun.mlconf.function_defaults.image_by_kind.job,
             base_period=1,
             deploy_histogram_data_drift_app=False,
         )
@@ -1971,7 +2017,7 @@ class TestMonitoredServings(TestMLRunSystemModelMonitoring):
             )
 
         self.project.enable_model_monitoring(
-            image=self.image or "mlrun/mlrun",
+            image=self.image or mlrun.mlconf.function_defaults.image_by_kind.job,
             wait_for_deployment=True,
         )
 
@@ -1981,14 +2027,14 @@ class TestMonitoredServings(TestMLRunSystemModelMonitoring):
             match="The following model-montioring infrastructure functions are already deployed, aborting: ",
         ):
             self.project.enable_model_monitoring(
-                image=self.image or "mlrun/mlrun",
+                image=self.image or mlrun.mlconf.function_defaults.image_by_kind.job,
                 wait_for_deployment=True,
             )
 
         # disable + enable should succeed
         self.project.disable_model_monitoring()
         self.project.enable_model_monitoring(
-            image=self.image or "mlrun/mlrun",
+            image=self.image or mlrun.mlconf.function_defaults.image_by_kind.job,
             wait_for_deployment=True,
         )
 
@@ -2007,7 +2053,7 @@ class TestMonitoredServings(TestMLRunSystemModelMonitoring):
     def test_monitored_model_runner_with_labels(self):
         self.function_name = "model-runner-function"
         self.project.enable_model_monitoring(
-            image=self.image or "mlrun/mlrun",
+            image=self.image or mlrun.mlconf.function_defaults.image_by_kind.job,
             base_period=1,
             deploy_histogram_data_drift_app=True,
         )

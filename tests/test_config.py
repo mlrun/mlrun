@@ -786,6 +786,31 @@ def test_default_forbidden_service_account_config(
     )
 
 
+def test_config_keys_and_values():
+    """Test that Config.keys() and Config.values() return the correct data.
+
+    Regression test for a bug where keys() and values() referenced self.data
+    (which doesn't exist) instead of self._cfg, causing AttributeError.
+    """
+    cfg = mlrun.config.Config({"a": 1, "b": 2, "nested": {"x": 10}})
+
+    # keys() should return all top-level keys
+    keys = list(cfg.keys())
+    assert sorted(keys) == ["a", "b", "nested"]
+
+    # values() should return all top-level values
+    values = list(cfg.values())
+    assert sorted(values, key=str) == sorted([1, 2, {"x": 10}], key=str)
+
+    # items() should match keys and values
+    items = list(cfg.items())
+    assert sorted(items) == sorted([("a", 1), ("b", 2), ("nested", {"x": 10})])
+
+    # __iter__ should yield the same keys
+    iter_keys = list(cfg)
+    assert sorted(iter_keys) == ["a", "b", "nested"]
+
+
 def _exec_mlrun(cmd, cwd=None):
     cmd = [sys.executable, "-m", "mlrun"] + cmd.split()
     out = subprocess.run(cmd, capture_output=True, cwd=cwd)

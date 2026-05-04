@@ -362,3 +362,86 @@ def test_restricted_methods_in_wrong_mode(monkeypatch, method_name):
     assert "This method is only supported in an Iguazio V4 system" in str(
         exc_info.value
     )
+
+
+DEFAULTS = {
+    "job": "mlrun/mlrun",
+    "serving": "mlrun/mlrun",
+    "nuclio": "mlrun/mlrun",
+}
+
+
+@pytest.mark.parametrize(
+    "client_image_by_kind,server_image_by_kind,expected_image_by_kind",
+    [
+        # Server provides custom images for a subset of kinds
+        (
+            DEFAULTS,
+            {
+                "job": "custom/job-image",
+                "serving": "custom/serving-image",
+            },
+            {
+                "job": "custom/job-image",
+                "serving": "custom/serving-image",
+                "nuclio": "mlrun/mlrun",
+            },
+        ),
+        # Server provides custom images for all kinds
+        (
+            DEFAULTS,
+            {
+                "job": "custom/job-image",
+                "serving": "custom/serving-image",
+                "nuclio": "custom/nuclio-image",
+            },
+            {
+                "job": "custom/job-image",
+                "serving": "custom/serving-image",
+                "nuclio": "custom/nuclio-image",
+            },
+        ),
+        # User has an override and server provides another override
+        (
+            {
+                "job": "custom/job-image",
+                "serving": "mlrun/mlrun",
+                "nuclio": "mlrun/mlrun",
+            },
+            {
+                "serving": "custom/serving-image",
+            },
+            {
+                "job": "custom/job-image",
+                "serving": "custom/serving-image",
+                "nuclio": "mlrun/mlrun",
+            },
+        ),
+        # Server does not override (returns None)
+        (DEFAULTS, None, DEFAULTS),
+        # Server provides a kind not in the whitelist (dropped)
+        (DEFAULTS, {"foo": "foo"}, DEFAULTS),
+    ],
+)
+def test_client_spec_default_runtime_image_by_kind_enrichment(
+    requests_mock,
+    client_image_by_kind,
+    server_image_by_kind,
+    expected_image_by_kind,
+):
+    mlrun.mlconf.function_defaults.image_by_kind = client_image_by_kind.copy()
+
+    requests_mock.get(
+        "https://fake-url/api/v1/client-spec",
+        json={
+            "version": "v1.1.0",
+            "default_runtime_image_by_kind": server_image_by_kind,
+        },
+    )
+
+    db = mlrun.db.httpdb.HTTPRunDB("https://fake-url")
+    db.connect()
+
+    assert (
+        mlrun.mlconf.function_defaults.image_by_kind.to_dict() == expected_image_by_kind
+    )

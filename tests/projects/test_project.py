@@ -2751,3 +2751,46 @@ def test_project_enrich_skips_none_fields():
     # `other` didn't provide status, so base.status should be preserved (same object, same state)
     assert id(base.status) == base_status_id
     assert base.status.state == "offline"
+
+
+@pytest.mark.parametrize(
+    "kind, handler, expected_runtime_kind",
+    [
+        ("job", "main", "job"),
+        ("nuclio", "main", "remote"),
+        ("serving", None, "serving"),
+    ],
+)
+def test_init_function_from_dict_store_uri(kind, handler, expected_runtime_kind):
+    """set_function with store:// URI stores it in spec.build.source for any runtime kind."""
+    project = mlrun.new_project("test-proj", save=False)
+    project.spec.context = tempfile.mkdtemp()
+
+    kwargs = {
+        "func": "store://artifacts/test-proj/my_func_code",
+        "name": "my_func",
+        "kind": kind,
+    }
+    if handler:
+        kwargs["handler"] = handler
+
+    func = project.set_function(**kwargs)
+
+    assert func.spec.build.source == "store://artifacts/test-proj/my_func_code"
+    assert func.kind == expected_runtime_kind
+    assert func.metadata.name == "my-func"
+
+
+def test_init_function_from_dict_store_uri_with_repo_raises():
+    """store:// with with_repo=True raises ValueError."""
+    project = mlrun.new_project("test-proj", save=False)
+    project.spec.context = tempfile.mkdtemp()
+
+    with pytest.raises(ValueError, match="with_repo=True is not supported"):
+        project.set_function(
+            func="store://artifacts/test-proj/my_func_code",
+            name="my_func",
+            kind="job",
+            handler="main",
+            with_repo=True,
+        )

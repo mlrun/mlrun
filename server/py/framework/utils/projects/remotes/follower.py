@@ -105,3 +105,49 @@ class Member(abc.ABC):
         auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
     ) -> mlrun.common.schemas.ProjectSummary:
         pass
+
+    @abc.abstractmethod
+    def prepare_create_project(
+        self,
+        session: sqlalchemy.orm.Session,
+        project: mlrun.common.schemas.Project,
+        auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
+    ) -> None:
+        pass
+
+    @abc.abstractmethod
+    def commit_create_project(
+        self,
+        session: sqlalchemy.orm.Session,
+        name: str,
+        auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
+    ) -> None:
+        pass
+
+    @abc.abstractmethod
+    def prepare_delete_project(
+        self,
+        session: sqlalchemy.orm.Session,
+        name: str,
+        auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
+    ) -> None:
+        pass
+
+    @abc.abstractmethod
+    def commit_delete_project(
+        self,
+        session: sqlalchemy.orm.Session,
+        name: str,
+        auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
+    ) -> None:
+        pass
+
+    @abc.abstractmethod
+    def update_project_follower(
+        self,
+        session: sqlalchemy.orm.Session,
+        name: str,
+        project: mlrun.common.schemas.Project,
+        auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
+    ) -> None:
+        pass

@@ -793,9 +793,15 @@ class MonitoringDeployment:
             secret_provider=self._secret_provider,
         )
 
+        monitoring_stream_uri = mlrun.model_monitoring.get_stream_path(
+            project=self.project,
+            function_name=mm_constants.MonitoringFunctionNames.STREAM,
+            secret_provider=self._secret_provider,
+        )
+
         # Create monitoring serving graph
         stream_processor.apply_monitoring_serving_graph(
-            function, self._tsdb_connector, controller_stream_uri
+            function, self._tsdb_connector, controller_stream_uri, monitoring_stream_uri
         )
 
         # Set the project to the serving function

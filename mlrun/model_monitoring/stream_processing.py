@@ -14,6 +14,9 @@
 import asyncio
 import datetime
 import typing
+import uuid
+
+import storey
 
 import mlrun
 import mlrun.common.model_monitoring.helpers
@@ -108,6 +111,7 @@ class EventStreamProcessor:
         fn: mlrun.runtimes.ServingRuntime,
         tsdb_connector: TSDBConnector,
         controller_stream_uri: str,
+        monitoring_stream_uri: str,
     ) -> None:
         """
         Apply monitoring serving graph to a given serving function. The following serving graph includes about 4 main
@@ -141,6 +145,8 @@ class EventStreamProcessor:
         :param tsdb_connector: Time series database connector.
         :param controller_stream_uri: The controller stream URI. Runs on server api pod so needed to be provided as
         input
+        :param monitoring_stream_uri: URI of the monitoring stream this pod reads from. HTTP-ingested events are
+        re-injected here after translation so they flow through the standard stream processing pipeline.
         """
 
         graph = typing.cast(
@@ -148,10 +154,40 @@ class EventStreamProcessor:
             fn.set_topology(mlrun.serving.states.StepKinds.flow, engine="async"),
         )
 
+        # Route HTTP-ingested events to translation branch; stream-trigger events
+        # to the existing processing graph.  full_event=True exposes the Nuclio
+        # event object so select_outlets can inspect event.trigger.kind.
+        graph.add_step("TriggerRouter", "TriggerRouter", full_event=True)
+
+        # HTTP branch: validate + translate payload, then re-inject into the
+        # monitoring stream so the stream trigger picks it up for normal processing.
+        graph.add_step(
+            "ProcessHTTPEvent",
+            "ProcessHTTPEvent",
+            after="TriggerRouter",
+            project=self.project,
+        )
+        graph.add_step(
+            "storey.Filter",
+            "FilterHTTPNone",
+            after="ProcessHTTPEvent",
+            _fn="(event is not None)",
+        )
+        graph.add_step(
+            ">>",
+            "monitoring_stream_reinjection",
+            path=monitoring_stream_uri,
+            sharding_func=EventFieldType.ENDPOINT_ID,
+            after="FilterHTTPNone",
+            alternative_v3io_access_key=ProjectSecretKeys.ACCESS_KEY,
+        )
+
+        # Stream branch — existing graph steps, now connected after TriggerRouter.
         # forward back complete events to controller
         graph.add_step(
             "storey.Filter",
             "FilterBatchComplete",
+            after="TriggerRouter",
             _fn="(event.get('kind') == 'batch_complete')",
         )
 
@@ -166,12 +202,14 @@ class EventStreamProcessor:
         graph.add_step(
             "storey.Filter",
             "FilterError",
+            after="TriggerRouter",
             _fn="(event.get('error') is None)",
         )
 
         graph.add_step(
             "storey.Filter",
             "ForwardError",
+            after="TriggerRouter",
             _fn="(event.get('error') is not None)",
         )
 
@@ -289,6 +327,168 @@ class EventStreamProcessor:
         apply_push_controller_stream(controller_stream_uri)
 
 
+class TriggerRouter(storey.Choice):
+    """Route incoming events at the stream pod entrance by Nuclio trigger kind.
+
+    HTTP-triggered events (POSTed to MODEL_MONITORING_URL) are routed to the
+    translation branch.  Stream-triggered events (Kafka/V3IO) bypass translation
+    and flow directly into the existing processing graph.
+
+    Requires ``full_event=True`` when added to the graph so that
+    ``select_outlets`` receives the Nuclio event object (with ``.trigger.kind``)
+    rather than the parsed body dict.
+    """
+
+    def select_outlets(self, event) -> typing.Collection[str]:
+        if getattr(getattr(event, "trigger", None), "kind", None) == "http":
+            return ["ProcessHTTPEvent"]
+        return ["FilterBatchComplete", "FilterError", "ForwardError"]
+
+
+class ProcessHTTPEvent(storey.ConcurrentExecution):
+    """Validate and translate an HTTP monitoring payload to StreamProcessingEvent format.
+
+    Inherits from ``storey.ConcurrentExecution`` so that multiple concurrent
+    HTTP requests are processed in parallel without blocking the event loop.
+
+    Model endpoint schemas (feature_names / label_names) are fetched from the
+    DB on first use and cached in memory per endpoint_id, matching the pattern
+    used by ``MonitoringPreProcessor`` in system_steps.py.
+
+    Required HTTP payload fields:
+        endpoint_id (str): Model endpoint UID.
+        inputs:            Feature vectors (list, list-of-lists, or dict keyed by feature name).
+        outputs:           Prediction vectors (list, list-of-lists, or dict keyed by label name).
+
+    Optional fields:
+        model, model_class, microsec, when, labels, metrics,
+        request_id, input_schema, output_schema.
+
+    On validation failure returns ``None`` (event is dropped by the downstream
+    filter step).
+    On success returns a dict in ``StreamProcessingEvent`` format ready to be
+    re-injected into the monitoring stream for standard processing.
+    """
+
+    def __init__(self, project: str, **kwargs):
+        super().__init__(event_processor=self.do, **kwargs)
+        self.project = project
+        # {endpoint_id: (feature_names, label_names, function_uri)} — populated lazily from DB
+        self._schema_cache: dict[str, tuple[list | None, list | None, str]] = {}
+
+    def _get_endpoint_schema(
+        self, endpoint_id: str
+    ) -> tuple[list | None, list | None, str]:
+        """Return (feature_names, label_names, function_uri) for the given endpoint, fetching from DB on cache miss."""
+        if endpoint_id not in self._schema_cache:
+            try:
+                ep = mlrun.db.get_run_db().get_model_endpoint(
+                    project=self.project,
+                    endpoint_id=endpoint_id,
+                    tsdb_metrics=False,
+                )
+                self._schema_cache[endpoint_id] = (
+                    ep.spec.feature_names or None,
+                    ep.spec.label_names or None,
+                    ep.spec.function_uri or "",
+                )
+            except Exception as exc:
+                logger.warning(
+                    "Failed to fetch model endpoint schema; proceeding without schema",
+                    endpoint_id=endpoint_id,
+                    err=mlrun.errors.err_to_str(exc),
+                )
+                self._schema_cache[endpoint_id] = (None, None, "")
+        return self._schema_cache[endpoint_id]
+
+    @staticmethod
+    def _listed(raw: typing.Any, schema: list[str] | None) -> tuple[list, list | None]:
+        """Convert raw inputs/outputs to listed form using the schema.
+
+        Replicates MonitoringPreProcessor.get_listed_data with data_path=None:
+        - dict  → transpose by key (using schema column order)
+        - list of same-keyed dicts → batch merge then transpose
+        - list → keep as-is
+        - scalar → wrap in [value]
+        """
+        import mlrun.serving.system_steps
+
+        transpose = mlrun.serving.system_steps.MonitoringPreProcessor.transpose_by_key
+        new_schema = None
+
+        if isinstance(raw, dict):
+            listed, new_schema = transpose(raw, schema)
+            new_schema = new_schema or schema
+        elif not isinstance(raw, list):
+            listed = [raw]
+        else:
+            all_dicts = raw and all(isinstance(item, dict) for item in raw)
+            if all_dicts:
+                same_keys = len(set(tuple(sorted(item.keys())) for item in raw)) == 1
+                if same_keys:
+                    merged: dict = {}
+                    for item in raw:
+                        for k, v in item.items():
+                            merged.setdefault(k, []).append(v)
+                    listed, new_schema = transpose(merged, schema)
+                    new_schema = new_schema or schema
+                else:
+                    listed = raw
+            else:
+                listed = raw
+
+        return listed, new_schema or schema
+
+    def do(self, event: dict) -> dict | None:
+        endpoint_id = event.get(EventFieldType.ENDPOINT_ID)
+        inputs = event.get("inputs")
+        outputs = event.get("outputs")
+
+        if not endpoint_id or inputs is None or outputs is None:
+            logger.error(
+                "HTTP monitoring event missing required fields",
+                endpoint_id=endpoint_id,
+                has_inputs=inputs is not None,
+                has_outputs=outputs is not None,
+            )
+            return None
+
+        # Resolve schema: event body overrides DB schema
+        db_feature_names, db_label_names, function_uri = self._get_endpoint_schema(
+            endpoint_id
+        )
+        input_schema = event.get("input_schema") or db_feature_names
+        output_schema = event.get("output_schema") or db_label_names
+
+        # Normalize to listed form using schema (handles dicts, lists of dicts, scalars)
+        listed_inputs, resolved_input_schema = self._listed(inputs, input_schema)
+        listed_outputs, resolved_output_schema = self._listed(outputs, output_schema)
+
+        when = event.get("when") or datetime.datetime.now(datetime.UTC).isoformat()
+        request_id = event.get(EventFieldType.REQUEST_ID) or str(uuid.uuid4())
+
+        return {
+            EventFieldType.MODEL: event.get(EventFieldType.MODEL) or endpoint_id,
+            EventFieldType.MODEL_CLASS: event.get(EventFieldType.MODEL_CLASS, ""),
+            "microsec": event.get("microsec"),
+            "when": when,
+            "error": None,
+            EventFieldType.ENDPOINT_ID: endpoint_id,
+            EventFieldType.LABELS: event.get(EventFieldType.LABELS) or {},
+            EventFieldType.FUNCTION_URI: function_uri,
+            "request": {
+                "inputs": listed_inputs,
+                "id": request_id,
+                "input_schema": resolved_input_schema,
+            },
+            "resp": {
+                "outputs": listed_outputs,
+                "output_schema": resolved_output_schema,
+            },
+            EventFieldType.METRICS: event.get(EventFieldType.METRICS) or {},
+        }
+
+
 class ProcessBeforeParquet(mlrun.feature_store.steps.MapClass):
     def __init__(self, **kwargs):
         """
@@ -376,9 +576,6 @@ class ProcessEndpointEvent(mlrun.feature_store.steps.MapClass):
         # Getting model version and function uri from event
         # and use them for retrieving the endpoint_id
         function_uri = full_event.body.get(EventFieldType.FUNCTION_URI)
-        if not is_not_none(function_uri, [EventFieldType.FUNCTION_URI]):
-            full_event.body = None
-            return full_event
 
         model = full_event.body.get(EventFieldType.MODEL)
         if not is_not_none(model, [EventFieldType.MODEL]):

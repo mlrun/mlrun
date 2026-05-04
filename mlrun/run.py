@@ -1320,12 +1320,29 @@ def get_model_monitoring_url(project: str) -> str | None:
     """
     Retrieve the HTTP URL of the model monitoring stream pod for the given project.
 
+    Checks the ``MODEL_MONITORING_URL`` environment variable first (set automatically
+    by MLRun when deploying a Nuclio function with model monitoring).  If the variable
+    is not set, fetches the URL from the MLRun API and caches it in the environment for
+    subsequent calls.
+
     :param project: name of the project
     :return: HTTP URL of the model monitoring stream pod, or None if no HTTP trigger is configured
     :raises mlrun.errors.MLRunNotFoundError: if the stream function is not deployed
     :raises mlrun.errors.MLRunPreconditionFailedError: if the stream function is not in ready state
     """
-    return mlrun.db.get_run_db().get_model_monitoring_url(project)
+    import os
+
+    import mlrun.common.schemas.model_monitoring.constants as mm_constants
+
+    env_var = mm_constants.NuclioMonitoringEnvVars.MODEL_MONITORING_URL
+    url = os.environ.get(env_var)
+    if url:
+        return url
+
+    url = mlrun.db.get_run_db().get_model_monitoring_url(project)
+    if url:
+        os.environ[env_var] = url
+    return url
 
 
 def _ensure_path_confined_to_base_dir(

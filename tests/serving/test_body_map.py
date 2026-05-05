@@ -223,7 +223,9 @@ class TestAPIHandlerStepBodyMap:
         step = self._make_step({"roles": "$.messages[*].role"})
 
         event = MockEvent(
-            body={"messages": [{"role": "user"}, {"role": "assistant"}, {"role": "user"}]},
+            body={
+                "messages": [{"role": "user"}, {"role": "assistant"}, {"role": "user"}]
+            },
             method="POST",
             path="/predict",
         )

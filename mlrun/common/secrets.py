@@ -201,7 +201,7 @@ class InMemorySecretProvider(SecretProviderInterface):
         force: bool = False,
         namespace: str | None = None,
     ) -> mlrun.common.schemas.SecretEventActions | None:
-        secret_name = self.resolve_auth_secret_name(auth_info.user_id, token_name)
+        secret_name = self.resolve_user_token_secret_name(auth_info.user_id, token_name)
         self.secrets_map[secret_name] = {
             "token": token,
             "expiration": datetime.fromtimestamp(expiration, tz=UTC),
@@ -218,7 +218,7 @@ class InMemorySecretProvider(SecretProviderInterface):
         token_name: str,
         namespace: str | None = None,
     ) -> str:
-        secret_name = self.resolve_auth_secret_name(user_id, token_name)
+        secret_name = self.resolve_user_token_secret_name(user_id, token_name)
         return self.secrets_map[secret_name]["token"]
 
     def list_user_token_secrets(
@@ -245,7 +245,7 @@ class InMemorySecretProvider(SecretProviderInterface):
         token_name: str,
         namespace: str | None = None,
     ) -> None:
-        secret_name = self.resolve_auth_secret_name(user_id, token_name)
+        secret_name = self.resolve_user_token_secret_name(user_id, token_name)
         del self.secrets_map[secret_name]
 
     @staticmethod
@@ -262,3 +262,7 @@ class InMemorySecretProvider(SecretProviderInterface):
     @staticmethod
     def resolve_auth_secret_name(username: str, access_key: str) -> str:
         return f"secret-ref-{username}-{access_key}"
+
+    @staticmethod
+    def resolve_user_token_secret_name(user_id: str, token_name: str) -> str:
+        return f"user-secret-ref-{user_id}-{token_name}"

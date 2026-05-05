@@ -1944,6 +1944,11 @@ def test_run_function_passes_project_artifact_path(rundb_mock):
         ("./remote_workflow.py", does_not_raise(), "remote"),
         ("./remote_workflow.py", does_not_raise(), "remote:local"),
         ("./remote_workflow.py", does_not_raise(), "remote:kfp"),
+        # store:// URI — accepted despite no file suffix; code_type validation
+        # happens separately in set_workflow when the artifact is reachable.
+        ("store://artifacts/proj/my_pipeline_code", does_not_raise(), None),
+        ("store://artifacts/proj/my_pipeline_code", does_not_raise(), "kfp"),
+        ("store://artifacts/proj/my_pipeline_code", does_not_raise(), "remote"),
     ],
 )
 def test_set_workflow_path_validation(
@@ -1958,6 +1963,229 @@ def test_set_workflow_local_engine():
     proj = mlrun.new_project("proj", save=False)
     with pytest.raises(ValueError):
         proj.set_workflow("main", "workflow.py", schedule="*/5 * * * *", engine="local")
+
+
+def _workflow_entry_path(project, workflow_name):
+    """Look up a workflow's path on the project via the public spec.workflows
+    list. Raises if the workflow is not present."""
+    for wf in project.spec.workflows:
+        if wf["name"] == workflow_name:
+            return wf["path"]
+    raise AssertionError(f"workflow {workflow_name!r} not found on project")
+
+
+def test_set_workflow_accepts_store_uri_with_workflow_code_type(
+    rundb_mock, tmp_path, monkeypatch
+):
+    """log_code_file(code_type='workflow') → set_workflow(store_uri) succeeds."""
+    monkeypatch.chdir(tmp_path)  # prevent log_code_file upload from polluting cwd
+    project = mlrun.new_project("set-wf-store-ok", context=str(tmp_path), save=False)
+    workflow_src = tmp_path / "my_pipeline.py"
+    workflow_src.write_text("def pipeline(): pass\n")
+
+    artifact = project.log_code_file(
+        key="my_pipeline_code",
+        local_path=str(workflow_src),
+        code_type="workflow",
+    )
+
+    # Should not raise.
+    project.set_workflow("my_pipeline", workflow_path=artifact.uri, engine="kfp")
+    assert _workflow_entry_path(project, "my_pipeline") == artifact.uri
+
+
+def test_set_workflow_rejects_store_uri_with_wrong_code_type(
+    rundb_mock, tmp_path, monkeypatch
+):
+    """log_code_file(code_type='function') → set_workflow(store_uri) raises."""
+    monkeypatch.chdir(tmp_path)  # prevent log_code_file upload from polluting cwd
+    project = mlrun.new_project("set-wf-store-bad", context=str(tmp_path), save=False)
+    func_src = tmp_path / "my_handler.py"
+    func_src.write_text("def handler(): pass\n")
+
+    artifact = project.log_code_file(
+        key="not_a_workflow",
+        local_path=str(func_src),
+        code_type="function",
+    )
+
+    with pytest.raises(mlrun.errors.MLRunInvalidArgumentError, match="code_type"):
+        project.set_workflow("my_pipeline", workflow_path=artifact.uri, engine="kfp")
+
+
+def test_set_workflow_rejects_store_uri_with_non_code_artifact(
+    rundb_mock, tmp_path, monkeypatch
+):
+    """A store:// URI pointing at a non-code artifact (e.g. a model/dataset)
+    must be rejected at set_workflow, not silently accepted."""
+    monkeypatch.chdir(tmp_path)  # prevent log_artifact upload from polluting cwd
+    project = mlrun.new_project("set-wf-non-code", context=str(tmp_path), save=False)
+    src = tmp_path / "model.pkl"
+    src.write_bytes(b"binary model bytes")
+    # log_artifact creates a generic Artifact (kind='artifact'), not a CodeArtifact.
+    artifact = project.log_artifact("not_a_code_artifact", local_path=str(src))
+
+    with pytest.raises(
+        mlrun.errors.MLRunInvalidArgumentError, match="expected a code artifact"
+    ):
+        project.set_workflow("my_pipeline", workflow_path=artifact.uri, engine="kfp")
+
+
+def test_set_workflow_propagates_typed_mlrun_error_from_resolver(monkeypatch):
+    """When get_store_resource raises a typed MLRunBaseError (e.g. user typo'd
+    the artifact key → MLRunNotFoundError), set_workflow must surface it
+    instead of silently deferring to the runner pod."""
+
+    def _raise(*args, **kwargs):
+        raise mlrun.errors.MLRunNotFoundError("artifact not found")
+
+    monkeypatch.setattr(mlrun.datastore, "get_store_resource", _raise)
+    project = mlrun.new_project("set-wf-typo", save=False)
+    store_uri = "store://artifacts/set-wf-typo/typoed_key"
+
+    with pytest.raises(mlrun.errors.MLRunNotFoundError, match="artifact not found"):
+        project.set_workflow("my_pipeline", workflow_path=store_uri, engine="kfp")
+
+
+@pytest.mark.parametrize(
+    "exc",
+    [
+        # mlrun.errors.MLRunRuntimeError is what httpdb wraps
+        # requests.RequestException (incl. ConnectionError, Timeout) into —
+        # the realistic "DB unreachable" case at the API boundary.
+        mlrun.errors.MLRunRuntimeError("simulated httpdb wrap"),
+        # ConnectionError covers the "datastore raised before reaching the
+        # API" path (e.g. local DNS failure inside get_store_resource).
+        ConnectionError("DB unreachable"),
+    ],
+)
+def test_set_workflow_defers_on_connectivity_error(monkeypatch, exc):
+    """Connectivity-shaped errors — the client can't distinguish "missing
+    artifact" from "can't reach DB", so it defers to the runner pod's
+    authoritative check rather than failing loudly."""
+
+    def _raise(*args, **kwargs):
+        raise exc
+
+    monkeypatch.setattr(mlrun.datastore, "get_store_resource", _raise)
+    project = mlrun.new_project("set-wf-offline", save=False)
+    store_uri = "store://artifacts/set-wf-offline/some_key"
+
+    # Should not raise; runner pod will validate.
+    project.set_workflow("my_pipeline", workflow_path=store_uri, engine="kfp")
+    assert _workflow_entry_path(project, "my_pipeline") == store_uri
+
+
+@pytest.mark.parametrize(
+    "remote_path",
+    [
+        "store://artifacts/set-wf-embed-remote/some_key",
+        "s3://bucket/some/workflow.py",
+        "git://github.com/org/repo.git#main",
+    ],
+)
+def test_set_workflow_rejects_embed_with_remote_path(remote_path):
+    """embed=True opens workflow_path as a local file, so any "://" URL would
+    otherwise raise an opaque FileNotFoundError downstream. Reject up front
+    with a clear path-forward message."""
+    project = mlrun.new_project("set-wf-embed-remote", save=False)
+
+    with pytest.raises(
+        mlrun.errors.MLRunInvalidArgumentError,
+        match="embed=True is not supported for remote workflow_path",
+    ):
+        project.set_workflow(
+            "my_pipeline", workflow_path=remote_path, embed=True, engine="kfp"
+        )
+
+
+def test_workflow_spec_get_source_file_resolves_store_uri(
+    rundb_mock, tmp_path, monkeypatch
+):
+    """WorkflowSpec(path='store://...').get_source_file resolves to local file."""
+    monkeypatch.chdir(tmp_path)  # prevent log_code_file upload from polluting cwd
+    src = tmp_path / "pipeline_v1.py"
+    src.write_text("def pipeline(): return 'v1'\n")
+    project = mlrun.new_project("wf-spec-resolve", context=str(tmp_path), save=False)
+    artifact = project.log_code_file(
+        key="my_workflow", local_path=str(src), code_type="workflow"
+    )
+
+    spec = mlrun.projects.pipelines.WorkflowSpec(path=artifact.uri)
+    workflow_file = spec.get_source_file(
+        context=str(tmp_path), project_name="wf-spec-resolve"
+    )
+
+    assert os.path.isfile(workflow_file)
+    assert pathlib.Path(workflow_file).read_text() == src.read_text()
+    # Resolved file lives under <context>/.mlrun/artifacts/
+    assert ".mlrun/artifacts" in workflow_file
+
+
+def test_workflow_spec_get_source_file_rejects_store_uri_with_wrong_code_type(
+    rundb_mock, tmp_path, monkeypatch
+):
+    """get_source_file raises when the resolved artifact has wrong code_type."""
+    monkeypatch.chdir(tmp_path)  # prevent log_code_file upload from polluting cwd
+    src = tmp_path / "handler.py"
+    src.write_text("def handler(): pass\n")
+    project = mlrun.new_project("wf-spec-bad-type", context=str(tmp_path), save=False)
+    artifact = project.log_code_file(
+        key="not_a_workflow", local_path=str(src), code_type="function"
+    )
+    spec = mlrun.projects.pipelines.WorkflowSpec(path=artifact.uri)
+
+    with pytest.raises(mlrun.errors.MLRunInvalidArgumentError, match="code_type"):
+        spec.get_source_file(context=str(tmp_path), project_name="wf-spec-bad-type")
+
+
+def test_workflow_spec_get_source_file_rejects_non_code_artifact(
+    rundb_mock, tmp_path, monkeypatch
+):
+    """get_source_file raises when the resolved artifact is not a code artifact
+    (e.g. user pointed at a model/dataset). Defense-in-depth on the runner-pod
+    side; mirrors set_workflow's client-side check."""
+    monkeypatch.chdir(tmp_path)  # prevent log_artifact upload from polluting cwd
+    src = tmp_path / "model.pkl"
+    src.write_bytes(b"binary model bytes")
+    project = mlrun.new_project("wf-spec-non-code", context=str(tmp_path), save=False)
+    artifact = project.log_artifact("not_a_code_artifact", local_path=str(src))
+    spec = mlrun.projects.pipelines.WorkflowSpec(path=artifact.uri)
+
+    with pytest.raises(
+        mlrun.errors.MLRunInvalidArgumentError, match="expected a code artifact"
+    ):
+        spec.get_source_file(context=str(tmp_path), project_name="wf-spec-non-code")
+
+
+@pytest.mark.parametrize(
+    "workflow_path, expected_after_rewrite",
+    [
+        # Local paths under the project code path get relativized.
+        ("/path/to/project/workflow.py", "./workflow.py"),
+        ("/path/to/project/subdir/workflow.py", "./subdir/workflow.py"),
+        # Local paths outside the project code path are left as-is.
+        ("/other/place/workflow.py", "/other/place/workflow.py"),
+        # URL paths must be left as-is — the runner pod resolves them verbatim.
+        (
+            "store://artifacts/some-proj/some_key",
+            "store://artifacts/some-proj/some_key",
+        ),
+        ("s3://bucket/dir/workflow.py", "s3://bucket/dir/workflow.py"),
+        ("git://github.com/org/repo.git#main", "git://github.com/org/repo.git#main"),
+        # Empty / None pass through unchanged.
+        ("", ""),
+        (None, None),
+    ],
+)
+def test_remote_runner_relativize_workflow_path(workflow_path, expected_after_rewrite):
+    """_RemoteRunner.relativize_workflow_path: relativize project-local paths,
+    leave URL paths verbatim so the runner pod can resolve them via
+    WorkflowSpec.get_source_file."""
+    result = mlrun.projects.pipelines._RemoteRunner.relativize_workflow_path(
+        workflow_path, "/path/to/project"
+    )
+    assert result == expected_after_rewrite
 
 
 def test_run_non_existing_workflow(rundb_mock):

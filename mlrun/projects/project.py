@@ -1429,6 +1429,74 @@ class MlrunProject(ModelObj):
             workflow_path, param_name="workflow_path", engine=engine
         )
 
+        # When workflow_path is a store:// CodeArtifact URI and the artifact is
+        # reachable client-side, validate kind=='code' and code_type=='workflow'
+        # so misuses (e.g. user pointed at a model artifact, or at a function
+        # code artifact) fail at set_workflow rather than after a 5-10 minute
+        # runner-pod round-trip. The runner pod re-validates as the
+        # authoritative check — see WorkflowSpec.get_source_file.
+        # embed=True opens workflow_path as a local file. Any "://" URL
+        # (store://, s3://, git://, http(s)://, ...) would otherwise produce
+        # an opaque FileNotFoundError later. Reject explicitly with a
+        # path-forward message; the existing local-path embed branch
+        # downstream is unchanged.
+        if embed and workflow_path and "://" in workflow_path:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"embed=True is not supported for remote workflow_path "
+                f"({workflow_path!r}); use embed=False (the default) so the "
+                "workflow source is fetched at execution time."
+            )
+
+        if workflow_path and mlrun.datastore.is_store_uri(workflow_path):
+            try:
+                workflow_artifact = mlrun.datastore.get_store_resource(
+                    workflow_path, project=self.metadata.name
+                )
+            except (
+                mlrun.errors.MLRunNotFoundError,
+                mlrun.errors.MLRunBadRequestError,
+                mlrun.errors.MLRunUnauthorizedError,
+                mlrun.errors.MLRunAccessDeniedError,
+                mlrun.errors.MLRunPreconditionFailedError,
+            ):
+                # The DB returned a definitive "no, that's wrong" answer
+                # (typo'd key, malformed URI, perms). Propagate so the user
+                # sees it now, not after a 5-10 minute runner-pod round trip.
+                raise
+            except Exception as exc:
+                # Anything else (no DB connection, transient HTTP wrapping in
+                # MLRunRuntimeError, generic network errors) is treated as
+                # "couldn't tell client-side" and deferred to the runner pod's
+                # authoritative check.
+                logger.debug(
+                    "Workflow store:// artifact not reachable client-side; "
+                    "deferring code_type validation to runner pod",
+                    workflow_path=workflow_path,
+                    exc=mlrun.errors.err_to_str(exc),
+                )
+                workflow_artifact = None
+            if workflow_artifact is not None:
+                if workflow_artifact.kind != "code":
+                    raise mlrun.errors.MLRunInvalidArgumentError(
+                        f"Workflow path {workflow_path!r} resolves to a "
+                        f"{workflow_artifact.kind!r} artifact; expected a "
+                        "code artifact (kind='code')."
+                    )
+                # code_type is optional on CodeArtifactSpec; older clients
+                # may have logged a workflow without it. We permit None here
+                # for backward compat — fail only when an explicit
+                # non-workflow value is set.
+                code_type = workflow_artifact.spec.code_type
+                if (
+                    code_type is not None
+                    and code_type != mlrun.artifacts.CodeArtifactCodeType.workflow
+                ):
+                    raise mlrun.errors.MLRunInvalidArgumentError(
+                        f"Workflow path {workflow_path!r} resolves to a code "
+                        f"artifact with code_type={code_type!r}; expected "
+                        f"{mlrun.artifacts.CodeArtifactCodeType.workflow.value!r}."
+                    )
+
         if engine and "local" in engine and schedule:
             raise ValueError("'schedule' argument is not supported for 'local' engine.")
 
@@ -6120,8 +6188,11 @@ class MlrunProject(ModelObj):
                 f"{param_name} must be provided."
             )
 
-        # If file path is remote, verify it is a file URL
+        # If file path is remote, verify it is a file URL.
+        # store:// URIs are accepted: artifact keys have no file suffix.
         if "://" in file_path:
+            if mlrun.datastore.is_store_uri(file_path):
+                return
             if pathlib.Path(file_path).suffix:
                 return
 

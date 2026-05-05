@@ -25,7 +25,7 @@ Upgrading these three MLRun dependencies spans several releases.  The upgrades a
 
 See a full description of KFP, Python, and the workflow engines in {ref}`local-remote`. Specific changes are listed under the relevant versions.
 (v1110)=
-## v1.11.0 (March 2026)
+## v1.11.0 (May 2026)
 
 ### Runtimes
 | ID    |Description                                                                 |

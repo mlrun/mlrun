@@ -39,6 +39,7 @@ from nuclio import Event
 
 import mlrun
 import mlrun.common.constants as mlrun_constants
+import mlrun.utils.helpers
 from mlrun.lists import RunList
 from mlrun.package import handler as mlrun_handler_decorator
 
@@ -265,6 +266,25 @@ class LocalRuntime(BaseRuntime, ParallelRunner):
                 execution._current_workdir = os.path.join(target_dir, workdir)
             else:
                 execution._current_workdir = workdir or target_dir
+
+            # When the source was extracted (e.g. from a store:// CodeArtifact)
+            # rather than baked into the function image, spec.command is empty -
+            # _get_handler / load_module would then have no file to import, and
+            # a `module:func` handler can't be resolved. Mirror the convention
+            # used by mlrun.code_to_function: spec.command holds the file,
+            # spec.handler holds just the function name; load_module loads the
+            # file, _search_in_namespaces finds the function in the loaded
+            # module.
+            module_name, func_name = (
+                mlrun.utils.helpers.split_handler_module_and_function(
+                    runobj.spec.handler or self.spec.default_handler or ""
+                )
+            )
+            if not self.spec.command and module_name:
+                candidate = os.path.join(target_dir, f"{module_name}.py")
+                if os.path.isfile(candidate):
+                    self.spec.command = candidate
+                    runobj.spec.handler = func_name
 
         if execution._current_workdir:
             execution._old_workdir = os.getcwd()

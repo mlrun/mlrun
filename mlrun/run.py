@@ -868,8 +868,9 @@ def code_to_function(
     if not name:
         raise ValueError("name must be specified")
 
-    h = get_in(spec, "spec.handler", "").split(":")
-    runtime.handler = h[0] if len(h) <= 1 else h[1]
+    _, runtime.handler = mlrun.utils.helpers.split_handler_module_and_function(
+        get_in(spec, "spec.handler", "")
+    )
     runtime.metadata = get_in(spec, "spec.metadata")
     runtime.metadata.name = name
     build = runtime.spec.build

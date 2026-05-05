@@ -218,6 +218,20 @@ class TestAPIHandlerStepBodyMap:
         assert result.body["input_data"] == [1, 2, 3]
         assert "metadata" not in result.body
 
+    def test_body_map_multi_match_returns_list(self) -> None:
+        """A JSONPath that matches multiple nodes returns a list of values."""
+        step = self._make_step({"roles": "$.messages[*].role"})
+
+        event = MockEvent(
+            body={"messages": [{"role": "user"}, {"role": "assistant"}, {"role": "user"}]},
+            method="POST",
+            path="/predict",
+        )
+
+        result = step.do(event)
+        assert isinstance(result.body, _RequestContext)
+        assert result.body["roles"] == ["user", "assistant", "user"]
+
     def test_body_map_missing_params_skipped(self) -> None:
         """Missing JSONPath fields are silently skipped when mandatory=False (default)."""
         step = self._make_step(

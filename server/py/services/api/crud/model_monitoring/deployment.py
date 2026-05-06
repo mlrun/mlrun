@@ -2758,7 +2758,9 @@ class MonitoringDeployment:
                 stream_url
             )
         first_uid = model_endpoints_instructions[0][0].metadata.uid
+        first_name = model_endpoints_instructions[0][0].metadata.name
         env_updates[mm_constants.NuclioMonitoringEnvVars.MODEL_ENDPOINT_UID] = first_uid
+        env_updates[mm_constants.NuclioMonitoringEnvVars.MODEL_ENDPOINT_NAME] = first_name
         if len(model_endpoints_instructions) > 1:
             env_updates[mm_constants.NuclioMonitoringEnvVars.MODEL_ENDPOINTS_MAP] = (
                 json.dumps(

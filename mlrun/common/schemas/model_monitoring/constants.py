@@ -344,7 +344,19 @@ class NuclioMonitoringEnvVars(MonitoringStrEnum):
 
     MODEL_MONITORING_URL = "MODEL_MONITORING_URL"
     MODEL_ENDPOINT_UID = "MODEL_ENDPOINT_UID"
+    MODEL_ENDPOINT_NAME = "MODEL_ENDPOINT_NAME"
     MODEL_ENDPOINTS_MAP = "MODEL_ENDPOINTS_MAP"
+
+
+class MonitoringHTTPPayload(MonitoringStrEnum):
+    """Field names for the HTTP ingest payload POSTed to the stream pod."""
+
+    MODEL_ENDPOINT_UID = "model_endpoint_uid"
+    MODEL_ENDPOINT_NAME = "model_endpoint_name"
+    TIMESTAMP = "timestamp"
+    INPUTS = "inputs"
+    OUTPUTS = "outputs"
+    MICROSEC = "microsec"  # optional: inference latency in microseconds
 
 
 class MonitoringFunctionNames(MonitoringStrEnum):

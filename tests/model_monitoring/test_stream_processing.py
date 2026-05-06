@@ -148,10 +148,10 @@ class TestProcessHTTPEvent:
         step = self._step()
         result = step.do(
             {
-                "endpoint_id": "ep-123",
+                "model_endpoint_uid": "ep-123",
                 "inputs": [[1.0, 2.0]],
                 "outputs": [[0.8]],
-                "model": "my-model",
+                "model_endpoint_name": "my-model",
             }
         )
         assert result is not None
@@ -163,14 +163,12 @@ class TestProcessHTTPEvent:
         assert result["error"] is None
 
     def test_dict_inputs_transposed_by_schema(self):
-        step = self._step()
+        step = self._step(feature_names=["f1", "f2"], label_names=["pred"])
         result = step.do(
             {
-                "endpoint_id": "ep-123",
+                "model_endpoint_uid": "ep-123",
                 "inputs": {"f2": 2.0, "f1": 1.0},
                 "outputs": {"pred": 0.8},
-                "input_schema": ["f1", "f2"],
-                "output_schema": ["pred"],
             }
         )
         # 2 features → [[f1, f2]] (list-of-list); single label → [val] (flat)
@@ -183,7 +181,7 @@ class TestProcessHTTPEvent:
         step = self._step()
         result = step.do(
             {
-                "endpoint_id": "ep-123",
+                "model_endpoint_uid": "ep-123",
                 "inputs": {"f1": 1.0, "f2": 2.0},
                 "outputs": {"pred": 0.8},
             }
@@ -196,7 +194,7 @@ class TestProcessHTTPEvent:
         step = self._step()
         result = step.do(
             {
-                "endpoint_id": "ep-123",
+                "model_endpoint_uid": "ep-123",
                 "inputs": 42.0,
                 "outputs": 0.8,
             }
@@ -208,7 +206,7 @@ class TestProcessHTTPEvent:
         step = self._step(feature_names=["a", "b"], label_names=["pred"])
         result = step.do(
             {
-                "endpoint_id": "ep-1",
+                "model_endpoint_uid": "ep-1",
                 "inputs": {"b": 2.0, "a": 1.0},
                 "outputs": {"pred": 0.9},
             }
@@ -218,37 +216,23 @@ class TestProcessHTTPEvent:
         assert result["resp"]["outputs"] == [0.9]
         assert result["request"]["input_schema"] == ["a", "b"]
 
-    def test_event_schema_overrides_db_schema(self):
-        step = self._step(feature_names=["x", "y"], label_names=["z"])
-        result = step.do(
-            {
-                "endpoint_id": "ep-1",
-                "inputs": {"b": 2.0, "a": 1.0},
-                "outputs": {"pred": 0.9},
-                "input_schema": ["a", "b"],
-                "output_schema": ["pred"],
-            }
-        )
-        # Event schema ["a","b"] overrides DB schema ["x","y"]
-        assert result["request"]["inputs"] == [[1.0, 2.0]]
-        assert result["request"]["input_schema"] == ["a", "b"]
 
     def test_when_added_if_missing(self):
         step = self._step()
-        result = step.do({"endpoint_id": "ep-1", "inputs": [[1.0]], "outputs": [[0.8]]})
+        result = step.do({"model_endpoint_uid": "ep-1", "inputs": [[1.0]], "outputs": [[0.8]]})
         assert result["when"] is not None
 
     def test_when_preserved_if_provided(self):
         step = self._step()
         result = step.do(
             {
-                "endpoint_id": "ep-1",
+                "model_endpoint_uid": "ep-1",
                 "inputs": [[1.0]],
                 "outputs": [[0.8]],
-                "when": "2024-01-01T00:00:00Z",
+                "timestamp": "2024-01-01T00:00:00Z",
             }
         )
-        assert result["when"] == "2024-01-01T00:00:00Z"
+        assert result["when"] == "2024-01-01T00:00:00Z"  # internal field name
 
     def test_missing_endpoint_id_returns_none(self):
         step = self._step()
@@ -257,51 +241,51 @@ class TestProcessHTTPEvent:
 
     def test_missing_inputs_returns_none(self):
         step = self._step()
-        result = step.do({"endpoint_id": "ep-1", "outputs": [[0.9]]})
+        result = step.do({"model_endpoint_uid": "ep-1", "outputs": [[0.9]]})
         assert result is None
 
     def test_missing_outputs_returns_none(self):
         step = self._step()
-        result = step.do({"endpoint_id": "ep-1", "inputs": [[1.0]]})
+        result = step.do({"model_endpoint_uid": "ep-1", "inputs": [[1.0]]})
         assert result is None
 
-    def test_model_defaults_to_endpoint_id(self):
+    def test_model_empty_when_name_not_provided(self):
         step = self._step()
-        result = step.do({"endpoint_id": "ep-1", "inputs": [[1.0]], "outputs": [[0.8]]})
-        assert result[EventFieldType.MODEL] == "ep-1"
+        result = step.do({"model_endpoint_uid": "ep-1", "inputs": [[1.0]], "outputs": [[0.8]]})
+        assert result[EventFieldType.MODEL] == ""
 
     def test_optional_metadata_forwarded(self):
         step = self._step()
         result = step.do(
             {
-                "endpoint_id": "ep-1",
+                "model_endpoint_uid": "ep-1",
                 "inputs": [[1.0]],
                 "outputs": [[0.8]],
-                "when": "2024-01-01T00:00:00Z",
+                "timestamp": "2024-01-01T00:00:00Z",
                 "microsec": 123.4,
                 "labels": {"env": "prod"},
                 "metrics": {"accuracy": 0.99},
             }
         )
-        assert result["when"] == "2024-01-01T00:00:00Z"
+        assert result["when"] == "2024-01-01T00:00:00Z"  # internal field name
         assert result["microsec"] == 123.4
         assert result[EventFieldType.LABELS] == {"env": "prod"}
         assert result[EventFieldType.METRICS] == {"accuracy": 0.99}
 
     def test_request_id_generated_when_absent(self):
         step = self._step()
-        result = step.do({"endpoint_id": "ep-1", "inputs": [[1.0]], "outputs": [[0.8]]})
+        result = step.do({"model_endpoint_uid": "ep-1", "inputs": [[1.0]], "outputs": [[0.8]]})
         assert result["request"]["id"] is not None
         assert len(result["request"]["id"]) > 0
 
     def test_function_uri_from_endpoint_schema(self):
         step = self._step(function_uri="my-project/my-fn:latest")
-        result = step.do({"endpoint_id": "ep-1", "inputs": [[1.0]], "outputs": [[0.8]]})
+        result = step.do({"model_endpoint_uid": "ep-1", "inputs": [[1.0]], "outputs": [[0.8]]})
         assert result[EventFieldType.FUNCTION_URI] == "my-project/my-fn:latest"
 
     def test_function_uri_empty_for_user_ep(self):
         step = self._step(function_uri="")
-        result = step.do({"endpoint_id": "ep-1", "inputs": [[1.0]], "outputs": [[0.8]]})
+        result = step.do({"model_endpoint_uid": "ep-1", "inputs": [[1.0]], "outputs": [[0.8]]})
         assert result[EventFieldType.FUNCTION_URI] == ""
 
 
@@ -332,7 +316,9 @@ class TestGetModelMonitoringUrl:
     def test_fetches_from_db_when_env_var_absent(self, monkeypatch: pytest.MonkeyPatch):
         """When the env var is not set the URL is fetched from the DB."""
         mock_db = pytest.importorskip("unittest.mock").MagicMock()
-        mock_db.get_model_monitoring_url.return_value = "http://stream-pod-from-db/ingest"
+        mock_db.get_model_monitoring_url.return_value = (
+            "http://stream-pod-from-db/ingest"
+        )
         monkeypatch.setattr(mlrun.db, "get_run_db", lambda: mock_db)
 
         url = mlrun.get_model_monitoring_url(project="my-project")
@@ -343,7 +329,9 @@ class TestGetModelMonitoringUrl:
     def test_caches_db_result_in_env_var(self, monkeypatch: pytest.MonkeyPatch):
         """After a DB fetch the URL is stored in the env var for future calls."""
         mock_db = pytest.importorskip("unittest.mock").MagicMock()
-        mock_db.get_model_monitoring_url.return_value = "http://stream-pod-from-db/ingest"
+        mock_db.get_model_monitoring_url.return_value = (
+            "http://stream-pod-from-db/ingest"
+        )
         monkeypatch.setattr(mlrun.db, "get_run_db", lambda: mock_db)
 
         mlrun.get_model_monitoring_url(project="my-project")
@@ -353,7 +341,9 @@ class TestGetModelMonitoringUrl:
     def test_second_call_uses_cache_not_db(self, monkeypatch: pytest.MonkeyPatch):
         """A second call must use the cached env var and skip the DB entirely."""
         mock_db = pytest.importorskip("unittest.mock").MagicMock()
-        mock_db.get_model_monitoring_url.return_value = "http://stream-pod-from-db/ingest"
+        mock_db.get_model_monitoring_url.return_value = (
+            "http://stream-pod-from-db/ingest"
+        )
         monkeypatch.setattr(mlrun.db, "get_run_db", lambda: mock_db)
 
         mlrun.get_model_monitoring_url(project="my-project")

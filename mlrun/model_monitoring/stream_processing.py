@@ -30,6 +30,7 @@ from mlrun.common.schemas.model_monitoring.constants import (
     EndpointType,
     EventFieldType,
     FileTargetKind,
+    MonitoringHTTPPayload,
     ProjectSecretKeys,
 )
 from mlrun.model_monitoring.db import TSDBConnector
@@ -179,7 +180,10 @@ class EventStreamProcessor:
             path=monitoring_stream_uri,
             sharding_func=EventFieldType.ENDPOINT_ID,
             after="FilterHTTPNone",
+            # monitoring stream lives in projects/ container; use project key (same as ParquetTarget)
             alternative_v3io_access_key=ProjectSecretKeys.ACCESS_KEY,
+            # skip startup create_stream(): stream is owned by the Nuclio trigger, not this pod
+            create=False,
         )
 
         # Stream branch — existing graph steps, now connected after TriggerRouter.
@@ -361,8 +365,7 @@ class ProcessHTTPEvent(storey.ConcurrentExecution):
         outputs:           Prediction vectors (list, list-of-lists, or dict keyed by label name).
 
     Optional fields:
-        model, model_class, microsec, when, labels, metrics,
-        request_id, input_schema, output_schema.
+        model, model_class, microsec, when, labels, metrics, request_id.
 
     On validation failure returns ``None`` (event is dropped by the downstream
     filter step).
@@ -377,12 +380,13 @@ class ProcessHTTPEvent(storey.ConcurrentExecution):
         self._schema_cache: dict[str, tuple[list | None, list | None, str]] = {}
 
     def _get_endpoint_schema(
-        self, endpoint_id: str
+        self, endpoint_id: str, name: str
     ) -> tuple[list | None, list | None, str]:
-        """Return (feature_names, label_names, function_uri) for the given endpoint, fetching from DB on cache miss."""
+        """Return (feature_names, label_names, function_uri) for the given endpoint."""
         if endpoint_id not in self._schema_cache:
             try:
                 ep = mlrun.db.get_run_db().get_model_endpoint(
+                    name=name,
                     project=self.project,
                     endpoint_id=endpoint_id,
                     tsdb_metrics=False,
@@ -440,9 +444,10 @@ class ProcessHTTPEvent(storey.ConcurrentExecution):
         return listed, new_schema or schema
 
     def do(self, event: dict) -> dict | None:
-        endpoint_id = event.get(EventFieldType.ENDPOINT_ID)
-        inputs = event.get("inputs")
-        outputs = event.get("outputs")
+        endpoint_id = event.get(MonitoringHTTPPayload.MODEL_ENDPOINT_UID)
+        name = event.get(MonitoringHTTPPayload.MODEL_ENDPOINT_NAME, "")
+        inputs = event.get(MonitoringHTTPPayload.INPUTS)
+        outputs = event.get(MonitoringHTTPPayload.OUTPUTS)
 
         if not endpoint_id or inputs is None or outputs is None:
             logger.error(
@@ -453,24 +458,26 @@ class ProcessHTTPEvent(storey.ConcurrentExecution):
             )
             return None
 
-        # Resolve schema: event body overrides DB schema
+        # Resolve schema from DB; dict key order used when schema is absent
         db_feature_names, db_label_names, function_uri = self._get_endpoint_schema(
-            endpoint_id
+            endpoint_id, name
         )
-        input_schema = event.get("input_schema") or db_feature_names
-        output_schema = event.get("output_schema") or db_label_names
+        input_schema = db_feature_names
+        output_schema = db_label_names
 
         # Normalize to listed form using schema (handles dicts, lists of dicts, scalars)
         listed_inputs, resolved_input_schema = self._listed(inputs, input_schema)
         listed_outputs, resolved_output_schema = self._listed(outputs, output_schema)
 
-        when = event.get("when") or datetime.datetime.now(datetime.UTC).isoformat()
+        when = event.get(MonitoringHTTPPayload.TIMESTAMP) or datetime.datetime.now(
+            datetime.UTC
+        ).isoformat(sep=" ", timespec="microseconds")
         request_id = event.get(EventFieldType.REQUEST_ID) or str(uuid.uuid4())
 
         return {
-            EventFieldType.MODEL: event.get(EventFieldType.MODEL) or endpoint_id,
+            EventFieldType.MODEL: name,
             EventFieldType.MODEL_CLASS: event.get(EventFieldType.MODEL_CLASS, ""),
-            "microsec": event.get("microsec"),
+            "microsec": event.get(MonitoringHTTPPayload.MICROSEC) or 0.0,
             "when": when,
             "error": None,
             EventFieldType.ENDPOINT_ID: endpoint_id,

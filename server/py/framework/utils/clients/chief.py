@@ -177,7 +177,7 @@ class Client(
         self, request: fastapi.Request, api_version: str | None = None
     ) -> fastapi.Response:
         return await self._proxy_request_to_chief(
-            "POST", f"projects", request, version=api_version
+            "POST", "projects", request, version=api_version
         )
 
     async def store_project(

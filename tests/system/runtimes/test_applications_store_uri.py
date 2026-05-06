@@ -42,10 +42,21 @@ class TestApplicationStoreUri(tests.system.base.TestMLRunSystem):
 
     def _log_code_artifact(self, key: str) -> str:
         """Log the assets/simple_flask_app.py file as a CodeArtifact and
-        return its store:// URI."""
+        return its canonical store:// URI.
+
+        The asset (``tests/system/runtimes/assets/simple_flask_app.py``)
+        is the existing Flask app used by other system tests in this
+        directory — it returns ``"version-1"`` from ``/`` which the
+        invocation assertion below pins.
+
+        Uses the artifact's own ``.uri`` rather than rebuilding
+        ``f"store://artifacts/<project>/<key>"`` from a template — the
+        reconstructed value can drift from what the system actually
+        stored. See TESTING_STANDARDS §7.
+        """
         local_path = os.path.join(self.assets_path, self._app_filename)
-        self.project.log_code_file(key=key, local_path=local_path)
-        return f"store://artifacts/{self.project_name}/{key}"
+        artifact = self.project.log_code_file(key=key, local_path=local_path)
+        return artifact.uri
 
     def _assert_init_container_present(self, function):
         """Assert the source-loader init container is wired correctly."""

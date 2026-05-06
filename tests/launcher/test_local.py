@@ -107,8 +107,10 @@ def test_create_local_function_for_execution_with_enrichment():
 @pytest.mark.parametrize(
     "module_qualified_handler",
     [
-        "module.submodule.fn",  # dotted form (already works)
-        "handler:my_func",  # canonical mlrun module:func form (the new case)
+        # dotted form — already works
+        "module.submodule.fn",
+        # canonical mlrun module:func form — the new case
+        "handler:my_func",
     ],
 )
 def test_create_local_function_for_execution_picks_local_for_module_qualified_handler(
@@ -378,9 +380,10 @@ def test_enrich_run_name_strips_handler_module_prefix(handler_value, expected_su
     Order matters: the `::` separator (class-method) must split BEFORE `:`
     so MyClass::run_method becomes 'run_method', not 'method'."""
     launcher = mlrun.launcher.local.ClientLocalLauncher(local=False)
-    runtime = mlrun.code_to_function(
-        name="my-fn", kind="job", filename=str(func_path), handler=handler
-    )
+    # Build the runtime with NO default handler so the parametrized
+    # `handler_value` is the only handler input — keeps the data flow
+    # unambiguous when reading the test cold.
+    runtime = mlrun.code_to_function(name="my-fn", kind="job", filename=str(func_path))
     run = mlrun.run.RunObject()
     launcher._enrich_run(
         runtime=runtime,

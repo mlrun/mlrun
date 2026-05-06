@@ -2355,9 +2355,9 @@ def test_remove_image_protocol_prefix(image, expected):
         ("my_func", ("", "my_func")),
         ("", ("", "")),
         (None, ("", "")),
-        # leading/trailing whitespace is preserved by partition (caller's
-        # responsibility) — this is just documenting current behavior:
-        ("a:b:c", ("a", "b:c")),  # only the FIRST colon splits
+        # only the FIRST colon splits — partition() returns
+        # ("a", ":", "b:c"), not split's ["a", "b", "c"]
+        ("a:b:c", ("a", "b:c")),
     ],
 )
 def test_split_handler_module_and_function(handler, expected):

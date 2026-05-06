@@ -285,6 +285,20 @@ class LocalRuntime(BaseRuntime, ParallelRunner):
                 if os.path.isfile(candidate):
                     self.spec.command = candidate
                     runobj.spec.handler = func_name
+                else:
+                    # Surface the missing-file case with a useful breadcrumb
+                    # — without this log, a typo in the handler module name
+                    # falls through to a cryptic ImportError downstream when
+                    # _get_handler tries to load an empty spec.command.
+                    logger.warning(
+                        "module:func handler refers to a module that wasn't "
+                        "found in the extracted source directory; the run "
+                        "will likely fail to load the handler",
+                        handler=runobj.spec.handler or self.spec.default_handler,
+                        module_name=module_name,
+                        candidate=candidate,
+                        target_dir=target_dir,
+                    )
 
         if execution._current_workdir:
             execution._old_workdir = os.getcwd()

@@ -23,6 +23,19 @@ MLRUN_SERVING_SPEC_PATH = (
 DEFAULT_SOURCE_CODE_TARGET_DIR = "/home/mlrun_code"
 SOURCE_LOADER_INIT_CONTAINER_NAME = "mlrun-source-loader"
 SOURCE_CODE_VOLUME_NAME = "mlrun-source-code"
+# Module name for a generated stub that re-exports the user's real handler
+# under a fixed name. The dedicated namespaced name avoids the sys.path[0]
+# (=/opt/nuclio) shadow that would otherwise hide the real handler module
+# loaded into the source-loader init container's output directory.
+STORE_URI_HANDLER_LOADER_MODULE = "_mlrun_store_uri_loader"
+# BUMP THIS WHENEVER THE LOADER STUB BODY CHANGES.
+# The version marker is baked as the first line of the loader stub
+# (`# stub_version=<N>`); on (re)deploy, an existing stub whose marker
+# doesn't match the current value is re-baked, so a stub-body fix in
+# mlrun reaches existing functions on their next deploy. If you forget
+# to bump this when changing the stub, deployed functions stay on the
+# old bytes forever.
+STORE_URI_LOADER_STUB_VERSION = "1"
 MLRUN_FUNCTIONS_ANNOTATION = "mlrun/mlrun-functions"
 MYSQL_MEDIUMBLOB_SIZE_BYTES = 16 * 1024 * 1024
 MLRUN_LABEL_PREFIX = "mlrun/"

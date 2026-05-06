@@ -2997,7 +2997,12 @@ class MlrunProject(ModelObj):
                           - handler: execute a python handler (used automatically in notebooks or for debug)
 
         :param image:               Docker image to be used, can also be specified in the function object/yaml
-        :param handler:             Default function handler to invoke (can only be set with .py/.ipynb files)
+        :param handler:             Default function handler to invoke. Format ``module:function`` (e.g.
+                                    ``"my_app:predict"``) or just ``function`` for the canonical
+                                    ``main:handler`` form. Valid for ``.py``/``.ipynb`` files, ``store://``
+                                    CodeArtifact URIs, ``db://`` function references, and ``hub://`` items.
+                                    When omitted with ``store://`` source, falls back to mlrun's
+                                    convention default ``main:handler``.
         :param with_repo:           Add (clone) the current repo to the build source - use when the function code is in
                                     the project repo (project.spec.source).
         :param tag:                 Function version tag to set (none for current or 'latest')

@@ -789,3 +789,65 @@ class Projects(
         framework.utils.singletons.db.get_db().patch_project(
             session, name, project_patch
         )
+
+    # ----- 2PC follower-interface stubs ------------------------------------
+    # mlrun is the 2PC leader, so these per-follower hooks (called by the
+    # orchestrator on every remote follower) must never run on mlrun itself.
+    # They are present only to satisfy the abstract follower interface and
+    # to fail loudly if the orchestrator ever fans out incorrectly.
+
+    def prepare_create_project(
+        self,
+        session: sqlalchemy.orm.Session,
+        project: mlrun.common.schemas.Project,
+        auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
+    ) -> None:
+        raise NotImplementedError(
+            "MLRun is the leader of the 2PC project sync flow, not a follower; "
+            "this hook must not be invoked on the mlrun follower"
+        )
+
+    def commit_create_project(
+        self,
+        session: sqlalchemy.orm.Session,
+        name: str,
+        auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
+    ) -> None:
+        raise NotImplementedError(
+            "MLRun is the leader of the 2PC project sync flow, not a follower; "
+            "this hook must not be invoked on the mlrun follower"
+        )
+
+    def prepare_delete_project(
+        self,
+        session: sqlalchemy.orm.Session,
+        name: str,
+        auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
+    ) -> None:
+        raise NotImplementedError(
+            "MLRun is the leader of the 2PC project sync flow, not a follower; "
+            "this hook must not be invoked on the mlrun follower"
+        )
+
+    def commit_delete_project(
+        self,
+        session: sqlalchemy.orm.Session,
+        name: str,
+        auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
+    ) -> None:
+        raise NotImplementedError(
+            "MLRun is the leader of the 2PC project sync flow, not a follower; "
+            "this hook must not be invoked on the mlrun follower"
+        )
+
+    def update_project_follower(
+        self,
+        session: sqlalchemy.orm.Session,
+        name: str,
+        project: mlrun.common.schemas.Project,
+        auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
+    ) -> None:
+        raise NotImplementedError(
+            "MLRun is the leader of the 2PC project sync flow, not a follower; "
+            "this hook must not be invoked on the mlrun follower"
+        )

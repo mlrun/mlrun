@@ -13,6 +13,8 @@
 # limitations under the License.
 
 
+import uuid
+
 import mergedeep
 import sqlalchemy.orm
 
@@ -147,41 +149,36 @@ class Member(project_follower.Member):
 
     def prepare_create_project(
         self,
-        session: sqlalchemy.orm.Session,
         project: mlrun.common.schemas.Project,
-        auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
+        op_id: uuid.UUID,
     ) -> None:
         raise NotImplementedError
 
     def commit_create_project(
         self,
-        session: sqlalchemy.orm.Session,
         name: str,
-        auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
+        op_id: uuid.UUID,
     ) -> None:
         raise NotImplementedError
 
     def prepare_delete_project(
         self,
-        session: sqlalchemy.orm.Session,
         name: str,
-        auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
+        op_id: uuid.UUID,
     ) -> None:
         raise NotImplementedError
 
     def commit_delete_project(
         self,
-        session: sqlalchemy.orm.Session,
         name: str,
-        auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
+        op_id: uuid.UUID,
     ) -> None:
         raise NotImplementedError
 
     def update_project_follower(
         self,
-        session: sqlalchemy.orm.Session,
         name: str,
         project: mlrun.common.schemas.Project,
-        auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
+        op_id: uuid.UUID,
     ) -> None:
         raise NotImplementedError

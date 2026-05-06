@@ -16,6 +16,7 @@ import asyncio
 import collections
 import datetime
 import typing
+import uuid
 
 import fastapi.concurrency
 import humanfriendly
@@ -798,9 +799,8 @@ class Projects(
 
     def prepare_create_project(
         self,
-        session: sqlalchemy.orm.Session,
         project: mlrun.common.schemas.Project,
-        auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
+        op_id: uuid.UUID,
     ) -> None:
         raise NotImplementedError(
             "MLRun is the leader of the 2PC project sync flow, not a follower; "
@@ -809,9 +809,8 @@ class Projects(
 
     def commit_create_project(
         self,
-        session: sqlalchemy.orm.Session,
         name: str,
-        auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
+        op_id: uuid.UUID,
     ) -> None:
         raise NotImplementedError(
             "MLRun is the leader of the 2PC project sync flow, not a follower; "
@@ -820,9 +819,8 @@ class Projects(
 
     def prepare_delete_project(
         self,
-        session: sqlalchemy.orm.Session,
         name: str,
-        auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
+        op_id: uuid.UUID,
     ) -> None:
         raise NotImplementedError(
             "MLRun is the leader of the 2PC project sync flow, not a follower; "
@@ -831,9 +829,8 @@ class Projects(
 
     def commit_delete_project(
         self,
-        session: sqlalchemy.orm.Session,
         name: str,
-        auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
+        op_id: uuid.UUID,
     ) -> None:
         raise NotImplementedError(
             "MLRun is the leader of the 2PC project sync flow, not a follower; "
@@ -842,10 +839,9 @@ class Projects(
 
     def update_project_follower(
         self,
-        session: sqlalchemy.orm.Session,
         name: str,
         project: mlrun.common.schemas.Project,
-        auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
+        op_id: uuid.UUID,
     ) -> None:
         raise NotImplementedError(
             "MLRun is the leader of the 2PC project sync flow, not a follower; "

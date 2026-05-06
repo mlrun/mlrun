@@ -653,6 +653,15 @@ class DBInterface(ABC):
     ) -> None:
         pass
 
+    @abstractmethod
+    def get_project_sync_phase(
+        self,
+        session,
+        name: str,
+        op_id: uuid.UUID,
+    ) -> int | None:
+        pass
+
     def get_project_summary(
         self,
         session,

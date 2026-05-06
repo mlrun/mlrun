@@ -3652,6 +3652,20 @@ class SQLDB(DBInterface):
         project_record.phase = None
         self._upsert(session, [project_record])
 
+    def get_project_sync_phase(
+        self, session: Session, name: str, op_id: UUID
+    ) -> int | None:
+        """
+        Read the current 2PC phase of a project, or None if our op_id no
+        longer matches the row's op_id (a newer operation has taken over).
+
+        :raises MLRunNotFoundError: project does not exist.
+        """
+        project_record = self._get_project_record(session, name)
+        if project_record.op_id != op_id:
+            return None
+        return project_record.phase
+
     def complete_delete_project(self, session: Session, name: str, op_id: UUID) -> None:
         """
         Finalize a deleting project by removing the row, gated on the project

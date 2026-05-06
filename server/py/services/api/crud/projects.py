@@ -905,6 +905,16 @@ class Projects(
             session, name, op_id
         )
 
+    def get_project_sync_phase(
+        self,
+        session: sqlalchemy.orm.Session,
+        name: str,
+        op_id: uuid.UUID,
+    ) -> int | None:
+        return framework.utils.singletons.db.get_db().get_project_sync_phase(
+            session, name, op_id
+        )
+
     # ----- 2PC follower-interface stubs ------------------------------------
     # mlrun is the 2PC leader, so these per-follower hooks (called by the
     # orchestrator on every remote follower) must never run on mlrun itself.

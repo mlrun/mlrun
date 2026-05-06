@@ -15,8 +15,10 @@
 import collections
 import traceback
 import typing
+import uuid
 
 import humanfriendly
+import mergedeep
 import sqlalchemy.orm
 
 import mlrun.common.formatters
@@ -39,6 +41,13 @@ import framework.utils.projects.member as project_member
 import framework.utils.projects.remotes.follower
 import framework.utils.projects.remotes.nop_follower
 import services.api.crud
+
+
+def _project_sync_2pc_enabled() -> bool:
+    return (
+        mlrun.mlconf.httpdb.clusterization.chief.feature_gates.project_sync_2pc
+        == "enabled"
+    )
 
 
 class Member(
@@ -81,9 +90,17 @@ class Member(
         commit_before_get: bool = False,
     ) -> tuple[mlrun.common.schemas.ProjectOut | None, bool]:
         self._enrich_and_validate(project, auth_info)
-        self._run_on_all_followers(
-            True, "create_project", db_session, project, auth_info
-        )
+
+        if _project_sync_2pc_enabled():
+            op_id, _ = self._crud_leader_follower.begin_create_project(
+                db_session, project
+            )
+            self._schedule_create_flow(project.metadata.name, op_id)
+        else:
+            self._run_on_all_followers(
+                True, "create_project", db_session, project, auth_info
+            )
+
         project = self.get_project(db_session, project.metadata.name)
         return project, False
 
@@ -97,9 +114,22 @@ class Member(
     ) -> tuple[mlrun.common.schemas.ProjectOut | None, bool]:
         self._enrich_and_validate(project, auth_info)
         self._validate_body_and_path_names_matches(name, project)
-        self._run_on_all_followers(
-            True, "store_project", db_session, name, project, auth_info
-        )
+
+        if _project_sync_2pc_enabled():
+            try:
+                op_id, _ = self._crud_leader_follower.begin_update_project(
+                    db_session, name, project
+                )
+            except mlrun.errors.MLRunNotFoundError:
+                # Falls back to 2PC create — same shape as legacy store's
+                # create-if-missing behavior.
+                return self.create_project(db_session, project, auth_info)
+            self._run_update_flow(db_session, name, project, op_id)
+        else:
+            self._run_on_all_followers(
+                True, "store_project", db_session, name, project, auth_info
+            )
+
         return self.get_project(db_session, name), False
 
     def patch_project(
@@ -113,10 +143,21 @@ class Member(
     ) -> tuple[mlrun.common.schemas.ProjectOut, bool]:
         self._enrich_project_patch(project)
         self._validate_body_and_path_names_matches(name, project)
-        self._run_on_all_followers(
-            True, "patch_project", db_session, name, project, patch_mode, auth_info
-        )
-        return self.get_project(db_session, name), False
+
+        if _project_sync_2pc_enabled():
+            # 2PC has no patch primitive — merge the patch into the current
+            # project and run a full store through the 2PC update flow.
+            current_project = self.get_project(db_session, name)
+            strategy = patch_mode.to_mergedeep_strategy()
+            current_project_dict = current_project.dict(exclude_unset=True)
+            mergedeep.merge(current_project_dict, project, strategy=strategy)
+            patched_project = mlrun.common.schemas.Project(**current_project_dict)
+            return self.store_project(db_session, name, patched_project, auth_info)
+        else:
+            self._run_on_all_followers(
+                True, "patch_project", db_session, name, project, patch_mode, auth_info
+            )
+            return self.get_project(db_session, name), False
 
     def delete_project(
         self,
@@ -128,13 +169,27 @@ class Member(
         background_task_name: str | None = None,
         model_monitoring_access_key: str | None = None,
     ) -> bool:
-        self._projects_in_deletion.add(name)
-        try:
-            self._run_on_all_followers(
-                False, "delete_project", db_session, name, deletion_strategy, auth_info
+        if _project_sync_2pc_enabled():
+            result = self._crud_leader_follower.begin_delete_project(
+                db_session, name, deletion_strategy, auth_info
             )
-        finally:
-            self._projects_in_deletion.remove(name)
+            if result is not None:
+                op_id, _ = result
+                self._schedule_delete_flow(name, op_id)
+        else:
+            self._projects_in_deletion.add(name)
+            try:
+                self._run_on_all_followers(
+                    False,
+                    "delete_project",
+                    db_session,
+                    name,
+                    deletion_strategy,
+                    auth_info,
+                )
+            finally:
+                self._projects_in_deletion.remove(name)
+
         return False
 
     def get_project(
@@ -426,6 +481,95 @@ class Member(
             leader_response = getattr(self._leader_follower, method)(*args, **kwargs)
         return leader_response, follower_responses
 
+    # ----- 2PC orchestration -----------------------------------------------
+    # Driven from the 2PC branch of create_project / store_project /
+    # delete_project. mlrun is the protocol leader, so fan-out targets only
+    # ``self._followers`` (nuclio, igz, ...) — never the leader follower.
+    # The 2PC primitives on the project DB row (begin_/advance_/complete_*)
+    # are reached through ``self._crud_leader_follower`` (a typed accessor
+    # for ``self._leader_follower`` that requires it to be the crud layer).
+
+    def _schedule_create_flow(self, name: str, op_id: uuid.UUID) -> None:
+        """
+        Schedule the 2PC create flow as a background task.
+
+        Step 1 (``begin_create_project`` — insert state=creating, phase=0)
+        has already run synchronously in the request session before this
+        method is called, producing ``op_id``.
+
+        The eventual implementation must, with a fresh DB session:
+
+        * Step 2b: invoke ``prepare_create_project(session, project, auth_info)``
+          on every entry in ``self._followers`` in parallel. If any raises,
+          abort — the project row stays at phase=0 for the periodic
+          reconciliation loop to retry.
+        * Step 3: call
+          ``self._crud_leader_follower.advance_create_project_to_commit(session, name, op_id)``
+          to transition phase 0 → 1.
+        * Step 4: invoke ``commit_create_project(session, name, auth_info)``
+          on every entry in ``self._followers`` in parallel. If any raises,
+          abort — the project row stays at phase=1 for retry.
+        * Step 5: call
+          ``self._crud_leader_follower.complete_create_project(session, name, op_id)``
+          to transition state creating → online.
+        """
+        raise NotImplementedError("2PC create background flow is not yet wired")
+
+    def _run_update_flow(
+        self,
+        session: sqlalchemy.orm.Session,
+        name: str,
+        project: mlrun.common.schemas.Project,
+        op_id: uuid.UUID,
+    ) -> None:
+        """
+        Run the 2PC update flow inline in the request session.
+
+        Step 1 (``begin_update_project``) has already run before this method
+        is called, producing ``op_id``. Update has no two phases — there is
+        no ``advance`` step.
+
+        The eventual implementation must:
+
+        * Step 2: invoke
+          ``update_project_follower(session, name, project, auth_info)`` on
+          every entry in ``self._followers`` in parallel. Followers compare
+          the op_id's UUID v7 timestamp against the latest seen op_id per
+          project and silently discard out-of-order writes. If any follower
+          raises, abort — the project row stays at phase=0 for the periodic
+          reconciliation loop to retry.
+        * Step 3: call
+          ``self._crud_leader_follower.complete_update_project(session, name, op_id)``
+          to clear phase. ``complete_update_project`` no-ops if our op_id
+          is no longer the latest (a newer update has already taken over).
+        """
+        raise NotImplementedError("2PC update in-process flow is not yet wired")
+
+    def _schedule_delete_flow(self, name: str, op_id: uuid.UUID) -> None:
+        """
+        Schedule the 2PC delete flow as a background task.
+
+        Step 1 (``begin_delete_project`` — transition state=online →
+        state=deleting, phase=0) has already run synchronously in the
+        request session before this method is called, producing ``op_id``.
+
+        The eventual implementation must, with a fresh DB session:
+
+        * Step 2b: invoke ``prepare_delete_project(session, name, auth_info)``
+          on every entry in ``self._followers`` in parallel. If any raises,
+          abort — the project row stays at phase=0 for retry.
+        * Step 3: call
+          ``self._crud_leader_follower.advance_delete_project_to_commit(session, name, op_id)``
+          to transition phase 0 → 1.
+        * Step 4: invoke ``commit_delete_project(session, name, auth_info)``
+          on every entry in ``self._followers`` in parallel. If any raises,
+          abort — the project row stays at phase=1 for retry.
+        * Step 5: call
+          ``self._crud_leader_follower.complete_delete_project(session, name, op_id)``
+          to remove the project row.
+        """
+        raise NotImplementedError("2PC delete background flow is not yet wired")
+
     def _initialize_followers(self):
         leader_name = mlrun.mlconf.httpdb.projects.leader
         self._leader_follower = self._initialize_follower(leader_name)
@@ -437,11 +581,37 @@ class Member(
         self._followers = {
             follower: self._initialize_follower(follower) for follower in followers
         }
+
+        if _project_sync_2pc_enabled():
+            # Eagerly trigger the runtime check so a misconfigured leader fails
+            # at init rather than on the first 2PC request.
+            _ = self._crud_leader_follower
+
         logger.debug(
             "Initialized leader and followers",
             leader=leader_name,
             followers=list(self._followers.keys()),
         )
+
+    @property
+    def _crud_leader_follower(self) -> "services.api.crud.Projects":
+        """
+        Typed accessor for the leader follower as the crud layer.
+
+        2PC requires the leader follower to be ``services.api.crud.Projects``
+        — mlrun is the protocol leader of 2PC and the only follower that
+        owns the project DB row. Use this property in 2PC code paths so the
+        crud-specific 2PC primitives (``begin_/advance_/complete_*_project``)
+        are reachable in a typed way, with a runtime safety check if config
+        changes underneath.
+        """
+        if not isinstance(self._leader_follower, services.api.crud.Projects):
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "2PC project sync requires the configured projects leader "
+                "to be 'mlrun' (services.api.crud.Projects); got "
+                f"{type(self._leader_follower).__name__}"
+            )
+        return self._leader_follower
 
     def _initialize_follower(
         self, name: str

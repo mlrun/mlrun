@@ -59,6 +59,7 @@ import framework.utils.notifications
 import framework.utils.singletons.db
 import framework.utils.singletons.k8s
 import framework.utils.singletons.project_member
+from server.py.framework.utils.projects.member import ProjectSyncRunner
 import services.api.crud
 import services.api.crud.runtimes.nuclio
 import services.api.utils.singletons.logs_dir
@@ -1169,6 +1170,74 @@ def get_or_create_project_deletion_background_task(
     )
 
 
+async def run_project_2pc_runner_inline(
+    runner: ProjectSyncRunner,
+    project_name: str,
+    db_session: sqlalchemy.orm.Session,
+) -> None:
+    """
+    Await a 2PC project sync runner inline against the request's session
+    (used by store / patch / load / v1 delete). Reusing the request session
+    avoids holding a second connection from the pool for the duration of the
+    orchestration. Any ``ExceptionGroup`` raised by the follower fan-out is
+    logged and swallowed so the request still returns success — the row
+    stays at the current phase and reconciliation will retry. Other
+    exceptions (e.g. leader-side DB primitive failures) propagate.
+    """
+    try:
+        await runner(db_session)
+    except ExceptionGroup as exc_group:
+        logger.warning(
+            "2PC project sync flow failed; reconciliation will retry",
+            project_name=project_name,
+            exc=err_to_str(exc_group),
+            traceback=traceback.format_exc(),
+        )
+
+
+def get_or_create_project_2pc_background_task(
+    project_name: str,
+    runner: ProjectSyncRunner,
+) -> tuple[typing.Callable | None, str]:
+    """
+    Wrap a 2PC orchestration runner as an internal background task with a
+    per-project kind lock so duplicate scheduling (concurrent request +
+    reconciliation, or two requests racing) is coalesced.
+
+    Returns ``(callable, name)`` where ``callable`` is the wrapped task
+    suitable for ``BackgroundTasks.add_task`` or ``await``. If an active
+    task for the same project already exists, ``callable`` is ``None`` and
+    ``name`` points at the existing task.
+    """
+    kind = framework.utils.background_tasks.BackgroundTaskKinds.project_sync_2pc.format(
+        project_name
+    )
+    handler = framework.utils.background_tasks.InternalBackgroundTasksHandler()
+    try:
+        existing = handler.get_active_background_task_by_kind(
+            kind, raise_on_not_found=True
+        )
+        return None, existing.metadata.name
+    except mlrun.errors.MLRunNotFoundError:
+        pass
+
+    # Open a fresh DB session here — this branch fires after the response
+    # returns (or from reconciliation), so the request session is gone.
+    async def _run_2pc_flow():
+        async with framework.db.session.get_db_session_async(
+            commit=False
+        ) as db_session:
+            await runner(db_session)
+
+    background_task_name = str(uuid.uuid4())
+    return handler.create_background_task(
+        kind,
+        mlrun.mlconf.background_tasks.default_timeouts.operations.project_sync_2pc,
+        _run_2pc_flow,
+        background_task_name,
+    )
+
+
 async def _delete_project(
     db_session: sqlalchemy.orm.Session,
     project: mlrun.common.schemas.Project,
@@ -1178,10 +1247,13 @@ async def _delete_project(
     background_task_name: str,
     model_monitoring_access_key: str | None = None,
 ):
+    # Legacy delete wrapper. The 2PC path bypasses this function entirely —
+    # both v1 and v2 endpoints schedule ``Member._run_delete_flow`` directly
+    # via ``get_or_create_project_2pc_background_task`` when 2PC is enabled.
     force_delete = False
     project_name = project.metadata.name
     try:
-        await run_in_threadpool(
+        _, sync_runner = await run_in_threadpool(
             framework.utils.singletons.project_member.get_project_member().delete_project,
             db_session,
             project_name,
@@ -1191,6 +1263,11 @@ async def _delete_project(
             background_task_name=background_task_name,
             model_monitoring_access_key=model_monitoring_access_key,
         )
+        if sync_runner is not None:
+            raise mlrun.errors.MLRunRuntimeError(
+                "2PC project sync runner reached the legacy delete wrapper; "
+                "endpoints must route 2PC deletes around this wrapper"
+            )
     except mlrun.errors.MLRunNotFoundError as exc:
         if framework.utils.helpers.is_request_from_leader(auth_info.projects_role):
             raise exc

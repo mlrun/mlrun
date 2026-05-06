@@ -27,6 +27,7 @@ import framework.utils.auth.verifier
 import framework.utils.background_tasks
 import framework.utils.clients.chief
 import framework.utils.helpers
+import framework.utils.projects.leader
 import services.api.crud
 from framework.utils.singletons.project_member import get_project_member
 
@@ -122,6 +123,38 @@ async def delete_project(
         if deletion_strategy == mlrun.common.schemas.DeletionStrategy.check:
             # if the strategy is checked, we don't want to delete the project, only to check if it is empty
             return fastapi.Response(status_code=http.HTTPStatus.NO_CONTENT.value)
+
+    if framework.utils.projects.leader.project_sync_2pc_enabled():
+        # 2PC delete: run begin synchronously at the endpoint so precondition
+        # checks (state==online, op_id stamping) surface to the caller as
+        # ordinary HTTP errors. Then schedule the orchestration as its own
+        # background task and let the client poll that task — no legacy
+        # ``_delete_project`` wrapper involved.
+        is_running_in_background, sync_runner = await run_in_threadpool(
+            get_project_member().delete_project,
+            db_session,
+            name,
+            deletion_strategy,
+            auth_info,
+        )
+        if sync_runner is None:
+            # Project gone or not deletable via 2PC; nothing to schedule.
+            return fastapi.Response(status_code=http.HTTPStatus.NO_CONTENT.value)
+        if is_running_in_background:
+            raise mlrun.errors.MLRunRuntimeError(
+                "is_running_in_background and 2PC sync runner are mutually exclusive"
+            )
+        sync_task, task_name = (
+            framework.api.utils.get_or_create_project_2pc_background_task(
+                name, sync_runner
+            )
+        )
+        if sync_task is not None:
+            background_tasks.add_task(sync_task)
+        response.status_code = http.HTTPStatus.ACCEPTED.value
+        return framework.utils.background_tasks.InternalBackgroundTasksHandler().get_background_task(
+            task_name
+        )
 
     task, task_name = await run_in_threadpool(
         framework.api.utils.get_or_create_project_deletion_background_task,

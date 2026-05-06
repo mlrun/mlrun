@@ -17,6 +17,7 @@ class BackgroundTaskKinds:
     db_migrations = "db.migrations"
     project_deletion = "project.deletion.{0}"
     project_deletion_wrapper = "project.deletion.wrapper.{0}"
+    project_sync_2pc = "project.sync.2pc.{0}"
     function_deletion = "function.deletion.{0}"
     refresh_smtp_configuration = "smtp.configuration.refresh"
     push_notification = "notification.push.{0}.{1}"

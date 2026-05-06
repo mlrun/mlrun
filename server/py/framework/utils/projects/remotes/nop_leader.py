@@ -40,9 +40,17 @@ class Member(project_leader.Member):
         (
             _,
             is_running_in_background,
+            sync_runner,
         ) = framework.utils.singletons.project_member.get_project_member().create_project(
             self.db_session, project, auth_info
         )
+        if sync_runner is not None:
+            # The nop leader is a test-only legacy path; 2PC must be disabled
+            # when it is in use. Surface a misconfiguration loudly.
+            raise mlrun.errors.MLRunRuntimeError(
+                "nop leader received a 2PC project sync runner; "
+                "2PC must be disabled when using the nop leader"
+            )
         return is_running_in_background
 
     def update_project(
@@ -78,12 +86,22 @@ class Member(project_leader.Member):
         wait_for_completion: bool = True,
     ) -> bool:
         auth_info.projects_role = self._project_role
-        return framework.utils.singletons.project_member.get_project_member().delete_project(
+        (
+            is_running_in_background,
+            sync_runner,
+        ) = framework.utils.singletons.project_member.get_project_member().delete_project(
             self.db_session,
             name,
             deletion_strategy,
             auth_info=auth_info,
         )
+        if sync_runner is not None:
+            # See create_project — 2PC must be disabled when using this leader.
+            raise mlrun.errors.MLRunRuntimeError(
+                "nop leader received a 2PC project sync runner; "
+                "2PC must be disabled when using the nop leader"
+            )
+        return is_running_in_background
 
     def list_projects(
         self,

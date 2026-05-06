@@ -262,6 +262,7 @@ default_config = {
                 "abort_grace_period": "10",
                 "delete_project": "900",
                 "delete_function": "900",
+                "project_sync_2pc": "900",
                 "model_endpoint_creation": "600",
                 "model_endpoint_tsdb_leftovers": "900",
                 "terminate_pipeline": "300",

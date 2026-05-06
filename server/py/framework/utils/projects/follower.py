@@ -108,13 +108,14 @@ class Member(
         auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
         wait_for_completion: bool = True,
         commit_before_get: bool = False,
-    ) -> tuple[mlrun.common.schemas.Project | None, bool]:
+    ) -> tuple[mlrun.common.schemas.Project | None, bool, None]:
+        # 2PC is leader-only; the follower Member never returns a sync runner.
         self._validate_project(project)
         if framework.utils.helpers.is_request_from_leader(
             auth_info.projects_role, leader_name=self._leader_name
         ):
             services.api.crud.Projects().create_project(db_session, project)
-            return project, False
+            return project, False, None
         else:
             is_running_in_background = self._leader_client.create_project(
                 auth_info.session, project, auth_info, wait_for_completion
@@ -126,7 +127,7 @@ class Member(
                 created_project = framework.db.session.run_function_with_new_db_session(
                     self.get_project, project.metadata.name, auth_info
                 )
-            return created_project, is_running_in_background
+            return created_project, is_running_in_background, None
 
     def store_project(
         self,
@@ -135,13 +136,14 @@ class Member(
         project: mlrun.common.schemas.Project,
         auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
         wait_for_completion: bool = True,
-    ) -> tuple[mlrun.common.schemas.Project | None, bool]:
+    ) -> tuple[mlrun.common.schemas.Project | None, bool, None]:
+        # 2PC is leader-only; the follower Member never returns a sync runner.
         self._validate_project(project)
         if framework.utils.helpers.is_request_from_leader(
             auth_info.projects_role, leader_name=self._leader_name
         ):
             services.api.crud.Projects().store_project(db_session, name, project)
-            return project, False
+            return project, False, None
         else:
             try:
                 self.get_project(db_session, name, auth_info)
@@ -155,9 +157,13 @@ class Member(
                 )
             else:
                 self._leader_client.update_project(auth_info.session, name, project)
-                return framework.db.session.run_function_with_new_db_session(
-                    self.get_project, name, auth_info
-                ), False
+                return (
+                    framework.db.session.run_function_with_new_db_session(
+                        self.get_project, name, auth_info
+                    ),
+                    False,
+                    None,
+                )
 
     def patch_project(
         self,
@@ -167,7 +173,8 @@ class Member(
         patch_mode: mlrun.common.schemas.PatchMode = mlrun.common.schemas.PatchMode.replace,
         auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
         wait_for_completion: bool = True,
-    ) -> tuple[mlrun.common.schemas.Project | None, bool]:
+    ) -> tuple[mlrun.common.schemas.Project | None, bool, None]:
+        # 2PC is leader-only; the follower Member never returns a sync runner.
         if framework.utils.helpers.is_request_from_leader(
             auth_info.projects_role, leader_name=self._leader_name
         ):
@@ -196,7 +203,8 @@ class Member(
         wait_for_completion: bool = True,
         background_task_name: str | None = None,
         model_monitoring_access_key: str | None = None,
-    ) -> bool:
+    ) -> tuple[bool, None]:
+        # 2PC is leader-only; the follower Member never returns a sync runner.
         if framework.utils.helpers.is_request_from_leader(
             auth_info.projects_role, leader_name=self._leader_name
         ):
@@ -209,14 +217,17 @@ class Member(
                 model_monitoring_access_key=model_monitoring_access_key,
             )
         else:
-            return self._leader_client.delete_project(
-                session=auth_info.session,
-                name=name,
-                auth_info=auth_info,
-                deletion_strategy=deletion_strategy,
-                wait_for_completion=wait_for_completion,
+            return (
+                self._leader_client.delete_project(
+                    session=auth_info.session,
+                    name=name,
+                    auth_info=auth_info,
+                    deletion_strategy=deletion_strategy,
+                    wait_for_completion=wait_for_completion,
+                ),
+                None,
             )
-        return False
+        return False, None
 
     def get_project(
         self,

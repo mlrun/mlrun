@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import abc
+import typing
 
 import sqlalchemy.orm
 
@@ -21,9 +22,21 @@ import mlrun.common.schemas
 import mlrun.k8s_utils
 import mlrun.utils.singleton
 
+import framework.api.utils
 import framework.utils.auth.verifier
 import framework.utils.project_formats
 import services.api.crud
+
+
+# A one-arg async callable returned by 2PC-enabled Member methods. Awaiting
+# it runs the orchestration body (prepare → advance → commit → complete for
+# create/delete; update_project_follower → complete for update) against the
+# provided DB session. The caller chooses the session: inline awaits reuse
+# the request session (no extra connection held); fire-and-forget callers
+# (the background task wrapper, future reconciliation) open a fresh one.
+ProjectSyncRunner: typing.TypeAlias = typing.Callable[
+    [sqlalchemy.orm.Session], typing.Awaitable[None]
+]
 
 
 class Member(abc.ABC):
@@ -91,7 +104,11 @@ class Member(abc.ABC):
         auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
         wait_for_completion: bool = True,
         commit_before_get: bool = False,
-    ) -> tuple[mlrun.common.schemas.Project | None, bool]:
+    ) -> tuple[
+        mlrun.common.schemas.Project | None,
+        bool,
+        framework.api.utils.ProjectSyncRunner | None,
+    ]:
         pass
 
     @abc.abstractmethod
@@ -102,7 +119,11 @@ class Member(abc.ABC):
         project: mlrun.common.schemas.Project,
         auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
         wait_for_completion: bool = True,
-    ) -> tuple[mlrun.common.schemas.Project | None, bool]:
+    ) -> tuple[
+        mlrun.common.schemas.Project | None,
+        bool,
+        framework.api.utils.ProjectSyncRunner | None,
+    ]:
         pass
 
     @abc.abstractmethod
@@ -114,7 +135,11 @@ class Member(abc.ABC):
         patch_mode: mlrun.common.schemas.PatchMode = mlrun.common.schemas.PatchMode.replace,
         auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
         wait_for_completion: bool = True,
-    ) -> tuple[mlrun.common.schemas.Project, bool]:
+    ) -> tuple[
+        mlrun.common.schemas.Project,
+        bool,
+        framework.api.utils.ProjectSyncRunner | None,
+    ]:
         pass
 
     @abc.abstractmethod
@@ -127,7 +152,7 @@ class Member(abc.ABC):
         wait_for_completion: bool = True,
         background_task_name: str | None = None,
         model_monitoring_access_key: str | None = None,
-    ) -> bool:
+    ) -> tuple[bool, framework.api.utils.ProjectSyncRunner | None]:
         pass
 
     @abc.abstractmethod

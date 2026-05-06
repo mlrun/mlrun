@@ -45,6 +45,7 @@ async def create_project(
     project: mlrun.common.schemas.Project,
     request: fastapi.Request,
     response: fastapi.Response,
+    background_tasks: fastapi.BackgroundTasks,
     # TODO: we're in a http request context here, therefore it doesn't make sense that by default it will hold the
     #  request until the process will be completed - after UI supports waiting - change default to False
     wait_for_completion: bool = fastapi.Query(True, alias="wait-for-completion"),
@@ -71,14 +72,26 @@ async def create_project(
         chief_client = framework.utils.clients.chief.Client()
         return await chief_client.create_project(request=request)
 
-    project, is_running_in_background = await run_in_threadpool(
+    project, is_running_in_background, sync_runner = await run_in_threadpool(
         get_project_member().create_project,
         db_session,
         project,
         auth_info,
         wait_for_completion=wait_for_completion,
     )
-    if is_running_in_background:
+
+    if sync_runner is not None:
+        if is_running_in_background:
+            raise mlrun.errors.MLRunRuntimeError(
+                "is_running_in_background and 2PC sync runner are mutually exclusive"
+            )
+        sync_task, _ = framework.api.utils.get_or_create_project_2pc_background_task(
+            project.metadata.name, sync_runner
+        )
+        if sync_task is not None:
+            background_tasks.add_task(sync_task)
+
+    elif is_running_in_background:
         return fastapi.Response(status_code=http.HTTPStatus.ACCEPTED.value)
 
     await framework.utils.auth.verifier.AuthVerifier().ensure_project_permissions(
@@ -125,7 +138,7 @@ async def store_project(
         chief_client = framework.utils.clients.chief.Client()
         return await chief_client.store_project(name=name, request=request)
 
-    project, is_running_in_background = await run_in_threadpool(
+    project, is_running_in_background, sync_runner = await run_in_threadpool(
         get_project_member().store_project,
         db_session,
         name,
@@ -133,7 +146,17 @@ async def store_project(
         auth_info,
         wait_for_completion=wait_for_completion,
     )
-    if is_running_in_background:
+
+    if sync_runner is not None:
+        if is_running_in_background:
+            raise mlrun.errors.MLRunRuntimeError(
+                "is_running_in_background and 2PC sync runner are mutually exclusive"
+            )
+        await framework.api.utils.run_project_2pc_runner_inline(
+            sync_runner, name, db_session
+        )
+
+    elif is_running_in_background:
         return fastapi.Response(status_code=http.HTTPStatus.ACCEPTED.value)
 
     await framework.utils.auth.verifier.AuthVerifier().ensure_project_permissions(
@@ -179,7 +202,7 @@ async def patch_project(
             mlrun.common.schemas.AuthorizationAction.update,
             auth_info,
         )
-    project, is_running_in_background = await run_in_threadpool(
+    project, is_running_in_background, sync_runner = await run_in_threadpool(
         get_project_member().patch_project,
         db_session,
         name,
@@ -188,8 +211,18 @@ async def patch_project(
         auth_info,
         wait_for_completion=wait_for_completion,
     )
-    if is_running_in_background:
+
+    if sync_runner is not None:
+        if is_running_in_background:
+            raise mlrun.errors.MLRunRuntimeError(
+                "is_running_in_background and 2PC sync runner are mutually exclusive"
+            )
+        await framework.api.utils.run_project_2pc_runner_inline(
+            sync_runner, name, db_session
+        )
+    elif is_running_in_background:
         return fastapi.Response(status_code=http.HTTPStatus.ACCEPTED.value)
+
     return project
 
 
@@ -325,8 +358,9 @@ async def delete_project(
 
     is_running_in_background = False
     force_delete = False
+    sync_runner = None
     try:
-        is_running_in_background = await run_in_threadpool(
+        is_running_in_background, sync_runner = await run_in_threadpool(
             get_project_member().delete_project,
             db_session,
             name,
@@ -349,6 +383,23 @@ async def delete_project(
             err=mlrun.errors.err_to_str(exc),
         )
         force_delete = True
+
+    if sync_runner is not None:
+        # 2PC delete: schedule the orchestration as its own background task.
+        # ``begin_delete_project`` already ran synchronously inside
+        # ``Member.delete_project`` above, so any precondition failure has
+        # already surfaced to the caller. ``post_delete_project`` runs
+        # inside ``_run_delete_flow`` after the row is gone.
+        if is_running_in_background:
+            raise mlrun.errors.MLRunRuntimeError(
+                "is_running_in_background and 2PC sync runner are mutually exclusive"
+            )
+        sync_task, _ = framework.api.utils.get_or_create_project_2pc_background_task(
+            name, sync_runner
+        )
+        if sync_task is not None:
+            background_tasks.add_task(sync_task)
+        return fastapi.Response(status_code=http.HTTPStatus.ACCEPTED.value)
 
     if force_delete:
         # In this case the wrapper delete project request is the one deleting the project because it
@@ -530,12 +581,25 @@ async def load_project(
     await _ensure_project_create_or_update_permissions(db_session, name, auth_info)
 
     # Ensure the project exists before calling the remote load_project function
-    project, _ = await fastapi.concurrency.run_in_threadpool(
+    (
+        project,
+        is_running_in_background,
+        sync_runner,
+    ) = await run_in_threadpool(
         get_project_member().create_project,
         db_session=db_session,
         project=project,
         auth_info=auth_info,
     )
+
+    if sync_runner is not None:
+        if is_running_in_background:
+            raise mlrun.errors.MLRunRuntimeError(
+                "is_running_in_background and 2PC sync runner are mutually exclusive"
+            )
+        await framework.api.utils.run_project_2pc_runner_inline(
+            sync_runner, project.metadata.name, db_session
+        )
 
     # Storing secrets in project
     if secrets is not None:

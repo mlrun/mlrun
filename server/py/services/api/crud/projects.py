@@ -47,13 +47,6 @@ import services.api.utils.singletons.scheduler
 from framework.utils.singletons.k8s import get_k8s_helper
 
 
-def _project_sync_2pc_enabled() -> bool:
-    return (
-        mlrun.mlconf.httpdb.clusterization.chief.feature_gates.project_sync_2pc
-        == "enabled"
-    )
-
-
 class Projects(
     project_follower.Member,
     metaclass=mlrun.utils.singleton.AbstractSingleton,
@@ -79,12 +72,7 @@ class Projects(
             artifact_amount=len(project.spec.artifacts or []),
             workflows_amount=len(project.spec.workflows or []),
         )
-        db = framework.utils.singletons.db.get_db()
-        if _project_sync_2pc_enabled():
-            op_id, _ = db.begin_create_project(session, project)
-            self._schedule_create_flow(project.metadata.name, op_id)
-        else:
-            db.create_project(session, project)
+        framework.utils.singletons.db.get_db().create_project(session, project)
 
     def store_project(
         self,
@@ -104,18 +92,7 @@ class Projects(
             artifact_amount=len(project.spec.artifacts or []),
             workflows_amount=len(project.spec.workflows or []),
         )
-        db = framework.utils.singletons.db.get_db()
-        if _project_sync_2pc_enabled():
-            try:
-                op_id, _ = db.begin_update_project(session, name, project)
-            except mlrun.errors.MLRunNotFoundError:
-                # Falls back to 2PC create — same shape as legacy store_project's
-                # create-if-missing behavior.
-                self.create_project(session, project, auth_info)
-                return
-            self._run_update_flow(session, name, project, op_id)
-            return
-        db.store_project(session, name, project)
+        framework.utils.singletons.db.get_db().store_project(session, name, project)
 
     def patch_project(
         self,
@@ -144,39 +121,11 @@ class Projects(
         logger.debug("Deleting project", name=name, deletion_strategy=deletion_strategy)
         db = framework.utils.singletons.db.get_db()
 
-        # Strategy validation + restricted/check handling — shared between 2PC and legacy.
-        # although we verify the project is empty before spawning the delete project background task, we still
-        # need to verify it here, if someone used this method directly with the restricted strategy.
-        # if the flow arrived here via the delete project background task, the project is already verified to be
-        # empty and the strategy was switched to 'cascading' so we won't arrive at this decision tree.
-        if (
-            deletion_strategy.is_restricted()
-            or deletion_strategy == mlrun.common.schemas.DeletionStrategy.check
+        if not self._validate_delete_strategy_and_check_existence(
+            session, name, deletion_strategy, auth_info
         ):
-            if not db.is_project_exists(session, name):
-                return
-            self.verify_project_is_empty(session, name, auth_info)
-            if deletion_strategy == mlrun.common.schemas.DeletionStrategy.check:
-                return
-        elif not deletion_strategy.is_cascading():
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                f"Unknown deletion strategy: {deletion_strategy}"
-            )
-
-        if _project_sync_2pc_enabled():
-            # Cascading hasn't pre-checked existence above; do it here so an
-            # already-deleted project doesn't raise from begin_delete_project.
-            if deletion_strategy.is_cascading() and not db.is_project_exists(
-                session, name
-            ):
-                return
-            # Transition to state=deleting/phase=0. Resource cleanup and the
-            # actual row delete happen in the trigger flow's commit phase.
-            op_id, _ = db.begin_delete_project(session, name)
-            self._schedule_delete_flow(name, op_id)
             return
 
-        # Legacy: in-line cleanup + row delete.
         self._enrich_project_with_deletion_background_task_name(
             session, name, background_task_name
         )
@@ -188,6 +137,34 @@ class Projects(
                 model_monitoring_access_key=model_monitoring_access_key,
             )
         db.delete_project(session, name, deletion_strategy)
+
+    def _validate_delete_strategy_and_check_existence(
+        self,
+        session: sqlalchemy.orm.Session,
+        name: str,
+        deletion_strategy: mlrun.common.schemas.DeletionStrategy,
+        auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
+    ) -> bool:
+        db = framework.utils.singletons.db.get_db()
+
+        # although we verify the project is empty before spawning the delete project background task, we still
+        # need to verify it here, if someone used this method directly with the restricted strategy.
+        # if the flow arrived here via the delete project background task, the project is already verified to be
+        # empty and the strategy was switched to 'cascading' so we won't arrive at this decision tree.
+        if (
+            deletion_strategy.is_restricted()
+            or deletion_strategy == mlrun.common.schemas.DeletionStrategy.check
+        ):
+            if not db.is_project_exists(session, name):
+                return False
+            self.verify_project_is_empty(session, name, auth_info)
+            if deletion_strategy == mlrun.common.schemas.DeletionStrategy.check:
+                return False
+        elif not deletion_strategy.is_cascading():
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"Unknown deletion strategy: {deletion_strategy}"
+            )
+        return True
 
     def verify_project_is_empty(
         self,
@@ -828,37 +805,105 @@ class Projects(
             session, name, project_patch
         )
 
-    def _schedule_create_flow(self, name: str, op_id: uuid.UUID) -> None:
-        """
-        Schedule the 2PC create flow as a background task. The task acquires
-        its own DB session and drives prepare/commit on all followers, then
-        calls db.complete_create_project to flip the project to 'online'.
-        """
-        raise NotImplementedError("2PC create background flow is not yet wired")
+    # ----- 2PC primitives (thin wrappers over SQLDB) -----------------------
+    # Called by the leader-side 2PC orchestrator. Each one delegates to the
+    # corresponding SQLDB method so the orchestrator never reaches past the
+    # crud layer to the DB singleton directly.
 
-    def _run_update_flow(
+    def begin_create_project(
+        self,
+        session: sqlalchemy.orm.Session,
+        project: mlrun.common.schemas.Project,
+    ) -> tuple[uuid.UUID, datetime.datetime]:
+        return framework.utils.singletons.db.get_db().begin_create_project(
+            session, project
+        )
+
+    def advance_create_project_to_commit(
+        self,
+        session: sqlalchemy.orm.Session,
+        name: str,
+        op_id: uuid.UUID,
+    ) -> None:
+        framework.utils.singletons.db.get_db().advance_create_project_to_commit(
+            session, name, op_id
+        )
+
+    def complete_create_project(
+        self,
+        session: sqlalchemy.orm.Session,
+        name: str,
+        op_id: uuid.UUID,
+    ) -> None:
+        framework.utils.singletons.db.get_db().complete_create_project(
+            session, name, op_id
+        )
+
+    def begin_update_project(
         self,
         session: sqlalchemy.orm.Session,
         name: str,
         project: mlrun.common.schemas.Project,
+    ) -> tuple[uuid.UUID, datetime.datetime]:
+        return framework.utils.singletons.db.get_db().begin_update_project(
+            session, name, project
+        )
+
+    def complete_update_project(
+        self,
+        session: sqlalchemy.orm.Session,
+        name: str,
         op_id: uuid.UUID,
     ) -> None:
-        """
-        Run the 2PC update flow in-process: fan out to all followers (which
-        ignore op_ids with earlier UUID v7 timestamps than what they've
-        already seen) and, only if every follower returned success, call
-        db.complete_update_project to clear phase. Failures leave phase=0
-        for the reconciliation loop.
-        """
-        raise NotImplementedError("2PC update in-process flow is not yet wired")
+        framework.utils.singletons.db.get_db().complete_update_project(
+            session, name, op_id
+        )
 
-    def _schedule_delete_flow(self, name: str, op_id: uuid.UUID) -> None:
+    def begin_delete_project(
+        self,
+        session: sqlalchemy.orm.Session,
+        name: str,
+        deletion_strategy: mlrun.common.schemas.DeletionStrategy = mlrun.common.schemas.DeletionStrategy.default(),
+        auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
+    ) -> tuple[uuid.UUID, datetime.datetime] | None:
         """
-        Schedule the 2PC delete flow as a background task. The task acquires
-        its own DB session and drives prepare/commit on all followers, then
-        calls db.complete_delete_project to remove the project row.
+        Validate the deletion strategy and start the 2PC delete flow.
+
+        Returns ``(op_id, updated_at)`` to drive the 2PC orchestration when
+        the delete should proceed; returns ``None`` when the caller should
+        bail out (project missing, or strategy is ``check``).
         """
-        raise NotImplementedError("2PC delete background flow is not yet wired")
+        if not self._validate_delete_strategy_and_check_existence(
+            session, name, deletion_strategy, auth_info
+        ):
+            return None
+        try:
+            return framework.utils.singletons.db.get_db().begin_delete_project(
+                session, name
+            )
+        except mlrun.errors.MLRunNotFoundError:
+            # Cascading idempotency: a missing project is not an error.
+            return None
+
+    def advance_delete_project_to_commit(
+        self,
+        session: sqlalchemy.orm.Session,
+        name: str,
+        op_id: uuid.UUID,
+    ) -> None:
+        framework.utils.singletons.db.get_db().advance_delete_project_to_commit(
+            session, name, op_id
+        )
+
+    def complete_delete_project(
+        self,
+        session: sqlalchemy.orm.Session,
+        name: str,
+        op_id: uuid.UUID,
+    ) -> None:
+        framework.utils.singletons.db.get_db().complete_delete_project(
+            session, name, op_id
+        )
 
     # ----- 2PC follower-interface stubs ------------------------------------
     # mlrun is the 2PC leader, so these per-follower hooks (called by the

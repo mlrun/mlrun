@@ -175,7 +175,7 @@ set `mlrun.mlconf.packagers.enabled = False`.
 
 A log hint tells MLRun how to log a single returned value — what key to store it
 under, what artifact type to use, and any serialization options. Log hints are
-passed via the `returns` parameter on `function.run()`:
+passed via the `returns` parameter on {py:class}`~mlrun.runtimes.BaseRuntime.run`:
 
 ```python
 fn.run(

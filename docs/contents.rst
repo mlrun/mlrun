@@ -44,7 +44,6 @@ Table of Contents
    projects/project
    runtimes/functions
    concepts/data
-   concepts/packagers/index
    concepts/model-monitoring
    concepts/alerts-notifications
    concepts/runs-workflows

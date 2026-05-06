@@ -175,6 +175,8 @@ function.with_http(async_spec=AsyncSpec())
 
 A streaming step is invoked with a single event and produces multiple results, each containing a chunk of the full result. Streaming only applies to events arriving through an HTTP trigger. Once the event is aggregated, it can then be processed by additional streaming steps. 
 
+See a complete example in [Streaming serving function](../serving/getting-started.md#streaming-serving-function).
+
 ``` {admonition} Note
 Requires Nuclio 1.15.3 and above.
 ```

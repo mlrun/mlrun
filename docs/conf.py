@@ -200,7 +200,8 @@ redirects = {
     "install/aws-install": "install-mlrun-ce/aws-install.html",
     "install/remote": "setup-guide.html",
     "serving/realtime-pipelines": "serving/writing-custom-steps.html",
-    "seerving/model-serving-get-started": "serving/getting-started.html",
+    "serving/model-serving-get-started": "serving/getting-started.html",
+    "serving/available-steps": "serving/basic-steps.html",
 }
 
 smartquotes = False

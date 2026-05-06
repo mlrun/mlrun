@@ -166,9 +166,8 @@ class Projects(
         if _project_sync_2pc_enabled():
             # Cascading hasn't pre-checked existence above; do it here so an
             # already-deleted project doesn't raise from begin_delete_project.
-            if (
-                deletion_strategy.is_cascading()
-                and not db.is_project_exists(session, name)
+            if deletion_strategy.is_cascading() and not db.is_project_exists(
+                session, name
             ):
                 return
             # Transition to state=deleting/phase=0. Resource cleanup and the
@@ -835,9 +834,7 @@ class Projects(
         its own DB session and drives prepare/commit on all followers, then
         calls db.complete_create_project to flip the project to 'online'.
         """
-        raise NotImplementedError(
-            "2PC create background flow is not yet wired"
-        )
+        raise NotImplementedError("2PC create background flow is not yet wired")
 
     def _run_update_flow(
         self,
@@ -853,9 +850,7 @@ class Projects(
         db.complete_update_project to clear phase. Failures leave phase=0
         for the reconciliation loop.
         """
-        raise NotImplementedError(
-            "2PC update in-process flow is not yet wired"
-        )
+        raise NotImplementedError("2PC update in-process flow is not yet wired")
 
     def _schedule_delete_flow(self, name: str, op_id: uuid.UUID) -> None:
         """
@@ -863,6 +858,4 @@ class Projects(
         its own DB session and drives prepare/commit on all followers, then
         calls db.complete_delete_project to remove the project row.
         """
-        raise NotImplementedError(
-            "2PC delete background flow is not yet wired"
-        )
+        raise NotImplementedError("2PC delete background flow is not yet wired")

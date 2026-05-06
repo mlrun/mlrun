@@ -3374,9 +3374,7 @@ class SQLDB(DBInterface):
 
     # ---- Projects ----
     def create_project(self, session: Session, project: mlrun.common.schemas.Project):
-        self._insert_project_record(
-            session, project, state=project.status.state
-        )
+        self._insert_project_record(session, project, state=project.status.state)
 
     def _insert_project_record(
         self,
@@ -3578,9 +3576,7 @@ class SQLDB(DBInterface):
         project_record.phase = 1
         self._upsert(session, [project_record])
 
-    def complete_create_project(
-        self, session: Session, name: str, op_id: UUID
-    ) -> None:
+    def complete_create_project(self, session: Session, name: str, op_id: UUID) -> None:
         """
         Finalize a creating project by transitioning state to 'online'
         once commit has succeeded on all followers.
@@ -3632,9 +3628,7 @@ class SQLDB(DBInterface):
         )
         return op_id, updated_at
 
-    def complete_update_project(
-        self, session: Session, name: str, op_id: UUID
-    ) -> None:
+    def complete_update_project(self, session: Session, name: str, op_id: UUID) -> None:
         """
         Mark an update operation finished by clearing phase to NULL, but only
         if our op_id is still the latest one on the project — otherwise a
@@ -3658,9 +3652,7 @@ class SQLDB(DBInterface):
         project_record.phase = None
         self._upsert(session, [project_record])
 
-    def complete_delete_project(
-        self, session: Session, name: str, op_id: UUID
-    ) -> None:
+    def complete_delete_project(self, session: Session, name: str, op_id: UUID) -> None:
         """
         Finalize a deleting project by removing the row, gated on the project
         still being in (deleting, phase=1) for this op_id. The verify and
@@ -8963,6 +8955,7 @@ class SQLDB(DBInterface):
         # the right.
         timestamp = (uuid.int >> 80) / 1000
         return datetime.fromtimestamp(timestamp, UTC)
+
 
 class SQLiteDB(SQLDB):
     @staticmethod

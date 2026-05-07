@@ -383,6 +383,7 @@ jobs:
         # graphviz      for generating graphs (feature store tests)
         # git-core      for cloning repos and etc, required by many suites
         # gcc, make     for installing python packages
+        # jq, openssl   for github-app-token.sh (token refresh daemon)
         apt-get update -qqy && \
           apt-get install -y \
             curl \
@@ -391,7 +392,9 @@ jobs:
             graphviz \
             git-core \
             gcc \
-            make
+            make \
+            jq \
+            openssl
 
     - name: Install aws-iam-authenticator
       # Required when kubeconfig uses exec auth with `command: aws-iam-authenticator`

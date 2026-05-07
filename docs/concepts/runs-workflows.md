@@ -21,6 +21,7 @@ decorators-and-auto-logging
 /runtimes/configuring-job-resources
 scheduled-jobs
 submitting-tasks-jobs-to-functions
+/runtimes/packagers/index
 workflow-overview
 /runtimes/conditional-workflow
 /runtimes/multiple-funcs-exithandler

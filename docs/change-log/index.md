@@ -2,6 +2,7 @@
 # Change log
 
 The change log lists updates per version, open issues, limitations, and deprecations.
+- [v1.11.0](#v1110)
 - [v1.10.3](#v1103) | [v1.10.2](#v1102) | [v1.10.1](#v1101) | [v1.10.0](#v1100)
 - [v1.9.2](#v192) | [v1.9.1](#v191) | [v1.9.0](#v190)
 - [v1.8.0](#v180)
@@ -21,19 +22,113 @@ The change log lists updates per version, open issues, limitations, and deprecat
 Upgrading these three MLRun dependencies spans several releases.  The upgrades are comprised of:
 - KFP: from 1.8 to 2.x. KFP has 2 components: the KFP service, and the KFP client package (which is used in both the MLRun service and some MLRun clients) and pipeline code (which is provided by the user). The client is not yet upgraded.
 - Pydantic: from version 1 to 2.
-- Python: from 3.9 to 3.11.
 
 See a full description of KFP, Python, and the workflow engines in {ref}`local-remote`. Specific changes are listed under the relevant versions.
+(v1110)=
+## v1.11.0 (May 2026)
+
+### Runtimes
+| ID    |Description                                                                 |
+|-------|----------------------------------------------------------------------------|
+|ML-5967|The application runtime now supports deploying from a single Python file without packaging into directories/archives; and pull-at-runtime for Git repositories or source archives. See [Deploy an application from a single Python file](../runtimes/application.ipynb#deploy-an-application-from-a-single-python-file) and [Pull at runtime from Git and source archives](../runtimes/application.ipynb#pull-at-runtime-from-git-and-source-archives).|
+|ML-9209|MLRun supports the Kubernetes readinessProbe and livenessProbe for an application runtime sidecar. See [Configure sidecar Kubernetes proble](../runtimes/application.ipynb#configure-sidecar-kubernetes-probes), {py:meth}`~mlrun.runtimes.ApplicationRuntime.set_probe`, and {py:meth}`~mlrun.runtimes.ApplicationRuntime.delete_probe`.|
+|ML-9754|You can expose multiple ports for application and Nuclio runtimes. See [Expose multiple ports (application runtime)](../runtimes/application.ipynb#expose-multiple-ports) and [Expose multiple ports (Nuclio)](../runtimes/application.ipynb#expose-multiple-ports).|
+
+
+### Serving Graph
+| ID    |Description                                                                 |
+|-------|----------------------------------------------------------------------------|
+|ML-7879|Serving graphs now support consuming messages from RabbitMQ queues and topic-based routing. See {py:meth}`~mlrun.runtimes.RemoteRuntime.add_rabbitmq_trigger`, {ref}`graph-ha-cfg`. |
+|ML-9565|Serving graphs now support API handlers, used to expose endpoints and interfaces. This feature is in TechPreview status; there will be changes to the SDK in a future release. See [API handler](../serving/api-handler.md).|
+|ML-10258|MLRun can process multiple events asynchronously with HTTP triggers. Throughput is maximized, and bottlenecks are minimized. See [Async mode](../genai/deployment/gpu_utilization.md#async-mode).|
+|ML-10839|MLRun supports model serving with batched events: an invoked function is processed with an aggregated event (a single event holding multiple events), reducing GPU utilization. The trigger forwards the batch of events based on either timespan or the number of accumulated events. Both are user-configurable. See [Batching](../genai/deployment/gpu_utilization.md#batching), [Batching example](../serving/model-serving-steps.md#example-with-batching), and {ref}`hf-model-batch-serving-graph`.|
+|ML-10863|MLRun supports model stream responses that return tokens, rather than waiting until all the tokens are generated. This significantly reduces the latency for initial response and improves the overall user experience in gen AI workflows. See [HTTP streaming step](../serving/model-serving-steps.md#http-streaming-step) and {py:class}`~mlrun.runtimes.ServingRuntime.set_streaming` and {py:class}`~storey.transformations.Collector`.|
+|ML-10753|MLRun supports cyclic serving graphs, used to implement agent-feedback loops. See [Cyclic graph example](../serving/getting-started.md#cyclic-graph) and {py:meth}`~mlrun.serving.states.BaseStep.cycle_to`.|
+|10097|New `ChoiceByField` step that routes events to downstream steps based on an event field that contains the step name or names. See [ChoiceByField](../serving/basic-steps.ipynb#choicebyfield) and {py:class}`~mlrun.serving.steps.ChoiceByField`.|
+|10099|New `RemoteFunctionStep` that calls remote functions, for example another Nuclio function. See [RemoteFunctionStep](../serving/remote-steps.ipynb#remotefunctionstep) and {py:class}`~mlrun.serving.remote.RemoteFunctionStep`.|
+  
+
+### Model monitoring
+| ID    |Description                                                                 |
+|-------|----------------------------------------------------------------------------|
+|ML-9954|You can now generate an alert when lags in stream processing are detected in model monitoring writer/application pods. Lags usually indicate perfoemance issues. See [Lag detection alerts](../model-monitoring/running-applications.md#lag-detection-alerts).|
+|ML-10919|Model monitoring supports TimescaleDB PostgreSQL with TimescaleDB extension as a TSDB platform. See [Configuring data store profiles](../install-mlrun-ce/mlrun-ce-development-notes.md#configuring-data-store-profiles) and {py:meth}`~mlrun.projects.MlrunProject.set_model_monitoring_credentials`.|
+|ML-10331|The writer pod performance is increased by utilizing async processing.|
+
+
+### UI
+| ID    |Description                                                                 |
+|-------|----------------------------------------------------------------------------|
+|ML-1811|The realtime pipelines page now displays: a table of serving graphs with a few parameters that can be filtered; the total number of graphs/pipelines, the main function status, and the total number of endpoints; icons and details of the graph steps according to the step category; a model endpoints tab.|
+|ML-11445| In the **Model endpoints > Metrics** tab, you can now select aggregation functions, which appear as multiple lines in the values graphs. Also, you can select a period of time greater than 1 month. See [Model endpoints metrics](../model-monitoring/monitoring-models.ipynb#model-endpoints-metrics). Supported for TimescaleDB (PostgreSQL).|
+
+## Packagers
+| ID    |Description                                                                 |
+|-------|----------------------------------------------------------------------------|
+|ML-3474|MLRun now suports packagers for moving data in and out of MLRun functions by using standard Python functions with type hints and returning values. See {ref}`packagers`.|
+|ML-11892|You can now get a dict of artifacts as an input.|
+|ML-11894|The user flow for changing default attributes for packagers artifacts is improved. See {py:class}`~mlrun.package.log_hint.LogHint`.|
+
+### Artifacts
+| ID    |Description                                                                 |
+|-------|----------------------------------------------------------------------------|
+|ML-11767|You can now run ` log_llm_prompt` without using the model artifact.|
+
+(1.11.0-breaking)=
+### Breaking Changes
+| ID    |Description                                                                 |
+|-------|----------------------------------------------------------------------------|
+|ML-11065| Python 3.9 is not supported. <ul><li>You must rebuild custom images and migrate existing workflows to Python 3.11.</li><li>Scheduled workflows that were created using MLRun client versions < 1.11.0 and Python 3.9–based images are not modified or migrated automatically. They continue to run exactly as they were originally defined, using the same MLRun client version, the same Python runtime (3.9), and the same image reference. After you upgrade your client to v1.11.0, all existing Python 3.9-based schedules must be rebuilt and re-created to migrate them to Python 3.11, and schedules must use Python 3.11.</li><li>TensorFlow/tf-keras are removed from `dev-requirements.txt `as part of the Python 3.11 upgrade. If you rely on them, you must manually install compatible versions.</li></ul> |
+|ML-11482|TDEngine is deprecated. Use TimescaleDB instead.  Model monitoring data in TDEngine is not migrated.|
+
+### MLRun hub
+| ID    |Description                                                                 |
+|-------|----------------------------------------------------------------------------|
+|10357|You can now import steps from the MLRun hub or your own private hub. See [Load steps from the hub](../runtimes/load-from-hub.md#steps) and {py:class}`~mlrun.hub.step.get_hub_step`.|
+
+### Documentation
+| ID    |Description                                                                 |
+|-------|----------------------------------------------------------------------------|
+|NA|Reorganized and updated the serving graph documentation. See [Real-time serving pipelines (graphs)](../serving/serving-graph.md).|
+|NA|The new [Profiles page](../store/profiles.md) describes provider profiles and source/target profiles.|
+|NA|Reorganized and updated the [CE installation guide](../install-mlrun-ce/index.md).
+
+### Closed issues
+| ID    |Description                                                                 |
+|-------|----------------------------------------------------------------------------|
+|ML-7955|The **Owner** field is no longer blank for artifacts that are registered in the UI.|
+|ML-9098|The date format in the date range dropdown now supports local formats. Non-supported locales use the US format: MM/DD/YYYY.|
+|ML-9272|Warning is now issued when the user supplies unexpected argument to the `job.run` method.|
+|ML-9615|There is now a timeout to Kubernetes client operations. Previously, API workers could hang indefinitely when the Kubernetes control plane was slow or unresponsive.|
+|ML-10643|If unarchiving a project fails, there is now an error message: `Failed to unarchive project {project.metadata.name}`. Previously there was no error message.
+|ML-11343|When running get_monitoring_function_summaries() without timezones now raises an error: `Custom start and end times must contain the timezone`. Previously this resuled in an error: `the call fails in get_start_end`.|
+|ML-11354|The function `mlconf.reload()` in `set_env_from_file()` now updates the mlconf with the env from the mlrun.env project file. Previously, it used the values from the file in the home directory.|
+|ML-11382|RabbitMQ triggers now hides credentials in the URL.|
+|ML-11580|Previously, when creating a serving graph with steps that run in parallel and setting the graph topology engine to sync, the deployment completed but invoking the function failed since the `sync` does not support branches. Now there is an error message before the deployment: `synchronous flow engine doesn't support branches use async for step <name>`.|
+|ML-11581|Added pagination to the Alerts tab. Now when opening the Alerts tab when there are numerous alerts, the message is `Only 100 alerts displayed. View all in alerts screen`.|
+|ML-11780|Fixed the error in [Model monitoring tutorial](../tutorials/05-model-monitoring.ipynb) that resulted in failure of `enable_model_monitoring`.|
+ML-11820|Improved the time to access the monitoring page (V3IO).|
+|ML-11969|Fixed description of alert auto reset that alerts are reset immediately. See [Alert reset policy](../concepts/alerts.md#alert-reset-policy).|
+|ML-11985|Improved the error message when a step of any kind is created with `after=<something other than a list>`.|
+|ML-12311|Resolved issue of failure to return project workflows by changing the defaults: counter refresh time is 1 mninute (was 30 seconds); and "in progress workflow counters" count only the last 2 days.|
+|ML-12328|Fixed KFP experiments pagination.|
+|ML-12372|Fixed workflows pagination.|
 
 (#v1103)=
 ## v1.10.3
 ### Closed issues
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
-|ML-12379|Fixed workflows pagination|
+|ML-12379|Fixed workflows pagination.|
 
 (v1102)=
 ## v1.10.2 (February 2025)
+
+```{admonition} Important
+**v1.10.x are the last versions that support Python 3.9 and TDEngine. They will not be supported in MLRun v1.11.0.<br>
+TDEngine will be replaced with TimescaleDB. Model monitoring data in TDEngine will not be migrated.**
+```
+
 ### Closed issues
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
@@ -61,10 +156,6 @@ See a full description of KFP, Python, and the workflow engines in {ref}`local-r
 (v1100)=
 ## v1.10.0 (November 2025)
 
-```{admonition} Important
-**v1.10.x are the last versions that support Python 3.9 and TDEngine. They will not be supported in MLRun v1.11.0.<br>
-TDEngine will be replaced with TimescaleDB. Model monitoring data in TDEngine will not be migrated.**
-```
 
 ### MLRun hub
 
@@ -124,7 +215,7 @@ TDEngine will be replaced with TimescaleDB. Model monitoring data in TDEngine wi
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
 | NA |The default `--allow-cross-project` CLI flag in `run`, `build`, `deploy`, and `project` CLI commands will change to `False` in v1.11.0.|
-|ML-11530|Use of underscore '_' in function names will be deprecated in v1.11.0. Use dashes '-' instead.|
+|ML-11414|Use of underscore '_' in function names will be deprecated in an upcoming release. Use dashes '-' instead.|
 
 
 ### Documentation
@@ -288,7 +379,7 @@ To upgrade the MLRun server:
 ### Runtimes
 | ID    |Description                                                                 |
 |-------|----------------------------------------------------------------------------|
-|ML-8642|{py:meth}`~mlrun.runtimes.ServingRuntime.add_model` and {py:meth}`~mlrun.serving.RouterStep.add_route` have a new parameter, `creation_strategy`. that defines whether / how endpoints are created or updated.|
+|ML-8642|{py:meth}`~mlrun.runtimes.ServingRuntime.add_model` and {py:meth}`~mlrun.serving.RouterStep.add_route` have a new parameter, `creation_strategy`, that defines whether / how endpoints are created or updated.|
 
 ### Breaking changes
 | ID    |Description                                                                 |
@@ -1394,41 +1485,41 @@ with a drill-down to view the steps and their details. [Tech Preview]
 - [UI change log in GitHub](https://github.com/mlrun/ui/releases/tag/v1.0.0)
 
 ## Open issues
-
-| ID| Description| Workaround                                                                                                                                                                                                                                                                                                                                                               |Opened in |
-|--------|----------------------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-----------|
-|ML-2052|mlrun service default limits are not applied to the wait-container on pipeline jobs.| NA                                                                                                                                                                                                                                                                                                                                                                       |v1.0.0|
-|ML-2030|Need a way to move artifacts from test to production Spark.           | To register artifact between different environments, e.g. dev and prod, upload your artifacts to a remote storage, e.g. S3. You can change the project artifact path using MLRun or MLRun UI. `project.artifact_path='s3:<bucket-name/..'`                                                                                                                               | v1.0.0    |
-|ML-2201|No error message is raised when an MPI job is created but pods cannot be scheduled. | NA                                                                                                                                                                                                                                                                                                                                                                       |v1.0.0|
-|ML-2407|Kafka ingestion service on an empty feature set returns an error.      | Ingest a sample of the data manually. This creates the schema for the feature set, and then the ingestion service accepts new records.                                                                                                                                                                                                                                   |v1.1.0    |
-|[2621](https://github.com/mlrun/mlrun/issues/2621)| Running a workflow whose project has `init_git=True`, results in Project error| Run `git config --global --add safe.directory '*'` (can substitute specific directory for *).                                                                                                                                                                                                                                                                            |v1.1.0    |
-|ML-2489|Cannot pickle a class inside an mlrun function.                       | Use cloudpickle instead of pickle.    |v1.2.0    |
-|ML-3081|The Monitor Workflows page does not present logs from the correct (Nuclio) deployment.| NA                                                                                                                                                                                                                                                                                                                                                                       |v1.2.1    |
-|ML-3294|Dask coredump during project deletion.| Before deleting a Dask project, verify that Dask was fully terminated.                                                                                                                                                                                                                                                                                                   |v1.3.0 |
-|ML-3315|Spark ingestion does not support nested aggregations.                 | NA                                                                                                                                                                                                                                                                                                                                                                       |v1.2.1    |
+                                                  
+| ID| Description                                                                                      | Workaround   |Opened in |
+|---|---------------------------------------------------------------------------------------------------|----|----|
+|ML-2052|mlrun service default limits are not applied to the wait-container on pipeline jobs.| NA  |v1.0.0|
+|ML-2030|Need a way to move artifacts from test to production Spark.           | To register artifact between different environments, e.g. dev and prod, upload your artifacts to a remote storage, e.g. S3. You can change the project artifact path using MLRun or MLRun UI. `project.artifact_path='s3:<bucket-name/..'`   | v1.0.0    |
+|ML-2201|No error message is raised when an MPI job is created but pods cannot be scheduled. | NA   |v1.0.0|
+|ML-2407|Kafka ingestion service on an empty feature set returns an error.      | Ingest a sample of the data manually. This creates the schema for the feature set, and then the ingestion service accepts new records.  |v1.1.0    |
+|[2621](https://github.com/mlrun/mlrun/issues/2621)| Running a workflow whose project has `init_git=True`, results in Project error| Run `git config --global --add safe.directory '*'` (can substitute specific directory for *). |v1.1.0    |
+|ML-2489|Cannot pickle a class inside an mlrun function.  | Use cloudpickle instead of pickle.    |v1.2.0    |
+|ML-3081|The Monitor Workflows page does not present logs from the correct (Nuclio) deployment.| NA  |v1.2.1    |
+|ML-3294|Dask coredump during project deletion.| Before deleting a Dask project, verify that Dask was fully terminated.|v1.3.0 |
+|ML-3315|Spark ingestion does not support nested aggregations.                 | NA |v1.2.1    |
 |ML-3341 / 2573|The mlrun cross-runtimes build logs should use log collector.|NA|v1.2.1|
-|ML-3386|Documentation is missing full details on the feature store sources and targets.| NA                                                                                                                                                                                                                                                                                                                                                                       |v1.2.1    |
+|ML-3386|Documentation is missing full details on the feature store sources and targets.| NA  |v1.2.1    |
 |ML-3445|`project.deploy_function` operation might get stuck when running v1.3.0 demos on an Iguazio platform running v3.2.x.| Replace code: `serving_fn = mlrun.new_function("serving", image="python:3.9", kind="serving", requirements=["mlrun[complete]", "scikit-learn~=1.2.0"])` with: <br>`function = mlrun.new_function("serving", image="python:3.9", kind="serving") function.with_commands([ "python -m pip install --upgrade pip", "pip install 'mlrun[complete]' scikit-learn==1.1.2", ])` |v1.3.0    |
-|NA|The feature store does not support schema evolution and does not have schema enforcement.| NA                                                                                                                                                                                                                                                                                                                                                                       | v1.2.1    |
+|NA|The feature store does not support schema evolution and does not have schema enforcement.| NA  | v1.2.1    |
 |ML-3526|Aggregation column order is not always respected (storey engine).| NA  | v1.3.0|
 |ML-3626|The "Save and ingest" option is disabled for a scheduled feature set. | NA | v1.3.0|
 |ML-3627|The feature store should not allows ingestion of `string` type for the timestamp key.|NA| v1.2.1|
-|ML-3636|`get_online_feature_service` from Redis target returns truncated values. | NA                                                                                                                                                                                                                                                                                          | v1.3.0|
+|ML-3636|`get_online_feature_service` from Redis target returns truncated values. | NA  | v1.3.0|
 |ML-3646|MapValues step on Spark ingest: keys of non-string type change to string type, sometime causing failures in graph logic.| NA | v1.2.1|
 |ML-3744|`get_offline_features` adds "Z" to the values of time_stamp column when using Spark engines. |NA|v1.3.1|
-|ML-3867|Cannot search for project owners by first name. | NA | v1.4.0  |                                                                                                                                                                                                                                                                                                                                                              | v1.4.0|
-|ML-6839|Schedules have a minimum interval between two scheduled jobs. By default, a job cannot be scheduled to run more than 2 times in 10 minutes. See {ref}`scheduled-jobs`.| NA                                                                                                                                                                                                                                                                                                                                                                       | v1.6.3 |
-|ML-4107| On scheduled ingestion (storey and pandas engines) from CSV source, ingests all of the source on each schedule iteration. | Use a different engine and/or source.                                                                                                                                                                                                                                                                                                                                    | v1.4.0 |	
-|ML-4153|When creating a passthrough feature-set in the UI, with no online target, the feature-set yaml includes a parquet offline target, which is ignored.| NA                                                                                                                                                                                                                                                                                                                                                                       | v1.4.0  |
-|ML-4166|Project yaml file that is very large cannot be stored.    | Do not embed the artifact object in the project yaml.                                                                                                                                                                                                                                                                                                                    | v1.4.0 |
-|ML-4186|on `get_offline_features` ('local'/pandas engine) with passthrough, a source parquet column of type BOOL has dtype "object" or "bool" in the response |                                                                                                                                                                                                                                                                                                                                                                          | v1.4.0|
-|ML-4582|Custom packagers cannot be added to projects created in MLRun previous to v1.4.0.|NA |v1.5.0 |                                                                                                                                                                                                                                                                                                                                                                | v1.6.0|
-|ML-4655|Timestamp entities are allowed for feature store, but format is inconsistent. | NA                                                                                                                                                                                                                                                                                                                                                                       |v1.5.0|
-|NL-4685|When using columns with type "float" as feature set entities, they are saved inconsistently to key-value stores by different engines.| Do not use columns with type float as feature set entities.                                                                                                                                                                                                                                                                                                              |v1.5.0 |
-|ML-4698|Parameters that are passed to a workflow are limited to 10000 chars.<!-- also mentioned in /concepts/submitting-tasks-jobs-to-functions.html -->| NA, external Kubeflow limitation.                                                                                                                                                                                                                                                                                                                                        | v1.5.0 |
-|ML-4725|ML functions show as if they are in the  "Creating" status, although they were created and used.| NA                                                                                                                                                                                                                                                                                                                                                                       |v1.4.1|
-|ML-4740|When running function `batch_inference_v2` from the SDK, the `ingest()` function accepts 3 parameters as Data-item or other types: `dataset`, `model_path` and `model_endpoint_sample_set`. If you provided these parameters as non Data-items and later on you want to rerun this function from the UI, you need to provide these parameters as Data-item.| Prepare suitable Data-item and provide it to the batch-rerun UI.                                                                                                                                                                                                                                                                                                         | v1.5.0    |
-|ML-4769|After deleting a project, data is still present in the Artifacts and Executions of pipelines UI.  | NA                                                                                                                                                                                                                                                                                                                                                                       | v1.4.0 |
+|ML-3867|Cannot search for project owners by first name. | NA | v1.4.0  | | v1.4.0|
+|ML-6839|Schedules have a minimum interval between two scheduled jobs. By default, a job cannot be scheduled to run more than 2 times in 10 minutes. See {ref}`scheduled-jobs`.| NA  | v1.6.3 |
+|ML-4107| On scheduled ingestion (storey and pandas engines) from CSV source, ingests all of the source on each schedule iteration. | Use a different engine and/or source.  | v1.4.0 |	
+|ML-4153|When creating a passthrough feature-set in the UI, with no online target, the feature-set yaml includes a parquet offline target, which is ignored.| NA  | v1.4.0  |
+|ML-4166|Project yaml file that is very large cannot be stored.    | Do not embed the artifact object in the project yaml.  | v1.4.0 |
+|ML-4186|on `get_offline_features` ('local'/pandas engine) with passthrough, a source parquet column of type BOOL has dtype "object" or "bool" in the response |  | v1.4.0|
+|ML-4582|Custom packagers cannot be added to projects created in MLRun previous to v1.4.0.|NA |v1.5.0 | | v1.6.0|
+|ML-4655|Timestamp entities are allowed for feature store, but format is inconsistent. | NA|v1.5.0|
+|NL-4685|When using columns with type "float" as feature set entities, they are saved inconsistently to key-value stores by different engines.| Do not use columns with type float as feature set entities. |v1.5.0 |
+|ML-4698|Parameters that are passed to a workflow are limited to 10000 chars.<!-- also mentioned in /concepts/submitting-tasks-jobs-to-functions.html -->| NA, external Kubeflow limitation. | v1.5.0 |
+|ML-4725|ML functions show as if they are in the  "Creating" status, although they were created and used.| NA  |v1.4.1|
+|ML-4740|When running function `batch_inference_v2` from the SDK, the `ingest()` function accepts 3 parameters as Data-item or other types: `dataset`, `model_path` and `model_endpoint_sample_set`. If you provided these parameters as non Data-items and later on you want to rerun this function from the UI, you need to provide these parameters as Data-item.| Prepare suitable Data-item and provide it to the batch-rerun UI.  | v1.5.0    |
+|ML-4769|After deleting a project, data is still present in the Artifacts and Executions of pipelines UI.  | NA | v1.4.0 |
 |ML-4881|Kubeflow pipelines parallelism parameter in dsl.ParallelFor() does not work (external dependency). | See [Running multiple functions in parallel](#parallelism-4881).  | v1.4.1|
 |ML-4942|The Dask dashboard requires the relevant node ports to be open. | Your infrastructure provider must open the ports manually. If running MLRun locally or CE, make sure to port-forward the port Dask Dashboard uses to ensure it is available externally to the Kubernetes cluster.  | v1.5.0 |
 |ML-4956|A function created by SDK is initially in the "initialized" state in the UI and needs to be deployed before running it. | In **Edit**, press **Deploy**  | v1.5.1 |
@@ -1443,7 +1534,6 @@ with a drill-down to view the steps and their details. [Tech Preview]
 |ML-7723|Spark job might remain stuck in running state upon k8s node reboot.| NA   | v1.7.0|  
 |ML-7746|In some cases, when the pipeline is extremely large it is not displayed in the graph.| NA | v1.7.0|      
 |ML-7820|`sync_functions` should only sync the functions in the workflow, and not all of the functions within the `project.yaml`.| NA | v1.7.0|        
-|ML-7955|The **Owner** field is blank for artifacts that are registered in the UI.| NA| v1.7.0| 
 |ML-8419|When the MySQL server is unavailable, a project with non-V3IO model monitoring cannot be deleted.|Run `project.set_model_monitoring_credentials(endpoint_store_connection="v3io", stream_path="v3io", tsdb_connection="v3io", replace_creds=True)` before deleting the project.|v1.7.1|
 |ML-8427|Missing FK constraints in DB causes migration to fail after upgrade. | Delete old runs before upgrading. |v1.7.0|
 |ML-8528|In rare circumstances, KF pipelines fail.|Retry the workflow.|v1.6.3|
@@ -1452,13 +1542,14 @@ with a drill-down to view the steps and their details. [Tech Preview]
 |ML-8796|The application runtime has two containers: the nuclio container uses the default resources and the sidecar container uses the function resources. | NA   |v1.7.1|
 |ML-8874|Documents that are added to different vectorstores with the same collection name cannot be differentiated.|Avoid using same collection name over different vectorstores.|v1.8.0|
 |ML-9336|Attempts to delete more than 200 artifacts fail, and you are prompted to use a more granular filter.|Configure the limit with `mlrun.mlconf.artifacts.limits.max_deletions`.|v1.8.0|
-|ML-9338|If the same project+key were created from both a hyper-param run and single run, and you removed the latest tag from everything, MLRun assigns latest to either the hyper-param items or the single run item, depending on which item comes up first when iterating over the results: it might not be the actual latest.|NA|v1.8.0|
 |ML-9913|UI: There may be a discrepancy in the artifact count between the Project monitoring page and the Artifacts page when running hyper-param jobs without a best-iteration. |Always provide a selection criteria for `best-iteration`.|v1.8.0|
 |ML-11463|The application graph in the model monitoring UI does not present the “dead zones” where no activity happened, and the time axis representation is not consistent.|NA|v1.10.0|
 |ML-11654|MLRun serving graphs with HTTP trigger and no responder. When a serving function is configured with an HTTP trigger only and the graph does not include any `.respond()` step, the function does not return the actual result or error of the graph execution. Instead, it only returns a generic invocation ID (for example, {"id": "<uuid>"}), even if an exception occurred inside the graph.|Add a `.respond()` step.|v1.10.0|
-|ML-11771|In rare circumstances, access to projects is temporarily unavailable.|Restart MLRun.|V1.9.2|
 |ML-11468|A rare race-condition exists in the pagination mechanism, where concurrently issuing two paginated query requests for the same resource and with the exact same parameters (for example, asking to list functions for the same project with same filters and order type) at the exact same time may result in one of these requests receiving an MLRunConflictError response.|Reissue the same request. |v1.10.1|
-
+|ML-12078|When Model-monitoring is enabled with V3io configured as default artifact storage, each model-endpoint creates 25 directories per day. |Run a daily cron job to delete parquet partition directories older than a week.|v1.11.0|
+|ML-12185|A split graph with a collector as a merge step does not fail deployment nor invoke and produce a false response. |Do not use the collector step as the merge step.|v1.11.0|
+|ML-12378|When using HTTP streaming, async does not work but works in the same manner as sync.|NA|v1.11.0|
+|ML-12458|Schedules only work with UTC timezone.|Use UTC instead of other timezones.|V1.11.0|
 
 ## Limitations
 
@@ -1476,11 +1567,17 @@ with a drill-down to view the steps and their details. [Tech Preview]
 |ML-5669|When using `mlrun.mlrun` image, use PyTorch versions up to and including than 2.0.1, but not higher. See [MLRun runtime images](../runtimes/images.md#mlrun-runtime-images) | You can build your own images with newer CUDA for a later release of PyTorch. |v1.6.0|  
 |ML-5732|When using an MLRun client previous to v1.6.0, the workflow step status might show completed when it is actually aborted. | Abort the job from the SDK instead of from the UI, or upgrade the client to v1.6.0 or higher. | v1.6.0 |
 |ML-8174|A loaded system takes a few minutes (±5) to calculate the statistics in the Projects Monitoring pane.|NA| v1.7.0|
-|ML-8601|Default spot labels node selector is removed. || v1.7.0|
 |ML-8699|After upgrade/restart there may be some lost notifications due to restart of the chief.|NA| v1.8.0|
 |ML-8996|Occasionally, deleting projects fails with 'Fail to delete project in MLRun' | Try deleting the project again.| v1.8.0|
 |ML-9235|After migrating from v1.7.x to v1.8.x, there are two artifacts with the same key that are tagged `latest`. When using such an artifact in the job by `key:tag` the job will fail with the error `multiple rows were found`.| NA|v1.8.0|
+|ML-9929|Partition-by query on artifact does not sort by best-iteration.|NA||
 |ML-9993|Pagination is not persistent upon browser refresh on Iguazio releases 3.6.0 and 3.6.1.|NA|v1.8.0|
+|ML-10004|Batch writes to TSDB fail when the ingestion rate for the TSDB target is greater than 1/s. The result is that you cannot monitor inferencing and at some point the influencing results are dropped. |NA|v1.11.0|
+|ML-10614|`project.log_model()` and `project.log_artifact()` do not account for the context folder.|NA|v1.11.0|
+
+
+
+
 
 
 
@@ -1515,22 +1612,6 @@ with a drill-down to view the steps and their details. [Tech Preview]
 | v1.12.0| v1.10.0 |Datastore class: `DatastoreProfileKafkaSource`, `DatastoreProfileKafkaTarget`    |`DatastoreProfileKafkaStream`|
 | v1.12.0| v1.10.0 |processing old batch model endpoint in `mlrun.model_monitoring.controller `  |NA|
 | v1.12.0| v1.10.0 |`fetch_credentials_from_sys_config`                                       |NA|
-| v1.11.0| v1.11.0|TDEngine support will be removed in v1.11.0. Data will not be migrated.|MLRun will support TimescaleDB.|
-| v1.11.0| v1.8.0 |`get_cached_artifact` of MLClientCtx                                              |`get_artifact`|
-| v1.11.0| v1.8.0 |`remove_function` of MLrunProject                            |`delete_function`|
-| v1.11.0| v1.8.0 |`batch` of `ServingRuntime.set_tracking`                   |NA|
-| v1.11.0| v1.8.0 |`limit` in `MLrunProject.list_artifacts`                               |`page` and `page_size`|
-| v1.11.0| v1.8.0 |`limit` in `HTTPRunDB.list_artifacts`                                  |`page` and `page_size`|
-| v1.11.0| v1.8.0 |`mlrun.platforms.VolumeMount`                                           |`mlrun.runtimes.mounts.VolumeMount`|
-| v1.11.0| v1.8.0 |`mlrun.platforms.auto_mount`                                            |`.mounts.auto_mount`|
-| v1.11.0| v1.8.0 |`mlrun.platforms.mount_configmap`                                            |`.mounts.mount_configmap`|
-| v1.11.0| v1.8.0 |`mlrun.platforms.mount_hostpath`                                            |`.mounts.mount_hostpath`|
-| v1.11.0| v1.8.0 |`mlrun.platforms.mount_pvc`                                            |`.mounts.mount_pvc`|
-| v1.11.0| v1.8.0 |`mlrun.platforms.mount_s3`                                            |`.mounts.mount_s3`|
-| v1.11.0| v1.8.0 |`mlrun.platforms.mount_secret`                                            |`.mounts.mount_secret`|
-| v1.11.0| v1.8.0 |`mlrun.platforms.mount_v3io`                                            |`.mounts.mount_v3io`|
-| v1.11.0| v1.8.0 |`mlrun.platforms.set_env_variables`                                            |`.mounts.set_env_variables`|
-| v1.11.0| v1.8.0 |`mlrun.platforms.v3io_cred`                                            |`.mounts.v3io_cred`|
 
 
 
@@ -1538,6 +1619,22 @@ with a drill-down to view the steps and their details. [Tech Preview]
 
 | Version|API                                                    |Use instead                                                                  |
 |---------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|------------------------------------------------------------------------------|
+| v1.11.0|TDEngine support is removed in v1.11.0. Data is not migrated.|MLRun supports TimescaleDB instead.|
+| v1.11.0|`get_cached_artifact` of MLClientCtx                                              |`get_artifact`|
+| v1.11.0|`remove_function` of MLrunProject                            |`delete_function`|
+| v1.11.0|`batch` of `ServingRuntime.set_tracking`                   |NA|
+| v1.11.0|`limit` in `MLrunProject.list_artifacts`                               |`page` and `page_size`|
+| v1.11.0|`limit` in `HTTPRunDB.list_artifacts`                                  |`page` and `page_size`|
+| v1.11.0|`mlrun.platforms.VolumeMount`                                           |`mlrun.runtimes.mounts.VolumeMount`|
+| v1.11.0|`mlrun.platforms.auto_mount`                                            |`.mounts.auto_mount`|
+| v1.11.0|`mlrun.platforms.mount_configmap`                                            |`.mounts.mount_configmap`|
+| v1.11.0|`mlrun.platforms.mount_hostpath`                                            |`.mounts.mount_hostpath`|
+| v1.11.0|`mlrun.platforms.mount_pvc`                                            |`.mounts.mount_pvc`|
+| v1.11.0|`mlrun.platforms.mount_s3`                                            |`.mounts.mount_s3`|
+| v1.11.0|`mlrun.platforms.mount_secret`                                            |`.mounts.mount_secret`|
+| v1.11.0|`mlrun.platforms.mount_v3io`                                            |`.mounts.mount_v3io`|
+| v1.11.0|`mlrun.platforms.set_env_variables`                                            |`.mounts.set_env_variables`|
+| v1.11.0|`mlrun.platforms.v3io_cred`                                            |`.mounts.v3io_cred
 | v1.10.0 |Class: `MLModelServer`                                        |`V2ModelServer` class|
 | v1.10.0 |`tracking_policy` in GraphServer and `ServingSpec` classes.   |NA|
 | v1.10.0 |Function: `get_or_create_model_endpoint()` in `mlrun.model_monitoring.api` |To create a new model endpoint, either deploy a monitored serving function as a real-time service or run it as an offline job.|
@@ -1574,8 +1671,6 @@ with a drill-down to view the steps and their details. [Tech Preview]
 | v1.10.0|Parameter: `mlrun.runtimes.base.mlrun_op` `rundb`                              |MLRUN_DBPATH environment variable |
 | v1.10.0|`bootstrap_servers` in `mlrun.datastore.datastore_profile.DatastoreProfileKafkaTarget` |brokers|
 | v1.10.0|`FunctionSpec.clone_target_dir`                                                |`ImageBuilder.source_code_target_dir`|
-| v1.10.0|
-| v1.10.0|
 | v1.8.0 |`--watch` parameter of `mlrun logs`                                                        |NA|
 | v1.8.0 |datastore `get_filesystem`                                                                 |`filesystem` property|
 | v1.8.0 |`dashboard` of `RemoteRuntime.invoke`                                                      |NA|

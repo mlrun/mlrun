@@ -113,6 +113,7 @@ class MLRunInternalLabels:
     feature_vector = "feature-vector"
 
     auth_userid = f"{MLRUN_LABEL_PREFIX}user-id"
+    auth_username = f"{MLRUN_LABEL_PREFIX}user"
     auth_token_name = f"{MLRUN_LABEL_PREFIX}token"
 
     @classmethod
@@ -143,3 +144,4 @@ class WorkflowSubmitMode(mlrun.common.types.StrEnum):
 
 class InternalAnnotations:
     auth_username = f"{MLRUN_LABEL_PREFIX}user"
+    auth_token_name = f"{MLRUN_LABEL_PREFIX}token"

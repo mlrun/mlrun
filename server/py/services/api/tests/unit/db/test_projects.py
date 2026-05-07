@@ -14,6 +14,7 @@
 
 import datetime
 import unittest.mock
+import uuid
 
 import deepdiff
 import pytest
@@ -460,6 +461,79 @@ class TestProjects(TestDatabaseBase):
 
         returned_names = {p.metadata.name for p in projects_output.projects}
         assert returned_names == {"proj-a", "proj-c"}
+
+    def test_get_project_status_columns_take_precedence_over_full_object(self):
+        # Full _full_object pickle and the dedicated columns can drift; the schema must come from columns.
+        name = "drift-project"
+        self._db.create_project(
+            self._db_session,
+            mlrun.common.schemas.Project(
+                metadata=mlrun.common.schemas.ProjectMetadata(name=name),
+                status=mlrun.common.schemas.ProjectStatus(state="online"),
+            ),
+        )
+
+        record = self._db_session.query(Project).filter(Project.name == name).one()
+        # Confirm the seeded full_object reflects the original state we wrote with.
+        assert record.full_object["status"]["state"] == "online"
+
+        # Drift the columns away from the pickled object (no full_object update).
+        op_id = uuid.uuid4()
+        # SQLite drops tzinfo on DateTime round-trip — store naive UTC so equality holds without DB-specific shims.
+        updated_at = datetime.datetime.utcnow().replace(microsecond=0)
+        record.state = "deleting"
+        record.op_id = op_id
+        record.phase = 2
+        record.updated_at = updated_at
+        self._db_session.commit()
+
+        project_output = self._db.get_project(self._db_session, name)
+        assert project_output.status.state == "deleting"
+        assert project_output.status.op_id == op_id
+        assert project_output.status.phase == 2
+        assert project_output.status.updated_at == updated_at
+
+    def test_list_projects_custom_selection_status_columns(self):
+        # The new sync columns must be selectable through the custom format and
+        # populate project.status (not just metadata/spec).
+        name = "custom-sync-project"
+        self._db.create_project(
+            self._db_session,
+            mlrun.common.schemas.Project(
+                metadata=mlrun.common.schemas.ProjectMetadata(name=name),
+            ),
+        )
+        op_id = uuid.uuid4()
+        # SQLite drops tzinfo on DateTime round-trip — store naive UTC so equality holds without DB-specific shims.
+        updated_at = datetime.datetime.utcnow().replace(microsecond=0)
+        record = self._db_session.query(Project).filter(Project.name == name).one()
+        record.state = "creating"
+        record.op_id = op_id
+        record.phase = 1
+        record.updated_at = updated_at
+        self._db_session.commit()
+
+        custom_format = framework.utils.project_formats.ProjectFormatCustomSelection(
+            [
+                framework.utils.project_formats.ProjectFormatCustom.name,
+                framework.utils.project_formats.ProjectFormatCustom.state,
+                framework.utils.project_formats.ProjectFormatCustom.op_id,
+                framework.utils.project_formats.ProjectFormatCustom.phase,
+                framework.utils.project_formats.ProjectFormatCustom.updated_at,
+            ]
+        )
+        projects_output = self._db.list_projects(
+            self._db_session,
+            format_=custom_format,
+            names=[name],
+        )
+        assert len(projects_output.projects) == 1
+        project = projects_output.projects[0]
+        assert project.metadata.name == name
+        assert project.status.state == "creating"
+        assert project.status.op_id == op_id
+        assert project.status.phase == 1
+        assert project.status.updated_at == updated_at
 
     def test_list_stale_projects_empty(self):
         output = self._db.list_stale_projects(

@@ -1237,6 +1237,37 @@ def test_list_projects_leader_format(
     )
 
 
+def test_get_project_returns_status_columns(
+    db: Session, client: TestClient, project_member_mode: str
+) -> None:
+    # Verify state/op_id/phase/updated_at on the response are sourced from the model columns,
+    # so a follower polling for sync state never sees a value drifted from the pickled full_object.
+    name = f"prj-{uuid4().hex}"
+    framework.utils.singletons.db.get_db().create_project(
+        db,
+        mlrun.common.schemas.Project(
+            metadata=mlrun.common.schemas.ProjectMetadata(name=name),
+        ),
+    )
+    op_id = uuid4()
+    # SQLite drops tzinfo on DateTime round-trip — store naive UTC so equality holds without DB-specific shims.
+    updated_at = datetime.datetime.utcnow().replace(microsecond=0)
+    record = db.query(Project).filter(Project.name == name).one()
+    record.state = "creating"
+    record.op_id = op_id
+    record.phase = 1
+    record.updated_at = updated_at
+    db.commit()
+
+    response = client.get(f"projects/{name}")
+    assert response.status_code == HTTPStatus.OK.value
+    status = response.json()["status"]
+    assert status["state"] == "creating"
+    assert status["op_id"] == str(op_id)
+    assert status["phase"] == 1
+    assert datetime.datetime.fromisoformat(status["updated_at"]) == updated_at
+
+
 def test_projects_crud(
     db: Session,
     client: TestClient,

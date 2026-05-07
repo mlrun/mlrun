@@ -6373,7 +6373,15 @@ class SQLDB(DBInterface):
     def _transform_project_record_to_schema(
         self, project_record: Project
     ) -> mlrun.common.schemas.ProjectOut:
-        return mlrun.common.schemas.ProjectOut(**project_record.full_object)
+        # Source state/op_id/phase/updated_at from the model columns to avoid drift with the pickled full_object.
+        # Inject before constructing the schema so pydantic validates and coerces (e.g. str → UUID for op_id).
+        full = project_record.full_object
+        status = full.setdefault("status", {})
+        status["state"] = project_record.state
+        status["op_id"] = project_record.op_id
+        status["phase"] = project_record.phase
+        status["updated_at"] = project_record.updated_at
+        return mlrun.common.schemas.ProjectOut(**full)
 
     def _transform_notification_record_to_spec_and_status(
         self,

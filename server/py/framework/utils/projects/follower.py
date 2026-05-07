@@ -256,6 +256,7 @@ class Member(
         labels: list[str] | None = None,
         state: mlrun.common.schemas.ProjectState = None,
         names: list[str] | None = None,
+        updated_after: datetime.datetime | None = None,
     ) -> mlrun.common.schemas.ProjectsOutput:
         if (
             format_ == mlrun.common.formatters.ProjectFormat.leader
@@ -268,7 +269,7 @@ class Member(
             )
 
         projects_output = services.api.crud.Projects().list_projects(
-            db_session, auth_info, owner, format_, labels, state, names
+            db_session, auth_info, owner, format_, labels, state, names, updated_after
         )
         if format_ == mlrun.common.formatters.ProjectFormat.leader:
             leader_projects = [

@@ -1268,6 +1268,41 @@ def test_get_project_returns_status_columns(
     assert datetime.datetime.fromisoformat(status["updated_at"]) == updated_at
 
 
+def test_list_projects_filter_updated_after(
+    db: Session, client: TestClient, project_member_mode: str
+) -> None:
+    old_at = datetime.datetime.now(datetime.UTC) - datetime.timedelta(hours=2)
+    recent_at = datetime.datetime.now(datetime.UTC) - datetime.timedelta(minutes=5)
+    name_old = f"old-{uuid4().hex}"
+    name_recent = f"recent-{uuid4().hex}"
+
+    for name, ts in [(name_old, old_at), (name_recent, recent_at)]:
+        framework.utils.singletons.db.get_db().create_project(
+            db,
+            mlrun.common.schemas.Project(
+                metadata=mlrun.common.schemas.ProjectMetadata(name=name),
+            ),
+        )
+        record = db.query(Project).filter(Project.name == name).one()
+        record.updated_at = ts
+        db.commit()
+
+    cutoff = (
+        datetime.datetime.now(datetime.UTC) - datetime.timedelta(minutes=30)
+    ).isoformat()
+    response = client.get(
+        "projects",
+        params={
+            "format": mlrun.common.formatters.ProjectFormat.name_only,
+            "updated_after": cutoff,
+        },
+    )
+    assert response.status_code == HTTPStatus.OK.value
+    returned = set(response.json()["projects"])
+    assert name_recent in returned
+    assert name_old not in returned
+
+
 def test_projects_crud(
     db: Session,
     client: TestClient,

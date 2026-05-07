@@ -3482,6 +3482,7 @@ class SQLDB(DBInterface):
         labels: list[str] | None = None,
         state: mlrun.common.schemas.ProjectState = None,
         names: list[str] | None = None,
+        updated_after: datetime | None = None,
     ) -> mlrun.common.schemas.ProjectsOutput:
 
         # if format is a custom selection, query only the requested columns
@@ -3507,6 +3508,8 @@ class SQLDB(DBInterface):
             query = self._add_labels_filter(session, query, Project, labels)
         if names is not None:
             query = query.filter(Project.name.in_(names))
+        if updated_after is not None:
+            query = query.filter(Project.updated_at >= updated_after)
 
         project_records = query.all()
         return mlrun.common.schemas.ProjectsOutput(

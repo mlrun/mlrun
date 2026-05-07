@@ -493,6 +493,50 @@ class TestProjects(TestDatabaseBase):
         assert project_output.status.phase == 2
         assert project_output.status.updated_at == updated_at
 
+    def test_list_projects_filter_updated_after(self):
+        old_at = datetime.datetime.now(datetime.UTC) - datetime.timedelta(hours=2)
+        recent_at = datetime.datetime.now(datetime.UTC) - datetime.timedelta(minutes=5)
+
+        for name, updated_at in [("old", old_at), ("recent", recent_at)]:
+            self._db.create_project(
+                self._db_session,
+                mlrun.common.schemas.Project(
+                    metadata=mlrun.common.schemas.ProjectMetadata(name=name),
+                ),
+            )
+            record = self._db_session.query(Project).filter(Project.name == name).one()
+            record.updated_at = updated_at
+            self._db_session.commit()
+
+        # Cutoff between the two — only "recent" should remain.
+        cutoff = datetime.datetime.now(datetime.UTC) - datetime.timedelta(minutes=30)
+        output = self._db.list_projects(
+            self._db_session,
+            format_=mlrun.common.formatters.ProjectFormat.name_only,
+            updated_after=cutoff,
+        )
+        assert output.projects == ["recent"]
+
+        # Cutoff before both — both returned.
+        early_cutoff = datetime.datetime.now(datetime.UTC) - datetime.timedelta(days=1)
+        output = self._db.list_projects(
+            self._db_session,
+            format_=mlrun.common.formatters.ProjectFormat.name_only,
+            updated_after=early_cutoff,
+        )
+        assert set(output.projects) == {"old", "recent"}
+
+        # Cutoff in the future — none returned.
+        future_cutoff = datetime.datetime.now(datetime.UTC) + datetime.timedelta(
+            hours=1
+        )
+        output = self._db.list_projects(
+            self._db_session,
+            format_=mlrun.common.formatters.ProjectFormat.name_only,
+            updated_after=future_cutoff,
+        )
+        assert output.projects == []
+
     def test_list_projects_custom_selection_status_columns(self):
         # The new sync columns must be selectable through the custom format and
         # populate project.status (not just metadata/spec).

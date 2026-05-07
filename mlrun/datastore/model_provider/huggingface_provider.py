@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import threading
+import time
 from typing import TYPE_CHECKING, Any, Optional, Union
 
 import mlrun
@@ -121,11 +122,14 @@ class HuggingFaceProvider(ModelProvider):
             from huggingface_hub import snapshot_download
 
             # Download the model and tokenizer files directly to the cache.
-            snapshot_download(
-                repo_id=self.model,
-                local_dir_use_symlinks=False,
-                token=self._get_secret_or_env("HF_TOKEN") or None,
-            )
+
+            print("sleeping")
+            time.sleep(1000)
+            # snapshot_download(
+            #     repo_id=self.model,
+            #     local_dir_use_symlinks=False,
+            #     token=self._get_secret_or_env("HF_TOKEN") or None,
+            # )
         except ImportError as exc:
             raise ImportError("huggingface_hub package is not installed") from exc
 

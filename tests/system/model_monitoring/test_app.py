@@ -2930,8 +2930,9 @@ class TestHTTPIngest(TestMLRunSystemModelMonitoring):
             condition_description="TSDB to receive HTTP-ingested events for all endpoints",
         )
 
-        for ep_id in endpoint_ids:
+        for ep_name, ep_id in zip(all_ep_names, endpoint_ids):
             mep = self.run_db.get_model_endpoint(
+                name=ep_name,
                 project=self.project_name,
                 endpoint_id=ep_id,
                 tsdb_metrics=True,

@@ -2975,6 +2975,15 @@ def test_model_endpoint_instruction_invalid_name_raises(invalid_name):
         ModelEndpointInstruction(name=invalid_name)
 
 
+@unittest.mock.patch.object(mlrun.db.nopdb.NopDB, "get_model_monitoring_url")
+def test_get_model_monitoring_url_module_level(mock_get):
+    """mlrun.get_model_monitoring_url() delegates to the DB layer."""
+    mock_get.return_value = "http://stream:8080"
+    url = mlrun.get_model_monitoring_url("my-project")
+    assert url == "http://stream:8080"
+    mock_get.assert_called_once_with("my-project")
+
+
 @pytest.mark.parametrize(
     "kind, handler, expected_runtime_kind",
     [

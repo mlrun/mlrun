@@ -374,6 +374,17 @@ class TestBuildAndInjectMonitoringEnvVars:
         assert "MODEL_MONITORING_URL" not in names
         assert "MODEL_ENDPOINT_UID" in names
 
+    def test_empty_instructions_raises(self):
+        dep = mm_dep.MonitoringDeployment(project="proj")
+        with pytest.raises(
+            mlrun.errors.MLRunInvalidArgumentError, match="empty or malformed"
+        ):
+            dep._build_and_inject_monitoring_env_vars(
+                function={},
+                model_endpoints_instructions=[],
+                stream_url=None,
+            )
+
 
 class TestCreateModelEndpointsInstructionsForNuclioApp:
     """Tests for _create_model_endpoints_instructions_for_nuclio_app."""
@@ -459,6 +470,64 @@ class TestCreateModelEndpointsInstructionsForNuclioApp:
             )
 
         assert instructions == []
+
+    @pytest.mark.asyncio
+    async def test_instruction_objects_accepted_directly(self):
+        from mlrun.common.schemas.model_monitoring.model_endpoints import (
+            ModelEndpointInstruction,
+        )
+
+        dep = mm_dep.MonitoringDeployment(project="proj")
+        fn_dict = {
+            "metadata": {"tag": "latest"},
+            "spec": {
+                "model_endpoints_instructions": [
+                    ModelEndpointInstruction(name="ep-obj")
+                ]
+            },
+        }
+
+        stream_patch, db_patch = self._mock_db_and_stream("http://stream:8080")
+        with stream_patch, db_patch:
+            (
+                instructions,
+                stream_url,
+                _,
+            ) = await dep._create_model_endpoints_instructions_for_nuclio_app(
+                db_session=Mock(spec=mm_dep.sqlalchemy.orm.Session),
+                function=fn_dict,
+                function_name="my-fn",
+                project="proj",
+            )
+
+        assert len(instructions) == 1
+        ep, _ = instructions[0]
+        assert ep.metadata.name == "ep-obj"
+
+    @pytest.mark.asyncio
+    async def test_stream_url_none_logs_warning(self):
+        from mlrun.common.schemas.model_monitoring.model_endpoints import (
+            ModelEndpointInstruction,
+        )
+
+        dep = mm_dep.MonitoringDeployment(project="proj")
+        fn_dict = self._function_dict([ModelEndpointInstruction(name="ep1")])
+
+        stream_patch, db_patch = self._mock_db_and_stream(None)
+        with stream_patch, db_patch:
+            (
+                instructions,
+                stream_url,
+                _,
+            ) = await dep._create_model_endpoints_instructions_for_nuclio_app(
+                db_session=Mock(spec=mm_dep.sqlalchemy.orm.Session),
+                function=fn_dict,
+                function_name="my-fn",
+                project="proj",
+            )
+
+        assert stream_url is None
+        assert len(instructions) == 1
 
     @pytest.mark.asyncio
     async def test_invalid_instruction_type_raises(self):

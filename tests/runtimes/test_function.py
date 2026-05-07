@@ -597,6 +597,17 @@ class TestSetupModelMonitoring:
         result = fn.setup_model_monitoring()
         assert result is fn
 
+    def test_setup_model_monitoring_warns_on_override(self):
+        import warnings
+
+        fn = self._nuclio_fn()
+        fn.setup_model_monitoring()
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            fn.setup_model_monitoring()
+        assert len(w) == 1
+        assert "overridden" in str(w[0].message).lower()
+
     def test_extra_instructions_mixed_types_raises(self):
         from mlrun.common.schemas.model_monitoring.model_endpoints import (
             ModelEndpointInstruction,

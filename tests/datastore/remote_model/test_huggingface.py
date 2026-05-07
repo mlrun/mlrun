@@ -110,6 +110,7 @@ def test_snapshot_download_called_with_all_params(cred_mode):
     fake_endpoint = "https://my-custom-hub.example.com"
     model_name = "fake-org/fake-model"
     profile_name = "test-hf-profile"
+    fake_max_workers = 4
 
     if cred_mode == "profile":
         profile = HuggingFaceProfile(
@@ -121,6 +122,7 @@ def test_snapshot_download_called_with_all_params(cred_mode):
             device_map="auto",
             trust_remote_code=True,
             model_kwargs={"torch_dtype": "float16"},
+            max_workers=fake_max_workers,
         )
         register_temporary_client_datastore_profile(profile)
         url = f"ds://{profile_name}/{model_name}"
@@ -135,6 +137,7 @@ def test_snapshot_download_called_with_all_params(cred_mode):
             "HF_DEVICE_MAP": "auto",
             "HF_TRUST_REMOTE_CODE": True,
             "HF_MODEL_KWARGS": {"torch_dtype": "float16"},
+            "HF_MAX_WORKERS": fake_max_workers,
         }
 
     with unittest.mock.patch("huggingface_hub.snapshot_download") as mock_snapshot:
@@ -145,12 +148,14 @@ def test_snapshot_download_called_with_all_params(cred_mode):
             local_dir_use_symlinks=False,
             token=fake_token,
             endpoint=fake_endpoint,
+            max_workers=fake_max_workers,
         )
 
     provider = cast(HuggingFaceProvider, provider)
 
-    # endpoint must not bleed into pipeline() kwargs
+    # endpoint and max_workers must not bleed into pipeline() kwargs
     assert "endpoint" not in provider.options
+    assert "max_workers" not in provider.options
 
     # verify all other client options are correctly populated
     assert provider.options["task"] == "text-generation"
@@ -187,6 +192,7 @@ def test_client_options_defaults(cred_mode):
             local_dir_use_symlinks=False,
             token=None,
             endpoint=None,
+            max_workers=None,
         )
 
     provider = cast(HuggingFaceProvider, provider)
@@ -198,6 +204,7 @@ def test_client_options_defaults(cred_mode):
     assert "trust_remote_code" not in provider.options
     assert "model_kwargs" not in provider.options
     assert "endpoint" not in provider.options
+    assert "max_workers" not in provider.options
 
 
 class TestHuggingFaceStreaming:

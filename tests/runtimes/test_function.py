@@ -596,3 +596,16 @@ class TestSetupModelMonitoring:
         fn = self._nuclio_fn()
         result = fn.setup_model_monitoring()
         assert result is fn
+
+    def test_extra_instructions_mixed_types_raises(self):
+        from mlrun.common.schemas.model_monitoring.model_endpoints import (
+            ModelEndpointInstruction,
+        )
+
+        fn = self._nuclio_fn()
+        mixed = [
+            ModelEndpointInstruction(name="ep-obj"),
+            {"name": "ep-dict"},
+        ]
+        with pytest.raises(mlrun.errors.MLRunInvalidArgumentError, match="mix"):
+            fn.setup_model_monitoring(extra_model_endpoint_instructions=mixed)

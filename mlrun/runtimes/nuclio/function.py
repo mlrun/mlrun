@@ -245,10 +245,7 @@ class NuclioSpec(KubeResourceSpec):
 
     def _serialize_field(self, struct, field_name=None, strip=False):
         if field_name == "model_endpoints_instructions":
-            return [
-                inst.to_dict() if hasattr(inst, "to_dict") else inst
-                for inst in self._model_endpoints_instructions
-            ]
+            return [inst.dict() for inst in self._model_endpoints_instructions]
         return super()._serialize_field(struct, field_name, strip)
 
     @property
@@ -396,12 +393,15 @@ class RemoteRuntime(KubeResource):
         """
         if self.spec.model_endpoints_instructions:
             warnings.warn(
-                "model_endpoints_instructions will be overridden by setup_model_monitoring. "
-                "if you want to set custom model endpoints, please pass them as parameters to this method"
+                "Previous  model_endpoints_instructions will be overridden by this call"
             )
         if general_model_endpoint_instructions is None:
             self.spec.model_endpoints_instructions = [
-                ModelEndpointInstruction(name=f"{self.metadata.name}_model_endpoint")
+                ModelEndpointInstruction(
+                    name=f"{self.metadata.name}_model_endpoint",
+                    function_name=self.metadata.name,
+                    function_tag=self.metadata.tag,
+                ),
             ]
         else:
             self.spec.model_endpoints_instructions = [
@@ -414,11 +414,19 @@ class RemoteRuntime(KubeResource):
                 )
             ]
         if extra_model_endpoint_instructions:
-            if isinstance(extra_model_endpoint_instructions[0], dict):
+            if all(isinstance(i, dict) for i in extra_model_endpoint_instructions):
                 extra_model_endpoint_instructions = [
                     ModelEndpointInstruction.from_dict(instruction)
                     for instruction in extra_model_endpoint_instructions
                 ]
+            elif not all(
+                isinstance(instruction, ModelEndpointInstruction)
+                for instruction in extra_model_endpoint_instructions
+            ):
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    "extra_model_endpoint_instructions must be a uniform list of "
+                    "ModelEndpointInstruction objects or dicts, not a mix of both."
+                )
             self.spec.model_endpoints_instructions.extend(
                 extra_model_endpoint_instructions
             )

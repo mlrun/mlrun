@@ -300,7 +300,7 @@ class ModelEndpointInstruction(BaseModel):
             2. Create a new model endpoint with the same name and set it to `latest`.
     """
 
-    name: str
+    name: constr(regex=MODEL_ENDPOINT_ID_PATTERN)
     input_schema: list[str] | None = None
     output_schema: list[str] | None = None
     function_name: str | None = None

@@ -1944,11 +1944,6 @@ def test_run_function_passes_project_artifact_path(rundb_mock):
         ("./remote_workflow.py", does_not_raise(), "remote"),
         ("./remote_workflow.py", does_not_raise(), "remote:local"),
         ("./remote_workflow.py", does_not_raise(), "remote:kfp"),
-        # store:// URI — accepted despite no file suffix; code_type validation
-        # happens separately in set_workflow when the artifact is reachable.
-        ("store://artifacts/proj/my_pipeline_code", does_not_raise(), None),
-        ("store://artifacts/proj/my_pipeline_code", does_not_raise(), "kfp"),
-        ("store://artifacts/proj/my_pipeline_code", does_not_raise(), "remote"),
     ],
 )
 def test_set_workflow_path_validation(
@@ -2158,6 +2153,45 @@ def test_workflow_spec_get_source_file_rejects_non_code_artifact(
         spec.get_source_file(context=str(tmp_path), project_name="wf-spec-non-code")
 
 
+def test_validate_workflow_code_artifact_pure():
+    """The pure-validation helper handles the kind/code_type matrix in isolation.
+
+    This is the seam the integration tests above cover via set_workflow /
+    get_source_file end-to-end; testing it directly pins the matrix without
+    rebuilding rundb mocks.
+    """
+    validate = mlrun.projects.pipelines._validate_workflow_code_artifact
+
+    # accepted: kind='code' + code_type='workflow'
+    ok = mlrun.artifacts.CodeArtifact(
+        key="ok",
+        code_type=mlrun.artifacts.CodeArtifactCodeType.workflow,
+    )
+    validate(ok, "store://artifacts/p/ok")
+
+    # accepted: kind='code' + code_type=None (older clients, backward compat)
+    legacy = mlrun.artifacts.CodeArtifact(key="legacy")
+    legacy.spec.code_type = None
+    validate(legacy, "store://artifacts/p/legacy")
+
+    # rejected: kind='code' + code_type='function'
+    function_kind = mlrun.artifacts.CodeArtifact(
+        key="function_kind",
+        code_type=mlrun.artifacts.CodeArtifactCodeType.function,
+    )
+    with pytest.raises(
+        mlrun.errors.MLRunInvalidArgumentError, match="expected 'workflow'"
+    ):
+        validate(function_kind, "store://artifacts/p/function_kind")
+
+    # rejected: kind='artifact' (a generic non-code artifact)
+    not_code = mlrun.artifacts.Artifact(key="not_code")
+    with pytest.raises(
+        mlrun.errors.MLRunInvalidArgumentError, match="expected a code artifact"
+    ):
+        validate(not_code, "store://artifacts/p/not_code")
+
+
 @pytest.mark.parametrize(
     "workflow_path, expected_after_rewrite",
     [
@@ -2178,11 +2212,13 @@ def test_workflow_spec_get_source_file_rejects_non_code_artifact(
         (None, None),
     ],
 )
-def test_remote_runner_relativize_workflow_path(workflow_path, expected_after_rewrite):
-    """_RemoteRunner.relativize_workflow_path: relativize project-local paths,
-    leave URL paths verbatim so the runner pod can resolve them via
-    WorkflowSpec.get_source_file."""
-    result = mlrun.projects.pipelines._RemoteRunner.relativize_workflow_path(
+def test_remote_runner_make_workflow_path_relative(
+    workflow_path, expected_after_rewrite
+):
+    """_RemoteRunner.make_workflow_path_relative: convert project-local paths
+    to ``./relative`` form; leave URL paths verbatim so the runner pod can
+    resolve them via WorkflowSpec.get_source_file."""
+    result = mlrun.projects.pipelines._RemoteRunner.make_workflow_path_relative(
         workflow_path, "/path/to/project"
     )
     assert result == expected_after_rewrite

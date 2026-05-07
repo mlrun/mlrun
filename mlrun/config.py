@@ -357,6 +357,7 @@ default_config = {
                     "start_logs": "enabled",
                     "stop_logs": "enabled",
                     "retry_jobs": "enabled",
+                    "project_sync_2pc": "disabled",
                 },
             },
             "worker": {
@@ -551,6 +552,9 @@ default_config = {
                 "list_pipelines_time_period_in_days": 2,
             },
             "resource_deletion_batch_size": 10000,
+            "stale_resource_ttl_create": "2 minutes",
+            "stale_resource_ttl_update": "2 minutes",
+            "stale_resource_ttl_delete": "10 minutes",
         },
         # The API needs to know what is its k8s svc url so it could enrich it in the jobs it creates
         "api_url": "",
@@ -904,6 +908,13 @@ default_config = {
         "verbose": False,
         # used for igz client when emitting events
         "access_key": "",
+        "db_connection": {
+            # Per-process throttle: at most one Platform.MLRun.DB.Connection.Failed
+            # event every N seconds. Iguazio's event service has its own
+            # throttling; this is a local cap so a sustained outage doesn't emit
+            # one event per failed query.
+            "min_emit_interval_seconds": 60,
+        },
     },
     "grafana_url": "",
     "alerts": {

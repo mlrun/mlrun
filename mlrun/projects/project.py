@@ -48,6 +48,7 @@ import mlrun.common.schemas.artifact
 import mlrun.common.schemas.model_monitoring.constants as mm_constants
 import mlrun.common.schemas.notification
 import mlrun.common.secrets
+import mlrun.datastore
 import mlrun.datastore.datastore_profile
 import mlrun.db
 import mlrun.errors
@@ -2654,7 +2655,7 @@ class MlrunProject(ModelObj):
     def enable_model_monitoring(
         self,
         base_period: int = 10,
-        image: str = "mlrun/mlrun",
+        image: str | None = None,
         *,
         deploy_histogram_data_drift_app: bool = True,
         wait_for_deployment: bool = False,
@@ -2675,7 +2676,8 @@ class MlrunProject(ModelObj):
                                                   (which is also the minimum value for production environments).
         :param image:                             The image of the model monitoring controller, writer, monitoring
                                                   stream & histogram data drift functions, which are real time nuclio
-                                                  functions. By default, the image is mlrun/mlrun.
+                                                  functions. Defaults to
+                                                  ``mlrun.mlconf.function_defaults.image_by_kind.nuclio``.
         :param deploy_histogram_data_drift_app:   If true, deploy the default histogram-based data drift application:
             :py:class:`~mlrun.model_monitoring.applications.histogram_data_drift.HistogramDataDriftApplication`.
             If false, and you want to deploy the histogram data drift application
@@ -2741,7 +2743,7 @@ class MlrunProject(ModelObj):
     def update_model_monitoring_controller(
         self,
         base_period: int = 10,
-        image: str = "mlrun/mlrun",
+        image: str | None = None,
         *,
         wait_for_deployment: bool = False,
     ) -> None:
@@ -2752,7 +2754,8 @@ class MlrunProject(ModelObj):
                                     is triggered. By default, the base period is 10 minutes.
         :param image:               The image of the model monitoring controller, writer & monitoring
                                     stream functions, which are real time nuclio functions.
-                                    By default, the image is mlrun/mlrun.
+                                    Defaults to
+                                    ``mlrun.mlconf.function_defaults.image_by_kind.nuclio``.
         :param wait_for_deployment: If true, return only after the deployment is done on the backend.
                                     Otherwise, deploy the controller on the background.
         """
@@ -4173,12 +4176,14 @@ class MlrunProject(ModelObj):
         :param function_name: The name of the function to filter by
         :param function_tag: The tag of the function to filter by
         :param labels: Filter model endpoints by label key-value pairs or key existence. This can be provided as:
+
             - A dictionary in the format `{"label": "value"}` to match specific label key-value pairs,
-            or `{"label": None}` to check for key existence.
+              or `{"label": None}` to check for key existence.
             - A list of strings formatted as `"label=value"` to match specific label key-value pairs,
-            or just `"label"` for key existence.
+              or just `"label"` for key existence.
             - A comma-separated string formatted as `"label1=value1,label2"` to match entities with
-            the specified key-value pairs or key existence.
+              the specified key-value pairs or key existence.
+
         :param start:           The start time to filter by.Corresponding to the `created` field.
         :param end:             The end time to filter by. Corresponding to the `created` field.
         :param top_level:       If true will return only routers and endpoint that are NOT children of any router.
@@ -4383,14 +4388,18 @@ class MlrunProject(ModelObj):
         :param mlrun_version_specifier:  which mlrun package version to include (if not current)
         :param builder_env:         Kaniko builder pod env vars dict (for config/credentials)
             e.g. builder_env={"GIT_TOKEN": token}, does not work yet in KFP
-        :param overwrite_build_params:  Overwrite existing build configuration (currently applies to
-            requirements and commands)
+        :param overwrite_build_params: Overwrite existing build configuration (currently only
+            applies to requirements and commands).
 
-            * False: The new params are merged with the existing
-            * True: The existing params are replaced by the new ones
+            * False: The values passed in this call are merged with the project's stored values.
+            * True: The values passed in this call replace the project's stored values for commands
+              and requirements. Parameters not explicitly passed retain their stored values.
 
-        :param extra_args:  A string containing additional builder arguments in the format of command-line options,
-            e.g. extra_args="--skip-tls-verify --build-arg A=val"
+            To remove existing stored values, use ``overwrite_build_params=True`` and pass the values
+            explicitly like this ``(commands=[""], requirements=[""])``.
+
+        :param extra_args:  A string containing additional builder arguments in the format of,
+            command-line options e.g. extra_args="--skip-tls-verify --build-arg A=val"
         :param force_build:  force building the image, even when no changes were made
         """
         return build_function(
@@ -4437,11 +4446,15 @@ class MlrunProject(ModelObj):
         :param secret_name:     k8s secret for accessing the docker registry
         :param requirements: a list of packages to install on the built image
         :param requirements_file: requirements file to install on the built image
-        :param overwrite_build_params:  Overwrite existing build configuration (currently applies to
-            requirements and commands)
+        :param overwrite_build_params: Overwrite existing build configuration (currently only
+            applies to requirements and commands).
 
-            * False: The new params are merged with the existing
-            * True: The existing params are replaced by the new ones
+            * False: The values passed in this call are merged with the project's stored values.
+            * True: The values passed in this call replace the project's stored values for commands
+              and requirements. Parameters not explicitly passed retain their stored values.
+
+            To remove existing stored values, use ``overwrite_build_params=True`` and pass the values
+            explicitly like this ``(commands=[""], requirements=[""])``.
 
         :param builder_env: Kaniko builder pod env vars dict (for config/credentials)
             e.g. builder_env={"GIT_TOKEN": token}, does not work yet in KFP
@@ -4506,11 +4519,15 @@ class MlrunProject(ModelObj):
         :param mlrun_version_specifier:  which mlrun package version to include (if not current)
         :param builder_env:     Kaniko builder pod env vars dict (for config/credentials)
             e.g. builder_env={"GIT_TOKEN": token}, does not work yet in KFP
-        :param overwrite_build_params:  Overwrite existing build configuration (currently applies to
-            requirements and commands)
+        :param overwrite_build_params: Overwrite existing build configuration (currently only
+            applies to requirements and commands).
 
-            * False: The new params are merged with the existing
-            * True: The existing params are replaced by the new ones
+            * False: The values passed in this call are merged with the project's stored values.
+            * True: The values passed in this call replace the project's stored values for commands
+              and requirements. Parameters not explicitly passed retain their stored values.
+
+            To remove existing stored values, use ``overwrite_build_params=True`` and pass the values
+            explicitly like this ``(commands=[""], requirements=[""])``.
 
         :param extra_args:  A string containing additional builder arguments in the format of command-line options,
             e.g. extra_args="--skip-tls-verify --build-arg A=val"
@@ -6095,6 +6112,22 @@ def _init_function_from_dict(
         func = new_function(
             name, image=image, kind=kind or "job", handler=handler, tag=tag
         )
+
+    elif mlrun.utils.is_store_uri(url):
+        # store:// artifact URI — store as-is in spec.build.source, resolve at run/deploy time
+        if with_repo:
+            raise ValueError(
+                "with_repo=True is not supported with store:// artifact URIs. "
+                "The artifact already provides the code source."
+            )
+        func = new_function(
+            name,
+            image=image,
+            kind=kind or "job",
+            handler=handler,
+            tag=tag,
+        )
+        func.spec.build.source = url
 
     elif is_yaml_path(url) or url.startswith("db://") or url.startswith("hub://"):
         func = import_function(url, new_name=name)

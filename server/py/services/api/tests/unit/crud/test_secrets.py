@@ -911,10 +911,18 @@ def test_list_secret_tokens_returns_tokens():
     exp2 = datetime.datetime(2025, 9, 11, 12, 0, 0, tzinfo=datetime.UTC)
     expected_tokens = [
         mlrun.common.schemas.SecretTokenInfo(
-            name="jupyter", expiration=exp1, issued_at=iat1, user_id="user-id-123"
+            name="jupyter",
+            expiration=exp1,
+            issued_at=iat1,
+            user_id="user-id-123",
+            username="dummy-user",
         ),
         mlrun.common.schemas.SecretTokenInfo(
-            name="my-token", expiration=exp2, issued_at=iat2, user_id="user-id-123"
+            name="my-token",
+            expiration=exp2,
+            issued_at=iat2,
+            user_id="user-id-123",
+            username="dummy-user",
         ),
     ]
 
@@ -938,7 +946,7 @@ def test_list_secret_tokens_returns_tokens():
     assert response.secret_tokens[1].user_id == "user-id-123"
 
     mock_secrets_provider.list_user_token_secrets.assert_called_once_with(
-        user_id=auth_info.user_id
+        username=auth_info.username
     )
 
 
@@ -1061,12 +1069,14 @@ async def test_delete_secret_tokens_success(mock_iguazio_client):
             expiration=datetime.datetime.now(),
             issued_at=datetime.datetime.now(),
             user_id=auth_info.user_id,
+            username=auth_info.username,
         ),
         mlrun.common.schemas.SecretTokenInfo(
             name="token-2",
             expiration=datetime.datetime.now(),
             issued_at=datetime.datetime.now(),
             user_id=auth_info.user_id,
+            username=auth_info.username,
         ),
     ]
 
@@ -1084,7 +1094,7 @@ async def test_delete_secret_tokens_success(mock_iguazio_client):
     assert result.username == auth_info.username
 
     mock_secrets_provider.list_user_token_secrets.assert_called_once_with(
-        user_id=auth_info.user_id
+        username=auth_info.username
     )
 
     # Revocation is skipped in bulk delete, only K8s secrets are deleted
@@ -1113,18 +1123,21 @@ async def test_delete_secret_tokens_partial_failure(mock_iguazio_client):
             expiration=datetime.datetime.now(),
             issued_at=datetime.datetime.now(),
             user_id=auth_info.user_id,
+            username=auth_info.username,
         ),
         mlrun.common.schemas.SecretTokenInfo(
             name="token-2",
             expiration=datetime.datetime.now(),
             issued_at=datetime.datetime.now(),
             user_id=auth_info.user_id,
+            username=auth_info.username,
         ),
         mlrun.common.schemas.SecretTokenInfo(
             name="token-3",
             expiration=datetime.datetime.now(),
             issued_at=datetime.datetime.now(),
             user_id=auth_info.user_id,
+            username=auth_info.username,
         ),
     ]
 

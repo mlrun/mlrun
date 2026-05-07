@@ -75,7 +75,6 @@ These parameters are maintained when modifying parameters on the Iguazio platfor
 In the community edition, you can use your own SMTP server.
 To configure it, manually create the `mlrun-smtp-config` Kubernetes secret with the default
 parameters for the SMTP server (`server_host`, `server_port`, `username`, `password`, `start_tls`, etc.).
-After creating or editing the secret, refresh the MLRun SMTP configuration by running the `refresh_smtp_configuration` method.
 
 ### Create a mail notification object
 

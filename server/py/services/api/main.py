@@ -52,6 +52,7 @@ import services.api.crud
 import services.api.initial_data
 import services.api.runtime_handlers
 import services.api.utils.db.partitioner
+import services.api.utils.events.db_errors
 from framework.db.session import close_session, create_session
 from framework.utils.periodic import (
     run_function_periodically,
@@ -142,6 +143,9 @@ class Service(framework.service.Service):
 
     async def _custom_setup_service(self):
         initialize_logs_dir()
+        # Attach the DB connection-failed event listener before any DB work so
+        # we capture connection issues that surface during initial migrations.
+        services.api.utils.events.db_errors.register_for_default_engine()
         await mlrun.utils.run_in_threadpool(self._initialize_data)
 
     async def _custom_teardown_service(self):

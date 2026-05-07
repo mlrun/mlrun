@@ -1,4 +1,4 @@
-# Copyright 2023 Iguazio
+# Copyright 2026 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -56,9 +56,7 @@ def _mock_secret(data: dict[str, str]) -> SimpleNamespace:
 
 
 def _patch_corev1(monkeypatch, mock_api):
-    monkeypatch.setattr(
-        "kubernetes.client.CoreV1Api", lambda *args, **kwargs: mock_api
-    )
+    monkeypatch.setattr("kubernetes.client.CoreV1Api", lambda *args, **kwargs: mock_api)
 
 
 def test_returns_empty_when_secret_name_unset(mlconf_telemetry, in_cluster):
@@ -123,9 +121,7 @@ def test_returns_empty_when_secret_data_is_empty_dict(
     assert mlrun.utils.telemetry.resolve_otlp_headers() == {}
 
 
-def test_returns_empty_when_namespace_unset(
-    mlconf_telemetry, in_cluster, monkeypatch
-):
+def test_returns_empty_when_namespace_unset(mlconf_telemetry, in_cluster, monkeypatch):
     mlrun.mlconf.telemetry.headers_secret_name = "mlrun-otel-headers"
     monkeypatch.setattr(mlrun.mlconf, "namespace", "", raising=False)
 
@@ -152,9 +148,7 @@ def test_decodes_complex_header_values(mlconf_telemetry, in_cluster, monkeypatch
     assert mlrun.utils.telemetry.resolve_otlp_headers() == payload
 
 
-def test_logs_warning_when_namespace_unset(
-    mlconf_telemetry, in_cluster, monkeypatch
-):
+def test_logs_warning_when_namespace_unset(mlconf_telemetry, in_cluster, monkeypatch):
     mlrun.mlconf.telemetry.headers_secret_name = "mlrun-otel-headers"
     monkeypatch.setattr(mlrun.mlconf, "namespace", "", raising=False)
     warn_spy = MagicMock()

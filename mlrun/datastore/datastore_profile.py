@@ -629,7 +629,6 @@ class HuggingFaceProfile(DatastoreProfile):
     max_workers: int | None = None
     model_kwargs: dict[str, typing.Any] | None = None
 
-
     def secrets(self) -> dict:
         keys = {
             "HF_TASK": self.task,

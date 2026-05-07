@@ -7,7 +7,7 @@ Learn about the ModelRunnerStep and the HTTP streaming step.
 - [HTTP streaming step](#http-streaming-step)
 
 ## ModelRunnerStep
-
+This icon in the UI indicates a modelrunnerstep: <img src="../_static/images/steps-model-runner.png" alt="steps-model-runner" width="30"/>.
 ### Description
 
 The {py:class}`~mlrun.serving.states.ModelRunnerStep` gives you an advanced way to run multiple models on each event with control 
@@ -174,6 +174,8 @@ function.with_http(async_spec=AsyncSpec())
 ## HTTP streaming step
 
 A streaming step is invoked with a single event and produces multiple results, each containing a chunk of the full result. Streaming only applies to events arriving through an HTTP trigger. Once the event is aggregated, it can then be processed by additional streaming steps. 
+
+See a complete example in [Streaming serving function](../serving/getting-started.md#streaming-serving-function).
 
 ``` {admonition} Note
 Requires Nuclio 1.15.3 and above.

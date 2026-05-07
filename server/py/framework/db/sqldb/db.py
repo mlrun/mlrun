@@ -3553,20 +3553,23 @@ class SQLDB(DBInterface):
         format_: framework.utils.project_formats.ProjectFormatType,
     ) -> mlrun.common.schemas.ProjectsOutput:
         now_dt = datetime.now(UTC)
-        is_stale = Project.phase.is_not(None) & case(
-            (
-                Project.state == "creating",
-                Project.updated_at < now_dt - self._stale_resource_ttl_create,
+        is_stale = and_(
+            Project.phase.is_not(None),
+            case(
+                (
+                    Project.state == "creating",
+                    Project.updated_at < now_dt - self._stale_resource_ttl_create,
+                ),
+                (
+                    Project.state == "online",
+                    Project.updated_at < now_dt - self._stale_resource_ttl_update,
+                ),
+                (
+                    Project.state == "deleting",
+                    Project.updated_at < now_dt - self._stale_resource_ttl_delete,
+                ),
+                else_=False,
             ),
-            (
-                Project.state == "online",
-                Project.updated_at < now_dt - self._stale_resource_ttl_update,
-            ),
-            (
-                Project.state == "deleting",
-                Project.updated_at < now_dt - self._stale_resource_ttl_delete,
-            ),
-            else_=False,
         )
 
         project_records = session.query(Project).filter(is_stale).all()

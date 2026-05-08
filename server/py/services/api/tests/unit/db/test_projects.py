@@ -350,7 +350,7 @@ class TestProjects(TestDatabaseBase):
             spec=mlrun.common.schemas.ProjectSpec(
                 description="banana", other_field="value"
             ),
-            status=mlrun.common.schemas.ObjectStatus(state="active"),
+            status=mlrun.common.schemas.ObjectStatus(state="online"),
         )
         self._db.create_project(self._db_session, project)
         project_output = self._db.get_project(

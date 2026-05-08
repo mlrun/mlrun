@@ -12,7 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import asyncio
 import functools
+import inspect
 import unittest.mock
 import uuid
 
@@ -22,6 +24,7 @@ import mlrun.common.schemas
 import mlrun.config
 import mlrun.errors
 
+import framework.api.utils
 import framework.utils.projects.leader
 import services.api.crud
 
@@ -43,7 +46,25 @@ def _make_member(
     member._leader_follower = leader_follower
     member._followers = followers
     member._projects_in_deletion = set()
+    member._inflight_retries = set()
     return member
+
+
+def _make_stale_project(
+    name: str,
+    state: mlrun.common.schemas.ProjectState,
+    *,
+    phase: int = 0,
+    op_id: uuid.UUID | None = None,
+) -> mlrun.common.schemas.ProjectOut:
+    return mlrun.common.schemas.ProjectOut(
+        metadata=mlrun.common.schemas.ProjectMetadata(name=name),
+        status=mlrun.common.schemas.ProjectStatus(
+            state=state,
+            op_id=op_id or uuid.uuid4(),
+            phase=phase,
+        ),
+    )
 
 
 def _make_project(name: str = "p1") -> mlrun.common.schemas.Project:
@@ -406,3 +427,399 @@ class TestPublicLeaderEntrypoints:
         )
         with pytest.raises(NotImplementedError):
             member._sync_projects()
+
+
+class TestRetryStuckProjects:
+    """
+    Reconciliation loop body. Verifies dispatch-by-state without driving the
+    full 2PC flow — the actual flow methods are covered by TestRunCreateFlow
+    / TestRunUpdateFlow / TestRunDeleteFlow above.
+    """
+
+    @pytest.fixture
+    def session_helper_mock(self, monkeypatch):
+        """
+        Stand-in for ``run_async_function_with_new_db_session``. Records each
+        call (so tests can introspect what was wrapped) and invokes the
+        target with a sentinel session — async targets are awaited, sync
+        ones are called. The real helper does the same routing under
+        threadpool/async-context-manager hops; for unit tests, eagerly
+        running the target is enough.
+        """
+        calls: list[tuple] = []
+        sentinel_session = unittest.mock.Mock(name="fake_session")
+
+        async def helper(func, *args, **kwargs):
+            calls.append((func, args, kwargs))
+            target = func.func if isinstance(func, functools.partial) else func
+            if inspect.iscoroutinefunction(target):
+                return await func(sentinel_session, *args, **kwargs)
+            return func(sentinel_session, *args, **kwargs)
+
+        monkeypatch.setattr(
+            "framework.db.session.run_async_function_with_new_db_session",
+            helper,
+        )
+        return calls
+
+    @pytest.fixture
+    def get_or_create_2pc_task_mock(self, monkeypatch):
+        """
+        Stand-in for ``get_or_create_project_2pc_background_task``. Records
+        each ``(project_name, runner)`` call and returns a fresh AsyncMock
+        callable so tests can assert dispatch + (optionally) await it.
+        Override ``state["result"]`` to return ``(None, name)`` and exercise
+        the "active task already exists" branch.
+        """
+        state = {"calls": [], "result": None}
+
+        def factory(project_name, runner):
+            state["calls"].append((project_name, runner))
+            if state["result"] is not None:
+                return state["result"]
+            return unittest.mock.AsyncMock(), "task-name"
+
+        monkeypatch.setattr(
+            "framework.api.utils.get_or_create_project_2pc_background_task",
+            factory,
+        )
+        return state
+
+    @pytest.fixture
+    def inline_runner_mock(self, monkeypatch):
+        mock = unittest.mock.AsyncMock()
+        monkeypatch.setattr(
+            "framework.api.utils.run_project_2pc_runner_inline",
+            mock,
+        )
+        return mock
+
+    @pytest.fixture
+    def crud_mock(self) -> unittest.mock.MagicMock:
+        return unittest.mock.MagicMock(spec=services.api.crud.Projects)
+
+    async def test_dispatches_creating_via_background_task(
+        self,
+        crud_mock,
+        session_helper_mock,
+        get_or_create_2pc_task_mock,
+        inline_runner_mock,
+    ):
+        # creating → wrap in get_or_create_project_2pc_background_task with a
+        # partial bound to _run_create_flow(project, op_id), and schedule the
+        # returned callable.
+        op_id = uuid.uuid4()
+        project = _make_stale_project(
+            "p1", mlrun.common.schemas.ProjectState.creating, op_id=op_id
+        )
+        crud_mock.list_stale_projects.return_value = (
+            mlrun.common.schemas.ProjectsOutput(projects=[project])
+        )
+        fake_callable = unittest.mock.AsyncMock()
+        get_or_create_2pc_task_mock["result"] = (fake_callable, "task-name")
+
+        member = _make_member(leader_follower=crud_mock, followers={})
+        await member._retry_stuck_projects()
+        await asyncio.gather(*list(member._inflight_retries))
+
+        assert len(get_or_create_2pc_task_mock["calls"]) == 1
+        pname, runner = get_or_create_2pc_task_mock["calls"][0]
+        assert pname == "p1"
+        assert isinstance(runner, functools.partial)
+        assert runner.func == member._run_create_flow
+        assert runner.args == (project, op_id)
+        # The returned callable was actually scheduled and awaited.
+        fake_callable.assert_awaited_once()
+        # Update path was NOT taken.
+        inline_runner_mock.assert_not_awaited()
+
+    async def test_dispatches_deleting_via_background_task(
+        self,
+        crud_mock,
+        session_helper_mock,
+        get_or_create_2pc_task_mock,
+        inline_runner_mock,
+    ):
+        # deleting → same shape as creating but with _run_delete_flow(name, op_id).
+        op_id = uuid.uuid4()
+        project = _make_stale_project(
+            "p1", mlrun.common.schemas.ProjectState.deleting, op_id=op_id
+        )
+        crud_mock.list_stale_projects.return_value = (
+            mlrun.common.schemas.ProjectsOutput(projects=[project])
+        )
+        fake_callable = unittest.mock.AsyncMock()
+        get_or_create_2pc_task_mock["result"] = (fake_callable, "task-name")
+
+        member = _make_member(leader_follower=crud_mock, followers={})
+        await member._retry_stuck_projects()
+        await asyncio.gather(*list(member._inflight_retries))
+
+        assert len(get_or_create_2pc_task_mock["calls"]) == 1
+        pname, runner = get_or_create_2pc_task_mock["calls"][0]
+        assert pname == "p1"
+        assert isinstance(runner, functools.partial)
+        assert runner.func == member._run_delete_flow
+        assert runner.args == ("p1", op_id)
+        fake_callable.assert_awaited_once()
+        inline_runner_mock.assert_not_awaited()
+
+    async def test_dispatches_online_via_session_helper_and_inline_runner(
+        self,
+        crud_mock,
+        session_helper_mock,
+        get_or_create_2pc_task_mock,
+        inline_runner_mock,
+    ):
+        # online → run_async_function_with_new_db_session(
+        #     partial(run_project_2pc_runner_inline, runner, name)
+        # ); the helper opens a session and the inline runner awaits the
+        # update flow against it.
+        op_id = uuid.uuid4()
+        project = _make_stale_project(
+            "p1", mlrun.common.schemas.ProjectState.online, op_id=op_id
+        )
+        crud_mock.list_stale_projects.return_value = (
+            mlrun.common.schemas.ProjectsOutput(projects=[project])
+        )
+
+        member = _make_member(leader_follower=crud_mock, followers={})
+        await member._retry_stuck_projects()
+        await asyncio.gather(*list(member._inflight_retries))
+
+        # session_helper_mock has the listing call (idx 0) and the update
+        # dispatch (idx 1) in that order.
+        assert len(session_helper_mock) == 2
+        assert session_helper_mock[0][0] is crud_mock.list_stale_projects
+
+        update_func = session_helper_mock[1][0]
+        assert isinstance(update_func, functools.partial)
+        # The outer partial is bound to the (now-mocked) inline runner with
+        # (runner, project_name) — the helper appends db_session.
+        assert update_func.func is framework.api.utils.run_project_2pc_runner_inline
+        update_runner, update_name = update_func.args
+        assert update_name == "p1"
+        assert isinstance(update_runner, functools.partial)
+        assert update_runner.func == member._run_update_flow
+        assert update_runner.args == ("p1", project, op_id)
+
+        # The inline runner was actually invoked (with the synthetic session
+        # appended by session_helper_mock).
+        inline_runner_mock.assert_awaited_once()
+        # CREATE/DELETE path was NOT taken.
+        assert get_or_create_2pc_task_mock["calls"] == []
+
+    async def test_skip_when_active_task_exists(
+        self,
+        crud_mock,
+        session_helper_mock,
+        get_or_create_2pc_task_mock,
+        inline_runner_mock,
+    ):
+        # task_callable=None means a sibling 2PC task is already running;
+        # the retry must NOT spawn a duplicate.
+        project = _make_stale_project("p1", mlrun.common.schemas.ProjectState.creating)
+        crud_mock.list_stale_projects.return_value = (
+            mlrun.common.schemas.ProjectsOutput(projects=[project])
+        )
+        get_or_create_2pc_task_mock["result"] = (None, "existing-task")
+
+        member = _make_member(leader_follower=crud_mock, followers={})
+        await member._retry_stuck_projects()
+
+        assert member._inflight_retries == set()
+
+    async def test_unknown_state_logs_and_does_nothing(
+        self,
+        crud_mock,
+        session_helper_mock,
+        get_or_create_2pc_task_mock,
+        inline_runner_mock,
+    ):
+        # list_stale_projects shouldn't return rows in archived/offline, but
+        # if it did (data drift, manual DB edit), we must not blindly fan
+        # out — there's no flow for those states.
+        project = _make_stale_project("p1", mlrun.common.schemas.ProjectState.archived)
+        crud_mock.list_stale_projects.return_value = (
+            mlrun.common.schemas.ProjectsOutput(projects=[project])
+        )
+
+        member = _make_member(leader_follower=crud_mock, followers={})
+        await member._retry_stuck_projects()
+
+        assert get_or_create_2pc_task_mock["calls"] == []
+        inline_runner_mock.assert_not_awaited()
+        assert member._inflight_retries == set()
+
+    async def test_per_project_failure_does_not_block_others(
+        self,
+        crud_mock,
+        session_helper_mock,
+        inline_runner_mock,
+        monkeypatch,
+    ):
+        # One project's dispatch raises synchronously — the loop must catch
+        # it, log, and continue to the next project. The "good" one still
+        # ends up scheduled.
+        bad = _make_stale_project("bad", mlrun.common.schemas.ProjectState.creating)
+        good = _make_stale_project("good", mlrun.common.schemas.ProjectState.creating)
+        crud_mock.list_stale_projects.return_value = (
+            mlrun.common.schemas.ProjectsOutput(projects=[bad, good])
+        )
+
+        good_callable = unittest.mock.AsyncMock()
+
+        def factory(project_name, runner):
+            if project_name == "bad":
+                raise RuntimeError("dispatch failed")
+            return good_callable, "task-name"
+
+        monkeypatch.setattr(
+            "framework.api.utils.get_or_create_project_2pc_background_task",
+            factory,
+        )
+
+        member = _make_member(leader_follower=crud_mock, followers={})
+        # MUST NOT raise — per-project failures are isolated.
+        await member._retry_stuck_projects()
+        await asyncio.gather(*list(member._inflight_retries))
+
+        good_callable.assert_awaited_once()
+
+    async def test_holds_task_reference_until_done(
+        self,
+        crud_mock,
+        session_helper_mock,
+        get_or_create_2pc_task_mock,
+        inline_runner_mock,
+    ):
+        # Bare asyncio.create_task whose return is dropped can be GC'd
+        # mid-run. Verify the inflight set holds the task while it's
+        # pending and the done_callback discards it after completion.
+        project = _make_stale_project("p1", mlrun.common.schemas.ProjectState.creating)
+        crud_mock.list_stale_projects.return_value = (
+            mlrun.common.schemas.ProjectsOutput(projects=[project])
+        )
+
+        # A callable that doesn't complete immediately — gives us a window
+        # to observe the in-flight reference.
+        gate = asyncio.Event()
+
+        async def slow_callable():
+            await gate.wait()
+
+        get_or_create_2pc_task_mock["result"] = (slow_callable, "task-name")
+
+        member = _make_member(leader_follower=crud_mock, followers={})
+        await member._retry_stuck_projects()
+
+        # While slow_callable is awaiting the gate, the task must be in
+        # _inflight_retries.
+        assert len(member._inflight_retries) == 1
+        gate.set()
+        await asyncio.gather(*list(member._inflight_retries))
+        # done_callback runs after the awaitable completes, draining the set.
+        assert member._inflight_retries == set()
+
+
+class TestStartPeriodicSync:
+    @pytest.fixture(autouse=True)
+    def reset_2pc_gate(self):
+        original = (
+            mlrun.mlconf.httpdb.clusterization.chief.feature_gates.project_sync_2pc
+        )
+        try:
+            yield
+        finally:
+            mlrun.mlconf.httpdb.clusterization.chief.feature_gates.project_sync_2pc = (
+                original
+            )
+
+    @pytest.fixture
+    def captured_periodic(self, monkeypatch):
+        captured: dict = {}
+
+        def capture(interval, name, replace, function, *args, **kwargs):
+            captured["interval"] = interval
+            captured["name"] = name
+            captured["replace"] = replace
+            captured["function"] = function
+
+        monkeypatch.setattr(
+            "framework.utils.periodic.run_function_periodically",
+            capture,
+        )
+        return captured
+
+    def test_routes_to_retry_when_2pc_enabled(self, captured_periodic):
+        mlrun.mlconf.httpdb.clusterization.chief.feature_gates.project_sync_2pc = (
+            "enabled"
+        )
+        member = _make_member(
+            leader_follower=services.api.crud.Projects(),
+            followers={"f": unittest.mock.Mock()},
+        )
+        member._periodic_sync_interval_seconds = 60
+
+        member._start_periodic_sync()
+
+        assert captured_periodic["function"] == member._retry_stuck_projects
+        assert captured_periodic["name"] == "_retry_stuck_projects"
+        assert captured_periodic["interval"] == 60
+
+    def test_routes_to_legacy_when_2pc_disabled(self, captured_periodic):
+        mlrun.mlconf.httpdb.clusterization.chief.feature_gates.project_sync_2pc = (
+            "disabled"
+        )
+        member = _make_member(
+            leader_follower=services.api.crud.Projects(),
+            followers={"f": unittest.mock.Mock()},
+        )
+        member._periodic_sync_interval_seconds = 60
+
+        member._start_periodic_sync()
+
+        assert captured_periodic["function"] == member._sync_projects
+        assert captured_periodic["name"] == "_sync_projects"
+
+    def test_no_followers_skips_registration(self, captured_periodic):
+        member = _make_member(
+            leader_follower=services.api.crud.Projects(),
+            followers={},
+        )
+        member._periodic_sync_interval_seconds = 60
+
+        member._start_periodic_sync()
+
+        assert captured_periodic == {}
+
+    def test_zero_interval_skips_registration(self, captured_periodic):
+        member = _make_member(
+            leader_follower=services.api.crud.Projects(),
+            followers={"f": unittest.mock.Mock()},
+        )
+        member._periodic_sync_interval_seconds = 0
+
+        member._start_periodic_sync()
+
+        assert captured_periodic == {}
+
+
+class TestStopPeriodicSync:
+    def test_cancels_both_possible_names(self, monkeypatch):
+        # _start_periodic_sync registers exactly one of two names depending
+        # on the 2PC gate. Shutdown can't know which (the gate may have
+        # flipped), so it cancels both — extras are no-ops.
+        cancelled: list[str] = []
+        monkeypatch.setattr(
+            "framework.utils.periodic.cancel_periodic_function",
+            lambda name: cancelled.append(name),
+        )
+
+        member = _make_member(
+            leader_follower=services.api.crud.Projects(), followers={}
+        )
+        member._stop_periodic_sync()
+
+        assert "_sync_projects" in cancelled
+        assert "_retry_stuck_projects" in cancelled

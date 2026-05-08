@@ -67,7 +67,16 @@ class Member(
             mlrun.mlconf.httpdb.projects.periodic_sync_interval
         )
         self._projects_in_deletion = set()
-        if self._periodic_sync_interval_seconds > 0 and self._followers:
+
+        # Hold strong refs to fire-and-forget retry tasks spawned via
+        # asyncio.create_task — without this they can be GC'd mid-run.
+        self._inflight_retries: set[asyncio.Task[None]] = set()
+
+        if (
+            self._periodic_sync_interval_seconds > 0
+            and self._followers
+            and not project_sync_2pc_enabled()
+        ):
             # run one sync to start off on the right foot
             self._sync_projects()
 
@@ -275,20 +284,118 @@ class Member(
     def _start_periodic_sync(self):
         # if no followers no need for sync
         # the > 0 condition is to allow ourselves to disable the sync from configuration
-        if self._periodic_sync_interval_seconds > 0 and self._followers:
-            logger.info(
-                "Starting periodic projects sync",
-                interval=self._periodic_sync_interval_seconds,
-            )
-            framework.utils.periodic.run_function_periodically(
-                self._periodic_sync_interval_seconds,
-                self._sync_projects.__name__,
-                False,
-                self._sync_projects,
-            )
+        if not (self._periodic_sync_interval_seconds > 0 and self._followers):
+            return
+
+        if project_sync_2pc_enabled():
+            function = self._retry_stuck_projects
+            log_msg = "Starting periodic stuck projects retry"
+        else:
+            function = self._sync_projects
+            log_msg = "Starting periodic projects sync"
+
+        logger.info(log_msg, interval=self._periodic_sync_interval_seconds)
+        framework.utils.periodic.run_function_periodically(
+            self._periodic_sync_interval_seconds,
+            function.__name__,
+            False,
+            function,
+        )
 
     def _stop_periodic_sync(self):
+        # Cancel both possible registrations; whichever wasn't started is a no-op.
         framework.utils.periodic.cancel_periodic_function(self._sync_projects.__name__)
+        framework.utils.periodic.cancel_periodic_function(
+            self._retry_stuck_projects.__name__
+        )
+
+    async def _retry_stuck_projects(self):
+        # 2PC reconciliation tick: pick up projects that were left at a
+        # non-terminal phase (request crashed mid-flow, follower fan-out
+        # failed) and re-fire the same flow. The leader-side primitives are
+        # idempotent under op_id — get_project_sync_phase / op_id checks
+        # short-circuit if a newer op has taken over.
+        stale = await framework.db.session.run_async_function_with_new_db_session(
+            self._crud_leader_follower.list_stale_projects
+        )
+
+        for project in stale.projects:
+            try:
+                self._dispatch_stuck_project_retry(project)
+            except Exception as exc:
+                logger.warning(
+                    "Failed dispatching stuck project retry",
+                    project=project.metadata.name,
+                    state=project.status.state,
+                    op_id=str(project.status.op_id),
+                    exc=err_to_str(exc),
+                    traceback=traceback.format_exc(),
+                )
+
+    def _dispatch_stuck_project_retry(
+        self, project: mlrun.common.schemas.ProjectOut
+    ) -> None:
+        name = project.metadata.name
+        op_id = project.status.op_id
+        state = project.status.state
+
+        if state == mlrun.common.schemas.ProjectState.creating:
+            runner = functools.partial(self._run_create_flow, project, op_id)
+            self._dispatch_2pc_background_runner(name, runner, kind="create")
+
+        elif state == mlrun.common.schemas.ProjectState.deleting:
+            runner = functools.partial(self._run_delete_flow, name, op_id)
+            self._dispatch_2pc_background_runner(name, runner, kind="delete")
+
+        elif state == mlrun.common.schemas.ProjectState.online:
+            runner = functools.partial(self._run_update_flow, name, project, op_id)
+            self._spawn_retry(
+                framework.db.session.run_async_function_with_new_db_session(
+                    functools.partial(
+                        framework.api.utils.run_project_2pc_runner_inline,
+                        runner,
+                        name,
+                    ),
+                )
+            )
+
+        else:
+            logger.warning(
+                "Stuck project in unexpected state, skipping",
+                project=name,
+                state=state,
+                op_id=str(op_id),
+            )
+
+    def _dispatch_2pc_background_runner(
+        self,
+        project_name: str,
+        runner: project_member.ProjectSyncRunner,
+        kind: str,
+    ) -> None:
+        task_callable, task_name = (
+            framework.api.utils.get_or_create_project_2pc_background_task(
+                project_name, runner
+            )
+        )
+
+        if task_callable is None:
+            logger.debug(
+                "2PC task already running for project, skipping retry",
+                project=project_name,
+                kind=kind,
+                existing_task=task_name,
+            )
+            return
+
+        self._spawn_retry(task_callable())
+
+    def _spawn_retry(
+        self, coro: typing.Coroutine[typing.Any, typing.Any, None]
+    ) -> None:
+        task = asyncio.create_task(coro)
+        self._inflight_retries.add(task)
+        task.add_done_callback(self._inflight_retries.discard)
 
     def _sync_projects(self):
         if mlrun.mlconf.is_project_sync_2pc_enabled():

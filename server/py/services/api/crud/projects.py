@@ -316,6 +316,15 @@ class Projects(
             session, owner, format_, labels, state, names, updated_after
         )
 
+    def list_stale_projects(
+        self,
+        session: sqlalchemy.orm.Session,
+        format_: framework.utils.project_formats.ProjectFormatType = mlrun.common.formatters.ProjectFormat.full,
+    ) -> mlrun.common.schemas.ProjectsOutput:
+        return framework.utils.singletons.db.get_db().list_stale_projects(
+            session, format_
+        )
+
     async def list_allowed_project_names(
         self,
         session: sqlalchemy.orm.Session,

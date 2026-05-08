@@ -14,6 +14,7 @@
 
 import datetime
 import unittest.mock
+import uuid
 
 import deepdiff
 import pytest
@@ -600,6 +601,40 @@ class TestProjects(TestDatabaseBase):
         )
         assert all(isinstance(p, str) for p in output.projects)
         assert output.projects == ["x"]
+
+    def test_get_project_sync_phase_matching_op_id_returns_phase(self):
+        project_name = "phase-match"
+        op_id, _ = self._db.begin_create_project(
+            self._db_session, self._generate_project(name=project_name)
+        )
+
+        assert self._db.get_project_sync_phase(self._db_session, project_name, op_id) == 0
+
+        self._db.advance_create_project_to_commit(
+            self._db_session, project_name, op_id
+        )
+        assert self._db.get_project_sync_phase(self._db_session, project_name, op_id) == 1
+
+    def test_get_project_sync_phase_mismatched_op_id_returns_none(self):
+        project_name = "phase-superseded"
+        self._db.begin_create_project(
+            self._db_session, self._generate_project(name=project_name)
+        )
+        # A caller passing a stale / unrelated op_id must see ``None`` so the
+        # 2PC orchestrator knows it has been superseded and bails out.
+        stranger_op_id = uuid.uuid4()
+        assert (
+            self._db.get_project_sync_phase(
+                self._db_session, project_name, stranger_op_id
+            )
+            is None
+        )
+
+    def test_get_project_sync_phase_missing_project_raises(self):
+        with pytest.raises(mlrun.errors.MLRunNotFoundError):
+            self._db.get_project_sync_phase(
+                self._db_session, "no-such-project", uuid.uuid4()
+            )
 
     def _generate_and_insert_pre_060_record(self, project_name: str):
         pre_060_record = Project(name=project_name)

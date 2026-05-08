@@ -162,7 +162,7 @@ def test_create_project(
     nop_leader: framework.utils.projects.remotes.leader.Member,
 ):
     project = _generate_project()
-    created_project, _ = projects_follower.create_project(
+    created_project, _, _ = projects_follower.create_project(
         db,
         project,
     )
@@ -178,7 +178,7 @@ def test_store_project(
     project = _generate_project()
 
     # project doesn't exist - store will create
-    created_project, _ = projects_follower.store_project(
+    created_project, _, _ = projects_follower.store_project(
         db,
         project.metadata.name,
         project,
@@ -188,7 +188,7 @@ def test_store_project(
 
     project_update = _generate_project(description="new description")
     # project exists - store will update
-    updated_project, _ = projects_follower.store_project(
+    updated_project, _, _ = projects_follower.store_project(
         db,
         project.metadata.name,
         project_update,
@@ -205,7 +205,7 @@ def test_patch_project(
     project = _generate_project()
 
     # project doesn't exist - store will create
-    created_project, _ = projects_follower.store_project(
+    created_project, _, _ = projects_follower.store_project(
         db,
         project.metadata.name,
         project,
@@ -214,7 +214,7 @@ def test_patch_project(
     _assert_project_in_follower(db, projects_follower, project)
 
     patched_description = "new description"
-    patched_project, _ = projects_follower.patch_project(
+    patched_project, _, _ = projects_follower.patch_project(
         db, project.metadata.name, {"spec": {"description": patched_description}}
     )
     expected_patched_project = _generate_project(description=patched_description)
@@ -416,7 +416,7 @@ async def test_list_project_summaries(
         distinct_scheduled_jobs_pending_count=3,
         distinct_scheduled_pipelines_pending_count=4,
     )
-    created_project, _ = projects_follower.store_project(
+    created_project, _, _ = projects_follower.store_project(
         db,
         project.metadata.name,
         project,
@@ -462,7 +462,7 @@ async def test_list_project_summaries_fails_to_list_pipeline_runs(
     services.api.crud.projects.Projects()._list_pipelines = unittest.mock.Mock(
         side_effect=mlrun.errors.MLRunNotFoundError("not found")
     )
-    created_project, _ = projects_follower.store_project(
+    created_project, _, _ = projects_follower.store_project(
         db,
         project_name,
         project,

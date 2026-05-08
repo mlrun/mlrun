@@ -97,14 +97,14 @@ def test_project_owner_from_auth_info_only_when_missing(
     auth_info = mlrun.common.schemas.AuthInfo(username=auth_user)
 
     if method_name == "create_project":
-        created_project, _ = projects_leader.create_project(
+        created_project, _, _ = projects_leader.create_project(
             None,
             project,
             auth_info=auth_info,
         )
         project_out = created_project
     elif method_name == "store_project":
-        stored_project, _ = projects_leader.store_project(
+        stored_project, _, _ = projects_leader.store_project(
             None,
             project.metadata.name,
             project,

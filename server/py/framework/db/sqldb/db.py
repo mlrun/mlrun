@@ -3640,7 +3640,7 @@ class SQLDB(DBInterface):
             state transition).
         """
         project_record = self._get_project_record(session, name, for_update=True)
-        if project_record.op_id != op_id:
+        if project_record.op_id != op_id.hex:
             # Superseded by a newer op; let it manage phase. Commit to release
             # the FOR UPDATE lock without writing anything.
             session.commit()
@@ -3662,7 +3662,9 @@ class SQLDB(DBInterface):
         :raises MLRunNotFoundError: project does not exist.
         """
         project_record = self._get_project_record(session, name)
-        if project_record.op_id != op_id:
+        # UuidType stores as hex on non-Postgres dialects, so the round-tripped
+        # value comes back as str — compare against op_id.hex to match.
+        if project_record.op_id != op_id.hex:
             return None
         return project_record.phase
 
@@ -3703,7 +3705,7 @@ class SQLDB(DBInterface):
                 f"Project {project_record.name}: expected phase {expected_phase}, "
                 f"got {project_record.phase}"
             )
-        if expected_op_id is not None and project_record.op_id != expected_op_id:
+        if expected_op_id is not None and project_record.op_id != expected_op_id.hex:
             raise mlrun.errors.MLRunPreconditionFailedError(
                 f"Project {project_record.name}: expected op_id {expected_op_id}, "
                 f"got {project_record.op_id}"

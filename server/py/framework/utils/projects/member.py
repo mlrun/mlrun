@@ -22,7 +22,6 @@ import mlrun.common.schemas
 import mlrun.k8s_utils
 import mlrun.utils.singleton
 
-import framework.api.utils
 import framework.utils.auth.verifier
 import framework.utils.project_formats
 import services.api.crud
@@ -107,7 +106,7 @@ class Member(abc.ABC):
     ) -> tuple[
         mlrun.common.schemas.Project | None,
         bool,
-        framework.api.utils.ProjectSyncRunner | None,
+        ProjectSyncRunner | None,
     ]:
         pass
 
@@ -122,7 +121,7 @@ class Member(abc.ABC):
     ) -> tuple[
         mlrun.common.schemas.Project | None,
         bool,
-        framework.api.utils.ProjectSyncRunner | None,
+        ProjectSyncRunner | None,
     ]:
         pass
 
@@ -138,7 +137,7 @@ class Member(abc.ABC):
     ) -> tuple[
         mlrun.common.schemas.Project,
         bool,
-        framework.api.utils.ProjectSyncRunner | None,
+        ProjectSyncRunner | None,
     ]:
         pass
 
@@ -152,7 +151,7 @@ class Member(abc.ABC):
         wait_for_completion: bool = True,
         background_task_name: str | None = None,
         model_monitoring_access_key: str | None = None,
-    ) -> tuple[bool, framework.api.utils.ProjectSyncRunner | None]:
+    ) -> tuple[bool, ProjectSyncRunner | None]:
         pass
 
     @abc.abstractmethod

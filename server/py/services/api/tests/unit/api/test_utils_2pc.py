@@ -75,9 +75,7 @@ class TestGetOrCreateProject2pcBackgroundTask:
         runner = unittest.mock.Mock()
         existing_task = unittest.mock.Mock()
         existing_task.metadata.name = "existing-task-name"
-        mock_handler_cls.get_active_background_task_by_kind.return_value = (
-            existing_task
-        )
+        mock_handler_cls.get_active_background_task_by_kind.return_value = existing_task
 
         task, name = framework.api.utils.get_or_create_project_2pc_background_task(
             "p1", runner

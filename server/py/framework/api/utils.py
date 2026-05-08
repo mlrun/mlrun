@@ -46,6 +46,7 @@ from mlrun.errors import err_to_str
 from mlrun.run import import_function, new_function
 from mlrun.runtimes.utils import enrich_function_from_dict
 from mlrun.utils import RunKeys, get_in, logger
+from server.py.framework.utils.projects.member import ProjectSyncRunner
 
 import framework.constants
 import framework.db.session
@@ -59,7 +60,6 @@ import framework.utils.notifications
 import framework.utils.singletons.db
 import framework.utils.singletons.k8s
 import framework.utils.singletons.project_member
-from server.py.framework.utils.projects.member import ProjectSyncRunner
 import services.api.crud
 import services.api.crud.runtimes.nuclio
 import services.api.utils.singletons.logs_dir

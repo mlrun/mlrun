@@ -26,7 +26,6 @@ import framework.utils.auth.verifier
 import framework.utils.project_formats
 import services.api.crud
 
-
 # A one-arg async callable returned by 2PC-enabled Member methods. Awaiting
 # it runs the orchestration body (prepare → advance → commit → complete for
 # create/delete; update_project_follower → complete for update) against the

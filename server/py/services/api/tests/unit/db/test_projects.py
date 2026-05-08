@@ -608,12 +608,14 @@ class TestProjects(TestDatabaseBase):
             self._db_session, self._generate_project(name=project_name)
         )
 
-        assert self._db.get_project_sync_phase(self._db_session, project_name, op_id) == 0
-
-        self._db.advance_create_project_to_commit(
-            self._db_session, project_name, op_id
+        assert (
+            self._db.get_project_sync_phase(self._db_session, project_name, op_id) == 0
         )
-        assert self._db.get_project_sync_phase(self._db_session, project_name, op_id) == 1
+
+        self._db.advance_create_project_to_commit(self._db_session, project_name, op_id)
+        assert (
+            self._db.get_project_sync_phase(self._db_session, project_name, op_id) == 1
+        )
 
     def test_get_project_sync_phase_mismatched_op_id_returns_none(self):
         project_name = "phase-superseded"

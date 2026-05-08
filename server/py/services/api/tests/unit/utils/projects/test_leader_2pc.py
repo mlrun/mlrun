@@ -133,9 +133,7 @@ class TestRunCreateFlow:
         crud_mock.get_project_sync_phase.return_value = 0
         follower = unittest.mock.Mock()
 
-        member = _make_member(
-            leader_follower=crud_mock, followers={"nuc": follower}
-        )
+        member = _make_member(leader_follower=crud_mock, followers={"nuc": follower})
 
         await member._run_create_flow(project, op_id, db_session="sess")
 
@@ -145,9 +143,7 @@ class TestRunCreateFlow:
             "sess", "p1", op_id
         )
         follower.commit_create_project.assert_called_once_with("p1", op_id)
-        crud_mock.complete_create_project.assert_called_once_with(
-            "sess", "p1", op_id
-        )
+        crud_mock.complete_create_project.assert_called_once_with("sess", "p1", op_id)
 
     async def test_phase_one_resumes_only_commit(self, crud_mock):
         # Resume-from-crash path: row is at phase=1 because a previous run
@@ -157,9 +153,7 @@ class TestRunCreateFlow:
         crud_mock.get_project_sync_phase.return_value = 1
         follower = unittest.mock.Mock()
 
-        member = _make_member(
-            leader_follower=crud_mock, followers={"nuc": follower}
-        )
+        member = _make_member(leader_follower=crud_mock, followers={"nuc": follower})
 
         await member._run_create_flow(project, op_id, db_session="sess")
 
@@ -176,9 +170,7 @@ class TestRunCreateFlow:
         crud_mock.get_project_sync_phase.return_value = None
         follower = unittest.mock.Mock()
 
-        member = _make_member(
-            leader_follower=crud_mock, followers={"nuc": follower}
-        )
+        member = _make_member(leader_follower=crud_mock, followers={"nuc": follower})
 
         await member._run_create_flow(project, op_id, db_session="sess")
 
@@ -196,9 +188,7 @@ class TestRunCreateFlow:
         follower = unittest.mock.Mock()
         follower.prepare_create_project.side_effect = RuntimeError("nope")
 
-        member = _make_member(
-            leader_follower=crud_mock, followers={"nuc": follower}
-        )
+        member = _make_member(leader_follower=crud_mock, followers={"nuc": follower})
 
         with pytest.raises(ExceptionGroup):
             await member._run_create_flow(project, op_id, db_session="sess")
@@ -215,9 +205,7 @@ class TestRunCreateFlow:
         follower = unittest.mock.Mock()
         follower.commit_create_project.side_effect = RuntimeError("nope")
 
-        member = _make_member(
-            leader_follower=crud_mock, followers={"nuc": follower}
-        )
+        member = _make_member(leader_follower=crud_mock, followers={"nuc": follower})
 
         with pytest.raises(ExceptionGroup):
             await member._run_create_flow(project, op_id, db_session="sess")
@@ -232,31 +220,21 @@ class TestRunUpdateFlow:
         crud_mock.get_project_sync_phase.return_value = 0
         follower = unittest.mock.Mock()
 
-        member = _make_member(
-            leader_follower=crud_mock, followers={"nuc": follower}
-        )
+        member = _make_member(leader_follower=crud_mock, followers={"nuc": follower})
 
         await member._run_update_flow("p1", project, op_id, db_session="sess")
 
-        follower.update_project_follower.assert_called_once_with(
-            "p1", project, op_id
-        )
-        crud_mock.complete_update_project.assert_called_once_with(
-            "sess", "p1", op_id
-        )
+        follower.update_project_follower.assert_called_once_with("p1", project, op_id)
+        crud_mock.complete_update_project.assert_called_once_with("sess", "p1", op_id)
 
     async def test_phase_none_skips_everything(self, crud_mock):
         op_id = uuid.uuid4()
         crud_mock.get_project_sync_phase.return_value = None
         follower = unittest.mock.Mock()
 
-        member = _make_member(
-            leader_follower=crud_mock, followers={"nuc": follower}
-        )
+        member = _make_member(leader_follower=crud_mock, followers={"nuc": follower})
 
-        await member._run_update_flow(
-            "p1", _make_project(), op_id, db_session="sess"
-        )
+        await member._run_update_flow("p1", _make_project(), op_id, db_session="sess")
 
         follower.update_project_follower.assert_not_called()
         crud_mock.complete_update_project.assert_not_called()
@@ -267,9 +245,7 @@ class TestRunUpdateFlow:
         follower = unittest.mock.Mock()
         follower.update_project_follower.side_effect = RuntimeError("boom")
 
-        member = _make_member(
-            leader_follower=crud_mock, followers={"nuc": follower}
-        )
+        member = _make_member(leader_follower=crud_mock, followers={"nuc": follower})
 
         with pytest.raises(ExceptionGroup):
             await member._run_update_flow(
@@ -285,9 +261,7 @@ class TestRunDeleteFlow:
         crud_mock.get_project_sync_phase.return_value = 0
         follower = unittest.mock.Mock()
 
-        member = _make_member(
-            leader_follower=crud_mock, followers={"nuc": follower}
-        )
+        member = _make_member(leader_follower=crud_mock, followers={"nuc": follower})
         # post_delete_project is an async hook on the base member; stub it so
         # we can assert it ran exactly once after the row was removed.
         member.post_delete_project = unittest.mock.AsyncMock()
@@ -299,9 +273,7 @@ class TestRunDeleteFlow:
             "sess", "p1", op_id
         )
         follower.commit_delete_project.assert_called_once_with("p1", op_id)
-        crud_mock.complete_delete_project.assert_called_once_with(
-            "sess", "p1", op_id
-        )
+        crud_mock.complete_delete_project.assert_called_once_with("sess", "p1", op_id)
         # post_delete_project must run only after the row is gone — i.e. only
         # if complete_delete_project was reached.
         member.post_delete_project.assert_awaited_once_with("p1")
@@ -311,9 +283,7 @@ class TestRunDeleteFlow:
         crud_mock.get_project_sync_phase.return_value = 1
         follower = unittest.mock.Mock()
 
-        member = _make_member(
-            leader_follower=crud_mock, followers={"nuc": follower}
-        )
+        member = _make_member(leader_follower=crud_mock, followers={"nuc": follower})
         member.post_delete_project = unittest.mock.AsyncMock()
 
         await member._run_delete_flow("p1", op_id, db_session="sess")
@@ -332,9 +302,7 @@ class TestRunDeleteFlow:
         crud_mock.get_project_sync_phase.return_value = None
         follower = unittest.mock.Mock()
 
-        member = _make_member(
-            leader_follower=crud_mock, followers={"nuc": follower}
-        )
+        member = _make_member(leader_follower=crud_mock, followers={"nuc": follower})
         member.post_delete_project = unittest.mock.AsyncMock()
 
         await member._run_delete_flow("p1", op_id, db_session="sess")
@@ -349,9 +317,7 @@ class TestRunDeleteFlow:
         follower = unittest.mock.Mock()
         follower.commit_delete_project.side_effect = RuntimeError("nope")
 
-        member = _make_member(
-            leader_follower=crud_mock, followers={"nuc": follower}
-        )
+        member = _make_member(leader_follower=crud_mock, followers={"nuc": follower})
         member.post_delete_project = unittest.mock.AsyncMock()
 
         with pytest.raises(ExceptionGroup):

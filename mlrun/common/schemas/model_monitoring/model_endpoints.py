@@ -318,6 +318,19 @@ class ModelEndpointInstruction(BaseModel):
         """Deserialize from a plain dictionary, with pydantic validation."""
         return cls(**data)
 
+    @property
+    def spec_fields(self) -> dict:
+        return {
+            k: v
+            for k, v in {
+                "feature_names": self.input_schema,
+                "label_names": self.output_schema,
+                "function_name": self.function_name,
+                "function_tag": self.function_tag,
+            }.items()
+            if v is not None
+        }
+
 
 class ModelEndpointMonitoringMetric(BaseModel):
     project: str

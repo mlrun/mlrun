@@ -404,7 +404,7 @@ class RemoteRuntime(KubeResource):
                 ),
             ]
         else:
-            self.spec.model_endpoints_instructions = [
+            general_model_endpoint_instructions = (
                 general_model_endpoint_instructions
                 if isinstance(
                     general_model_endpoint_instructions, ModelEndpointInstruction
@@ -412,6 +412,19 @@ class RemoteRuntime(KubeResource):
                 else ModelEndpointInstruction.from_dict(
                     general_model_endpoint_instructions
                 )
+            )
+            if self.metadata.name != general_model_endpoint_instructions.name:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    "Model endpoint name mismatch, instruction name must be the same as the function name"
+                )
+            if general_model_endpoint_instructions.function_tag is not None and (
+                general_model_endpoint_instructions.function_tag != self.metadata.tag
+            ):
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    "Model endpoint tag mismatch, instruction function_tag must be the same as the function tag"
+                )
+            self.spec.model_endpoints_instructions = [
+                general_model_endpoint_instructions
             ]
         if extra_model_endpoint_instructions:
             if all(isinstance(i, dict) for i in extra_model_endpoint_instructions):
@@ -426,6 +439,21 @@ class RemoteRuntime(KubeResource):
                 raise mlrun.errors.MLRunInvalidArgumentError(
                     "extra_model_endpoint_instructions must be a uniform list of "
                     "ModelEndpointInstruction objects or dicts, not a mix of both."
+                )
+            if any(
+                extra_instruction.name != self.metadata.name
+                for extra_instruction in extra_model_endpoint_instructions
+            ):
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    "Model endpoint name mismatch, all instruction names must be the same as the function name"
+                )
+            if any(
+                extra_instruction.function_tag is not None
+                and (extra_instruction.function_tag != self.metadata.tag)
+                for extra_instruction in extra_model_endpoint_instructions
+            ):
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    "Model endpoint tag mismatch, all instruction function_tags must be the same as the function tag"
                 )
             self.spec.model_endpoints_instructions.extend(
                 extra_model_endpoint_instructions

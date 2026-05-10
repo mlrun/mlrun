@@ -537,22 +537,19 @@ class TestSetupModelMonitoring:
         )
 
         fn = self._nuclio_fn()
+        fn_name = fn.metadata.name
         extra = [
-            {"name": "ep-extra-1", "input_schema": ["f1"]},
-            {"name": "ep-extra-2", "output_schema": ["label"]},
+            {"name": fn_name, "input_schema": ["f1"]},
+            {"name": fn_name, "output_schema": ["label"]},
         ]
         fn.setup_model_monitoring(extra_model_endpoint_instructions=extra)
 
         instructions = fn.spec.model_endpoints_instructions
         assert len(instructions) == 3  # 1 default + 2 extra
         assert all(isinstance(i, ModelEndpointInstruction) for i in instructions)
-        names = [i.name for i in instructions]
-        assert "ep-extra-1" in names
-        assert "ep-extra-2" in names
-        extra1 = next(i for i in instructions if i.name == "ep-extra-1")
-        assert extra1.input_schema == ["f1"]
-        extra2 = next(i for i in instructions if i.name == "ep-extra-2")
-        assert extra2.output_schema == ["label"]
+        # Verify dict-to-object conversion preserved the schema fields
+        assert any(i.input_schema == ["f1"] for i in instructions)
+        assert any(i.output_schema == ["label"] for i in instructions)
 
     def test_extra_instructions_as_objects(self):
         from mlrun.common.schemas.model_monitoring.model_endpoints import (
@@ -560,18 +557,17 @@ class TestSetupModelMonitoring:
         )
 
         fn = self._nuclio_fn()
+        fn_name = fn.metadata.name
         extra = [
-            ModelEndpointInstruction(name="ep-obj-1"),
-            ModelEndpointInstruction(name="ep-obj-2", input_schema=["x"]),
+            ModelEndpointInstruction(name=fn_name),
+            ModelEndpointInstruction(name=fn_name, input_schema=["x"]),
         ]
         fn.setup_model_monitoring(extra_model_endpoint_instructions=extra)
 
         instructions = fn.spec.model_endpoints_instructions
         assert len(instructions) == 3
         assert all(isinstance(i, ModelEndpointInstruction) for i in instructions)
-        names = [i.name for i in instructions]
-        assert "ep-obj-1" in names
-        assert "ep-obj-2" in names
+        assert any(i.input_schema == ["x"] for i in instructions)
 
     def test_extra_instructions_with_explicit_primary(self):
         from mlrun.common.schemas.model_monitoring.model_endpoints import (
@@ -579,8 +575,9 @@ class TestSetupModelMonitoring:
         )
 
         fn = self._nuclio_fn()
-        primary = ModelEndpointInstruction(name="primary-ep")
-        extra = [{"name": "extra-ep"}]
+        fn_name = fn.metadata.name
+        primary = ModelEndpointInstruction(name=fn_name)
+        extra = [{"name": fn_name}]
         fn.setup_model_monitoring(
             general_model_endpoint_instructions=primary,
             extra_model_endpoint_instructions=extra,
@@ -588,8 +585,7 @@ class TestSetupModelMonitoring:
 
         instructions = fn.spec.model_endpoints_instructions
         assert len(instructions) == 2
-        assert instructions[0].name == "primary-ep"
-        assert instructions[1].name == "extra-ep"
+        assert all(i.name == fn_name for i in instructions)
         assert fn.spec.track_models is True
 
     def test_returns_self_for_chaining(self):
@@ -620,3 +616,87 @@ class TestSetupModelMonitoring:
         ]
         with pytest.raises(mlrun.errors.MLRunInvalidArgumentError, match="mix"):
             fn.setup_model_monitoring(extra_model_endpoint_instructions=mixed)
+
+    def test_extra_instructions_name_mismatch_raises(self):
+        from mlrun.common.schemas.model_monitoring.model_endpoints import (
+            ModelEndpointInstruction,
+        )
+
+        fn = self._nuclio_fn(name="my-fn")
+        extra = [ModelEndpointInstruction(name="wrong-name")]
+        with pytest.raises(
+            mlrun.errors.MLRunInvalidArgumentError, match="name mismatch"
+        ):
+            fn.setup_model_monitoring(extra_model_endpoint_instructions=extra)
+
+    def test_extra_instructions_tag_mismatch_raises(self):
+        from mlrun.common.schemas.model_monitoring.model_endpoints import (
+            ModelEndpointInstruction,
+        )
+
+        fn = self._nuclio_fn(name="my-fn")
+        fn.metadata.tag = "v1"
+        extra = [ModelEndpointInstruction(name="my-fn", function_tag="v2")]
+        with pytest.raises(
+            mlrun.errors.MLRunInvalidArgumentError, match="tag mismatch"
+        ):
+            fn.setup_model_monitoring(extra_model_endpoint_instructions=extra)
+
+    def test_extra_instructions_no_tag_skips_tag_check(self):
+        from mlrun.common.schemas.model_monitoring.model_endpoints import (
+            ModelEndpointInstruction,
+        )
+
+        fn = self._nuclio_fn(name="my-fn")
+        fn.metadata.tag = "v1"
+        extra = [ModelEndpointInstruction(name="my-fn")]  # function_tag=None
+        fn.setup_model_monitoring(extra_model_endpoint_instructions=extra)
+        names = [i.name for i in fn.spec.model_endpoints_instructions]
+        assert "my-fn" in names
+
+    def test_name_mismatch_raises(self):
+        from mlrun.common.schemas.model_monitoring.model_endpoints import (
+            ModelEndpointInstruction,
+        )
+
+        fn = self._nuclio_fn(name="my-fn")
+        instruction = ModelEndpointInstruction(name="wrong-name")
+        with pytest.raises(
+            mlrun.errors.MLRunInvalidArgumentError, match="name mismatch"
+        ):
+            fn.setup_model_monitoring(general_model_endpoint_instructions=instruction)
+
+    def test_function_tag_mismatch_raises(self):
+        from mlrun.common.schemas.model_monitoring.model_endpoints import (
+            ModelEndpointInstruction,
+        )
+
+        fn = self._nuclio_fn(name="my-fn")
+        fn.metadata.tag = "v1"
+        instruction = ModelEndpointInstruction(name="my-fn", function_tag="v2")
+        with pytest.raises(
+            mlrun.errors.MLRunInvalidArgumentError, match="tag mismatch"
+        ):
+            fn.setup_model_monitoring(general_model_endpoint_instructions=instruction)
+
+    def test_matching_tag_does_not_raise(self):
+        from mlrun.common.schemas.model_monitoring.model_endpoints import (
+            ModelEndpointInstruction,
+        )
+
+        fn = self._nuclio_fn(name="my-fn")
+        fn.metadata.tag = "v1"
+        instruction = ModelEndpointInstruction(name="my-fn", function_tag="v1")
+        fn.setup_model_monitoring(general_model_endpoint_instructions=instruction)
+        assert fn.spec.model_endpoints_instructions[0].function_tag == "v1"
+
+    def test_no_function_tag_skips_tag_check(self):
+        from mlrun.common.schemas.model_monitoring.model_endpoints import (
+            ModelEndpointInstruction,
+        )
+
+        fn = self._nuclio_fn(name="my-fn")
+        fn.metadata.tag = "v1"
+        instruction = ModelEndpointInstruction(name="my-fn")  # function_tag=None
+        fn.setup_model_monitoring(general_model_endpoint_instructions=instruction)
+        assert fn.spec.model_endpoints_instructions[0].name == "my-fn"

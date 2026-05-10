@@ -974,7 +974,7 @@ class TestNuclioRuntime(TestMLRunSystemModelMonitoring):
             handler="handler",
         )
         function.with_http(async_spec=AsyncSpec(enabled=True))
-
+        function.spec.readiness_timeout = 600
         self._logger.debug("Deploying nuclio function (slow init expected)")
         function.deploy()
 

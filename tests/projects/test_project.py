@@ -2236,6 +2236,57 @@ def test_validate_workflow_code_artifact_rejects_non_artifact():
         validate(_NotAnArtifact(), "store://feature-sets/p/x")
 
 
+@pytest.mark.parametrize(
+    "src_path, target_path, key",
+    [
+        # rejected via src_path
+        ("workflow.zip", None, "k"),
+        ("workflow.tar.gz", None, "k"),
+        # case-insensitive suffix match
+        ("workflow.ZIP", None, "k"),
+        # rejected via target_path fallback (src_path unset)
+        (None, "s3://b/archive.zip", "k"),
+        # rejected via metadata.key fallback (src_path + target_path unset)
+        (None, None, "archive.tar.gz"),
+    ],
+)
+def test_validate_workflow_code_artifact_rejects_archive_payloads(
+    src_path, target_path, key
+):
+    """Archive code artifacts cannot back a workflow: the runner needs a
+    single .py path to import (KFP submits one source file, not a tree),
+    and _load_code_artifact extracts archives in place and returns
+    (target_dir, None). Pre-CodeArtifact, set_workflow only ever accepted
+    a single Python file; this validator preserves that contract.
+    """
+    artifact = mlrun.artifacts.CodeArtifact(
+        key=key,
+        code_type=mlrun.artifacts.CodeArtifactCodeType.workflow,
+        src_path=src_path,
+        target_path=target_path,
+    )
+    validate = mlrun.projects.pipelines._validate_workflow_code_artifact
+    with pytest.raises(
+        mlrun.errors.MLRunInvalidArgumentError,
+        match="archive code artifact",
+    ):
+        validate(artifact, "store://artifacts/p/k")
+
+
+def test_validate_workflow_code_artifact_accepts_python_payload():
+    """A workflow code artifact with a .py src_path passes the archive
+    rejection — pins that the new check doesn't over-match.
+    """
+    artifact = mlrun.artifacts.CodeArtifact(
+        key="k",
+        code_type=mlrun.artifacts.CodeArtifactCodeType.workflow,
+        src_path="workflow.py",
+    )
+    mlrun.projects.pipelines._validate_workflow_code_artifact(
+        artifact, "store://artifacts/p/k"
+    )
+
+
 def test_remote_runner_run_relativizes_workflow_path(monkeypatch, tmp_path):
     """_RemoteRunner.run must rewrite an absolute workflow_path under the
     project code-path into a relative form before submitting it to the API.

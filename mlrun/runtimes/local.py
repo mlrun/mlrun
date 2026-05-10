@@ -267,14 +267,9 @@ class LocalRuntime(BaseRuntime, ParallelRunner):
             else:
                 execution._current_workdir = workdir or target_dir
 
-            # When the source was extracted (e.g. from a store:// CodeArtifact)
-            # rather than baked into the function image, spec.command is empty -
-            # _get_handler / load_module would then have no file to import, and
-            # a `module:func` handler can't be resolved. Mirror the convention
-            # used by mlrun.code_to_function: spec.command holds the file,
-            # spec.handler holds just the function name; load_module loads the
-            # file, _search_in_namespaces finds the function in the loaded
-            # module.
+            # Source extracted at runtime (store:// CodeArtifact, git, archive)
+            # leaves spec.command empty, so a "module:func" handler can't resolve.
+            # Mirror code_to_function: command -> file, handler -> bare function.
             module_name, func_name = (
                 mlrun.utils.helpers.split_handler_module_and_function(
                     runobj.spec.handler or self.spec.default_handler or ""
@@ -286,10 +281,8 @@ class LocalRuntime(BaseRuntime, ParallelRunner):
                     self.spec.command = candidate
                     runobj.spec.handler = func_name
                 else:
-                    # Surface the missing-file case with a useful breadcrumb
-                    # — without this log, a typo in the handler module name
-                    # falls through to a cryptic ImportError downstream when
-                    # _get_handler tries to load an empty spec.command.
+                    # Warn so a handler-module typo doesn't end in a cryptic
+                    # ImportError downstream from an empty spec.command.
                     logger.warning(
                         "module:func handler refers to a module that wasn't "
                         "found in the extracted source directory; the run "

@@ -15,6 +15,8 @@ import pathlib
 
 import pytest
 
+import mlrun
+import mlrun.runtimes.local
 from mlrun.runtimes.local import run_exec
 
 
@@ -47,9 +49,6 @@ def test_pre_run_points_command_at_extracted_module(tmp_path, monkeypatch):
     handler="module:func", ...), produce no module, and fail downstream
     with ModuleNotFoundError.
     """
-    import mlrun
-    import mlrun.runtimes.local
-
     # Pre-create the module file the helper will look for.
     target_dir = tmp_path / "extracted"
     target_dir.mkdir()
@@ -73,17 +72,12 @@ def test_pre_run_points_command_at_extracted_module(tmp_path, monkeypatch):
     assert run.spec.handler == "my_func"
 
 
-def test_pre_run_warns_when_module_not_in_extracted_dir(tmp_path, monkeypatch, caplog):
+def test_pre_run_warns_when_module_not_in_extracted_dir(tmp_path, monkeypatch):
     """When `module:func` is given but `<module>.py` doesn't exist in the
     extracted source dir, _pre_run logs a warning instead of silently
     falling through. Pinning this prevents the regression where a handler
     typo produces a cryptic ImportError far from the entry point.
     """
-    import logging
-
-    import mlrun
-    import mlrun.runtimes.local
-
     target_dir = tmp_path / "extracted"
     target_dir.mkdir()
     # Note: NO handler.py — the helper should warn about the missing file.
@@ -93,19 +87,27 @@ def test_pre_run_warns_when_module_not_in_extracted_dir(tmp_path, monkeypatch, c
         lambda *args, **kwargs: str(target_dir),
     )
 
+    # Capture logger.warning directly. caplog can miss records when the mlrun
+    # logger's propagate flag is toggled by other test setup, so observe the
+    # call site instead of relying on stdlib logging propagation.
+    warn_calls: list[tuple[str, dict]] = []
+    monkeypatch.setattr(
+        mlrun.runtimes.local.logger,
+        "warning",
+        lambda msg, *args, **kwargs: warn_calls.append((msg, kwargs)),
+    )
+
     runtime = mlrun.runtimes.local.LocalRuntime()
     runtime.spec.build.source = "store://artifacts/proj/missing_code"
     run = mlrun.run.RunObject()
     run.spec.handler = "missing_module:my_func"
     execution = mlrun.run.MLClientCtx.from_dict(run.to_dict(), autocommit=False)
 
-    with caplog.at_level(logging.WARNING, logger="mlrun"):
-        runtime._pre_run(run, execution)
+    runtime._pre_run(run, execution)
 
     assert any(
-        "module:func handler refers to a module that wasn't found"
-        in record.getMessage()
-        for record in caplog.records
+        "module:func handler refers to a module that wasn't found" in msg
+        for msg, _ in warn_calls
     )
     # spec.command stays unset; downstream handler logic raises with a less
     # cryptic error after the warning has been logged.

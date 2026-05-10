@@ -1485,7 +1485,7 @@ def get_class(class_name, namespace=None):
     return class_object
 
 
-def split_handler_module_and_function(handler: str) -> tuple[str, str]:
+def split_handler_module_and_function(handler: str | None) -> tuple[str, str]:
     """Split mlrun's ``"module:function"`` handler form into ``(module, function)``.
 
     mlrun's canonical handler format on the wire is ``"<module>:<function>"`` —

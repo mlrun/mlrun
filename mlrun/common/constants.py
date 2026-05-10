@@ -49,6 +49,8 @@ MLRUN_JOB_AUTH_SECRET_PATH = "/var/mlrun-secrets/auth"
 MLRUN_JOB_AUTH_SECRET_FILE = ".igz.yml"
 MLRUN_RUNTIME_AUTH_DEFAULT_TOKEN_NAME = "default"
 
+MLRUN_TELEMETRY_OTLP_HEADERS_PATH = "/var/mlrun-secrets/telemetry-otlp-headers"
+
 
 class MLRunInternalLabels:
     ### dask

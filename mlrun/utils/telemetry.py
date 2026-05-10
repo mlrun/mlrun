@@ -12,102 +12,52 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import base64
+import os
 
-import kubernetes.client
-from kubernetes.client import ApiException
-
-import mlrun.config
+import mlrun.common.constants
 import mlrun.errors
-import mlrun.k8s_utils
 import mlrun.utils
 
 
-def resolve_otlp_headers() -> dict[str, str]:
-    """Resolve OTLP auth headers for telemetry exporters.
+def resolve_otlp_headers(path: str | None = None) -> dict[str, str]:
+    """Read OTLP auth headers from a mounted directory.
 
-    Reads the K8s secret named in ``mlconf.telemetry.headers_secret_name`` directly
-    via the in-cluster K8s API (no MLRun API call). Each key in the secret becomes
-    one HTTP header (e.g. ``Authorization``, ``X-Scope-OrgID``).
+    Each file in the directory becomes one HTTP header — filename = header name,
+    file contents = header value. Hidden entries (``..data`` and friends, which
+    kubelet uses for atomic secret updates) and subdirectories are skipped.
 
-    Works from both the API server and function pods. Returns an empty dict when
-    no secret is configured, the caller is not running inside a K8s cluster, the
-    namespace cannot be resolved, or the secret is missing/unreadable — telemetry
-    must never break its caller.
+    Returns an empty dict when the directory does not exist or cannot be read —
+    callers should treat the result as "no auth headers" and proceed.
 
-    :returns: Mapping of header name -> header value. Empty dict if unconfigured
-              or unresolvable.
-
-    Example
-    -------
-    Operator creates a K8s secret with one key per outgoing header::
-
-        kubectl create secret generic mlrun-otel-headers \\
-            --from-literal=Authorization='Bearer eyJhbGc...' \\
-            --from-literal=X-Scope-OrgID='tenant-42'
-
-    And points MLRun at it via env var or helm values::
-
-        MLRUN_TELEMETRY__OTLP_ENDPOINT=https://otel.example.com:4317
-        MLRUN_TELEMETRY__INSECURE=false
-        MLRUN_TELEMETRY__HEADERS_SECRET_NAME=mlrun-otel-headers
-
-    Either the API server (chief pod, ML-16 system counters) or a function pod
-    (model monitoring app, ML-12344) then builds an OTLP exporter::
-
-        import mlrun
-        import mlrun.utils.telemetry
-        from opentelemetry.exporter.otlp.proto.grpc.metric_exporter import (
-            OTLPMetricExporter,
-        )
-
-        exporter = OTLPMetricExporter(
-            endpoint=mlrun.mlconf.telemetry.otlp_endpoint,
-            insecure=mlrun.mlconf.telemetry.insecure == "true",
-            headers=mlrun.utils.telemetry.resolve_otlp_headers(),
-        )
-
-    Rotation: ``kubectl edit secret mlrun-otel-headers`` is picked up the next
-    time ``resolve_otlp_headers()`` is called (no pod restart required) — call
-    it once per export cycle, not once per process.
+    :param path: Directory to read headers from. Defaults to
+                 ``mlrun.common.constants.MLRUN_TELEMETRY_OTLP_HEADERS_PATH``.
+    :returns: Mapping of header name → header value, or ``{}``.
     """
-    secret_name = mlrun.mlconf.telemetry.headers_secret_name
-    if not secret_name:
+    headers_path = path or mlrun.common.constants.MLRUN_TELEMETRY_OTLP_HEADERS_PATH
+    if not os.path.isdir(headers_path):
         return {}
 
-    if not mlrun.k8s_utils.is_running_inside_kubernetes_cluster():
-        return {}
-
-    namespace = mlrun.mlconf.namespace
-    if not namespace:
-        mlrun.utils.logger.warning(
-            "Cannot resolve OTLP telemetry headers — mlconf.namespace is unset",
-            secret_name=secret_name,
-        )
-        return {}
-
+    headers: dict[str, str] = {}
     try:
-        secret = kubernetes.client.CoreV1Api().read_namespaced_secret(
-            name=secret_name, namespace=namespace
-        )
-    except ApiException as exc:
+        for entry in os.scandir(headers_path):
+            if entry.name.startswith("."):
+                continue
+            if not entry.is_file():
+                continue
+            with open(entry.path) as f:
+                headers[entry.name] = f.read()
+    except OSError as exc:
         mlrun.utils.logger.warning(
-            "Failed to read OTLP telemetry headers secret",
-            secret_name=secret_name,
-            namespace=namespace,
-            body=mlrun.errors.err_to_str(exc.body),
+            "Failed to read OTLP telemetry headers from mount",
+            path=headers_path,
+            error=mlrun.errors.err_to_str(exc),
         )
         return {}
 
-    headers = {
-        key: base64.b64decode(value).decode("utf-8")
-        for key, value in (secret.data or {}).items()
-    }
     if headers:
         mlrun.utils.logger.debug(
-            "Resolved OTLP telemetry headers",
-            secret_name=secret_name,
-            namespace=namespace,
+            "Resolved OTLP telemetry headers from mount",
+            path=headers_path,
             header_keys=sorted(headers.keys()),
         )
     return headers

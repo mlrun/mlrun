@@ -953,6 +953,35 @@ class TestNuclioRuntime(TestMLRunSystemModelMonitoring):
             f"running serving async mode took {timing} seconds should be < 7"
         )
 
+    def test_async_spec_with_slow_init(self):
+        """Test that a function with slow init_context works correctly with AsyncSpec.
+
+        In sync mode a 30-second init_context blocks the single worker so all
+        in-flight requests must wait.  With AsyncSpec the event-loop handler runs
+        on a separate coroutine and the function can serve requests as soon as
+        init completes, without serialising on a worker pool.  The test verifies
+        that the async handler still returns the expected response after a slow init.
+        """
+        code_path = str(self.assets_path / "slow_init_nuclio_func.py")
+
+        self._logger.debug("Creating nuclio function with slow init")
+        function = mlrun.code_to_function(
+            name="slow-init-async-function",
+            kind="nuclio",
+            project=self.project_name,
+            filename=code_path,
+            image=self.image,
+            handler="handler",
+        )
+        function.with_http(async_spec=AsyncSpec(enabled=True))
+
+        self._logger.debug("Deploying nuclio function (slow init expected)")
+        function.deploy()
+
+        self._logger.debug("Invoking function after slow init")
+        result = function.invoke("/")
+        assert result == b"ok", f"Expected b'ok', got {result!r}"
+
     def test_invoke_head_method_does_not_raise(self) -> None:
         """Regression test for ML-12228.
 

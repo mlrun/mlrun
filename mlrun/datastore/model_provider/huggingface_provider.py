@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import threading
-import time
 from typing import TYPE_CHECKING, Any, Optional, Union
 
 import mlrun
@@ -122,14 +121,14 @@ class HuggingFaceProvider(ModelProvider):
             from huggingface_hub import snapshot_download
 
             # Download the model and tokenizer files directly to the cache.
-
-            print("sleeping")
-            time.sleep(1000)
-            # snapshot_download(
-            #     repo_id=self.model,
-            #     local_dir_use_symlinks=False,
-            #     token=self._get_secret_or_env("HF_TOKEN") or None,
-            # )
+            max_workers = self._get_secret_or_env("HF_MAX_WORKERS")
+            snapshot_download(
+                repo_id=self.model,
+                local_dir_use_symlinks=False,
+                token=self._get_secret_or_env("HF_TOKEN") or None,
+                endpoint=self._get_secret_or_env("HF_ENDPOINT") or None,
+                max_workers=int(max_workers) if max_workers is not None else None,
+            )
         except ImportError as exc:
             raise ImportError("huggingface_hub package is not installed") from exc
 
@@ -244,6 +243,9 @@ class HuggingFaceProvider(ModelProvider):
             raise ImportError("transformers package is not installed") from exc
 
     def get_client_options(self):
+        # HF_ENDPOINT is not passed to pipeline() — it is only used in _download_model()
+        # via snapshot_download() to support custom HuggingFace Hub endpoints.
+
         res = dict(
             task=self._get_secret_or_env("HF_TASK") or "text-generation",
             token=self._get_secret_or_env("HF_TOKEN"),

@@ -54,8 +54,8 @@ class TestHuggingFaceModelRunner(TestMLRunSystem):
     @classmethod
     def setup_class(cls):
         super().setup_class()
-        if not os.environ.get("HF_TOKEN"):
-            pytest.skip("HF_TOKEN not set")
+        if not os.environ.get("HF_TOKEN") and not os.environ.get("HF_ENDPOINT"):
+            pytest.skip("neither HF_TOKEN nor HF_ENDPOINT is set")
 
     def setup_datastore_profile(self, task=None, model_name=None):
         # noinspection PyAttributeOutsideInit
@@ -63,8 +63,12 @@ class TestHuggingFaceModelRunner(TestMLRunSystem):
             name=self.profile_name,
             task=task or "text-generation",
             token=os.environ.get("HF_TOKEN"),
+            endpoint=os.environ.get("HF_ENDPOINT"),
             device=os.environ.get("HF_DEVICE"),
             device_map=os.environ.get("HF_DEVICE_MAP"),
+            max_workers=int(os.environ["HF_MAX_WORKERS"])
+            if os.environ.get("HF_MAX_WORKERS")
+            else None,
         )
         model_name = model_name or self.basic_llm_model
         self.project.register_datastore_profile(self.profile)

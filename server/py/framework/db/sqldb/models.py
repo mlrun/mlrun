@@ -608,6 +608,11 @@ with warnings.catch_warnings():
         created = Column(framework.db.sqldb.sql_types.DateTime, default=datetime.utcnow)
         default_function_node_selector = Column("default_function_node_selector", JSON)
         state = Column(framework.db.sqldb.sql_types.Utf8BinText)
+        op_id = Column(framework.db.sqldb.sql_types.UuidType, nullable=True)
+        phase = Column(Integer, nullable=True)
+        updated_at = Column(
+            framework.db.sqldb.sql_types.DateTime, nullable=True, index=True
+        )
 
         def get_identifier_string(self) -> str:
             return f"{self.name}"

@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import abc
+import uuid
 
 import sqlalchemy.orm
 
@@ -104,4 +105,52 @@ class Member(abc.ABC):
         name: str,
         auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
     ) -> mlrun.common.schemas.ProjectSummary:
+        pass
+
+    # ----- 2PC follower hooks ----------------------------------------------
+    # Invoked by the 2PC orchestrator on each remote follower as part of
+    # parallel fan-out. They take only data persisted on the project row, so
+    # request-driven and reconciliation-driven invocations are equivalent —
+    # no per-request session, no per-request auth_info. Concrete followers
+    # authenticate using their own service-account credentials.
+
+    @abc.abstractmethod
+    def prepare_create_project(
+        self,
+        project: mlrun.common.schemas.Project,
+        op_id: uuid.UUID,
+    ) -> None:
+        pass
+
+    @abc.abstractmethod
+    def commit_create_project(
+        self,
+        name: str,
+        op_id: uuid.UUID,
+    ) -> None:
+        pass
+
+    @abc.abstractmethod
+    def prepare_delete_project(
+        self,
+        name: str,
+        op_id: uuid.UUID,
+    ) -> None:
+        pass
+
+    @abc.abstractmethod
+    def commit_delete_project(
+        self,
+        name: str,
+        op_id: uuid.UUID,
+    ) -> None:
+        pass
+
+    @abc.abstractmethod
+    def update_project_follower(
+        self,
+        name: str,
+        project: mlrun.common.schemas.Project,
+        op_id: uuid.UUID,
+    ) -> None:
         pass

@@ -7,6 +7,7 @@ This feature is in TechPreview status; there will be changes to the SDK in a fut
 
 An API handler is a graph step that is automatically prepended to a serving graph when configured. It validates incoming HTTP requests against a set of user-defined endpoints, extracts parameters from path templates, query strings, and the request body, and passes them to the next step in the graph.
 
+
 Use an API handler to:
 - Implement industry-defined REST API schemas on your serving graph (for example, the OpenAI chat-completion interface for LLMs).
 - Gate access to specific paths using ALLOW and FORBID rules.

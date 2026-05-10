@@ -17,7 +17,7 @@ import time
 
 def init_context(context):
     context.logger.info("Starting slow initialization...")
-    time.sleep(30)
+    time.sleep(120)
     context.logger.info("Slow initialization complete")
 
 

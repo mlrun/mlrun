@@ -394,6 +394,7 @@ class ServingSpec(nuclio_function.NuclioSpec):
         streaming: bool | None = None,
         api_handler_config: APIHandlerConfig | None = None,
         env_from=None,
+        otlp_enabled=False,
     ):
         super().__init__(
             command=command,
@@ -438,6 +439,7 @@ class ServingSpec(nuclio_function.NuclioSpec):
             custom_scaling_metric_specs=custom_scaling_metric_specs,
             serving_spec=serving_spec,
             auth=auth,
+            otlp_enabled=otlp_enabled,
         )
 
         self.models = models or {}

@@ -176,6 +176,7 @@ class NuclioSpec(KubeResourceSpec):
         track_models=None,
         auth=None,
         env_from=None,
+        otlp_enabled=False,
     ):
         super().__init__(
             command=command,
@@ -210,6 +211,7 @@ class NuclioSpec(KubeResourceSpec):
             graph=graph,
             parameters=parameters,
             track_models=track_models,
+            otlp_enabled=otlp_enabled,
         )
 
         self.auth = auth or {}

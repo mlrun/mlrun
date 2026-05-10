@@ -38,10 +38,6 @@ class MockModelProvider(ModelProvider):
         super().__init__(
             parent=parent, name=name, kind=kind, endpoint=endpoint, secrets=secrets
         )
-        import time
-        print("start sleeping")
-        time.sleep(100)
-        print("finish sleeping")
         self.default_invoke_kwargs = default_invoke_kwargs or {}
         self._client = None
         self._async_client = None

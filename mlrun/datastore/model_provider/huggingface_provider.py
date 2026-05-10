@@ -132,6 +132,9 @@ class HuggingFaceProvider(ModelProvider):
         except ImportError as exc:
             raise ImportError("huggingface_hub package is not installed") from exc
 
+    def dummy(self):
+        pass
+
     def _response_handler(
         self,
         response: Union[str, list],

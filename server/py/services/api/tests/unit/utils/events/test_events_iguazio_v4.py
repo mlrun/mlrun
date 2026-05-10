@@ -66,10 +66,11 @@ def test_generate_db_migration_event_basic(
     event = client.generate_db_migration_event(action)
     assert event.config_name == expected_config_name
     assert event.kind == "system"
-    assert event.class_ == "Platform"
+    assert event.class_ == "Application.Core"
     assert event.severity == expected_severity
-    assert event.entity_name == "MLRun"
-    assert event.source == "mlrun-api-chief"
+    assert event.entity_name == "mlrun-api-chief"
+    # source is left empty so the orca backend can derive it
+    assert event.source == ""
     # description is the catalog default for non-failed actions
     if action != mlrun.common.schemas.MigrationEventActions.failed:
         assert event.description and "MLRun database migration" in event.description
@@ -79,14 +80,16 @@ def test_generate_db_migration_event_basic(
 
 
 @pytest.mark.parametrize(
-    "service_name,role,expected_source",
+    "service_name,role,expected_entity_name",
     [
         ("api", "chief", "mlrun-api-chief"),
         ("api", "worker", "mlrun-api-worker"),
         ("alerts", "chief", "mlrun-alerts"),
     ],
 )
-def test_source_reflects_deployment(monkeypatch, service_name, role, expected_source):
+def test_entity_name_reflects_deployment(
+    monkeypatch, service_name, role, expected_entity_name
+):
     monkeypatch.setattr(iguazio, "Client", unittest.mock.MagicMock())
     monkeypatch.setattr(
         "framework.utils.clients.service_account_token.Client",
@@ -98,7 +101,8 @@ def test_source_reflects_deployment(monkeypatch, service_name, role, expected_so
     event = c.generate_db_migration_event(
         mlrun.common.schemas.MigrationEventActions.started
     )
-    assert event.source == expected_source
+    assert event.entity_name == expected_entity_name
+    assert event.source == ""
 
 
 def test_completed_event_carries_duration(client):
@@ -257,3 +261,90 @@ def test_emit_none_event_is_noop(client):
 def test_unsupported_action_raises(client):
     with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
         client.generate_db_migration_event("bogus")  # type: ignore[arg-type]
+
+
+def test_generate_db_connection_event_basic(client):
+    event = client.generate_db_connection_event(
+        mlrun.common.schemas.DBConnectionEventActions.failed,
+    )
+    assert event.config_name == iguazio_v4_events.DB_CONNECTION_FAILED
+    assert event.kind == "system"
+    assert event.class_ == "Application.Core"
+    assert event.severity == iguazio.schemas.Severity.CRITICAL
+    assert event.entity_name == "mlrun-api-chief"
+    # source is left empty so the orca backend can derive it
+    assert event.source == ""
+    assert event.description == "MLRun cannot connect to its database"
+    assert event.details == {}
+
+
+@pytest.mark.parametrize(
+    "kwargs",
+    [
+        # falsy error — None
+        {"error": None},
+        # all metadata fields explicitly None
+        {"error_category": None, "error_code": None, "dialect": None},
+    ],
+    ids=["none_error", "none_metadata"],
+)
+def test_db_connection_event_no_context_uses_catalog_description(client, kwargs):
+    """Empty/None inputs → details stay empty and description is the catalog wording."""
+    event = client.generate_db_connection_event(
+        mlrun.common.schemas.DBConnectionEventActions.failed,
+        **kwargs,
+    )
+    assert event.description == "MLRun cannot connect to its database"
+    assert event.details == {}
+
+
+@pytest.mark.parametrize(
+    "error,expected_error_substring,expected_error_type",
+    [
+        # Exception → carries error_type
+        (
+            TimeoutError("Lock wait timeout exceeded; try restarting transaction"),
+            "Lock wait timeout",
+            "TimeoutError",
+        ),
+        # Raw string → no error_type
+        ("connection lost", "connection lost", None),
+    ],
+    ids=["exception", "string"],
+)
+def test_db_connection_event_renders_error(
+    client, error, expected_error_substring, expected_error_type
+):
+    event = client.generate_db_connection_event(
+        mlrun.common.schemas.DBConnectionEventActions.failed,
+        error=error,
+        error_category="lock_wait_timeout",
+        error_code=1205,
+        dialect="mysql",
+    )
+    assert event.details["error_category"] == "lock_wait_timeout"
+    assert event.details["error_code"] == 1205
+    assert event.details["dialect"] == "mysql"
+    assert expected_error_substring in event.details["error"]
+    assert expected_error_substring in event.description
+    assert "MLRun cannot connect to its database" in event.description
+    if expected_error_type is None:
+        assert "error_type" not in event.details
+    else:
+        assert event.details["error_type"] == expected_error_type
+
+
+def test_db_connection_event_truncates_long_error(client):
+    long_err = "x" * 4096
+    event = client.generate_db_connection_event(
+        mlrun.common.schemas.DBConnectionEventActions.failed,
+        error=long_err,
+    )
+    assert event.details["error"].endswith("...[truncated]")
+    assert len(event.details["error"]) <= iguazio_v4_events.ERROR_DETAIL_LIMIT
+    assert event.description.endswith("...[truncated]")
+
+
+def test_db_connection_unsupported_action_raises(client):
+    with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
+        client.generate_db_connection_event("bogus")  # type: ignore[arg-type]

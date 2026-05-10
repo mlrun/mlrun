@@ -24,21 +24,18 @@ import framework.utils.clients.helpers as clients_helpers
 import framework.utils.clients.service_account_token as service_account_token
 import services.api.utils.events.base as base_events
 
-DB_MIGRATION_REQUIRED = "Platform.MLRun.DB.MigrationRequired"
-DB_MIGRATION_STARTED = "Platform.MLRun.DB.MigrationStarted"
-DB_MIGRATION_COMPLETED = "Platform.MLRun.DB.MigrationCompleted"
-DB_MIGRATION_FAILED = "Platform.MLRun.DB.MigrationFailed"
+DB_MIGRATION_REQUIRED = "Platform.MLRun.DB.Migration.Required"
+DB_MIGRATION_STARTED = "Platform.MLRun.DB.Migration.Started"
+DB_MIGRATION_COMPLETED = "Platform.MLRun.DB.Migration.Completed"
+DB_MIGRATION_FAILED = "Platform.MLRun.DB.Migration.Failed"
+DB_CONNECTION_FAILED = "Platform.MLRun.DB.Connection.Failed"
 
-ENTITY_NAME = "MLRun"
 EVENT_KIND = "system"
-EVENT_CLASS = "Platform"
+EVENT_CLASS = "Application.Core"
 ERROR_DETAIL_LIMIT = 1024
 ERROR_DESCRIPTION_LIMIT = 200
 TRUNCATION_SUFFIX = "...[truncated]"
 
-# Per IG4 System Events Spec — Phase 2.
-# class is "Platform", kind is "system" for all DB lifecycle events.
-# Severity follows the spec: Required/Failed are Critical, Started/Completed are Info.
 DB_MIGRATION_EVENTS: dict[
     mlrun.common.schemas.MigrationEventActions,
     tuple[str, iguazio.schemas.Severity, str],
@@ -65,11 +62,22 @@ DB_MIGRATION_EVENTS: dict[
     ),
 }
 
+DB_CONNECTION_EVENTS: dict[
+    mlrun.common.schemas.DBConnectionEventActions,
+    tuple[str, iguazio.schemas.Severity, str],
+] = {
+    mlrun.common.schemas.DBConnectionEventActions.failed: (
+        DB_CONNECTION_FAILED,
+        iguazio.schemas.Severity.CRITICAL,
+        "MLRun cannot connect to its database",
+    ),
+}
+
 
 class Client(base_events.BaseEventClient):
     """
-    Events client for Iguazio v4 — publishes events through the Iguazio (orca) SDK
-    using catalog event configs.
+    Events client for Iguazio v4. Publishes events through the Iguazio (orca)
+    SDK using catalog event configs.
     """
 
     def __init__(self, **_kwargs):
@@ -80,7 +88,7 @@ class Client(base_events.BaseEventClient):
             verify_ssl=mlrun.mlconf.iguazio_api_ssl_verify,
         )
         self._service_account_token_client = service_account_token.Client()
-        self._source = self._resolve_source()
+        self._entity_name = self._resolve_entity_name()
 
     def emit(self, event):
         if event is None:
@@ -89,7 +97,7 @@ class Client(base_events.BaseEventClient):
             logger.debug(
                 "Emitting event",
                 config_name=event.config_name,
-                source=event.source,
+                entity_name=event.entity_name,
             )
             with self._client.with_headers(
                 clients_helpers.enrich_headers(
@@ -129,24 +137,52 @@ class Client(base_events.BaseEventClient):
         if duration_seconds is not None:
             details["duration_seconds"] = round(float(duration_seconds), 3)
 
-        if action == mlrun.common.schemas.MigrationEventActions.failed and error:
-            error_str = (
-                error if isinstance(error, str) else mlrun.errors.err_to_str(error)
-            )
-            details["error"] = self._truncate(error_str, ERROR_DETAIL_LIMIT)
-            if not isinstance(error, str):
-                details["error_type"] = type(error).__name__
-            description = (
-                f"{description}: {self._truncate(error_str, ERROR_DESCRIPTION_LIMIT)}"
-            )
+        if action == mlrun.common.schemas.MigrationEventActions.failed:
+            description = self._apply_error(details, description, error)
 
         return iguazio.schemas.EventActivationSpec(
             config_name=config_name,
-            source=self._source,
+            source="",
             kind=EVENT_KIND,
             severity=severity,
             class_=EVENT_CLASS,
-            entity_name=ENTITY_NAME,
+            entity_name=self._entity_name,
+            description=description,
+            details=details,
+        )
+
+    def generate_db_connection_event(
+        self,
+        action: mlrun.common.schemas.DBConnectionEventActions,
+        error: BaseException | str | None = None,
+        error_category: str | None = None,
+        error_code: int | str | None = None,
+        dialect: str | None = None,
+    ) -> iguazio.schemas.EventActivationSpec:
+        try:
+            config_name, severity, description = DB_CONNECTION_EVENTS[action]
+        except KeyError as exc:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"Unsupported DB connection action {action}"
+            ) from exc
+
+        details: dict = {}
+        if error_category:
+            details["error_category"] = error_category
+        if error_code is not None:
+            details["error_code"] = error_code
+        if dialect:
+            details["dialect"] = dialect
+
+        description = self._apply_error(details, description, error)
+
+        return iguazio.schemas.EventActivationSpec(
+            config_name=config_name,
+            source="",
+            kind=EVENT_KIND,
+            severity=severity,
+            class_=EVENT_CLASS,
+            entity_name=self._entity_name,
             description=description,
             details=details,
         )
@@ -175,14 +211,8 @@ class Client(base_events.BaseEventClient):
         )
 
     @staticmethod
-    def _resolve_source() -> str:
-        """
-        Use the K8s deployment name as the event source so consumers can tell which
-        component emitted the event:
-        * the api service runs as `mlrun-api-chief` or `mlrun-api-worker`
-          (role is set in mlconf.httpdb.clusterization.role)
-        * other services (currently just alerts) deploy as `mlrun-<service_name>`
-        """
+    def _resolve_entity_name() -> str:
+        """K8s deployment name: ``mlrun-api-{role}`` for api, ``mlrun-{name}`` otherwise."""
         service_name = mlrun.mlconf.services.service_name or "api"
         if service_name == "api":
             role = mlrun.mlconf.httpdb.clusterization.role or "chief"
@@ -191,9 +221,27 @@ class Client(base_events.BaseEventClient):
 
     @staticmethod
     def _truncate(value: str, limit: int) -> str:
-        """Trim ``value`` so the returned string is at most ``limit`` characters."""
         if len(value) <= limit:
             return value
         if limit <= len(TRUNCATION_SUFFIX):
             return value[:limit]
         return value[: limit - len(TRUNCATION_SUFFIX)] + TRUNCATION_SUFFIX
+
+    @classmethod
+    def _apply_error(
+        cls,
+        details: dict,
+        description: str,
+        error: BaseException | str | None,
+    ) -> str:
+        """
+        Append truncated error context to ``details`` and ``description``.
+        Returns the (possibly extended) description.
+        """
+        if not error:
+            return description
+        error_str = error if isinstance(error, str) else mlrun.errors.err_to_str(error)
+        details["error"] = cls._truncate(error_str, ERROR_DETAIL_LIMIT)
+        if not isinstance(error, str):
+            details["error_type"] = type(error).__name__
+        return f"{description}: {cls._truncate(error_str, ERROR_DESCRIPTION_LIMIT)}"

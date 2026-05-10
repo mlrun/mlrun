@@ -498,9 +498,10 @@ def test_redirection_from_worker_to_chief_only_if_serving_function_with_track_mo
     httpserver,
     monkeypatch,
 ):
-    mlrun.mlconf.httpdb.clusterization.role = "worker"
     endpoint = "/build/function"
+    # create the project while still in chief role - project CRUD reroutes to chief on workers
     services.api.tests.unit.api.utils.create_project(client, PROJECT)
+    mlrun.mlconf.httpdb.clusterization.role = "worker"
 
     function_name = "test-function"
     function = _generate_function(function_name)
@@ -532,9 +533,10 @@ def test_redirection_from_worker_to_chief_deploy_serving_function_with_track_mod
     client: fastapi.testclient.TestClient,
     httpserver,
 ):
-    mlrun.mlconf.httpdb.clusterization.role = "worker"
     endpoint = "/build/function"
+    # create the project while still in chief role - project CRUD reroutes to chief on workers
     services.api.tests.unit.api.utils.create_project(client, PROJECT)
+    mlrun.mlconf.httpdb.clusterization.role = "worker"
 
     function_name = "test-function"
     function_with_track_models = _generate_function(function_name)

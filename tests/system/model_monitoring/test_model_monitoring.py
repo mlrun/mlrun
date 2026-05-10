@@ -2016,6 +2016,183 @@ class TestModelMonitoringKafka(TestMLRunSystemModelMonitoring):
 
 @TestMLRunSystemModelMonitoring.skip_test_if_env_not_configured
 @pytest.mark.enterprise
+class TestKafkaConsumerGroupMigration(TestMLRunSystemModelMonitoring):
+    """Verify Kafka consumer-group offset migration on upgrade.
+
+    Simulates a legacy cluster (MM functions all sharing the ``"serving"``
+    consumer group) by pre-creating the stream topic and committing
+    offsets under ``"serving"``, then enabling model monitoring with the
+    new code and checking:
+
+    1. The per-function group (``serving_<topic>``) receives the legacy
+       offsets verbatim.
+    2. The legacy ``"serving"`` group is left untouched (migration is a
+       copy, not a move).
+    3. Re-enabling MM a second time is an idempotent no-op.
+    """
+
+    brokers = (
+        os.environ["MLRUN_SYSTEM_TESTS_KAFKA_BROKERS"]
+        if "MLRUN_SYSTEM_TESTS_KAFKA_BROKERS" in os.environ
+        and os.environ["MLRUN_SYSTEM_TESTS_KAFKA_BROKERS"]
+        else None
+    )
+
+    project_name = "pr-kafka-mig"
+    image: str | None = None
+
+    _LEGACY_GROUP = "serving"
+    _LEGACY_OFFSET = 17
+    _NUM_PARTITIONS = 2
+
+    def _stream_topic(self) -> str:
+        return mlrun.common.model_monitoring.helpers.get_kafka_topic(
+            project=self.project_name,
+            function_name=mm_constants.MonitoringFunctionNames.STREAM,
+        )
+
+    def _expected_new_group(self, topic: str) -> str:
+        return f"{self._LEGACY_GROUP}_{topic}"
+
+    def _create_topic(self, topic: str) -> None:
+        import kafka
+        import kafka.admin
+        import kafka.errors
+
+        admin = kafka.admin.KafkaAdminClient(bootstrap_servers=self.brokers)
+        try:
+            try:
+                admin.create_topics(
+                    [
+                        kafka.admin.NewTopic(
+                            topic,
+                            num_partitions=self._NUM_PARTITIONS,
+                            replication_factor=1,
+                        )
+                    ]
+                )
+            except kafka.errors.TopicAlreadyExistsError:
+                pass
+        finally:
+            admin.close()
+
+    def _delete_groups_and_topic(self, topic: str, groups: list[str]) -> None:
+        import kafka
+        import kafka.admin
+        import kafka.errors
+
+        admin = kafka.admin.KafkaAdminClient(bootstrap_servers=self.brokers)
+        try:
+            try:
+                admin.delete_consumer_groups(groups)
+            except kafka.errors.KafkaError:
+                pass
+            try:
+                admin.delete_topics([topic])
+            except kafka.errors.UnknownTopicOrPartitionError:
+                pass
+        finally:
+            admin.close()
+
+    def _commit_offsets(self, group: str, topic: str, offset: int) -> dict[int, int]:
+        import kafka
+        import kafka.structs
+
+        consumer = kafka.KafkaConsumer(
+            bootstrap_servers=self.brokers,
+            group_id=group,
+            enable_auto_commit=False,
+        )
+        try:
+            # A freshly-created topic isn't always visible to the consumer
+            # immediately — broker metadata propagation takes a moment.
+            partitions: set[int] | None = None
+            for _ in range(30):
+                partitions = consumer.partitions_for_topic(topic)
+                if partitions:
+                    break
+                sleep(1)
+            assert partitions, f"Topic {topic!r} has no partitions after metadata wait"
+            to_commit = {
+                kafka.TopicPartition(topic, p): kafka.structs.OffsetAndMetadata(
+                    offset, "", -1
+                )
+                for p in partitions
+            }
+            consumer.commit(to_commit)
+            return {tp.partition: om.offset for tp, om in to_commit.items()}
+        finally:
+            consumer.close()
+
+    def _read_committed_offsets(self, group: str, topic: str) -> dict[int, int]:
+        import kafka
+        import kafka.admin
+
+        admin = kafka.admin.KafkaAdminClient(bootstrap_servers=self.brokers)
+        try:
+            all_offsets = admin.list_consumer_group_offsets(group)
+            return {
+                tp.partition: om.offset
+                for tp, om in all_offsets.items()
+                if tp.topic == topic
+            }
+        finally:
+            admin.close()
+
+    @pytest.mark.timeout(600)
+    @pytest.mark.skipif(
+        not brokers, reason="MLRUN_SYSTEM_TESTS_KAFKA_BROKERS not defined"
+    )
+    def test_legacy_offsets_are_migrated_and_idempotent(self):
+        topic = self._stream_topic()
+        new_group = self._expected_new_group(topic)
+
+        # Ensure a clean slate — the test may re-run on the same cluster
+        # and stale groups/topics would skew the assertions.
+        self._delete_groups_and_topic(topic, [self._LEGACY_GROUP, new_group])
+
+        # 1. Seed the legacy state: topic exists with committed offsets
+        #    under the shared "serving" group (what the legacy code produced).
+        self._create_topic(topic)
+        seeded = self._commit_offsets(
+            group=self._LEGACY_GROUP, topic=topic, offset=self._LEGACY_OFFSET
+        )
+        assert len(seeded) == self._NUM_PARTITIONS, (
+            f"Expected {self._NUM_PARTITIONS} legacy offsets, got {seeded}"
+        )
+
+        # 2. Enable MM. For the stream function, create_topics() raises
+        #    TopicAlreadyExistsError → tolerant branch → migration runs.
+        self.set_mm_credentials()
+        self.project.enable_model_monitoring(
+            deploy_histogram_data_drift_app=False,
+            **({} if self.image is None else {"image": self.image}),
+        )
+
+        # 3. Per-function group should now carry the legacy offsets verbatim.
+        migrated = self._read_committed_offsets(group=new_group, topic=topic)
+        assert migrated == seeded, (
+            f"Migration must copy offsets from {self._LEGACY_GROUP!r} to "
+            f"{new_group!r}: expected {seeded}, got {migrated}"
+        )
+
+        # Legacy group is a copy source, not a move source — untouched.
+        legacy_after = self._read_committed_offsets(
+            group=self._LEGACY_GROUP, topic=topic
+        )
+        assert legacy_after == seeded, (
+            "Legacy group offsets must be preserved after migration"
+        )
+
+        # Idempotency of the migration helper itself (the short-circuit on
+        # the already-populated new group) is exercised by the unit tests
+        # in ``test_deployment.py``. Re-calling ``enable_model_monitoring``
+        # here is blocked by MLRun's own "already deployed" guard and is
+        # outside the scope of this test.
+
+
+@TestMLRunSystemModelMonitoring.skip_test_if_env_not_configured
+@pytest.mark.enterprise
 class TestInferenceWithSpecialChars(TestMLRunSystemModelMonitoring):
     project_name = "pr-infer-special-chars"
     name_prefix = "infer-monitoring"

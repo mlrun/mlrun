@@ -78,3 +78,25 @@ class BaseEventClient:
         :return: event object to emit, or None if the client doesn't support this event
         """
         return None
+
+    def generate_db_connection_event(
+        self,
+        action: mlrun.common.schemas.DBConnectionEventActions,
+        error: BaseException | str | None = None,
+        error_category: str | None = None,
+        error_code: int | str | None = None,
+        dialect: str | None = None,
+    ) -> typing.Any | None:
+        """
+        Generate a DB connection lifecycle event
+        :param action: ``failed``
+        :param error: optional underlying exception or string
+        :param error_category: short label classifying the failure (e.g.
+            ``disconnect``, ``lock_wait_timeout``, ``deadlock``, ``query_timeout``,
+            ``too_many_connections``, ``pool_timeout``)
+        :param error_code: optional driver error code: pymysql int errno or
+            PostgreSQL SQLSTATE string (e.g. ``1205`` or ``"40P01"``)
+        :param dialect: SQLAlchemy dialect name (e.g. ``mysql``, ``postgresql``)
+        :return: event object to emit, or None if the client doesn't support this event
+        """
+        return None

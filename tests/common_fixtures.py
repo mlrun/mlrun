@@ -739,12 +739,21 @@ class RunDBMock:
         for key, value in expected_env_dict.items():
             assert env_dict[key] == value
 
-    def assert_env_from_secret(self, secret_name, keys, function_name=None):
+    def assert_env_from_secret(
+        self,
+        secret_name,
+        keys,
+        function_name=None,
+        cleartext_env: dict[str, str] | None = None,
+    ):
         """Assert that env vars are mounted from a k8s secret.
 
         When ``keys`` is non-empty, each key should appear as an env var with
         ``valueFrom.secretKeyRef``.  When ``keys`` is empty, the whole secret
         should be mounted via ``envFrom.secretRef``.
+
+        When ``cleartext_env`` is provided, assert each key/value pair is present
+        as a plain ``{"name": k, "value": v}`` env var entry.
         """
         function = self._get_function_internal(function_name)
         if keys:
@@ -770,6 +779,22 @@ class RunDBMock:
             assert secret_name in secret_refs, (
                 f"Expected envFrom secretRef for {secret_name}, got: {secret_refs}"
             )
+
+        if cleartext_env:
+            env_list = function["spec"]["env"]
+            plain_env = {
+                item["name"]: item.get("value")
+                for item in env_list
+                if "valueFrom" not in item and "value" in item
+            }
+            for k, v in cleartext_env.items():
+                assert k in plain_env, (
+                    f"Expected cleartext env var {k!r} in spec.env, "
+                    f"got keys: {list(plain_env.keys())}"
+                )
+                assert plain_env[k] == v, (
+                    f"Expected cleartext env var {k!r}={v!r}, got: {plain_env[k]!r}"
+                )
 
     def verify_authorization(
         self,

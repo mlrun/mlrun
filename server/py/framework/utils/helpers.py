@@ -18,7 +18,7 @@ import functools
 import re
 import time
 from collections.abc import Callable
-from typing import Union
+from typing import Literal, Union, overload
 
 import semver
 from humanfriendly import InvalidTimespan, parse_timespan
@@ -122,8 +122,16 @@ def is_request_from_leader(
     return False
 
 
+@overload
 def string_to_timedelta(
-    date_str: str, offset: int = 0, raise_on_error: bool = True
+    date_str: str, offset: int = 0, *, raise_on_error: Literal[True] = True
+) -> datetime.timedelta: ...
+@overload
+def string_to_timedelta(
+    date_str: str, offset: int = 0, *, raise_on_error: Literal[False]
+) -> datetime.timedelta | None: ...
+def string_to_timedelta(
+    date_str: str, offset: int = 0, *, raise_on_error: bool = True
 ) -> datetime.timedelta | None:
     date_str = date_str.strip().lower()
     try:

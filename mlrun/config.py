@@ -979,7 +979,7 @@ default_config = {
     },
     "telemetry": {
         # Master kill-switch for all OTel telemetry features. When "false", no telemetry is exported.
-        "enabled": "false",
+        "enabled": False,
         # Shared OTLP endpoint (gRPC or HTTP) used by every telemetry feature below.
         # Blank = telemetry disabled regardless of `enabled`.
         "otlp_endpoint": "",

@@ -14,6 +14,8 @@
 import threading
 from typing import TYPE_CHECKING, Any, Optional, Union
 
+from tqdm import tqdm
+
 import mlrun
 from mlrun.datastore.model_provider.model_provider import (
     InvokeResponseFormat,
@@ -121,6 +123,9 @@ class HuggingFaceProvider(ModelProvider):
         try:
             from huggingface_hub import snapshot_download
 
+            # Pre-initialize tqdm's global lock to prevent AttributeError race condition
+            # when multiple threads call snapshot_download concurrently for the first time.
+            tqdm.get_lock()
             # Download the model and tokenizer files directly to the cache.
             max_workers = self._get_secret_or_env("HF_MAX_WORKERS")
             self.model_location = snapshot_download(

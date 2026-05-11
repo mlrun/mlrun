@@ -68,6 +68,7 @@ class HuggingFaceProvider(ModelProvider):
             secrets=secrets,
             default_invoke_kwargs=default_invoke_kwargs,
         )
+        self.model_location = None
         self.options = self.get_client_options()
         self._expected_operation_type = None
         self._download_model()
@@ -122,7 +123,7 @@ class HuggingFaceProvider(ModelProvider):
 
             # Download the model and tokenizer files directly to the cache.
             max_workers = self._get_secret_or_env("HF_MAX_WORKERS")
-            snapshot_download(
+            self.model_location = snapshot_download(
                 repo_id=self.model,
                 local_dir_use_symlinks=False,
                 token=self._get_secret_or_env("HF_TOKEN") or None,
@@ -237,7 +238,11 @@ class HuggingFaceProvider(ModelProvider):
             self.options["model_kwargs"] = self.options.get("model_kwargs", {})
             self.options["model_kwargs"]["local_files_only"] = True
             with self._client_lock:
-                self._client = pipeline(model=self.model, **self.options)
+                if self.model_location is None:
+                    raise mlrun.errors.MLRunRuntimeError(
+                        "Failed to create the pipeline because the Hugging Face model was not downloaded"
+                    )
+                self._client = pipeline(model=self.model_location, **self.options)
             self._expected_operation_type = Pipeline
         except ImportError as exc:
             raise ImportError("transformers package is not installed") from exc

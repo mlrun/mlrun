@@ -48,8 +48,14 @@ class TestHuggingFaceModelRunner(TestMLRunSystem):
     project_name = "huggingface-system-test"
     image = "mlrun/mlrun"
     profile_name = "huggingface_profile"
-    basic_llm_model = "TinyLlama/TinyLlama-1.1B-Chat-v1.0"
+    basic_llm_model = "google/gemma-3-1b-it"
     image_classification_model = "microsoft/resnet-50"
+
+    @classmethod
+    def setup_class(cls):
+        super().setup_class()
+        if not os.environ.get("HF_TOKEN") and not os.environ.get("HF_ENDPOINT"):
+            pytest.skip("neither HF_TOKEN nor HF_ENDPOINT is set")
 
     def setup_datastore_profile(self, task=None, model_name=None):
         # noinspection PyAttributeOutsideInit
@@ -57,8 +63,12 @@ class TestHuggingFaceModelRunner(TestMLRunSystem):
             name=self.profile_name,
             task=task or "text-generation",
             token=os.environ.get("HF_TOKEN"),
+            endpoint=os.environ.get("HF_ENDPOINT"),
             device=os.environ.get("HF_DEVICE"),
             device_map=os.environ.get("HF_DEVICE_MAP"),
+            max_workers=int(os.environ["HF_MAX_WORKERS"])
+            if os.environ.get("HF_MAX_WORKERS")
+            else None,
         )
         model_name = model_name or self.basic_llm_model
         self.project.register_datastore_profile(self.profile)
@@ -254,8 +264,6 @@ class TestHuggingFaceModelRunner(TestMLRunSystem):
         ["naive", "process_pool", "dedicated_process", "thread_pool"],
     )
     def test_hf_2_models(self, execution_mechanism):
-        if not os.getenv("HF_TOKEN"):
-            pytest.skip("test_hf_2_models Requires HF_TOKEN")
         self.setup_datastore_profile()
         llm_model2 = "google/gemma-2b-it"
         ep_name = "ep"

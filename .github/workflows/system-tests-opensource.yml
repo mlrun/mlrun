@@ -46,7 +46,34 @@ on:
         options:
           - 'true'
           - 'false'
-
+   workflow_call:
+      inputs:
+        pr_number:
+          type: string
+          required: false
+          default: ''
+        pytest_markers:
+          type: string
+          required: false
+          default: 'not enterprise and smoke'
+        clean_resources_in_teardown:
+          type: string
+          required: false
+          default: 'true'
+        debug_enabled:
+          type: string
+          required: false
+          default: 'false'
+      outputs:
+        pr_base_sha:
+          description: 'Pinned SHA of the base branch captured at workflow start'
+          value: ${{ jobs.prepare-inputs.outputs.pr_base_sha }}
+        pr_base_ref:
+          description: 'Base branch name of the PR'
+          value: ${{ jobs.prepare-inputs.outputs.pr_base_ref }}
+        rebase_commit_count:
+          description: 'Number of commits the PR was rebased forward'
+          value: ${{ jobs.prepare-inputs.outputs.rebase_commit_count }}
 env:
   NAMESPACE: mlrun
   MLRUN_API_NODE_PORT: 30070
@@ -72,6 +99,9 @@ jobs:
       mlrun_system_tests_clean_resources: ${{ steps.computed_params.outputs.mlrun_system_tests_clean_resources }}
       mlrun_version: ${{ steps.computed_params.outputs.mlrun_version }}
       mlrun_version_specifier: ${{ steps.computed_params.outputs.mlrun_version_specifier }}
+      pr_base_sha: ${{ steps.pr_base.outputs.pr_base_sha }}
+      pr_base_ref: ${{ steps.pr_base.outputs.pr_base_ref }}
+      rebase_commit_count: ${{ steps.pr_base.outputs.rebase_commit_count }}
     steps:
       - uses: actions/checkout@v6
 
@@ -87,7 +117,19 @@ jobs:
           
           # if the action is running on a PR, we need to get the latest commit hash from the PR branch
           if [ -n "$PR_NUM" ]; then
-            echo "mlrun_hash=pr$PR_NUM" >> $GITHUB_OUTPUT
+            PR_HEAD_SHA=$(curl -sS \
+              -H "Authorization: token ${GH_TOKEN}" \
+              -H "Accept: application/vnd.github+json" \
+              "https://api.github.com/repos/${{ github.repository }}/pulls/${PR_NUM}" \
+              | jq -r '.head.sha')
+            if [ -z "$PR_HEAD_SHA" ] || [ "$PR_HEAD_SHA" = "null" ]; then
+              echo "::error::Failed to resolve PR #${PR_NUM} HEAD SHA"
+              exit 1
+            fi
+            # Include the PR HEAD SHA in the mlrun hash so each commit produces a unique
+            # docker tag and wrong use of cached image is prevented
+            PR_HEAD_SHORT=$(echo "$PR_HEAD_SHA" | cut -c1-8)
+            echo "mlrun_hash=pr${PR_NUM}-${PR_HEAD_SHORT}" >> $GITHUB_OUTPUT
           else
             echo "mlrun_hash=$( \
               cd /tmp && \
@@ -110,7 +152,8 @@ jobs:
               rm -rf mlrun-ui)" >> $GITHUB_OUTPUT
           echo "unstable_version_prefix=$(cat automation/version/unstable_version_prefix)" >> $GITHUB_OUTPUT
         env:
-          PR_NUMBER: ${{ github.event.inputs.pr_number }}
+          PR_NUMBER: ${{ inputs.pr_number }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Set computed versions params
         id: computed_params
@@ -144,15 +187,48 @@ jobs:
             input_system_tests_clean_resources=$INPUT_CLEAN_RESOURCES_IN_TEARDOWN && \
             echo ${input_system_tests_clean_resources:-true})" >> $GITHUB_OUTPUT
         env:
-          INPUT_CLEAN_RESOURCES_IN_TEARDOWN: ${{ github.event.inputs.clean_resources_in_teardown || env.DEFAULT_CLEAN_RESOURCES_IN_TEARDOWN }}
-          PR_NUMBER: ${{ github.event.inputs.pr_number }}
+          INPUT_CLEAN_RESOURCES_IN_TEARDOWN: ${{ inputs.clean_resources_in_teardown || env.DEFAULT_CLEAN_RESOURCES_IN_TEARDOWN }}
+          PR_NUMBER: ${{ inputs.pr_number }}
 
       - name: Print mlrun_hash value
         run: |
           echo "mlrun_hash value: ${{ steps.computed_params.outputs.mlrun_hash }}"
 
+      - name: Capture PR base ref and SHA
+        id: pr_base
+        if: inputs.pr_number != ''
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          PR_JSON=$(curl -sS \
+            -H "Authorization: token ${GITHUB_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/${{ github.repository }}/pulls/${{ inputs.pr_number }}")
+          BASE_REF=$(echo "$PR_JSON" | jq -r '.base.ref')
+          BASE_SHA=$(git ls-remote origin "refs/heads/${BASE_REF}" | cut -f1)
+
+          # Count how many commits the PR needs to be rebased forward.
+          # Use the compare API to find the real merge base between the PR head and base branch,
+          # since .base.sha from the PR API is just GitHub's cached base branch HEAD (often stale).
+          PR_HEAD_SHA=$(echo "$PR_JSON" | jq -r '.head.sha')
+          MERGE_BASE_SHA=$(curl -sS \
+            -H "Authorization: token ${GITHUB_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/${{ github.repository }}/compare/${BASE_REF}...${PR_HEAD_SHA}" \
+            | jq -r '.merge_base_commit.sha')
+          REBASE_COUNT=$(curl -sS \
+            -H "Authorization: token ${GITHUB_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/${{ github.repository }}/compare/${MERGE_BASE_SHA}...${BASE_SHA}" \
+            | jq -r '.ahead_by // 0')
+
+          echo "pr_base_ref=${BASE_REF}" >> $GITHUB_OUTPUT
+          echo "pr_base_sha=${BASE_SHA}" >> $GITHUB_OUTPUT
+          echo "rebase_commit_count=${REBASE_COUNT}" >> $GITHUB_OUTPUT
+          echo "PR #${{ inputs.pr_number }} base: ${BASE_REF} @ ${BASE_SHA} (rebase ${REBASE_COUNT} commits)"
+
   build-mlrun:
-    if: github.event_name == 'pull_request' || github.event.inputs.pr_number != ''
+    if: inputs.pr_number != ''
     name: Build MLRun
     uses: ./.github/workflows/build-internal.yaml
     needs: prepare-inputs
@@ -167,6 +243,8 @@ jobs:
       # TODO: support patching jupyter as well (maybe on demand?)
       # and use --override-mlrun-jupyter-image when patching mlrun ce
       skip_images: test,mlrun-gpu,jupyter
+      pr_number: ${{ inputs.pr_number }}
+      pr_base_sha: ${{ needs.prepare-inputs.outputs.pr_base_sha }}
     secrets: inherit
 
   run-system-tests-opensource-ci:
@@ -174,11 +252,39 @@ jobs:
     runs-on:
       group: mlrun-ce
     needs: [prepare-inputs, build-mlrun]
+    if: >-
+      always() &&
+      needs.prepare-inputs.result == 'success' &&
+      (needs.build-mlrun.result == 'success' || needs.build-mlrun.result == 'skipped')
     steps:
     - uses: actions/checkout@v6
+      if: inputs.pr_number == ''
+
+    - uses: actions/checkout@v6
+      if: inputs.pr_number != ''
+      with:
+        ref: refs/pull/${{ inputs.pr_number }}/head
+        fetch-depth: 0
+
+    - name: Rebase PR onto base branch
+      if: inputs.pr_number != ''
+      run: |
+        git config user.name "github-actions[bot]"
+        git config user.email "github-actions[bot]@users.noreply.github.com"
+        BASE_SHA="${{ needs.prepare-inputs.outputs.pr_base_sha }}"
+        BASE_REF="${{ needs.prepare-inputs.outputs.pr_base_ref }}"
+
+        git fetch origin "${BASE_REF}"
+        if ! git rebase "${BASE_SHA}"; then
+          echo "::error::Rebase of PR #${{ inputs.pr_number }} onto ${BASE_REF} (${BASE_SHA}) failed due to conflicts. Please rebase your branch locally and push."
+          git rebase --abort
+          exit 1
+        fi
+
+        echo "Rebased onto ${BASE_REF} @ ${BASE_SHA}"
 
     - name: Install uv
-      uses: astral-sh/setup-uv@cec208311dfd045dd5311c1add060b2062131d57
+      uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b
       with:
         enable-cache: true
         cache-dependency-glob: "**/*requirements*.txt"
@@ -255,7 +361,7 @@ jobs:
 
     - name: Setup tmate session
       uses: mxschmitt/action-tmate@c0afd6f790e3a5564914980036ebf83216678101 # 3.23
-      if: ${{ (github.event.inputs.debug_enabled || env.DEFAULT_DEBUG_ENABLED) == 'true' }}
+      if: ${{ (inputs.debug_enabled || env.DEFAULT_DEBUG_ENABLED) == 'true' }}
       with:
 
         # run in detach mode to allow the workflow to continue running while session is active
@@ -267,15 +373,22 @@ jobs:
       env:
         DOCKER_USERNAME: ${{ secrets.DOCKER_HUB_DOCKER_REGISTRY_USERNAME }}
         DOCKER_PASSWORD: ${{ secrets.DOCKER_HUB_DOCKER_REGISTRY_PASSWORD }}
+        ARTIFACTORY_REGISTRY_URL: ${{ secrets.ARTIFACTORY_DOCKER_REGISTRY_URL }}
+        ARTIFACTORY_USERNAME: ${{ secrets.ARTIFACTORY_DOCKER_REGISTRY_USERNAME }}
+        ARTIFACTORY_PASSWORD: ${{ secrets.ARTIFACTORY_DOCKER_REGISTRY_PASSWORD }}
       run: |
         echo "=== Creating K3S registries configuration ==="
-        
+
         # Create the K3S config directory if it doesn't exist
         sudo mkdir -p /etc/rancher/k3s
-        
-        # Create registries.yaml with Docker Hub authentication
-        # This configures containerd to authenticate when pulling from docker.io
-        # and sets up a local registry mirror for testing
+
+        if [ -z "${ARTIFACTORY_REGISTRY_URL}" ]; then
+          echo "::error::Missing ARTIFACTORY_DOCKER_REGISTRY_URL secret"
+          exit 1
+        fi
+
+        # Create registries.yaml with Docker Hub authentication and Artifactory mirrors
+        # for ghcr.io / gcr.io image pulls
         sudo tee "/etc/rancher/k3s/registries.yaml" > /dev/null << EOF
         mirrors:
           registry.localhost:
@@ -284,13 +397,23 @@ jobs:
           docker.io:
             endpoint:
             - https://registry-1.docker.io
+          ghcr.io:
+            endpoint:
+            - https://${ARTIFACTORY_REGISTRY_URL#https://}
+          gcr.io:
+            endpoint:
+            - https://${ARTIFACTORY_REGISTRY_URL#https://}
         configs:
           "registry-1.docker.io":
             auth:
               username: ${DOCKER_USERNAME}
               password: ${DOCKER_PASSWORD}
+          "${ARTIFACTORY_REGISTRY_URL}":
+            auth:
+              username: ${ARTIFACTORY_USERNAME}
+              password: ${ARTIFACTORY_PASSWORD}
         EOF
-        
+
         echo "✓ Registries configuration created at /etc/rancher/k3s/registries.yaml"
 
 
@@ -320,6 +443,26 @@ jobs:
         kubectl -n kube-system rollout restart deployment coredns
         
         echo "✓ Registry configuration applied successfully"
+
+    - name: Pre-stage MLRun base image to local registry
+      run: |
+        MLRUN_IMAGE="${{ needs.prepare-inputs.outputs.mlrun_docker_registry }}${{ needs.prepare-inputs.outputs.mlrun_docker_repo }}/mlrun:${{ needs.prepare-inputs.outputs.mlrun_docker_tag }}"
+        LOCAL_IMAGE="localhost:32000/${{ needs.prepare-inputs.outputs.mlrun_docker_repo }}/mlrun:${{ needs.prepare-inputs.outputs.mlrun_docker_tag }}"
+
+        echo "Starting background pre-stage: ${MLRUN_IMAGE} → local registry"
+        (
+          set -e
+          echo "[prestage] Pulling ${MLRUN_IMAGE} via crictl (Artifactory mirror)..."
+          sudo crictl pull "${MLRUN_IMAGE}"
+          echo "[prestage] Tagging as ${LOCAL_IMAGE}..."
+          sudo k3s ctr images tag "${MLRUN_IMAGE}" "${LOCAL_IMAGE}"
+          echo "[prestage] Pushing to local registry (plain HTTP)..."
+          sudo k3s ctr images push --plain-http "${LOCAL_IMAGE}"
+          echo "[prestage] Done."
+        ) > /tmp/mlrun-prestage.log 2>&1 &
+        PRESTAGE_PID=$!
+        echo "MLRUN_PRESTAGE_PID=${PRESTAGE_PID}" >> $GITHUB_ENV
+        echo "Pre-stage running in background (PID: ${PRESTAGE_PID})"
 
     - name: Setup K3S storage and check cluster health
       run: |
@@ -362,6 +505,15 @@ jobs:
         echo "Listing Helm releases after cleanup:"
         helm list --all-namespaces
 
+    - name: Generate GitHub App Token
+      id: github-app-token
+      uses: actions/create-github-app-token@v3
+      with:
+        app-id: ${{ secrets.GH_APP_ID }}
+        private-key: ${{ secrets.GH_APP_PRIVATE_KEY }}
+        owner: ${{ github.repository_owner }}
+        repositories: mlrun,private-system-tests
+
     - name: Prepare system tests env
       run: |
         # Define get_host_ip function
@@ -384,14 +536,31 @@ jobs:
         source venv/bin/activate
         python automation/system_test/prepare.py env \
           --mlrun-dbpath "$MLRUN_DBPATH" \
-          --github-access-token "${{ secrets.SYSTEM_TEST_GITHUB_ACCESS_TOKEN }}" \
+          --github-access-token "${{ steps.github-app-token.outputs.token }}" \
           --openai-base-url "${{ secrets.OPENAI_BASE_URL }}" \
-          --openai-api-key "${{ secrets.OPENAI_API_KEY }}"  
+          --openai-api-key "${{ secrets.OPENAI_API_KEY }}"
+
+    - name: Build and serve MLRun wheel for kaniko builds
+      run: |
+        source venv/bin/activate
+        # Build a wheel from the already-rebased source tree so kaniko pods can
+        # pip-install mlrun from a local HTTP server instead of cloning from GitHub.
+        # This avoids GitHub rate-limiting when multiple kaniko builds run concurrently.
+        pip install build --quiet
+        rm -rf /tmp/mlrun-wheels && mkdir -p /tmp/mlrun-wheels
+        python -m build --wheel --outdir /tmp/mlrun-wheels . --quiet
+        # Use a fixed name so the URL is predictable
+        mv /tmp/mlrun-wheels/*.whl /tmp/mlrun-wheels/mlrun-pr-rebased-development.whl
+        # Serve on the node IP so Kubernetes pods can reach it
+        NODE_IP=$(hostname -I | awk '{print $1}')
+        python3 -m http.server 9000 --directory /tmp/mlrun-wheels &
+        echo "MLRUN_WHEEL_NODE_IP=${NODE_IP}" >> $GITHUB_ENV
+        echo "MLRun wheel available at: http://${NODE_IP}:9000/mlrun-pr-rebased-development.whl"
 
     - name: Install MLRun CE helm chart
       uses: nick-fields/retry@ad984534de44a9489a53aefd81eb77f87c70dc60 # v4.0.0
       with:
-        timeout_minutes: 45
+        timeout_minutes: 50
         max_attempts: 1
         retry_wait_seconds: 120
         command: |
@@ -418,9 +587,15 @@ jobs:
               --helm-timeout=15m \
               --override-mlrun-api-image="${{ needs.prepare-inputs.outputs.mlrun_docker_registry }}${{ needs.prepare-inputs.outputs.mlrun_docker_repo }}/mlrun-api:${{ needs.prepare-inputs.outputs.mlrun_docker_tag }}" \
               --override-mlrun-log-collector-image="${{ needs.prepare-inputs.outputs.mlrun_docker_registry }}${{ needs.prepare-inputs.outputs.mlrun_docker_repo }}/log-collector:${{ needs.prepare-inputs.outputs.mlrun_docker_tag }}" \
-              --set 'mlrun.api.extraEnvKeyValue.MLRUN_HTTPDB__BUILDER__MLRUN_VERSION_SPECIFIER="mlrun[complete] @ git+https://github.com/mlrun/mlrun@${{ needs.prepare-inputs.outputs.mlrun_version_specifier }}"' \
+              --set 'mlrun.api.extraEnvKeyValue.MLRUN_HTTPDB__BUILDER__MLRUN_VERSION_SPECIFIER="mlrun[complete] @ http://${{ env.MLRUN_WHEEL_NODE_IP }}:9000/mlrun-pr-rebased-development.whl"' \
               --set mlrun.api.extraEnvKeyValue.MLRUN_IMAGES_REGISTRY="${{ needs.prepare-inputs.outputs.mlrun_docker_registry }}" \
               --set mlrun.api.extraEnvKeyValue.MLRUN_IMAGES_TAG="${{ needs.prepare-inputs.outputs.mlrun_docker_tag }}" \
+              --set mlrun.api.extraEnvKeyValue.MLRUN_DEFAULT_BASE_IMAGE="registry.localhost/${{ needs.prepare-inputs.outputs.mlrun_docker_repo }}/mlrun:${{ needs.prepare-inputs.outputs.mlrun_docker_tag }}" \
+              --set mlrun.api.extraEnvKeyValue.MLRUN_FUNCTION_DEFAULTS__IMAGE_BY_KIND__JOB="registry.localhost/${{ needs.prepare-inputs.outputs.mlrun_docker_repo }}/mlrun:${{ needs.prepare-inputs.outputs.mlrun_docker_tag }}" \
+              --set mlrun.api.extraEnvKeyValue.MLRUN_FUNCTION_DEFAULTS__IMAGE_BY_KIND__SERVING="registry.localhost/${{ needs.prepare-inputs.outputs.mlrun_docker_repo }}/mlrun:${{ needs.prepare-inputs.outputs.mlrun_docker_tag }}" \
+              --set mlrun.api.extraEnvKeyValue.MLRUN_FUNCTION_DEFAULTS__IMAGE_BY_KIND__NUCLIO="registry.localhost/${{ needs.prepare-inputs.outputs.mlrun_docker_repo }}/mlrun:${{ needs.prepare-inputs.outputs.mlrun_docker_tag }}" \
+              --set mlrun.api.extraEnvKeyValue.MLRUN_FUNCTION_DEFAULTS__IMAGE_BY_KIND__REMOTE="registry.localhost/${{ needs.prepare-inputs.outputs.mlrun_docker_repo }}/mlrun:${{ needs.prepare-inputs.outputs.mlrun_docker_tag }}" \
+              --set mlrun.api.extraEnvKeyValue.MLRUN_FUNCTION_DEFAULTS__IMAGE_BY_KIND__MPIJOB="registry.localhost/${{ needs.prepare-inputs.outputs.mlrun_docker_repo }}/mlrun:${{ needs.prepare-inputs.outputs.mlrun_docker_tag }}" \
               --set 'mlrun.api.extraEnvKeyValue.MLRUN_HTTPDB__SCHEDULING__MIN_ALLOWED_INTERVAL="0 seconds"' \
               --set mlrun.api.extraEnvKeyValue.MLRUN_MODEL_ENDPOINT_MONITORING__PARQUET_BATCHING_MAX_EVENTS="100" \
               --set jupyterNotebook.enabled=false \
@@ -429,8 +604,8 @@ jobs:
             # Wait for all pods to be ready, on K3S the helm wait does not work because services will never get an IP
             echo "Waiting for all pods in namespace ${NAMESPACE} to be ready..."
 
-            # Wait up to 30 minutes (1800 seconds) for all pods to be ready.
-            timeout=1800
+            # Wait up to 40 minutes (2400 seconds) for all pods to be ready.
+            timeout=2400
             interval=60
             elapsed=0
 
@@ -495,6 +670,46 @@ jobs:
               kafka_elapsed=$((kafka_elapsed + kafka_interval))
             done
 
+    - name: Start GitHub App token refresh daemon
+      shell: bash
+      env:
+        GH_APP_ID: ${{ secrets.GH_APP_ID }}
+        GH_APP_PRIVATE_KEY: ${{ secrets.GH_APP_PRIVATE_KEY }}
+      run: |
+        source .github/scripts/github-app-token.sh
+        DAEMON_PID=$(start_token_refresh_daemon \
+          "/tmp/.github-app-token" \
+          "$GITHUB_WORKSPACE/tests/system/env.yml" \
+          "MLRUN_SYSTEM_TESTS_GIT_TOKEN" \
+          "3300" \
+          "${{ github.repository_owner }}" \
+          "mlrun,private-system-tests")
+        echo "Token refresh daemon started (PID: ${DAEMON_PID})"
+        echo "TOKEN_REFRESH_PID=${DAEMON_PID}" >> $GITHUB_ENV
+
+    - name: Wait for MLRun base image pre-stage
+      # The pre-stage's only consumer is kaniko (function builds in pytest).
+      # Helm install does not pull mlrun/mlrun so we let pre-stage run in
+      # parallel with helm install.
+      run: |
+        if [ -z "${MLRUN_PRESTAGE_PID}" ]; then
+          echo "No pre-stage PID found, skipping wait."
+          exit 0
+        fi
+        echo "Waiting for MLRun image pre-stage to finish (PID: ${MLRUN_PRESTAGE_PID})..."
+        while kill -0 "${MLRUN_PRESTAGE_PID}" 2>/dev/null; do
+          echo "  still running... ($(cat /tmp/mlrun-prestage.log 2>/dev/null | tail -1))"
+          sleep 15
+        done
+        echo "=== Pre-stage log ==="
+        cat /tmp/mlrun-prestage.log || true
+        if grep -q "\[prestage\] Done\." /tmp/mlrun-prestage.log 2>/dev/null; then
+          echo "✓ MLRun base image pre-staged successfully"
+        else
+          echo "✗ Pre-stage did not complete — kaniko builds in pytest will fail with image-not-found"
+          exit 1
+        fi
+
     - name: Run system tests
       id: system-tests
       run: |
@@ -529,11 +744,22 @@ jobs:
         export MLRUN_VERSION="${{ needs.prepare-inputs.outputs.mlrun_version }}"
         export MLRUN_IMAGES_TAG="${{ needs.prepare-inputs.outputs.mlrun_docker_tag }}"
 
+        # Set default function images on the client side to match the server overrides.
+        # This ensures tests that reference mlrun.mlconf.function_defaults.image_by_kind
+        # get the correct fully-qualified image URL (avoiding registry enrichment issues in forks).
+        MLRUN_IMAGE="${{ needs.prepare-inputs.outputs.mlrun_docker_registry }}${{ needs.prepare-inputs.outputs.mlrun_docker_repo }}/mlrun:${{ needs.prepare-inputs.outputs.mlrun_docker_tag }}"
+        export MLRUN_DEFAULT_BASE_IMAGE="$MLRUN_IMAGE"
+        export MLRUN_FUNCTION_DEFAULTS__IMAGE_BY_KIND__JOB="$MLRUN_IMAGE"
+        export MLRUN_FUNCTION_DEFAULTS__IMAGE_BY_KIND__SERVING="$MLRUN_IMAGE"
+        export MLRUN_FUNCTION_DEFAULTS__IMAGE_BY_KIND__NUCLIO="$MLRUN_IMAGE"
+        export MLRUN_FUNCTION_DEFAULTS__IMAGE_BY_KIND__REMOTE="$MLRUN_IMAGE"
+        export MLRUN_FUNCTION_DEFAULTS__IMAGE_BY_KIND__MPIJOB="$MLRUN_IMAGE"
+
         # S3 credentials for client-side artifact uploads (SeaweedFS).
         # Read from the s3-credentials K8s secret created by the CE chart, but
         # replace the in-cluster DNS endpoint with a routable ClusterIP address.
-        export AWS_ACCESS_KEY_ID=$(kubectl get secret s3-credentials -n ${NAMESPACE} -o jsonpath='{.data.AWS_ACCESS_KEY_ID}' | base64 -d)
-        export AWS_SECRET_ACCESS_KEY=$(kubectl get secret s3-credentials -n ${NAMESPACE} -o jsonpath='{.data.AWS_SECRET_ACCESS_KEY}' | base64 -d)
+        export AWS_ACCESS_KEY_ID=$(kubectl get secret storage-credentials -n ${NAMESPACE} -o jsonpath='{.data.AWS_ACCESS_KEY_ID}' | base64 -d)
+        export AWS_SECRET_ACCESS_KEY=$(kubectl get secret storage-credentials -n ${NAMESPACE} -o jsonpath='{.data.AWS_SECRET_ACCESS_KEY}' | base64 -d)
         S3_CLUSTER_IP=$(kubectl get svc seaweedfs-s3 -n ${NAMESPACE} -o jsonpath='{.spec.clusterIP}')
         S3_PORT=$(kubectl get svc seaweedfs-s3 -n ${NAMESPACE} -o jsonpath='{.spec.ports[0].port}')
         export AWS_ENDPOINT_URL_S3="http://${S3_CLUSTER_IP}:${S3_PORT}"
@@ -544,64 +770,7 @@ jobs:
         source venv/bin/activate
         make test-system-open-source
       env:
-        PYTEST_MARKERS: ${{ github.event.inputs.pytest_markers || env.DEFAULT_PYTEST_MARKERS }}
-
-    - name: Label PR with system test result
-      if: >-
-        always() &&
-        (github.event_name == 'pull_request' || github.event.inputs.pr_number != '')
-      run: |
-        if [ "${{ github.event_name }}" = "pull_request" ]; then
-          PR="${{ github.event.pull_request.number }}"
-        else
-          PR="${{ github.event.inputs.pr_number }}"
-        fi
-        API_URL="https://api.github.com/repos/${{ github.repository }}/issues/${PR}/labels"
-
-        REPO_LABELS_URL="https://api.github.com/repos/${{ github.repository }}/labels"
-
-        if [ "${{ steps.system-tests.outcome }}" = "success" ]; then
-          LABEL="Smoke tests: Pass"
-          LABEL_COLOR="0e8a16"
-          REMOVE_LABEL="Smoke tests: Fail"
-        else
-          LABEL="Smoke tests: Fail"
-          LABEL_COLOR="d93f0b"
-          REMOVE_LABEL="Smoke tests: Pass"
-        fi
-
-        ENCODED_LABEL=$(echo "${LABEL}" | sed 's/ /%20/g; s/:/%3A/g')
-
-        # Ensure the label exists with the correct color
-        curl -sS -X PATCH \
-          -H "Authorization: token ${GITHUB_TOKEN}" \
-          -H "Accept: application/vnd.github+json" \
-          -d "{\"color\":\"${LABEL_COLOR}\"}" \
-          "${REPO_LABELS_URL}/${ENCODED_LABEL}" || \
-        curl -sS -X POST \
-          -H "Authorization: token ${GITHUB_TOKEN}" \
-          -H "Accept: application/vnd.github+json" \
-          -d "{\"name\":\"${LABEL}\",\"color\":\"${LABEL_COLOR}\"}" \
-          "${REPO_LABELS_URL}"
-
-        # Remove the opposite label and the Unknown label (ignore errors if not present)
-        curl -sS -X DELETE \
-          -H "Authorization: token ${GITHUB_TOKEN}" \
-          -H "Accept: application/vnd.github+json" \
-          "${API_URL}/$(echo "${REMOVE_LABEL}" | sed 's/ /%20/g; s/:/%3A/g')" || true
-        curl -sS -X DELETE \
-          -H "Authorization: token ${GITHUB_TOKEN}" \
-          -H "Accept: application/vnd.github+json" \
-          "${API_URL}/Smoke tests%3A%20Unknown" || true
-
-        # Add the correct label
-        curl -sS -X POST \
-          -H "Authorization: token ${GITHUB_TOKEN}" \
-          -H "Accept: application/vnd.github+json" \
-          -d "{\"labels\":[\"${LABEL}\"]}" \
-          "${API_URL}"
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        PYTEST_MARKERS: ${{ inputs.pytest_markers || env.DEFAULT_PYTEST_MARKERS }}
 
     - name: Output  logs
       if: always()
@@ -712,7 +881,7 @@ jobs:
         echo "=== SEAWEEDFS S3 STATUS ==="
         echo "=================================="
         kubectl get svc seaweedfs-s3 -n ${NAMESPACE} -o wide 2>/dev/null || echo "seaweedfs-s3 service not found"
-        kubectl get secret s3-credentials -n ${NAMESPACE} 2>/dev/null || echo "s3-credentials secret not found"
+        kubectl get secret storage-credentials -n ${NAMESPACE} 2>/dev/null || echo "storage-credentials secret not found"
 
         set +x
 

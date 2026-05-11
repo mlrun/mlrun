@@ -644,6 +644,9 @@ class NopDB(RunDBInterface):
     ) -> mlrun.common.schemas.ModelEndpoint:
         pass
 
+    def get_model_monitoring_url(self, project: str) -> str | None:
+        pass
+
     def create_hub_source(
         self, source: Union[dict, mlrun.common.schemas.IndexedHubSource]
     ):
@@ -858,7 +861,7 @@ class NopDB(RunDBInterface):
         self,
         project: str,
         base_period: int = 10,
-        image: str = "mlrun/mlrun",
+        image: str | None = None,
         deploy_histogram_data_drift_app: bool = True,
         fetch_credentials_from_sys_config: bool = False,
         lag_threshold: int | None = None,

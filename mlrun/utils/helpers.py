@@ -83,6 +83,14 @@ _missing = object()
 hub_prefix = "hub://"
 DB_SCHEMA = "store"
 
+
+def is_store_uri(url):
+    """detect if the uri starts with the store schema prefix"""
+    if not url:
+        return False
+    return url.startswith(DB_SCHEMA + "://")
+
+
 LEGAL_TIME_UNITS = ["year", "month", "day", "hour", "minute", "second"]
 DEFAULT_TIME_PARTITIONS = ["year", "month", "day", "hour"]
 DEFAULT_TIME_PARTITIONING_GRANULARITY = "hour"
@@ -389,7 +397,7 @@ def remove_image_protocol_prefix(image: str) -> str:
     if not image:
         return image
 
-    prefixes = ["https://", "https://"]
+    prefixes = ["https://", "http://"]
     if any(prefix in image for prefix in prefixes):
         image = image.removeprefix("https://").removeprefix("http://")
         logger.warning(
@@ -871,7 +879,7 @@ def remove_tag_from_artifact_uri(uri: str) -> str | None:
         "store://models/remote-model-project/my_model#0@tree" => unchanged (no tag)
     """
     add_store = False
-    if mlrun.datastore.is_store_uri(uri):
+    if is_store_uri(uri):
         uri = uri.removeprefix(DB_SCHEMA + "://")
         add_store = True
     uri = re.sub(r"(#[^:@\s]*)?:[^@^:\s]+(?=(@|\^|$))", lambda m: m.group(1) or "", uri)
@@ -1477,6 +1485,28 @@ def get_class(class_name, namespace=None):
     return class_object
 
 
+def split_handler_module_and_function(handler: str | None) -> tuple[str, str]:
+    """Split mlrun's ``"module:function"`` handler form into ``(module, function)``.
+
+    mlrun's canonical handler format on the wire is ``"<module>:<function>"`` —
+    e.g. ``"trainer:train_model"``. Internally on the runtime spec, however,
+    ``spec.handler`` typically holds JUST the function name (the module is
+    implicit in ``spec.command`` or in the loaded source file). This helper
+    bridges the two: callers split once and decide what to do with each part.
+
+    Bare function names (no colon) are returned with an empty module:
+    ``"my_func"`` -> ``("", "my_func")``.
+
+    :param handler: Handler string in either ``"module:function"`` or bare
+                    ``"function"`` form. Falsy values return ``("", "")``.
+    :returns: ``(module_name, function_name)``.
+    """
+    if not handler or ":" not in handler:
+        return "", handler or ""
+    module, _, function = handler.partition(":")
+    return module, function
+
+
 def get_function(function, namespaces, reload_modules: bool = False):
     """Return function callable object from function name string
 
@@ -1767,8 +1797,7 @@ def format_run(run: PipelineRun, with_project=False) -> dict:
         ):
             run[key] = None
 
-    # pipelines are yet to populate the status or workflow has failed
-    # as observed https://jira.iguazeng.com/browse/ML-5195
+    # pipelines are yet to populate the status or workflow has failed as observed (ML-5195)
     # set to unknown to ensure a status is returned
     if run.get("status", None) is None:
         run["status"] = inflection.titleize(
@@ -2251,7 +2280,7 @@ def warn_on_deprecated_image(image: str | None):
     """
     deprecated_images = ["mlrun/ml-base"]
     if image and any(
-        image in deprecated_image for deprecated_image in deprecated_images
+        deprecated_image in image for deprecated_image in deprecated_images
     ):
         warnings.warn(
             "'mlrun/ml-base' image is deprecated in 1.10.0 and will be replaced by 'mlrun/mlrun'. "

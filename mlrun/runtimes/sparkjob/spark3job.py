@@ -173,6 +173,7 @@ class Spark3JobSpec(KubeResourceSpec):
         parameters=None,
         track_models=None,
         env_from=None,
+        otlp_enabled: bool = False,
     ):
         super().__init__(
             command=command,
@@ -207,6 +208,7 @@ class Spark3JobSpec(KubeResourceSpec):
             graph=graph,
             parameters=parameters,
             track_models=track_models,
+            otlp_enabled=otlp_enabled,
         )
 
         self.driver_resources = driver_resources or {}

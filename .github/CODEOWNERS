@@ -97,6 +97,8 @@ mlrun/common/formatters/** @quaark @mlrun/platform-owners
 # server clients, server side runtimes and run monitoring are owned by alonmr
 server/py/framework/utils/clients/** @alonmr @mlrun/platform-owners
 server/py/framework/utils/runtimes/** @alonmr @mlrun/platform-owners
+
+server/py/services/api/crud/runtimes/nuclio/** @Yacouby @mlrun/platform-owners
 server/py/services/api/common/runtime_handlers.py @alonmr @mlrun/platform-owners
 server/py/services/api/runtime_handlers/** @alonmr @mlrun/platform-owners
 
@@ -169,9 +171,9 @@ mlrun/runtimes/sparkjob/** @mlrun/data-flows-owners
 # api gateway runtime is owned by rokatyy
 mlrun/runtimes/nuclio/api_gateway.py @rokatyy @mlrun/platform-owners
 
-# application runtime is owned by TomerShor
-mlrun/runtimes/nuclio/application/** @TomerShor @mlrun/platform-owners
-mlrun/runtimes/nuclio/function.py @TomerShor @mlrun/platform-owners
+# application runtime is owned by TomerShor and Yacouby
+mlrun/runtimes/nuclio/application/** @TomerShor @Yacouby @mlrun/platform-owners
+mlrun/runtimes/nuclio/function.py @TomerShor @Yacouby @mlrun/platform-owners
 
 ### End of Runtimes ###
 

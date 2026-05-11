@@ -48,6 +48,7 @@ The realtime pipelines UI page displays:
 :maxdepth: 1
 basic-example
 getting-started
+api-handler
 building-graphs
 deploying-graphs
 demos

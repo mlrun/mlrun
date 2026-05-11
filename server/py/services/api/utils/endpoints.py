@@ -36,12 +36,13 @@ async def start_model_endpoint_creation_background_task(
     )
     model_endpoints_instructions = []
     kind = function.get("kind")
+    monitoring_deployment = mm_deployment.MonitoringDeployment(project=project)
+
     if (
         kind == RuntimeKinds.serving
         or kind == RuntimeKinds.job
         and function["spec"].get("serving_spec")
     ):
-        monitoring_deployment = mm_deployment.MonitoringDeployment(project=project)
         (
             model_endpoints_instructions,
             function,
@@ -68,6 +69,21 @@ async def start_model_endpoint_creation_background_task(
             model_endpoints_instructions=model_endpoints_instructions,
         )
         returned_background_tasks.background_tasks.append(returned_background_task)
+
+    elif kind in (
+        RuntimeKinds.remote,
+        RuntimeKinds.application,
+    ) and (function.get("spec") or {}).get("track_models"):
+        (
+            model_endpoints_instructions,
+            function,
+        ) = await monitoring_deployment._create_nuclio_app_model_endpoint_background_task(
+            db_session=db_session,
+            background_tasks=background_tasks,
+            function=function,
+            function_name=name,
+            project=project,
+        )
 
     model_endpoint_creation_task_name = (
         returned_background_tasks.background_tasks[0].metadata.name

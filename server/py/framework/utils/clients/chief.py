@@ -173,6 +173,20 @@ class Client(
             "POST", "build/function", request, json
         )
 
+    async def create_project(
+        self, request: fastapi.Request, api_version: str | None = None
+    ) -> fastapi.Response:
+        return await self._proxy_request_to_chief(
+            "POST", "projects", request, version=api_version
+        )
+
+    async def store_project(
+        self, name, request: fastapi.Request, api_version: str | None = None
+    ) -> fastapi.Response:
+        return await self._proxy_request_to_chief(
+            "PUT", f"projects/{name}", request, version=api_version
+        )
+
     async def delete_project(
         self, name, request: fastapi.Request, api_version: str | None = None
     ) -> fastapi.Response:

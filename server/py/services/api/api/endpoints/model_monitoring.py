@@ -142,7 +142,7 @@ async def _common_parameters(
 def enable_model_monitoring(
     commons: Annotated[_CommonParams, Depends(_common_parameters)],
     base_period: int = 10,
-    image: str = "mlrun/mlrun",
+    image: str | None = None,
     deploy_histogram_data_drift_app: bool = True,
     fetch_credentials_from_sys_config: bool = Query(
         False,
@@ -172,7 +172,8 @@ def enable_model_monitoring(
                                               function triggers. By default, the base period is 10 minutes.
     :param image:                             The image of the model monitoring controller, writer & monitoring
                                               stream functions, which are real time nuclio functions.
-                                              By default, the image is mlrun/mlrun.
+                                              Defaults to
+                                              ``mlrun.mlconf.function_defaults.image_by_kind.nuclio``.
     :param deploy_histogram_data_drift_app:   If true, deploy the default histogram-based data drift application.
     :param fetch_credentials_from_sys_config: Deprecated. If true, fetch the credentials from the system configuration.
     :param lag_threshold:                     Lag threshold in minutes for writer lag detection.
@@ -193,7 +194,7 @@ def enable_model_monitoring(
 def update_model_monitoring_controller(
     commons: Annotated[_CommonParams, Depends(_common_parameters)],
     base_period: int = 10,
-    image: str = "mlrun/mlrun",
+    image: str | None = None,
 ):
     """
     Redeploy model monitoring application controller function.
@@ -202,9 +203,8 @@ def update_model_monitoring_controller(
     :param commons:     The common parameters of the request.
     :param base_period: The time period in minutes in which the model monitoring controller function
                         triggers. By default, the base period is 10 minutes.
-    :param image:       The default image of the model monitoring controller job. Note that the writer
-                        function, which is a real time nuclio functino, will be deployed with the same
-                        image. By default, the image is mlrun/mlrun.
+    :param image:       The image of the model monitoring controller function. Defaults to
+                        ``mlrun.mlconf.function_defaults.image_by_kind.nuclio``.
     """
     try:
         # validate that the model monitoring stream has not yet been deployed
@@ -598,3 +598,39 @@ async def get_model_endpoint_drift_over_time(
         )
         return mlrun.common.schemas.ModelEndpointDriftValues(values=[])
     return await run_in_threadpool(tsdb_connector.get_drift_data, start, end)
+
+
+@router.get(
+    "/stream-pod-http-url",
+    status_code=http.HTTPStatus.OK.value,
+)
+async def get_model_monitoring_url(
+    project: ProjectAnnotation,
+    auth_info: mlrun.common.schemas.AuthInfo = Depends(
+        framework.api.deps.authenticate_request
+    ),
+    db_session: Session = Depends(deps.get_db_session),
+) -> str | None:
+    """
+    Get the internal cluster HTTP URL of the model monitoring stream pod for the given project.
+
+    Verifies that the stream function is deployed and in a ready state, then returns
+    its internal_invocation_url. The returned URL is only reachable from within the
+    Kubernetes cluster and is intended for use by other pods/functions running in the
+    same cluster (e.g. nuclio functions sending prediction data to the stream pod).
+
+    :param project:    The name of the project.
+    :param auth_info:  The auth info of the request.
+    :param db_session: A session that manages the current dialog with the database.
+    :return: Internal cluster HTTP URL of the stream pod, or None if no HTTP trigger is configured.
+    :raises MLRunNotFoundError: if the stream function is not deployed.
+    :raises MLRunPreconditionFailedError: if the stream function is not in ready state.
+    """
+    await framework.utils.auth.verifier.AuthVerifier().query_project_permissions(
+        project_name=project,
+        action=mlrun.common.schemas.AuthorizationAction.read,
+        auth_info=auth_info,
+    )
+    import services.api.crud.model_monitoring.helpers as mm_crud_helpers
+
+    return await mm_crud_helpers.get_stream_url(db_session=db_session, project=project)

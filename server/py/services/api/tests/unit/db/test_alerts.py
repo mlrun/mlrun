@@ -83,6 +83,70 @@ class TestAlertStateDB(TestDatabaseBase):
             is None
         )
 
+    def test_list_alerts_pending_cooldown_reset(self):
+        """list_alerts_pending_cooldown_reset returns only alerts whose cooldown has elapsed."""
+        # alert whose cooldown has already passed
+        elapsed_id = self._create_alert(
+            self._db, self._db_session, name="elapsed-alert"
+        )
+        self._db.store_alert_state(
+            session=self._db_session,
+            project="project",
+            name="elapsed-alert",
+            last_updated=datetime.now(UTC),
+            active=True,
+            alert_id=elapsed_id,
+            cooldown_end_time=datetime.now(UTC) - timedelta(seconds=1),
+        )
+
+        # alert still within cooldown
+        active_id = self._create_alert(
+            self._db, self._db_session, name="active-cooldown-alert"
+        )
+        self._db.store_alert_state(
+            session=self._db_session,
+            project="project",
+            name="active-cooldown-alert",
+            last_updated=datetime.now(UTC),
+            active=True,
+            alert_id=active_id,
+            cooldown_end_time=datetime.now(UTC) + timedelta(minutes=5),
+        )
+
+        # alert with no cooldown set
+        no_cooldown_id = self._create_alert(
+            self._db, self._db_session, name="no-cooldown-alert"
+        )
+        self._db.store_alert_state(
+            session=self._db_session,
+            project="project",
+            name="no-cooldown-alert",
+            last_updated=datetime.now(UTC),
+            active=True,
+            alert_id=no_cooldown_id,
+        )
+
+        # alert with elapsed cooldown but active=False — should NOT be reset
+        inactive_id = self._create_alert(
+            self._db, self._db_session, name="inactive-alert"
+        )
+        self._db.store_alert_state(
+            session=self._db_session,
+            project="project",
+            name="inactive-alert",
+            last_updated=datetime.now(UTC),
+            active=False,
+            alert_id=inactive_id,
+            cooldown_end_time=datetime.now(UTC) - timedelta(seconds=1),
+        )
+
+        pending = self._db.list_alerts_pending_cooldown_reset(self._db_session)
+        pending_names = [alert.name for alert in pending]
+        assert "elapsed-alert" in pending_names
+        assert "active-cooldown-alert" not in pending_names
+        assert "no-cooldown-alert" not in pending_names
+        assert "inactive-alert" not in pending_names
+
     def _create_alert(self, db, session, project="project", name="alert") -> int:
         alert = alert_objects.AlertConfig(
             project=project,

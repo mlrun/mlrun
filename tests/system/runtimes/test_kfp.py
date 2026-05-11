@@ -226,3 +226,57 @@ class TestKFP(tests.system.base.TestMLRunSystem):
         record = db.get_pipeline(run_id, project=self.project_name)
         err = record["run"].get("status", "")
         assert "failed" in err.lower(), f"expected failed error, got: {err}"
+
+    def test_kfp_long_pipeline_name_steps_have_run_uid(self):
+        """Verify that pipeline steps are correctly matched to MLRun runs
+        even when the pipeline + step names produce pod hostnames exceeding
+        the 63-char kubelet truncation limit."""
+        code_path = str(self.assets_path / "my_func.py")
+        func = mlrun.code_to_function(
+            name="func",
+            kind="job",
+            filename=code_path,
+            project=self.project_name,
+            image="mlrun/mlrun",
+        )
+        self.project.set_function(func)
+
+        # Use a long pipeline name so that pipeline-name + step-name + node-id > 63 chars
+        long_pipeline_name = "long-pipeline-name-with-many-characters"
+
+        @dsl.pipeline(name=long_pipeline_name)
+        def long_name_pipeline():
+            mlrun.run_function(
+                "func",
+                name="data-preprocessing-and-validation",
+                handler="handler",
+                params={"p1": 1},
+            )
+            mlrun.run_function(
+                "func",
+                name="model-training-and-evaluation",
+                handler="handler",
+                params={"p1": 2},
+            )
+
+        run_id = self.project.run(
+            workflow_handler=long_name_pipeline,
+            name="long-name-test",
+            watch=True,
+        )
+
+        mlrun.wait_for_pipeline_completion(run_id, project=self.project_name)
+
+        db = mlrun.get_run_db()
+        pipeline = db.get_pipeline(run_id, project=self.project_name)
+        graph = pipeline.get("graph", {})
+
+        steps_with_run_uid = [
+            step_name
+            for step_name, step_info in graph.items()
+            if step_info.get("run_uid")
+        ]
+        assert len(steps_with_run_uid) == 2, (
+            f"Expected 2 steps with run_uid, got {len(steps_with_run_uid)}. "
+            f"Graph: {graph}"
+        )

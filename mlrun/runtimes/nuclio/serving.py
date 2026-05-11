@@ -193,8 +193,8 @@ class APIHandlerConfig(mlrun.model.ModelObj):
     ) -> None:
         """Add an endpoint handler configuration.
 
-        :param path: URL path for the endpoint (e.g., '/v1/models' or '/api/v1/*')
-        :param http_method: HTTP method for the endpoint (HTTPMethod enum or string like 'GET', 'POST')
+        :param path: URL path for the endpoint (e.g., ``/v1/models`` or ``/api/v1/*``)
+        :param http_method: HTTP method for the endpoint (``HTTPMethod`` enum or string like ``"GET"``, ``"POST"``)
         :param action: Action to take for this endpoint (:py:class:`~mlrun.common.schemas.serving.APIHandlerAction`)
         :param description: Optional description of the endpoint
         :raises mlrun.errors.MLRunValueError: If the path contains an invalid wildcard ``*`` pattern
@@ -227,7 +227,8 @@ class APIHandlerConfig(mlrun.model.ModelObj):
         """Remove an endpoint handler configuration.
 
         :param path: URL path for the endpoint to remove
-        :param http_method: HTTP method for the endpoint to remove (HTTPMethod enum or string like 'GET', 'POST')
+        :param http_method: HTTP method for the endpoint to remove (`HTTPMethod` enum or string like
+                            ``'GET'``, ``'POST'``)
         """
         http_method = self._validate_http_method(http_method)
         path = self._normalize_path(path)
@@ -243,7 +244,7 @@ class APIHandlerConfig(mlrun.model.ModelObj):
 
         :param parameter_name: Name of the parameter to pass to the handler
         :param json_path: JSONPath expression to extract the value from request body
-                         (e.g., '$.user.name' or '$.items[*].id')
+                         (e.g., ``'$.user.name'`` or ``'$.items[*].id'``)
         :raises mlrun.errors.MLRunValueError: If json_path is not a valid JSONPath expression
 
         Example::
@@ -388,11 +389,13 @@ class ServingSpec(nuclio_function.NuclioSpec):
         disable_default_http_trigger=None,
         custom_scaling_metric_specs=None,
         model_endpoint_creation_task_name=None,
+        model_endpoints_instructions=None,
         serving_spec=None,
         auth=None,
         streaming: bool | None = None,
         api_handler_config: APIHandlerConfig | None = None,
         env_from=None,
+        otlp_enabled: bool = False,
     ):
         super().__init__(
             command=command,
@@ -435,8 +438,10 @@ class ServingSpec(nuclio_function.NuclioSpec):
             add_templated_ingress_host_mode=add_templated_ingress_host_mode,
             disable_default_http_trigger=disable_default_http_trigger,
             custom_scaling_metric_specs=custom_scaling_metric_specs,
+            model_endpoints_instructions=model_endpoints_instructions,
             serving_spec=serving_spec,
             auth=auth,
+            otlp_enabled=otlp_enabled,
         )
 
         self.models = models or {}
@@ -568,6 +573,16 @@ class ServingRuntime(nuclio_function.RemoteRuntime):
                 f"unsupported topology {topology}, use 'router' or 'flow'"
             )
         return self.spec.graph
+
+    def setup_model_monitoring(
+        self,
+        general_model_endpoint_instructions=None,
+        extra_model_endpoint_instructions=None,
+    ):
+        raise NotImplementedError(
+            "setup_model_monitoring is not supported for serving functions. "
+            "Use set_tracking() to enable model monitoring for serving."
+        )
 
     def set_tracking(
         self,

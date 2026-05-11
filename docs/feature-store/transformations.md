@@ -1,6 +1,14 @@
 (transformations)=
 # Feature set transformations
 
+You can build a feature set transformation using {ref}`serving graphs<serving-graph>`.
+
+High-level transformation logic is automatically converted to real-time serverless processing engines that can read 
+from any online or offline source, handle any type of structures or unstructured data, run complex computation graphs 
+and native user code. Iguazio’s solution uses a unique multi-model database, serving the computed features consistently 
+through many different APIs and formats (like files, SQL queries, pandas, real-time REST APIs, time-series, streaming), 
+resulting in better accuracy and simpler integration.
+
 A feature set contains an execution graph of operations that are performed when data is ingested, or when simulating data flow for inferring its metadata. This graph utilizes MLRun's {ref}`serving-graph`.
 
 The graph contains steps that represent data sources and targets, and may also contain steps whose
@@ -38,6 +46,10 @@ to the [feature store example](./basic-demo.ipynb).
 - [Built-in transformations](#built-in-transformations)
 - [Custom transformations](#custom-transformations)
 - [Data transformation steps](#data-transformation-steps)
+
+
+
+
 
 ## Aggregations
 
@@ -147,14 +159,12 @@ All time windows are aligned to the epoch (1970-01-01T00:00:00Z).
 
 ## Built-in transformations
 
-MLRun, and the associated `storey` package, have a built-in library of [transformation functions](../serving/available-steps.md) that can be 
+MLRun, and the associated `storey` package, have a built-in library of [transformation functions](../serving/building-graphs.md) that can be
 applied as steps in the feature-set's internal execution graph. To add steps to the graph, 
 reference them from the {py:class}`~mlrun.feature_store.FeatureSet` object by using the 
 {py:attr}`~mlrun.feature_store.FeatureSet.graph` property. Then, new steps can be added to the graph using the
 functions in {py:mod}`storey.transformations` (follow the link to browse the documentation and the 
 list of existing functions). The transformations are also accessible directly from the `storey` module.
-
-See the [built-in steps](../serving/available-steps.md).
 
 ```{admonition} Note
 Internally, MLRun makes use of functions defined in the `storey` package for various purposes. When creating a 

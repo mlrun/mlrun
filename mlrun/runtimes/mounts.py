@@ -572,6 +572,7 @@ def set_env_variables(
 def set_env_vars_from_secret(
     secret_name: str,
     keys: typing.Union[str, list[str], None] = None,
+    cleartext_env: typing.Union[str, dict[str, str], None] = None,
 ) -> typing.Callable[["KubeResource"], "KubeResource"]:
     """
     Modifier function to set environment variables from a Kubernetes Secret.
@@ -592,11 +593,25 @@ def set_env_vars_from_secret(
         function.apply(set_env_vars_from_secret("my-secret"))  # mount all keys
         function.apply(set_env_vars_from_secret("my-secret", keys=["KEY1", "KEY2"]))
         function.apply(set_env_vars_from_secret("my-secret", keys="KEY1;KEY2;KEY3"))
+        function.apply(
+            set_env_vars_from_secret("my-secret", cleartext_env={"ACCT": "name"})
+        )
+        function.apply(
+            set_env_vars_from_secret(
+                "my-secret", cleartext_env="ACCT:name;REGION:eastus"
+            )
+        )
 
     :param secret_name: Kubernetes secret name.
     :param keys: Optional. Secret data keys to expose as env vars. Either a semicolon-delimited
         string (e.g. "key1;key2;key3") or a list of strings. If omitted, all keys in the
         secret are mounted as environment variables.
+    :param cleartext_env: Optional. Plain (non-secret) key=value environment variables to inject
+        alongside the secret-backed vars. Accepts either a ``dict[str, str]`` (recommended for
+        the base64-JSON params path, supports colons in values) or a semicolon-delimited
+        ``key:value`` string (for the plain-string params path, e.g. ``"ACCT:name;REGION:eastus"``).
+        In string form the first colon in each token is the delimiter; colons in values are not
+        supported. Defaults to None (no cleartext vars injected).
     """
 
     if isinstance(keys, str):
@@ -605,6 +620,23 @@ def set_env_vars_from_secret(
         keys_list = [k if isinstance(k, str) else str(k) for k in keys]
     else:
         keys_list = []
+
+    if isinstance(cleartext_env, str):
+        cleartext_env_dict: dict[str, str] = {}
+        for token in cleartext_env.split(";"):
+            token = token.strip()
+            if not token:
+                continue
+            sep = token.find(":")
+            if sep == -1:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    f"cleartext_env token missing ':' separator: {token!r}"
+                )
+            cleartext_env_dict[token[:sep].strip()] = token[sep + 1 :].strip()
+    elif cleartext_env is not None:
+        cleartext_env_dict = dict(cleartext_env)
+    else:
+        cleartext_env_dict = {}
 
     if secret_name:
         mlrun.common.secrets.validate_not_forbidden_secret(secret_name.strip())
@@ -617,6 +649,8 @@ def set_env_vars_from_secret(
                 runtime.set_env_from_secret(
                     name=key, secret=secret_name, secret_key=key
                 )
+        for k, v in cleartext_env_dict.items():
+            runtime.set_env(k, v)
         return runtime
 
     return _set_env_vars_from_secret

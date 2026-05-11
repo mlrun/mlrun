@@ -89,6 +89,8 @@ default_config = {
     "images_to_enrich_registry": "^mlrun/*,^python:3.(9|11)$",
     "kfp_url": "",
     "kfp_ttl": "14400",  # KFP ttl in sec, after that completed PODs will be deleted
+    "kfp_default_workflow_timeout": "86400",  # server-side default for KFP workflow timeout in sec (24h)
+    # set to 0 to disable
     "kfp_image": "mlrun/mlrun-kfp",  # image to use for KFP runner
     "dask_kfp_image": "mlrun/mlrun",  # image to use for dask KFP runner
     "igz_version": "",  # the version of the iguazio system the API is running on
@@ -355,6 +357,7 @@ default_config = {
                     "start_logs": "enabled",
                     "stop_logs": "enabled",
                     "retry_jobs": "enabled",
+                    "project_sync_2pc": "disabled",
                 },
             },
             "worker": {
@@ -445,6 +448,10 @@ default_config = {
             "iguazio": {
                 "session_verification_endpoint": "data_sessions/verifications/app_service",
                 "authentication_endpoint": "api/v1/authentication/refresh-access-token",
+                "token_cache": {
+                    "max_size": 128,
+                    "ttl_seconds": 30,
+                },
             },
             "service_account": {
                 # the following are the default values for k8s service accounts, but may be changed per deployment
@@ -545,6 +552,9 @@ default_config = {
                 "list_pipelines_time_period_in_days": 2,
             },
             "resource_deletion_batch_size": 10000,
+            "stale_resource_ttl_create": "2 minutes",
+            "stale_resource_ttl_update": "2 minutes",
+            "stale_resource_ttl_delete": "10 minutes",
         },
         # The API needs to know what is its k8s svc url so it could enrich it in the jobs it creates
         "api_url": "",
@@ -898,6 +908,13 @@ default_config = {
         "verbose": False,
         # used for igz client when emitting events
         "access_key": "",
+        "db_connection": {
+            # Per-process throttle: at most one Platform.MLRun.DB.Connection.Failed
+            # event every N seconds. Iguazio's event service has its own
+            # throttling; this is a local cap so a sustained outage doesn't emit
+            # one event per failed query.
+            "min_emit_interval_seconds": 60,
+        },
     },
     "grafana_url": "",
     "alerts": {
@@ -960,6 +977,28 @@ default_config = {
             "refresh_interval": "30",
         }
     },
+    "telemetry": {
+        # Master kill-switch for all OTel telemetry features. When "false", no telemetry is exported.
+        "enabled": False,
+        # Shared OTLP endpoint (gRPC or HTTP) used by every telemetry feature below.
+        # Blank = telemetry disabled regardless of `enabled`.
+        "otlp_endpoint": "",
+        # gRPC without TLS.
+        "insecure": True,
+        # Name of the K8s secret holding OTLP auth headers (one key per header,
+        # e.g. Authorization, X-Scope-OrgID). Blank = no auth headers.
+        "headers_secret_name": "",
+        # ML-16 — chief-only periodic system-size counters.
+        "system_counters": {
+            # Seconds between collection cycles. Default once per day; minimum 3600.
+            "interval": 86400,
+        },
+        # ML-12344 — model monitoring application Results/Metrics OTel export.
+        "model_monitoring": {
+            # 0 = manual flush per do() (ManualMetricReader); >0 = PeriodicExportingMetricReader interval (seconds).
+            "interval": 60,
+        },
+    },
     "system_id": "",
 }
 _is_running_as_api = None
@@ -1021,11 +1060,11 @@ class Config:
 
     def keys(self):
         if isinstance(self._cfg, Mapping):
-            return iter(self.data.keys())
+            return iter(self._cfg.keys())
 
     def values(self):
         if isinstance(self._cfg, Mapping):
-            return iter(self.data.values())
+            return iter(self._cfg.values())
 
     def update(self, cfg, skip_errors=False):
         for key, value in cfg.items():

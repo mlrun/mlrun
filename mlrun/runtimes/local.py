@@ -12,6 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import asyncio
+import concurrent.futures
+import functools
 import importlib.util as imputil
 import inspect
 import io
@@ -22,6 +25,8 @@ import sys
 import tempfile
 import threading
 import traceback
+import typing
+from collections.abc import Callable, Coroutine
 from contextlib import redirect_stdout
 from copy import copy
 from io import StringIO
@@ -34,6 +39,7 @@ from nuclio import Event
 
 import mlrun
 import mlrun.common.constants as mlrun_constants
+import mlrun.utils.helpers
 from mlrun.lists import RunList
 from mlrun.package import handler as mlrun_handler_decorator
 
@@ -254,11 +260,38 @@ class LocalRuntime(BaseRuntime, ParallelRunner):
                 self.spec.build.source,
                 self.spec.build.source_code_target_dir,
                 secrets=execution._secrets_manager,
+                project=self.metadata.project,
             )
             if workdir and not workdir.startswith("/"):
                 execution._current_workdir = os.path.join(target_dir, workdir)
             else:
                 execution._current_workdir = workdir or target_dir
+
+            # Source extracted at runtime (store:// CodeArtifact, git, archive)
+            # leaves spec.command empty, so a "module:func" handler can't resolve.
+            # Mirror code_to_function: command -> file, handler -> bare function.
+            module_name, func_name = (
+                mlrun.utils.helpers.split_handler_module_and_function(
+                    runobj.spec.handler or self.spec.default_handler or ""
+                )
+            )
+            if not self.spec.command and module_name:
+                candidate = os.path.join(target_dir, f"{module_name}.py")
+                if os.path.isfile(candidate):
+                    self.spec.command = candidate
+                    runobj.spec.handler = func_name
+                else:
+                    # Warn so a handler-module typo doesn't end in a cryptic
+                    # ImportError downstream from an empty spec.command.
+                    logger.warning(
+                        "module:func handler refers to a module that wasn't "
+                        "found in the extracted source directory; the run "
+                        "will likely fail to load the handler",
+                        handler=runobj.spec.handler or self.spec.default_handler,
+                        module_name=module_name,
+                        candidate=candidate,
+                        target_dir=target_dir,
+                    )
 
         if execution._current_workdir:
             execution._old_workdir = os.getcwd()
@@ -486,6 +519,8 @@ def exec_from_params(handler, runobj: RunObject, context: MLClientCtx, cwd=None)
         runobj.spec.extract_type_hints_from_inputs()
         # Read the keyword arguments to pass to the function (combining params and inputs from the run spec):
         kwargs = get_func_arg(handler, runobj, context)
+        # Wrap once: async coroutines are driven to completion; generators are rejected as unsupported.
+        handler = _normalize_handler_output(handler)
 
         stdout = _DupStdout()
         err = ""
@@ -592,3 +627,65 @@ def get_func_arg(handler, runobj: RunObject, context: MLClientCtx, is_nuclio=Fal
             if key not in kwargs:
                 kwargs[key] = _get_input_value(key)
     return kwargs
+
+
+_T = typing.TypeVar("_T")
+
+
+def _run_async_handler(coro: Coroutine[typing.Any, typing.Any, _T]) -> _T:
+    """
+    Run a coroutine returned by an ``async def`` job handler to completion.
+
+    Handles two execution contexts transparently:
+
+    * **No running event loop** (K8s pod, local non-Jupyter process): delegates
+      directly to ``asyncio.run()``, which creates a fresh event loop, drives the
+      coroutine to completion, and closes the loop.
+    * **Running event loop** (Jupyter / Tornado host): ``asyncio.run()`` cannot be
+      called from an already-running loop. Instead, the coroutine is submitted to a
+      ``ThreadPoolExecutor(max_workers=1)`` via ``asyncio.run()`` in that thread — a
+      new loop is created in the worker thread, isolated from the host loop. The
+      calling thread then blocks on ``.result()`` until the worker completes, giving
+      identical blocking-until-complete semantics as the no-running-loop path.
+
+      This is the same pattern used by Django's ``asgiref.sync.async_to_sync``.
+
+    :param coro: Coroutine object (the return value of calling an ``async def`` function).
+    :return:     The value returned by the coroutine.
+    """
+    try:
+        asyncio.get_running_loop()
+    except RuntimeError:
+        return asyncio.run(coro)
+    # A loop is already running (e.g. Jupyter/Tornado): run in an isolated thread.
+    with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+        return pool.submit(asyncio.run, coro).result()
+
+
+def _normalize_handler_output(fn: Callable) -> Callable:
+    """
+    Decorator that resolves the return value of a job handler after invocation:
+
+    * **Coroutine** (``async def`` handler): run to completion via
+      :func:`_run_async_handler` and return its result.
+    * **Generator** (sync or async): raise :class:`mlrun.errors.MLRunRuntimeError`
+      — generators are not supported as handler return types.
+    * **Anything else**: return as-is (normal sync handler path).
+
+    :param fn: The handler callable to wrap.
+    :return:   Wrapped callable with identical signature.
+    """
+
+    @functools.wraps(fn)
+    def wrapper(*args, **kwargs):
+        result = fn(*args, **kwargs)
+        if inspect.iscoroutine(result):
+            return _run_async_handler(result)
+        if inspect.isgenerator(result) or inspect.isasyncgen(result):
+            raise mlrun.errors.MLRunRuntimeError(
+                f"Handler '{fn.__name__}' returned a generator. "
+                "Sync and async generators are not supported as MLRun job handlers."
+            )
+        return result
+
+    return wrapper

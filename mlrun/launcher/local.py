@@ -239,8 +239,16 @@ class ClientLocalLauncher(launcher.ClientBaseLauncher):
             meta.name = function_name or meta.name
             meta.project = project or meta.project
 
-        # if the handler has module prefix force "local" (vs "handler") runtime
-        kind = "local" if isinstance(handler, str) and "." in handler else ""
+        # if the handler has module prefix (dotted "pkg.mod.fn" OR canonical
+        # "mod:fn") force "local" runtime — among the kinds new_function()
+        # will pick here (HandlerRuntime for "", LocalRuntime for "local"),
+        # only LocalRuntime's _pre_run runs extract_source and adds the
+        # workdir to sys.path.
+        kind = (
+            "local"
+            if isinstance(handler, str) and ("." in handler or ":" in handler)
+            else ""
+        )
 
         # Create temporary local function for execution
         fn = mlrun.new_function(meta.name, command=command, args=args, kind=kind)

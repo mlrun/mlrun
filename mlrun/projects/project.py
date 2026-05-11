@@ -48,6 +48,7 @@ import mlrun.common.schemas.artifact
 import mlrun.common.schemas.model_monitoring.constants as mm_constants
 import mlrun.common.schemas.notification
 import mlrun.common.secrets
+import mlrun.datastore
 import mlrun.datastore.datastore_profile
 import mlrun.db
 import mlrun.errors
@@ -82,6 +83,8 @@ from mlrun_pipelines.models import PipelineNodeWrapper
 from ..artifacts import (
     Artifact,
     ArtifactProducer,
+    CodeArtifact,
+    CodeArtifactCodeType,
     DatasetArtifact,
     DocumentArtifact,
     DocumentLoaderSpec,
@@ -90,6 +93,7 @@ from ..artifacts import (
 )
 from ..artifacts.manager import ArtifactManager, dict_to_artifact, extend_artifact_path
 from ..common.runtimes.constants import RunStates
+from ..common.schemas.model_monitoring import ModelEndpointInstruction
 from ..datastore import store_manager
 from ..features import Feature
 from ..model import EntrypointParam, ImageBuilder, ModelObj
@@ -1782,6 +1786,69 @@ class MlrunProject(ModelObj):
         )
         return item
 
+    def log_code_file(
+        self,
+        key,
+        local_path=None,
+        body=None,
+        tag="",
+        artifact_path=None,
+        upload=True,
+        labels=None,
+        target_path="",
+        db_key=None,
+        language=None,
+        code_type: str | CodeArtifactCodeType | None = None,
+        requirements: list[str] | None = None,
+        **kwargs,
+    ) -> CodeArtifact:
+        """
+        Log a code artifact and optionally upload it to datastore.
+
+        :param key:           artifact key
+        :param local_path:    path to the local code file or archive (.zip, .tar.gz)
+        :param body:          inline code content (string)
+        :param tag:           version tag
+        :param artifact_path: target artifact path (when not using the default)
+        :param upload:        upload to datastore (default is True)
+        :param labels:        a set of key/value labels to tag the artifact with
+        :param target_path:   absolute target path (instead of using artifact_path + local_path)
+        :param db_key:        the key to use in the artifact DB table
+        :param language:      programming language (e.g. "python").
+                              Free-text advisory metadata — no validation or
+                              enforcement is applied. If omitted, derived at
+                              construction time from the target/local path suffix
+                              (.py/.ipynb → "python"; archives/unknown → "").
+        :param code_type:     type of code: "function" or "workflow" (default: "function")
+        :param requirements:  list of dependency strings (e.g. ["pandas>=2.0", "numpy"])
+
+        :returns: code artifact object
+        """
+        code = CodeArtifact(
+            key,
+            body=body,
+            src_path=local_path,
+            language=language,
+            code_type=code_type,
+            requirements=requirements,
+            **kwargs,
+        )
+
+        item = cast(
+            CodeArtifact,
+            self.log_artifact(
+                code,
+                local_path=local_path,
+                artifact_path=artifact_path,
+                target_path=target_path,
+                tag=tag,
+                upload=upload,
+                labels=labels,
+                db_key=db_key,
+            ),
+        )
+        return item
+
     def log_model(
         self,
         key,
@@ -2589,7 +2656,7 @@ class MlrunProject(ModelObj):
     def enable_model_monitoring(
         self,
         base_period: int = 10,
-        image: str = "mlrun/mlrun",
+        image: str | None = None,
         *,
         deploy_histogram_data_drift_app: bool = True,
         wait_for_deployment: bool = False,
@@ -2610,7 +2677,8 @@ class MlrunProject(ModelObj):
                                                   (which is also the minimum value for production environments).
         :param image:                             The image of the model monitoring controller, writer, monitoring
                                                   stream & histogram data drift functions, which are real time nuclio
-                                                  functions. By default, the image is mlrun/mlrun.
+                                                  functions. Defaults to
+                                                  ``mlrun.mlconf.function_defaults.image_by_kind.nuclio``.
         :param deploy_histogram_data_drift_app:   If true, deploy the default histogram-based data drift application:
             :py:class:`~mlrun.model_monitoring.applications.histogram_data_drift.HistogramDataDriftApplication`.
             If false, and you want to deploy the histogram data drift application
@@ -2676,7 +2744,7 @@ class MlrunProject(ModelObj):
     def update_model_monitoring_controller(
         self,
         base_period: int = 10,
-        image: str = "mlrun/mlrun",
+        image: str | None = None,
         *,
         wait_for_deployment: bool = False,
     ) -> None:
@@ -2687,7 +2755,8 @@ class MlrunProject(ModelObj):
                                     is triggered. By default, the base period is 10 minutes.
         :param image:               The image of the model monitoring controller, writer & monitoring
                                     stream functions, which are real time nuclio functions.
-                                    By default, the image is mlrun/mlrun.
+                                    Defaults to
+                                    ``mlrun.mlconf.function_defaults.image_by_kind.nuclio``.
         :param wait_for_deployment: If true, return only after the deployment is done on the backend.
                                     Otherwise, deploy the controller on the background.
         """
@@ -4067,6 +4136,171 @@ class MlrunProject(ModelObj):
                 "`project.disable_model_monitoring()` and then enable it using `project.enable_model_monitoring()`."
             )
 
+    def get_model_monitoring_url(self) -> str | None:
+        """
+        Get the HTTP URL of the model monitoring stream pod for this project.
+
+        :return: HTTP URL of the model monitoring stream pod, or None if no HTTP trigger is configured.
+        :raises mlrun.errors.MLRunNotFoundError: if the stream function is not deployed.
+        :raises mlrun.errors.MLRunPreconditionFailedError: if the stream function is not in ready state.
+        """
+        db = mlrun.db.get_run_db(secrets=self._secrets)
+        return db.get_model_monitoring_url(project=self.name)
+
+    def create_user_model_endpoint(
+        self,
+        name: str | None = None,
+        input_schema: list[str] | None = None,
+        output_schema: list[str] | None = None,
+        function_name: str | None = None,
+        function_tag: str | None = None,
+        creation_strategy: mm_constants.ModelEndpointCreationStrategy | None = None,
+        model_endpoint_instruction: ModelEndpointInstruction | None = None,
+        **kwargs,
+    ) -> tuple[str, str]:
+        """
+        Create a user-defined model endpoint (``EndpointType.USER_EP``) for this project.
+
+        Use this when you have a model deployed outside MLRun and want to register it
+        for monitoring purposes.
+
+        :param name:               Name of the model endpoint, name must be provided here or by providing
+            model_endpoint_instruction parameter.
+        :param input_schema:       List of input feature names (maps to ``feature_names``).
+        :param output_schema:      List of output / label names (maps to ``label_names``).
+        :param function_name:      Name of an associated MLRun function (optional).
+        :param function_tag:       Tag of the associated function (optional).
+        :param creation_strategy: Strategy for creating or updating the model endpoint:
+            * **overwrite**:
+            1. If model endpoints with the same name exist, delete the `latest` one.
+            2. Create a new model endpoint entry and set it as `latest`.
+            * **inplace** (default):
+            1. If model endpoints with the same name exist, update the `latest` entry.
+            2. Otherwise, create a new entry.
+            * **archive**:
+            1. If model endpoints with the same name exist, preserve them.
+            2. Create a new model endpoint with the same name and set it to `latest`.
+        :param model_endpoint_instruction: Optional instruction for the model endpoint, which can be used to provide
+            data as above.
+        :param kwargs:             Advanced: additional ``ModelEndpointSpec`` or ``ModelEndpointMetadata``
+                                   field overrides (e.g. ``labels``, ``model_tags``).
+        :return: A tuple stands for the created mlrun.common.schemas.ModelEndpoint name and uid.
+        """
+        if model_endpoint_instruction is not None:
+            if any(
+                [
+                    name,
+                    input_schema,
+                    output_schema,
+                    function_name,
+                    function_tag,
+                    creation_strategy,
+                ]
+            ):
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    "Cannot provide both model_endpoint_instruction and individual parameters. "
+                    "Please choose one of the options."
+                )
+
+        if model_endpoint_instruction is None:
+            model_endpoint_instruction = ModelEndpointInstruction(
+                name=name,
+                function_name=function_name,
+                function_tag=function_tag,
+                input_schema=input_schema,
+                output_schema=output_schema,
+                creation_strategy=creation_strategy
+                or mm_constants.ModelEndpointCreationStrategy.INPLACE,
+            )
+
+        metadata_fields, spec_fields = self._split_endpoint_kwargs(kwargs)
+
+        spec_fields.update(
+            {
+                k: v
+                for k, v in {
+                    "feature_names": model_endpoint_instruction.input_schema,
+                    "label_names": model_endpoint_instruction.output_schema,
+                    "function_name": model_endpoint_instruction.function_name,
+                    "function_tag": model_endpoint_instruction.function_tag,
+                }.items()
+                if v is not None
+            }
+        )
+
+        model_endpoint = mlrun.common.schemas.ModelEndpoint(
+            metadata=mlrun.common.schemas.ModelEndpointMetadata(
+                name=model_endpoint_instruction.name,
+                project=self.name,
+                endpoint_type=mm_constants.EndpointType.USER_EP,
+                **metadata_fields,
+            ),
+            spec=mlrun.common.schemas.ModelEndpointSpec(**spec_fields),
+            status=mlrun.common.schemas.ModelEndpointStatus(),
+        )
+        db = mlrun.db.get_run_db(secrets=self._secrets)
+        endpoint = db.create_model_endpoint(
+            model_endpoint=model_endpoint,
+            creation_strategy=model_endpoint_instruction.creation_strategy,
+        )
+        return endpoint.metadata.name, endpoint.metadata.uid
+
+    @staticmethod
+    def _split_endpoint_kwargs(kwargs: dict) -> tuple[dict, dict]:
+        """Split and validate extra kwargs for create_user_model_endpoint.
+
+        Separates *kwargs* into ``metadata_fields`` and ``spec_fields`` while
+        rejecting any key that is already controlled by
+        :class:`~mlrun.common.schemas.ModelEndpointInstruction` or hardcoded
+        in the creation path.
+
+        :param kwargs: Extra keyword arguments to classify.
+        :return: ``(metadata_fields, spec_fields)`` — dicts safe to unpack
+            into :class:`~mlrun.common.schemas.ModelEndpointMetadata` and
+            :class:`~mlrun.common.schemas.ModelEndpointSpec` respectively.
+        :raises mlrun.errors.MLRunInvalidArgumentError: if a key conflicts
+            with an instruction-owned field or is unknown.
+        """
+        # Fields always set by ModelEndpointInstruction or hardcoded in the
+        # creation path — callers must not re-supply them via kwargs.
+        _protected = frozenset(
+            {
+                "name",
+                "project",
+                "endpoint_type",
+                "feature_names",  # instruction.input_schema
+                "label_names",  # instruction.output_schema
+                "function_name",  # instruction.function_name
+                "function_tag",  # instruction.function_tag
+            }
+        )
+
+        metadata_field_names = set(
+            mlrun.common.schemas.ModelEndpointMetadata.__fields__
+        )
+        spec_field_names = set(mlrun.common.schemas.ModelEndpointSpec.__fields__)
+
+        metadata_fields: dict = {}
+        spec_fields: dict = {}
+
+        for key, value in kwargs.items():
+            if key in _protected:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    f"'{key}' is already set by ModelEndpointInstruction "
+                    "and cannot be overridden via kwargs."
+                )
+            if key in metadata_field_names:
+                metadata_fields[key] = value
+            elif key in spec_field_names:
+                spec_fields[key] = value
+            else:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    f"'{key}' is not a valid ModelEndpointMetadata or "
+                    "ModelEndpointSpec field."
+                )
+
+        return metadata_fields, spec_fields
+
     def list_model_endpoints(
         self,
         names: Union[str, list[str]] | None = None,
@@ -4108,12 +4342,14 @@ class MlrunProject(ModelObj):
         :param function_name: The name of the function to filter by
         :param function_tag: The tag of the function to filter by
         :param labels: Filter model endpoints by label key-value pairs or key existence. This can be provided as:
+
             - A dictionary in the format `{"label": "value"}` to match specific label key-value pairs,
-            or `{"label": None}` to check for key existence.
+              or `{"label": None}` to check for key existence.
             - A list of strings formatted as `"label=value"` to match specific label key-value pairs,
-            or just `"label"` for key existence.
+              or just `"label"` for key existence.
             - A comma-separated string formatted as `"label1=value1,label2"` to match entities with
-            the specified key-value pairs or key existence.
+              the specified key-value pairs or key existence.
+
         :param start:           The start time to filter by.Corresponding to the `created` field.
         :param end:             The end time to filter by. Corresponding to the `created` field.
         :param top_level:       If true will return only routers and endpoint that are NOT children of any router.
@@ -4318,14 +4554,18 @@ class MlrunProject(ModelObj):
         :param mlrun_version_specifier:  which mlrun package version to include (if not current)
         :param builder_env:         Kaniko builder pod env vars dict (for config/credentials)
             e.g. builder_env={"GIT_TOKEN": token}, does not work yet in KFP
-        :param overwrite_build_params:  Overwrite existing build configuration (currently applies to
-            requirements and commands)
+        :param overwrite_build_params: Overwrite existing build configuration (currently only
+            applies to requirements and commands).
 
-            * False: The new params are merged with the existing
-            * True: The existing params are replaced by the new ones
+            * False: The values passed in this call are merged with the project's stored values.
+            * True: The values passed in this call replace the project's stored values for commands
+              and requirements. Parameters not explicitly passed retain their stored values.
 
-        :param extra_args:  A string containing additional builder arguments in the format of command-line options,
-            e.g. extra_args="--skip-tls-verify --build-arg A=val"
+            To remove existing stored values, use ``overwrite_build_params=True`` and pass the values
+            explicitly like this ``(commands=[""], requirements=[""])``.
+
+        :param extra_args:  A string containing additional builder arguments in the format of,
+            command-line options e.g. extra_args="--skip-tls-verify --build-arg A=val"
         :param force_build:  force building the image, even when no changes were made
         """
         return build_function(
@@ -4372,11 +4612,15 @@ class MlrunProject(ModelObj):
         :param secret_name:     k8s secret for accessing the docker registry
         :param requirements: a list of packages to install on the built image
         :param requirements_file: requirements file to install on the built image
-        :param overwrite_build_params:  Overwrite existing build configuration (currently applies to
-            requirements and commands)
+        :param overwrite_build_params: Overwrite existing build configuration (currently only
+            applies to requirements and commands).
 
-            * False: The new params are merged with the existing
-            * True: The existing params are replaced by the new ones
+            * False: The values passed in this call are merged with the project's stored values.
+            * True: The values passed in this call replace the project's stored values for commands
+              and requirements. Parameters not explicitly passed retain their stored values.
+
+            To remove existing stored values, use ``overwrite_build_params=True`` and pass the values
+            explicitly like this ``(commands=[""], requirements=[""])``.
 
         :param builder_env: Kaniko builder pod env vars dict (for config/credentials)
             e.g. builder_env={"GIT_TOKEN": token}, does not work yet in KFP
@@ -4441,11 +4685,15 @@ class MlrunProject(ModelObj):
         :param mlrun_version_specifier:  which mlrun package version to include (if not current)
         :param builder_env:     Kaniko builder pod env vars dict (for config/credentials)
             e.g. builder_env={"GIT_TOKEN": token}, does not work yet in KFP
-        :param overwrite_build_params:  Overwrite existing build configuration (currently applies to
-            requirements and commands)
+        :param overwrite_build_params: Overwrite existing build configuration (currently only
+            applies to requirements and commands).
 
-            * False: The new params are merged with the existing
-            * True: The existing params are replaced by the new ones
+            * False: The values passed in this call are merged with the project's stored values.
+            * True: The values passed in this call replace the project's stored values for commands
+              and requirements. Parameters not explicitly passed retain their stored values.
+
+            To remove existing stored values, use ``overwrite_build_params=True`` and pass the values
+            explicitly like this ``(commands=[""], requirements=[""])``.
 
         :param extra_args:  A string containing additional builder arguments in the format of command-line options,
             e.g. extra_args="--skip-tls-verify --build-arg A=val"
@@ -6030,6 +6278,22 @@ def _init_function_from_dict(
         func = new_function(
             name, image=image, kind=kind or "job", handler=handler, tag=tag
         )
+
+    elif mlrun.utils.is_store_uri(url):
+        # store:// artifact URI — store as-is in spec.build.source, resolve at run/deploy time
+        if with_repo:
+            raise ValueError(
+                "with_repo=True is not supported with store:// artifact URIs. "
+                "The artifact already provides the code source."
+            )
+        func = new_function(
+            name,
+            image=image,
+            kind=kind or "job",
+            handler=handler,
+            tag=tag,
+        )
+        func.spec.build.source = url
 
     elif is_yaml_path(url) or url.startswith("db://") or url.startswith("hub://"):
         func = import_function(url, new_name=name)

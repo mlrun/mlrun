@@ -294,8 +294,11 @@ def run(
 
     if workflow:
         runobj.metadata.labels[mlrun_constants.MLRunInternalLabels.workflow] = workflow
+        # Use the full pod name (via MLRUN_POD_NAME downward API env var) for
+        # unambiguous step-to-run correlation. socket.gethostname() is truncated
+        # to 63 chars by the kubelet, which can cause lookup mismatches.
         runobj.metadata.labels[mlrun_constants.MLRunInternalLabels.runner_pod] = (
-            socket.gethostname()
+            environ.get("MLRUN_POD_NAME", socket.gethostname())
         )
 
     if db:
@@ -435,8 +438,14 @@ def run(
     set_item(runobj.spec, scrape_metrics, "scrape_metrics")
     update_in(runtime, "metadata.name", name, replace=False)
     update_in(runtime, "metadata.project", project, replace=False)
-    if not kind and "." in handler:
-        # handle the case of module.submodule.handler
+    if not kind and isinstance(handler, str) and ("." in handler or ":" in handler):
+        # Handle module-prefixed handler forms: dotted ("pkg.mod.handler") or
+        # canonical mlrun ("mod:func"). Force "local" runtime — among the
+        # kinds new_function() will pick from {"", "local"} when no command is
+        # set, only LocalRuntime's _pre_run runs extract_source and sets
+        # spec.command + strips the handler prefix for runtime-loaded source
+        # (store:// CodeArtifact, git, archive). Without this, kind="" routes
+        # to HandlerRuntime which has no _pre_run override.
         update_in(runtime, "kind", "local")
 
     if kfp or runobj.spec.verbose or verbose:

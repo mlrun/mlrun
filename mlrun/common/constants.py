@@ -49,6 +49,8 @@ MLRUN_JOB_AUTH_SECRET_PATH = "/var/mlrun-secrets/auth"
 MLRUN_JOB_AUTH_SECRET_FILE = ".igz.yml"
 MLRUN_RUNTIME_AUTH_DEFAULT_TOKEN_NAME = "default"
 
+MLRUN_TELEMETRY_OTLP_HEADERS_PATH = "/var/mlrun-secrets/telemetry-otlp-headers"
+
 
 class MLRunInternalLabels:
     ### dask
@@ -113,6 +115,7 @@ class MLRunInternalLabels:
     feature_vector = "feature-vector"
 
     auth_userid = f"{MLRUN_LABEL_PREFIX}user-id"
+    auth_username = f"{MLRUN_LABEL_PREFIX}user"
     auth_token_name = f"{MLRUN_LABEL_PREFIX}token"
 
     @classmethod
@@ -143,3 +146,4 @@ class WorkflowSubmitMode(mlrun.common.types.StrEnum):
 
 class InternalAnnotations:
     auth_username = f"{MLRUN_LABEL_PREFIX}user"
+    auth_token_name = f"{MLRUN_LABEL_PREFIX}token"

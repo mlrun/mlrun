@@ -100,7 +100,7 @@ class TestModelEndpointsOperations(TestMLRunSystemModelMonitoring):
     """Applying basic model endpoint CRUD operations through MLRun API"""
 
     project_name = "mm-app-project"
-    image = "mlrun/mlrun"
+    image = None  # uses mlrun.mlconf.function_defaults.image_by_kind at runtime
 
     def setup_method(self, method):
         super().setup_method(method)
@@ -783,6 +783,56 @@ class TestModelEndpointsOperations(TestMLRunSystemModelMonitoring):
                 }
             else:
                 assert respond == [3.0, 5.0, 7.0, 9.0, 11.0]
+
+    def test_create_user_model_endpoint(self):
+        """
+        create_user_model_endpoint creates a USER_EP endpoint via the project API and
+        the endpoint is immediately retrievable from the DB.
+        Covers both the direct-params path and the ModelEndpointInstruction path.
+        """
+        from mlrun.common.schemas.model_monitoring.constants import EndpointType
+        from mlrun.common.schemas.model_monitoring.model_endpoints import (
+            ModelEndpointInstruction,
+        )
+
+        db = mlrun.get_run_db()
+
+        # --- direct params ---
+        name, uid = self.project.create_user_model_endpoint(
+            "user-ep-direct",
+            input_schema=["f1", "f2"],
+            output_schema=["label"],
+        )
+        assert name == "user-ep-direct"
+        assert uid is not None
+        ep = db.get_model_endpoint(
+            name="user-ep-direct",
+            project=self.project_name,
+            endpoint_id=uid,
+        )
+        assert ep.metadata.endpoint_type == EndpointType.USER_EP
+        assert ep.spec.feature_names == ["f1", "f2"]
+        assert ep.spec.label_names == ["label"]
+
+        # --- ModelEndpointInstruction path ---
+        instruction = ModelEndpointInstruction(
+            name="user-ep-instr",
+            input_schema=["a", "b"],
+            output_schema=["out"],
+        )
+        name2, uid2 = self.project.create_user_model_endpoint(
+            model_endpoint_instruction=instruction,
+        )
+        assert name2 == "user-ep-instr"
+        assert uid2 is not None
+        ep2 = db.get_model_endpoint(
+            name="user-ep-instr",
+            project=self.project_name,
+            endpoint_id=uid2,
+        )
+        assert ep2.metadata.endpoint_type == EndpointType.USER_EP
+        assert ep2.spec.feature_names == ["a", "b"]
+        assert ep2.spec.label_names == ["out"]
 
 
 @TestMLRunSystemModelMonitoring.skip_test_if_env_not_configured
@@ -2016,6 +2066,183 @@ class TestModelMonitoringKafka(TestMLRunSystemModelMonitoring):
 
 @TestMLRunSystemModelMonitoring.skip_test_if_env_not_configured
 @pytest.mark.enterprise
+class TestKafkaConsumerGroupMigration(TestMLRunSystemModelMonitoring):
+    """Verify Kafka consumer-group offset migration on upgrade.
+
+    Simulates a legacy cluster (MM functions all sharing the ``"serving"``
+    consumer group) by pre-creating the stream topic and committing
+    offsets under ``"serving"``, then enabling model monitoring with the
+    new code and checking:
+
+    1. The per-function group (``serving_<topic>``) receives the legacy
+       offsets verbatim.
+    2. The legacy ``"serving"`` group is left untouched (migration is a
+       copy, not a move).
+    3. Re-enabling MM a second time is an idempotent no-op.
+    """
+
+    brokers = (
+        os.environ["MLRUN_SYSTEM_TESTS_KAFKA_BROKERS"]
+        if "MLRUN_SYSTEM_TESTS_KAFKA_BROKERS" in os.environ
+        and os.environ["MLRUN_SYSTEM_TESTS_KAFKA_BROKERS"]
+        else None
+    )
+
+    project_name = "pr-kafka-mig"
+    image: str | None = None
+
+    _LEGACY_GROUP = "serving"
+    _LEGACY_OFFSET = 17
+    _NUM_PARTITIONS = 2
+
+    def _stream_topic(self) -> str:
+        return mlrun.common.model_monitoring.helpers.get_kafka_topic(
+            project=self.project_name,
+            function_name=mm_constants.MonitoringFunctionNames.STREAM,
+        )
+
+    def _expected_new_group(self, topic: str) -> str:
+        return f"{self._LEGACY_GROUP}_{topic}"
+
+    def _create_topic(self, topic: str) -> None:
+        import kafka
+        import kafka.admin
+        import kafka.errors
+
+        admin = kafka.admin.KafkaAdminClient(bootstrap_servers=self.brokers)
+        try:
+            try:
+                admin.create_topics(
+                    [
+                        kafka.admin.NewTopic(
+                            topic,
+                            num_partitions=self._NUM_PARTITIONS,
+                            replication_factor=1,
+                        )
+                    ]
+                )
+            except kafka.errors.TopicAlreadyExistsError:
+                pass
+        finally:
+            admin.close()
+
+    def _delete_groups_and_topic(self, topic: str, groups: list[str]) -> None:
+        import kafka
+        import kafka.admin
+        import kafka.errors
+
+        admin = kafka.admin.KafkaAdminClient(bootstrap_servers=self.brokers)
+        try:
+            try:
+                admin.delete_consumer_groups(groups)
+            except kafka.errors.KafkaError:
+                pass
+            try:
+                admin.delete_topics([topic])
+            except kafka.errors.UnknownTopicOrPartitionError:
+                pass
+        finally:
+            admin.close()
+
+    def _commit_offsets(self, group: str, topic: str, offset: int) -> dict[int, int]:
+        import kafka
+        import kafka.structs
+
+        consumer = kafka.KafkaConsumer(
+            bootstrap_servers=self.brokers,
+            group_id=group,
+            enable_auto_commit=False,
+        )
+        try:
+            # A freshly-created topic isn't always visible to the consumer
+            # immediately — broker metadata propagation takes a moment.
+            partitions: set[int] | None = None
+            for _ in range(30):
+                partitions = consumer.partitions_for_topic(topic)
+                if partitions:
+                    break
+                sleep(1)
+            assert partitions, f"Topic {topic!r} has no partitions after metadata wait"
+            to_commit = {
+                kafka.TopicPartition(topic, p): kafka.structs.OffsetAndMetadata(
+                    offset, "", -1
+                )
+                for p in partitions
+            }
+            consumer.commit(to_commit)
+            return {tp.partition: om.offset for tp, om in to_commit.items()}
+        finally:
+            consumer.close()
+
+    def _read_committed_offsets(self, group: str, topic: str) -> dict[int, int]:
+        import kafka
+        import kafka.admin
+
+        admin = kafka.admin.KafkaAdminClient(bootstrap_servers=self.brokers)
+        try:
+            all_offsets = admin.list_consumer_group_offsets(group)
+            return {
+                tp.partition: om.offset
+                for tp, om in all_offsets.items()
+                if tp.topic == topic
+            }
+        finally:
+            admin.close()
+
+    @pytest.mark.timeout(600)
+    @pytest.mark.skipif(
+        not brokers, reason="MLRUN_SYSTEM_TESTS_KAFKA_BROKERS not defined"
+    )
+    def test_legacy_offsets_are_migrated_and_idempotent(self):
+        topic = self._stream_topic()
+        new_group = self._expected_new_group(topic)
+
+        # Ensure a clean slate — the test may re-run on the same cluster
+        # and stale groups/topics would skew the assertions.
+        self._delete_groups_and_topic(topic, [self._LEGACY_GROUP, new_group])
+
+        # 1. Seed the legacy state: topic exists with committed offsets
+        #    under the shared "serving" group (what the legacy code produced).
+        self._create_topic(topic)
+        seeded = self._commit_offsets(
+            group=self._LEGACY_GROUP, topic=topic, offset=self._LEGACY_OFFSET
+        )
+        assert len(seeded) == self._NUM_PARTITIONS, (
+            f"Expected {self._NUM_PARTITIONS} legacy offsets, got {seeded}"
+        )
+
+        # 2. Enable MM. For the stream function, create_topics() raises
+        #    TopicAlreadyExistsError → tolerant branch → migration runs.
+        self.set_mm_credentials()
+        self.project.enable_model_monitoring(
+            deploy_histogram_data_drift_app=False,
+            **({} if self.image is None else {"image": self.image}),
+        )
+
+        # 3. Per-function group should now carry the legacy offsets verbatim.
+        migrated = self._read_committed_offsets(group=new_group, topic=topic)
+        assert migrated == seeded, (
+            f"Migration must copy offsets from {self._LEGACY_GROUP!r} to "
+            f"{new_group!r}: expected {seeded}, got {migrated}"
+        )
+
+        # Legacy group is a copy source, not a move source — untouched.
+        legacy_after = self._read_committed_offsets(
+            group=self._LEGACY_GROUP, topic=topic
+        )
+        assert legacy_after == seeded, (
+            "Legacy group offsets must be preserved after migration"
+        )
+
+        # Idempotency of the migration helper itself (the short-circuit on
+        # the already-populated new group) is exercised by the unit tests
+        # in ``test_deployment.py``. Re-calling ``enable_model_monitoring``
+        # here is blocked by MLRun's own "already deployed" guard and is
+        # outside the scope of this test.
+
+
+@TestMLRunSystemModelMonitoring.skip_test_if_env_not_configured
+@pytest.mark.enterprise
 class TestInferenceWithSpecialChars(TestMLRunSystemModelMonitoring):
     project_name = "pr-infer-special-chars"
     name_prefix = "infer-monitoring"
@@ -2303,7 +2530,9 @@ class TestModelEndpointGetMetrics(TestMLRunSystemModelMonitoring):
     def test_get_model_endpoint_metrics(self):
         self.set_mm_credentials()
 
-        self.project.enable_model_monitoring(image=self.image or "mlrun/mlrun")
+        self.project.enable_model_monitoring(
+            image=self.image or mlrun.mlconf.function_defaults.image_by_kind.job
+        )
         db = mlrun.get_run_db()
         model_endpoint = mock_random_endpoint(self.project_name, "testing")
         model_endpoint = db.create_model_endpoint(model_endpoint)
@@ -2457,7 +2686,7 @@ class TestModelMonitoringOverJob(TestMLRunSystemModelMonitoring):
     """Test get_model_endpoint_monitoring_metrics functionality."""
 
     project_name = "model-monitoring-over-job"
-    image = "mlrun/mlrun"
+    image = None  # uses mlrun.mlconf.function_defaults.image_by_kind at runtime
 
     @pytest.mark.parametrize("with_timestamp_column", [False, True])
     def test_job_from_serving_runtime_with_model_tracking(self, with_timestamp_column):
@@ -2620,7 +2849,9 @@ class TestLLModelWithMonitoring(TestMLRunSystemModelMonitoring):
     """Test LLModel serving with model monitoring enabled."""
 
     project_name = "llmodel-monitoring-5"
-    image: str | None = "mlrun/mlrun"
+    image: str | None = (
+        None  # uses mlrun.mlconf.function_defaults.image_by_kind at runtime
+    )
 
     def test_mep_with_remote_model(self):
         self.set_mm_credentials()
@@ -2733,3 +2964,381 @@ class TestLLModelWithMonitoring(TestMLRunSystemModelMonitoring):
         for mep in meps.endpoints:
             # make sure stream processing worked and last_request is set
             assert mep.status.last_request is not None
+
+
+@TestMLRunSystemModelMonitoring.skip_test_if_env_not_configured
+@pytest.mark.enterprise
+class TestGetModelMonitoringURL(TestMLRunSystemModelMonitoring):
+    """
+    System / CRUD tests for get_model_monitoring_url.
+
+    Validates the full call chain:
+      project.get_model_monitoring_url()
+        → GET /projects/{project}/model-monitoring/stream-pod-http-url
+          → services.api.crud.Functions.get_function (real DB)
+            → resolves URL from nuclio status
+    """
+
+    project_name = "pr-mm-get-url"
+    image: str | None = None
+
+    def test_raises_before_monitoring_is_enabled(self) -> None:
+        """CRUD raises when the stream function has not been deployed / is not ready."""
+        with pytest.raises(
+            (mlrun.errors.MLRunNotFoundError, mlrun.errors.MLRunPreconditionFailedError)
+        ):
+            self.project.get_model_monitoring_url()
+
+    @pytest.mark.timeout(600)
+    def test_returns_url_after_enable_model_monitoring(self) -> None:
+        """
+        After enable_model_monitoring the stream pod is deployed with an HTTP trigger.
+        The CRUD endpoint must resolve and return the internal cluster URL.
+
+        Note: the returned URL is only reachable from within the cluster (internal
+        invocation URL) — it is not accessible from outside.
+        """
+        self.set_mm_credentials()
+        self.project.enable_model_monitoring(
+            deploy_histogram_data_drift_app=False,
+            wait_for_deployment=True,
+            **({} if self.image is None else {"image": self.image}),
+        )
+
+        # Stream is now ready — get_model_monitoring_url should return the internal URL.
+        url = self.project.get_model_monitoring_url()
+
+        assert url is not None, (
+            "get_model_monitoring_url() returned None — the HTTP trigger was not added "
+            "to the stream function or the internal_invocation_urls are not populated."
+        )
+        # The URL must be an internal cluster URL (http, not https; no public hostname).
+        assert url.startswith("http://"), (
+            f"Expected an internal http:// URL, got: {url!r}"
+        )
+        assert "://" not in url.replace("http://", ""), (
+            f"URL looks external (contains a second scheme), got: {url!r}"
+        )
+
+
+def _assert_endpoint_exists(project, name: str) -> None:
+    endpoints = project.list_model_endpoints(names=name)
+    assert len(endpoints.endpoints) >= 1, (
+        f"Expected at least one model endpoint named {name!r}"
+    )
+
+
+def _assert_endpoints_exist(project, names: set) -> None:
+    endpoints = project.list_model_endpoints()
+    ep_names = {ep.metadata.name for ep in endpoints.endpoints}
+    assert names.issubset(ep_names), f"Expected {names} in DB, found: {ep_names}"
+
+
+@TestMLRunSystemModelMonitoring.skip_test_if_env_not_configured
+@pytest.mark.enterprise
+class TestNuclioAppModelEndpointCreation(TestMLRunSystemModelMonitoring):
+    """
+    System / CRUD tests for model endpoint creation during nuclio function deployment.
+
+    Full sequence:
+      1. enable_model_monitoring  (deploys stream pod with HTTP trigger — done ONCE per class)
+      2. code_to_function(kind="nuclio") + setup_model_monitoring()
+      3. deploy()
+      4. assert MODEL_MONITORING_URL / MODEL_ENDPOINT_UID env vars are injected
+      5. assert model endpoint(s) exist in the DB
+    """
+
+    project_name = "pr-nuclio-me-creation"
+    image: str | None = None
+
+    @classmethod
+    def setup_class(cls):
+        # enable_model_monitoring runs ONCE before any test method, so it is
+        # NOT subject to per-test @pytest.mark.timeout limits.
+        super().setup_class()
+        project = mlrun.get_or_create_project(
+            cls.project_name, "./", allow_cross_project=True
+        )
+        project.register_datastore_profile(cls.mm_tsdb_profile)
+        project.register_datastore_profile(cls.mm_stream_profile)
+        project.set_model_monitoring_credentials(
+            tsdb_profile_name=cls.mm_tsdb_profile.name,
+            stream_profile_name=cls.mm_stream_profile.name,
+        )
+        project.enable_model_monitoring(
+            deploy_histogram_data_drift_app=False,
+            wait_for_deployment=True,
+            **({} if cls.image is None else {"image": cls.image}),
+        )
+
+    def teardown_method(self, method):
+        # Keep the project alive so the monitoring stream pod persists across
+        # test methods — only clean up at class teardown.
+        self._logger.info(
+            f"Tearing down test {self.__class__.__name__}::{method.__name__}"
+        )
+        self.custom_teardown()
+        self._logger.info(
+            f"Finished tearing down test {self.__class__.__name__}::{method.__name__}"
+        )
+
+    @classmethod
+    def custom_teardown_class(cls):
+        try:
+            cls._run_db.delete_project(
+                cls.project_name,
+                deletion_strategy=mlrun.common.schemas.DeletionStrategy.cascading,
+            )
+        except Exception:
+            pass
+
+    def _wait_for_model_endpoint_background_task(self, timeout: int = 120) -> None:
+        """Poll every 5s until no model-endpoint-creation background tasks are running."""
+        deadline = monotonic() + timeout
+        while monotonic() < deadline:
+            tasks = self._run_db.list_project_background_tasks(
+                project=self.project_name,
+                state=mlrun.common.schemas.BackgroundTaskState.running,
+            )
+            if not tasks:
+                self._logger.info("No running background tasks, proceeding")
+                return
+            self._logger.info(
+                "Waiting for model endpoint background task to complete",
+                running_tasks=len(tasks),
+            )
+            sleep(5)
+        self._logger.warning(
+            "Background task wait timed out, proceeding anyway",
+            timeout=timeout,
+        )
+
+    def _deploy_nuclio_fn_with_monitoring(
+        self,
+        fn_name: str,
+        instructions: list,
+        kind: str = "nuclio",
+    ):
+        if kind == "application":
+            fn = mlrun.new_function(
+                name=fn_name,
+                kind=kind,
+                project=self.project_name,
+                image=self.image,
+            )
+            fn.spec.command = "python"
+            fn.spec.args = ["-m", "http.server", "8050"]
+            fn.set_probe(type="readiness", http_path="/", period_seconds=2)
+            fn.setup_model_monitoring(
+                general_model_endpoint_instructions=instructions[0],
+                extra_model_endpoint_instructions=instructions[1:]
+                if len(instructions) > 1
+                else None,
+            )
+            fn.deploy(with_mlrun=False)
+        else:
+            import os
+            import tempfile
+
+            with tempfile.NamedTemporaryFile(suffix=".py", mode="w", delete=False) as f:
+                f.write("def handler(context, event):\n    return 'ok'\n")
+                tmpfile = f.name
+            try:
+                fn = mlrun.code_to_function(
+                    name=fn_name,
+                    filename=tmpfile,
+                    kind=kind,
+                    project=self.project_name,
+                    image=self.image,
+                )
+            finally:
+                os.unlink(tmpfile)
+            fn.setup_model_monitoring(
+                general_model_endpoint_instructions=instructions[0],
+                extra_model_endpoint_instructions=instructions[1:]
+                if len(instructions) > 1
+                else None,
+            )
+            fn.deploy()
+
+        # Reload from server to pick up env vars injected server-side during deploy
+        fn = self.project.get_function(fn_name)
+        return fn
+
+    @pytest.mark.timeout(600)
+    def test_single_endpoint_env_vars_injected(self) -> None:
+        """
+        After deploy, the function spec must contain MODEL_MONITORING_URL and
+        MODEL_ENDPOINT_UID env vars, and a model endpoint must exist in the DB.
+        """
+        from mlrun.common.schemas.model_monitoring.constants import (
+            NuclioMonitoringEnvVars,
+        )
+        from mlrun.common.schemas.model_monitoring.model_endpoints import (
+            ModelEndpointInstruction,
+        )
+
+        fn_name = "nuclio-single-ep"
+        fn = self._deploy_nuclio_fn_with_monitoring(
+            fn_name=fn_name,
+            instructions=[ModelEndpointInstruction(name="ep1")],
+        )
+
+        # Verify env vars were injected into the deployed function spec
+        # Use .get("value") — some entries use valueFrom (K8s secret refs) and have no "value" key
+        env = {e["name"]: e.get("value") for e in (fn.spec.env or [])}
+        assert NuclioMonitoringEnvVars.MODEL_MONITORING_URL in env, (
+            "MODEL_MONITORING_URL not injected"
+        )
+        # The URL must be an internal cluster URL (http://, not https or external hostname).
+        assert env[NuclioMonitoringEnvVars.MODEL_MONITORING_URL].startswith(
+            "http://"
+        ), (
+            f"Expected an internal http:// URL, got: {env[NuclioMonitoringEnvVars.MODEL_MONITORING_URL]!r}"
+        )
+        assert NuclioMonitoringEnvVars.MODEL_ENDPOINT_UID in env, (
+            "MODEL_ENDPOINT_UID not injected"
+        )
+        assert NuclioMonitoringEnvVars.MODEL_ENDPOINTS_MAP not in env, (
+            "MODEL_ENDPOINTS_MAP should not be present for a single endpoint"
+        )
+
+        # Wait for the background task that creates model endpoints to finish,
+        # then retry the check every 30s until the endpoint appears in the DB.
+        self._wait_for_model_endpoint_background_task()
+        self.wait_for_condition(
+            lambda: _assert_endpoint_exists(self.project, "ep1"),
+            retry_interval=30.0,
+            timeout=120.0,
+            condition_description="model endpoint 'ep1' to exist in DB",
+        )
+
+    @pytest.mark.timeout(600)
+    def test_multiple_endpoints_map_injected(self) -> None:
+        """
+        With two instructions, MODEL_ENDPOINTS_MAP must be injected as a JSON
+        mapping {name: uid} and two model endpoints must exist in the DB.
+        """
+        from mlrun.common.schemas.model_monitoring.constants import (
+            NuclioMonitoringEnvVars,
+        )
+        from mlrun.common.schemas.model_monitoring.model_endpoints import (
+            ModelEndpointInstruction,
+        )
+
+        fn_name = "nuclio-multi-ep"
+        fn = self._deploy_nuclio_fn_with_monitoring(
+            fn_name=fn_name,
+            instructions=[
+                ModelEndpointInstruction(name="ep1"),
+                ModelEndpointInstruction(name="ep2"),
+            ],
+        )
+
+        env = {e["name"]: e.get("value") for e in (fn.spec.env or [])}
+        assert NuclioMonitoringEnvVars.MODEL_MONITORING_URL in env
+        assert NuclioMonitoringEnvVars.MODEL_ENDPOINT_UID in env
+        assert NuclioMonitoringEnvVars.MODEL_ENDPOINTS_MAP in env, (
+            "MODEL_ENDPOINTS_MAP not injected for multiple endpoints"
+        )
+
+        endpoints_map = json.loads(env[NuclioMonitoringEnvVars.MODEL_ENDPOINTS_MAP])
+        assert set(endpoints_map.keys()) == {"ep1", "ep2"}, (
+            f"Unexpected endpoints map keys: {set(endpoints_map.keys())}"
+        )
+
+        # Wait for the background task that creates model endpoints to finish,
+        # then retry the check every 30s until both endpoints appear in the DB.
+        self._wait_for_model_endpoint_background_task()
+        self.wait_for_condition(
+            lambda: _assert_endpoints_exist(self.project, {"ep1", "ep2"}),
+            retry_interval=30.0,
+            timeout=120.0,
+            condition_description="model endpoints 'ep1' and 'ep2' to exist in DB",
+        )
+
+
+@TestMLRunSystemModelMonitoring.skip_test_if_env_not_configured
+@pytest.mark.enterprise
+class TestApplicationRuntimeModelEndpointCreation(TestNuclioAppModelEndpointCreation):
+    """
+    Model-endpoint-creation tests using kind="application" (ApplicationRuntime).
+
+    Both runtimes go through the same server-side path in endpoints.py:
+        elif kind in (RuntimeKinds.remote, RuntimeKinds.nuclio, RuntimeKinds.application)
+            and spec.track_models
+
+    Tests are explicit (not inherited overrides) so both nuclio and application
+    variants appear in the test suite side by side.
+    """
+
+    project_name = "pr-app-me-creation"
+
+    @pytest.mark.timeout(600)
+    def test_single_endpoint_env_vars_injected(self) -> None:
+        from mlrun.common.schemas.model_monitoring.constants import (
+            NuclioMonitoringEnvVars,
+        )
+        from mlrun.common.schemas.model_monitoring.model_endpoints import (
+            ModelEndpointInstruction,
+        )
+
+        fn_name = "app-single-ep"
+        fn = self._deploy_nuclio_fn_with_monitoring(
+            fn_name=fn_name,
+            instructions=[ModelEndpointInstruction(name="ep1")],
+            kind="application",
+        )
+
+        env = {e["name"]: e.get("value") for e in (fn.spec.env or [])}
+        assert NuclioMonitoringEnvVars.MODEL_MONITORING_URL in env, (
+            "MODEL_MONITORING_URL not injected"
+        )
+        assert env[NuclioMonitoringEnvVars.MODEL_MONITORING_URL].startswith("http://")
+        assert NuclioMonitoringEnvVars.MODEL_ENDPOINT_UID in env, (
+            "MODEL_ENDPOINT_UID not injected"
+        )
+        assert NuclioMonitoringEnvVars.MODEL_ENDPOINTS_MAP not in env
+
+        self._wait_for_model_endpoint_background_task()
+        self.wait_for_condition(
+            lambda: _assert_endpoint_exists(self.project, "ep1"),
+            retry_interval=30.0,
+            timeout=120.0,
+            condition_description="model endpoint 'ep1' to exist in DB",
+        )
+
+    @pytest.mark.timeout(600)
+    def test_multiple_endpoints_map_injected(self) -> None:
+        from mlrun.common.schemas.model_monitoring.constants import (
+            NuclioMonitoringEnvVars,
+        )
+        from mlrun.common.schemas.model_monitoring.model_endpoints import (
+            ModelEndpointInstruction,
+        )
+
+        fn_name = "app-multi-ep"
+        fn = self._deploy_nuclio_fn_with_monitoring(
+            fn_name=fn_name,
+            instructions=[
+                ModelEndpointInstruction(name="ep1"),
+                ModelEndpointInstruction(name="ep2"),
+            ],
+            kind="application",
+        )
+
+        env = {e["name"]: e.get("value") for e in (fn.spec.env or [])}
+        assert NuclioMonitoringEnvVars.MODEL_MONITORING_URL in env
+        assert NuclioMonitoringEnvVars.MODEL_ENDPOINT_UID in env
+        assert NuclioMonitoringEnvVars.MODEL_ENDPOINTS_MAP in env
+
+        endpoints_map = json.loads(env[NuclioMonitoringEnvVars.MODEL_ENDPOINTS_MAP])
+        assert set(endpoints_map.keys()) == {"ep1", "ep2"}
+
+        self._wait_for_model_endpoint_background_task()
+        self.wait_for_condition(
+            lambda: _assert_endpoints_exist(self.project, {"ep1", "ep2"}),
+            retry_interval=30.0,
+            timeout=120.0,
+            condition_description="model endpoints 'ep1' and 'ep2' to exist in DB",
+        )

@@ -51,8 +51,7 @@ def resolve_client_default_kfp_image(
             image = mlrun.mlconf.default_base_image
             if ":" not in image:
                 # enrich the image with the client version to ensure that
-                # client < 1.8 will use the correct mlrun image and version.
-                # https://iguazio.atlassian.net/browse/ML-9292
+                # client < 1.8 will use the correct mlrun image and version (ML-9292)
                 enriched_image = mlrun.utils.enrich_image_url(
                     image, client_version=client_version
                 )

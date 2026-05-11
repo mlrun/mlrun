@@ -82,6 +82,14 @@ def init_context(context):
 
     setattr(context.user_data, "pipe", pipe)
 
+    context.logger.info("Warming up Chroma query...")
+
+    _ = context.user_data.collection.query(
+        query_texts=["warmup"], n_results=1, where={"topic": {"$eq": "SCIENCE"}}
+    )
+
+    context.logger.info("Chroma warmup done")
+
 
 def handler(context, event):
     # Unpack payload

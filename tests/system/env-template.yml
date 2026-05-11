@@ -78,7 +78,6 @@ SNOWFLAKE_USER:
 SNOWFLAKE_PASSWORD:
 SNOWFLAKE_DATABASE:
 SNOWFLAKE_SCHEMA:
-SNOWFLAKE_TABLE_NAME:
 SNOWFLAKE_WAREHOUSE:
 
 # model monitoring datastore profiles credentials
@@ -128,3 +127,5 @@ OPENAI_BASE_URL:
 OPENAI_API_KEY:
 #  Optional because hf system tests model is free to use without authentication.
 HF_TOKEN:
+#  Optional: custom HuggingFace Hub endpoint (e.g. for mirrored or self-hosted Hub instances)
+HF_ENDPOINT:

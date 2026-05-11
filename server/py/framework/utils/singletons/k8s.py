@@ -597,7 +597,7 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
         )
 
     def resolve_auth_secret_name(self, access_key: str) -> str:
-        hashed_access_key = self._hash_access_key(access_key)
+        hashed_access_key = self._hash_label(access_key)
         return mlrun.mlconf.secret_stores.kubernetes.auth_secret_name.format(
             hashed_access_key=hashed_access_key
         )
@@ -1173,8 +1173,8 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
         )
 
     @staticmethod
-    def _hash_access_key(access_key: str):
-        return hashlib.sha224(access_key.encode()).hexdigest()
+    def _hash_label(value: str) -> str:
+        return hashlib.sha224(value.encode()).hexdigest()
 
     @staticmethod
     @raise_for_status_code
@@ -1362,16 +1362,13 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
 
         return client.Configuration.get_default_copy()
 
-    @staticmethod
-    def _hash_access_key(access_key: str):
-        return hashlib.sha224(access_key.encode()).hexdigest()
-
     def store_user_token_secret(
         self,
         auth_info: mlrun.common.schemas.AuthInfo,
         token_name: str,
         token: str,
         expiration: int,
+        issued_at: int,
         force: bool = False,
         namespace: str | None = None,
     ) -> mlrun.common.schemas.SecretEventActions | None:
@@ -1390,23 +1387,34 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
         :param token_name: The logical name for the token.
         :param token: The offline token string (JWT).
         :param expiration: The token's expiration timestamp (int UNIX epoch).
+        :param issued_at: The token's issued at timestamp (int UNIX epoch).
         :param force: If True, forces an update of the secret even if the expiration
                       is not later than the existing one.
         :param namespace: Kubernetes namespace for the secret.
         :return: SecretEventActions.{created, updated, skipped}
         """
         user_id = auth_info.user_id
+        username = auth_info.username
+
+        if user_id is None or username is None:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "secret token handling is only supported in enterprise where"
+                "auth_info.user_id and auth_info.username should always be filled"
+            )
 
         labels = {
             mlrun_constants.MLRunInternalLabels.auth_userid: user_id,
-            mlrun_constants.MLRunInternalLabels.auth_token_name: token_name,
+            mlrun_constants.MLRunInternalLabels.auth_username: self._hash_label(
+                username
+            ),
+            mlrun_constants.MLRunInternalLabels.auth_token_name: self._hash_label(
+                token_name
+            ),
         }
-
-        annotations = {}
-        if auth_info.username:
-            annotations[mlrun_constants.InternalAnnotations.auth_username] = (
-                mlrun.k8s_utils.sanitize_label_value(auth_info.username)
-            )
+        annotations = {
+            mlrun_constants.InternalAnnotations.auth_username: username,
+            mlrun_constants.InternalAnnotations.auth_token_name: token_name,
+        }
 
         create = False
         k8s_secret = self._get_user_token_secret(user_id, token_name, namespace)
@@ -1420,18 +1428,22 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
                 annotations=annotations,
                 namespace=namespace,
                 secret_name=self._resolve_auth_secret_name(user_id, token_name),
-                secrets=self._encode_user_token(token_name, token, expiration),
+                secrets=self._encode_user_token(
+                    token_name, token, expiration, issued_at
+                ),
                 encoded=True,
             )
             return mlrun.common.schemas.SecretEventActions.created
 
         # Update if force or if expiration is newer
-        if force or self._should_update_token_secret(k8s_secret, expiration):
+        if force or self._should_update_token_secret(k8s_secret, expiration, issued_at):
             self._update_secret(
                 k8s_secret=k8s_secret,
                 namespace=namespace,
                 secret_name=self._resolve_auth_secret_name(user_id, token_name),
-                secrets=self._encode_user_token(token_name, token, expiration),
+                secrets=self._encode_user_token(
+                    token_name, token, expiration, issued_at
+                ),
                 encoded=True,
             )
             return mlrun.common.schemas.SecretEventActions.updated
@@ -1446,7 +1458,7 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
         )
 
     def _encode_user_token(
-        self, token_name: str, token: str, expiration: int
+        self, token_name: str, token: str, expiration: int, issued_at: int
     ) -> dict[str, str]:
         """
         Encode token and expiration into a dict suitable for Kubernetes Secret.data.
@@ -1457,13 +1469,18 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
         )
         encoded_token_yaml = base64.b64encode(token_yaml.encode()).decode()
         encoded_expiration = base64.b64encode(str(expiration).encode()).decode()
+        encoded_issued_at = base64.b64encode(str(issued_at).encode()).decode()
         return {
             "tokensFile": encoded_token_yaml,
             "tokenExpiration": encoded_expiration,
+            "tokenIssuedAt": encoded_issued_at,
         }
 
     def _should_update_token_secret(
-        self, k8s_secret: client.V1Secret, new_expiration: int
+        self,
+        k8s_secret: client.V1Secret,
+        new_expiration: int,
+        new_issued_at: int,
     ) -> bool:
         """
         Determine if the secret should be updated based on tokenExpiration.
@@ -1472,7 +1489,7 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
         :param new_expiration: Expiration timestamp of the new token (Unix epoch).
         :return: True if the secret should be updated, False otherwise.
         """
-        existing_exp = self._decode_secret_expiration(k8s_secret)
+        existing_exp = self._decode_secret_timestamp(k8s_secret, "tokenExpiration")
 
         # If no expiration could be decoded, assume it needs an update
         if existing_exp is None:
@@ -1484,23 +1501,27 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
 
     def list_user_token_secrets(
         self,
-        user_id: str,
+        username: str,
         namespace: str | None = None,
     ) -> list[mlrun.common.schemas.SecretTokenInfo]:
         """
         List all offline token secrets for a given user.
 
-        :param user_id: The user id whose tokens should be listed.
+        :param username: The username whose tokens should be listed.
         :param namespace: Kubernetes namespace where the secrets are stored.
         :return: List of SecretTokenInfo objects, each containing the token name, expiration and user id.
         """
         namespace = self.resolve_namespace(namespace)
         # Always filter by auth token label to only get auth token secrets
         # Use None as value to perform "label exists" check (more efficient than fetching all secrets)
-        labels = {mlrun_constants.MLRunInternalLabels.auth_token_name: None}
+        labels: dict[str, str | None] = {
+            mlrun_constants.MLRunInternalLabels.auth_token_name: None
+        }
         # "*" means list all users' tokens, so skip the username filter
-        if user_id != "*":
-            labels[mlrun_constants.MLRunInternalLabels.auth_userid] = user_id
+        if username != "*":
+            labels[mlrun_constants.MLRunInternalLabels.auth_username] = (
+                self._hash_label(username)
+            )
 
         k8s_secrets = self.list_secrets(namespace=namespace, labels=labels)
 
@@ -1508,7 +1529,8 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
 
         for k8s_secret in k8s_secrets:
             token_info = self._convert_secret_to_token_info(k8s_secret)
-            if token_info:
+            # We verify the username here as well to filter out hash collisions
+            if token_info and (username == "*" or token_info.username == username):
                 secret_tokens.append(token_info)
 
         return secret_tokens
@@ -1571,32 +1593,45 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
         :param k8s_secret: Kubernetes secret object.
         :return: SecretTokenInfo object or None if invalid/expired.
         """
-        # Skip secrets without labels (not auth token secrets)
-        if not k8s_secret.metadata.labels:
+        # Skip secrets without labels or annotations (not auth token secrets)
+        if not k8s_secret.metadata.labels or not k8s_secret.metadata.annotations:
             return None
 
-        token_name = k8s_secret.metadata.labels.get(
-            mlrun_constants.MLRunInternalLabels.auth_token_name
-        )
-
-        expiration = self._decode_secret_expiration(k8s_secret)
         user_id = k8s_secret.metadata.labels.get(
             mlrun_constants.MLRunInternalLabels.auth_userid
         )
-        if expiration is None or user_id is None:
+        username = k8s_secret.metadata.annotations.get(
+            mlrun_constants.InternalAnnotations.auth_username
+        )
+        token_name = k8s_secret.metadata.annotations.get(
+            mlrun_constants.InternalAnnotations.auth_token_name
+        )
+        expiration = self._decode_secret_timestamp(k8s_secret, "tokenExpiration")
+        issued_at = self._decode_secret_timestamp(k8s_secret, "tokenIssuedAt")
+
+        if (
+            user_id is None
+            or username is None
+            or token_name is None
+            or expiration is None
+            or issued_at is None
+        ):
             return None
 
         return mlrun.common.schemas.SecretTokenInfo(
             name=token_name,
             expiration=expiration,
+            issued_at=issued_at,
             user_id=user_id,
+            username=username,
         )
 
-    def _decode_secret_expiration(self, k8s_secret) -> datetime | None:
-        """Decode the expiration timestamp from a Kubernetes secret.
+    def _decode_secret_timestamp(self, k8s_secret, field: str) -> datetime | None:
+        """Decode timestamp data from a Kubernetes secret.
 
-        :param k8s_secret: Kubernetes secret object containing tokenExpiration.
-        :return: Expiration as a timezone-aware datetime object, or None if decoding fails.
+        :param k8s_secret: Kubernetes secret object containing a timestamp in its data.
+        :param field: The field at which the timestamp is stored in the data.
+        :return: The timestamp as a timezone-aware datetime object, or None if decoding fails.
         """
         if not k8s_secret.data:
             logger.warning(
@@ -1605,20 +1640,20 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
             )
             return None
 
-        if "tokenExpiration" not in k8s_secret.data:
+        if field not in k8s_secret.data:
             logger.warning(
-                "Secret does not contain 'tokenExpiration', skipping expiration decode",
+                f"Secret does not contain {field!r}, skipping expiration decode",
                 secret_name=k8s_secret.metadata.name,
             )
             return None
 
         try:
-            expiration_b64 = k8s_secret.data["tokenExpiration"]
+            expiration_b64 = k8s_secret.data[field]
             expiration_str = base64.b64decode(expiration_b64).decode("utf-8")
             return datetime.fromtimestamp(int(expiration_str), tz=UTC)
         except Exception as exc:
             logger.warning(
-                "Failed to decode 'tokenExpiration' from secret",
+                f"Failed to decode {field!r} from secret",
                 secret_name=k8s_secret.metadata.name,
                 error=mlrun.errors.err_to_str(exc),
             )
@@ -1685,15 +1720,17 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
         for k8s_secret in k8s_secrets:
             try:
                 token_value = self._extract_token_from_secret(k8s_secret)
-                token_name = k8s_secret.metadata.labels.get(
-                    mlrun_constants.MLRunInternalLabels.auth_token_name
-                )
+                # Previous call would have failed if this is not set
+                token_name = k8s_secret.metadata.annotations[
+                    mlrun_constants.InternalAnnotations.auth_token_name
+                ]
                 secret_tokens.append(
                     mlrun.common.schemas.SecretToken(name=token_name, token=token_value)
                 )
             except mlrun.errors.MLRunNotFoundError:
-                token_name = k8s_secret.metadata.labels.get(
-                    mlrun_constants.MLRunInternalLabels.auth_token_name, "unknown"
+                annotations = k8s_secret.metadata.annotations or {}
+                token_name = annotations.get(
+                    mlrun_constants.InternalAnnotations.auth_token_name, "unknown"
                 )
                 logger.warning(
                     "Failed to extract token value, skipping",
@@ -1759,12 +1796,13 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
         :raises mlrun.errors.MLRunNotFoundError: If the token is not found in the secret.
         :raises mlrun.errors.MLRunRuntimeError: If decoding/parsing fails.
         """
+        labels = k8s_secret.metadata.labels or {}
+        annotations = k8s_secret.metadata.annotations or {}
+
         try:
-            user_id = k8s_secret.metadata.labels[
-                mlrun_constants.MLRunInternalLabels.auth_userid
-            ]
-            token_name = k8s_secret.metadata.labels[
-                mlrun_constants.MLRunInternalLabels.auth_token_name
+            user_id = labels[mlrun_constants.MLRunInternalLabels.auth_userid]
+            token_name = annotations[
+                mlrun_constants.InternalAnnotations.auth_token_name
             ]
         except KeyError as exc:
             raise mlrun.errors.MLRunRuntimeError(
@@ -1867,15 +1905,23 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
         namespace = self.resolve_namespace(namespace)
         labels = {
             mlrun_constants.MLRunInternalLabels.auth_userid: user_id,
-            mlrun_constants.MLRunInternalLabels.auth_token_name: token_name,
+            mlrun_constants.MLRunInternalLabels.auth_token_name: self._hash_label(
+                token_name
+            ),
         }
 
         k8s_secrets = self.list_secrets(namespace=namespace, labels=labels)
 
-        if not k8s_secrets:
-            return None
+        for k8s_secret in k8s_secrets:
+            annotations = k8s_secret.metadata.annotations or {}
+            # We verify the token name here as well to filter out hash collisions
+            if (
+                annotations.get(mlrun_constants.InternalAnnotations.auth_token_name)
+                == token_name
+            ):
+                return k8s_secret
 
-        return k8s_secrets[0]
+        return None
 
     @staticmethod
     def _resolve_k8s_timeout(timeout_type: str = K8S_TIMEOUT_DEFAULT) -> int | None:

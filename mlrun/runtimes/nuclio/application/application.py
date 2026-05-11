@@ -89,8 +89,10 @@ class ApplicationSpec(nuclio_function.NuclioSpec):
         track_models=None,
         internal_application_port=None,
         application_ports=None,
+        model_endpoints_instructions=None,
         auth=None,
         env_from=None,
+        otlp_enabled: bool = False,
     ):
         super().__init__(
             command=command,
@@ -138,7 +140,9 @@ class ApplicationSpec(nuclio_function.NuclioSpec):
             state_thresholds=state_thresholds,
             disable_default_http_trigger=disable_default_http_trigger,
             custom_scaling_metric_specs=custom_scaling_metric_specs,
+            model_endpoints_instructions=model_endpoints_instructions,
             auth=auth,
+            otlp_enabled=otlp_enabled,
         )
 
         # Override default min/max replicas (don't assume application is stateless)
@@ -1165,11 +1169,12 @@ class ApplicationRuntime(nuclio_function.RemoteRuntime):
             project=project_name,
         )
 
-        # Upload the file as an artifact to an internal path with system-generated label
+        # Upload the file as a code artifact to an internal path with system-generated label
         try:
-            artifact = project.log_artifact(
-                item=artifact_key,
+            artifact = project.log_code_file(
+                key=artifact_key,
                 local_path=source,
+                code_type="function",
                 artifact_path=mlrun.common.constants.MLRUN_INTERNAL_ARTIFACT_PATH,
                 upload=True,
                 labels={

@@ -983,8 +983,8 @@ default_config = {
         # Shared OTLP endpoint (gRPC or HTTP) used by every telemetry feature below.
         # Blank = telemetry disabled regardless of `enabled`.
         "otlp_endpoint": "",
-        # gRPC without TLS. "true" for in-cluster collector, "false" for external endpoints.
-        "insecure": "false",
+        # gRPC without TLS.
+        "insecure": True,
         # Name of the K8s secret holding OTLP auth headers (one key per header,
         # e.g. Authorization, X-Scope-OrgID). Blank = no auth headers.
         "headers_secret_name": "",
@@ -993,7 +993,7 @@ default_config = {
             # Seconds between collection cycles. Default once per day; minimum 3600.
             "interval": 86400,
         },
-        # ML-12344 — model monitoring application Results/Metrics OTel export (Tier 2 default).
+        # ML-12344 — model monitoring application Results/Metrics OTel export.
         "model_monitoring": {
             # 0 = manual flush per do() (ManualMetricReader); >0 = PeriodicExportingMetricReader interval (seconds).
             "interval": 60,

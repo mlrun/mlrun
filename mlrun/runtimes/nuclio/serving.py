@@ -286,6 +286,12 @@ class APIHandlerConfig(mlrun.model.ModelObj):
                 # Old format: {"action": "allow", "description": "..."}
                 # New format adds: "path", "http_method", "input_body_mappings"
                 # Manually deserialize nested BodyMappings since ModelObj does not do it automatically
+                if "path" not in ep or "http_method" not in ep:
+                    raise mlrun.errors.MLRunInvalidArgumentError(
+                        f"Endpoint '{endpoint_key}' is using the old APIHandlerConfig format. "
+                        f"The API has changed — each endpoint must include 'path' and 'http_method'. "
+                        f"Please update your stored config to the new format."
+                    )
                 body_mappings_dict = ep.get("input_body_mappings")
                 input_body_mappings = (
                     BodyMappings.from_dict(body_mappings_dict)

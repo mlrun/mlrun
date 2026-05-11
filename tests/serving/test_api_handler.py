@@ -1637,6 +1637,26 @@ class TestAPIHandlerConfig:
         config.add_endpoint_handler("/api/v1/*", HTTPMethod.GET, APIHandlerAction.ALLOW)
         assert config.get_endpoint_config(HTTPMethod.GET, "/api/v1/*") is not None
 
+    @pytest.mark.parametrize(
+        "old_format_ep",
+        [
+            {"action": "allow", "description": "missing both path and http_method"},
+            {"action": "allow", "http_method": "POST", "description": "missing path"},
+            {
+                "action": "allow",
+                "path": "/predict",
+                "description": "missing http_method",
+            },
+        ],
+    )
+    def test_old_format_raises_clear_error(self, old_format_ep: dict) -> None:
+        """Old APIHandlerConfig dict format (missing path or http_method) raises a clear migration error."""
+        with pytest.raises(
+            mlrun.errors.MLRunInvalidArgumentError,
+            match="old APIHandlerConfig format.*path.*http_method",
+        ):
+            APIHandlerConfig.from_dict({"endpoints": {"POST:/predict": old_format_ep}})
+
 
 class TestSetAPIHandlerConfig:
     """Tests for ServingRuntime.set_api_handler_config method"""

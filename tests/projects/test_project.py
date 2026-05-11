@@ -1317,9 +1317,7 @@ def test_export_to_zip_downloads_store_function_code(rundb_mock, tmp_path):
 
     # Log the code file so rundb_mock has a real artifact backing the
     # store:// URI we hand to set_function. Use the artifact's canonical
-    # uri rather than reconstructing one with an f-string template
-    # (TESTING_STANDARDS principle 7 — canonical fields over reconstructed
-    # values).
+    # uri rather than reconstructing one with an f-string template.
     code_artifact = project.log_code_file(
         key="my_handler", local_path=str(handler_path)
     )
@@ -1548,6 +1546,73 @@ def test_export_to_zip_downloads_store_workflow_code(rundb_mock, tmp_path):
     assert project.spec._workflows["main"].path == workflow_store_uri, (
         f"in-memory workflow path must be restored after export, "
         f"got {project.spec._workflows['main'].path!r}"
+    )
+
+
+def test_export_to_zip_keeps_context_yaml_loadable(rundb_mock, tmp_path):
+    """After `export("proj.zip")`, the on-disk `<context>/project.yaml`
+    must still carry the ORIGINAL store:// URIs, not the .mlrun/code/...
+    arcnames that only resolve inside the zip. Otherwise
+    `load_project(<context>)` after the export would fail because those
+    local paths don't exist outside the zip.
+
+    Regression guard for: zip export rewriting the on-disk yaml in place.
+    """
+    project_dir = tmp_path / "store-zip-keepyaml"
+    project_dir.mkdir(parents=True)
+
+    handler_path = project_dir / "handler_source.py"
+    handler_path.write_text("def my_func(context):\n    return 1\n")
+
+    context_dir = project_dir / "code"
+    project = mlrun.new_project("tozipkeep", context=str(context_dir), save=False)
+    code_artifact = project.log_code_file(
+        key="my_handler", local_path=str(handler_path)
+    )
+    store_uri = code_artifact.uri
+    project.set_function(
+        func=store_uri, name="my-func", kind="job", handler="handler_source:my_func"
+    )
+
+    zip_path = str(project_dir / "proj.zip")
+    project.export(zip_path)
+
+    # Post-condition 1: on-disk project.yaml exists and preserves the
+    # original store:// URI.
+    on_disk_yaml = context_dir / "project.yaml"
+    assert on_disk_yaml.exists(), "on-disk project.yaml must be written"
+    on_disk_data = yaml.safe_load(on_disk_yaml.read_text())
+    on_disk_funcs = [
+        f for f in on_disk_data["spec"]["functions"] if f["name"] == "my-func"
+    ]
+    assert len(on_disk_funcs) == 1
+    assert on_disk_funcs[0]["url"] == store_uri, (
+        f"on-disk yaml must keep the original store:// URI so "
+        f"load_project(<context>) resolves it, got {on_disk_funcs[0]['url']!r}"
+    )
+
+    # Post-condition 2: zip's embedded project.yaml has the REWRITTEN path
+    # (so the zip is self-contained). Same export call, divergent content.
+    extract_dir = project_dir / "extracted"
+    extract_dir.mkdir()
+    with zipfile.ZipFile(zip_path, "r") as zipf:
+        zipf.extractall(extract_dir)
+    in_zip_data = yaml.safe_load((extract_dir / "project.yaml").read_text())
+    in_zip_funcs = [
+        f for f in in_zip_data["spec"]["functions"] if f["name"] == "my-func"
+    ]
+    assert in_zip_funcs[0]["url"].startswith(".mlrun/code/"), (
+        f"zip-embedded yaml must use the rewritten local arcname, "
+        f"got {in_zip_funcs[0]['url']!r}"
+    )
+
+    # Post-condition 3: load_project(<context>) still works after export.
+    reloaded = mlrun.load_project(str(context_dir), save=False)
+    reloaded_funcs = [f for f in reloaded.spec.functions if f["name"] == "my-func"]
+    assert len(reloaded_funcs) == 1
+    assert reloaded_funcs[0]["url"] == store_uri, (
+        f"load_project(<context>) after export must still see the original "
+        f"store:// URI, got {reloaded_funcs[0]['url']!r}"
     )
 
 

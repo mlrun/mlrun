@@ -3980,57 +3980,63 @@ class MlrunProject(ModelObj):
         project_dir = pathlib.Path(project_file_path).parent
         project_dir.mkdir(parents=True, exist_ok=True)
 
-        original_function_definitions = self.spec._function_definitions
-        original_workflows = self.spec._workflows
-        working_function_definitions = original_function_definitions
-        working_workflows = original_workflows
-        staged_downloads: list[tuple[pathlib.Path, str]] = []
+        # On-disk project.yaml always carries the ORIGINAL store:// URIs,
+        # which resolve at load time. Pre-zip-export PRs already wrote the
+        # yaml here; rewriting it would leave the user's context dir holding
+        # paths that only resolve inside the zip, breaking
+        # load_project(<context>) afterwards.
+        with open(project_file_path, "w") as fp:
+            fp.write(self.to_yaml())
 
-        with contextlib.ExitStack() as stack:
-            if archive_code:
-                staging_dir = stack.enter_context(
-                    tempfile.TemporaryDirectory(prefix="mlrun-export-")
-                )
-                (
-                    working_function_definitions,
-                    working_workflows,
-                    staged_downloads,
-                    download_failures,
-                ) = _stage_store_downloads_for_export(
-                    spec=self.spec,
-                    staging_dir=staging_dir,
-                    project_name=self.metadata.name,
-                )
-                if download_failures:
-                    # Fail-fast: a partially-rewritten YAML would silently
-                    # ship store:// URIs that won't resolve on the destination
-                    # cluster, defeating the point of a self-contained zip.
-                    # Per-URI warnings were already logged by the helper.
-                    raise mlrun.errors.MLRunRuntimeError(
-                        f"Failed to download {len(download_failures)} "
-                        f"store:// reference(s) during zip export: "
-                        f"{download_failures}. See per-URI warning logs for "
-                        f"the specific error of each."
-                    )
+        if not archive_code:
+            return
 
-            # Install rewritten copies for to_yaml(), restore originals so
-            # callers see no mutation. No-op when archive_code=False.
+        with tempfile.TemporaryDirectory(prefix="mlrun-export-") as staging_dir:
+            (
+                working_function_definitions,
+                working_workflows,
+                staged_downloads,
+                download_failures,
+            ) = _stage_store_downloads_for_export(
+                spec=self.spec,
+                staging_dir=staging_dir,
+                project_name=self.metadata.name,
+            )
+            if download_failures:
+                # Fail-fast: a partially-rewritten YAML would silently ship
+                # store:// URIs that won't resolve on the destination
+                # cluster, defeating the point of a self-contained zip.
+                # Per-URI warnings were already logged by the helper.
+                raise mlrun.errors.MLRunRuntimeError(
+                    f"Failed to download {len(download_failures)} "
+                    f"store:// reference(s) during zip export: "
+                    f"{download_failures}. See per-URI warning logs for "
+                    f"the specific error of each."
+                )
+
+            # Capture rewritten YAML as a string (NOT to disk under the
+            # user's context). Writing it to <context>/project.yaml would
+            # leave behind a YAML whose .mlrun/code/... paths resolve only
+            # inside the zip, breaking subsequent load_project(<context>).
+            # The rewritten YAML is added to the zip directly by
+            # _build_export_zip via writestr("project.yaml", ...).
+            original_function_definitions = self.spec._function_definitions
+            original_workflows = self.spec._workflows
             try:
                 self.spec._function_definitions = working_function_definitions
                 self.spec._workflows = working_workflows
-                with open(project_file_path, "w") as fp:
-                    fp.write(self.to_yaml())
+                rewritten_yaml = self.to_yaml()
             finally:
                 self.spec._function_definitions = original_function_definitions
                 self.spec._workflows = original_workflows
 
-            if archive_code:
-                _build_export_zip(
-                    filepath=filepath,
-                    project_dir=project_dir,
-                    files_filter=include_files or "**",
-                    staged_downloads=staged_downloads,
-                )
+            _build_export_zip(
+                filepath=filepath,
+                project_dir=project_dir,
+                files_filter=include_files or "**",
+                staged_downloads=staged_downloads,
+                rewritten_yaml=rewritten_yaml,
+            )
 
     def set_model_monitoring_credentials(
         self,
@@ -6133,31 +6139,16 @@ def _download_store_artifact_for_export(
               inside ``staging_dir``; ``zip_arcname`` is the POSIX-style
               relative path that the caller embeds in the exported
               ``project.yaml`` AND uses as the arcname when adding the file
-              to the zip. Returns ``None`` on recoverable failure (artifact
-              missing, network/IO error).
-    :raises:  MLRunInvalidArgumentError if the resolved store:// URI does not
-              point to a code-bearing artifact (e.g., user passed a feature-
-              set URI as a function source).
+              to the zip. Returns ``None`` on any recoverable failure:
+              artifact missing, wrong artifact kind (not a CodeArtifact),
+              empty download body, or network/IO error. The caller logs the
+              specific error per-URI and aggregates all failures into a
+              single ``MLRunRuntimeError`` at end of the walk.
     """
     # Do not log target_path: for some datastores it may be a presigned URL
     # carrying credentials. store_uri is the public handle and is safe.
     try:
-        try:
-            artifact = mlrun.datastore.get_store_resource(
-                store_uri, project=project_name
-            )
-        except AttributeError as exc:
-            # Upstream get_store_resource calls .get(...) on the read_artifact
-            # result before its own None-check (store_resources.py:191), so a
-            # missing artifact surfaces as `'NoneType' object has no attribute
-            # 'get'`. Translate that one specific case to MLRunNotFoundError;
-            # any other AttributeError is a real bug or unrelated upstream
-            # failure — propagate so it's visible.
-            if "NoneType" not in str(exc):
-                raise
-            raise mlrun.errors.MLRunNotFoundError(
-                f"store:// artifact not found: {store_uri}"
-            ) from exc
+        artifact = mlrun.datastore.get_store_resource(store_uri, project=project_name)
         if artifact is None:
             raise mlrun.errors.MLRunNotFoundError(
                 f"store:// artifact not found: {store_uri}"
@@ -6173,6 +6164,17 @@ def _download_store_artifact_for_export(
                 f"code artifact)"
             )
         target_path = artifact.get_target_path()
+        if not target_path:
+            # Artifact exists in the DB but has no backing target_path
+            # (e.g., inline-body artifact registered without a stored file).
+            # Mirror the wrong-kind branch above: the URI resolves to
+            # something structurally unusable as a code source, so it's an
+            # invalid argument rather than a not-found. Caught by the
+            # aggregate handler below.
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"store:// artifact has no target path (cannot be used as a "
+                f"code source): {store_uri}"
+            )
         filename = os.path.basename(target_path)
         # Hash on target_path (not store_uri) so different URIs that resolve
         # to the same backing file produce the same local filename — and so
@@ -6183,16 +6185,28 @@ def _download_store_artifact_for_export(
         unique_filename = f"{basename}_{path_hash}{ext}"
         real_path = pathlib.Path(staging_dir) / unique_filename
         mlrun.get_dataitem(target_path).download(str(real_path))
+        if not real_path.exists() or real_path.stat().st_size == 0:
+            # Some backends return HTTP 200 with an empty body on transient
+            # failure. Shipping a zero-byte file would silently produce a
+            # broken zip; treat the backing bytes as missing so the caller
+            # aggregates it with the other download failures.
+            raise mlrun.errors.MLRunNotFoundError(
+                f"downloaded code artifact is empty: {store_uri}"
+            )
         # POSIX-style separators in the YAML so the zip unpacks correctly
         # on any OS the recipient uses.
         arcname = f".mlrun/code/{unique_filename}"
         return real_path, arcname
-    except mlrun.errors.MLRunInvalidArgumentError:
-        raise
-    except (mlrun.errors.MLRunNotFoundError, OSError, ConnectionError) as exc:
-        # Best-effort: a single broken artifact must not abort the entire
-        # export. Caller logs an aggregate summary; YAML keeps the original
-        # store:// URI for the broken function.
+    except (
+        mlrun.errors.MLRunNotFoundError,
+        mlrun.errors.MLRunInvalidArgumentError,
+        OSError,
+        ConnectionError,
+    ) as exc:
+        # Aggregate all per-URI failures uniformly: missing artifact, wrong
+        # artifact kind, and IO errors all become "this URI failed" so the
+        # caller can raise a single MLRunRuntimeError listing every failure
+        # rather than aborting mid-walk on the first wrong-kind URI.
         logger.warning(
             "Failed to download code artifact for export",
             store_uri=store_uri,
@@ -6203,16 +6217,15 @@ def _download_store_artifact_for_export(
 
 
 def _stage_store_downloads_for_export(
-    spec,
+    spec: "ProjectSpec",
     staging_dir: str,
     project_name: str,
-) -> tuple[dict, dict, list[tuple[pathlib.Path, str]], list[str]]:
+) -> tuple[dict, dict, dict[str, pathlib.Path], list[str]]:
     """Walk function and workflow definitions, download store:// sources into
     ``staging_dir``, and return rewritten copies of the spec dicts plus the
     bookkeeping the caller needs to finish the export.
 
-    Source-bearing fields handled (Pre-submit audit #1 — polymorphic-branch
-    parity): dict-form ``func_def["url"]``, BaseRuntime
+    Source-bearing fields handled: dict-form ``func_def["url"]``, BaseRuntime
     ``func_def.spec.build.source``, ``WorkflowSpec.path``. Other BaseRuntime
     fields (``spec.command``, ``spec.image``) are cmd/container values, never
     store:// URIs.
@@ -6221,13 +6234,14 @@ def _stage_store_downloads_for_export(
               staged_downloads, failures)`` where the first two are deepcopies
               of ``spec._function_definitions`` and ``spec._workflows`` with
               ``store://`` URIs rewritten to local arcnames; ``staged_downloads``
-              is a list of ``(real_path_in_staging, zip_arcname)`` pairs to
-              write into the zip; ``failures`` lists names whose download
-              returned ``None`` (best-effort skip).
+              is a ``{zip_arcname: real_path_in_staging}`` map (dict so
+              multiple functions sharing the same store:// URI don't add
+              duplicate zip entries); ``failures`` lists names whose download
+              returned ``None``.
     """
     working_function_definitions = deepcopy(spec._function_definitions)
     working_workflows = deepcopy(spec._workflows)
-    staged_downloads: list[tuple[pathlib.Path, str]] = []
+    staged_downloads: dict[str, pathlib.Path] = {}
     failures: list[str] = []
 
     for name, func_def in working_function_definitions.items():
@@ -6249,7 +6263,7 @@ def _stage_store_downloads_for_export(
             )
             if result is not None:
                 real_path, arcname = result
-                staged_downloads.append((real_path, arcname))
+                staged_downloads[arcname] = real_path
                 if isinstance(func_def, dict):
                     func_def["url"] = arcname
                 elif hasattr(func_def, "spec"):
@@ -6267,7 +6281,7 @@ def _stage_store_downloads_for_export(
             )
             if result is not None:
                 real_path, arcname = result
-                staged_downloads.append((real_path, arcname))
+                staged_downloads[arcname] = real_path
                 workflow_spec.path = arcname
             else:
                 failures.append(name)
@@ -6279,25 +6293,42 @@ def _build_export_zip(
     filepath: str,
     project_dir: pathlib.Path,
     files_filter: str,
-    staged_downloads: list[tuple[pathlib.Path, str]],
+    staged_downloads: dict[str, pathlib.Path],
+    rewritten_yaml: str,
 ) -> None:
     """Build the project export zip and (if ``filepath`` is a remote URL)
     upload it via mlrun.get_dataitem.
 
-    The zip combines two sources: regular project files under ``project_dir``
-    walked with the user's ``files_filter`` glob, and files staged in a
-    tmpdir during the download phase added with explicit ``arcname``s.
+    The zip combines three sources: the rewritten ``project.yaml`` (with
+    ``store://`` URIs replaced by local arcnames), regular project files
+    under ``project_dir`` walked with the user's ``files_filter`` glob, and
+    files staged in a tmpdir during the download phase added with explicit
+    arcnames.
+
+    The rewritten yaml is written ONLY into the zip — never to disk under
+    ``project_dir`` — so a subsequent ``load_project(project_dir)`` still
+    sees the original ``store://`` URIs and resolves them at load time.
+    Any ``project.yaml`` already present under ``project_dir`` is skipped
+    during the glob so we don't ship two copies (the rewritten one wins).
     """
     with tempfile.NamedTemporaryFile(suffix=".zip") as f:
         remote_file = "://" in filepath
         fpath = f.name if remote_file else filepath
         with zipfile.ZipFile(fpath, "w") as zipf:
+            zipf.writestr("project.yaml", rewritten_yaml)
             for file_path in glob.iglob(
                 f"{project_dir}/{files_filter}", recursive=True
             ):
                 write_path = pathlib.Path(file_path)
-                zipf.write(write_path, arcname=write_path.relative_to(project_dir))
-            for real_path, arcname in staged_downloads:
+                arcname = write_path.relative_to(project_dir)
+                if str(arcname) == "project.yaml":
+                    # Already written from rewritten_yaml above. Skipping
+                    # avoids a duplicate-entry warning from zipfile and
+                    # guarantees the rewritten copy is the one that lands
+                    # in the zip.
+                    continue
+                zipf.write(write_path, arcname=arcname)
+            for arcname, real_path in staged_downloads.items():
                 zipf.write(real_path, arcname=arcname)
         if remote_file:
             mlrun.get_dataitem(filepath).upload(zipf.filename)

@@ -239,7 +239,10 @@ class APIHandlerConfig(mlrun.model.ModelObj):
             if isinstance(ep, EndpointConfig):
                 self._endpoints[endpoint_key] = ep
             else:
-                # dict → deserialization path
+                # dict → deserialization path. Key is "METHOD:path" (e.g. "POST:/v1/chat/completions"),
+                # a derived cache for O(1) lookup — authoritative data lives in EndpointConfig itself.
+                # Old format: {"action": "allow", "description": "..."}
+                # New format adds: "path", "http_method", "input_body_mappings"
                 # Manually deserialize nested BodyMappings since ModelObj does not do it automatically
                 body_mappings_dict = ep.get("input_body_mappings")
                 input_body_mappings = (

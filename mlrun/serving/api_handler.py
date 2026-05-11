@@ -459,9 +459,12 @@ class _APIHandlerStep(mlrun.serving.states.TaskStep):
             raise
 
     def _raise_not_found_endpoint(self, method: str, normalized_path: str) -> None:
-        # Check if path exists with any method (for 405 vs 404 distinction)
+        # Check if path matches any registered endpoint regardless of method (for 405 vs 404 distinction).
+        # String comparison is insufficient — template paths like /users/{id} won't match /users/123.
         path_exists = any(
-            e.path == normalized_path for e in self.config.endpoints.values()
+            self._collect_endpoint_matches(m, normalized_path)
+            for m in HTTPMethod
+            if m != method
         )
         if path_exists:
             # Path exists but method not allowed (405)

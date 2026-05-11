@@ -483,12 +483,7 @@ class TestPathTemplateRegex:
         assert pattern.match("/api/v1") is not None
 
     def test_check_method_allowed_with_templates(self) -> None:
-        """Test 405 vs 404 error distinction with path templates.
-
-        Note: For performance, we only check exact paths when distinguishing 405 vs 404.
-        Templated paths that don't match the request method will return 404, not 405.
-        This is a reasonable trade-off for better performance on the error path.
-        """
+        """Test 405 vs 404 error distinction with path templates."""
         config = APIHandlerConfig()
         config.add_endpoint_handler(
             "/items/{id}", HTTPMethod.POST, APIHandlerAction.ALLOW
@@ -500,9 +495,11 @@ class TestPathTemplateRegex:
         step = _APIHandlerStep(config=config)
         assert len(step._endpoint_patterns) == 2  # Two methods for same path template
 
-        # GET not allowed for templated path → 404 (simplified logic, exact paths only)
+        # GET not allowed for templated path → 405 (template matching used for 405 vs 404)
         event = MockEvent(method=HTTPMethod.GET, path="/items/123", body={})
-        with pytest.raises(mlrun.errors.MLRunNotFoundError, match="Endpoint not found"):
+        with pytest.raises(
+            mlrun.errors.MLRunMethodNotAllowedError, match="Method not allowed"
+        ):
             step.do(event)
 
         # POST is allowed → should succeed
@@ -1785,11 +1782,7 @@ class TestAPIHandlerStep:
         assert step._collect_endpoint_matches(HTTPMethod.GET, "/different/path") == []
 
     def test_run_path_template_method_not_allowed(self) -> None:
-        """Test that wrong method on path-template endpoint returns 404.
-
-        Note: For performance, we only check exact paths when distinguishing 405 vs 404.
-        Templated paths that don't match the request method will return 404, not 405.
-        """
+        """Test that wrong method on a path-template endpoint returns 405, not 404."""
         config = APIHandlerConfig()
         config.add_endpoint_handler(
             "/api/resource/{resource_id}",
@@ -1800,7 +1793,9 @@ class TestAPIHandlerStep:
         step = _APIHandlerStep(config=config)
         event = MockEvent(body={"data": "test"}, method="GET", path="/api/resource/42")
 
-        with pytest.raises(mlrun.errors.MLRunNotFoundError, match="Endpoint not found"):
+        with pytest.raises(
+            mlrun.errors.MLRunMethodNotAllowedError, match="Method not allowed"
+        ):
             step.do(event)
 
     def test_run_allowed_endpoint(self) -> None:

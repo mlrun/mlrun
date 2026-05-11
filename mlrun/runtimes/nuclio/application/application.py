@@ -91,7 +91,7 @@ class ApplicationSpec(nuclio_function.NuclioSpec):
         application_ports=None,
         auth=None,
         env_from=None,
-        otlp_enabled=False,
+        otlp_enabled: bool = False,
     ):
         super().__init__(
             command=command,

@@ -405,8 +405,9 @@ class BaseRuntimeHandler(ABC):
         volume_mounts = [{"name": "azure-vault-secret", "mountPath": secret_path}]
         runtime.spec.update_vols_and_mounts(volumes, volume_mounts)
 
-    @staticmethod
+    @classmethod
     def add_k8s_secrets_to_spec(
+        cls,
         secrets,
         runtime: mlrun.runtimes.pod.KubeResource,
         project_name: str | None = None,
@@ -416,14 +417,12 @@ class BaseRuntimeHandler(ABC):
         otlp_enabled: bool = False,
     ):
         # In IG4, we add auth token secret as volumes and volumes mounts
-        BaseRuntimeHandler._mount_secret_token_to_runtime(
-            runtime, token_name, auth_info
-        )
+        cls._mount_secret_token_to_runtime(runtime, token_name, auth_info)
 
         if otlp_enabled:
             # Mount OTLP telemetry headers when configured. The function pod reads
             # them via mlrun.utils.telemetry.resolve_otlp_headers().
-            BaseRuntimeHandler._mount_telemetry_headers_to_runtime(runtime)
+            cls._mount_telemetry_headers_to_runtime(runtime)
 
         # Check if we need to add the keys of a global secret. Global secrets are intentionally added before
         # project secrets, to allow project secret keys to override them
@@ -530,7 +529,7 @@ class BaseRuntimeHandler(ABC):
 
     @staticmethod
     def _mount_telemetry_headers_to_runtime(
-        runtime: mlrun.runtimes.base.BaseRuntime,
+        runtime: mlrun.runtimes.pod.KubeResource,
     ):
         """Mount the OTLP telemetry headers secret as files on the function pod.
 

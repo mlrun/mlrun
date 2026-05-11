@@ -45,6 +45,21 @@ def test_reads_multiple_headers(tmp_path):
     }
 
 
+def test_strips_trailing_newline_from_header_values(tmp_path):
+    """`kubectl create secret --from-file=...` writes the file contents verbatim,
+    which usually ends in '\\n'. HTTP forbids newlines in header values, so the
+    helper must strip a trailing newline."""
+    (tmp_path / "Authorization").write_text("Bearer token-xyz\n")
+    (tmp_path / "X-Multi-Newline").write_text("value\n\n")
+    (tmp_path / "X-No-Newline").write_text("value-without-newline")
+
+    assert mlrun.utils.telemetry.resolve_otlp_headers(path=str(tmp_path)) == {
+        "Authorization": "Bearer token-xyz",
+        "X-Multi-Newline": "value",
+        "X-No-Newline": "value-without-newline",
+    }
+
+
 def test_decodes_complex_header_values(tmp_path):
     """Header values with spaces, JWT-style payloads, non-ASCII bytes, and empty values."""
     payload = {

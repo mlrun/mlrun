@@ -394,7 +394,7 @@ class ServingSpec(nuclio_function.NuclioSpec):
         streaming: bool | None = None,
         api_handler_config: APIHandlerConfig | None = None,
         env_from=None,
-        otlp_enabled=False,
+        otlp_enabled: bool = False,
     ):
         super().__init__(
             command=command,

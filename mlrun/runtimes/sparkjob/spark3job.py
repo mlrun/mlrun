@@ -173,7 +173,7 @@ class Spark3JobSpec(KubeResourceSpec):
         parameters=None,
         track_models=None,
         env_from=None,
-        otlp_enabled=False,
+        otlp_enabled: bool = False,
     ):
         super().__init__(
             command=command,

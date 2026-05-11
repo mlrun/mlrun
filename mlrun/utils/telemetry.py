@@ -45,7 +45,7 @@ def resolve_otlp_headers(path: str | None = None) -> dict[str, str]:
             if not entry.is_file():
                 continue
             with open(entry.path) as f:
-                headers[entry.name] = f.read()
+                headers[entry.name] = f.read().rstrip("\n")
     except OSError as exc:
         mlrun.utils.logger.warning(
             "Failed to read OTLP telemetry headers from mount",

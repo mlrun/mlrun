@@ -2752,13 +2752,20 @@ class MonitoringDeployment:
 
         :return: The updated function dict.
         """
+        if not model_endpoints_instructions:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "_build_and_inject_monitoring_env_vars called with empty or malformed model_endpoints_instructions"
+            )
         env_updates: dict[str, str] = {}
         if stream_url:
             env_updates[mm_constants.NuclioMonitoringEnvVars.MODEL_MONITORING_URL] = (
                 stream_url
             )
-        first_uid = model_endpoints_instructions[0][0].metadata.uid
-        first_name = model_endpoints_instructions[0][0].metadata.name
+        first_uid = (
+            model_endpoints_instructions[0][0].metadata.uid
+            if len(model_endpoints_instructions[0]) > 1
+            else ""
+        )
         env_updates[mm_constants.NuclioMonitoringEnvVars.MODEL_ENDPOINT_UID] = first_uid
         env_updates[mm_constants.NuclioMonitoringEnvVars.MODEL_ENDPOINT_NAME] = first_name
         if len(model_endpoints_instructions) > 1:

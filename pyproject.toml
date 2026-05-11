@@ -52,7 +52,7 @@ universal = true
 
 [tool.pytest]
 addopts = ["-v", "-rf", "--disable-warnings", "--import-mode=importlib"]
-pythonpath = ["./server/py"] # This allows running server side tests from the project root directory
+pythonpath = [".", "./server/py"] # This allows running server side tests from the project root directory
 python_files = [
     "tests/*/test_*.py",
     "tests/test_*.py",

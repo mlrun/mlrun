@@ -2828,7 +2828,7 @@ def test_create_user_model_endpoint_from_instruction(mock_create, context):
         function_tag="latest",
     )
 
-    project.create_user_model_endpoint("ep1", model_endpoint_instruction=instruction)
+    project.create_user_model_endpoint(model_endpoint_instruction=instruction)
 
     endpoint_arg = mock_create.call_args[1]["model_endpoint"]
     assert endpoint_arg.spec.feature_names == ["a", "b"]
@@ -2874,6 +2874,114 @@ def test_create_user_model_endpoint_creation_strategy_forwarded(mock_create, con
         mock_create.call_args[1]["creation_strategy"]
         == mm_consts.ModelEndpointCreationStrategy.OVERWRITE
     )
+
+
+@unittest.mock.patch.object(mlrun.db.nopdb.NopDB, "create_model_endpoint")
+def test_create_user_model_endpoint_extra_spec_kwarg(mock_create, context):
+    """Extra spec kwargs (e.g. model_path) are forwarded to ModelEndpointSpec."""
+    mock_create.return_value = _make_endpoint_response("ep1")
+    project = mlrun.new_project("project-name", context=str(context), save=False)
+
+    project.create_user_model_endpoint("ep1", model_path="store://mymodel")
+
+    endpoint_arg = mock_create.call_args[1]["model_endpoint"]
+    assert endpoint_arg.spec.model_path == "store://mymodel"
+
+
+@unittest.mock.patch.object(mlrun.db.nopdb.NopDB, "create_model_endpoint")
+def test_create_user_model_endpoint_extra_metadata_kwarg(mock_create, context):
+    """Extra metadata kwargs (e.g. labels) are forwarded to ModelEndpointMetadata."""
+    mock_create.return_value = _make_endpoint_response("ep1")
+    project = mlrun.new_project("project-name", context=str(context), save=False)
+
+    project.create_user_model_endpoint("ep1", labels={"env": "prod"})
+
+    endpoint_arg = mock_create.call_args[1]["model_endpoint"]
+    assert endpoint_arg.metadata.labels == {"env": "prod"}
+
+
+@pytest.mark.parametrize(
+    "protected_kwarg",
+    [
+        # Fields that are explicit function params (name/function_name/function_tag)
+        # are intercepted by Python before reaching _split_endpoint_kwargs.
+        # Only fields that would arrive in **kwargs but are still protected:
+        {"feature_names": ["f1"]},
+        {"label_names": ["out"]},
+        {"project": "other-project"},
+        {"endpoint_type": mm_consts.EndpointType.NODE_EP},
+    ],
+)
+def test_create_user_model_endpoint_protected_kwarg_raises(protected_kwarg, context):
+    """Passing a field owned by ModelEndpointInstruction via kwargs raises."""
+    project = mlrun.new_project("project-name", context=str(context), save=False)
+
+    with pytest.raises(mlrun.errors.MLRunInvalidArgumentError, match="already set"):
+        project.create_user_model_endpoint("ep1", **protected_kwarg)
+
+
+def test_create_user_model_endpoint_unknown_kwarg_raises(context):
+    """An unrecognised kwarg raises MLRunInvalidArgumentError."""
+    project = mlrun.new_project("project-name", context=str(context), save=False)
+
+    with pytest.raises(mlrun.errors.MLRunInvalidArgumentError, match="not a valid"):
+        project.create_user_model_endpoint("ep1", nonexistent_field="value")
+
+
+def test_split_endpoint_kwargs_routes_correctly():
+    """_split_endpoint_kwargs separates metadata and spec fields correctly."""
+    from mlrun.projects.project import MlrunProject
+
+    metadata_fields, spec_fields = MlrunProject._split_endpoint_kwargs(
+        {"labels": {"k": "v"}, "model_path": "store://m", "model_class": "MyModel"}
+    )
+
+    assert metadata_fields == {"labels": {"k": "v"}}
+    assert spec_fields == {"model_path": "store://m", "model_class": "MyModel"}
+
+
+def test_split_endpoint_kwargs_empty():
+    """_split_endpoint_kwargs handles empty input."""
+    from mlrun.projects.project import MlrunProject
+
+    metadata_fields, spec_fields = MlrunProject._split_endpoint_kwargs({})
+    assert metadata_fields == {}
+    assert spec_fields == {}
+
+
+@pytest.mark.parametrize("valid_name", ["my-endpoint", "ep_1", "Endpoint123", "a"])
+def test_model_endpoint_instruction_valid_name(valid_name):
+    """ModelEndpointInstruction accepts names matching MODEL_ENDPOINT_ID_PATTERN."""
+    from mlrun.common.schemas.model_monitoring.model_endpoints import (
+        ModelEndpointInstruction,
+    )
+
+    instr = ModelEndpointInstruction(name=valid_name)
+    assert instr.name == valid_name
+
+
+@pytest.mark.parametrize(
+    "invalid_name", ["my endpoint", "ep/1", "ep.name", "", "ep@v1"]
+)
+def test_model_endpoint_instruction_invalid_name_raises(invalid_name):
+    """ModelEndpointInstruction rejects names that don't match MODEL_ENDPOINT_ID_PATTERN."""
+    from pydantic.v1 import ValidationError
+
+    from mlrun.common.schemas.model_monitoring.model_endpoints import (
+        ModelEndpointInstruction,
+    )
+
+    with pytest.raises(ValidationError):
+        ModelEndpointInstruction(name=invalid_name)
+
+
+@unittest.mock.patch.object(mlrun.db.nopdb.NopDB, "get_model_monitoring_url")
+def test_get_model_monitoring_url_module_level(mock_get):
+    """mlrun.get_model_monitoring_url() delegates to the DB layer."""
+    mock_get.return_value = "http://stream:8080"
+    url = mlrun.get_model_monitoring_url("my-project")
+    assert url == "http://stream:8080"
+    mock_get.assert_called_once_with("my-project")
 
 
 @pytest.mark.parametrize(

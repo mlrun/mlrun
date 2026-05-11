@@ -300,7 +300,7 @@ class ModelEndpointInstruction(BaseModel):
             2. Create a new model endpoint with the same name and set it to `latest`.
     """
 
-    name: str
+    name: constr(regex=MODEL_ENDPOINT_ID_PATTERN)
     input_schema: list[str] | None = None
     output_schema: list[str] | None = None
     function_name: str | None = None
@@ -317,6 +317,19 @@ class ModelEndpointInstruction(BaseModel):
     def from_dict(cls, data: dict) -> "ModelEndpointInstruction":
         """Deserialize from a plain dictionary, with pydantic validation."""
         return cls(**data)
+
+    @property
+    def spec_fields(self) -> dict:
+        return {
+            k: v
+            for k, v in {
+                "feature_names": self.input_schema,
+                "label_names": self.output_schema,
+                "function_name": self.function_name,
+                "function_tag": self.function_tag,
+            }.items()
+            if v is not None
+        }
 
 
 class ModelEndpointMonitoringMetric(BaseModel):

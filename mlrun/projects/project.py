@@ -4149,23 +4149,23 @@ class MlrunProject(ModelObj):
 
     def create_user_model_endpoint(
         self,
-        name: str,
+        name: str | None = None,
         input_schema: list[str] | None = None,
         output_schema: list[str] | None = None,
         function_name: str | None = None,
         function_tag: str | None = None,
-        creation_strategy: mm_constants.ModelEndpointCreationStrategy
-        | None = mm_constants.ModelEndpointCreationStrategy.INPLACE,
+        creation_strategy: mm_constants.ModelEndpointCreationStrategy | None = None,
         model_endpoint_instruction: ModelEndpointInstruction | None = None,
         **kwargs,
     ) -> tuple[str, str]:
         """
         Create a user-defined model endpoint (``EndpointType.USER_EP``) for this project.
 
-        Use this when you have a model deployed outside of MLRun and want to register it
+        Use this when you have a model deployed outside MLRun and want to register it
         for monitoring purposes.
 
-        :param name:               Name of the model endpoint.
+        :param name:               Name of the model endpoint, name must be provided here or by providing
+            model_endpoint_instruction parameter.
         :param input_schema:       List of input feature names (maps to ``feature_names``).
         :param output_schema:      List of output / label names (maps to ``label_names``).
         :param function_name:      Name of an associated MLRun function (optional).
@@ -4186,53 +4186,51 @@ class MlrunProject(ModelObj):
                                    field overrides (e.g. ``labels``, ``model_tags``).
         :return: A tuple stands for the created mlrun.common.schemas.ModelEndpoint name and uid.
         """
-        if model_endpoint_instruction is not None and any(
-            [
-                input_schema,
-                output_schema,
-                function_name,
-                function_tag,
-            ]
-        ):
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                "Cannot provide both model_endpoint_instruction and individual parameters. "
-                "Please choose one of the options."
+        if model_endpoint_instruction is not None:
+            if any(
+                [
+                    name,
+                    input_schema,
+                    output_schema,
+                    function_name,
+                    function_tag,
+                    creation_strategy,
+                ]
+            ):
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    "Cannot provide both model_endpoint_instruction and individual parameters. "
+                    "Please choose one of the options."
+                )
+
+        if model_endpoint_instruction is None:
+            model_endpoint_instruction = ModelEndpointInstruction(
+                name=name,
+                function_name=function_name,
+                function_tag=function_tag,
+                input_schema=input_schema,
+                output_schema=output_schema,
+                creation_strategy=creation_strategy
+                or mm_constants.ModelEndpointCreationStrategy.INPLACE,
             )
 
-        # Separate kwargs into metadata vs spec fields
-        metadata_field_names = set(
-            mlrun.common.schemas.ModelEndpointMetadata.__fields__
+        metadata_fields, spec_fields = self._split_endpoint_kwargs(kwargs)
+
+        spec_fields.update(
+            {
+                k: v
+                for k, v in {
+                    "feature_names": model_endpoint_instruction.input_schema,
+                    "label_names": model_endpoint_instruction.output_schema,
+                    "function_name": model_endpoint_instruction.function_name,
+                    "function_tag": model_endpoint_instruction.function_tag,
+                }.items()
+                if v is not None
+            }
         )
-        spec_fields = {}
-        metadata_fields = {}
-        for key, value in kwargs.items():
-            if key in metadata_field_names:
-                metadata_fields[key] = value
-            else:
-                spec_fields[key] = value
-
-        if function_name is not None:
-            spec_fields["function_name"] = function_name
-        if function_tag is not None:
-            spec_fields["function_tag"] = function_tag
-        if input_schema is not None:
-            spec_fields["feature_names"] = input_schema
-        if output_schema is not None:
-            spec_fields["label_names"] = output_schema
-
-        if model_endpoint_instruction is not None:
-            if model_endpoint_instruction.function_name is not None:
-                spec_fields["function_name"] = model_endpoint_instruction.function_name
-            if model_endpoint_instruction.function_tag is not None:
-                spec_fields["function_tag"] = model_endpoint_instruction.function_tag
-            if model_endpoint_instruction.input_schema is not None:
-                spec_fields["feature_names"] = model_endpoint_instruction.input_schema
-            if model_endpoint_instruction.output_schema is not None:
-                spec_fields["label_names"] = model_endpoint_instruction.output_schema
 
         model_endpoint = mlrun.common.schemas.ModelEndpoint(
             metadata=mlrun.common.schemas.ModelEndpointMetadata(
-                name=name,
+                name=model_endpoint_instruction.name,
                 project=self.name,
                 endpoint_type=mm_constants.EndpointType.USER_EP,
                 **metadata_fields,
@@ -4242,9 +4240,66 @@ class MlrunProject(ModelObj):
         )
         db = mlrun.db.get_run_db(secrets=self._secrets)
         endpoint = db.create_model_endpoint(
-            model_endpoint=model_endpoint, creation_strategy=creation_strategy
+            model_endpoint=model_endpoint,
+            creation_strategy=model_endpoint_instruction.creation_strategy,
         )
         return endpoint.metadata.name, endpoint.metadata.uid
+
+    @staticmethod
+    def _split_endpoint_kwargs(kwargs: dict) -> tuple[dict, dict]:
+        """Split and validate extra kwargs for create_user_model_endpoint.
+
+        Separates *kwargs* into ``metadata_fields`` and ``spec_fields`` while
+        rejecting any key that is already controlled by
+        :class:`~mlrun.common.schemas.ModelEndpointInstruction` or hardcoded
+        in the creation path.
+
+        :param kwargs: Extra keyword arguments to classify.
+        :return: ``(metadata_fields, spec_fields)`` — dicts safe to unpack
+            into :class:`~mlrun.common.schemas.ModelEndpointMetadata` and
+            :class:`~mlrun.common.schemas.ModelEndpointSpec` respectively.
+        :raises mlrun.errors.MLRunInvalidArgumentError: if a key conflicts
+            with an instruction-owned field or is unknown.
+        """
+        # Fields always set by ModelEndpointInstruction or hardcoded in the
+        # creation path — callers must not re-supply them via kwargs.
+        _protected = frozenset(
+            {
+                "name",
+                "project",
+                "endpoint_type",
+                "feature_names",  # instruction.input_schema
+                "label_names",  # instruction.output_schema
+                "function_name",  # instruction.function_name
+                "function_tag",  # instruction.function_tag
+            }
+        )
+
+        metadata_field_names = set(
+            mlrun.common.schemas.ModelEndpointMetadata.__fields__
+        )
+        spec_field_names = set(mlrun.common.schemas.ModelEndpointSpec.__fields__)
+
+        metadata_fields: dict = {}
+        spec_fields: dict = {}
+
+        for key, value in kwargs.items():
+            if key in _protected:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    f"'{key}' is already set by ModelEndpointInstruction "
+                    "and cannot be overridden via kwargs."
+                )
+            if key in metadata_field_names:
+                metadata_fields[key] = value
+            elif key in spec_field_names:
+                spec_fields[key] = value
+            else:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    f"'{key}' is not a valid ModelEndpointMetadata or "
+                    "ModelEndpointSpec field."
+                )
+
+        return metadata_fields, spec_fields
 
     def list_model_endpoints(
         self,

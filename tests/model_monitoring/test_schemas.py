@@ -242,3 +242,31 @@ class TestModelEndpointInstruction:
         assert restored.name == "only-name"
         assert restored.creation_strategy == ModelEndpointCreationStrategy.INPLACE
         assert restored.input_schema is None
+
+    def test_spec_fields_excludes_none(self):
+        from mlrun.common.schemas.model_monitoring.model_endpoints import (
+            ModelEndpointInstruction,
+        )
+
+        # None fields must be absent from spec_fields
+        instr = ModelEndpointInstruction(name="ep")
+        assert instr.spec_fields == {}
+
+        # Populated fields must appear with mapped keys
+        instr = ModelEndpointInstruction(
+            name="ep",
+            input_schema=["f1", "f2"],
+            output_schema=["label"],
+            function_name="my-fn",
+            function_tag="v1",
+        )
+        assert instr.spec_fields == {
+            "feature_names": ["f1", "f2"],
+            "label_names": ["label"],
+            "function_name": "my-fn",
+            "function_tag": "v1",
+        }
+
+        # Partial population — only set fields appear
+        instr = ModelEndpointInstruction(name="ep", input_schema=["x"])
+        assert instr.spec_fields == {"feature_names": ["x"]}

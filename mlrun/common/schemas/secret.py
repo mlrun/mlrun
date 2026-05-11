@@ -64,6 +64,7 @@ class SecretTokenInfo(BaseModel):
     expiration: datetime
     issued_at: datetime
     user_id: str
+    username: str
 
 
 class ListSecretTokensResponse(BaseModel):

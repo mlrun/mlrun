@@ -13,7 +13,7 @@
 # limitations under the License.
 
 ARG PYTHON_VERSION=3.11
-ARG GO_VERSION=1.25
+ARG GO_VERSION=1.26
 
 FROM gcr.io/iguazio/golang:${GO_VERSION}-alpine AS golang
 

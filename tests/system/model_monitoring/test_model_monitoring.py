@@ -821,7 +821,6 @@ class TestModelEndpointsOperations(TestMLRunSystemModelMonitoring):
             output_schema=["out"],
         )
         name2, uid2 = self.project.create_user_model_endpoint(
-            "user-ep-instr",
             model_endpoint_instruction=instruction,
         )
         assert name2 == "user-ep-instr"
@@ -2967,6 +2966,8 @@ class TestLLModelWithMonitoring(TestMLRunSystemModelMonitoring):
             assert mep.status.last_request is not None
 
 
+@TestMLRunSystemModelMonitoring.skip_test_if_env_not_configured
+@pytest.mark.enterprise
 class TestGetModelMonitoringURL(TestMLRunSystemModelMonitoring):
     """
     System / CRUD tests for get_model_monitoring_url.
@@ -3033,6 +3034,8 @@ def _assert_endpoints_exist(project, names: set) -> None:
     assert names.issubset(ep_names), f"Expected {names} in DB, found: {ep_names}"
 
 
+@TestMLRunSystemModelMonitoring.skip_test_if_env_not_configured
+@pytest.mark.enterprise
 class TestNuclioAppModelEndpointCreation(TestMLRunSystemModelMonitoring):
     """
     System / CRUD tests for model endpoint creation during nuclio function deployment.
@@ -3255,6 +3258,8 @@ class TestNuclioAppModelEndpointCreation(TestMLRunSystemModelMonitoring):
         )
 
 
+@TestMLRunSystemModelMonitoring.skip_test_if_env_not_configured
+@pytest.mark.enterprise
 class TestApplicationRuntimeModelEndpointCreation(TestNuclioAppModelEndpointCreation):
     """
     Model-endpoint-creation tests using kind="application" (ApplicationRuntime).

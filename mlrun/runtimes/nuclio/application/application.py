@@ -92,6 +92,7 @@ class ApplicationSpec(nuclio_function.NuclioSpec):
         model_endpoints_instructions=None,
         auth=None,
         env_from=None,
+        otlp_enabled: bool = False,
     ):
         super().__init__(
             command=command,
@@ -141,6 +142,7 @@ class ApplicationSpec(nuclio_function.NuclioSpec):
             custom_scaling_metric_specs=custom_scaling_metric_specs,
             model_endpoints_instructions=model_endpoints_instructions,
             auth=auth,
+            otlp_enabled=otlp_enabled,
         )
 
         # Override default min/max replicas (don't assume application is stateless)

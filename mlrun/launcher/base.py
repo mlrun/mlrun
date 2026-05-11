@@ -293,7 +293,12 @@ class BaseLauncher(abc.ABC):
         def_name = runtime.metadata.name
         if run.spec.handler_name:
             short_name = run.spec.handler_name
-            for separator in ["#", "::", "."]:
+            # Strip every recognized handler separator from the short name —
+            # `:` is required for the canonical mlrun "module:function" form
+            # (auto-name must be DNS-1123 valid; K8s rejects `:`). Ordered
+            # longest-match-first as a defensive convention; `split(...)[-1]`
+            # makes the end result invariant to this ordering today.
+            for separator in ["#", "::", ":", "."]:
                 # drop paths, module or class name from short name
                 if separator in short_name:
                     short_name = short_name.split(separator)[-1]

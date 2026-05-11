@@ -977,6 +977,28 @@ default_config = {
             "refresh_interval": "30",
         }
     },
+    "telemetry": {
+        # Master kill-switch for all OTel telemetry features. When "false", no telemetry is exported.
+        "enabled": False,
+        # Shared OTLP endpoint (gRPC or HTTP) used by every telemetry feature below.
+        # Blank = telemetry disabled regardless of `enabled`.
+        "otlp_endpoint": "",
+        # gRPC without TLS.
+        "insecure": True,
+        # Name of the K8s secret holding OTLP auth headers (one key per header,
+        # e.g. Authorization, X-Scope-OrgID). Blank = no auth headers.
+        "headers_secret_name": "",
+        # ML-16 — chief-only periodic system-size counters.
+        "system_counters": {
+            # Seconds between collection cycles. Default once per day; minimum 3600.
+            "interval": 86400,
+        },
+        # ML-12344 — model monitoring application Results/Metrics OTel export.
+        "model_monitoring": {
+            # 0 = manual flush per do() (ManualMetricReader); >0 = PeriodicExportingMetricReader interval (seconds).
+            "interval": 60,
+        },
+    },
     "system_id": "",
 }
 _is_running_as_api = None

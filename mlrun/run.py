@@ -868,8 +868,9 @@ def code_to_function(
     if not name:
         raise ValueError("name must be specified")
 
-    h = get_in(spec, "spec.handler", "").split(":")
-    runtime.handler = h[0] if len(h) <= 1 else h[1]
+    _, runtime.handler = mlrun.utils.helpers.split_handler_module_and_function(
+        get_in(spec, "spec.handler", "")
+    )
     runtime.metadata = get_in(spec, "spec.metadata")
     runtime.metadata.name = name
     build = runtime.spec.build
@@ -1314,6 +1315,18 @@ def wait_for_runs_completion(
         runs = running
 
     return completed
+
+
+def get_model_monitoring_url(project: str) -> str | None:
+    """
+    Retrieve the HTTP URL of the model monitoring stream pod for the given project.
+
+    :param project: name of the project
+    :return: HTTP URL of the model monitoring stream pod, or None if no HTTP trigger is configured
+    :raises mlrun.errors.MLRunNotFoundError: if the stream function is not deployed
+    :raises mlrun.errors.MLRunPreconditionFailedError: if the stream function is not in ready state
+    """
+    return mlrun.db.get_run_db().get_model_monitoring_url(project)
 
 
 def _ensure_path_confined_to_base_dir(

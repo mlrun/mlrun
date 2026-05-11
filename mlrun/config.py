@@ -357,6 +357,7 @@ default_config = {
                     "start_logs": "enabled",
                     "stop_logs": "enabled",
                     "retry_jobs": "enabled",
+                    "project_sync_2pc": "disabled",
                 },
             },
             "worker": {
@@ -551,6 +552,9 @@ default_config = {
                 "list_pipelines_time_period_in_days": 2,
             },
             "resource_deletion_batch_size": 10000,
+            "stale_resource_ttl_create": "2 minutes",
+            "stale_resource_ttl_update": "2 minutes",
+            "stale_resource_ttl_delete": "10 minutes",
         },
         # The API needs to know what is its k8s svc url so it could enrich it in the jobs it creates
         "api_url": "",
@@ -972,6 +976,28 @@ default_config = {
             "config_secret_name": "mlrun-smtp-config",
             "refresh_interval": "30",
         }
+    },
+    "telemetry": {
+        # Master kill-switch for all OTel telemetry features. When "false", no telemetry is exported.
+        "enabled": False,
+        # Shared OTLP endpoint (gRPC or HTTP) used by every telemetry feature below.
+        # Blank = telemetry disabled regardless of `enabled`.
+        "otlp_endpoint": "",
+        # gRPC without TLS.
+        "insecure": True,
+        # Name of the K8s secret holding OTLP auth headers (one key per header,
+        # e.g. Authorization, X-Scope-OrgID). Blank = no auth headers.
+        "headers_secret_name": "",
+        # ML-16 — chief-only periodic system-size counters.
+        "system_counters": {
+            # Seconds between collection cycles. Default once per day; minimum 3600.
+            "interval": 86400,
+        },
+        # ML-12344 — model monitoring application Results/Metrics OTel export.
+        "model_monitoring": {
+            # 0 = manual flush per do() (ManualMetricReader); >0 = PeriodicExportingMetricReader interval (seconds).
+            "interval": 60,
+        },
     },
     "system_id": "",
 }

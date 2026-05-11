@@ -18,6 +18,7 @@ import unittest.mock
 import deepdiff
 import pytest
 
+import mlrun
 import mlrun.common.formatters
 import mlrun.common.schemas
 import mlrun.config
@@ -460,6 +461,146 @@ class TestProjects(TestDatabaseBase):
         returned_names = {p.metadata.name for p in projects_output.projects}
         assert returned_names == {"proj-a", "proj-c"}
 
+    def test_list_stale_projects_empty(self):
+        output = self._db.list_stale_projects(
+            self._db_session,
+            format_=mlrun.common.formatters.ProjectFormat.name_only,
+        )
+        assert output.projects == []
+
+    def test_list_stale_projects_phase_none_excluded(self):
+        # Very old, state matches a TTL bucket, but phase IS NULL → not stale.
+        mlrun.mlconf.httpdb.projects.stale_resource_ttl_create = "60s"
+
+        self._seed_stale_project(
+            "p-no-phase", state="creating", phase=None, age_seconds=600
+        )
+        output = self._db.list_stale_projects(
+            self._db_session,
+            format_=mlrun.common.formatters.ProjectFormat.name_only,
+        )
+        assert output.projects == []
+
+    def test_list_stale_projects_creating_above_and_below_ttl(self):
+        mlrun.mlconf.httpdb.projects.stale_resource_ttl_create = "60s"
+
+        self._seed_stale_project(
+            "creating-stale", state="creating", phase=1, age_seconds=600
+        )
+        self._seed_stale_project(
+            "creating-fresh", state="creating", phase=1, age_seconds=5
+        )
+
+        output = self._db.list_stale_projects(
+            self._db_session,
+            format_=mlrun.common.formatters.ProjectFormat.name_only,
+        )
+        assert output.projects == ["creating-stale"]
+
+        # Default-format smoke check: confirm _full_object deserialization
+        # still works on the seeded record (covers format_-passthrough too).
+        full_output = self._db.list_stale_projects(
+            self._db_session,
+            format_=mlrun.common.formatters.ProjectFormat.full,
+        )
+        assert len(full_output.projects) == 1
+        assert full_output.projects[0].metadata.name == "creating-stale"
+
+    def test_list_stale_projects_online_above_and_below_ttl(self):
+        mlrun.mlconf.httpdb.projects.stale_resource_ttl_update = "120s"
+
+        self._seed_stale_project(
+            "online-stale", state="online", phase=1, age_seconds=600
+        )
+        self._seed_stale_project("online-fresh", state="online", phase=1, age_seconds=5)
+
+        output = self._db.list_stale_projects(
+            self._db_session,
+            format_=mlrun.common.formatters.ProjectFormat.name_only,
+        )
+        assert output.projects == ["online-stale"]
+
+    def test_list_stale_projects_deleting_above_and_below_ttl(self):
+        mlrun.mlconf.httpdb.projects.stale_resource_ttl_delete = "300s"
+
+        self._seed_stale_project(
+            "deleting-stale", state="deleting", phase=1, age_seconds=1200
+        )
+        self._seed_stale_project(
+            "deleting-fresh", state="deleting", phase=1, age_seconds=5
+        )
+
+        output = self._db.list_stale_projects(
+            self._db_session,
+            format_=mlrun.common.formatters.ProjectFormat.name_only,
+        )
+        assert output.projects == ["deleting-stale"]
+
+    def test_list_stale_projects_unknown_state_excluded(self):
+        # State outside {creating, online, deleting} hits else_=False even
+        # with a non-null phase and an updated_at far in the past.
+        self._seed_stale_project(
+            "p-archived", state="archived", phase=1, age_seconds=10_000
+        )
+        output = self._db.list_stale_projects(
+            self._db_session,
+            format_=mlrun.common.formatters.ProjectFormat.name_only,
+        )
+        assert output.projects == []
+
+    def test_list_stale_projects_state_specific_ttl_not_cross_applied(self):
+        # state="deleting", age=200s. ttl_update=120s but ttl_delete=300s.
+        # Older than update TTL, newer than delete TTL → not stale.
+        mlrun.mlconf.httpdb.projects.stale_resource_ttl_update = "120s"
+        mlrun.mlconf.httpdb.projects.stale_resource_ttl_delete = "300s"
+
+        self._seed_stale_project(
+            "deleting-young", state="deleting", phase=1, age_seconds=200
+        )
+        output = self._db.list_stale_projects(
+            self._db_session,
+            format_=mlrun.common.formatters.ProjectFormat.name_only,
+        )
+        assert output.projects == []
+
+    def test_list_stale_projects_returns_only_stale_subset(self):
+        mlrun.mlconf.httpdb.projects.stale_resource_ttl_create = "60s"
+        mlrun.mlconf.httpdb.projects.stale_resource_ttl_update = "120s"
+
+        self._seed_stale_project(
+            "stale-creating", state="creating", phase=1, age_seconds=600
+        )
+        self._seed_stale_project(
+            "fresh-creating", state="creating", phase=1, age_seconds=5
+        )
+        self._seed_stale_project(
+            "stale-online", state="online", phase=1, age_seconds=600
+        )
+        self._seed_stale_project(
+            "phase-null", state="deleting", phase=None, age_seconds=10_000
+        )
+        self._seed_stale_project(
+            "archived", state="archived", phase=1, age_seconds=10_000
+        )
+
+        output = self._db.list_stale_projects(
+            self._db_session,
+            format_=mlrun.common.formatters.ProjectFormat.name_only,
+        )
+        assert set(output.projects) == {"stale-creating", "stale-online"}
+
+    def test_list_stale_projects_format_name_only(self):
+        mlrun.mlconf.httpdb.projects.stale_resource_ttl_create = "60s"
+
+        self._seed_stale_project("x", state="creating", phase=1, age_seconds=600)
+
+        output = self._db.list_stale_projects(
+            self._db_session,
+            format_=mlrun.common.formatters.ProjectFormat.name_only,
+        )
+        assert all(isinstance(p, str) for p in output.projects)
+        assert output.projects == ["x"]
+
     def _generate_and_insert_pre_060_record(self, project_name: str):
         pre_060_record = Project(name=project_name)
         self._db_session.add(pre_060_record)
@@ -526,3 +667,28 @@ class TestProjects(TestDatabaseBase):
             )
             == {}
         )
+
+    def _seed_stale_project(
+        self,
+        name: str,
+        *,
+        state: str | None,
+        phase: int | None,
+        age_seconds: int,
+    ) -> None:
+        # Going through create_project populates _full_object/ProjectSummary;
+        # state/phase/updated_at are then patched directly because
+        # create_project doesn't expose them.
+        self._db.create_project(
+            self._db_session,
+            mlrun.common.schemas.Project(
+                metadata=mlrun.common.schemas.ProjectMetadata(name=name),
+            ),
+        )
+        record = self._db_session.query(Project).filter(Project.name == name).one()
+        record.state = state
+        record.phase = phase
+        record.updated_at = datetime.datetime.now(datetime.UTC) - datetime.timedelta(
+            seconds=age_seconds
+        )
+        self._db_session.commit()

@@ -362,20 +362,102 @@ def test_auto_mount_s3():
     }
 
 
-def test_auto_mount_secret_env():
-    """Test that auto_mount() returns secret_env mount modifier when auto_mount_type is 'secret_env'."""
+@pytest.mark.parametrize("with_cleartext", [True, False])
+@pytest.mark.parametrize("with_keys", [True, False])
+def test_auto_mount_secret_env(with_keys, with_cleartext):
+    """Test secret_env mount modifier: all 4 combos of with_keys x with_cleartext."""
+    secret_name = "s3-credentials"
+    keys = ["KEY_A", "KEY_B"]
+    cleartext = {"PLAIN_VAR": "plainval"}
+
     mlrun.mlconf.storage.auto_mount_type = "secret_env"
-    mlrun.mlconf.storage.auto_mount_params = "secret_name=s3-credentials"
+    params = f"secret_name={secret_name}"
+    if with_keys:
+        params += f",keys={';'.join(keys)}"
+    if with_cleartext:
+        params += ",cleartext_env=" + ";".join(f"{k}:{v}" for k, v in cleartext.items())
+    mlrun.mlconf.storage.auto_mount_params = params
 
     function = mlrun.new_function(
         "function-name", "function-project", kind=mlrun.runtimes.RuntimeKinds.job
     )
     function.apply(mlrun.runtimes.mounts.auto_mount())
 
-    env_from = function.spec.env_from
-    assert len(env_from) == 1
-    assert env_from[0].config_map_ref is None
-    assert env_from[0].secret_ref.name == "s3-credentials"
+    if with_keys:
+        # Each key should be a secretKeyRef env var
+        secret_env_names = []
+        for item in function.spec.env:
+            if hasattr(item, "value_from") and item.value_from is not None:
+                if (
+                    hasattr(item.value_from, "secret_key_ref")
+                    and item.value_from.secret_key_ref is not None
+                ):
+                    secret_env_names.append(item.name)
+            elif isinstance(item, dict) and "valueFrom" in item:
+                if "secretKeyRef" in item["valueFrom"]:
+                    secret_env_names.append(item["name"])
+        for key in keys:
+            assert key in secret_env_names, (
+                f"Expected {key} as secretKeyRef env var, got: {secret_env_names}"
+            )
+    else:
+        # Whole secret via envFrom
+        env_from = function.spec.env_from
+        assert len(env_from) == 1
+        assert env_from[0].config_map_ref is None
+        assert env_from[0].secret_ref.name == secret_name
+
+    if with_cleartext:
+        plain_env = {}
+        for item in function.spec.env:
+            if hasattr(item, "value") and item.value is not None:
+                plain_env[item.name] = item.value
+            elif isinstance(item, dict) and "value" in item:
+                plain_env[item["name"]] = item["value"]
+        for k, v in cleartext.items():
+            assert plain_env.get(k) == v, (
+                f"Expected cleartext env var {k!r}={v!r}, got: {plain_env}"
+            )
+    else:
+        # No plain env vars from cleartext
+        plain_env = {}
+        for item in function.spec.env:
+            if hasattr(item, "value") and item.value is not None:
+                plain_env[item.name] = item.value
+            elif isinstance(item, dict) and "value" in item and "valueFrom" not in item:
+                plain_env[item["name"]] = item["value"]
+        cleartext_keys = set(cleartext.keys())
+        overlap = cleartext_keys & set(plain_env.keys())
+        assert not overlap, f"Expected no cleartext env vars but found: {overlap}"
+
+
+@pytest.mark.parametrize(
+    "cleartext_env_param,expected_error",
+    [
+        ("NOCORON", True),  # missing ':' — must raise
+        ("K:V;NOCORON", True),  # second token missing ':'
+        ("K:V;M:W", False),  # valid
+        ("K:V", False),  # valid single
+    ],
+)
+def test_set_env_vars_from_secret_cleartext_env_string_validation(
+    cleartext_env_param, expected_error
+):
+    """Malformed cleartext_env string (missing ':') must raise MLRunInvalidArgumentError."""
+    import mlrun.errors
+
+    if expected_error:
+        with pytest.raises(
+            mlrun.errors.MLRunInvalidArgumentError, match="cleartext_env"
+        ):
+            mlrun.runtimes.mounts.set_env_vars_from_secret(
+                "my-secret", cleartext_env=cleartext_env_param
+            )
+    else:
+        # Should not raise
+        mlrun.runtimes.mounts.set_env_vars_from_secret(
+            "my-secret", cleartext_env=cleartext_env_param
+        )
 
 
 def test_auto_mount_s3_takes_precedence_over_pvc_env():

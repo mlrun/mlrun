@@ -168,3 +168,105 @@ def test_normalize_dict(event, expected):
 
 def test_empty_dict():
     assert _normalize_dict_for_v3io_frames({}) == {}
+
+
+class TestModelEndpointInstruction:
+    def test_to_dict_defaults(self):
+        from mlrun.common.schemas.model_monitoring.model_endpoints import (
+            ModelEndpointInstruction,
+        )
+
+        instr = ModelEndpointInstruction(name="my-endpoint")
+        d = instr.to_dict()
+        assert d["name"] == "my-endpoint"
+        assert d["creation_strategy"] == "inplace"
+        assert d["input_schema"] is None
+        assert d["output_schema"] is None
+        assert d["function_name"] is None
+        assert d["function_tag"] is None
+
+    def test_to_dict_all_fields(self):
+        from mlrun.common.schemas.model_monitoring.constants import (
+            ModelEndpointCreationStrategy,
+        )
+        from mlrun.common.schemas.model_monitoring.model_endpoints import (
+            ModelEndpointInstruction,
+        )
+
+        instr = ModelEndpointInstruction(
+            name="ep",
+            input_schema=["f1", "f2"],
+            output_schema=["label"],
+            function_name="my-fn",
+            function_tag="v1",
+            creation_strategy=ModelEndpointCreationStrategy.ARCHIVE,
+        )
+        d = instr.to_dict()
+        assert d == {
+            "name": "ep",
+            "input_schema": ["f1", "f2"],
+            "output_schema": ["label"],
+            "function_name": "my-fn",
+            "function_tag": "v1",
+            "creation_strategy": "archive",
+        }
+
+    def test_from_dict_round_trip(self):
+        from mlrun.common.schemas.model_monitoring.constants import (
+            ModelEndpointCreationStrategy,
+        )
+        from mlrun.common.schemas.model_monitoring.model_endpoints import (
+            ModelEndpointInstruction,
+        )
+
+        original = ModelEndpointInstruction(
+            name="ep",
+            input_schema=["x"],
+            output_schema=["y"],
+            function_name="fn",
+            function_tag="latest",
+            creation_strategy=ModelEndpointCreationStrategy.OVERWRITE,
+        )
+        restored = ModelEndpointInstruction.from_dict(original.to_dict())
+        assert restored == original
+
+    def test_from_dict_defaults(self):
+        from mlrun.common.schemas.model_monitoring.constants import (
+            ModelEndpointCreationStrategy,
+        )
+        from mlrun.common.schemas.model_monitoring.model_endpoints import (
+            ModelEndpointInstruction,
+        )
+
+        restored = ModelEndpointInstruction.from_dict({"name": "only-name"})
+        assert restored.name == "only-name"
+        assert restored.creation_strategy == ModelEndpointCreationStrategy.INPLACE
+        assert restored.input_schema is None
+
+    def test_spec_fields_excludes_none(self):
+        from mlrun.common.schemas.model_monitoring.model_endpoints import (
+            ModelEndpointInstruction,
+        )
+
+        # None fields must be absent from spec_fields
+        instr = ModelEndpointInstruction(name="ep")
+        assert instr.spec_fields == {}
+
+        # Populated fields must appear with mapped keys
+        instr = ModelEndpointInstruction(
+            name="ep",
+            input_schema=["f1", "f2"],
+            output_schema=["label"],
+            function_name="my-fn",
+            function_tag="v1",
+        )
+        assert instr.spec_fields == {
+            "feature_names": ["f1", "f2"],
+            "label_names": ["label"],
+            "function_name": "my-fn",
+            "function_tag": "v1",
+        }
+
+        # Partial population — only set fields appear
+        instr = ModelEndpointInstruction(name="ep", input_schema=["x"])
+        assert instr.spec_fields == {"feature_names": ["x"]}

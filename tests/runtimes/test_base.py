@@ -333,39 +333,54 @@ class TestAutoMount:
         result = mlconf.get_storage_auto_mount_params()
         assert result == expected
 
+    @pytest.mark.parametrize("with_cleartext", [True, False])
     @pytest.mark.parametrize("with_keys", [True, False])
-    def test_auto_mount_secret_env(self, with_keys, rundb_mock):
+    def test_auto_mount_secret_env(self, with_keys, with_cleartext, rundb_mock):
         secret_name = "my-test-secret"
         keys = ["KEY_A", "KEY_B", "KEY_C"]
+        cleartext = {"PLAIN_VAR": "plainval", "REGION": "eastus"}
 
         mlconf.storage.auto_mount_type = "secret_env"
 
         # Simple string params (semicolons separate keys to avoid conflict
         # with the comma delimiter used by auto_mount_params)
+        params = f"secret_name={secret_name}"
         if with_keys:
-            mlconf.storage.auto_mount_params = (
-                f"secret_name={secret_name},keys={';'.join(keys)}"
+            params += f",keys={';'.join(keys)}"
+        if with_cleartext:
+            # semicolon-delimited key:value string
+            params += ",cleartext_env=" + ";".join(
+                f"{k}:{v}" for k, v in cleartext.items()
             )
-        else:
-            mlconf.storage.auto_mount_params = f"secret_name={secret_name}"
+        mlconf.storage.auto_mount_params = params
 
         # Generate the runtime and execute the run
         # then verify that the expected environment variables were set from the secret
         runtime = self._generate_runtime()
         self._execute_run(runtime)
-        rundb_mock.assert_env_from_secret(secret_name, keys if with_keys else [])
+        rundb_mock.assert_env_from_secret(
+            secret_name,
+            keys if with_keys else [],
+            cleartext_env=cleartext if with_cleartext else None,
+        )
 
         # Try with base64-encoded JSON params
         rundb_mock.reset()
-        params_dict = {"secret_name": secret_name}
+        params_dict: dict = {"secret_name": secret_name}
         if with_keys:
             params_dict["keys"] = keys
+        if with_cleartext:
+            params_dict["cleartext_env"] = cleartext
         mlconf.storage.auto_mount_params = base64.b64encode(
             json.dumps(params_dict).encode()
         )
         runtime = self._generate_runtime()
         self._execute_run(runtime)
-        rundb_mock.assert_env_from_secret(secret_name, keys if with_keys else [])
+        rundb_mock.assert_env_from_secret(
+            secret_name,
+            keys if with_keys else [],
+            cleartext_env=cleartext if with_cleartext else None,
+        )
 
     def _create_temp_requirements_file(self, requirements):
         with tempfile.NamedTemporaryFile(

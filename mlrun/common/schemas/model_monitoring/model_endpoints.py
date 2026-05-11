@@ -30,6 +30,7 @@ from .constants import (
     PROJECT_PATTERN,
     EndpointMode,
     EndpointType,
+    ModelEndpointCreationStrategy,
     ModelEndpointMonitoringMetricType,
     ModelMonitoringMode,
     ResultKindApp,
@@ -272,6 +273,63 @@ class ModelEndpoint(BaseModel):
 
 class ModelEndpointList(BaseModel):
     endpoints: list[ModelEndpoint]
+
+
+class ModelEndpointInstruction(BaseModel):
+    """
+    Instructions for creating a user-defined model endpoint (``EndpointType.USER_EP``).
+
+    This object can be constructed up-front and passed to
+    ``MlrunProject.create_user_model_endpoint`` as an alternative to providing
+    the individual keyword arguments.
+
+    :param name:               Name of the model endpoint.
+    :param input_schema:       List of input feature names.
+    :param output_schema:      List of output / label names.
+    :param function_name:      Name of an associated MLRun function (optional).
+    :param function_tag:       Tag of the associated function (optional).
+    :param creation_strategy: Strategy for creating or updating the model endpoint:
+            * **overwrite**:
+            1. If model endpoints with the same name exist, delete the `latest` one.
+            2. Create a new model endpoint entry and set it as `latest`.
+            * **inplace** (default):
+            1. If model endpoints with the same name exist, update the `latest` entry.
+            2. Otherwise, create a new entry.
+            * **archive**:
+            1. If model endpoints with the same name exist, preserve them.
+            2. Create a new model endpoint with the same name and set it to `latest`.
+    """
+
+    name: constr(regex=MODEL_ENDPOINT_ID_PATTERN)
+    input_schema: list[str] | None = None
+    output_schema: list[str] | None = None
+    function_name: str | None = None
+    function_tag: str | None = None
+    creation_strategy: ModelEndpointCreationStrategy = (
+        ModelEndpointCreationStrategy.INPLACE
+    )
+
+    def to_dict(self) -> dict:
+        """Serialize to a plain dictionary (enum values are converted to their primitives)."""
+        return self.dict()
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "ModelEndpointInstruction":
+        """Deserialize from a plain dictionary, with pydantic validation."""
+        return cls(**data)
+
+    @property
+    def spec_fields(self) -> dict:
+        return {
+            k: v
+            for k, v in {
+                "feature_names": self.input_schema,
+                "label_names": self.output_schema,
+                "function_name": self.function_name,
+                "function_tag": self.function_tag,
+            }.items()
+            if v is not None
+        }
 
 
 class ModelEndpointMonitoringMetric(BaseModel):

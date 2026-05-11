@@ -169,14 +169,17 @@ class TestBasicHuggingFaceProvider:
 
     def setup_datastore_profile(self, task=None, model_kwargs=None):
         # noinspection PyAttributeOutsideInit
+        raw_max_workers = self.env_secrets.get("HF_MAX_WORKERS")
         self.profile = HuggingFaceProfile(
             name=self.profile_name,
             task=task or "text-generation",
             token=self.env_secrets.get("HF_TOKEN"),
+            endpoint=self.env_secrets.get("HF_ENDPOINT"),
             device=self.env_secrets.get("HF_DEVICE") or "cpu",
             device_map=self.env_secrets.get("HF_DEVICE_MAP"),
             trust_remote_code=self.env_secrets.get("HF_TRUST_REMOTE_CODE"),
             model_kwargs=model_kwargs,
+            max_workers=int(raw_max_workers) if raw_max_workers else None,
         )
         register_temporary_client_datastore_profile(self.profile)
         # noinspection PyAttributeOutsideInit

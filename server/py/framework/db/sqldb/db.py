@@ -23,7 +23,8 @@ import typing
 import urllib.parse
 from copy import deepcopy
 from datetime import UTC, datetime, timedelta
-from typing import Any, Union
+from typing import Any, Literal, TypeVar, Union, overload
+from uuid import UUID
 
 import fastapi.concurrency
 import mergedeep
@@ -51,6 +52,7 @@ from sqlalchemy.orm.attributes import flag_modified
 from sqlalchemy.sql.compiler import IdentifierPreparer
 from sqlalchemy.sql.elements import BinaryExpression
 from sqlalchemy.sql.functions import GenericFunction
+from uuid_utils.compat import uuid7
 
 import mlrun
 import mlrun.artifacts.base
@@ -75,6 +77,7 @@ from mlrun.common.schemas.model_monitoring import (
     ModelEndpointSchema,
     ModelMonitoringAppLabel,
 )
+from mlrun.common.schemas.project import ProjectOutput
 from mlrun.config import config
 from mlrun.errors import err_to_str
 from mlrun.lists import ArtifactList, RunList
@@ -139,6 +142,8 @@ from framework.db.sqldb.models import (
     _tagged,
     _with_notifications,
 )
+
+T = TypeVar("T")
 
 
 class now(GenericFunction):  # noqa: N801
@@ -3504,9 +3509,18 @@ class SQLDB(DBInterface):
             query = query.filter(Project.name.in_(names))
 
         project_records = query.all()
+        return mlrun.common.schemas.ProjectsOutput(
+            projects=self._format_projects(project_records, format_)
+        )
 
+    def _format_projects(
+        self,
+        project_records: list[Project],
+        format_: framework.utils.project_formats.ProjectFormatType,
+    ) -> list[ProjectOutput]:
         # format the projects according to the requested format
         projects = []
+
         for project_record in project_records:
             if format_ == mlrun.common.formatters.ProjectFormat.name_only:
                 # can't use formatter as we haven't queried the entire object anyway
@@ -3530,7 +3544,56 @@ class SQLDB(DBInterface):
                         format_,
                     )
                 )
-        return mlrun.common.schemas.ProjectsOutput(projects=projects)
+
+        return projects
+
+    def list_stale_projects(
+        self,
+        session: Session,
+        format_: framework.utils.project_formats.ProjectFormatType,
+    ) -> mlrun.common.schemas.ProjectsOutput:
+        now_dt = datetime.now(UTC)
+        is_stale = and_(
+            Project.phase.is_not(None),
+            case(
+                (
+                    Project.state == "creating",
+                    Project.updated_at < now_dt - self._stale_resource_ttl_create,
+                ),
+                (
+                    Project.state == "online",
+                    Project.updated_at < now_dt - self._stale_resource_ttl_update,
+                ),
+                (
+                    Project.state == "deleting",
+                    Project.updated_at < now_dt - self._stale_resource_ttl_delete,
+                ),
+                else_=False,
+            ),
+        )
+
+        project_records = session.query(Project).filter(is_stale).all()
+        return mlrun.common.schemas.ProjectsOutput(
+            projects=self._format_projects(project_records, format_)
+        )
+
+    @property
+    def _stale_resource_ttl_create(self) -> timedelta:
+        return framework.utils.helpers.string_to_timedelta(
+            mlrun.mlconf.httpdb.projects.stale_resource_ttl_create
+        )
+
+    @property
+    def _stale_resource_ttl_update(self) -> timedelta:
+        return framework.utils.helpers.string_to_timedelta(
+            mlrun.mlconf.httpdb.projects.stale_resource_ttl_update
+        )
+
+    @property
+    def _stale_resource_ttl_delete(self) -> timedelta:
+        return framework.utils.helpers.string_to_timedelta(
+            mlrun.mlconf.httpdb.projects.stale_resource_ttl_delete
+        )
 
     def get_project_summary(
         self,
@@ -4184,20 +4247,45 @@ class SQLDB(DBInterface):
             return False
         return True
 
+    @overload
     def _get_project_record(
         self,
         session: Session,
         name: str | None = None,
         project_id: int | None = None,
+        *,
+        raise_on_not_found: Literal[True] = True,
+        for_update: bool = False,
+    ) -> Project: ...
+    @overload
+    def _get_project_record(
+        self,
+        session: Session,
+        name: str | None = None,
+        project_id: int | None = None,
+        *,
+        raise_on_not_found: Literal[False],
+        for_update: bool = False,
+    ) -> Project | None: ...
+    def _get_project_record(
+        self,
+        session: Session,
+        name: str | None = None,
+        project_id: int | None = None,
+        *,
         raise_on_not_found: bool = True,
+        for_update: bool = False,
     ) -> Project | None:
         if not any([project_id, name]):
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "One of 'name' or 'project_id' must be provided"
             )
-        project_record = self._query(
-            session, Project, name=name, id=project_id
-        ).one_or_none()
+
+        project_query = self._query(session, Project, name=name, id=project_id)
+        if for_update:
+            project_query = project_query.with_for_update()
+        project_record = project_query.one_or_none()
+
         if not project_record:
             if not raise_on_not_found:
                 return None
@@ -5500,7 +5588,7 @@ class SQLDB(DBInterface):
             ),
         )
 
-    def _query(self, session, cls, **kw):
+    def _query(self, session: Session, cls: type[T], **kw) -> Query[T]:
         kw = {k: v for k, v in kw.items() if v is not None}
         return session.query(cls).filter_by(**kw)
 
@@ -8613,6 +8701,23 @@ class SQLDB(DBInterface):
             partition_key_attr_name,
             interval.get_partition_key_value(datetime_value),
         )
+
+    @staticmethod
+    def _generate_op_id() -> tuple[UUID, datetime]:
+        op_id = uuid7()
+        return op_id, SQLDB._extract_uuid7_timestamp(op_id)
+
+    @staticmethod
+    def _extract_uuid7_timestamp(uuid: UUID) -> datetime:
+        if uuid.version != 7:
+            raise ValueError("uuid must have version 7")
+
+        # In uuid v7 the timestamp is stored as a millisecond precision unix
+        # timestamp in the 48 most significant bits.
+        # Since a uuid has 128 bits we can extract these by bitshifting 80 to
+        # the right.
+        timestamp = (uuid.int >> 80) / 1000
+        return datetime.fromtimestamp(timestamp, UTC)
 
 
 class SQLiteDB(SQLDB):

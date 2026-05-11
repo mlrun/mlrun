@@ -784,6 +784,56 @@ class TestModelEndpointsOperations(TestMLRunSystemModelMonitoring):
             else:
                 assert respond == [3.0, 5.0, 7.0, 9.0, 11.0]
 
+    def test_create_user_model_endpoint(self):
+        """
+        create_user_model_endpoint creates a USER_EP endpoint via the project API and
+        the endpoint is immediately retrievable from the DB.
+        Covers both the direct-params path and the ModelEndpointInstruction path.
+        """
+        from mlrun.common.schemas.model_monitoring.constants import EndpointType
+        from mlrun.common.schemas.model_monitoring.model_endpoints import (
+            ModelEndpointInstruction,
+        )
+
+        db = mlrun.get_run_db()
+
+        # --- direct params ---
+        name, uid = self.project.create_user_model_endpoint(
+            "user-ep-direct",
+            input_schema=["f1", "f2"],
+            output_schema=["label"],
+        )
+        assert name == "user-ep-direct"
+        assert uid is not None
+        ep = db.get_model_endpoint(
+            name="user-ep-direct",
+            project=self.project_name,
+            endpoint_id=uid,
+        )
+        assert ep.metadata.endpoint_type == EndpointType.USER_EP
+        assert ep.spec.feature_names == ["f1", "f2"]
+        assert ep.spec.label_names == ["label"]
+
+        # --- ModelEndpointInstruction path ---
+        instruction = ModelEndpointInstruction(
+            name="user-ep-instr",
+            input_schema=["a", "b"],
+            output_schema=["out"],
+        )
+        name2, uid2 = self.project.create_user_model_endpoint(
+            model_endpoint_instruction=instruction,
+        )
+        assert name2 == "user-ep-instr"
+        assert uid2 is not None
+        ep2 = db.get_model_endpoint(
+            name="user-ep-instr",
+            project=self.project_name,
+            endpoint_id=uid2,
+        )
+        assert ep2.metadata.endpoint_type == EndpointType.USER_EP
+        assert ep2.spec.feature_names == ["a", "b"]
+        assert ep2.spec.label_names == ["out"]
+
 
 @TestMLRunSystemModelMonitoring.skip_test_if_env_not_configured
 @pytest.mark.enterprise
@@ -2914,3 +2964,381 @@ class TestLLModelWithMonitoring(TestMLRunSystemModelMonitoring):
         for mep in meps.endpoints:
             # make sure stream processing worked and last_request is set
             assert mep.status.last_request is not None
+
+
+@TestMLRunSystemModelMonitoring.skip_test_if_env_not_configured
+@pytest.mark.enterprise
+class TestGetModelMonitoringURL(TestMLRunSystemModelMonitoring):
+    """
+    System / CRUD tests for get_model_monitoring_url.
+
+    Validates the full call chain:
+      project.get_model_monitoring_url()
+        → GET /projects/{project}/model-monitoring/stream-pod-http-url
+          → services.api.crud.Functions.get_function (real DB)
+            → resolves URL from nuclio status
+    """
+
+    project_name = "pr-mm-get-url"
+    image: str | None = None
+
+    def test_raises_before_monitoring_is_enabled(self) -> None:
+        """CRUD raises when the stream function has not been deployed / is not ready."""
+        with pytest.raises(
+            (mlrun.errors.MLRunNotFoundError, mlrun.errors.MLRunPreconditionFailedError)
+        ):
+            self.project.get_model_monitoring_url()
+
+    @pytest.mark.timeout(600)
+    def test_returns_url_after_enable_model_monitoring(self) -> None:
+        """
+        After enable_model_monitoring the stream pod is deployed with an HTTP trigger.
+        The CRUD endpoint must resolve and return the internal cluster URL.
+
+        Note: the returned URL is only reachable from within the cluster (internal
+        invocation URL) — it is not accessible from outside.
+        """
+        self.set_mm_credentials()
+        self.project.enable_model_monitoring(
+            deploy_histogram_data_drift_app=False,
+            wait_for_deployment=True,
+            **({} if self.image is None else {"image": self.image}),
+        )
+
+        # Stream is now ready — get_model_monitoring_url should return the internal URL.
+        url = self.project.get_model_monitoring_url()
+
+        assert url is not None, (
+            "get_model_monitoring_url() returned None — the HTTP trigger was not added "
+            "to the stream function or the internal_invocation_urls are not populated."
+        )
+        # The URL must be an internal cluster URL (http, not https; no public hostname).
+        assert url.startswith("http://"), (
+            f"Expected an internal http:// URL, got: {url!r}"
+        )
+        assert "://" not in url.replace("http://", ""), (
+            f"URL looks external (contains a second scheme), got: {url!r}"
+        )
+
+
+def _assert_endpoint_exists(project, name: str) -> None:
+    endpoints = project.list_model_endpoints(names=name)
+    assert len(endpoints.endpoints) >= 1, (
+        f"Expected at least one model endpoint named {name!r}"
+    )
+
+
+def _assert_endpoints_exist(project, names: set) -> None:
+    endpoints = project.list_model_endpoints()
+    ep_names = {ep.metadata.name for ep in endpoints.endpoints}
+    assert names.issubset(ep_names), f"Expected {names} in DB, found: {ep_names}"
+
+
+@TestMLRunSystemModelMonitoring.skip_test_if_env_not_configured
+@pytest.mark.enterprise
+class TestNuclioAppModelEndpointCreation(TestMLRunSystemModelMonitoring):
+    """
+    System / CRUD tests for model endpoint creation during nuclio function deployment.
+
+    Full sequence:
+      1. enable_model_monitoring  (deploys stream pod with HTTP trigger — done ONCE per class)
+      2. code_to_function(kind="nuclio") + setup_model_monitoring()
+      3. deploy()
+      4. assert MODEL_MONITORING_URL / MODEL_ENDPOINT_UID env vars are injected
+      5. assert model endpoint(s) exist in the DB
+    """
+
+    project_name = "pr-nuclio-me-creation"
+    image: str | None = None
+
+    @classmethod
+    def setup_class(cls):
+        # enable_model_monitoring runs ONCE before any test method, so it is
+        # NOT subject to per-test @pytest.mark.timeout limits.
+        super().setup_class()
+        project = mlrun.get_or_create_project(
+            cls.project_name, "./", allow_cross_project=True
+        )
+        project.register_datastore_profile(cls.mm_tsdb_profile)
+        project.register_datastore_profile(cls.mm_stream_profile)
+        project.set_model_monitoring_credentials(
+            tsdb_profile_name=cls.mm_tsdb_profile.name,
+            stream_profile_name=cls.mm_stream_profile.name,
+        )
+        project.enable_model_monitoring(
+            deploy_histogram_data_drift_app=False,
+            wait_for_deployment=True,
+            **({} if cls.image is None else {"image": cls.image}),
+        )
+
+    def teardown_method(self, method):
+        # Keep the project alive so the monitoring stream pod persists across
+        # test methods — only clean up at class teardown.
+        self._logger.info(
+            f"Tearing down test {self.__class__.__name__}::{method.__name__}"
+        )
+        self.custom_teardown()
+        self._logger.info(
+            f"Finished tearing down test {self.__class__.__name__}::{method.__name__}"
+        )
+
+    @classmethod
+    def custom_teardown_class(cls):
+        try:
+            cls._run_db.delete_project(
+                cls.project_name,
+                deletion_strategy=mlrun.common.schemas.DeletionStrategy.cascading,
+            )
+        except Exception:
+            pass
+
+    def _wait_for_model_endpoint_background_task(self, timeout: int = 120) -> None:
+        """Poll every 5s until no model-endpoint-creation background tasks are running."""
+        deadline = monotonic() + timeout
+        while monotonic() < deadline:
+            tasks = self._run_db.list_project_background_tasks(
+                project=self.project_name,
+                state=mlrun.common.schemas.BackgroundTaskState.running,
+            )
+            if not tasks:
+                self._logger.info("No running background tasks, proceeding")
+                return
+            self._logger.info(
+                "Waiting for model endpoint background task to complete",
+                running_tasks=len(tasks),
+            )
+            sleep(5)
+        self._logger.warning(
+            "Background task wait timed out, proceeding anyway",
+            timeout=timeout,
+        )
+
+    def _deploy_nuclio_fn_with_monitoring(
+        self,
+        fn_name: str,
+        instructions: list,
+        kind: str = "nuclio",
+    ):
+        if kind == "application":
+            fn = mlrun.new_function(
+                name=fn_name,
+                kind=kind,
+                project=self.project_name,
+                image=self.image,
+            )
+            fn.spec.command = "python"
+            fn.spec.args = ["-m", "http.server", "8050"]
+            fn.set_probe(type="readiness", http_path="/", period_seconds=2)
+            fn.setup_model_monitoring(
+                general_model_endpoint_instructions=instructions[0],
+                extra_model_endpoint_instructions=instructions[1:]
+                if len(instructions) > 1
+                else None,
+            )
+            fn.deploy(with_mlrun=False)
+        else:
+            import os
+            import tempfile
+
+            with tempfile.NamedTemporaryFile(suffix=".py", mode="w", delete=False) as f:
+                f.write("def handler(context, event):\n    return 'ok'\n")
+                tmpfile = f.name
+            try:
+                fn = mlrun.code_to_function(
+                    name=fn_name,
+                    filename=tmpfile,
+                    kind=kind,
+                    project=self.project_name,
+                    image=self.image,
+                )
+            finally:
+                os.unlink(tmpfile)
+            fn.setup_model_monitoring(
+                general_model_endpoint_instructions=instructions[0],
+                extra_model_endpoint_instructions=instructions[1:]
+                if len(instructions) > 1
+                else None,
+            )
+            fn.deploy()
+
+        # Reload from server to pick up env vars injected server-side during deploy
+        fn = self.project.get_function(fn_name)
+        return fn
+
+    @pytest.mark.timeout(600)
+    def test_single_endpoint_env_vars_injected(self) -> None:
+        """
+        After deploy, the function spec must contain MODEL_MONITORING_URL and
+        MODEL_ENDPOINT_UID env vars, and a model endpoint must exist in the DB.
+        """
+        from mlrun.common.schemas.model_monitoring.constants import (
+            NuclioMonitoringEnvVars,
+        )
+        from mlrun.common.schemas.model_monitoring.model_endpoints import (
+            ModelEndpointInstruction,
+        )
+
+        fn_name = "nuclio-single-ep"
+        fn = self._deploy_nuclio_fn_with_monitoring(
+            fn_name=fn_name,
+            instructions=[ModelEndpointInstruction(name="ep1")],
+        )
+
+        # Verify env vars were injected into the deployed function spec
+        # Use .get("value") — some entries use valueFrom (K8s secret refs) and have no "value" key
+        env = {e["name"]: e.get("value") for e in (fn.spec.env or [])}
+        assert NuclioMonitoringEnvVars.MODEL_MONITORING_URL in env, (
+            "MODEL_MONITORING_URL not injected"
+        )
+        # The URL must be an internal cluster URL (http://, not https or external hostname).
+        assert env[NuclioMonitoringEnvVars.MODEL_MONITORING_URL].startswith(
+            "http://"
+        ), (
+            f"Expected an internal http:// URL, got: {env[NuclioMonitoringEnvVars.MODEL_MONITORING_URL]!r}"
+        )
+        assert NuclioMonitoringEnvVars.MODEL_ENDPOINT_UID in env, (
+            "MODEL_ENDPOINT_UID not injected"
+        )
+        assert NuclioMonitoringEnvVars.MODEL_ENDPOINTS_MAP not in env, (
+            "MODEL_ENDPOINTS_MAP should not be present for a single endpoint"
+        )
+
+        # Wait for the background task that creates model endpoints to finish,
+        # then retry the check every 30s until the endpoint appears in the DB.
+        self._wait_for_model_endpoint_background_task()
+        self.wait_for_condition(
+            lambda: _assert_endpoint_exists(self.project, "ep1"),
+            retry_interval=30.0,
+            timeout=120.0,
+            condition_description="model endpoint 'ep1' to exist in DB",
+        )
+
+    @pytest.mark.timeout(600)
+    def test_multiple_endpoints_map_injected(self) -> None:
+        """
+        With two instructions, MODEL_ENDPOINTS_MAP must be injected as a JSON
+        mapping {name: uid} and two model endpoints must exist in the DB.
+        """
+        from mlrun.common.schemas.model_monitoring.constants import (
+            NuclioMonitoringEnvVars,
+        )
+        from mlrun.common.schemas.model_monitoring.model_endpoints import (
+            ModelEndpointInstruction,
+        )
+
+        fn_name = "nuclio-multi-ep"
+        fn = self._deploy_nuclio_fn_with_monitoring(
+            fn_name=fn_name,
+            instructions=[
+                ModelEndpointInstruction(name="ep1"),
+                ModelEndpointInstruction(name="ep2"),
+            ],
+        )
+
+        env = {e["name"]: e.get("value") for e in (fn.spec.env or [])}
+        assert NuclioMonitoringEnvVars.MODEL_MONITORING_URL in env
+        assert NuclioMonitoringEnvVars.MODEL_ENDPOINT_UID in env
+        assert NuclioMonitoringEnvVars.MODEL_ENDPOINTS_MAP in env, (
+            "MODEL_ENDPOINTS_MAP not injected for multiple endpoints"
+        )
+
+        endpoints_map = json.loads(env[NuclioMonitoringEnvVars.MODEL_ENDPOINTS_MAP])
+        assert set(endpoints_map.keys()) == {"ep1", "ep2"}, (
+            f"Unexpected endpoints map keys: {set(endpoints_map.keys())}"
+        )
+
+        # Wait for the background task that creates model endpoints to finish,
+        # then retry the check every 30s until both endpoints appear in the DB.
+        self._wait_for_model_endpoint_background_task()
+        self.wait_for_condition(
+            lambda: _assert_endpoints_exist(self.project, {"ep1", "ep2"}),
+            retry_interval=30.0,
+            timeout=120.0,
+            condition_description="model endpoints 'ep1' and 'ep2' to exist in DB",
+        )
+
+
+@TestMLRunSystemModelMonitoring.skip_test_if_env_not_configured
+@pytest.mark.enterprise
+class TestApplicationRuntimeModelEndpointCreation(TestNuclioAppModelEndpointCreation):
+    """
+    Model-endpoint-creation tests using kind="application" (ApplicationRuntime).
+
+    Both runtimes go through the same server-side path in endpoints.py:
+        elif kind in (RuntimeKinds.remote, RuntimeKinds.nuclio, RuntimeKinds.application)
+            and spec.track_models
+
+    Tests are explicit (not inherited overrides) so both nuclio and application
+    variants appear in the test suite side by side.
+    """
+
+    project_name = "pr-app-me-creation"
+
+    @pytest.mark.timeout(600)
+    def test_single_endpoint_env_vars_injected(self) -> None:
+        from mlrun.common.schemas.model_monitoring.constants import (
+            NuclioMonitoringEnvVars,
+        )
+        from mlrun.common.schemas.model_monitoring.model_endpoints import (
+            ModelEndpointInstruction,
+        )
+
+        fn_name = "app-single-ep"
+        fn = self._deploy_nuclio_fn_with_monitoring(
+            fn_name=fn_name,
+            instructions=[ModelEndpointInstruction(name="ep1")],
+            kind="application",
+        )
+
+        env = {e["name"]: e.get("value") for e in (fn.spec.env or [])}
+        assert NuclioMonitoringEnvVars.MODEL_MONITORING_URL in env, (
+            "MODEL_MONITORING_URL not injected"
+        )
+        assert env[NuclioMonitoringEnvVars.MODEL_MONITORING_URL].startswith("http://")
+        assert NuclioMonitoringEnvVars.MODEL_ENDPOINT_UID in env, (
+            "MODEL_ENDPOINT_UID not injected"
+        )
+        assert NuclioMonitoringEnvVars.MODEL_ENDPOINTS_MAP not in env
+
+        self._wait_for_model_endpoint_background_task()
+        self.wait_for_condition(
+            lambda: _assert_endpoint_exists(self.project, "ep1"),
+            retry_interval=30.0,
+            timeout=120.0,
+            condition_description="model endpoint 'ep1' to exist in DB",
+        )
+
+    @pytest.mark.timeout(600)
+    def test_multiple_endpoints_map_injected(self) -> None:
+        from mlrun.common.schemas.model_monitoring.constants import (
+            NuclioMonitoringEnvVars,
+        )
+        from mlrun.common.schemas.model_monitoring.model_endpoints import (
+            ModelEndpointInstruction,
+        )
+
+        fn_name = "app-multi-ep"
+        fn = self._deploy_nuclio_fn_with_monitoring(
+            fn_name=fn_name,
+            instructions=[
+                ModelEndpointInstruction(name="ep1"),
+                ModelEndpointInstruction(name="ep2"),
+            ],
+            kind="application",
+        )
+
+        env = {e["name"]: e.get("value") for e in (fn.spec.env or [])}
+        assert NuclioMonitoringEnvVars.MODEL_MONITORING_URL in env
+        assert NuclioMonitoringEnvVars.MODEL_ENDPOINT_UID in env
+        assert NuclioMonitoringEnvVars.MODEL_ENDPOINTS_MAP in env
+
+        endpoints_map = json.loads(env[NuclioMonitoringEnvVars.MODEL_ENDPOINTS_MAP])
+        assert set(endpoints_map.keys()) == {"ep1", "ep2"}
+
+        self._wait_for_model_endpoint_background_task()
+        self.wait_for_condition(
+            lambda: _assert_endpoints_exist(self.project, {"ep1", "ep2"}),
+            retry_interval=30.0,
+            timeout=120.0,
+            condition_description="model endpoints 'ep1' and 'ep2' to exist in DB",
+        )

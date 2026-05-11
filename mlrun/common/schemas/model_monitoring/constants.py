@@ -326,16 +326,25 @@ class EndpointType(IntEnum):
     ROUTER = 2  # endpoint that is router
     LEAF_EP = 3  # end point that is a child of a router
     BATCH_EP = 4  # endpoint that is representing an offline batch endpoint
+    USER_EP = 5  # user-defined endpoint, not backed by a deployed function
 
     @classmethod
     def top_level_list(cls):
-        return [cls.NODE_EP, cls.ROUTER, cls.BATCH_EP]
+        return [cls.NODE_EP, cls.ROUTER, cls.BATCH_EP, cls.USER_EP]
 
 
 class EndpointMode(IntEnum):
     REAL_TIME = 0
     BATCH = 1
     BATCH_LEGACY = 2  # legacy batch mode, used for endpoints created through the batch inference job
+
+
+class NuclioMonitoringEnvVars(MonitoringStrEnum):
+    """Environment variable names injected into nuclio/application functions when track_models=True."""
+
+    MODEL_MONITORING_URL = "MODEL_MONITORING_URL"
+    MODEL_ENDPOINT_UID = "MODEL_ENDPOINT_UID"
+    MODEL_ENDPOINTS_MAP = "MODEL_ENDPOINTS_MAP"
 
 
 class MonitoringFunctionNames(MonitoringStrEnum):

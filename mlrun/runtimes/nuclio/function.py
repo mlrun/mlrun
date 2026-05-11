@@ -40,6 +40,7 @@ import mlrun.runtime_configuration_context
 import mlrun.utils
 import mlrun.utils.helpers
 from mlrun.common.schemas import AuthInfo, BatchingSpec
+from mlrun.common.schemas.model_monitoring import ModelEndpointInstruction
 from mlrun.config import config as mlconf
 from mlrun.errors import err_to_str
 from mlrun.lists import RunList
@@ -127,6 +128,10 @@ class NuclioSpec(KubeResourceSpec):
         "custom_scaling_metric_specs",
         "auth",
     ]
+    # model_endpoints_instructions requires custom serialization (list of pydantic objects → dicts)
+    _fields_to_serialize = KubeResourceSpec._fields_to_serialize + [
+        "model_endpoints_instructions",
+    ]
 
     def __init__(
         self,
@@ -176,6 +181,8 @@ class NuclioSpec(KubeResourceSpec):
         track_models=None,
         auth=None,
         env_from=None,
+        otlp_enabled: bool = False,
+        model_endpoints_instructions=None,
     ):
         super().__init__(
             command=command,
@@ -210,6 +217,7 @@ class NuclioSpec(KubeResourceSpec):
             graph=graph,
             parameters=parameters,
             track_models=track_models,
+            otlp_enabled=otlp_enabled,
         )
 
         self.auth = auth or {}
@@ -231,10 +239,35 @@ class NuclioSpec(KubeResourceSpec):
 
         self.disable_default_http_trigger = disable_default_http_trigger
         self.custom_scaling_metric_specs = custom_scaling_metric_specs or []
+        self.model_endpoints_instructions = model_endpoints_instructions or []
 
         # When True it will set Nuclio spec.noBaseImagesPull to False (negative logic)
         # indicate that the base image should be pulled from the container registry (not cached)
         self.base_image_pull = False
+
+    def _serialize_field(self, struct, field_name=None, strip=False):
+        if field_name == "model_endpoints_instructions":
+            return [inst.dict() for inst in self._model_endpoints_instructions]
+        return super()._serialize_field(struct, field_name, strip)
+
+    @property
+    def model_endpoints_instructions(self) -> list:
+        return self._model_endpoints_instructions
+
+    @model_endpoints_instructions.setter
+    def model_endpoints_instructions(
+        self,
+        model_endpoints_instructions: list[
+            typing.Union[ModelEndpointInstruction, dict]
+        ],
+    ):
+
+        self._model_endpoints_instructions = [
+            ModelEndpointInstruction.from_dict(instruction)
+            if isinstance(instruction, dict)
+            else instruction
+            for instruction in (model_endpoints_instructions or [])
+        ]
 
     def generate_nuclio_volumes(self):
         nuclio_volumes = []
@@ -334,6 +367,100 @@ class RemoteRuntime(KubeResource):
 
     def set_config(self, key, value):
         self.spec.config[key] = value
+        return self
+
+    def setup_model_monitoring(
+        self,
+        general_model_endpoint_instructions: ModelEndpointInstruction | None = None,
+        extra_model_endpoint_instructions: typing.Union[
+            list[mlrun.common.schemas.model_monitoring.ModelEndpointInstruction],
+            list[dict],
+        ]
+        | None = None,
+    ) -> "RemoteRuntime":
+        """
+        Setup model monitoring on the RemoteRuntime create by default model endpoint represent the Runtime,
+        Optional configure  custom model endpoint or extra model endpoints to be created at deployment time.
+
+        Each instruction describes a ``USER_EP`` model endpoint that will be registered
+        when this function is deployed. Calling this method sets the ``track_models``
+        flag on the spec so the deployment stage knows to create the endpoints.
+
+        :param general_model_endpoint_instructions: Optional ModelEndpointInstruction parameter for main model endpoint
+            instructions, if not provided a default one will be created with the USER_EP endpoint type and the default
+            name f'{function_name}_model_endpoint'.
+        :param extra_model_endpoint_instructions: List of ModelEndpointInstruction
+            objects or equivalent dicts, one per model endpoint to register.
+        :return: The runtime object, for method chaining.
+        """
+        if self.spec.model_endpoints_instructions:
+            warnings.warn(
+                "Previous  model_endpoints_instructions will be overridden by this call"
+            )
+        if general_model_endpoint_instructions is None:
+            self.spec.model_endpoints_instructions = [
+                ModelEndpointInstruction(
+                    name=f"{self.metadata.name}_model_endpoint",
+                    function_name=self.metadata.name,
+                    function_tag=self.metadata.tag,
+                ),
+            ]
+        else:
+            general_model_endpoint_instructions = (
+                general_model_endpoint_instructions
+                if isinstance(
+                    general_model_endpoint_instructions, ModelEndpointInstruction
+                )
+                else ModelEndpointInstruction.from_dict(
+                    general_model_endpoint_instructions
+                )
+            )
+            if self.metadata.name != general_model_endpoint_instructions.name:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    "Model endpoint name mismatch, instruction name must be the same as the function name"
+                )
+            if general_model_endpoint_instructions.function_tag is not None and (
+                general_model_endpoint_instructions.function_tag != self.metadata.tag
+            ):
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    "Model endpoint tag mismatch, instruction function_tag must be the same as the function tag"
+                )
+            self.spec.model_endpoints_instructions = [
+                general_model_endpoint_instructions
+            ]
+        if extra_model_endpoint_instructions:
+            if all(isinstance(i, dict) for i in extra_model_endpoint_instructions):
+                extra_model_endpoint_instructions = [
+                    ModelEndpointInstruction.from_dict(instruction)
+                    for instruction in extra_model_endpoint_instructions
+                ]
+            elif not all(
+                isinstance(instruction, ModelEndpointInstruction)
+                for instruction in extra_model_endpoint_instructions
+            ):
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    "extra_model_endpoint_instructions must be a uniform list of "
+                    "ModelEndpointInstruction objects or dicts, not a mix of both."
+                )
+            if any(
+                extra_instruction.name != self.metadata.name
+                for extra_instruction in extra_model_endpoint_instructions
+            ):
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    "Model endpoint name mismatch, all instruction names must be the same as the function name"
+                )
+            if any(
+                extra_instruction.function_tag is not None
+                and (extra_instruction.function_tag != self.metadata.tag)
+                for extra_instruction in extra_model_endpoint_instructions
+            ):
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    "Model endpoint tag mismatch, all instruction function_tags must be the same as the function tag"
+                )
+            self.spec.model_endpoints_instructions.extend(
+                extra_model_endpoint_instructions
+            )
+        self.spec.track_models = True
         return self
 
     def with_annotations(self, annotations: dict):
@@ -775,6 +902,7 @@ class RemoteRuntime(KubeResource):
         verbose=False,
         builder_env: dict | None = None,
         force_build: bool = False,
+        track_models: bool | None = None,
     ):
         """Deploy the nuclio function to the cluster
 
@@ -783,6 +911,9 @@ class RemoteRuntime(KubeResource):
         :param verbose:    set True for verbose logging
         :param builder_env: env vars dict for source archive config/credentials e.g. builder_env={"GIT_TOKEN": token}
         :param force_build: set True for force building the image
+        :param track_models: override state of self.spec.track_models. If not provided, uses the spec value (False
+            by default, True after setup_model_monitoring() is called). When True, model endpoints are created at
+            deployment time.
         """
 
         old_http_session = getattr(self, "_http_session", None)
@@ -799,6 +930,12 @@ class RemoteRuntime(KubeResource):
             self.metadata.project = project
         if tag:
             self.metadata.tag = tag
+
+        self.spec.track_models = (
+            self.spec.track_models if track_models is None else track_models
+        )
+        if self.spec.track_models and not self.spec.model_endpoints_instructions:
+            self.setup_model_monitoring()
 
         # Attempt auto-mounting, before sending to remote build
         self.try_auto_mount_based_on_config()

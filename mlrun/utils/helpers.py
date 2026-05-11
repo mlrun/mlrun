@@ -1485,6 +1485,28 @@ def get_class(class_name, namespace=None):
     return class_object
 
 
+def split_handler_module_and_function(handler: str | None) -> tuple[str, str]:
+    """Split mlrun's ``"module:function"`` handler form into ``(module, function)``.
+
+    mlrun's canonical handler format on the wire is ``"<module>:<function>"`` —
+    e.g. ``"trainer:train_model"``. Internally on the runtime spec, however,
+    ``spec.handler`` typically holds JUST the function name (the module is
+    implicit in ``spec.command`` or in the loaded source file). This helper
+    bridges the two: callers split once and decide what to do with each part.
+
+    Bare function names (no colon) are returned with an empty module:
+    ``"my_func"`` -> ``("", "my_func")``.
+
+    :param handler: Handler string in either ``"module:function"`` or bare
+                    ``"function"`` form. Falsy values return ``("", "")``.
+    :returns: ``(module_name, function_name)``.
+    """
+    if not handler or ":" not in handler:
+        return "", handler or ""
+    module, _, function = handler.partition(":")
+    return module, function
+
+
 def get_function(function, namespaces, reload_modules: bool = False):
     """Return function callable object from function name string
 

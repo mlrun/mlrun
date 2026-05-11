@@ -2346,3 +2346,21 @@ def test_remove_image_protocol_prefix(image, expected):
     assert result == expected, (
         f"Expected '{expected}' for image '{image}', got '{result}'"
     )
+
+
+@pytest.mark.parametrize(
+    "handler,expected",
+    [
+        ("trainer:train_model", ("trainer", "train_model")),
+        ("my_func", ("", "my_func")),
+        ("", ("", "")),
+        (None, ("", "")),
+        # only the FIRST colon splits — partition() returns
+        # ("a", ":", "b:c"), not split's ["a", "b", "c"]
+        ("a:b:c", ("a", "b:c")),
+    ],
+)
+def test_split_handler_module_and_function(handler, expected):
+    from mlrun.utils.helpers import split_handler_module_and_function
+
+    assert split_handler_module_and_function(handler) == expected

@@ -151,7 +151,7 @@ Rules:
 - Non-dict body → body mappings are silently skipped.
 - Calling `add_mapping` with a duplicate `destination_path` or `source_json_path` overwrites the existing entry and logs a warning.
 
-To remove a mapping by destination: `bm.remove_mapping("model_name")`
+To remove a mapping by destination path: `bm.remove_mapping("model_name")` — where `"model_name"` is the `destination_path`.
 
 #### Hierarchical body map merging
 

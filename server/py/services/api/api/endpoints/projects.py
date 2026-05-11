@@ -155,6 +155,12 @@ async def store_project(
         await framework.api.utils.run_project_2pc_runner_inline(
             sync_runner, name, db_session
         )
+        project = await run_in_threadpool(
+            get_project_member().get_project,
+            db_session,
+            name,
+            auth_info,
+        )
 
     elif is_running_in_background:
         return fastapi.Response(status_code=http.HTTPStatus.ACCEPTED.value)
@@ -219,6 +225,12 @@ async def patch_project(
             )
         await framework.api.utils.run_project_2pc_runner_inline(
             sync_runner, name, db_session
+        )
+        project = await run_in_threadpool(
+            get_project_member().get_project,
+            db_session,
+            name,
+            auth_info,
         )
     elif is_running_in_background:
         return fastapi.Response(status_code=http.HTTPStatus.ACCEPTED.value)
@@ -599,6 +611,12 @@ async def load_project(
             )
         await framework.api.utils.run_project_2pc_runner_inline(
             sync_runner, project.metadata.name, db_session
+        )
+        project = await run_in_threadpool(
+            get_project_member().get_project,
+            db_session,
+            name,
+            auth_info,
         )
 
     # Storing secrets in project

@@ -141,7 +141,7 @@ config.add_endpoint_handler(
 |--------------------|-----------------------------------------------------------------------------|
 | `destination_path` | Name of the keyword argument passed to the next step.                       |
 | `source_json_path` | JSONPath expression evaluated against the request body dict.                |
-| `mandatory`        | If `True` (default `False`), a missing field fails the request with HTTP 400. |
+| `mandatory`        | If `True` (default `False`), a missing field fails the request with the error code HTTP 400 - bad request. |
 
 Rules:
 - A single JSONPath match → the value is returned as-is.

@@ -3532,6 +3532,10 @@ class SQLDB(DBInterface):
         :returns: (op_id, updated_at).
         """
         project_record = self._get_project_record(session, name, for_update=True)
+
+        if project_record.state == mlrun.common.schemas.ProjectState.deleting:
+            return project_record.op_id, project_record.updated_at
+
         self._verify_project_sync_state(
             project_record,
             expected_state=STABLE_STATUSES,

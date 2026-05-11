@@ -18,6 +18,8 @@ from copy import deepcopy
 from http import HTTPMethod
 from typing import Union
 
+import jsonpath_ng
+import jsonpath_ng.exceptions
 import nuclio
 from nuclio import KafkaTrigger
 from nuclio.triggers import NuclioTrigger
@@ -135,6 +137,16 @@ class BodyMappings(mlrun.model.ModelObj):
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "source_json_path must be a non-empty string"
             )
+        try:
+            jsonpath_ng.parse(source_json_path)
+        except (
+            jsonpath_ng.exceptions.JsonPathLexerError,
+            jsonpath_ng.exceptions.JsonPathParserError,
+        ) as exc:
+            raise mlrun.errors.MLRunValueError(
+                f"Invalid JSON path expression for parameter '{destination_path}': "
+                f"'{source_json_path}'. Error: {exc}"
+            ) from exc
 
         # Validate: mixed destination_path mode is not allowed.
         # All mappings must either all have destination_path or all omit it.

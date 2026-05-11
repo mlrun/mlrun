@@ -141,6 +141,15 @@ class TestAPIHandlerConfigBodyMap:
             _APIHandlerStep(config=config)
 
     @staticmethod
+    def test_invalid_jsonpath_raises_at_add_mapping() -> None:
+        """Invalid JSONPath in add_mapping raises MLRunValueError immediately."""
+        bm = BodyMappings()
+        with pytest.raises(
+            mlrun.errors.MLRunValueError, match="Invalid JSON path expression"
+        ):
+            bm.add_mapping("$.invalid[[[syntax", destination_path="bad_param")
+
+    @staticmethod
     def test_remove_body_mapping() -> None:
         """remove_mapping removes entries by destination_path."""
         bm = BodyMappings()

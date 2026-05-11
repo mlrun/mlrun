@@ -163,6 +163,12 @@ unversioned_tagged_object_uid_prefix = "unversioned-"
 MAX_INT_32 = 2_147_483_647  # For Integer (4-byte)
 MAX_INT_64 = 9_223_372_036_854_775_807  # For BigInteger (8-byte)
 
+STABLE_STATUSES: set[mlrun.common.schemas.ProjectState] = {
+    mlrun.common.schemas.ProjectState.online,
+    mlrun.common.schemas.ProjectState.offline,
+    mlrun.common.schemas.ProjectState.archived,
+}
+
 conflict_messages = [
     "(sqlite3.IntegrityError) UNIQUE constraint failed",
     "(pymysql.err.IntegrityError) (1062",
@@ -3528,7 +3534,7 @@ class SQLDB(DBInterface):
         project_record = self._get_project_record(session, name, for_update=True)
         self._verify_project_sync_state(
             project_record,
-            expected_state=mlrun.common.schemas.ProjectState.online,
+            expected_state=STABLE_STATUSES,
         )
         op_id, updated_at = self._generate_op_id()
         project_record.state = mlrun.common.schemas.ProjectState.deleting
@@ -3550,7 +3556,7 @@ class SQLDB(DBInterface):
         project_record = self._get_project_record(session, name, for_update=True)
         self._verify_project_sync_state(
             project_record,
-            expected_state=mlrun.common.schemas.ProjectState.creating,
+            expected_state={mlrun.common.schemas.ProjectState.creating},
             expected_phase=0,
             expected_op_id=op_id,
         )
@@ -3569,7 +3575,7 @@ class SQLDB(DBInterface):
         project_record = self._get_project_record(session, name, for_update=True)
         self._verify_project_sync_state(
             project_record,
-            expected_state=mlrun.common.schemas.ProjectState.deleting,
+            expected_state={mlrun.common.schemas.ProjectState.deleting},
             expected_phase=0,
             expected_op_id=op_id,
         )
@@ -3587,11 +3593,12 @@ class SQLDB(DBInterface):
         project_record = self._get_project_record(session, name, for_update=True)
         self._verify_project_sync_state(
             project_record,
-            expected_state=mlrun.common.schemas.ProjectState.creating,
+            expected_state={mlrun.common.schemas.ProjectState.creating},
             expected_phase=1,
             expected_op_id=op_id,
         )
-        project_record.state = mlrun.common.schemas.ProjectState.online
+        project_record.state = project_record.full_object["status"]["state"]
+        project_record.phase = None
         self._upsert(session, [project_record])
 
     def begin_update_project(
@@ -3601,10 +3608,10 @@ class SQLDB(DBInterface):
         project: mlrun.common.schemas.Project,
     ) -> tuple[UUID, datetime]:
         """
-        Apply spec changes from `project` to an existing project under FOR UPDATE,
-        verify state==online, and stamp a fresh op_id with phase=0. State is
-        preserved at 'online'. Concurrent updates are allowed — only state is
-        verified, not phase or op_id; followers must use the op_id timestamp
+        Apply spec changes from `project` to an existing project under FOR
+        UPDATE, verify state in STABLE_STATUSES, and stamp a fresh op_id with
+        phase=0. State is preserved. Concurrent updates are allowed — only state
+        is verified, not phase or op_id; followers must use the op_id timestamp
         (UUID v7) to discard out-of-order writes.
 
         :raises MLRunNotFoundError: project does not exist.
@@ -3614,14 +3621,14 @@ class SQLDB(DBInterface):
         project_record = self._get_project_record(session, name, for_update=True)
         self._verify_project_sync_state(
             project_record,
-            expected_state=mlrun.common.schemas.ProjectState.online,
+            expected_state=STABLE_STATUSES,
         )
         op_id, updated_at = self._generate_op_id()
         self._update_project_record_from_project(
             session,
             project_record,
             project,
-            state=mlrun.common.schemas.ProjectState.online,
+            state=project.status.state,
             phase=0,
             op_id=op_id,
             updated_at=updated_at,
@@ -3647,7 +3654,7 @@ class SQLDB(DBInterface):
             return
         self._verify_project_sync_state(
             project_record,
-            expected_state=mlrun.common.schemas.ProjectState.online,
+            expected_state=STABLE_STATUSES,
         )
         project_record.phase = None
         self._upsert(session, [project_record])
@@ -3681,7 +3688,7 @@ class SQLDB(DBInterface):
         project_record = self._get_project_record(session, name, for_update=True)
         self._verify_project_sync_state(
             project_record,
-            expected_state=mlrun.common.schemas.ProjectState.deleting,
+            expected_state={mlrun.common.schemas.ProjectState.deleting},
             expected_phase=1,
             expected_op_id=op_id,
         )
@@ -3691,13 +3698,20 @@ class SQLDB(DBInterface):
     def _verify_project_sync_state(
         project_record: Project,
         *,
-        expected_state: mlrun.common.schemas.ProjectState | None = None,
+        expected_state: set[mlrun.common.schemas.ProjectState] | None = None,
         expected_phase: int | None = None,
         expected_op_id: UUID | None = None,
     ) -> None:
-        if expected_state is not None and project_record.state != expected_state:
+        if expected_state is not None and project_record.state not in expected_state:
+            states = sorted(map(str, expected_state))
+            if len(states) == 0:
+                states_str = "none"
+            elif len(states) == 1:
+                states_str = states[0]
+            else:
+                states_str = ", ".join(states[:-1]) + " or " + states[-1]
             raise mlrun.errors.MLRunPreconditionFailedError(
-                f"Project {project_record.name}: expected state {expected_state}, "
+                f"Project {project_record.name}: expected state {states_str}, "
                 f"got {project_record.state}"
             )
         if expected_phase is not None and project_record.phase != expected_phase:
@@ -3798,7 +3812,7 @@ class SQLDB(DBInterface):
                     Project.updated_at < now_dt - self._stale_resource_ttl_create,
                 ),
                 (
-                    Project.state == "online",
+                    Project.state.in_([state.value for state in STABLE_STATUSES]),
                     Project.updated_at < now_dt - self._stale_resource_ttl_update,
                 ),
                 (

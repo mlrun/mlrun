@@ -87,7 +87,29 @@ class BodyMappings(mlrun.model.ModelObj):
     _dict_fields = ["mappings"]
 
     def __init__(self) -> None:
-        self.mappings: list[dict] = []
+        # _by_src is the primary store: src → {"destination_path", "mandatory"}.
+        # _by_dest_index is a reverse lookup: dest → src, for O(1) duplicate detection.
+        # _by_dest_index is empty for validate-only mappings (destination_path=None).
+        self._by_src: dict[str, dict] = {}  # src → {"destination_path", "mandatory"}
+        self._by_dest_index: dict[str, str] = {}  # dest → src (reverse index only)
+
+    @property
+    def mappings(self) -> list[dict]:
+        return [{"source_json_path": src, **data} for src, data in self._by_src.items()]
+
+    @mappings.setter
+    def mappings(self, value: list[dict]) -> None:
+        self._by_src = {}
+        self._by_dest_index = {}
+        for m in value or []:
+            src = m["source_json_path"]
+            dest = m.get("destination_path")
+            self._by_src[src] = {
+                "destination_path": dest,
+                "mandatory": m.get("mandatory", False),
+            }
+            if dest is not None:
+                self._by_dest_index[dest] = src
 
     def add_mapping(
         self,
@@ -116,8 +138,9 @@ class BodyMappings(mlrun.model.ModelObj):
 
         # Validate: mixed destination_path mode is not allowed.
         # All mappings must either all have destination_path or all omit it.
-        if self.mappings:
-            existing_has_dest = self.mappings[0].get("destination_path") is not None
+        # If _by_dest_index is non-empty, existing mappings have destinations; otherwise they are validate-only.
+        if self._by_src:
+            existing_has_dest = bool(self._by_dest_index)
             new_has_dest = destination_path is not None
             if existing_has_dest != new_has_dest:
                 raise mlrun.errors.MLRunInvalidArgumentError(
@@ -128,44 +151,51 @@ class BodyMappings(mlrun.model.ModelObj):
                     f"Either all mappings must have destination_path or none of them."
                 )
 
-        # Check for duplicate source_json_path or destination_path — overwrite and warn if found.
-        # destination_path=None means "validate existence only"; don't treat two None-dest
-        # mappings as duplicates of each other — they may guard different source fields.
-        for i, existing in enumerate(self.mappings):
-            dest_conflict = (
-                destination_path is not None
-                and existing.get("destination_path") == destination_path
-            )
-            if existing["source_json_path"] == source_json_path or dest_conflict:
-                mlrun.utils.logger.warning(
-                    "Overriding existing body mapping",
-                    source_json_path=source_json_path,
-                    old_destination=existing.get("destination_path"),
-                    new_destination=destination_path,
-                )
-                self.mappings[i] = {
-                    "source_json_path": source_json_path,
-                    "destination_path": destination_path,
-                    "mandatory": mandatory,
-                }
-                return
+        entry = {"destination_path": destination_path, "mandatory": mandatory}
 
-        self.mappings.append(
-            {
-                "source_json_path": source_json_path,
-                "destination_path": destination_path,
-                "mandatory": mandatory,
-            }
-        )
+        # Duplicate source — overwrite existing entry.
+        if source_json_path in self._by_src:
+            old_dest = self._by_src[source_json_path].get("destination_path")
+            mlrun.utils.logger.warning(
+                "Overriding existing body mapping",
+                source_json_path=source_json_path,
+                old_destination=old_dest,
+                new_destination=destination_path,
+            )
+            if old_dest is not None:
+                self._by_dest_index.pop(old_dest, None)
+            self._by_src[source_json_path] = entry
+            if destination_path is not None:
+                self._by_dest_index[destination_path] = source_json_path
+            return
+
+        # Duplicate destination — overwrite existing entry.
+        if destination_path is not None and destination_path in self._by_dest_index:
+            old_src = self._by_dest_index[destination_path]
+            mlrun.utils.logger.warning(
+                "Overriding existing body mapping",
+                source_json_path=source_json_path,
+                old_destination=destination_path,
+                new_destination=destination_path,
+            )
+            self._by_src.pop(old_src, None)
+            self._by_src[source_json_path] = entry
+            self._by_dest_index[destination_path] = source_json_path
+            return
+
+        self._by_src[source_json_path] = entry
+        if destination_path is not None:
+            self._by_dest_index[destination_path] = source_json_path
 
     def remove_mapping(self, destination_path: str) -> None:
         """Remove the mapping with the given destination_path. No-op if not found.
 
         :param destination_path: The destination key to remove.
         """
-        self.mappings = [
-            m for m in self.mappings if m.get("destination_path") != destination_path
-        ]
+        if destination_path not in self._by_dest_index:
+            return
+        src = self._by_dest_index.pop(destination_path)
+        self._by_src.pop(src, None)
 
     def __repr__(self) -> str:
         return f"BodyMappings(mappings={self.mappings!r})"

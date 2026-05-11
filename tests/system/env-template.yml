@@ -127,3 +127,5 @@ OPENAI_BASE_URL:
 OPENAI_API_KEY:
 #  Optional because hf system tests model is free to use without authentication.
 HF_TOKEN:
+#  Optional: custom HuggingFace Hub endpoint (e.g. for mirrored or self-hosted Hub instances)
+HF_ENDPOINT:

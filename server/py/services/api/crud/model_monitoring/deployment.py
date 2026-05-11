@@ -57,6 +57,7 @@ from mlrun.model_monitoring.db._schedules import (
 )
 from mlrun.model_monitoring.writer import ModelMonitoringWriter, WriterGraphFactory
 from mlrun.platforms.iguazio import split_path
+from mlrun.runtimes.nuclio.function import AsyncSpec
 from mlrun.utils import logger
 
 import framework.api.utils
@@ -807,6 +808,10 @@ class MonitoringDeployment:
             stream_args=config.model_endpoint_monitoring.serving_stream,
             ignore_stream_already_exists_failure=True,
         )
+
+        # Add an explicit HTTP trigger so the stream pod is reachable via HTTP.
+        # async mode: stream processing is I/O bound and benefits from async + many connections.
+        function.with_http(async_spec=AsyncSpec(enabled=True))
 
         # Apply feature store run configurations on the serving function
         run_config = fstore.RunConfig(function=function, local=False)
@@ -2320,6 +2325,112 @@ class MonitoringDeployment:
         function.spec.graph = graph
         return model_endpoints_instructions, function.to_dict()
 
+    async def _create_model_endpoints_instructions_for_nuclio_app(
+        self,
+        db_session: sqlalchemy.orm.Session,
+        function: dict,
+        function_name: str,
+        project: str,
+    ) -> tuple[
+        list[
+            tuple[
+                mlrun.common.schemas.ModelEndpoint,
+                mm_constants.ModelEndpointCreationStrategy,
+            ]
+        ],
+        str | None,
+        dict,
+    ]:
+        """
+        Build (ModelEndpoint, strategy) pairs from spec.model_endpoint_instructions
+        for nuclio/application runtimes.
+
+        Validates instruction types, confirms the model monitoring stream is ready,
+        and resolves its HTTP URL.
+
+        :raises MLRunInvalidArgumentError: if an instruction has an invalid type.
+        :raises MLRunNotFoundError: if the model monitoring stream is not deployed.
+        :raises MLRunPreconditionFailedError: if the model monitoring stream is not ready.
+        :return: Tuple of (instructions, stream_url, function_dict).
+        """
+        import mlrun.common.schemas.model_monitoring.model_endpoints as mm_endpoints
+
+        import services.api.crud.model_monitoring.helpers as mm_crud_helpers
+
+        raw_instructions = (function.get("spec") or {}).get(
+            "model_endpoints_instructions"
+        ) or []
+
+        # Validate and normalize instructions
+        instructions: list[mm_endpoints.ModelEndpointInstruction] = []
+        for idx, item in enumerate(raw_instructions):
+            if isinstance(item, mm_endpoints.ModelEndpointInstruction):
+                instructions.append(item)
+            elif isinstance(item, dict):
+                instructions.append(
+                    mm_endpoints.ModelEndpointInstruction.from_dict(item)
+                )
+            else:
+                framework.api.utils.log_and_raise(
+                    HTTPStatus.BAD_REQUEST.value,
+                    reason=(
+                        f"model_endpoint_instructions[{idx}] must be a dict or "
+                        f"ModelEndpointInstruction, got {type(item).__name__!r}"
+                    ),
+                )
+
+        stream_url = await mm_crud_helpers.get_stream_url(
+            db_session=db_session, project=project
+        )
+        if stream_url is None:
+            logger.warning(
+                "Model monitoring stream has no HTTP trigger — MODEL_MONITORING_URL will "
+                "not be injected. HTTP trigger support was added in 1.12.0; the stream "
+                "pod may have been deployed with an older version.",
+                project=project,
+            )
+
+        function_tag = (function.get("metadata") or {}).get("tag") or "latest"
+
+        model_endpoints_dict: dict[str, str] = await run_in_threadpool(
+            framework.utils.singletons.db.get_db().list_model_endpoints,
+            project=project,
+            function_name=function_name,
+            function_tag=function_tag,
+            latest_only=True,
+            session=db_session,
+            as_dict=True,
+        )
+
+        model_endpoints_instructions = []
+        for instruction in instructions:
+            effective_function_name = instruction.function_name or function_name
+            effective_function_tag = instruction.function_tag or function_tag
+            uid = self._get_or_create_uid(
+                project=project,
+                function_name=effective_function_name,
+                function_tag=effective_function_tag,
+                model_endpoints_dict=model_endpoints_dict,
+                creation_strategy=instruction.creation_strategy,
+                endpoint_name=instruction.name,
+            )
+            model_endpoint = self._model_endpoint_draft(
+                name=instruction.name,
+                endpoint_type=mm_constants.EndpointType.USER_EP,
+                model_class=None,
+                function_name=effective_function_name,
+                function_tag=effective_function_tag,
+                track_models=True,
+                uid=uid,
+                label_names=instruction.output_schema,
+                feature_names=instruction.input_schema,
+            )
+            model_endpoints_instructions.append(
+                (model_endpoint, instruction.creation_strategy)
+            )
+
+        return model_endpoints_instructions, stream_url, function
+
     def _extract_model_endpoints_from_function_graph(
         self,
         function_name: str,
@@ -2586,6 +2697,141 @@ class MonitoringDeployment:
             else uuid.uuid4().hex
         )
         return uid
+
+    @staticmethod
+    def inject_monitoring_env_vars(
+        function: dict,
+        env_updates: dict[str, str],
+    ) -> dict:
+        """
+        Inject monitoring-related environment variables into a function spec dict.
+
+        Existing env vars whose names appear in *env_updates* are replaced;
+        new ones are appended.  The function dict is mutated in-place and returned.
+
+        :param function:    Nuclio / application function dict (top-level, with "spec" key).
+        :param env_updates: Mapping of env var name → value to inject.
+        :return: The mutated function dict.
+        """
+        spec = function.setdefault("spec", {})
+        existing_env: list = spec.get("env") or []
+        inject_names = set(env_updates)
+        spec["env"] = [
+            e
+            for e in existing_env
+            if (e.get("name") if isinstance(e, dict) else getattr(e, "name", None))
+            not in inject_names
+        ] + [{"name": k, "value": v} for k, v in env_updates.items()]
+        return function
+
+    def _build_and_inject_monitoring_env_vars(
+        self,
+        function: dict,
+        model_endpoints_instructions: list[
+            tuple[
+                mlrun.common.schemas.ModelEndpoint,
+                mm_constants.ModelEndpointCreationStrategy,
+            ]
+        ],
+        stream_url: str | None,
+    ) -> dict:
+        """
+        Build monitoring env vars from *model_endpoints_instructions* and *stream_url*
+        and inject them into the function spec dict.
+
+        Injected variables:
+        - MODEL_MONITORING_URL  — HTTP URL of the stream pod (when available).
+        - MODEL_ENDPOINT_UID    — UID of the first (primary) model endpoint.
+        - MODEL_ENDPOINTS_MAP   — JSON ``{name: uid}`` map (only when >1 endpoint).
+
+        :return: The updated function dict.
+        """
+        if not model_endpoints_instructions:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "_build_and_inject_monitoring_env_vars called with empty or malformed model_endpoints_instructions"
+            )
+        env_updates: dict[str, str] = {}
+        if stream_url:
+            env_updates[mm_constants.NuclioMonitoringEnvVars.MODEL_MONITORING_URL] = (
+                stream_url
+            )
+        first_uid = (
+            model_endpoints_instructions[0][0].metadata.uid
+            if len(model_endpoints_instructions[0]) > 1
+            else ""
+        )
+        env_updates[mm_constants.NuclioMonitoringEnvVars.MODEL_ENDPOINT_UID] = first_uid
+        if len(model_endpoints_instructions) > 1:
+            env_updates[mm_constants.NuclioMonitoringEnvVars.MODEL_ENDPOINTS_MAP] = (
+                json.dumps(
+                    {
+                        me.metadata.name: me.metadata.uid
+                        for (me, _) in model_endpoints_instructions
+                    }
+                )
+            )
+        return self.inject_monitoring_env_vars(function, env_updates)
+
+    async def _create_nuclio_app_model_endpoint_background_task(
+        self,
+        db_session: sqlalchemy.orm.Session,
+        background_tasks: BackgroundTasks,
+        function: dict,
+        function_name: str,
+        project: str,
+    ) -> tuple[
+        list[
+            tuple[
+                mlrun.common.schemas.ModelEndpoint,
+                mm_constants.ModelEndpointCreationStrategy,
+            ]
+        ],
+        dict,
+    ]:
+        """
+        Full model-endpoint creation flow for nuclio/application runtimes.
+
+        1. Builds (ModelEndpoint, strategy) pairs from spec.model_endpoint_instructions.
+        2. Injects MODEL_MONITORING_URL, MODEL_ENDPOINT_UID, MODEL_ENDPOINTS_MAP env vars.
+        3. Registers a background task that persists the endpoints to the DB.
+
+        :return: Tuple of (model_endpoints_instructions, updated_function_dict).
+        """
+        (
+            model_endpoints_instructions,
+            stream_url,
+            function,
+        ) = await self._create_model_endpoints_instructions_for_nuclio_app(
+            db_session=db_session,
+            function=function,
+            function_name=function_name,
+            project=project,
+        )
+
+        if not model_endpoints_instructions:
+            return model_endpoints_instructions, function
+
+        function = self._build_and_inject_monitoring_env_vars(
+            function=function,
+            model_endpoints_instructions=model_endpoints_instructions,
+            stream_url=stream_url,
+        )
+
+        logger.info(
+            "Creating background task for model endpoints creation",
+            project=project,
+            function=function_name,
+        )
+        self._create_model_endpoint_background_task(
+            db_session=db_session,
+            background_tasks=background_tasks,
+            project_name=project,
+            function_name=function_name,
+            function_tag=(function.get("metadata") or {}).get("tag") or "latest",
+            model_endpoints_instructions=model_endpoints_instructions,
+        )
+
+        return model_endpoints_instructions, function
 
     def _model_endpoint_draft(
         self,

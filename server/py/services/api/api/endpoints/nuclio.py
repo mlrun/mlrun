@@ -527,8 +527,16 @@ def _deploy_nuclio_runtime(
     serving_to_monitor = (
         fn.kind == mlrun.runtimes.RuntimeKinds.serving and fn.spec.track_models
     )
+    nuclio_app_to_monitor = (
+        fn.kind
+        in (
+            mlrun.runtimes.RuntimeKinds.remote,
+            mlrun.runtimes.RuntimeKinds.application,
+        )
+        and fn.spec.track_models
+    )
 
-    if monitoring_application or serving_to_monitor:
+    if monitoring_application or serving_to_monitor or nuclio_app_to_monitor:
         if mlrun.mlconf.is_using_v3io():
             model_monitoring_access_key = process_model_monitoring_secret(
                 db_session,
@@ -549,6 +557,8 @@ def _deploy_nuclio_runtime(
         except mlrun.errors.MLRunBadRequestError as exc:
             if monitoring_application:
                 err_txt = f"Can not deploy model monitoring application due to: {exc}"
+            elif nuclio_app_to_monitor:
+                err_txt = f"Can not deploy nuclio/application function with track_models due to: {exc}"
             else:
                 err_txt = (
                     f"Can not deploy serving function with track models due to: {exc}"

@@ -389,6 +389,7 @@ class ServingSpec(nuclio_function.NuclioSpec):
         disable_default_http_trigger=None,
         custom_scaling_metric_specs=None,
         model_endpoint_creation_task_name=None,
+        model_endpoints_instructions=None,
         serving_spec=None,
         auth=None,
         streaming: bool | None = None,
@@ -437,6 +438,7 @@ class ServingSpec(nuclio_function.NuclioSpec):
             add_templated_ingress_host_mode=add_templated_ingress_host_mode,
             disable_default_http_trigger=disable_default_http_trigger,
             custom_scaling_metric_specs=custom_scaling_metric_specs,
+            model_endpoints_instructions=model_endpoints_instructions,
             serving_spec=serving_spec,
             auth=auth,
             otlp_enabled=otlp_enabled,
@@ -571,6 +573,16 @@ class ServingRuntime(nuclio_function.RemoteRuntime):
                 f"unsupported topology {topology}, use 'router' or 'flow'"
             )
         return self.spec.graph
+
+    def setup_model_monitoring(
+        self,
+        general_model_endpoint_instructions=None,
+        extra_model_endpoint_instructions=None,
+    ):
+        raise NotImplementedError(
+            "setup_model_monitoring is not supported for serving functions. "
+            "Use set_tracking() to enable model monitoring for serving."
+        )
 
     def set_tracking(
         self,

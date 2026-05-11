@@ -16,10 +16,13 @@ import json
 import typing
 
 import sqlalchemy.orm
+from fastapi.concurrency import run_in_threadpool
 
 import mlrun.common.schemas
+import mlrun.common.schemas.model_monitoring.constants as mm_constants
 import mlrun.errors
 
+import services.api.crud.functions
 import services.api.crud.projects
 
 
@@ -42,6 +45,51 @@ def get_access_key(auth_info: mlrun.common.schemas.AuthInfo):
     if not access_key:
         raise mlrun.errors.MLRunBadRequestError("Data session is missing")
     return access_key
+
+
+async def get_stream_url(
+    db_session: sqlalchemy.orm.Session,
+    project: str,
+) -> str | None:
+    """
+    Return the internal cluster HTTP URL of the model monitoring stream pod for *project*.
+
+    The URL is resolved from the nuclio function's internal_invocation_urls, which are
+    only reachable from within the Kubernetes cluster (e.g. from other nuclio functions
+    or pods running in the same cluster). It is NOT an externally accessible URL.
+
+    :param db_session: A session that manages the current dialog with the database.
+    :param project:    Project name.
+    :return: Internal cluster HTTP URL of the stream pod, or None when no HTTP trigger is configured.
+    :raises MLRunNotFoundError: if the stream function is not deployed.
+    :raises MLRunPreconditionFailedError: if the stream function is not in ready state.
+    """
+    func = await run_in_threadpool(
+        services.api.crud.functions.Functions().get_function,
+        db_session,
+        mm_constants.MonitoringFunctionNames.STREAM,
+        project,
+    )
+    if not func:
+        raise mlrun.errors.MLRunNotFoundError(
+            f"Model monitoring stream function not found for project {project!r}. "
+            f"Run `project.enable_model_monitoring()` first."
+        )
+
+    status = func.get("status", {})
+    state = status.get("state", "")
+    if state != "ready":
+        raise mlrun.errors.MLRunPreconditionFailedError(
+            f"Model monitoring stream function is not ready "
+            f"(state={state!r}) for project {project!r}."
+        )
+
+    internal_urls = status.get("internal_invocation_urls") or []
+    if internal_urls and internal_urls[0]:
+        url = internal_urls[0]
+        return url if url.startswith("http") else f"http://{url}"
+
+    return None
 
 
 def get_monitoring_parquet_path(

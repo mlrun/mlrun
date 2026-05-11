@@ -3721,7 +3721,7 @@ class SQLDB(DBInterface):
             )
         if expected_op_id is not None and project_record.op_id != expected_op_id.hex:
             raise mlrun.errors.MLRunPreconditionFailedError(
-                f"Project {project_record.name}: expected op_id {expected_op_id}, "
+                f"Project {project_record.name}: expected op_id {expected_op_id.hex}, "
                 f"got {project_record.op_id}"
             )
 

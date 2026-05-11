@@ -837,6 +837,28 @@ class ProjectMetadata(ModelObj):
         return True
 
 
+class ProjectMonitoringSpec(ModelObj):
+    """Project-level model monitoring configuration.
+
+    Mirrors ``mlrun.common.schemas.ProjectMonitoringSpec`` on the SDK side so
+    ``project.spec.model_monitoring.<field>`` works with attribute access.
+    """
+
+    _dict_fields = ["enabled", "otlp_enabled", "stream_type", "tsdb_type"]
+
+    def __init__(
+        self,
+        enabled: bool = False,
+        otlp_enabled: bool = False,
+        stream_type: str | None = None,
+        tsdb_type: str | None = None,
+    ):
+        self.enabled = enabled
+        self.otlp_enabled = otlp_enabled
+        self.stream_type = stream_type
+        self.tsdb_type = tsdb_type
+
+
 class ProjectSpec(ModelObj):
     def __init__(
         self,
@@ -862,6 +884,7 @@ class ProjectSpec(ModelObj):
         custom_packagers: list[tuple[str, bool]] | None = None,
         default_function_node_selector=None,
         notifications=None,
+        model_monitoring: ProjectMonitoringSpec | dict | None = None,
     ):
         self.repo = None
 
@@ -903,6 +926,7 @@ class ProjectSpec(ModelObj):
         self.custom_packagers = custom_packagers or []
         self._default_function_node_selector = default_function_node_selector or None
         self.notifications = notifications or []
+        self.model_monitoring = model_monitoring
 
     @property
     def source(self) -> str:
@@ -1087,6 +1111,19 @@ class ProjectSpec(ModelObj):
     @build.setter
     def build(self, build):
         self._build = self._verify_dict(build, "build", ImageBuilder)
+
+    @property
+    def model_monitoring(self) -> ProjectMonitoringSpec | None:
+        return self._model_monitoring
+
+    @model_monitoring.setter
+    def model_monitoring(self, model_monitoring):
+        if model_monitoring is None:
+            self._model_monitoring = None
+            return
+        self._model_monitoring = self._verify_dict(
+            model_monitoring, "model_monitoring", ProjectMonitoringSpec
+        )
 
     def add_custom_packager(self, packager: str, is_mandatory: bool):
         """
@@ -2663,6 +2700,7 @@ class MlrunProject(ModelObj):
         fetch_credentials_from_sys_config: bool = False,  # deprecated
         lag_threshold: int | None = None,
         lag_event_cooldown: int | None = None,
+        otlp_enabled: bool = False,
     ) -> None:
         """
         Deploy model monitoring application controller, writer and stream functions.
@@ -2710,6 +2748,11 @@ class MlrunProject(ModelObj):
                                                   When not provided, computed as
                                                   ``min(default_lag_event_cooldown_minutes, base_period // 2)``
                                                   (see ``model_endpoint_monitoring.lag_detection`` in config).
+        :param otlp_enabled:                      If true, monitoring application results and metrics are also
+                                                  exported via OpenTelemetry to the operator-configured OTLP endpoint
+                                                  (``mlconf.telemetry.otlp_endpoint``). Persists onto
+                                                  ``project.spec.model_monitoring.otlp_enabled``. Per-function
+                                                  override via ``set_model_monitoring_function(otlp_enabled=...)``.
         """
         if fetch_credentials_from_sys_config:
             warnings.warn(
@@ -2731,6 +2774,7 @@ class MlrunProject(ModelObj):
             fetch_credentials_from_sys_config=fetch_credentials_from_sys_config,
             lag_threshold=lag_threshold,
             lag_event_cooldown=lag_event_cooldown,
+            otlp_enabled=otlp_enabled,
         )
 
         if wait_for_deployment:

@@ -276,6 +276,11 @@ class TSDBTarget(MonitoringStrEnum):
     TimescaleDB = "postgresql"
 
 
+class StreamTarget(MonitoringStrEnum):
+    V3IO = "v3io"
+    KAFKA = "kafka"
+
+
 class ProjectSecretKeys:
     ACCESS_KEY = "MODEL_MONITORING_ACCESS_KEY"
     TSDB_PROFILE_NAME = "TSDB_PROFILE_NAME"

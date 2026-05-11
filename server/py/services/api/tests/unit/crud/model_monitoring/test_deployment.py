@@ -755,3 +755,99 @@ def test_kafka_migration_not_invoked_when_ignore_flag_false(
                 ignore_stream_already_exists_failure=False,
             )
     migrate_offsets_mock.assert_not_called()
+
+
+# --- ML-12543: project.spec.model_monitoring persistence + OTel validation -----
+
+
+class TestOtelEnableValidation:
+    """deploy_monitoring_functions(otlp_enabled=True) must fail fast when the
+    operator hasn't configured a usable OTLP endpoint."""
+
+    @staticmethod
+    @pytest.fixture(autouse=True)
+    def reset_telemetry_config(monkeypatch):
+        # Keep tests deterministic regardless of repo defaults.
+        monkeypatch.setattr(mlrun.mlconf.telemetry, "enabled", "false", raising=False)
+        monkeypatch.setattr(mlrun.mlconf.telemetry, "otlp_endpoint", "", raising=False)
+
+    @staticmethod
+    def test_raises_when_telemetry_disabled(
+        monitoring_deployment: mm_dep.MonitoringDeployment, monkeypatch
+    ) -> None:
+        # Endpoint configured but master kill-switch off → reject.
+        monkeypatch.setattr(
+            mlrun.mlconf.telemetry,
+            "otlp_endpoint",
+            "https://otel.example.com:4317",
+            raising=False,
+        )
+        monkeypatch.setattr(mlrun.mlconf.telemetry, "enabled", "false", raising=False)
+
+        with pytest.raises(
+            mlrun.errors.MLRunBadRequestError, match="disabled telemetry"
+        ):
+            monitoring_deployment.deploy_monitoring_functions(otlp_enabled=True)
+
+    @staticmethod
+    def test_raises_when_endpoint_blank(
+        monitoring_deployment: mm_dep.MonitoringDeployment, monkeypatch
+    ) -> None:
+        # Telemetry on but no endpoint → reject.
+        monkeypatch.setattr(mlrun.mlconf.telemetry, "enabled", "true", raising=False)
+        monkeypatch.setattr(mlrun.mlconf.telemetry, "otlp_endpoint", "", raising=False)
+
+        with pytest.raises(
+            mlrun.errors.MLRunBadRequestError, match="otlp_endpoint is blank"
+        ):
+            monitoring_deployment.deploy_monitoring_functions(otlp_enabled=True)
+
+    @staticmethod
+    def test_does_not_check_when_otlp_disabled(
+        monitoring_deployment: mm_dep.MonitoringDeployment,
+    ) -> None:
+        """When the project doesn't opt in to OTel, operator config is irrelevant.
+        deploy will fail later on credentials, but NOT on the telemetry check."""
+        with pytest.raises(Exception) as exc_info:
+            monitoring_deployment.deploy_monitoring_functions(otlp_enabled=False)
+        # Anything OTHER than our bad-request validator is acceptable here —
+        # the test only proves the OTel pre-check didn't fire.
+        assert "disabled telemetry" not in str(exc_info.value)
+        assert "otlp_endpoint is blank" not in str(exc_info.value)
+
+
+class TestPersistModelMonitoringSpec:
+    """`_persist_model_monitoring_spec` writes exactly the fields it was given."""
+
+    @staticmethod
+    def test_writes_only_provided_fields(
+        monitoring_deployment: mm_dep.MonitoringDeployment,
+    ) -> None:
+        with patch.object(services.api.crud.Projects, "patch_project") as patch_mock:
+            monitoring_deployment._persist_model_monitoring_spec(
+                enabled=True, otlp_enabled=True
+            )
+
+        patch_mock.assert_called_once()
+        kwargs = patch_mock.call_args.kwargs
+        assert kwargs["patch_mode"] == mlrun.common.schemas.PatchMode.additive
+        # The patch dict must contain only the keys we passed — no stream/tsdb
+        # type leaked in with default Nones.
+        assert kwargs["project"] == {
+            "spec": {
+                "model_monitoring": {
+                    "enabled": True,
+                    "otlp_enabled": True,
+                }
+            }
+        }
+
+    @staticmethod
+    def test_skips_patch_when_no_fields_set(
+        monitoring_deployment: mm_dep.MonitoringDeployment,
+    ) -> None:
+        """Empty call → no DB write."""
+        with patch.object(services.api.crud.Projects, "patch_project") as patch_mock:
+            monitoring_deployment._persist_model_monitoring_spec()
+
+        patch_mock.assert_not_called()

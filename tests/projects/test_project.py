@@ -2603,6 +2603,65 @@ class TestModelMonitoring:
                 name="my-invalid-app-name-batch", application_class="NoApp"
             )
 
+    @staticmethod
+    def test_project_spec_accepts_model_monitoring_dict() -> None:
+        """ProjectSpec.model_monitoring accepts a dict and converts it to a
+        ProjectMonitoringSpec(ModelObj) instance via the property setter."""
+        spec = mlrun.projects.project.ProjectSpec()
+        assert spec.model_monitoring is None
+
+        spec.model_monitoring = {
+            "enabled": True,
+            "otlp_enabled": True,
+            "stream_type": "kafka",
+            "tsdb_type": "v3io-tsdb",
+        }
+        assert isinstance(
+            spec.model_monitoring,
+            mlrun.projects.project.ProjectMonitoringSpec,
+        )
+        assert spec.model_monitoring.enabled is True
+        assert spec.model_monitoring.otlp_enabled is True
+        assert spec.model_monitoring.stream_type == "kafka"
+        assert spec.model_monitoring.tsdb_type == "v3io-tsdb"
+
+    @staticmethod
+    def test_project_spec_model_monitoring_round_trip() -> None:
+        """SDK ProjectSpec.model_monitoring round-trips through to_dict/from_dict."""
+        original = mlrun.projects.project.ProjectSpec(
+            model_monitoring=mlrun.projects.project.ProjectMonitoringSpec(
+                enabled=True, otlp_enabled=True
+            )
+        )
+        reparsed = mlrun.projects.project.ProjectSpec.from_dict(original.to_dict())
+        assert reparsed.model_monitoring is not None
+        assert reparsed.model_monitoring.enabled is True
+        assert reparsed.model_monitoring.otlp_enabled is True
+
+    @staticmethod
+    def test_enable_model_monitoring_forwards_otlp_enabled() -> None:
+        """MlrunProject.enable_model_monitoring forwards otlp_enabled to the DB layer."""
+        project = mlrun.projects.MlrunProject(metadata={"name": "p"})
+
+        with unittest.mock.patch("mlrun.db.get_run_db") as get_db:
+            mock_db = unittest.mock.Mock()
+            get_db.return_value = mock_db
+
+            project.enable_model_monitoring(otlp_enabled=True)
+
+        mock_db.enable_model_monitoring.assert_called_once()
+        kwargs = mock_db.enable_model_monitoring.call_args.kwargs
+        assert kwargs["otlp_enabled"] is True
+        # Default still False — sanity check on the param plumbing.
+        mock_db.reset_mock()
+        with unittest.mock.patch("mlrun.db.get_run_db") as get_db2:
+            mock_db2 = unittest.mock.Mock()
+            get_db2.return_value = mock_db2
+            project.enable_model_monitoring()
+        assert (
+            mock_db2.enable_model_monitoring.call_args.kwargs["otlp_enabled"] is False
+        )
+
 
 def _auth_prefix() -> str:
     # Matches how the code builds the pattern: format(hashed_access_key="")

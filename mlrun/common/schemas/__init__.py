@@ -188,6 +188,7 @@ from .project import (
     Project,
     ProjectDesiredState,
     ProjectMetadata,
+    ProjectMonitoringSpec,
     ProjectOut,
     ProjectOutput,
     ProjectOwner,

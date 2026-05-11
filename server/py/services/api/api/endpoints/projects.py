@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import datetime
 import http
 
 import fastapi
@@ -385,6 +386,9 @@ async def list_projects(
     owner: str | None = None,
     labels: list[str] = fastapi.Query(None, alias="label"),
     state: mlrun.common.schemas.ProjectState = None,
+    updated_after: datetime.datetime | None = fastapi.Query(
+        None, alias="updated_after"
+    ),
     auth_info: mlrun.common.schemas.AuthInfo = fastapi.Depends(
         framework.api.deps.authenticate_request
     ),
@@ -406,6 +410,8 @@ async def list_projects(
             mlrun.common.formatters.ProjectFormat.name_only,
             labels,
             state,
+            None,
+            updated_after,
         )
         allowed_project_names = await framework.utils.auth.verifier.AuthVerifier().filter_projects_by_permissions(
             projects_output.projects,
@@ -420,6 +426,7 @@ async def list_projects(
         labels,
         state,
         allowed_project_names,
+        updated_after,
     )
 
 

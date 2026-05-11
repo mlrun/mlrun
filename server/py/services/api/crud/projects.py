@@ -296,9 +296,10 @@ class Projects(
         labels: list[str] | None = None,
         state: mlrun.common.schemas.ProjectState = None,
         names: list[str] | None = None,
+        updated_after: datetime.datetime | None = None,
     ) -> mlrun.common.schemas.ProjectsOutput:
         return framework.utils.singletons.db.get_db().list_projects(
-            session, owner, format_, labels, state, names
+            session, owner, format_, labels, state, names, updated_after
         )
 
     async def list_allowed_project_names(

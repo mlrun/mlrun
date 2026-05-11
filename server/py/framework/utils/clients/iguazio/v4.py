@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import datetime
 import tempfile
 import typing
 import uuid
@@ -366,6 +367,7 @@ class Client(BaseClient, project_follower.Member):
         labels: list[str] | None = None,
         state: mlrun.common.schemas.ProjectState = None,
         names: list[str] | None = None,
+        updated_after: datetime.datetime | None = None,
     ) -> mlrun.common.schemas.ProjectsOutput:
         # TODO: This is a placeholder implementation, as it is used for project sync. Implement this method as needed
         #       when we support the project sync functionality with Iguazio 4.

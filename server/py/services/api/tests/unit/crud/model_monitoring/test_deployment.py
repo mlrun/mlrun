@@ -252,6 +252,301 @@ def test_kafka_source_no_hpa_target_when_not_configured(
     assert fn.spec.custom_scaling_metric_specs == []
 
 
+class TestInjectMonitoringEnvVars:
+    """Unit tests for MonitoringDeployment.inject_monitoring_env_vars (no I/O)."""
+
+    def test_injects_into_empty_spec(self):
+        fn = {}
+        result = mm_dep.MonitoringDeployment.inject_monitoring_env_vars(
+            fn, {"MODEL_MONITORING_URL": "http://stream:8080"}
+        )
+        env = result["spec"]["env"]
+        assert {"name": "MODEL_MONITORING_URL", "value": "http://stream:8080"} in env
+
+    def test_appends_new_vars(self):
+        fn = {"spec": {"env": [{"name": "EXISTING", "value": "1"}]}}
+        mm_dep.MonitoringDeployment.inject_monitoring_env_vars(
+            fn,
+            {
+                "MODEL_ENDPOINT_UID": "uid-abc",
+                "MODEL_ENDPOINTS_MAP": '{"ep": "uid-abc"}',
+            },
+        )
+        env = fn["spec"]["env"]
+        names = {e["name"] for e in env}
+        assert "EXISTING" in names
+        assert "MODEL_ENDPOINT_UID" in names
+        assert "MODEL_ENDPOINTS_MAP" in names
+
+    def test_replaces_existing_var(self):
+        fn = {"spec": {"env": [{"name": "MODEL_MONITORING_URL", "value": "old"}]}}
+        mm_dep.MonitoringDeployment.inject_monitoring_env_vars(
+            fn, {"MODEL_MONITORING_URL": "new"}
+        )
+        env = fn["spec"]["env"]
+        assert len(env) == 1
+        assert env[0]["value"] == "new"
+
+    def test_multiple_vars_single_uid(self):
+        fn = {}
+        mm_dep.MonitoringDeployment.inject_monitoring_env_vars(
+            fn,
+            {
+                "MODEL_MONITORING_URL": "http://stream",
+                "MODEL_ENDPOINT_UID": "uid-1",
+            },
+        )
+        env = {e["name"]: e["value"] for e in fn["spec"]["env"]}
+        assert env["MODEL_MONITORING_URL"] == "http://stream"
+        assert env["MODEL_ENDPOINT_UID"] == "uid-1"
+        assert "MODEL_ENDPOINTS_MAP" not in env
+
+
+class TestBuildAndInjectMonitoringEnvVars:
+    """Unit tests for _build_and_inject_monitoring_env_vars."""
+
+    def _make_endpoint(self, name: str, uid: str) -> mlrun.common.schemas.ModelEndpoint:
+        ep = mlrun.common.schemas.ModelEndpoint(
+            metadata=mlrun.common.schemas.model_monitoring.ModelEndpointMetadata(
+                project="proj", name=name, uid=uid
+            ),
+            spec=mlrun.common.schemas.model_monitoring.ModelEndpointSpec(),
+            status=mlrun.common.schemas.model_monitoring.ModelEndpointStatus(),
+        )
+        return ep
+
+    def test_single_endpoint_injects_uid_and_url(self):
+        from mlrun.common.schemas.model_monitoring.constants import (
+            ModelEndpointCreationStrategy,
+        )
+
+        dep = mm_dep.MonitoringDeployment(project="proj")
+        ep = self._make_endpoint("ep1", "uid-111")
+        instructions = [(ep, ModelEndpointCreationStrategy.INPLACE)]
+        fn = dep._build_and_inject_monitoring_env_vars(
+            function={},
+            model_endpoints_instructions=instructions,
+            stream_url="http://stream:8080",
+        )
+        env = {e["name"]: e["value"] for e in fn["spec"]["env"]}
+        assert env["MODEL_MONITORING_URL"] == "http://stream:8080"
+        assert env["MODEL_ENDPOINT_UID"] == "uid-111"
+        assert "MODEL_ENDPOINTS_MAP" not in env
+
+    def test_multiple_endpoints_injects_map(self):
+        import json
+
+        from mlrun.common.schemas.model_monitoring.constants import (
+            ModelEndpointCreationStrategy,
+        )
+
+        dep = mm_dep.MonitoringDeployment(project="proj")
+        ep1 = self._make_endpoint("ep1", "uid-1")
+        ep2 = self._make_endpoint("ep2", "uid-2")
+        instructions = [
+            (ep1, ModelEndpointCreationStrategy.INPLACE),
+            (ep2, ModelEndpointCreationStrategy.INPLACE),
+        ]
+        fn = dep._build_and_inject_monitoring_env_vars(
+            function={},
+            model_endpoints_instructions=instructions,
+            stream_url=None,
+        )
+        env = {e["name"]: e["value"] for e in fn["spec"]["env"]}
+        assert env["MODEL_ENDPOINT_UID"] == "uid-1"
+        assert "MODEL_MONITORING_URL" not in env
+        ep_map = json.loads(env["MODEL_ENDPOINTS_MAP"])
+        assert ep_map == {"ep1": "uid-1", "ep2": "uid-2"}
+
+    def test_no_stream_url_skips_url_var(self):
+        from mlrun.common.schemas.model_monitoring.constants import (
+            ModelEndpointCreationStrategy,
+        )
+
+        dep = mm_dep.MonitoringDeployment(project="proj")
+        ep = self._make_endpoint("ep1", "uid-x")
+        fn = dep._build_and_inject_monitoring_env_vars(
+            function={},
+            model_endpoints_instructions=[(ep, ModelEndpointCreationStrategy.INPLACE)],
+            stream_url=None,
+        )
+        names = {e["name"] for e in fn["spec"]["env"]}
+        assert "MODEL_MONITORING_URL" not in names
+        assert "MODEL_ENDPOINT_UID" in names
+
+    def test_empty_instructions_raises(self):
+        dep = mm_dep.MonitoringDeployment(project="proj")
+        with pytest.raises(
+            mlrun.errors.MLRunInvalidArgumentError, match="empty or malformed"
+        ):
+            dep._build_and_inject_monitoring_env_vars(
+                function={},
+                model_endpoints_instructions=[],
+                stream_url=None,
+            )
+
+
+class TestCreateModelEndpointsInstructionsForNuclioApp:
+    """Tests for _create_model_endpoints_instructions_for_nuclio_app."""
+
+    def _function_dict(self, instructions: list, tag: str = "latest") -> dict:
+        from mlrun.common.schemas.model_monitoring.model_endpoints import (
+            ModelEndpointInstruction,
+        )
+
+        return {
+            "metadata": {"tag": tag},
+            "spec": {
+                "model_endpoints_instructions": [
+                    i.to_dict() if isinstance(i, ModelEndpointInstruction) else i
+                    for i in instructions
+                ]
+            },
+        }
+
+    @staticmethod
+    def _mock_db_and_stream(stream_url, existing_endpoints=None):
+        """Return context managers for get_stream_url and get_db().list_model_endpoints."""
+        from unittest.mock import AsyncMock, MagicMock, patch
+
+        db_mock = MagicMock()
+        db_mock.list_model_endpoints.return_value = existing_endpoints or {}
+        stream_patch = patch(
+            "services.api.crud.model_monitoring.helpers.get_stream_url",
+            new=AsyncMock(return_value=stream_url),
+        )
+        db_patch = patch(
+            "framework.utils.singletons.db.get_db",
+            return_value=db_mock,
+        )
+        return stream_patch, db_patch
+
+    @pytest.mark.asyncio
+    async def test_happy_path_returns_instructions_and_url(self):
+        from mlrun.common.schemas.model_monitoring.model_endpoints import (
+            ModelEndpointInstruction,
+        )
+
+        dep = mm_dep.MonitoringDeployment(project="proj")
+        fn_dict = self._function_dict(
+            [ModelEndpointInstruction(name="ep1", input_schema=["f1"])]
+        )
+
+        stream_patch, db_patch = self._mock_db_and_stream("http://stream:8080")
+        with stream_patch, db_patch:
+            (
+                instructions,
+                stream_url,
+                _,
+            ) = await dep._create_model_endpoints_instructions_for_nuclio_app(
+                db_session=Mock(spec=mm_dep.sqlalchemy.orm.Session),
+                function=fn_dict,
+                function_name="my-fn",
+                project="proj",
+            )
+
+        assert len(instructions) == 1
+        ep, strategy = instructions[0]
+        assert ep.metadata.name == "ep1"
+        assert ep.spec.feature_names == ["f1"]
+        assert stream_url == "http://stream:8080"
+
+    @pytest.mark.asyncio
+    async def test_empty_instructions_returns_empty_list(self):
+        dep = mm_dep.MonitoringDeployment(project="proj")
+        fn_dict = self._function_dict([])
+
+        stream_patch, db_patch = self._mock_db_and_stream("http://stream:8080")
+        with stream_patch, db_patch:
+            (
+                instructions,
+                stream_url,
+                _,
+            ) = await dep._create_model_endpoints_instructions_for_nuclio_app(
+                db_session=Mock(spec=mm_dep.sqlalchemy.orm.Session),
+                function=fn_dict,
+                function_name="my-fn",
+                project="proj",
+            )
+
+        assert instructions == []
+
+    @pytest.mark.asyncio
+    async def test_instruction_objects_accepted_directly(self):
+        from mlrun.common.schemas.model_monitoring.model_endpoints import (
+            ModelEndpointInstruction,
+        )
+
+        dep = mm_dep.MonitoringDeployment(project="proj")
+        fn_dict = {
+            "metadata": {"tag": "latest"},
+            "spec": {
+                "model_endpoints_instructions": [
+                    ModelEndpointInstruction(name="ep-obj")
+                ]
+            },
+        }
+
+        stream_patch, db_patch = self._mock_db_and_stream("http://stream:8080")
+        with stream_patch, db_patch:
+            (
+                instructions,
+                stream_url,
+                _,
+            ) = await dep._create_model_endpoints_instructions_for_nuclio_app(
+                db_session=Mock(spec=mm_dep.sqlalchemy.orm.Session),
+                function=fn_dict,
+                function_name="my-fn",
+                project="proj",
+            )
+
+        assert len(instructions) == 1
+        ep, _ = instructions[0]
+        assert ep.metadata.name == "ep-obj"
+
+    @pytest.mark.asyncio
+    async def test_stream_url_none_logs_warning(self):
+        from mlrun.common.schemas.model_monitoring.model_endpoints import (
+            ModelEndpointInstruction,
+        )
+
+        dep = mm_dep.MonitoringDeployment(project="proj")
+        fn_dict = self._function_dict([ModelEndpointInstruction(name="ep1")])
+
+        stream_patch, db_patch = self._mock_db_and_stream(None)
+        with stream_patch, db_patch:
+            (
+                instructions,
+                stream_url,
+                _,
+            ) = await dep._create_model_endpoints_instructions_for_nuclio_app(
+                db_session=Mock(spec=mm_dep.sqlalchemy.orm.Session),
+                function=fn_dict,
+                function_name="my-fn",
+                project="proj",
+            )
+
+        assert stream_url is None
+        assert len(instructions) == 1
+
+    @pytest.mark.asyncio
+    async def test_invalid_instruction_type_raises(self):
+        dep = mm_dep.MonitoringDeployment(project="proj")
+        fn_dict = {
+            "metadata": {"tag": "latest"},
+            "spec": {"model_endpoints_instructions": [42]},
+        }
+
+        stream_patch, db_patch = self._mock_db_and_stream(None)
+        with stream_patch, db_patch, pytest.raises(Exception):
+            await dep._create_model_endpoints_instructions_for_nuclio_app(
+                db_session=Mock(spec=mm_dep.sqlalchemy.orm.Session),
+                function=fn_dict,
+                function_name="my-fn",
+                project="proj",
+            )
+
+
 def _kafka_trigger_group(fn: mlrun.runtimes.ServingRuntime) -> str:
     return fn.spec.config["spec.triggers.kafka"]["attributes"]["consumerGroup"]
 

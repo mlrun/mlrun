@@ -104,6 +104,45 @@ def test_create_local_function_for_execution_with_enrichment():
     assert runtime.spec.allow_empty_resources
 
 
+@pytest.mark.parametrize(
+    "module_qualified_handler",
+    [
+        # dotted form — already works
+        "module.submodule.fn",
+        # canonical mlrun module:func form — the new case
+        "handler:my_func",
+    ],
+)
+def test_create_local_function_for_execution_picks_local_for_module_qualified_handler(
+    module_qualified_handler,
+):
+    """Both dotted (`pkg.mod.fn`) and canonical (`mod:fn`) handler forms must
+    cause _create_local_function_for_execution to pick LocalRuntime — only
+    LocalRuntime has a _pre_run override that runs extract_source and puts
+    the workdir on sys.path. HandlerRuntime would silently starve.
+
+    The bug surfaces when the runtime has no embedded source code and no
+    inline command (source is fetched at runtime via git://, archive, or
+    store:// CodeArtifact) — in that case ``mlrun.new_function`` falls back
+    to ``HandlerRuntime`` unless the launcher passes ``kind="local"``.
+    """
+    launcher = mlrun.launcher.local.ClientLocalLauncher(local=False)
+    # simulate a job runtime whose source is loaded at runtime
+    # (git/archive/store) — no embedded source, no inline command. This is
+    # what makes the kind selector matter; otherwise the command path makes
+    # ``mlrun.new_function`` produce a LocalRuntime regardless.
+    runtime = mlrun.new_function(name="test", kind="job")
+    runtime.spec.build.source = "git://github.com/example/repo.git"
+    run = mlrun.run.RunObject()
+    fn = launcher._create_local_function_for_execution(
+        runtime=runtime,
+        run=run,
+        project="some-project",
+        handler=module_qualified_handler,
+    )
+    assert fn.kind == "local"
+
+
 def test_validate_inputs():
     launcher = mlrun.launcher.local.ClientLocalLauncher(local=False)
     runtime = mlrun.code_to_function(
@@ -323,3 +362,35 @@ def test_validate_run_retries_invalid_runtime():
         launcher._validate_run(runtime, run)
 
     assert "Retry is not supported for dask runtime" in str(excinfo.value)
+
+
+@pytest.mark.parametrize(
+    "handler_value,expected_suffix",
+    [
+        ("handler:my_func", "my-func"),
+        ("MyClass::run_method", "run-method"),
+        ("pkg.mod.entrypoint", "entrypoint"),
+        ("hello_world", "hello-world"),
+    ],
+)
+def test_enrich_run_name_strips_handler_module_prefix(handler_value, expected_suffix):
+    """The auto-generated run.metadata.name must strip the module prefix from
+    every handler form mlrun accepts. Critically, the result must be a valid
+    DNS-1123 name - no `:` allowed - or the run will be rejected by K8s.
+    Order matters: the `::` separator (class-method) must split BEFORE `:`
+    so MyClass::run_method becomes 'run_method', not 'method'."""
+    launcher = mlrun.launcher.local.ClientLocalLauncher(local=False)
+    # Build the runtime with NO default handler so the parametrized
+    # `handler_value` is the only handler input — keeps the data flow
+    # unambiguous when reading the test cold.
+    runtime = mlrun.code_to_function(name="my-fn", kind="job", filename=str(func_path))
+    run = mlrun.run.RunObject()
+    launcher._enrich_run(
+        runtime=runtime,
+        run=run,
+        handler=handler_value,
+        project_name="some-project",
+        name=None,
+    )
+    assert ":" not in run.metadata.name
+    assert run.metadata.name == f"my-fn-{expected_suffix}"

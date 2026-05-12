@@ -1129,6 +1129,154 @@ class TestKubejobRuntimeHandler(TestRuntimeHandlerBase):
         assert runtime.spec.volume_mounts == []
         assert runtime.spec.volumes == []
 
+    @pytest.mark.parametrize(
+        "initial_volume_mounts,initial_volumes,expected_volume_count",
+        [
+            # No existing volumes or mounts
+            ([], [], 1),
+            # Volume with the same name already exists (should be replaced, not duplicated)
+            (
+                [
+                    {
+                        "mountPath": mlrun_constants.MLRUN_TELEMETRY_OTLP_HEADERS_PATH,
+                        "name": "telemetry-otlp-headers",
+                    }
+                ],
+                [
+                    {
+                        "name": "telemetry-otlp-headers",
+                        "secret": {"items": None, "secretName": "old-secret"},
+                    }
+                ],
+                1,
+            ),
+            # Volume with a different name already exists (should add new one alongside)
+            (
+                [{"mountPath": "/some/other/path", "name": "other-volume"}],
+                [
+                    {
+                        "name": "other-volume",
+                        "secret": {"items": [], "secretName": "old-secret"},
+                    }
+                ],
+                2,
+            ),
+        ],
+    )
+    def test_mount_telemetry_headers_to_runtime(
+        self,
+        initial_volume_mounts,
+        initial_volumes,
+        expected_volume_count,
+    ):
+        runtime = mlrun.runtimes.kubejob.KubejobRuntime()
+        runtime.spec.volume_mounts = initial_volume_mounts.copy()
+        runtime.spec.volumes = initial_volumes.copy()
+
+        mlrun.mlconf.telemetry.headers_secret_name = "mlrun-otel-headers"
+        try:
+            self.runtime_handler._mount_telemetry_headers_to_runtime(runtime)
+        finally:
+            mlrun.mlconf.telemetry.headers_secret_name = ""
+
+        telemetry_mounts = [
+            volume_mount
+            for volume_mount in runtime.spec.volume_mounts
+            if volume_mount["name"] == "telemetry-otlp-headers"
+        ]
+        telemetry_volumes = [
+            volume
+            for volume in runtime.spec.volumes
+            if volume["name"] == "telemetry-otlp-headers"
+        ]
+
+        assert len(telemetry_mounts) == 1
+        assert (
+            telemetry_mounts[0]["mountPath"]
+            == mlrun_constants.MLRUN_TELEMETRY_OTLP_HEADERS_PATH
+        )
+        assert len(telemetry_volumes) == 1
+        assert telemetry_volumes[0]["secret"]["secretName"] == "mlrun-otel-headers"
+        assert len(runtime.spec.volumes) == expected_volume_count
+
+    def test_mount_telemetry_headers_to_runtime_when_not_configured(self):
+        runtime = mlrun.runtimes.kubejob.KubejobRuntime()
+        mlrun.mlconf.telemetry.headers_secret_name = ""
+
+        self.runtime_handler._mount_telemetry_headers_to_runtime(runtime)
+
+        # No mount should be added when headers_secret_name is blank
+        assert runtime.spec.volume_mounts == []
+        assert runtime.spec.volumes == []
+
+    @pytest.mark.parametrize(
+        "otlp_enabled,headers_secret_name,expect_telemetry_mount",
+        [
+            # Both flags set → mount applied
+            (True, "mlrun-otel-headers", True),
+            # otlp_enabled off → no mount even if the secret is configured
+            (False, "mlrun-otel-headers", False),
+            # otlp_enabled on but no secret name → no mount (nothing to point at)
+            (True, "", False),
+            # Neither set → no mount
+            (False, "", False),
+        ],
+    )
+    def test_add_k8s_secrets_to_spec_telemetry_gating(
+        self, otlp_enabled, headers_secret_name, expect_telemetry_mount
+    ):
+        """Telemetry mount fires only when both the per-function `otlp_enabled` flag
+        is True and the operator has configured `mlconf.telemetry.headers_secret_name`."""
+        runtime = mlrun.runtimes.kubejob.KubejobRuntime()
+        mlrun.mlconf.telemetry.headers_secret_name = headers_secret_name
+
+        # Skip the unrelated global-secrets and project-secrets branches inside
+        # add_k8s_secrets_to_spec — they need a populated K8s helper that's
+        # orthogonal to telemetry gating.
+        mlrun.mlconf.secret_stores.kubernetes.global_function_env_secret_name = ""
+        mlrun.mlconf.secret_stores.kubernetes.auto_add_project_secrets = False
+
+        try:
+            self.runtime_handler.add_k8s_secrets_to_spec(
+                None,
+                runtime,
+                project_name="some-project",
+                otlp_enabled=otlp_enabled,
+            )
+        finally:
+            mlrun.mlconf.telemetry.headers_secret_name = ""
+
+        telemetry_mounts = [
+            mount
+            for mount in runtime.spec.volume_mounts
+            if mount["name"] == "telemetry-otlp-headers"
+        ]
+        if expect_telemetry_mount:
+            assert len(telemetry_mounts) == 1
+            assert (
+                telemetry_mounts[0]["mountPath"]
+                == mlrun_constants.MLRUN_TELEMETRY_OTLP_HEADERS_PATH
+            )
+        else:
+            assert telemetry_mounts == []
+
+    @pytest.mark.parametrize("kind", ["job", "serving"])
+    def test_otlp_enabled_round_trips_through_spec(self, kind):
+        """The spec attribute lifts to KubeResourceSpec so it works for both
+        job (KubejobRuntime) and remote/serving (NuclioSpec subclass) kinds."""
+        if kind == "job":
+            runtime = mlrun.runtimes.kubejob.KubejobRuntime()
+        else:
+            runtime = mlrun.runtimes.ServingRuntime()
+
+        # Default is False
+        assert runtime.spec.otlp_enabled is False
+
+        # Round-trip through to_dict / from_dict
+        runtime.spec.otlp_enabled = True
+        spec_dict = runtime.spec.to_dict()
+        assert spec_dict["otlp_enabled"] is True
+
     def test_resolve_container_error_status_with_null_container_statuses(self):
         # When containerStatuses is absent from the K8s API response,
         # V1PodStatus.to_dict() sets it to None rather than omitting the key.

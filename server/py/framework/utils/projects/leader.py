@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import collections
+import datetime
 import traceback
 import typing
 
@@ -156,9 +157,10 @@ class Member(
         labels: list[str] | None = None,
         state: mlrun.common.schemas.ProjectState = None,
         names: list[str] | None = None,
+        updated_after: datetime.datetime | None = None,
     ) -> mlrun.common.schemas.ProjectsOutput:
         return self._leader_follower.list_projects(
-            db_session, auth_info, owner, format_, labels, state, names
+            db_session, auth_info, owner, format_, labels, state, names, updated_after
         )
 
     async def list_project_summaries(

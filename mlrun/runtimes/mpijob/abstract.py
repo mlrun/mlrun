@@ -58,6 +58,7 @@ class MPIResourceSpec(KubeResourceSpec):
         parameters=None,
         track_models=None,
         env_from=None,
+        otlp_enabled: bool = False,
     ):
         super().__init__(
             command=command,
@@ -92,6 +93,7 @@ class MPIResourceSpec(KubeResourceSpec):
             graph=graph,
             parameters=parameters,
             track_models=track_models,
+            otlp_enabled=otlp_enabled,
         )
         self.mpi_args = mpi_args or [
             "-x",

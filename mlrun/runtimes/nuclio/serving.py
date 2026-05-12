@@ -233,9 +233,7 @@ class EndpointConfig(mlrun.model.ModelObj):
         input_body_mappings: BodyMappings | None = None,
     ) -> None:
         self.path = path
-        self.http_method = (
-            HTTPMethod(http_method) if isinstance(http_method, str) else http_method
-        )
+        self.http_method = APIHandlerConfig._validate_http_method(http_method)
         self.action = action
         self.description = description
         self.input_body_mappings = input_body_mappings
@@ -264,8 +262,7 @@ class APIHandlerConfig(mlrun.model.ModelObj):
     ):
         self.enabled = enabled
         self._endpoints: dict[str, EndpointConfig] = {}
-        if endpoints:
-            self.endpoints = endpoints
+        self.endpoints = endpoints or {}
         self.include_url_info = include_url_info
 
     @property

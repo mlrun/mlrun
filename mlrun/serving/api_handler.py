@@ -22,6 +22,7 @@ from typing import Any, Union
 from urllib.parse import parse_qs, unquote, urlsplit
 
 import jsonpath_ng
+import jsonpath_ng.exceptions
 import nuclio_sdk
 
 import mlrun.common.schemas as schemas
@@ -201,7 +202,10 @@ class _APIHandlerStep(mlrun.serving.states.TaskStep):
                 for mapping in ep.input_body_mappings.mappings:
                     try:
                         compiled_expr = jsonpath_ng.parse(mapping["source_json_path"])
-                    except Exception as e:
+                    except (
+                        jsonpath_ng.exceptions.JsonPathLexerError,
+                        jsonpath_ng.exceptions.JsonPathParserError,
+                    ) as e:
                         raise mlrun.errors.MLRunValueError(
                             f"Invalid JSONPath expression '{mapping['source_json_path']}' "
                             f"in endpoint '{ep.get_endpoint_key()}': {e}"

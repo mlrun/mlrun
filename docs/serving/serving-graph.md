@@ -20,20 +20,20 @@ multi-agent patterns (router → tools → planner → responder), and feedback 
 
 ## Building graphs
 Graphs are composed of individual steps: {ref}`pre-defined graph steps<building-graphs>`,  [custom steps](./writing-custom-steps.ipynb),
-from native python classes/functions, and steps you import from the MLRun hub or your own hub. 
+from native python classes/functions, and steps you import from the {ref}`MLRun hub<hub-steps>` or {ref}`your own hub<git-repo-as-hub>`. 
 
 Serving graph features include:
-- Cyclic graphs for use in iterative and agentic workflows, enabling patterns like the evaluator–optimizer loop, guardrail enforcement, large-scale data or inference pipelines, and multi-agent communication. Typical use cases include agent steps that require feedback, retry, or coordination loops (common in GenAI-driven workflows).
-- Batching, whereby you can control which parts of graph use batching. 
-- Streaming responses whereby tokens are sent back as they are generated rather than wait until all the tokens are generated. You can use multiple streaming steps in a graph. Streaming responses reduce latency.
+- [Cyclic graphs](../serving/getting-started.md#cyclic-graph) for use in iterative and agentic workflows, enabling patterns like the evaluator–optimizer loop, guardrail enforcement, large-scale data or inference pipelines, and multi-agent communication. Typical use cases include agent steps that require feedback, retry, or coordination loops (common in GenAI-driven workflows).
+- [Batching](../genai/deployment/gpu_utilization.md#batching), whereby you can control which parts of graph use batching. 
+- [Streaming responses](../serving/getting-started.md#streaming-serving-function) whereby tokens are sent back as they are generated rather than wait until all the tokens are generated. You can use multiple streaming steps in a graph. Streaming responses reduce latency.
 - The [ModelRunnerStep](../serving/model-serving-steps.md#modelrunnerstep), for running multiple models on each event with control over how they are executed in terms of concurrency and parallelism. 
 - LLM support. When a ModelRunnerStep is included in a graph, MLRun automatically imports the default language model class during function deployment to wrap the model for handling an LLM prompt-based inference. See an example in {ref}`genai-serving-graph`.
 
 Graphs can run inside your IDE or Notebook for test and simulation. 
 
-Serving graphs are built on top of [Nuclio](https://docs.nuclio.io/en/latest/) (real-time serverless engine), [MLRun jobs](../concepts/scheduled-jobs.md), [MLRun Storey](<https://github.com/mlrun/storey>) (native Python async and stream processing engine), and other MLRun facilities. 
+Serving graphs are built on top of the [Nuclio real-time serverless engine](https://docs.nuclio.io/en/latest/), {ref}`MLRun jobs<job-function>`, [MLRun Storey](<https://github.com/mlrun/storey>) (native Python async and stream processing engine), and other MLRun facilities. 
 
-By default, all steps of the serving graph run on the same pod. It is possible to run different steps on different pods using distributed pipelines.Typically you run steps that require CPU on one pod, and steps that require a GPU on a different pod that is running on a potentially different node that has GPU support.
+By default, all steps of the serving graph run on the same pod. It is possible to run different steps on different pods using distributed pipelines.Typically you run steps that require CPU on one pod, and steps that require a GPU on a different pod that is running on a potentially different node that has GPU support. See {ref}`distributed-graph-oview`.
 
 ## Serving graph UI
 The realtime pipelines UI page displays: 

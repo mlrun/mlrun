@@ -113,6 +113,9 @@ class TestBodyMappings:
         assert bm2.mappings == bm.mappings
 
         # APIHandlerConfig roundtrip — nested BodyMappings must survive deserialization
+        output_bm = BodyMappings()
+        output_bm.add_mapping("$.result", destination_path="output", mandatory=True)
+
         config = APIHandlerConfig()
         config.add_endpoint_handler(
             "/users",
@@ -120,6 +123,7 @@ class TestBodyMappings:
             APIHandlerAction.ALLOW,
             "Create user",
             input_body_mappings=bm,
+            output_body_mappings=output_bm,
         )
         config_dict = config.to_dict()
 
@@ -130,6 +134,7 @@ class TestBodyMappings:
         restored = APIHandlerConfig.from_dict(config_dict)
         ep = restored.get_endpoint_config(HTTPMethod.POST, "/users")
         assert ep.input_body_mappings.to_dict() == bm.to_dict()
+        assert ep.output_body_mappings.to_dict() == output_bm.to_dict()
 
 
 class TestRequestContext:
@@ -1568,7 +1573,7 @@ class TestAPIHandlerConfig:
         assert config_dict["enabled"] is True
 
     def test_from_dict(self) -> None:
-        """Test deserialization from dictionary"""
+        """Test deserialization from dictionary, including both input and output body mappings."""
         data = {
             "enabled": True,
             "endpoints": {
@@ -1577,6 +1582,24 @@ class TestAPIHandlerConfig:
                     "description": "Prediction",
                     "path": "/predict",
                     "http_method": "POST",
+                    "input_body_mappings": {
+                        "mappings": [
+                            {
+                                "source_json_path": "$.model",
+                                "destination_path": "model",
+                                "mandatory": True,
+                            }
+                        ]
+                    },
+                    "output_body_mappings": {
+                        "mappings": [
+                            {
+                                "source_json_path": "$.result",
+                                "destination_path": "output",
+                                "mandatory": True,
+                            }
+                        ]
+                    },
                 }
             },
         }
@@ -1586,6 +1609,14 @@ class TestAPIHandlerConfig:
         assert ep is not None
         assert ep.action == APIHandlerAction.ALLOW
         assert ep.description == "Prediction"
+        assert ep.input_body_mappings is not None
+        assert ep.input_body_mappings.mappings == [
+            {"source_json_path": "$.model", "destination_path": "model", "mandatory": True}
+        ]
+        assert ep.output_body_mappings is not None
+        assert ep.output_body_mappings.mappings == [
+            {"source_json_path": "$.result", "destination_path": "output", "mandatory": True}
+        ]
 
     def test_add_endpoint_handler_override_warning(
         self, caplog: pytest.LogCaptureFixture

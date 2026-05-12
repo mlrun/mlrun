@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import unittest.mock
+import uuid
 
 import pytest
 
@@ -78,7 +79,7 @@ class TestGetOrCreateProject2pcBackgroundTask:
         mock_handler_cls.get_active_background_task_by_kind.return_value = existing_task
 
         task, name = framework.api.utils.get_or_create_project_2pc_background_task(
-            "p1", runner
+            "p1", uuid.uuid4(), runner
         )
 
         assert task is None
@@ -98,7 +99,7 @@ class TestGetOrCreateProject2pcBackgroundTask:
         )
 
         task, name = framework.api.utils.get_or_create_project_2pc_background_task(
-            "p1", runner
+            "p1", uuid.uuid4(), runner
         )
 
         assert task is sentinel_callable
@@ -120,10 +121,10 @@ class TestGetOrCreateProject2pcBackgroundTask:
         )
 
         framework.api.utils.get_or_create_project_2pc_background_task(
-            "alpha", unittest.mock.Mock()
+            "alpha", uuid.uuid4(), unittest.mock.Mock()
         )
         framework.api.utils.get_or_create_project_2pc_background_task(
-            "beta", unittest.mock.Mock()
+            "beta", uuid.uuid4(), unittest.mock.Mock()
         )
 
         kinds = [

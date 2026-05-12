@@ -655,10 +655,11 @@ class TestProjects(TestDatabaseBase):
         assert output.projects == ["deleting-stale"]
 
     def test_list_stale_projects_unknown_state_excluded(self):
-        # State outside {creating, online, deleting} hits else_=False even
-        # with a non-null phase and an updated_at far in the past.
+        # State outside the case branches (creating / STABLE_STATUSES /
+        # deleting) hits else_=False even with a non-null phase and an
+        # updated_at far in the past.
         self._seed_stale_project(
-            "p-archived", state="archived", phase=1, age_seconds=10_000
+            "p-unknown", state="unknown", phase=1, age_seconds=10_000
         )
         output = self._db.list_stale_projects(
             self._db_session,
@@ -698,7 +699,7 @@ class TestProjects(TestDatabaseBase):
             "phase-null", state="deleting", phase=None, age_seconds=10_000
         )
         self._seed_stale_project(
-            "archived", state="archived", phase=1, age_seconds=10_000
+            "unknown", state="unknown", phase=1, age_seconds=10_000
         )
 
         output = self._db.list_stale_projects(

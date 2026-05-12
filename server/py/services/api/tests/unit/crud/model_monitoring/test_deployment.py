@@ -762,13 +762,18 @@ def test_kafka_migration_not_invoked_when_ignore_flag_false(
 
 class TestOtelEnableValidation:
     """deploy_monitoring_functions(otlp_enabled=True) must fail fast when the
-    operator hasn't configured a usable OTLP endpoint."""
+    operator hasn't configured a usable OTLP endpoint.
+
+    Note on bool vs. string: `mlconf.telemetry.enabled` is a Python bool at
+    runtime (env vars are type-coerced from the schema default in
+    mlrun/config.py). Tests set True/False, not the strings "true"/"false".
+    """
 
     @staticmethod
     @pytest.fixture(autouse=True)
     def reset_telemetry_config(monkeypatch):
         # Keep tests deterministic regardless of repo defaults.
-        monkeypatch.setattr(mlrun.mlconf.telemetry, "enabled", "false", raising=False)
+        monkeypatch.setattr(mlrun.mlconf.telemetry, "enabled", False, raising=False)
         monkeypatch.setattr(mlrun.mlconf.telemetry, "otlp_endpoint", "", raising=False)
 
     @staticmethod
@@ -782,7 +787,7 @@ class TestOtelEnableValidation:
             "https://otel.example.com:4317",
             raising=False,
         )
-        monkeypatch.setattr(mlrun.mlconf.telemetry, "enabled", "false", raising=False)
+        monkeypatch.setattr(mlrun.mlconf.telemetry, "enabled", False, raising=False)
 
         with pytest.raises(
             mlrun.errors.MLRunBadRequestError, match="disabled telemetry"
@@ -794,13 +799,36 @@ class TestOtelEnableValidation:
         monitoring_deployment: mm_dep.MonitoringDeployment, monkeypatch
     ) -> None:
         # Telemetry on but no endpoint → reject.
-        monkeypatch.setattr(mlrun.mlconf.telemetry, "enabled", "true", raising=False)
+        monkeypatch.setattr(mlrun.mlconf.telemetry, "enabled", True, raising=False)
         monkeypatch.setattr(mlrun.mlconf.telemetry, "otlp_endpoint", "", raising=False)
 
         with pytest.raises(
             mlrun.errors.MLRunBadRequestError, match="otlp_endpoint is blank"
         ):
             monitoring_deployment.deploy_monitoring_functions(otlp_enabled=True)
+
+    @staticmethod
+    def test_passes_when_telemetry_enabled_and_endpoint_set(
+        monitoring_deployment: mm_dep.MonitoringDeployment, monkeypatch
+    ) -> None:
+        """Regression guard for the original bug: the precheck used `!= "true"`
+        which always fired against the bool True value. With the bool-truthy
+        fix, this happy path must not raise the OTel validator at all.
+        """
+        monkeypatch.setattr(mlrun.mlconf.telemetry, "enabled", True, raising=False)
+        monkeypatch.setattr(
+            mlrun.mlconf.telemetry,
+            "otlp_endpoint",
+            "https://otel.example.com:4317",
+            raising=False,
+        )
+
+        # Deploy will still fail later (no credentials configured in this fixture),
+        # but it must NOT raise either of the OTel-precheck errors.
+        with pytest.raises(Exception) as exc_info:
+            monitoring_deployment.deploy_monitoring_functions(otlp_enabled=True)
+        assert "disabled telemetry" not in str(exc_info.value)
+        assert "otlp_endpoint is blank" not in str(exc_info.value)
 
     @staticmethod
     def test_does_not_check_when_otlp_disabled(

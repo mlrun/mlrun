@@ -79,10 +79,17 @@ def test_project_monitoring_spec_rejects_invalid_enum(field, value):
         mlrun.common.schemas.project.ProjectMonitoringSpec(**{field: value})
 
 
-def test_project_spec_model_monitoring_default_is_none():
-    """ProjectSpec.model_monitoring defaults to None — projects pre-ML-12543 have no MM section."""
+def test_project_spec_model_monitoring_default_is_populated():
+    """ProjectSpec.model_monitoring always returns a default-populated struct so
+    callers never have to None-guard. Reading individual flags before
+    enable_model_monitoring/set_credentials yields the all-default values.
+    """
     project_spec = mlrun.common.schemas.project.ProjectSpec()
-    assert project_spec.model_monitoring is None
+    assert project_spec.model_monitoring is not None
+    assert project_spec.model_monitoring.enabled is False
+    assert project_spec.model_monitoring.otlp_enabled is False
+    assert project_spec.model_monitoring.stream_type is None
+    assert project_spec.model_monitoring.tsdb_type is None
 
 
 def test_project_spec_nests_model_monitoring():

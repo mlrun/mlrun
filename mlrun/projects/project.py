@@ -1113,13 +1113,13 @@ class ProjectSpec(ModelObj):
         self._build = self._verify_dict(build, "build", ImageBuilder)
 
     @property
-    def model_monitoring(self) -> ProjectMonitoringSpec | None:
+    def model_monitoring(self) -> ProjectMonitoringSpec:
         return self._model_monitoring
 
     @model_monitoring.setter
     def model_monitoring(self, model_monitoring):
         if model_monitoring is None:
-            self._model_monitoring = None
+            self._model_monitoring = ProjectMonitoringSpec()
             return
         self._model_monitoring = self._verify_dict(
             model_monitoring, "model_monitoring", ProjectMonitoringSpec
@@ -2776,6 +2776,9 @@ class MlrunProject(ModelObj):
             lag_event_cooldown=lag_event_cooldown,
             otlp_enabled=otlp_enabled,
         )
+        # Server-side `_persist_model_monitoring_spec` patches `project.spec.model_monitoring`
+        # (enabled, otlp_enabled). Mirror via the same `_enrich` flow used by `save()`.
+        self._enrich(db.get_project(self.name))
 
         if wait_for_deployment:
             deployment_functions = mm_constants.MonitoringFunctionNames.list()
@@ -4170,6 +4173,9 @@ class MlrunProject(ModelObj):
             },
             replace_creds=replace_creds,
         )
+        # Server-side `_persist_model_monitoring_spec` patches `project.spec.model_monitoring`
+        # (stream_type, tsdb_type). Mirror via the same `_enrich` flow used by `save()`.
+        self._enrich(db.get_project(self.name))
         if replace_creds:
             logger.info(
                 "Model monitoring credentials were set successfully. "

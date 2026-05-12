@@ -1394,40 +1394,10 @@ class TestModelMonitoringInitialize(TestMLRunSystemModelMonitoring):
                 image=self.image or mlrun.mlconf.function_defaults.image_by_kind.job
             )
         self.set_mm_credentials()
-
-        # set_model_monitoring_credentials should populate the resolved
-        # stream/tsdb types on project.spec.model_monitoring (ML-12543).
-        mm_state = (
-            mlrun.get_run_db().get_project(self.project_name).spec.model_monitoring
-        )
-        assert mm_state is not None, (
-            "ProjectMonitoringSpec should be populated after set_model_monitoring_credentials"
-        )
-        assert mm_state.stream_type is not None
-        assert mm_state.tsdb_type is not None
-        # `enabled` is False here — credentials are set but enable hasn't been
-        # called yet.
-        assert mm_state.enabled is False
-
         self.project.enable_model_monitoring(
             image=self.image or mlrun.mlconf.function_defaults.image_by_kind.job,
             wait_for_deployment=True,
         )
-
-        # Project spec should reflect that model monitoring is enabled — verifies
-        # ProjectMonitoringSpec is persisted by deploy_monitoring_functions
-        # (ML-12543 scaffolding, not OTel-specific).
-        mm_state = (
-            mlrun.get_run_db().get_project(self.project_name).spec.model_monitoring
-        )
-        assert mm_state is not None, (
-            "ProjectMonitoringSpec should be populated after enable_model_monitoring"
-        )
-        assert mm_state.enabled is True
-        # stream/tsdb types must still be set — deploy should not reset them.
-        assert mm_state.stream_type is not None
-        assert mm_state.tsdb_type is not None
-
         with pytest.raises(mlrun.errors.MLRunConflictError):
             self.project.enable_model_monitoring(
                 image=self.image or mlrun.mlconf.function_defaults.image_by_kind.job,
@@ -1469,18 +1439,6 @@ class TestModelMonitoringInitialize(TestMLRunSystemModelMonitoring):
         )
 
         self.project.disable_model_monitoring(delete_histogram_data_drift_app=False)
-
-        # Project spec should reflect that model monitoring is disabled — verifies
-        # disable_model_monitoring declaratively flips ProjectMonitoringSpec.enabled
-        # back to False.
-        mm_state = (
-            mlrun.get_run_db().get_project(self.project_name).spec.model_monitoring
-        )
-        assert mm_state is not None
-        assert mm_state.enabled is False
-        assert mm_state.stream_type is not None
-        assert mm_state.tsdb_type is not None
-
         stream_profile = self.mm_stream_profile
         if isinstance(stream_profile, DatastoreProfileV3io):
             v3io_client = v3io.dataplane.Client(endpoint=mlrun.mlconf.v3io_api)

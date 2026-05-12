@@ -103,7 +103,9 @@ class ProjectSpec(pydantic.v1.BaseModel):
     default_image: str | None = None
     build: ImageBuilder | None = None
     default_function_node_selector: dict | None = {}
-    model_monitoring: ProjectMonitoringSpec | None = None
+    model_monitoring: ProjectMonitoringSpec = pydantic.v1.Field(
+        default_factory=ProjectMonitoringSpec
+    )
 
     class Config:
         extra = pydantic.v1.Extra.allow
@@ -127,7 +129,9 @@ class ProjectSpecOut(pydantic.v1.BaseModel):
     default_image: str | None = None
     build: typing.Any = None
     default_function_node_selector: dict | None = {}
-    model_monitoring: ProjectMonitoringSpec | None = None
+    model_monitoring: ProjectMonitoringSpec = pydantic.v1.Field(
+        default_factory=ProjectMonitoringSpec
+    )
 
     class Config:
         extra = pydantic.v1.Extra.allow

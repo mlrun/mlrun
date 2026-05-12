@@ -196,10 +196,10 @@ class MonitoringDeployment:
         # hasn't configured a usable endpoint. Better UX than silently swallowing
         # the request and discovering it doesn't work at function-launch time.
         if otlp_enabled:
-            if mlrun.mlconf.telemetry.enabled != "true":  # maybe we will let it pass.
+            if not mlrun.mlconf.telemetry.enabled:
                 raise mlrun.errors.MLRunBadRequestError(
                     "Cannot enable model monitoring OTel export: operator has "
-                    "disabled telemetry (mlconf.telemetry.enabled != 'true')."
+                    "disabled telemetry (mlconf.telemetry.enabled is not true)."
                 )
             if not mlrun.mlconf.telemetry.otlp_endpoint:
                 raise mlrun.errors.MLRunBadRequestError(

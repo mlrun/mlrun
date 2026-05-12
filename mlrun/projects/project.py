@@ -2866,6 +2866,7 @@ class MlrunProject(ModelObj):
             delete_user_applications=delete_user_applications,
             user_application_list=user_application_list,
         )
+        self._enrich(db.get_project(self.name))
         if succeed and delete_resources:
             try:
                 self.delete_model_monitoring_lag_alert()

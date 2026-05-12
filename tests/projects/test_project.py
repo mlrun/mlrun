@@ -2728,6 +2728,56 @@ class TestModelMonitoring:
         assert project.spec.model_monitoring.tsdb_type == "postgresql"
 
     @staticmethod
+    def test_disable_model_monitoring_refreshes_local_spec() -> None:
+        """After the server-side teardown, the SDK re-fetches the project and
+        merges the now-disabled spec back so the local object reflects
+        enabled=False / otlp_enabled=False without an extra get_project.
+        """
+        # Pre-populate as if monitoring was previously enabled.
+        project = mlrun.projects.MlrunProject(
+            metadata={"name": "p"},
+            spec={
+                "model_monitoring": {
+                    "enabled": True,
+                    "otlp_enabled": True,
+                    "stream_type": "kafka",
+                    "tsdb_type": "postgresql",
+                },
+            },
+        )
+        # Server-side post-disable state: server resets enabled/otlp_enabled
+        # but preserves stream/tsdb types so re-enabling doesn't need
+        # set_credentials again.
+        server_view = mlrun.projects.MlrunProject(
+            metadata={"name": "p"},
+            spec={
+                "model_monitoring": {
+                    "enabled": False,
+                    "otlp_enabled": False,
+                    "stream_type": "kafka",
+                    "tsdb_type": "postgresql",
+                },
+            },
+        )
+
+        with unittest.mock.patch("mlrun.db.get_run_db") as get_db:
+            mock_db = unittest.mock.Mock()
+            # Disable returns truthy to skip the lag-alert teardown path.
+            mock_db.disable_model_monitoring.return_value = False
+            mock_db.get_project.return_value = server_view
+            get_db.return_value = mock_db
+
+            project.disable_model_monitoring()
+
+        mock_db.disable_model_monitoring.assert_called_once()
+        mock_db.get_project.assert_called_once_with("p")
+        assert project.spec.model_monitoring.enabled is False
+        assert project.spec.model_monitoring.otlp_enabled is False
+        # Backend types preserved so a re-enable doesn't need credentials again.
+        assert project.spec.model_monitoring.stream_type == "kafka"
+        assert project.spec.model_monitoring.tsdb_type == "postgresql"
+
+    @staticmethod
     def test_set_model_monitoring_credentials_refreshes_local_spec() -> None:
         """After set_model_monitoring_credentials, the SDK re-fetches the
         project so stream_type/tsdb_type derived server-side from the registered

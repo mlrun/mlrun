@@ -2754,8 +2754,8 @@ class TestHTTPIngest(TestMLRunSystemModelMonitoring):
     def _deploy_monitoring_app(self) -> None:
         app_fn = self.project.set_model_monitoring_function(
             func=str(Path(__file__).parent / "assets" / "application.py"),
-            application_class=DemoMonitoringApp.__name__,
-            name=DemoMonitoringApp.NAME,
+            application_class=NoCheckDemoMonitoringApp.__name__,
+            name=NoCheckDemoMonitoringApp.NAME,
             image=self.image or mlrun.mlconf.function_defaults.image_by_kind.job,
         )
         self.project.deploy_function(app_fn)
@@ -2801,7 +2801,8 @@ class TestHTTPIngest(TestMLRunSystemModelMonitoring):
             end=datetime.now(UTC),
         )
         assert not isinstance(
-            pred, mlrun.common.schemas.model_monitoring.ModelEndpointMonitoringMetricNoData
+            pred,
+            mlrun.common.schemas.model_monitoring.ModelEndpointMonitoringMetricNoData,
         ), "No predictions in TSDB predictions table yet"
 
     # ------------------------------------------------------------------

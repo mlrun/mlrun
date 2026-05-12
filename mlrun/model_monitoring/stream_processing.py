@@ -477,7 +477,7 @@ class ProcessHTTPEvent(storey.ConcurrentExecution):
         return {
             EventFieldType.MODEL: name,
             EventFieldType.MODEL_CLASS: event.get(EventFieldType.MODEL_CLASS, ""),
-            "microsec": event.get(MonitoringHTTPPayload.MICROSEC) or 0.0,
+            "microsec": event.get(MonitoringHTTPPayload.LATENCY) or 0.0,
             "when": when,
             "error": None,
             EventFieldType.ENDPOINT_ID: endpoint_id,

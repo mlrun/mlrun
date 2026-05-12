@@ -216,10 +216,11 @@ class TestProcessHTTPEvent:
         assert result["resp"]["outputs"] == [0.9]
         assert result["request"]["input_schema"] == ["a", "b"]
 
-
     def test_when_added_if_missing(self):
         step = self._step()
-        result = step.do({"model_endpoint_uid": "ep-1", "inputs": [[1.0]], "outputs": [[0.8]]})
+        result = step.do(
+            {"model_endpoint_uid": "ep-1", "inputs": [[1.0]], "outputs": [[0.8]]}
+        )
         assert result["when"] is not None
 
     def test_when_preserved_if_provided(self):
@@ -251,7 +252,9 @@ class TestProcessHTTPEvent:
 
     def test_model_empty_when_name_not_provided(self):
         step = self._step()
-        result = step.do({"model_endpoint_uid": "ep-1", "inputs": [[1.0]], "outputs": [[0.8]]})
+        result = step.do(
+            {"model_endpoint_uid": "ep-1", "inputs": [[1.0]], "outputs": [[0.8]]}
+        )
         assert result[EventFieldType.MODEL] == ""
 
     def test_optional_metadata_forwarded(self):
@@ -262,7 +265,7 @@ class TestProcessHTTPEvent:
                 "inputs": [[1.0]],
                 "outputs": [[0.8]],
                 "timestamp": "2024-01-01T00:00:00Z",
-                "microsec": 123.4,
+                "latency": 123.4,
                 "labels": {"env": "prod"},
                 "metrics": {"accuracy": 0.99},
             }
@@ -274,18 +277,24 @@ class TestProcessHTTPEvent:
 
     def test_request_id_generated_when_absent(self):
         step = self._step()
-        result = step.do({"model_endpoint_uid": "ep-1", "inputs": [[1.0]], "outputs": [[0.8]]})
+        result = step.do(
+            {"model_endpoint_uid": "ep-1", "inputs": [[1.0]], "outputs": [[0.8]]}
+        )
         assert result["request"]["id"] is not None
         assert len(result["request"]["id"]) > 0
 
     def test_function_uri_from_endpoint_schema(self):
         step = self._step(function_uri="my-project/my-fn:latest")
-        result = step.do({"model_endpoint_uid": "ep-1", "inputs": [[1.0]], "outputs": [[0.8]]})
+        result = step.do(
+            {"model_endpoint_uid": "ep-1", "inputs": [[1.0]], "outputs": [[0.8]]}
+        )
         assert result[EventFieldType.FUNCTION_URI] == "my-project/my-fn:latest"
 
     def test_function_uri_empty_for_user_ep(self):
         step = self._step(function_uri="")
-        result = step.do({"model_endpoint_uid": "ep-1", "inputs": [[1.0]], "outputs": [[0.8]]})
+        result = step.do(
+            {"model_endpoint_uid": "ep-1", "inputs": [[1.0]], "outputs": [[0.8]]}
+        )
         assert result[EventFieldType.FUNCTION_URI] == ""
 
 

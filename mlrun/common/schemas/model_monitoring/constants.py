@@ -356,7 +356,7 @@ class MonitoringHTTPPayload(MonitoringStrEnum):
     TIMESTAMP = "timestamp"
     INPUTS = "inputs"
     OUTPUTS = "outputs"
-    MICROSEC = "microsec"  # optional: inference latency in microseconds
+    LATENCY = "latency"  # optional: inference latency in microseconds
 
 
 class MonitoringFunctionNames(MonitoringStrEnum):

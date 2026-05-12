@@ -20,8 +20,14 @@ import kafka.errors
 import pytest
 
 import mlrun.common.schemas
+import mlrun.common.schemas.model_monitoring.constants as mm_constants
 import mlrun.runtimes
-from mlrun.datastore.datastore_profile import DatastoreProfileKafkaStream
+from mlrun.datastore.datastore_profile import (
+    DatastoreProfileKafkaSource,
+    DatastoreProfileKafkaStream,
+    DatastoreProfilePostgreSQL,
+    DatastoreProfileV3io,
+)
 
 import services.api
 import services.api.crud.model_monitoring.deployment as mm_dep
@@ -879,3 +885,179 @@ class TestPersistModelMonitoringSpec:
             monitoring_deployment._persist_model_monitoring_spec()
 
         patch_mock.assert_not_called()
+
+
+class TestResolveStreamTarget:
+    """`_resolve_stream_target` maps a stream datastore profile class to its
+    `StreamTarget` enum so the project spec gets a canonical type string.
+    """
+
+    @staticmethod
+    def test_kafka_stream_resolves_to_kafka() -> None:
+        profile = DatastoreProfileKafkaStream(
+            name="p", brokers=["broker:9092"], topics=[]
+        )
+        assert (
+            mm_dep.MonitoringDeployment._resolve_stream_target(profile)
+            == mm_constants.StreamTarget.KAFKA
+        )
+
+    @staticmethod
+    def test_kafka_source_subclass_resolves_to_kafka() -> None:
+        # DatastoreProfileKafkaSource subclasses DatastoreProfileKafkaStream so
+        # the isinstance check still classifies it as KAFKA.
+        profile = DatastoreProfileKafkaSource(
+            name="p", brokers=["broker:9092"], topics=[]
+        )
+        assert (
+            mm_dep.MonitoringDeployment._resolve_stream_target(profile)
+            == mm_constants.StreamTarget.KAFKA
+        )
+
+    @staticmethod
+    def test_v3io_resolves_to_v3io() -> None:
+        profile = DatastoreProfileV3io(name="p")
+        assert (
+            mm_dep.MonitoringDeployment._resolve_stream_target(profile)
+            == mm_constants.StreamTarget.V3IO
+        )
+
+    @staticmethod
+    def test_unknown_profile_returns_none() -> None:
+        # Postgres isn't a stream profile — caller's contract is to get None
+        # back so it can decide whether to skip the persist.
+        profile = DatastoreProfilePostgreSQL(
+            name="p", host="h", port=5432, user="u", password="p", database="d"
+        )
+        assert mm_dep.MonitoringDeployment._resolve_stream_target(profile) is None
+
+
+class TestResolveTSDBTarget:
+    """`_resolve_tsdb_target` maps a TSDB datastore profile class to its
+    `TSDBTarget` enum.
+    """
+
+    @staticmethod
+    def test_postgresql_resolves_to_timescaledb() -> None:
+        profile = DatastoreProfilePostgreSQL(
+            name="p", host="h", port=5432, user="u", password="p", database="d"
+        )
+        assert (
+            mm_dep.MonitoringDeployment._resolve_tsdb_target(profile)
+            == mm_constants.TSDBTarget.TimescaleDB
+        )
+
+    @staticmethod
+    def test_v3io_resolves_to_v3io_tsdb() -> None:
+        profile = DatastoreProfileV3io(name="p")
+        assert (
+            mm_dep.MonitoringDeployment._resolve_tsdb_target(profile)
+            == mm_constants.TSDBTarget.V3IO_TSDB
+        )
+
+    @staticmethod
+    def test_unknown_profile_returns_none() -> None:
+        # Kafka isn't a TSDB profile.
+        profile = DatastoreProfileKafkaStream(
+            name="p", brokers=["broker:9092"], topics=[]
+        )
+        assert mm_dep.MonitoringDeployment._resolve_tsdb_target(profile) is None
+
+
+class TestSetCredentialsPersistsResolvedTypes:
+    """`set_credentials` derives stream_type/tsdb_type from the registered
+    profiles and writes them through `_persist_model_monitoring_spec` so the
+    project spec immediately reflects the chosen backends.
+    """
+
+    @staticmethod
+    def test_kafka_stream_and_postgres_types_persisted(
+        monitoring_deployment: mm_dep.MonitoringDeployment,
+    ) -> None:
+        stream_profile = DatastoreProfileKafkaStream(
+            name="my-kafka", brokers=["broker:9092"], topics=[]
+        )
+        tsdb_profile = DatastoreProfilePostgreSQL(
+            name="my-pg",
+            host="h",
+            port=5432,
+            user="u",
+            password="p",
+            database="d",
+        )
+
+        with (
+            patch.object(
+                monitoring_deployment,
+                "check_if_credentials_are_set",
+                side_effect=mlrun.errors.MLRunBadRequestError,
+            ),
+            patch.object(
+                monitoring_deployment,
+                "_get_monitoring_mandatory_project_secrets",
+                return_value={},
+            ),
+            patch.object(
+                monitoring_deployment,
+                "_validate_stream_profile",
+                return_value=stream_profile,
+            ),
+            patch.object(
+                monitoring_deployment,
+                "_validate_and_get_tsdb_profile",
+                return_value=tsdb_profile,
+            ),
+            patch.object(monitoring_deployment, "_create_tsdb_tables"),
+            patch("services.api.crud.Secrets.store_project_secrets"),
+            patch.object(
+                monitoring_deployment, "_persist_model_monitoring_spec"
+            ) as persist_mock,
+        ):
+            monitoring_deployment.set_credentials(
+                tsdb_profile_name="my-pg",
+                stream_profile_name="my-kafka",
+            )
+
+        # Server resolves the profile classes to enum values and persists onto
+        # the project spec — the SDK's _enrich then picks these up on the
+        # client side.
+        persist_mock.assert_called_once_with(
+            stream_type=mm_constants.StreamTarget.KAFKA,
+            tsdb_type=mm_constants.TSDBTarget.TimescaleDB,
+        )
+
+
+class TestDisableModelMonitoringPersistsDisabledSpec:
+    """`disable_model_monitoring` must declaratively reset
+    `project.spec.model_monitoring.enabled` and `.otlp_enabled` to False
+    regardless of which functions were torn down.
+    """
+
+    @staticmethod
+    @pytest.mark.asyncio
+    async def test_persists_disabled_after_teardown(
+        monitoring_deployment: mm_dep.MonitoringDeployment,
+    ) -> None:
+        # Make the function-existence probe return falsy so the per-function
+        # teardown loop is a no-op — we only want to exercise the
+        # spec-persist line at the end of disable_model_monitoring.
+        with (
+            patch.object(
+                monitoring_deployment,
+                "_get_monitoring_application_to_delete",
+                return_value=[],
+            ),
+            patch.object(
+                monitoring_deployment, "_get_function_state", return_value=None
+            ),
+            patch.object(
+                monitoring_deployment, "_persist_model_monitoring_spec"
+            ) as persist_mock,
+        ):
+            await monitoring_deployment.disable_model_monitoring(
+                delete_resources=True,
+                delete_stream_function=False,
+                delete_histogram_data_drift_app=True,
+            )
+
+        persist_mock.assert_called_once_with(enabled=False, otlp_enabled=False)

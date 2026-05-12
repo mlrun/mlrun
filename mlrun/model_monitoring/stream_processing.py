@@ -23,6 +23,7 @@ import mlrun.common.model_monitoring.helpers
 import mlrun.feature_store as fstore
 import mlrun.feature_store.steps
 import mlrun.serving.states
+import mlrun.serving.system_steps
 import mlrun.utils
 from mlrun.common.schemas.model_monitoring.constants import (
     ControllerEvent,
@@ -416,44 +417,6 @@ class ProcessHTTPEvent(storey.ConcurrentExecution):
                 self._schema_cache[endpoint_id] = (None, None, "")
         return self._schema_cache[endpoint_id]
 
-    @staticmethod
-    def _listed(raw: typing.Any, schema: list[str] | None) -> tuple[list, list | None]:
-        """Convert raw inputs/outputs to listed form using the schema.
-
-        Replicates MonitoringPreProcessor.get_listed_data with data_path=None:
-        - dict  → transpose by key (using schema column order)
-        - list of same-keyed dicts → batch merge then transpose
-        - list → keep as-is
-        - scalar → wrap in [value]
-        """
-        import mlrun.serving.system_steps
-
-        transpose = mlrun.serving.system_steps.MonitoringPreProcessor.transpose_by_key
-        new_schema = None
-
-        if isinstance(raw, dict):
-            listed, new_schema = transpose(raw, schema)
-            new_schema = new_schema or schema
-        elif not isinstance(raw, list):
-            listed = [raw]
-        else:
-            all_dicts = raw and all(isinstance(item, dict) for item in raw)
-            if all_dicts:
-                same_keys = len(set(tuple(sorted(item.keys())) for item in raw)) == 1
-                if same_keys:
-                    merged: dict = {}
-                    for item in raw:
-                        for k, v in item.items():
-                            merged.setdefault(k, []).append(v)
-                    listed, new_schema = transpose(merged, schema)
-                    new_schema = new_schema or schema
-                else:
-                    listed = raw
-            else:
-                listed = raw
-
-        return listed, new_schema or schema
-
     def do(self, event: dict) -> dict:
         endpoint_id = event.get(MonitoringHTTPPayload.MODEL_ENDPOINT_UID)
         name = event.get(MonitoringHTTPPayload.MODEL_ENDPOINT_NAME)
@@ -486,9 +449,17 @@ class ProcessHTTPEvent(storey.ConcurrentExecution):
         input_schema = db_feature_names
         output_schema = db_label_names
 
-        # Normalize to listed form using schema (handles dicts, lists of dicts, scalars)
-        listed_inputs, resolved_input_schema = self._listed(inputs, input_schema)
-        listed_outputs, resolved_output_schema = self._listed(outputs, output_schema)
+        # Normalize to listed form using schema (handles dicts, lists of dicts, scalars).
+        # Fall back to the original schema when _to_listed_data couldn't infer one
+        # (e.g. plain list or scalar input where no dict keys are available).
+        listed_inputs, resolved_input_schema = (
+            mlrun.serving.system_steps._to_listed_data(inputs, input_schema)
+        )
+        resolved_input_schema = resolved_input_schema or input_schema
+        listed_outputs, resolved_output_schema = (
+            mlrun.serving.system_steps._to_listed_data(outputs, output_schema)
+        )
+        resolved_output_schema = resolved_output_schema or output_schema
 
         when = event.get(MonitoringHTTPPayload.TIMESTAMP) or datetime.datetime.now(
             datetime.UTC

@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import json
 import os
 
 import pytest
@@ -380,18 +381,20 @@ class TestHTTPAckResponder:
         assert body["endpoint_id"] == "ep-123"
         assert body["endpoint_name"] == "my-model"
 
-    def test_error_sentinel_raises_bad_request(self):
+    def test_error_sentinel_returns_400(self):
         step = self._step()
-        with pytest.raises(mlrun.errors.MLRunBadRequestError):
-            step.do({_HTTP_ERROR_KEY: "missing required fields: inputs"})
+        result = step.do({_HTTP_ERROR_KEY: "missing required fields: inputs"})
+        assert result.status_code == 400
+        body = json.loads(result.body)
+        assert "missing required fields: inputs" in body["error"]
 
     def test_error_message_propagated(self):
         step = self._step()
         msg = "missing required fields: model_endpoint_name, outputs"
-        with pytest.raises(
-            mlrun.errors.MLRunBadRequestError, match="model_endpoint_name"
-        ):
-            step.do({_HTTP_ERROR_KEY: msg})
+        result = step.do({_HTTP_ERROR_KEY: msg})
+        assert result.status_code == 400
+        body = json.loads(result.body)
+        assert "model_endpoint_name" in body["error"]
 
 
 class TestGetModelMonitoringUrl:

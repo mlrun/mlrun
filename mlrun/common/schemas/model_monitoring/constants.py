@@ -353,7 +353,7 @@ class MonitoringHTTPPayload(MonitoringStrEnum):
 
     MODEL_ENDPOINT_UID = "model_endpoint_uid"
     MODEL_ENDPOINT_NAME = "model_endpoint_name"
-    TIMESTAMP = "timestamp"
+    TIMESTAMP = "timestamp"  # optional
     INPUTS = "inputs"
     OUTPUTS = "outputs"
     LATENCY = "latency"  # optional: inference latency in microseconds

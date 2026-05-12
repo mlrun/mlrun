@@ -712,6 +712,7 @@ def _add_secrets_config_to_function_spec(
     auth_info: mlrun.common.schemas.AuthInfo | None = None,
 ):
     handler = services.api.runtime_handlers.BaseRuntimeHandler
+    otlp_enabled = bool(getattr(function.spec, "otlp_enabled", False))
     if function.kind in [
         mlrun.runtimes.RuntimeKinds.remote,
         mlrun.runtimes.RuntimeKinds.nuclio,
@@ -727,6 +728,7 @@ def _add_secrets_config_to_function_spec(
             encode_key_names=False,
             token_name=token_name,
             auth_info=auth_info,
+            otlp_enabled=otlp_enabled,
         )
 
     elif function.kind == mlrun.runtimes.RuntimeKinds.serving:
@@ -749,6 +751,7 @@ def _add_secrets_config_to_function_spec(
                 project_name=function.metadata.project,
                 token_name=token_name,
                 auth_info=auth_info,
+                otlp_enabled=otlp_enabled,
             )
         else:
             handler.add_k8s_secrets_to_spec(
@@ -757,6 +760,7 @@ def _add_secrets_config_to_function_spec(
                 project_name=function.metadata.project,
                 token_name=token_name,
                 auth_info=auth_info,
+                otlp_enabled=otlp_enabled,
             )
 
     else:

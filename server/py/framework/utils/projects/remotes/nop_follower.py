@@ -13,6 +13,7 @@
 # limitations under the License.
 
 
+import datetime
 import uuid
 
 import mergedeep
@@ -95,10 +96,11 @@ class Member(project_follower.Member):
         labels: list[str] | None = None,
         state: mlrun.common.schemas.ProjectState = None,
         names: list[str] | None = None,
+        updated_after: datetime.datetime | None = None,
     ) -> mlrun.common.schemas.ProjectsOutput:
-        if owner or labels or state:
+        if owner or labels or state or updated_after:
             raise NotImplementedError(
-                "Filtering by owner, labels or state is not supported"
+                "Filtering by owner, labels, state or updated_after is not supported"
             )
         projects = list(self._projects.values())
         # deep copy so we won't accidentally get changes from tests

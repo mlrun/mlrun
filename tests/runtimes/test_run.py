@@ -47,6 +47,7 @@ def _get_runtime():
             "tolerations": None,
             "node_selector": "",
             "state_thresholds": mlrun.mlconf.function.spec.state_thresholds.default.to_dict(),
+            "otlp_enabled": False,
         },
         "verbose": False,
     }

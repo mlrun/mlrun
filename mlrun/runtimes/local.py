@@ -39,6 +39,7 @@ from nuclio import Event
 
 import mlrun
 import mlrun.common.constants as mlrun_constants
+import mlrun.utils.helpers
 from mlrun.lists import RunList
 from mlrun.package import handler as mlrun_handler_decorator
 
@@ -265,6 +266,32 @@ class LocalRuntime(BaseRuntime, ParallelRunner):
                 execution._current_workdir = os.path.join(target_dir, workdir)
             else:
                 execution._current_workdir = workdir or target_dir
+
+            # Source extracted at runtime (store:// CodeArtifact, git, archive)
+            # leaves spec.command empty, so a "module:func" handler can't resolve.
+            # Mirror code_to_function: command -> file, handler -> bare function.
+            module_name, func_name = (
+                mlrun.utils.helpers.split_handler_module_and_function(
+                    runobj.spec.handler or self.spec.default_handler or ""
+                )
+            )
+            if not self.spec.command and module_name:
+                candidate = os.path.join(target_dir, f"{module_name}.py")
+                if os.path.isfile(candidate):
+                    self.spec.command = candidate
+                    runobj.spec.handler = func_name
+                else:
+                    # Warn so a handler-module typo doesn't end in a cryptic
+                    # ImportError downstream from an empty spec.command.
+                    logger.warning(
+                        "module:func handler refers to a module that wasn't "
+                        "found in the extracted source directory; the run "
+                        "will likely fail to load the handler",
+                        handler=runobj.spec.handler or self.spec.default_handler,
+                        module_name=module_name,
+                        candidate=candidate,
+                        target_dir=target_dir,
+                    )
 
         if execution._current_workdir:
             execution._old_workdir = os.getcwd()

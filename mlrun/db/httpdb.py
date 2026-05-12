@@ -4265,6 +4265,21 @@ class HTTPRunDB(RunDBInterface):
             params={"endpoint-id": endpoint_ids, "application-name": application_name},
         )
 
+    def get_model_monitoring_url(self, project: str) -> str | None:
+        """
+        Get the HTTP URL of the model monitoring stream pod for the given project.
+
+        :param project: The name of the project.
+        :return: HTTP URL of the model monitoring stream pod, or None if no HTTP trigger is configured.
+        :raises mlrun.errors.MLRunNotFoundError: if the stream function is not deployed.
+        :raises mlrun.errors.MLRunPreconditionFailedError: if the stream function is not in ready state.
+        """
+        resp = self.api_call(
+            method=mlrun.common.types.HTTPMethod.GET,
+            path=f"projects/{project}/model-monitoring/stream-pod-http-url",
+        )
+        return resp.json()
+
     def get_monitoring_function_summaries(
         self,
         project: str,

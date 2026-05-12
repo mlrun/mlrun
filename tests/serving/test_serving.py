@@ -984,3 +984,9 @@ def test_function_with_secrets_azure_vault_allows_non_auth_secret(monkeypatch):
             "secrets": [],  # minimal valid payload for add_source
         },
     )
+
+
+def test_setup_model_monitoring_not_supported_for_serving():
+    serving_fn = mlrun.new_function("test-serving", kind="serving")
+    with pytest.raises(NotImplementedError, match="set_tracking"):
+        serving_fn.setup_model_monitoring([])

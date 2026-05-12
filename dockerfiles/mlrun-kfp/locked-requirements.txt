@@ -510,6 +510,7 @@ colorama==0.4.6 ; sys_platform == 'win32' \
     # via
     #   click
     #   ipython
+    #   tqdm
 comm==0.2.3 \
     --hash=sha256:2dc8048c10962d55d7ad693be1e7045d891b7ce8d999c97963a5e3e99c055971 \
     --hash=sha256:c615d91d75f7f04f095b30d1c1711babd43bdc6419c1be9886a85f2f4e489417
@@ -2878,6 +2879,10 @@ tornado==6.5.5 \
     #   distributed
     #   ipykernel
     #   jupyter-client
+tqdm==4.67.3 \
+    --hash=sha256:7d825f03f89244ef73f1d4ce193cb1774a8179fd96f31d7e1dcde62092b960bb \
+    --hash=sha256:ee1e4c0e59148062281c49d80b25b67771a127c85fc9676d3be5f243206826bf
+    # via -r requirements.txt
 traitlets==5.14.3 \
     --hash=sha256:9ed0579d3502c94b4b3732ac120375cda96f923114522847de4b3bb98b96b6b7 \
     --hash=sha256:b74e89e397b1ed28cc831db7aea759ba6640cb3de13090ca145426688ff1ac4f

@@ -610,6 +610,34 @@ def test_inject_main_container_pythonpath_merge_logic(existing_pythonpath, expec
     assert pythonpath_envs[0]["value"] == expected
 
 
+def test_inject_main_container_pythonpath_preserves_user_base_spec_value():
+    """A PYTHONPATH set by the user directly in base_spec must be merged
+    into spec.config and dropped from base_spec, not silently lost."""
+    func = mlrun.new_function("test-func", kind="nuclio")
+    func.metadata.project = "test-proj"
+    func.spec.base_spec = {
+        "spec": {"env": [{"name": "PYTHONPATH", "value": "/opt/user_lib:/opt/extras"}]}
+    }
+
+    services.api.crud.runtimes.nuclio.function._inject_main_container_pythonpath(
+        function=func, target_dir="/work"
+    )
+
+    spec_pythonpaths = [
+        e for e in func.spec.config.get("spec.env", []) if e.get("name") == "PYTHONPATH"
+    ]
+    assert len(spec_pythonpaths) == 1
+    # Managed workdir first; user-set paths follow in original order.
+    assert spec_pythonpaths[0]["value"] == "/work:/opt/user_lib:/opt/extras"
+
+    base_pythonpaths = [
+        e
+        for e in mlrun.utils.get_in(func.spec.base_spec, "spec.env", []) or []
+        if e.get("name") == "PYTHONPATH"
+    ]
+    assert base_pythonpaths == []
+
+
 def test_compile_application_function_with_git_source_does_not_mount_project_secrets(
     tmp_path, monkeypatch
 ):

@@ -277,53 +277,13 @@ def _compile_function_config(
             "Ensure the application image is set via 'spec.image' or 'with_sidecar()'."
         )
 
-    # Configure init container when source needs runtime loading.
-    if _should_fetch_source_code(function):
-        if function.kind == mlrun.runtimes.RuntimeKinds.application:
-            # Gate the project-secret envFrom mount on source type, not runtime
-            # kind: store:// sources may resolve through DataStore profiles
-            # whose private members live in mlrun-project-secrets-<project>;
-            # git/archive sources don't need that resolution.
-            application_source = function.spec.build.source or getattr(
-                function.status, "application_source", ""
-            )
-            _configure_source_loader_init_container(
-                function,
-                # Application runtime has exactly one sidecar (the user's application container)
-                sidecar=sidecars[0],
-                client_version=client_version,
-                client_python_version=client_python_version,
-                add_project_secrets=mlrun.datastore.is_store_uri(application_source),
-            )
-        else:
-            # Vanilla Nuclio/Serving. Nuclio's native builder resolves git://
-            # and archive sources directly (codeEntryType="git"/"archive");
-            # only store:// is unsupported and gets routed through the init
-            # container path. Anything else with load_source_on_run=True is
-            # an unsupported combination and raises.
-            source = function.spec.build.source or getattr(
-                function.status, "application_source", ""
-            )
-            if mlrun.datastore.is_store_uri(source):
-                _install_store_uri_loader(
-                    function,
-                    project=project,
-                    client_version=client_version,
-                    client_python_version=client_python_version,
-                )
-            else:
-                # _should_fetch_source_code returned True, source is not
-                # store:// — must be git/archive + load_source_on_run on a
-                # non-Application kind. The init-container redirect was only
-                # designed for store://; other source types belong on
-                # Application kind (where the sidecar handles them).
-                raise mlrun.errors.MLRunInvalidArgumentError(
-                    f"Function '{function.metadata.name}' (kind="
-                    f"{function.kind!r}) has source={source!r} with "
-                    "load_source_on_run=True, which is supported on "
-                    "Application kind only. Either set kind='application' "
-                    "or use a store:// CodeArtifact source."
-                )
+    _configure_source_code_loading(
+        function,
+        sidecars=sidecars,
+        project=project,
+        client_version=client_version,
+        client_python_version=client_python_version,
+    )
 
     nuclio_spec = nuclio.ConfigSpec(
         env=env_dict,
@@ -815,24 +775,17 @@ def _should_fetch_source_code(
     - Source is a store artifact URI (store://)
     - Source is Git or archive with pull_at_runtime=True
 
-    Reads ``function.spec.build.source`` first, then falls back to
-    ``function.status.application_source``. The fallback covers the redeploy
-    case where ``_install_store_uri_loader`` cleared ``spec.build.source``
-    and stashed the original URI on the status field so Nuclio's builder
-    wouldn't see a URI it can't resolve.
-
     :param function: The function object
     :return: True if init container is needed, False otherwise
     """
-    # build.source may be empty after from_image() clears it on redeploy.
-    # fall back to status.application_source which preserves the original source URI.
+    # On redeploy build.source has been cleared; the original URI lives on
+    # status.application_source.
     source = function.spec.build.source or getattr(
         function.status, "application_source", None
     )
     if not source:
         return False
 
-    # Store artifact URIs always need init container
     if mlrun.datastore.is_store_uri(source):
         return True
 
@@ -843,6 +796,63 @@ def _should_fetch_source_code(
     return (is_git_source or is_archive_source) and pull_at_runtime
 
 
+def _configure_source_code_loading(
+    function: mlrun.runtimes.nuclio.function.RemoteRuntime,
+    sidecars: list,
+    project: str,
+    client_version: str | None = None,
+    client_python_version: str | None = None,
+):
+    """Route runtime source-code loading to the right init-container path.
+
+    Three cases:
+    - Application kind: configure the loader against the user's sidecar.
+      Project-secret envFrom is mounted only for `store://` sources, which
+      may resolve through DataStore profiles whose private members live in
+      `mlrun-project-secrets-<project>`.
+    - Vanilla Nuclio/Serving + `store://`: install the loader stub and init
+      container; Nuclio's native builder cannot resolve `store://` URIs.
+    - Anything else with `load_source_on_run=True` on a non-Application
+      kind: unsupported, raise.
+
+    No-op when no source needs runtime loading.
+    """
+    if not _should_fetch_source_code(function):
+        return
+
+    if function.kind == mlrun.runtimes.RuntimeKinds.application:
+        application_source = function.spec.build.source or getattr(
+            function.status, "application_source", ""
+        )
+        _configure_source_loader_init_container(
+            function,
+            sidecar=sidecars[0],
+            client_version=client_version,
+            client_python_version=client_python_version,
+            add_project_secrets=mlrun.datastore.is_store_uri(application_source),
+        )
+        return
+
+    source = function.spec.build.source or getattr(
+        function.status, "application_source", ""
+    )
+    if mlrun.datastore.is_store_uri(source):
+        _install_store_uri_loader(
+            function,
+            project=project,
+            client_version=client_version,
+            client_python_version=client_python_version,
+        )
+        return
+
+    raise mlrun.errors.MLRunInvalidArgumentError(
+        f"Function '{function.metadata.name}' (kind={function.kind!r}) has "
+        f"source={source!r} with load_source_on_run=True, which is supported "
+        "on Application kind only. Either set kind='application' or use a "
+        "store:// CodeArtifact source."
+    )
+
+
 def _install_store_uri_loader(
     function: mlrun.runtimes.nuclio.function.RemoteRuntime,
     project: str,
@@ -851,57 +861,32 @@ def _install_store_uri_loader(
 ):
     """Install the store:// loader stub on a vanilla Nuclio/Serving function.
 
-    For non-Application Nuclio/Serving kinds with a ``store://`` source,
-    Nuclio's native builder cannot resolve the URI. This helper:
+    Nuclio's native builder cannot resolve `store://` URIs. The helper
+    stashes the URI on `status.application_source`, bakes a generated
+    loader stub as `functionSourceCode` (under a fixed module name to
+    avoid the `/opt/nuclio` sys.path[0] shadow), routes `function_handler`
+    to the loader, and configures the source-loader init container.
 
-    1. Resolves the store URI and validates that the artifact is a
-       CodeArtifact (``kind == "code"``); fails fast on a wrong-kind
-       artifact rather than producing a cryptic ImportError in the pod.
-    2. Stashes the URI to ``status.application_source`` and clears
-       ``spec.build.source`` so Nuclio's builder doesn't see it.
-    3. Bakes a generated loader stub as ``functionSourceCode`` under a
-       fixed module name (avoids the ``sys.path[0]`` (= ``/opt/nuclio``)
-       shadow over the user's real module).
-    4. Stashes the user's real handler in ``status.original_handler`` and
-       injects ``MLRUN_REAL_HANDLER`` into ``spec.config["spec.env"]``
-       (deduped in both ``spec.config`` and ``spec.base_spec``).
-    5. Overrides ``spec.function_handler`` to point at the loader.
-    6. Configures the source-loader init container.
-
-    Mutates ``function.spec`` and ``function.status``. Idempotent — safe to
-    call on redeploys, which re-use the stashed values.
-
-    :param function: The function to install the loader on.
-    :param project:  Project name for artifact resolution.
-    :param client_version: Forwarded to the init container builder.
-    :param client_python_version: Forwarded to the init container builder.
+    Idempotent on redeploy — re-uses the stashed values. Mutates
+    `function.spec` and `function.status`.
     """
     source = function.spec.build.source or getattr(
         function.status, "application_source", ""
     )
-    # Defensive guard: production callers (`_compile_function_config`) already
-    # gate on `is_store_uri(source)`, but keep the no-op return so the helper
-    # is safe to call from tests / future entry points without re-checking.
+    # Safe to call directly (e.g. from tests); production callers pre-gate.
     if not mlrun.datastore.is_store_uri(source):
         return
 
-    # Boundary validation: confirm the resolved artifact is a CodeArtifact.
-    # Without this, a wrong-kind artifact (model, dataset) silently flows
-    # through to the loader and fails with a cryptic ImportError at runtime.
+    # Fail fast on wrong-kind artifact; otherwise we'd get a cryptic
+    # ImportError in the pod at runtime.
     try:
         artifact = mlrun.datastore.get_store_resource(source, project=project)
     except mlrun.errors.MLRunBaseError:
-        # Preserve typed MLRun errors so callers (and HTTP-status mapping)
-        # can pattern-match on them; only the generic-Exception branch wraps.
         raise
     except Exception as exc:
         raise mlrun.errors.MLRunInvalidArgumentError(
             f"Cannot resolve code artifact {source}: {mlrun.errors.err_to_str(exc)}"
         ) from exc
-    # `get_store_resource` returns None when the resolver can't find the
-    # artifact (deleted between deploys, empty resource, ...). Surface that
-    # as a typed MLRunNotFoundError instead of the AttributeError that the
-    # next `artifact.kind` access would otherwise raise.
     if artifact is None:
         raise mlrun.errors.MLRunNotFoundError(f"Code artifact not found at {source}")
     if artifact.kind != "code":
@@ -925,12 +910,10 @@ def _install_store_uri_loader(
         or mlrun.common.constants.DEFAULT_SOURCE_CODE_TARGET_DIR
     )
 
-    # Serving with no explicit handler uses mlrun's serving wrapper (wired
-    # later by `_set_source_code_and_handler`). The loader stub would
-    # override that and break the topology graph. Install the init container
-    # + PYTHONPATH only; let `_set_source_code_and_handler` set the wrapper
-    # handler. Serving WITH an explicit handler still goes through the
-    # loader-stub path, same as nuclio.
+    # Serving without an explicit handler is topology-driven; the wrapper
+    # handler is wired later by `_set_source_code_and_handler`, so the
+    # loader stub would override it. Skip the stub for this case; the init
+    # container + PYTHONPATH still need to be set up.
     is_serving_topology = (
         function.kind == mlrun.runtimes.RuntimeKinds.serving
         and not function.spec.function_handler
@@ -938,18 +921,15 @@ def _install_store_uri_loader(
     loader_module = mlrun.common.constants.STORE_URI_HANDLER_LOADER_MODULE
     loader_handler = f"{loader_module}:handler"
 
+    stub_version_marker = (
+        f"# stub_version={mlrun.common.constants.STORE_URI_LOADER_STUB_VERSION}"
+    )
+
     if is_serving_topology:
-        # If the function was previously deployed with an explicit handler
-        # (loader stub baked, MLRUN_REAL_HANDLER env injected) and the user
-        # is now switching to topology, clear the loader-shaped state so
-        # the spec doesn't carry dead bytes. The serving wrapper handler
-        # is wired downstream by `_set_source_code_and_handler`.
-        if function.spec.function_handler == loader_handler:
-            function.spec.function_handler = ""
+        # Clear loader-shaped state left from a prior explicit-handler deploy
+        # so the serving wrapper can take over cleanly downstream.
         env_list = function.spec.config.get("spec.env") or []
         env_list[:] = [e for e in env_list if e.get("name") != "MLRUN_REAL_HANDLER"]
-        # Same dedupe in base_spec as `_set_unique_env` does for the
-        # explicit-handler path.
         base_spec = function.spec.base_spec or {}
         base_env = mlrun.utils.get_in(base_spec, "spec.env", []) or []
         if base_env:
@@ -958,8 +938,6 @@ def _install_store_uri_loader(
                 "spec.env",
                 [e for e in base_env if e.get("name") != "MLRUN_REAL_HANDLER"],
             )
-        # If the previously-baked stub is loader-shaped, drop it so Nuclio
-        # rebuilds with the wrapper wiring.
         if function.spec.build.functionSourceCode:
             try:
                 decoded = base64.b64decode(
@@ -967,7 +945,7 @@ def _install_store_uri_loader(
                 ).decode("utf-8")
             except Exception:
                 decoded = ""
-            if "MLRUN_REAL_HANDLER" in decoded:
+            if "# stub_version=" in decoded:
                 function.spec.build.functionSourceCode = ""
 
         logger.debug(
@@ -985,15 +963,10 @@ def _install_store_uri_loader(
         )
         return
 
-    # Stub-bytes layout: a version marker on the first line lets future
-    # mlrun releases re-bake an existing function's loader when stub
-    # semantics change. Without the marker, the `if not functionSourceCode`
-    # short-circuit below would keep stale bytes from the first deploy
-    # forever. Marker version lives in `mlrun.common.constants` —
-    # bump it whenever the stub body changes.
-    stub_version_marker = (
-        f"# stub_version={mlrun.common.constants.STORE_URI_LOADER_STUB_VERSION}"
-    )
+    # Stub-bytes layout: a version marker on the first line gates re-baking
+    # so a future mlrun release that changes stub semantics can invalidate
+    # existing functions. Bump `STORE_URI_LOADER_STUB_VERSION` when the
+    # stub body changes.
     existing_stub = ""
     if function.spec.build.functionSourceCode:
         try:
@@ -1002,8 +975,6 @@ def _install_store_uri_loader(
             ).decode("utf-8")
         except Exception:
             existing_stub = ""
-    # Substring check (not splitlines) so the marker is robust to line-ending
-    # mutations if the bytes were ever round-tripped through a Windows tool.
     if stub_version_marker not in existing_stub:
         loader_source = (
             f"{stub_version_marker}\n"
@@ -1024,7 +995,7 @@ def _install_store_uri_loader(
             '        "MLRUN_REAL_HANDLER env var not set; cannot resolve "\n'
             '        "user handler for store:// Nuclio function."\n'
             "    )\n"
-            '_module_name, _, _func_name = _real.rpartition(":")\n'
+            '_module_name, _, _func_name = _real.partition(":")\n'
             "if not _module_name or not _func_name:\n"
             "    raise RuntimeError(\n"
             "        f\"MLRUN_REAL_HANDLER must be in 'module:function' \"\n"
@@ -1045,25 +1016,16 @@ def _install_store_uri_loader(
             loader_source.encode("utf-8")
         ).decode("utf-8")
 
-    # Resolve the user's "real" handler. The spec is the source of truth:
-    # if the user updates `function.spec.function_handler` between deploys,
-    # the new value wins. status.original_handler is only consulted as a
-    # fallback for the redeploy case where spec.function_handler has
-    # already been overwritten with the loader handler from a prior deploy.
-    # When neither is set (first deploy with no handler= passed), fall back
-    # to mlrun's existing convention default — the same `"main:handler"`
-    # used elsewhere in this file for non-store:// nuclio functions.
+    # Spec wins over status: a user-updated `function_handler` on redeploy
+    # replaces the stashed value. Default to `main:handler` matching the
+    # non-store:// convention when neither is set.
     spec_handler = function.spec.function_handler
     if spec_handler and spec_handler != loader_handler:
-        # User-provided value (first deploy or explicit redeploy update).
         function.status.original_handler = spec_handler
     elif not function.status.original_handler:
         function.status.original_handler = "main:handler"
 
     _set_unique_env(function, "MLRUN_REAL_HANDLER", function.status.original_handler)
-
-    # Override function_handler so Nuclio's CRD spec.handler points at the
-    # loader.
     function.spec.function_handler = loader_handler
 
     logger.debug(
@@ -1193,10 +1155,8 @@ def _configure_source_loader_init_container(
             workdir=workdir,
         )
     else:
-        # Vanilla Nuclio/serving: inject PYTHONPATH on the main function
-        # container so the runtime can import the loaded source. Volume
-        # mounts are already wired via function.spec.with_volume_mounts()
-        # above.
+        # No sidecar (vanilla Nuclio/serving): patch PYTHONPATH on the main
+        # container; volume mounts are already on function.spec.
         _inject_main_container_pythonpath(
             function=function,
             target_dir=target_dir,
@@ -1231,15 +1191,10 @@ def _build_source_loader_init_container(
     :param volume_mount: Volume mount configuration
     :param client_version: Client version for image resolution
     :param client_python_version: Client Python version for image resolution
-    :param add_project_secrets: When True, mount the project's K8s secret
-                                via envFrom so the loader process can use
-                                project-secret-based credentials (e.g., AWS_*,
-                                GOOGLE_APPLICATION_CREDENTIALS) AND resolve
-                                DataStore profiles with private members
-                                (which are stored in the same K8s secret).
-                                Off for non-store:// sources, where the
-                                loader has no datastore-profile resolution
-                                to do.
+    :param add_project_secrets: Mount `mlrun-project-secrets-<project>` via
+                                envFrom so the loader can authenticate to
+                                credential-protected datastores and resolve
+                                DataStore profiles with private members.
     :return: Init container specification dict
     """
     project = function.metadata.project
@@ -1302,18 +1257,12 @@ def _ensure_source_loader_init_container(
     if not init_container_name:
         raise mlrun.errors.MLRunInvalidArgumentError("Init container name is required")
 
-    # Dedupe in function.spec.config first.
     init_containers = function.spec.config.setdefault("spec.initContainers", [])
     init_containers[:] = [
         c for c in init_containers if c.get("name") != init_container_name
     ]
     init_containers.append(init_container)
 
-    # Also dedupe in function.spec.base_spec — on redeploys the persisted
-    # base_spec carries over the previous deploy's init container at
-    # spec.initContainers, and extend_config later merges base_spec with
-    # function.spec.config, producing a duplicate. Nuclio rejects the
-    # resulting K8s Deployment with "Duplicate value".
     base_spec = function.spec.base_spec or {}
     base_spec_init_containers = mlrun.utils.get_in(base_spec, "spec.initContainers", [])
     if base_spec_init_containers:
@@ -1411,20 +1360,22 @@ def _inject_main_container_pythonpath(
     :param workdir: Working directory relative to target_dir or absolute path on
                     the container filesystem
     """
-    _add_pythonpath_to_env_list(
-        function.spec.config.setdefault("spec.env", []),
-        _resolve_workdir(target_dir, workdir),
-    )
+    spec_env = function.spec.config.setdefault("spec.env", [])
 
-    # Mirror the dedupe in spec.base_spec — extend_config merges
-    # base_spec["spec"]["env"] into spec.config["spec.env"] on deploy, and
-    # without removing the stale PYTHONPATH from base_spec a redeploy
-    # accumulates a duplicate entry alongside the freshly-set one.
+    # Merge user-set paths from base_spec into spec.config first, then prepend
+    # the managed workdir so it wins module-resolution races. extend_config
+    # later append-merges base_spec env into spec.config — drop PYTHONPATH
+    # from base_spec to prevent a duplicate at deploy time.
     base_spec = function.spec.base_spec or {}
     base_env = mlrun.utils.get_in(base_spec, "spec.env", []) or []
-    if base_env:
+    base_pythonpath = next((e for e in base_env if e.get("name") == "PYTHONPATH"), None)
+    if base_pythonpath:
+        for path in reversed((base_pythonpath.get("value") or "").split(":")):
+            if path:
+                _add_pythonpath_to_env_list(spec_env, path)
         mlrun.utils.update_in(
             base_spec,
             "spec.env",
             [e for e in base_env if e.get("name") != "PYTHONPATH"],
         )
+    _add_pythonpath_to_env_list(spec_env, _resolve_workdir(target_dir, workdir))

@@ -36,6 +36,9 @@ from mlrun.common.schemas.model_monitoring.constants import (
 from mlrun.model_monitoring.db import TSDBConnector
 from mlrun.utils import logger
 
+# Sentinel key used by ProcessHTTPEvent to signal validation failure to HTTPAckResponder.
+_HTTP_ERROR_KEY = "_http_error"
+
 
 # Stream processing code
 class EventStreamProcessor:
@@ -168,18 +171,26 @@ class EventStreamProcessor:
             after="TriggerRouter",
             project=self.project,
         )
+        # Responder branch (terminal): resolves the HTTP future with 200 or 400.
+        graph.add_step(
+            "HTTPAckResponder",
+            "HTTPAckResponder",
+            after="ProcessHTTPEvent",
+        ).respond()
+
+        # Stream write branch: drop error sentinels, forward valid events to stream.
         graph.add_step(
             "storey.Filter",
-            "FilterHTTPNone",
+            "FilterHTTPError",
             after="ProcessHTTPEvent",
-            _fn="(event is not None)",
+            _fn=f"('{_HTTP_ERROR_KEY}' not in event)",
         )
         graph.add_step(
             ">>",
             "monitoring_stream_reinjection",
             path=monitoring_stream_uri,
             sharding_func=EventFieldType.ENDPOINT_ID,
-            after="FilterHTTPNone",
+            after="FilterHTTPError",
             # monitoring stream lives in projects/ container; use project key (same as ParquetTarget)
             alternative_v3io_access_key=ProjectSecretKeys.ACCESS_KEY,
             # skip startup create_stream(): stream is owned by the Nuclio trigger, not this pod
@@ -443,20 +454,30 @@ class ProcessHTTPEvent(storey.ConcurrentExecution):
 
         return listed, new_schema or schema
 
-    def do(self, event: dict) -> dict | None:
+    def do(self, event: dict) -> dict:
         endpoint_id = event.get(MonitoringHTTPPayload.MODEL_ENDPOINT_UID)
-        name = event.get(MonitoringHTTPPayload.MODEL_ENDPOINT_NAME, "")
+        name = event.get(MonitoringHTTPPayload.MODEL_ENDPOINT_NAME)
         inputs = event.get(MonitoringHTTPPayload.INPUTS)
         outputs = event.get(MonitoringHTTPPayload.OUTPUTS)
 
-        if not endpoint_id or inputs is None or outputs is None:
+        if not endpoint_id or not name or inputs is None or outputs is None:
+            missing = []
+            if not endpoint_id:
+                missing.append("model_endpoint_uid")
+            if not name:
+                missing.append("model_endpoint_name")
+            if inputs is None:
+                missing.append("inputs")
+            if outputs is None:
+                missing.append("outputs")
             logger.error(
                 "HTTP monitoring event missing required fields",
                 endpoint_id=endpoint_id,
+                name=name,
                 has_inputs=inputs is not None,
                 has_outputs=outputs is not None,
             )
-            return None
+            return {_HTTP_ERROR_KEY: f"missing required fields: {', '.join(missing)}"}
 
         # Resolve schema from DB; dict key order used when schema is absent
         db_feature_names, db_label_names, function_uri = self._get_endpoint_schema(
@@ -494,6 +515,41 @@ class ProcessHTTPEvent(storey.ConcurrentExecution):
             },
             EventFieldType.METRICS: event.get(EventFieldType.METRICS) or {},
         }
+
+
+class HTTPAckResponder(mlrun.feature_store.steps.MapClass):
+    """Return an HTTP response for events arriving on the HTTP trigger branch.
+
+    Returns 202 Accepted with endpoint info for valid translated events.
+    Returns 400 Bad Request for validation failures signalled by
+    ``ProcessHTTPEvent`` via the ``_HTTP_ERROR_KEY`` sentinel key.
+
+    Must be terminal in the graph (no downstream steps) so that the framework
+    chains ``storey.Complete()`` to it and resolves the HTTP future.
+    The parallel ``FilterHTTPError`` branch handles the stream write side.
+    """
+
+    def do(self, event: dict):
+        import json
+
+        if _HTTP_ERROR_KEY in event:
+            return self.context.Response(
+                body=json.dumps({"error": event[_HTTP_ERROR_KEY]}),
+                content_type="application/json",
+                status_code=400,
+            )
+        body = json.dumps(
+            {
+                "status": "accepted",
+                "endpoint_id": event.get(EventFieldType.ENDPOINT_ID, ""),
+                "endpoint_name": event.get(EventFieldType.MODEL, ""),
+            }
+        )
+        return self.context.Response(
+            body=body,
+            content_type="application/json",
+            status_code=202,
+        )
 
 
 class ProcessBeforeParquet(mlrun.feature_store.steps.MapClass):

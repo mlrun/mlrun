@@ -2772,12 +2772,12 @@ class TestHTTPIngest(TestMLRunSystemModelMonitoring):
         assert endpoints, f"No endpoint found with name {self.model_endpoint_name!r}"
         return endpoints[0].metadata.uid
 
-    def _invoke_ingest_fn(self, fn: mlrun.runtimes.RemoteRuntime) -> None:
-        """Invoke the Nuclio function.
-
-        The handler reads MODEL_MONITORING_URL and MODEL_ENDPOINT_UID from its
-        environment (injected at deploy time) and pushes events from inside the pod.
-        """
+    def _invoke_ingest_fn(
+        self,
+        fn: mlrun.runtimes.RemoteRuntime,
+        num_endpoints: int = 1,
+    ) -> None:
+        """Invoke the Nuclio function and assert all events were accepted (HTTP 202)."""
         result = fn.invoke(
             path="/",
             body=json.dumps({"num_events": self.num_events}),
@@ -2786,6 +2786,30 @@ class TestHTTPIngest(TestMLRunSystemModelMonitoring):
             "Nuclio function invoked, events pushed from pod",
             result=result,
             num_events=self.num_events,
+        )
+        expected_pushed = self.num_events * num_endpoints
+        assert result.get("pushed") == expected_pushed, (
+            f"Expected {expected_pushed} accepted events (HTTP 202) "
+            f"but stream pod accepted {result.get('pushed')}"
+        )
+
+    def _assert_bad_payload_rejected(self, fn: mlrun.runtimes.RemoteRuntime) -> None:
+        """Verify the stream pod rejects a malformed payload with HTTP 400.
+
+        The stream pod is ClusterIP-only so we can't reach it from the test
+        machine directly.  Instead we invoke the ingest function (which runs
+        inside the cluster) with a special ``test_bad_payload`` flag; the
+        handler sends one event with missing inputs/outputs and returns the
+        stream pod's status code back to us.
+        """
+        result = fn.invoke(path="/", body=json.dumps({"test_bad_payload": True}))
+        assert result.get("bad_payload_status") == 400, (
+            f"Expected stream pod to return 400 for malformed payload, "
+            f"got {result.get('bad_payload_status')}"
+        )
+        self._logger.info(
+            "Bad payload correctly rejected by stream pod",
+            status=result.get("bad_payload_status"),
         )
 
     def _check_tsdb_has_data(self, endpoint_id: str) -> None:
@@ -2811,13 +2835,18 @@ class TestHTTPIngest(TestMLRunSystemModelMonitoring):
 
     @pytest.mark.timeout(600)
     def test_http_ingest_flow(self) -> None:
-        """USER_EP → invoke fn (pushes events from pod) → verify TSDB."""
+        """USER_EP → invoke fn (pushes events from pod) → verify TSDB.
+
+        Also verifies that a malformed payload is rejected with HTTP 400.
+        """
         fn = self._deploy_nuclio_function_with_user_ep()
 
         time.sleep(5)
 
         endpoint_id = self._get_endpoint_id()
         self._logger.info("USER_EP created", endpoint_id=endpoint_id)
+
+        self._assert_bad_payload_rejected(fn)
 
         self._invoke_ingest_fn(fn)
 
@@ -2913,7 +2942,7 @@ class TestHTTPIngest(TestMLRunSystemModelMonitoring):
         )
 
         # Invoke once — handler pushes num_events for every endpoint from the pod
-        self._invoke_ingest_fn(fn)
+        self._invoke_ingest_fn(fn, num_endpoints=len(all_ep_names))
 
         initial_wait = (
             mlrun.mlconf.model_endpoint_monitoring.parquet_batching_timeout_secs

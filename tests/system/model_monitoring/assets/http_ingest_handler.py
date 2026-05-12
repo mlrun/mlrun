@@ -71,9 +71,27 @@ def handler(context, event):
     body = event.body
     if isinstance(body, (bytes, bytearray)):
         body = json.loads(body) if body else {}
-    num_events = int((body or {}).get("num_events", 1))
+    body = body or {}
+    num_events = int(body.get("num_events", 1))
 
     monitoring_url = _MONITORING_URL.rstrip("/")
+
+    # Test-only: send one malformed event and return the stream pod status code.
+    if body.get("test_bad_payload"):
+        bad_resp = requests.post(
+            monitoring_url,
+            json={
+                "model_endpoint_uid": _ENDPOINT_UID,
+                "model_endpoint_name": _ENDPOINT_NAME,
+                # inputs and outputs intentionally omitted to trigger 400
+            },
+            timeout=10,
+        )
+        return context.Response(
+            body=json.dumps({"bad_payload_status": bad_resp.status_code}),
+            status_code=200,
+            content_type="application/json",
+        )
     endpoint_uids = _all_endpoint_uids()
 
     pushed = 0
@@ -91,8 +109,12 @@ def handler(context, event):
                 "outputs": {"approved": float(i % 2)},
             }
             resp = requests.post(monitoring_url, json=payload, timeout=10)
-            if resp.status_code != 200:
-                context.logger.warning(
+            context.logger.info(
+                f"Stream pod response for event {i} endpoint {endpoint_id}: "
+                f"status={resp.status_code} body={resp.text[:200]}"
+            )
+            if resp.status_code != 202:
+                context.logger.warn(
                     f"Event {i} for {endpoint_id} rejected: "
                     f"{resp.status_code} {resp.text}"
                 )

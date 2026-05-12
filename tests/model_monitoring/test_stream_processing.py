@@ -29,7 +29,9 @@ from mlrun.datastore.datastore_profile import (
     DatastoreProfileV3io,
 )
 from mlrun.model_monitoring.stream_processing import (
+    _HTTP_ERROR_KEY,
     EventStreamProcessor,
+    HTTPAckResponder,
     ProcessHTTPEvent,
     TriggerRouter,
 )
@@ -167,6 +169,7 @@ class TestProcessHTTPEvent:
         result = step.do(
             {
                 "model_endpoint_uid": "ep-123",
+                "model_endpoint_name": "my-model",
                 "inputs": {"f2": 2.0, "f1": 1.0},
                 "outputs": {"pred": 0.8},
             }
@@ -182,6 +185,7 @@ class TestProcessHTTPEvent:
         result = step.do(
             {
                 "model_endpoint_uid": "ep-123",
+                "model_endpoint_name": "my-model",
                 "inputs": {"f1": 1.0, "f2": 2.0},
                 "outputs": {"pred": 0.8},
             }
@@ -195,6 +199,7 @@ class TestProcessHTTPEvent:
         result = step.do(
             {
                 "model_endpoint_uid": "ep-123",
+                "model_endpoint_name": "my-model",
                 "inputs": 42.0,
                 "outputs": 0.8,
             }
@@ -207,6 +212,7 @@ class TestProcessHTTPEvent:
         result = step.do(
             {
                 "model_endpoint_uid": "ep-1",
+                "model_endpoint_name": "my-model",
                 "inputs": {"b": 2.0, "a": 1.0},
                 "outputs": {"pred": 0.9},
             }
@@ -219,7 +225,12 @@ class TestProcessHTTPEvent:
     def test_when_added_if_missing(self):
         step = self._step()
         result = step.do(
-            {"model_endpoint_uid": "ep-1", "inputs": [[1.0]], "outputs": [[0.8]]}
+            {
+                "model_endpoint_uid": "ep-1",
+                "model_endpoint_name": "my-model",
+                "inputs": [[1.0]],
+                "outputs": [[0.8]],
+            }
         )
         assert result["when"] is not None
 
@@ -228,6 +239,7 @@ class TestProcessHTTPEvent:
         result = step.do(
             {
                 "model_endpoint_uid": "ep-1",
+                "model_endpoint_name": "my-model",
                 "inputs": [[1.0]],
                 "outputs": [[0.8]],
                 "timestamp": "2024-01-01T00:00:00Z",
@@ -235,33 +247,52 @@ class TestProcessHTTPEvent:
         )
         assert result["when"] == "2024-01-01T00:00:00Z"  # internal field name
 
-    def test_missing_endpoint_id_returns_none(self):
+    def test_missing_endpoint_id_returns_error_sentinel(self):
         step = self._step()
-        result = step.do({"inputs": [[1.0]], "outputs": [[0.9]]})
-        assert result is None
+        result = step.do(
+            {"model_endpoint_name": "my-model", "inputs": [[1.0]], "outputs": [[0.9]]}
+        )
+        assert _HTTP_ERROR_KEY in result
+        assert "model_endpoint_uid" in result[_HTTP_ERROR_KEY]
 
-    def test_missing_inputs_returns_none(self):
+    def test_missing_inputs_returns_error_sentinel(self):
         step = self._step()
-        result = step.do({"model_endpoint_uid": "ep-1", "outputs": [[0.9]]})
-        assert result is None
+        result = step.do(
+            {
+                "model_endpoint_uid": "ep-1",
+                "model_endpoint_name": "my-model",
+                "outputs": [[0.9]],
+            }
+        )
+        assert _HTTP_ERROR_KEY in result
+        assert "inputs" in result[_HTTP_ERROR_KEY]
 
-    def test_missing_outputs_returns_none(self):
+    def test_missing_outputs_returns_error_sentinel(self):
         step = self._step()
-        result = step.do({"model_endpoint_uid": "ep-1", "inputs": [[1.0]]})
-        assert result is None
+        result = step.do(
+            {
+                "model_endpoint_uid": "ep-1",
+                "model_endpoint_name": "my-model",
+                "inputs": [[1.0]],
+            }
+        )
+        assert _HTTP_ERROR_KEY in result
+        assert "outputs" in result[_HTTP_ERROR_KEY]
 
-    def test_model_empty_when_name_not_provided(self):
+    def test_missing_name_returns_error_sentinel(self):
         step = self._step()
         result = step.do(
             {"model_endpoint_uid": "ep-1", "inputs": [[1.0]], "outputs": [[0.8]]}
         )
-        assert result[EventFieldType.MODEL] == ""
+        assert _HTTP_ERROR_KEY in result
+        assert "model_endpoint_name" in result[_HTTP_ERROR_KEY]
 
     def test_optional_metadata_forwarded(self):
         step = self._step()
         result = step.do(
             {
                 "model_endpoint_uid": "ep-1",
+                "model_endpoint_name": "my-model",
                 "inputs": [[1.0]],
                 "outputs": [[0.8]],
                 "timestamp": "2024-01-01T00:00:00Z",
@@ -278,7 +309,12 @@ class TestProcessHTTPEvent:
     def test_request_id_generated_when_absent(self):
         step = self._step()
         result = step.do(
-            {"model_endpoint_uid": "ep-1", "inputs": [[1.0]], "outputs": [[0.8]]}
+            {
+                "model_endpoint_uid": "ep-1",
+                "model_endpoint_name": "my-model",
+                "inputs": [[1.0]],
+                "outputs": [[0.8]],
+            }
         )
         assert result["request"]["id"] is not None
         assert len(result["request"]["id"]) > 0
@@ -286,16 +322,76 @@ class TestProcessHTTPEvent:
     def test_function_uri_from_endpoint_schema(self):
         step = self._step(function_uri="my-project/my-fn:latest")
         result = step.do(
-            {"model_endpoint_uid": "ep-1", "inputs": [[1.0]], "outputs": [[0.8]]}
+            {
+                "model_endpoint_uid": "ep-1",
+                "model_endpoint_name": "my-model",
+                "inputs": [[1.0]],
+                "outputs": [[0.8]],
+            }
         )
         assert result[EventFieldType.FUNCTION_URI] == "my-project/my-fn:latest"
 
     def test_function_uri_empty_for_user_ep(self):
         step = self._step(function_uri="")
         result = step.do(
-            {"model_endpoint_uid": "ep-1", "inputs": [[1.0]], "outputs": [[0.8]]}
+            {
+                "model_endpoint_uid": "ep-1",
+                "model_endpoint_name": "my-model",
+                "inputs": [[1.0]],
+                "outputs": [[0.8]],
+            }
         )
         assert result[EventFieldType.FUNCTION_URI] == ""
+
+
+class _MockContext:
+    """Minimal serving context stub for unit-testing steps that call self.context.Response."""
+
+    class Response:
+        def __init__(self, body, content_type, status_code):
+            self.body = body
+            self.content_type = content_type
+            self.status_code = status_code
+
+
+class TestHTTPAckResponder:
+    def _valid_event(self):
+        return {
+            EventFieldType.ENDPOINT_ID: "ep-123",
+            EventFieldType.MODEL: "my-model",
+            "request": {"inputs": [[1.0]]},
+            "resp": {"outputs": [[0.8]]},
+        }
+
+    def _step(self):
+        step = HTTPAckResponder()
+        step.context = _MockContext()
+        return step
+
+    def test_valid_event_returns_202_accepted(self):
+        import json
+
+        step = self._step()
+        result = step.do(self._valid_event())
+        assert result.status_code == 202
+        assert result.content_type == "application/json"
+        body = json.loads(result.body)
+        assert body["status"] == "accepted"
+        assert body["endpoint_id"] == "ep-123"
+        assert body["endpoint_name"] == "my-model"
+
+    def test_error_sentinel_raises_bad_request(self):
+        step = self._step()
+        with pytest.raises(mlrun.errors.MLRunBadRequestError):
+            step.do({_HTTP_ERROR_KEY: "missing required fields: inputs"})
+
+    def test_error_message_propagated(self):
+        step = self._step()
+        msg = "missing required fields: model_endpoint_name, outputs"
+        with pytest.raises(
+            mlrun.errors.MLRunBadRequestError, match="model_endpoint_name"
+        ):
+            step.do({_HTTP_ERROR_KEY: msg})
 
 
 class TestGetModelMonitoringUrl:

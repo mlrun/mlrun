@@ -1398,6 +1398,7 @@ class TestModelMonitoringInitialize(TestMLRunSystemModelMonitoring):
             image=self.image or mlrun.mlconf.function_defaults.image_by_kind.job,
             wait_for_deployment=True,
         )
+
         with pytest.raises(mlrun.errors.MLRunConflictError):
             self.project.enable_model_monitoring(
                 image=self.image or mlrun.mlconf.function_defaults.image_by_kind.job,
@@ -1439,6 +1440,7 @@ class TestModelMonitoringInitialize(TestMLRunSystemModelMonitoring):
         )
 
         self.project.disable_model_monitoring(delete_histogram_data_drift_app=False)
+
         stream_profile = self.mm_stream_profile
         if isinstance(stream_profile, DatastoreProfileV3io):
             v3io_client = v3io.dataplane.Client(endpoint=mlrun.mlconf.v3io_api)

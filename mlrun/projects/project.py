@@ -2776,8 +2776,6 @@ class MlrunProject(ModelObj):
             lag_event_cooldown=lag_event_cooldown,
             otlp_enabled=otlp_enabled,
         )
-        # Server-side `_persist_model_monitoring_spec` patches `project.spec.model_monitoring`
-        # (enabled, otlp_enabled). Mirror via the same `_enrich` flow used by `save()`.
         self._enrich(db.get_project(self.name))
 
         if wait_for_deployment:
@@ -4173,8 +4171,6 @@ class MlrunProject(ModelObj):
             },
             replace_creds=replace_creds,
         )
-        # Server-side `_persist_model_monitoring_spec` patches `project.spec.model_monitoring`
-        # (stream_type, tsdb_type). Mirror via the same `_enrich` flow used by `save()`.
         self._enrich(db.get_project(self.name))
         if replace_creds:
             logger.info(

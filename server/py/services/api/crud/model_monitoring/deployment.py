@@ -192,9 +192,6 @@ class MonitoringDeployment:
         if image is None:
             image = mlrun.mlconf.function_defaults.image_by_kind.nuclio
 
-        # Fail-fast: refuse to opt the project in to OTel export when the operator
-        # hasn't configured a usable endpoint. Better UX than silently swallowing
-        # the request and discovering it doesn't work at function-launch time.
         if otlp_enabled:
             if not mlrun.mlconf.telemetry.enabled:
                 raise mlrun.errors.MLRunBadRequestError(
@@ -254,9 +251,6 @@ class MonitoringDeployment:
         if deploy_histogram_data_drift_app:
             self.deploy_histogram_data_drift_app(image=image)
 
-        # Persist project-level model monitoring state to the project spec, so
-        # follow-up code (function-launch mount injection, queries, UI) can see
-        # what's enabled without round-tripping to project secrets.
         self._persist_model_monitoring_spec(enabled=True, otlp_enabled=otlp_enabled)
 
     def _persist_model_monitoring_spec(
@@ -1679,8 +1673,6 @@ class MonitoringDeployment:
                 )
                 tasks.append(task)
 
-        # Declaratively reset project-level model monitoring state: disable flips
-        # both `enabled` and `otlp_enabled` off on the project spec.
         await run_in_threadpool(
             self._persist_model_monitoring_spec,
             enabled=False,
@@ -2235,11 +2227,6 @@ class MonitoringDeployment:
             ),
         )
 
-        # Reflect the resolved stream/tsdb types onto the project spec so other
-        # code can query MM state without round-tripping to project secrets.
-        # Leaves `enabled` / `otlp_enabled` untouched — those belong to
-        # enable/disable. Both profiles are guaranteed non-None here because
-        # the mandatory-secrets check above raised otherwise.
         self._persist_model_monitoring_spec(
             stream_type=self._resolve_stream_target(stream_profile),
             tsdb_type=self._resolve_tsdb_target(tsdb_profile),

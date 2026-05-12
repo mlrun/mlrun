@@ -2975,18 +2975,14 @@ class TestHTTPIngest(TestMLRunSystemModelMonitoring):
     def test_http_ingest_stream_pod_is_async(self) -> None:
         """Stream pod processes N concurrent HTTP requests without serialising them.
 
-        A dedicated Nuclio handler fires ``num_events`` requests simultaneously
-        to the stream pod using a ThreadPoolExecutor and returns the total
-        wall-clock elapsed time.  If the stream pod processed requests
-        sequentially the elapsed time would grow linearly with N; because the
-        pod uses storey ConcurrentExecution the batch should complete in roughly
-        the same time as a single request.
+        A dedicated Nuclio handler first sends one request to measure the
+        per-request round-trip baseline, then fires ``num_events`` requests
+        simultaneously.  If the stream pod serialised requests the concurrent
+        batch would take ≈ N × single_elapsed; because it uses storey
+        ConcurrentExecution the batch should complete in ≈ single_elapsed.
+        The assertion concurrent_elapsed < single_elapsed * 2 is self-calibrating
+        and does not rely on any hardcoded timing constant.
         """
-        # Upper bound for a single in-cluster round-trip to the stream pod.
-        # N sequential requests would take N× longer; concurrent should stay
-        # well within this bound.
-        single_request_bound_seconds = 5
-
         fn = mlrun.new_function(
             name="http-ingest-concurrent-fn",
             project=self.project_name,
@@ -3010,23 +3006,33 @@ class TestHTTPIngest(TestMLRunSystemModelMonitoring):
 
         time.sleep(5)
 
-        result = fn.invoke(
-            path="/",
-            body=json.dumps({"num_events": self.num_events}),
+        # --- baseline: one request ---
+        single_result = fn.invoke(path="/", body=json.dumps({"single": True}))
+        assert single_result.get("pushed") == 1, (
+            f"Baseline single request was not accepted: {single_result}"
         )
-        self._logger.info(
-            "Concurrent ingest result",
-            pushed=result.get("pushed"),
-            elapsed_seconds=result.get("elapsed_seconds"),
+        single_elapsed = single_result["single_elapsed"]
+        self._logger.info("Single request baseline", single_elapsed=single_elapsed)
+
+        # --- concurrent: N requests in parallel ---
+        concurrent_result = fn.invoke(
+            path="/", body=json.dumps({"num_events": self.num_events})
         )
-        assert result.get("pushed") == self.num_events, (
+        assert concurrent_result.get("pushed") == self.num_events, (
             f"Expected {self.num_events} accepted events (HTTP 202) "
-            f"but stream pod accepted {result.get('pushed')}"
+            f"but stream pod accepted {concurrent_result.get('pushed')}"
         )
-        elapsed = result.get("elapsed_seconds", float("inf"))
-        assert elapsed < single_request_bound_seconds, (
-            f"Stream pod took {elapsed:.2f}s to handle {self.num_events} "
-            f"concurrent requests — expected < {single_request_bound_seconds}s. "
-            "This suggests the pod is serialising requests instead of processing "
-            "them concurrently."
+        concurrent_elapsed = concurrent_result["concurrent_elapsed"]
+        self._logger.info(
+            "Concurrent batch result",
+            num_events=self.num_events,
+            concurrent_elapsed=concurrent_elapsed,
+            single_elapsed=single_elapsed,
+        )
+
+        assert concurrent_elapsed < single_elapsed * 2, (
+            f"Stream pod took {concurrent_elapsed:.2f}s for {self.num_events} concurrent "
+            f"requests but single request took {single_elapsed:.2f}s — expected batch "
+            f"< {single_elapsed * 2:.2f}s. "
+            "This suggests the pod is serialising requests instead of processing them concurrently."
         )

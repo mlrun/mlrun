@@ -232,11 +232,45 @@ class EndpointConfig(mlrun.model.ModelObj):
         description: str | None = None,
         input_body_mappings: BodyMappings | None = None,
     ) -> None:
-        self.path = path
+        self.path = self._normalize_path(path)
+        self._validate_path(self.path)
         self.http_method = APIHandlerConfig._validate_http_method(http_method)
         self.action = action
         self.description = description
         self.input_body_mappings = input_body_mappings
+
+    @staticmethod
+    def _normalize_path(path: str) -> str:
+        """Normalize path to ensure it starts with a forward slash."""
+        if not path.startswith("/"):
+            return f"/{path}"
+        return path
+
+    @staticmethod
+    def _validate_path(path: str) -> None:
+        """Validate an endpoint path for structural correctness.
+
+        Currently enforces wildcard ``*`` rules:
+
+        * ``*`` may only appear once.
+        * ``*`` must be the last character in the path.
+
+        :param path: Normalized path (with leading ``/``) to validate.
+        :raises mlrun.errors.MLRunValueError: If the path contains an invalid ``*`` pattern.
+        """
+        star_count = path.count("*")
+        if star_count == 0:
+            return
+        if path[-1] != "*":
+            raise mlrun.errors.MLRunValueError(
+                f"Invalid endpoint path '{path}': "
+                f"wildcard '*' must be at the end of the path"
+            )
+        if star_count > 1:
+            raise mlrun.errors.MLRunValueError(
+                f"Invalid endpoint path '{path}': "
+                f"wildcard '*' must appear only once at the end of the path"
+            )
 
     def get_endpoint_key(self) -> str:
         """Return the endpoint key in the format 'METHOD:path', e.g. 'POST:/v1/chat/completions'."""
@@ -304,44 +338,6 @@ class APIHandlerConfig(mlrun.model.ModelObj):
                 )
 
     @staticmethod
-    def _normalize_path(path: str) -> str:
-        """Normalize path to ensure it starts with a forward slash.
-
-        :param path: URL path to normalize
-        :return: Normalized path with leading slash
-        """
-        if not path.startswith("/"):
-            return f"/{path}"
-        return path
-
-    @staticmethod
-    def _validate_path(path: str) -> None:
-        """Validate an endpoint path for structural correctness.
-
-        Currently enforces wildcard ``*`` rules:
-
-        * ``*`` may only appear once.
-        * ``*`` must be the last character in the path.
-
-        :param path: Normalized path (with leading ``/``) to validate.
-        :raises mlrun.errors.MLRunValueError: If the path contains an invalid ``*`` pattern.
-        """
-        star_count = path.count("*")
-        if star_count == 0:
-            return
-        # We know there is a wildcard, validate its position and count
-        if path[-1] != "*":
-            raise mlrun.errors.MLRunValueError(
-                f"Invalid endpoint path '{path}': "
-                f"wildcard '*' must be at the end of the path"
-            )
-        if star_count > 1:
-            raise mlrun.errors.MLRunValueError(
-                f"Invalid endpoint path '{path}': "
-                f"wildcard '*' must appear only once at the end of the path"
-            )
-
-    @staticmethod
     def _validate_http_method(http_method: HTTPMethod | str) -> HTTPMethod:
         """Validate and normalize the provided HTTP method.
 
@@ -370,7 +366,7 @@ class APIHandlerConfig(mlrun.model.ModelObj):
     ) -> "EndpointConfig | None":
         """Get endpoint configuration for a specific method and path."""
         method = self._validate_http_method(method)
-        path = self._normalize_path(path)
+        path = EndpointConfig._normalize_path(path)
         endpoint_key = serving_utils.combine_serving_endpoint_key(method, path)
         return self._endpoints.get(endpoint_key)
 
@@ -392,9 +388,6 @@ class APIHandlerConfig(mlrun.model.ModelObj):
             If ``None``, the request body is passed through as-is.
         :raises mlrun.errors.MLRunValueError: If the path contains an invalid wildcard ``*`` pattern
         """
-        http_method = self._validate_http_method(http_method)
-        path = self._normalize_path(path)
-        self._validate_path(path)
         ep = EndpointConfig(
             path=path,
             http_method=http_method,
@@ -408,8 +401,8 @@ class APIHandlerConfig(mlrun.model.ModelObj):
         if endpoint_key in self._endpoints:
             logger.warning(
                 "Overriding existing endpoint handler configuration",
-                method=http_method.value,
-                path=path,
+                method=ep.http_method.value,
+                path=ep.path,
                 old_action=self._endpoints[endpoint_key].action,
                 new_action=str(action),
             )
@@ -428,7 +421,7 @@ class APIHandlerConfig(mlrun.model.ModelObj):
                             ``'GET'``, ``'POST'``)
         """
         http_method = self._validate_http_method(http_method)
-        path = self._normalize_path(path)
+        path = EndpointConfig._normalize_path(path)
         endpoint_key = serving_utils.combine_serving_endpoint_key(http_method, path)
         self._endpoints.pop(endpoint_key, None)
 

@@ -931,11 +931,11 @@ class RemoteRuntime(KubeResource):
         if tag:
             self.metadata.tag = tag
 
+        if track_models and not self.spec.model_endpoints_instructions:
+            self.setup_model_monitoring()
         self.spec.track_models = (
             self.spec.track_models if track_models is None else track_models
         )
-        if self.spec.track_models and not self.spec.model_endpoints_instructions:
-            self.setup_model_monitoring()
 
         # Attempt auto-mounting, before sending to remote build
         self.try_auto_mount_based_on_config()

@@ -2970,3 +2970,63 @@ class TestHTTPIngest(TestMLRunSystemModelMonitoring):
             assert mep.status.last_request is not None, (
                 f"last_request not updated for endpoint {ep_id}"
             )
+
+    @pytest.mark.timeout(300)
+    def test_http_ingest_stream_pod_is_async(self) -> None:
+        """Stream pod processes N concurrent HTTP requests without serialising them.
+
+        A dedicated Nuclio handler fires ``num_events`` requests simultaneously
+        to the stream pod using a ThreadPoolExecutor and returns the total
+        wall-clock elapsed time.  If the stream pod processed requests
+        sequentially the elapsed time would grow linearly with N; because the
+        pod uses storey ConcurrentExecution the batch should complete in roughly
+        the same time as a single request.
+        """
+        # Upper bound for a single in-cluster round-trip to the stream pod.
+        # N sequential requests would take N× longer; concurrent should stay
+        # well within this bound.
+        single_request_bound_seconds = 5
+
+        fn = mlrun.new_function(
+            name="http-ingest-concurrent-fn",
+            project=self.project_name,
+            kind="remote",
+        )
+        fn.with_code(
+            from_file=str(
+                Path(__file__).parent / "assets" / "http_ingest_concurrent_handler.py"
+            )
+        )
+        fn.setup_model_monitoring(
+            general_model_endpoint_instructions=ModelEndpointInstruction(
+                name=self.model_endpoint_name,
+                input_schema=self.feature_names,
+                output_schema=self.label_names,
+            ),
+        )
+        if self.image is not None:
+            fn.spec.image = self.image
+        fn.deploy()
+
+        time.sleep(5)
+
+        result = fn.invoke(
+            path="/",
+            body=json.dumps({"num_events": self.num_events}),
+        )
+        self._logger.info(
+            "Concurrent ingest result",
+            pushed=result.get("pushed"),
+            elapsed_seconds=result.get("elapsed_seconds"),
+        )
+        assert result.get("pushed") == self.num_events, (
+            f"Expected {self.num_events} accepted events (HTTP 202) "
+            f"but stream pod accepted {result.get('pushed')}"
+        )
+        elapsed = result.get("elapsed_seconds", float("inf"))
+        assert elapsed < single_request_bound_seconds, (
+            f"Stream pod took {elapsed:.2f}s to handle {self.num_events} "
+            f"concurrent requests — expected < {single_request_bound_seconds}s. "
+            "This suggests the pod is serialising requests instead of processing "
+            "them concurrently."
+        )

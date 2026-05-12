@@ -144,13 +144,21 @@ async def delete_project(
             raise mlrun.errors.MLRunRuntimeError(
                 "is_running_in_background and 2PC sync runner are mutually exclusive"
             )
+
+        project = await run_in_threadpool(
+            get_project_member().get_project,
+            db_session,
+            name,
+            auth_info,
+        )
         sync_task, task_name = (
             framework.api.utils.get_or_create_project_2pc_background_task(
-                name, sync_runner
+                name, project.status.op_id, sync_runner
             )
         )
         if sync_task is not None:
             background_tasks.add_task(sync_task)
+
         response.status_code = http.HTTPStatus.ACCEPTED.value
         return framework.utils.background_tasks.InternalBackgroundTasksHandler().get_background_task(
             task_name

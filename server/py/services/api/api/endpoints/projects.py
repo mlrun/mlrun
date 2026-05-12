@@ -87,7 +87,7 @@ async def create_project(
                 "is_running_in_background and 2PC sync runner are mutually exclusive"
             )
         sync_task, _ = framework.api.utils.get_or_create_project_2pc_background_task(
-            project.metadata.name, sync_runner
+            project.metadata.name, project.status.op_id, sync_runner
         )
         if sync_task is not None:
             background_tasks.add_task(sync_task)
@@ -408,7 +408,7 @@ async def delete_project(
                 "is_running_in_background and 2PC sync runner are mutually exclusive"
             )
         sync_task, _ = framework.api.utils.get_or_create_project_2pc_background_task(
-            name, sync_runner
+            name, project.status.op_id, sync_runner
         )
         if sync_task is not None:
             background_tasks.add_task(sync_task)

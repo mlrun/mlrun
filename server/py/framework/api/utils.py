@@ -1197,6 +1197,7 @@ async def run_project_2pc_runner_inline(
 
 def get_or_create_project_2pc_background_task(
     project_name: str,
+    op_id: uuid.UUID,
     runner: ProjectSyncRunner,
 ) -> tuple[typing.Callable | None, str]:
     """
@@ -1229,7 +1230,7 @@ def get_or_create_project_2pc_background_task(
         ) as db_session:
             await runner(db_session)
 
-    background_task_name = str(uuid.uuid4())
+    background_task_name = str(op_id)
     return handler.create_background_task(
         kind,
         mlrun.mlconf.background_tasks.default_timeouts.operations.project_sync_2pc,

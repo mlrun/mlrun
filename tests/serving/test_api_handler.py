@@ -1563,14 +1563,48 @@ class TestAPIHandlerConfig:
         assert config.get_endpoint_config(HTTPMethod.GET, "/health") is not None
 
     def test_to_dict(self) -> None:
-        """Test serialization to dictionary"""
+        """Test serialization to dictionary, including both input and output body mappings."""
+        input_bm = BodyMappings()
+        input_bm.add_mapping("$.model", destination_path="model", mandatory=True)
+
+        output_bm = BodyMappings()
+        output_bm.add_mapping("$.result", destination_path="output", mandatory=False)
+
         config = APIHandlerConfig()
-        config.add_endpoint_handler("/test", HTTPMethod.POST, APIHandlerAction.ALLOW)
+        config.add_endpoint_handler(
+            "/test",
+            HTTPMethod.POST,
+            APIHandlerAction.ALLOW,
+            input_body_mappings=input_bm,
+            output_body_mappings=output_bm,
+        )
 
         config_dict = config.to_dict()
         assert "enabled" in config_dict
         assert "endpoints" in config_dict
         assert config_dict["enabled"] is True
+
+        ep_dict = config_dict["endpoints"]["POST:/test"]
+        expected_input = {
+            "mappings": [
+                {
+                    "source_json_path": "$.model",
+                    "destination_path": "model",
+                    "mandatory": True,
+                }
+            ]
+        }
+        expected_output = {
+            "mappings": [
+                {
+                    "source_json_path": "$.result",
+                    "destination_path": "output",
+                    "mandatory": False,
+                }
+            ]
+        }
+        assert ep_dict["input_body_mappings"] == expected_input
+        assert ep_dict["output_body_mappings"] == expected_output
 
     def test_from_dict(self) -> None:
         """Test deserialization from dictionary, including both input and output body mappings."""
@@ -1611,11 +1645,19 @@ class TestAPIHandlerConfig:
         assert ep.description == "Prediction"
         assert ep.input_body_mappings is not None
         assert ep.input_body_mappings.mappings == [
-            {"source_json_path": "$.model", "destination_path": "model", "mandatory": True}
+            {
+                "source_json_path": "$.model",
+                "destination_path": "model",
+                "mandatory": True,
+            }
         ]
         assert ep.output_body_mappings is not None
         assert ep.output_body_mappings.mappings == [
-            {"source_json_path": "$.result", "destination_path": "output", "mandatory": True}
+            {
+                "source_json_path": "$.result",
+                "destination_path": "output",
+                "mandatory": True,
+            }
         ]
 
     def test_add_endpoint_handler_override_warning(

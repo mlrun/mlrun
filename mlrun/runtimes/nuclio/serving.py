@@ -59,7 +59,7 @@ class BodyMappings(mlrun.model.ModelObj):
     """Directional parameter mappings for a single phase — input (REST → graph) or output (graph → REST).
 
     The direction is determined by which parameter of ``add_endpoint_handler`` the instance
-    is passed to (``body_mappings`` for input, ``return_body_mapping`` for output), not by
+    is passed to (``body_mappings`` for input, ``output_body_mappings`` for output), not by
     the class itself.
 
     Usage::
@@ -82,7 +82,7 @@ class BodyMappings(mlrun.model.ModelObj):
             "/v1/chat/completions",
             HTTPMethod.POST,
             body_mappings=input_bm,
-            return_body_mapping=output_bm,
+            output_body_mappings=output_bm,
         )
     """
 
@@ -222,6 +222,7 @@ class EndpointConfig(mlrun.model.ModelObj):
         "action",
         "description",
         "input_body_mappings",
+        "output_body_mappings",
     ]
 
     def __init__(
@@ -231,6 +232,7 @@ class EndpointConfig(mlrun.model.ModelObj):
         action: schemas.APIHandlerAction = schemas.APIHandlerAction.ALLOW,
         description: str | None = None,
         input_body_mappings: BodyMappings | None = None,
+        output_body_mappings: BodyMappings | None = None,
     ) -> None:
         self.path = self._normalize_path(path)
         self._validate_path(self.path)
@@ -238,6 +240,7 @@ class EndpointConfig(mlrun.model.ModelObj):
         self.action = action
         self.description = description
         self.input_body_mappings = input_body_mappings
+        self.output_body_mappings = output_body_mappings
 
     @staticmethod
     def _normalize_path(path: str) -> str:
@@ -279,7 +282,8 @@ class EndpointConfig(mlrun.model.ModelObj):
     def __repr__(self) -> str:
         return (
             f"EndpointConfig(path={self.path!r}, http_method={self.http_method!r}, "
-            f"action={self.action!r}, input_body_mappings={self.input_body_mappings!r})"
+            f"action={self.action!r}, input_body_mappings={self.input_body_mappings!r}, "
+            f"output_body_mappings={self.output_body_mappings!r})"
         )
 
 
@@ -329,12 +333,19 @@ class APIHandlerConfig(mlrun.model.ModelObj):
                     if body_mappings_dict
                     else None
                 )
+                output_body_mappings_dict = ep.get("output_body_mappings")
+                output_body_mappings = (
+                    BodyMappings.from_dict(output_body_mappings_dict)
+                    if output_body_mappings_dict
+                    else None
+                )
                 self._endpoints[endpoint_key] = EndpointConfig(
                     path=ep.get("path", ""),
                     http_method=ep.get("http_method", HTTPMethod.POST),
                     action=ep.get("action", schemas.APIHandlerAction.ALLOW),
                     description=ep.get("description"),
                     input_body_mappings=input_body_mappings,
+                    output_body_mappings=output_body_mappings,
                 )
 
     @staticmethod
@@ -377,6 +388,7 @@ class APIHandlerConfig(mlrun.model.ModelObj):
         action: schemas.APIHandlerAction = schemas.APIHandlerAction.ALLOW,
         description: str | None = None,
         input_body_mappings: "BodyMappings | None" = None,
+        output_body_mappings: "BodyMappings | None" = None,
     ) -> None:
         """Add an endpoint handler configuration.
 
@@ -386,6 +398,8 @@ class APIHandlerConfig(mlrun.model.ModelObj):
         :param description: Optional description of the endpoint
         :param input_body_mappings: Optional input :class:`BodyMappings` for this endpoint (REST → graph).
             If ``None``, the request body is passed through as-is.
+        :param output_body_mappings: Optional output :class:`BodyMappings` for this endpoint (graph → REST).
+            If ``None``, the response is returned as-is.
         :raises mlrun.errors.MLRunValueError: If the path contains an invalid wildcard ``*`` pattern
         """
         ep = EndpointConfig(
@@ -394,6 +408,7 @@ class APIHandlerConfig(mlrun.model.ModelObj):
             action=action,
             description=description,
             input_body_mappings=input_body_mappings,
+            output_body_mappings=output_body_mappings,
         )
         endpoint_key = ep.get_endpoint_key()
 

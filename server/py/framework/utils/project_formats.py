@@ -35,8 +35,20 @@ class ProjectFormatCustom:
     name = "name"
     created = "created"
     owner = "owner"
+    state = "state"
+    op_id = "op_id"
+    phase = "phase"
+    updated_at = "updated_at"
 
-    all_columns: typing.ClassVar[tuple[str, ...]] = ("name", "created", "owner")
+    all_columns: typing.ClassVar[tuple[str, ...]] = (
+        "name",
+        "created",
+        "owner",
+        "state",
+        "op_id",
+        "phase",
+        "updated_at",
+    )
 
 
 class ProjectFormatCustomSelection:
@@ -70,6 +82,12 @@ class ProjectFormatCustomSelection:
             ),
             spec=mlrun.common.schemas.ProjectSpec(
                 owner=project_dict.get("owner"),
+            ),
+            status=mlrun.common.schemas.ProjectStatus(
+                state=project_dict.get("state"),
+                op_id=project_dict.get("op_id"),
+                phase=project_dict.get("phase"),
+                updated_at=project_dict.get("updated_at"),
             ),
         )
 

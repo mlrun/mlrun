@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import copy
+import datetime
 import enum
 import http
 import uuid
@@ -153,6 +154,7 @@ class Client(
         labels: list[str] | None = None,
         state: mlrun.common.schemas.ProjectState = None,
         names: list[str] | None = None,
+        updated_after: datetime.datetime | None = None,
     ) -> mlrun.common.schemas.ProjectsOutput:
         if owner:
             raise NotImplementedError(
@@ -165,6 +167,10 @@ class Client(
         if state:
             raise NotImplementedError(
                 "Filtering nuclio projects by state is currently not supported"
+            )
+        if updated_after:
+            raise NotImplementedError(
+                "Filtering nuclio projects by updated_after is currently not supported"
             )
         if names:
             raise NotImplementedError(

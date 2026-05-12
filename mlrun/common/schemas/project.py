@@ -14,6 +14,7 @@
 
 import datetime
 import typing
+import uuid
 
 import pydantic.v1
 
@@ -59,6 +60,9 @@ class ProjectState(mlrun.common.types.StrEnum):
 
 class ProjectStatus(ObjectStatus):
     state: ProjectState | None
+    op_id: uuid.UUID | None = None
+    phase: int | None = None
+    updated_at: datetime.datetime | None = None
 
 
 class ProjectMonitoringSpec(pydantic.v1.BaseModel):
@@ -141,7 +145,7 @@ class Project(pydantic.v1.BaseModel):
     kind: ObjectKind = pydantic.v1.Field(ObjectKind.project, const=True)
     metadata: ProjectMetadata
     spec: ProjectSpec = ProjectSpec()
-    status: ObjectStatus = ObjectStatus()
+    status: ProjectStatus = ProjectStatus()
 
 
 # The reason we have a different schema for the response model is that we don't want to validate project.spec.build in
@@ -150,7 +154,7 @@ class ProjectOut(pydantic.v1.BaseModel):
     kind: ObjectKind = pydantic.v1.Field(ObjectKind.project, const=True)
     metadata: ProjectMetadata
     spec: ProjectSpecOut = ProjectSpecOut()
-    status: ObjectStatus = ObjectStatus()
+    status: ProjectStatus = ProjectStatus()
 
 
 class ProjectOwner(pydantic.v1.BaseModel):

@@ -20,7 +20,6 @@ import traceback
 import typing
 import uuid
 
-import fastapi.concurrency
 import humanfriendly
 import mergedeep
 import sqlalchemy.orm
@@ -515,7 +514,7 @@ class Member(
         """
         results = await asyncio.gather(
             *[
-                fastapi.concurrency.run_in_threadpool(
+                mlrun.utils.run_in_threadpool(
                     getattr(follower, method), *args, **kwargs
                 )
                 for follower in self._followers.values()
@@ -565,7 +564,7 @@ class Member(
         db_session: sqlalchemy.orm.Session,
     ) -> None:
         name = project.metadata.name
-        phase = await fastapi.concurrency.run_in_threadpool(
+        phase = await mlrun.utils.run_in_threadpool(
             self._crud_leader_follower.get_project_sync_phase,
             db_session,
             name,
@@ -576,7 +575,7 @@ class Member(
             await self._run_on_all_followers_in_parallel(
                 "prepare_create_project", project, op_id
             )
-            await fastapi.concurrency.run_in_threadpool(
+            await mlrun.utils.run_in_threadpool(
                 self._crud_leader_follower.advance_create_project_to_commit,
                 db_session,
                 name,
@@ -588,7 +587,7 @@ class Member(
             await self._run_on_all_followers_in_parallel(
                 "commit_create_project", name, op_id
             )
-            await fastapi.concurrency.run_in_threadpool(
+            await mlrun.utils.run_in_threadpool(
                 self._crud_leader_follower.complete_create_project,
                 db_session,
                 name,
@@ -610,7 +609,7 @@ class Member(
         # ``complete_update_project`` is reached only when every follower
         # accepted the write, so the row remains at phase=0 for
         # reconciliation otherwise.
-        phase = await fastapi.concurrency.run_in_threadpool(
+        phase = await mlrun.utils.run_in_threadpool(
             self._crud_leader_follower.get_project_sync_phase,
             db_session,
             name,
@@ -621,7 +620,7 @@ class Member(
             await self._run_on_all_followers_in_parallel(
                 "update_project_follower", name, project, op_id
             )
-            await fastapi.concurrency.run_in_threadpool(
+            await mlrun.utils.run_in_threadpool(
                 self._crud_leader_follower.complete_update_project,
                 db_session,
                 name,
@@ -635,7 +634,7 @@ class Member(
         op_id: uuid.UUID,
         db_session: sqlalchemy.orm.Session,
     ) -> None:
-        phase = await fastapi.concurrency.run_in_threadpool(
+        phase = await mlrun.utils.run_in_threadpool(
             self._crud_leader_follower.get_project_sync_phase,
             db_session,
             name,
@@ -646,7 +645,7 @@ class Member(
             await self._run_on_all_followers_in_parallel(
                 "prepare_delete_project", name, op_id
             )
-            await fastapi.concurrency.run_in_threadpool(
+            await mlrun.utils.run_in_threadpool(
                 self._crud_leader_follower.advance_delete_project_to_commit,
                 db_session,
                 name,
@@ -658,12 +657,12 @@ class Member(
             await self._run_on_all_followers_in_parallel(
                 "commit_delete_project", name, op_id
             )
-            await fastapi.concurrency.run_in_threadpool(
+            await mlrun.utils.run_in_threadpool(
                 self._crud_leader_follower.delete_project_resources,
                 db_session,
                 name,
             )
-            await fastapi.concurrency.run_in_threadpool(
+            await mlrun.utils.run_in_threadpool(
                 self._crud_leader_follower.complete_delete_project,
                 db_session,
                 name,

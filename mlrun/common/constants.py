@@ -23,6 +23,10 @@ MLRUN_SERVING_SPEC_PATH = (
 DEFAULT_SOURCE_CODE_TARGET_DIR = "/home/mlrun_code"
 SOURCE_LOADER_INIT_CONTAINER_NAME = "mlrun-source-loader"
 SOURCE_CODE_VOLUME_NAME = "mlrun-source-code"
+STORE_URI_HANDLER_LOADER_MODULE = "_mlrun_store_uri_loader"
+# Bump when the loader stub body changes — existing functions re-bake on
+# next deploy via the `# stub_version=<N>` marker.
+STORE_URI_LOADER_STUB_VERSION = "1"
 MLRUN_FUNCTIONS_ANNOTATION = "mlrun/mlrun-functions"
 MYSQL_MEDIUMBLOB_SIZE_BYTES = 16 * 1024 * 1024
 MLRUN_LABEL_PREFIX = "mlrun/"

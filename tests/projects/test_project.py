@@ -1501,12 +1501,10 @@ def test_export_to_zip_downloads_store_workflow_code(rundb_mock, tmp_path):
         "tozipstoreworkflow", context=str(project_dir / "code"), save=False
     )
 
-    # Log the workflow as a code artifact, then reference it with the
-    # artifact's canonical uri. The key includes a .py suffix so
-    # _validate_file_path inside set_workflow accepts the URI (it requires
-    # any remote URL to have a file suffix).
     workflow_artifact = project.log_code_file(
-        key="my_workflow.py", local_path=str(workflow_source)
+        key="my_workflow.py",
+        local_path=str(workflow_source),
+        code_type="workflow",
     )
     workflow_store_uri = workflow_artifact.uri
     project.set_workflow("main", workflow_store_uri)
@@ -2045,12 +2043,9 @@ def test_set_workflow_propagates_typed_mlrun_error_from_resolver(monkeypatch):
 @pytest.mark.parametrize(
     "exc",
     [
-        # mlrun.errors.MLRunRuntimeError is what httpdb wraps
-        # requests.RequestException (incl. ConnectionError, Timeout) into —
-        # the realistic "DB unreachable" case at the API boundary.
+        # httpdb wraps requests.RequestException into this.
         mlrun.errors.MLRunRuntimeError("simulated httpdb wrap"),
-        # ConnectionError covers the "datastore raised before reaching the
-        # API" path (e.g. local DNS failure inside get_store_resource).
+        # Datastore raised before reaching the API (e.g. DNS failure).
         ConnectionError("DB unreachable"),
     ],
 )
@@ -2222,6 +2217,61 @@ def test_remote_runner_make_workflow_path_relative(
         workflow_path, "/path/to/project"
     )
     assert result == expected_after_rewrite
+
+
+@pytest.mark.parametrize("code_path", ["", None])
+def test_make_workflow_path_relative_passes_through_when_code_path_empty(code_path):
+    """Empty / None code_path must pass workflow_path through unchanged.
+    Without this guard, ``startswith("")`` is True for every path and every
+    input gets a stray ``./`` prefix.
+    """
+    workflow_path = "/some/abs/path.py"
+    result = mlrun.projects.pipelines._RemoteRunner.make_workflow_path_relative(
+        workflow_path, code_path
+    )
+    assert result == workflow_path
+
+
+def test_validate_workflow_code_artifact_rejects_none():
+    """get_store_resource can return None for link-kind artifacts whose target
+    re-read returns falsy; the validator must surface that as a typed
+    NotFound error rather than an opaque AttributeError on attribute access.
+    """
+    validate = mlrun.projects.pipelines._validate_workflow_code_artifact
+    with pytest.raises(
+        mlrun.errors.MLRunNotFoundError, match="did not resolve to an artifact"
+    ):
+        validate(None, "store://artifacts/p/missing_link_target")
+
+
+def test_remote_runner_run_relativizes_workflow_path(monkeypatch, tmp_path):
+    """_RemoteRunner.run must rewrite an absolute workflow_path under the
+    project code-path into a relative form before submitting it to the API.
+    Pins the in-place mutation contract on workflow_spec.path — the runner
+    pod mounts the project context, so absolute client-side paths don't
+    resolve on its filesystem.
+    """
+    proj = mlrun.new_project("relativize-proj", context=str(tmp_path), save=False)
+    workflow_spec = mlrun.projects.pipelines.WorkflowSpec(
+        engine="kfp",
+        path=str(tmp_path / "workflow.py"),
+    )
+
+    # submit_workflow raises so _RemoteRunner.run's outer except Exception
+    # swallows it; the path mutation already happened before that call.
+    fake_db = unittest.mock.Mock()
+    fake_db.submit_workflow.side_effect = RuntimeError("stop here")
+    monkeypatch.setattr(mlrun, "get_run_db", lambda *a, **kw: fake_db)
+
+    mlrun.projects.pipelines._RemoteRunner.run(
+        project=proj,
+        workflow_spec=workflow_spec,
+        name="wf",
+    )
+
+    assert workflow_spec.path == "./workflow.py"
+    submitted_spec = fake_db.submit_workflow.call_args.kwargs["workflow_spec"]
+    assert submitted_spec.path == "./workflow.py"
 
 
 def test_run_non_existing_workflow(rundb_mock):

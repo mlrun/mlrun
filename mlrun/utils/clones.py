@@ -294,7 +294,9 @@ def _load_store_artifact(
                        on a credential-protected store)
 
     :returns: ``(target_dir, local_file_path)`` — the directory the file was
-              downloaded into and the resolved file path within it.
+              downloaded into and the resolved file path within it. Each call
+              re-downloads the artifact content, overwriting any previous local
+              copy at the same path.
     """
     # Resolve the artifact from the store
     artifact = mlrun.datastore.get_store_resource(

@@ -119,7 +119,7 @@ class TestWorkflowStoreUri(tests.system.base.TestMLRunSystem):
             "from_github in test_project.py for the established pattern). "
             "Wiring deferred to a follow-up; the structural code paths "
             "engine='remote' adds for store:// workflows are: "
-            "_RemoteRunner.relativize_workflow_path (covered by unit tests) "
+            "_RemoteRunner.make_workflow_path_relative (covered by unit tests) "
             "and WorkflowSpec.get_source_file inside the runner pod (same "
             "code as engine='kfp', tested above)."
         )

@@ -1289,6 +1289,117 @@ class TestAPIHandlerMockServer:
         finally:
             server.wait_for_completion()
 
+    @pytest.mark.parametrize(
+        "bm_location",
+        [
+            pytest.param("star", id="bm_on_star_inherited"),
+            pytest.param("specific", id="bm_on_specific_endpoint"),
+        ],
+    )
+    def test_api_handler_body_param_conflicts_with_query_param(
+        self, bm_location: str
+    ) -> None:
+        """body_map destination 'limit' clashes with query param ?limit → 400.
+
+        The mapping is placed either on the star endpoint (inherited) or directly on
+        the specific endpoint — both must raise a conflict at request time.
+        """
+        conflict_bm = BodyMappings()
+        conflict_bm.add_mapping("$.batch_size", destination_path="limit")
+
+        non_conflict_bm = BodyMappings()
+        non_conflict_bm.add_mapping("$.model_name", destination_path="model")
+
+        config = APIHandlerConfig()
+        config.add_endpoint_handler(
+            "/v1/*",
+            HTTPMethod.POST,
+            APIHandlerAction.ALLOW,
+            input_body_mappings=conflict_bm
+            if bm_location == "star"
+            else non_conflict_bm,
+        )
+        config.add_endpoint_handler(
+            "/v1/predict",
+            HTTPMethod.POST,
+            APIHandlerAction.ALLOW,
+            input_body_mappings=conflict_bm
+            if bm_location == "specific"
+            else non_conflict_bm,
+        )
+
+        fn = cast(
+            ServingRuntime,
+            mlrun.new_function("test-body-map-query-conflict", kind="serving"),
+        )
+        fn.set_api_handler_config(config)
+        graph = fn.set_topology("flow", engine="sync")
+        graph.to(name="echo", handler="(event)").respond()
+
+        server = fn.to_mock_server()
+        try:
+            with pytest.raises(RuntimeError, match="400.*Parameter name conflict"):
+                server.test(
+                    "/v1/predict?limit=10",
+                    method="POST",
+                    body={"batch_size": 32, "model_name": "my-model"},
+                )
+        finally:
+            server.wait_for_completion()
+
+    @pytest.mark.parametrize(
+        "bm_location",
+        [
+            pytest.param("star", id="bm_on_star_inherited"),
+            pytest.param("specific", id="bm_on_specific_endpoint"),
+        ],
+    )
+    def test_api_handler_body_param_conflicts_with_path_param(
+        self, bm_location: str
+    ) -> None:
+        """body_map destination 'model' clashes with path param {model} → MLRunValueError at init.
+
+        The mapping is placed either on the star endpoint (inherited) or directly on
+        the specific endpoint — both must raise a conflict at config time.
+        """
+        conflict_bm = BodyMappings()
+        conflict_bm.add_mapping("$.batch_size", destination_path="model")
+
+        non_conflict_bm = BodyMappings()
+        non_conflict_bm.add_mapping("$.model_name", destination_path="name")
+
+        config = APIHandlerConfig()
+        config.add_endpoint_handler(
+            "/v1/*",
+            HTTPMethod.POST,
+            APIHandlerAction.ALLOW,
+            input_body_mappings=conflict_bm
+            if bm_location == "star"
+            else non_conflict_bm,
+        )
+        config.add_endpoint_handler(
+            "/v1/{model}/predict",
+            HTTPMethod.POST,
+            APIHandlerAction.ALLOW,
+            input_body_mappings=conflict_bm
+            if bm_location == "specific"
+            else non_conflict_bm,
+        )
+
+        fn = cast(
+            ServingRuntime,
+            mlrun.new_function("test-body-map-path-conflict", kind="serving"),
+        )
+        fn.set_api_handler_config(config)
+        graph = fn.set_topology("flow", engine="sync")
+        graph.to(name="echo", handler="(event)").respond()
+
+        with pytest.raises(
+            mlrun.errors.MLRunValueError,
+            match="Configuration conflict.*model.*overlap with path template",
+        ):
+            fn.to_mock_server()
+
     def test_api_handler_repeated_query_params(self) -> None:
         """Test that repeated query parameters are passed as lists"""
 

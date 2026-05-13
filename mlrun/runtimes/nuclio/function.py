@@ -304,6 +304,8 @@ class NuclioStatus(FunctionStatus):
         external_invocation_urls=None,
         build_pod=None,
         container_image=None,
+        application_source=None,
+        original_handler=None,
     ):
         super().__init__(state, build_pod)
 
@@ -320,6 +322,21 @@ class NuclioStatus(FunctionStatus):
 
         # the name of the image that was built and pushed to the registry, and used by the nuclio function
         self.container_image = container_image
+
+        # Stash for the original spec.build.source — used when the deploy path
+        # clears spec.build.source mid-deploy (Application from_image; vanilla
+        # Nuclio store:// gate). Lets _should_fetch_source_code recover the URI
+        # on redeploys after spec.build.source has been cleared.
+        self.application_source = application_source
+
+        # User-provided handler for store:// CodeArtifact deploys. The deployed
+        # CRD's spec.handler points at a generated loader module (so Nuclio's
+        # bake doesn't shadow the user's handler module via /opt/nuclio); the
+        # loader reads the real handler from the MLRUN_REAL_HANDLER env var,
+        # which is sourced from this field. Persisting it lets us recover the
+        # original on redeploys (when spec.function_handler already shows the
+        # loader handler).
+        self.original_handler = original_handler
 
 
 class RemoteRuntime(KubeResource):
@@ -935,11 +952,11 @@ class RemoteRuntime(KubeResource):
         if tag:
             self.metadata.tag = tag
 
+        if track_models and not self.spec.model_endpoints_instructions:
+            self.setup_model_monitoring()
         self.spec.track_models = (
             self.spec.track_models if track_models is None else track_models
         )
-        if self.spec.track_models and not self.spec.model_endpoints_instructions:
-            self.setup_model_monitoring()
 
         # Attempt auto-mounting, before sending to remote build
         self.try_auto_mount_based_on_config()

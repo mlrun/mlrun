@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import abc
+import datetime
 
 import sqlalchemy.orm
 
@@ -151,6 +152,7 @@ class Member(abc.ABC):
         labels: list[str] | None = None,
         state: mlrun.common.schemas.ProjectState = None,
         names: list[str] | None = None,
+        updated_after: datetime.datetime | None = None,
     ) -> mlrun.common.schemas.ProjectsOutput:
         pass
 

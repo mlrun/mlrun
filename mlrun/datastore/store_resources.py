@@ -188,6 +188,8 @@ def get_store_resource(
             tree=tree,
             uid=uid,
         )
+        if not resource:
+            return None
         if resource.get("kind", "") == "link":
             # todo: support other link types (not just iter, move this to the db/api layer
             link_iteration = resource["spec"].get("link_iteration", 0)

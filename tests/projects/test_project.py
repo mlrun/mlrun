@@ -24,6 +24,7 @@ from contextlib import nullcontext as does_not_raise
 import deepdiff
 import inflection
 import pytest
+import yaml
 
 import mlrun
 import mlrun.alerts.alert
@@ -1296,6 +1297,386 @@ def test_export_to_zip(rundb_mock):
     # check upload to (remote) DataItem
     project.export("memory://x.zip")
     assert mlrun.get_dataitem("memory://x.zip").stat().size
+
+
+def test_export_to_zip_downloads_store_function_code(rundb_mock, tmp_path):
+    """Zip-export: store:// function source is downloaded into the project
+    context and project.yaml is rewritten to a local relative path inside
+    the zip."""
+    project_dir = tmp_path / "store-zip-project"
+    project_dir.mkdir(parents=True)
+
+    # Local source file that will be uploaded as a CodeArtifact.
+    handler_path = project_dir / "handler_source.py"
+    handler_body = "def my_func(context, p1=1):\n    return {'echo': p1}\n"
+    handler_path.write_text(handler_body)
+
+    project = mlrun.new_project(
+        "tozipstore", context=str(project_dir / "code"), save=False
+    )
+
+    # Log the code file so rundb_mock has a real artifact backing the
+    # store:// URI we hand to set_function. Use the artifact's canonical
+    # uri rather than reconstructing one with an f-string template.
+    code_artifact = project.log_code_file(
+        key="my_handler", local_path=str(handler_path)
+    )
+    store_uri = code_artifact.uri
+
+    project.set_function(
+        func=store_uri, name="my-func", kind="job", handler="handler_source:my_func"
+    )
+
+    zip_path = str(project_dir / "proj.zip")
+    project.export(zip_path)
+
+    # Unzip and inspect contents.
+    extract_dir = project_dir / "extracted"
+    extract_dir.mkdir()
+    with zipfile.ZipFile(zip_path, "r") as zipf:
+        zipf.extractall(extract_dir)
+
+    # The downloaded code file lives under .mlrun/code/<basename>_<hash16>.py.
+    code_files = list((extract_dir / ".mlrun" / "code").glob("*.py"))
+    assert len(code_files) == 1, (
+        f"expected exactly one downloaded code file, got {code_files}"
+    )
+    assert code_files[0].read_text() == handler_body, (
+        "downloaded file content must match original"
+    )
+
+    # Embedded project.yaml: function entry's url is rewritten to the
+    # local relative path, NOT the original store:// URI.
+    project_data = yaml.safe_load((extract_dir / "project.yaml").read_text())
+    function_entries = [
+        f for f in project_data["spec"]["functions"] if f["name"] == "my-func"
+    ]
+    assert len(function_entries) == 1
+    rewritten_url = function_entries[0]["url"]
+    assert not rewritten_url.startswith("store://"), (
+        f"function url must not be a store:// URI after rewrite, got {rewritten_url!r}"
+    )
+    assert rewritten_url.startswith(".mlrun/code/"), (
+        f"function url must point at the downloaded local path, got {rewritten_url!r}"
+    )
+    assert rewritten_url == f".mlrun/code/{code_files[0].name}", (
+        "function url must reference the actual downloaded file"
+    )
+
+
+def test_export_to_yaml_keeps_store_uri(rundb_mock, tmp_path):
+    """YAML-only export does NOT download or rewrite — store:// URIs are
+    preserved verbatim because same-cluster round-trip resolves them at
+    load time via _init_function_from_dict."""
+    project_dir = tmp_path / "store-yaml-project"
+    project_dir.mkdir(parents=True)
+
+    handler_path = project_dir / "handler_source.py"
+    handler_path.write_text("def my_func(context, p1=1):\n    return p1\n")
+
+    project = mlrun.new_project(
+        "toyamlstore", context=str(project_dir / "code"), save=False
+    )
+    code_artifact = project.log_code_file(
+        key="my_handler", local_path=str(handler_path)
+    )
+    store_uri = code_artifact.uri
+
+    project.set_function(
+        func=store_uri, name="my-func", kind="job", handler="handler_source:my_func"
+    )
+
+    yaml_path = str(project_dir / "project.yaml")
+    project.export(yaml_path)
+
+    yaml_content = pathlib.Path(yaml_path).read_text()
+    assert store_uri in yaml_content, (
+        "YAML-only export must preserve store:// URI verbatim (no download, no rewrite)"
+    )
+    # No .mlrun/code/ directory should be created for YAML-only exports.
+    # (export() would create it relative to the YAML file's parent if the
+    # zip branch were taken in error.)
+    assert not (project_dir / ".mlrun" / "code").exists(), (
+        "YAML-only export must not create .mlrun/code/ download directory"
+    )
+
+
+def test_export_to_zip_raises_on_unresolvable_store_uri(rundb_mock, tmp_path):
+    """Fail-fast: a store:// URI with no backing artifact aborts the export
+    with MLRunRuntimeError; the partial zip is not produced and the user's
+    in-memory project state is unchanged."""
+    project_dir = tmp_path / "store-zip-broken-project"
+    project_dir.mkdir(parents=True)
+
+    project = mlrun.new_project(
+        "tozipstorebroken", context=str(project_dir / "code"), save=False
+    )
+    # No log_code_file — the store:// URI below points at nothing.
+    broken_uri = f"store://artifacts/{project.metadata.name}/missing_handler"
+    project.set_function(
+        func=broken_uri, name="my-func", kind="job", handler="missing:fn"
+    )
+
+    zip_path = str(project_dir / "proj.zip")
+    with pytest.raises(mlrun.errors.MLRunRuntimeError, match="my-func"):
+        project.export(zip_path)
+
+    # In-memory state is unchanged after the failed export.
+    func_def = project.spec._function_definitions["my-func"]
+    assert func_def["url"] == broken_uri, (
+        f"in-memory function source must be unchanged after failed export, "
+        f"got {func_def.get('url')!r}"
+    )
+    # No partial zip should be produced when the export aborts.
+    assert not pathlib.Path(zip_path).exists(), (
+        "fail-fast export must not leave a partial zip on disk"
+    )
+
+
+def test_export_to_zip_raises_on_download_failure(rundb_mock, tmp_path, monkeypatch):
+    """Different failure path from unresolvable-artifact: the artifact IS
+    resolvable but `mlrun.get_dataitem(target_path).download(...)` raises
+    OSError (network/permission failure). Same fail-fast contract —
+    MLRunRuntimeError aborts the export, in-memory state untouched."""
+    project_dir = tmp_path / "store-zip-download-failure"
+    project_dir.mkdir(parents=True)
+
+    handler_path = project_dir / "handler_source.py"
+    handler_path.write_text("def my_func(context):\n    return 1\n")
+
+    project = mlrun.new_project(
+        "tozipdlfail", context=str(project_dir / "code"), save=False
+    )
+    code_artifact = project.log_code_file(
+        key="my_handler", local_path=str(handler_path)
+    )
+    store_uri = code_artifact.uri
+    project.set_function(
+        func=store_uri, name="my-func", kind="job", handler="handler_source:my_func"
+    )
+
+    # Patch get_dataitem so its returned object's .download() raises.
+    # monkeypatch auto-restores after the test.
+    class _BoomDataItem:
+        def download(self, target):
+            raise OSError("simulated network or permission failure")
+
+    monkeypatch.setattr(
+        mlrun,
+        "get_dataitem",
+        lambda *args, **kwargs: _BoomDataItem(),
+    )
+
+    zip_path = str(project_dir / "proj.zip")
+    with pytest.raises(mlrun.errors.MLRunRuntimeError, match="my-func"):
+        project.export(zip_path)
+
+    # In-memory state unchanged.
+    func_def = project.spec._function_definitions["my-func"]
+    assert func_def["url"] == store_uri
+    assert not pathlib.Path(zip_path).exists(), (
+        "fail-fast export must not leave a partial zip on disk"
+    )
+
+
+def test_export_to_zip_downloads_store_workflow_code(rundb_mock, tmp_path):
+    """Zip-export: store:// workflow source is downloaded into the project
+    context and the embedded project.yaml's workflow path is rewritten to a
+    local relative path. Same behavior as functions, but on `_workflows`.
+
+    Note: `set_workflow(store://...)` requires a file suffix on the URI
+    (e.g. `.py`) — `_validate_file_path` rejects suffix-less remote URLs.
+    Tests that the export rewrite restores in-memory state on success.
+    """
+    project_dir = tmp_path / "store-zip-workflow-project"
+    project_dir.mkdir(parents=True)
+
+    workflow_source = project_dir / "workflow_source.py"
+    workflow_body = (
+        "from kfp import dsl\n\n@dsl.pipeline(name='p')\ndef pipeline():\n    pass\n"
+    )
+    workflow_source.write_text(workflow_body)
+
+    project = mlrun.new_project(
+        "tozipstoreworkflow", context=str(project_dir / "code"), save=False
+    )
+
+    # Log the workflow as a code artifact, then reference it with the
+    # artifact's canonical uri. The key includes a .py suffix so
+    # _validate_file_path inside set_workflow accepts the URI (it requires
+    # any remote URL to have a file suffix).
+    workflow_artifact = project.log_code_file(
+        key="my_workflow.py", local_path=str(workflow_source)
+    )
+    workflow_store_uri = workflow_artifact.uri
+    project.set_workflow("main", workflow_store_uri)
+
+    zip_path = str(project_dir / "proj.zip")
+    project.export(zip_path)
+
+    # Unzip and confirm the workflow source landed under .mlrun/code/.
+    extract_dir = project_dir / "extracted"
+    extract_dir.mkdir()
+    with zipfile.ZipFile(zip_path, "r") as zipf:
+        zipf.extractall(extract_dir)
+
+    code_files = list((extract_dir / ".mlrun" / "code").glob("my_workflow*.py"))
+    assert len(code_files) == 1, (
+        f"expected exactly one downloaded workflow file, got {code_files}"
+    )
+    assert code_files[0].read_text() == workflow_body, (
+        "downloaded workflow content must match original"
+    )
+
+    # Embedded project.yaml: workflow entry's path is rewritten to the actual
+    # downloaded local path, NOT the original store:// URI.
+    project_data = yaml.safe_load((extract_dir / "project.yaml").read_text())
+    workflow_entries = [
+        w for w in project_data["spec"]["workflows"] if w["name"] == "main"
+    ]
+    assert len(workflow_entries) == 1
+    rewritten_path = workflow_entries[0]["path"]
+    assert rewritten_path == f".mlrun/code/{code_files[0].name}", (
+        f"workflow path must reference the downloaded local file, "
+        f"got {rewritten_path!r}"
+    )
+
+    # In-memory state restored on success — workflow_spec.path is back to
+    # the original store:// URI.
+    assert project.spec._workflows["main"].path == workflow_store_uri, (
+        f"in-memory workflow path must be restored after export, "
+        f"got {project.spec._workflows['main'].path!r}"
+    )
+
+
+def test_export_to_zip_downloads_store_function_code_for_runtime_object(
+    rundb_mock, tmp_path
+):
+    """Runtime-object branch of the export walker: function assigned via
+    `project.spec.functions = [runtime_obj]` stores a BaseRuntime whose
+    source lives at `spec.build.source` (separate code path from the
+    dict-form `set_function(func=store_uri)`).
+    """
+    project_dir = tmp_path / "store-zip-runtime"
+    project_dir.mkdir(parents=True)
+
+    handler_path = project_dir / "handler_source.py"
+    handler_path.write_text("def my_func(context):\n    return 1\n")
+
+    project = mlrun.new_project(
+        "toziprt", context=str(project_dir / "code"), save=False
+    )
+    code_artifact = project.log_code_file(
+        key="rt_handler", local_path=str(handler_path)
+    )
+    store_uri = code_artifact.uri
+
+    rt = mlrun.code_to_function(
+        name="rt-fn",
+        kind="job",
+        filename=str(handler_path),
+        handler="my_func",
+        image="mlrun/mlrun",
+    )
+    rt.spec.build.source = store_uri
+    project.spec.functions = [rt]
+
+    zip_path = str(project_dir / "proj.zip")
+    project.export(zip_path)
+
+    extract_dir = project_dir / "extracted"
+    extract_dir.mkdir()
+    with zipfile.ZipFile(zip_path, "r") as zipf:
+        zipf.extractall(extract_dir)
+
+    code_files = list((extract_dir / ".mlrun" / "code").glob("rt_handler*.py"))
+    assert len(code_files) == 1, (
+        f"expected exactly one downloaded code file, got {code_files}"
+    )
+
+    project_data = yaml.safe_load((extract_dir / "project.yaml").read_text())
+    function_entries = [
+        f for f in project_data["spec"]["functions"] if f["name"] == "rt-fn"
+    ]
+    assert len(function_entries) == 1
+    rewritten_source = function_entries[0]["spec"]["spec"]["build"]["source"]
+    assert rewritten_source == f".mlrun/code/{code_files[0].name}", (
+        f"runtime function spec.build.source must be rewritten to local "
+        f"arcname, got {rewritten_source!r}"
+    )
+
+    restored_rt = project.spec._function_definitions["rt-fn"]
+    assert restored_rt.spec.build.source == store_uri, (
+        f"in-memory runtime source must be restored after export, "
+        f"got {restored_rt.spec.build.source!r}"
+    )
+
+
+def test_export_to_zip_keeps_context_yaml_loadable(rundb_mock, tmp_path):
+    """After `export("proj.zip")`, the on-disk `<context>/project.yaml`
+    must still carry the ORIGINAL store:// URIs, not the .mlrun/code/...
+    arcnames that only resolve inside the zip. Otherwise
+    `load_project(<context>)` after the export would fail because those
+    local paths don't exist outside the zip.
+
+    Regression guard for: zip export rewriting the on-disk yaml in place.
+    """
+    project_dir = tmp_path / "store-zip-keepyaml"
+    project_dir.mkdir(parents=True)
+
+    handler_path = project_dir / "handler_source.py"
+    handler_path.write_text("def my_func(context):\n    return 1\n")
+
+    context_dir = project_dir / "code"
+    project = mlrun.new_project("tozipkeep", context=str(context_dir), save=False)
+    code_artifact = project.log_code_file(
+        key="my_handler", local_path=str(handler_path)
+    )
+    store_uri = code_artifact.uri
+    project.set_function(
+        func=store_uri, name="my-func", kind="job", handler="handler_source:my_func"
+    )
+
+    zip_path = str(project_dir / "proj.zip")
+    project.export(zip_path)
+
+    # Post-condition 1: on-disk project.yaml exists and preserves the
+    # original store:// URI.
+    on_disk_yaml = context_dir / "project.yaml"
+    assert on_disk_yaml.exists(), "on-disk project.yaml must be written"
+    on_disk_data = yaml.safe_load(on_disk_yaml.read_text())
+    on_disk_funcs = [
+        f for f in on_disk_data["spec"]["functions"] if f["name"] == "my-func"
+    ]
+    assert len(on_disk_funcs) == 1
+    assert on_disk_funcs[0]["url"] == store_uri, (
+        f"on-disk yaml must keep the original store:// URI so "
+        f"load_project(<context>) resolves it, got {on_disk_funcs[0]['url']!r}"
+    )
+
+    # Post-condition 2: zip's embedded project.yaml has the REWRITTEN path
+    # (so the zip is self-contained). Same export call, divergent content.
+    extract_dir = project_dir / "extracted"
+    extract_dir.mkdir()
+    with zipfile.ZipFile(zip_path, "r") as zipf:
+        zipf.extractall(extract_dir)
+    in_zip_data = yaml.safe_load((extract_dir / "project.yaml").read_text())
+    in_zip_funcs = [
+        f for f in in_zip_data["spec"]["functions"] if f["name"] == "my-func"
+    ]
+    assert in_zip_funcs[0]["url"].startswith(".mlrun/code/"), (
+        f"zip-embedded yaml must use the rewritten local arcname, "
+        f"got {in_zip_funcs[0]['url']!r}"
+    )
+
+    # Post-condition 3: load_project(<context>) still works after export.
+    reloaded = mlrun.load_project(str(context_dir), save=False)
+    reloaded_funcs = [f for f in reloaded.spec.functions if f["name"] == "my-func"]
+    assert len(reloaded_funcs) == 1
+    assert reloaded_funcs[0]["url"] == store_uri, (
+        f"load_project(<context>) after export must still see the original "
+        f"store:// URI, got {reloaded_funcs[0]['url']!r}"
+    )
 
 
 def test_function_receives_project_artifact_path(rundb_mock):

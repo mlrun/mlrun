@@ -192,20 +192,29 @@ class Member(
                 op_id, _ = result
                 runner = functools.partial(self._run_delete_flow, name, op_id)
         else:
-            self._projects_in_deletion.add(name)
-            try:
-                self._run_on_all_followers(
-                    False,
-                    "delete_project",
-                    db_session,
-                    name,
-                    deletion_strategy,
-                    auth_info,
-                )
-            finally:
-                self._projects_in_deletion.remove(name)
+            self._legacy_delete_project(db_session, name, deletion_strategy, auth_info)
 
         return False, runner
+
+    def _legacy_delete_project(
+        self,
+        db_session: sqlalchemy.orm.Session,
+        name: str,
+        deletion_strategy: mlrun.common.schemas.DeletionStrategy = mlrun.common.schemas.DeletionStrategy.default(),
+        auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
+    ) -> None:
+        self._projects_in_deletion.add(name)
+        try:
+            self._run_on_all_followers(
+                False,
+                "delete_project",
+                db_session,
+                name,
+                deletion_strategy,
+                auth_info,
+            )
+        finally:
+            self._projects_in_deletion.remove(name)
 
     def get_project(
         self,

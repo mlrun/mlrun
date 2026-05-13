@@ -501,6 +501,14 @@ def test_get_default_function_node_selector():
     assert mlrun.mlconf.get_default_function_node_selector() == {}
 
 
+def test_validate_config_rejects_malformed_default_function_pod_labels(monkeypatch):
+    monkeypatch.setattr(
+        mlrun.mlconf, "default_function_pod_labels", "not-valid-base64!@#"
+    )
+    with pytest.raises(mlrun.errors.MLRunInvalidArgumentTypeError):
+        mlrun.config._validate_config(mlrun.mlconf)
+
+
 def test_db_connection_deferred_until_reload(monkeypatch):
     """
     This test verifies that setting `mlconf.dbpath` does not eagerly trigger a DB connection.

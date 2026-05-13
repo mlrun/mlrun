@@ -215,6 +215,10 @@ default_config = {
     },
     # default node selector to be applied to all functions - json string base64 encoded format
     "default_function_node_selector": "e30=",
+    # default pod labels to be applied to all functions - json string base64 encoded format.
+    # service-level defaults are the lowest precedence layer: they're overridden by
+    # function.metadata.labels and by system-assigned mlrun/* labels.
+    "default_function_pod_labels": "e30=",
     # default priority class to be applied to functions running on k8s cluster
     "default_function_priority_class_name": "",
     # valid options for priority classes - separated by a comma
@@ -1168,6 +1172,11 @@ class Config:
             "default_function_node_selector", dict
         )
 
+    def get_default_function_pod_labels(self) -> dict:
+        return self.decode_base64_config_and_load_to_object(
+            "default_function_pod_labels", dict
+        )
+
     def get_preemptible_node_selector(self) -> dict:
         return self.decode_base64_config_and_load_to_object(
             "preemptible_nodes.node_selector", dict
@@ -1620,6 +1629,9 @@ def _validate_config(config):
 
     config.verify_security_context_enrichment_mode_is_allowed()
     config.validate_object_retentions()
+    # Fail-fast on malformed base64/JSON in default_function_pod_labels so the
+    # API pod doesn't start with config that would crash every function deploy.
+    config.get_default_function_pod_labels()
 
 
 def _verify_gpu_requests_and_limits(

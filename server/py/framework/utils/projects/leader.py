@@ -659,6 +659,11 @@ class Member(
                 "commit_delete_project", name, op_id
             )
             await fastapi.concurrency.run_in_threadpool(
+                self._crud_leader_follower.delete_project_resources,
+                db_session,
+                name,
+            )
+            await fastapi.concurrency.run_in_threadpool(
                 self._crud_leader_follower.complete_delete_project,
                 db_session,
                 name,

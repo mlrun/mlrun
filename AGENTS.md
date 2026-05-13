@@ -40,7 +40,7 @@ MLRun is an open-source AI/ML orchestration platform. This repo contains the **S
 - **Units in numerics**: name size/time vars explicitly (`size_in_kb`, `timeout_seconds`) or add a unit comment.
 - **Commits**: `[<Scope>] Verb changes made` (imperative). Include `fix`/`bug` for bugfixes (auto-categorized in release notes).
 - **Principles**: DRY, KISS, YAGNI. No speculative abstractions.
-- **Full convention lists** (17+ rules, including docstring format and additional MLRun-specific rules): `CONTRIBUTING.md` §"Python Code Conventions" (L309) and §"MLRun Coding Conventions" (L376). Read before any non-trivial code authoring or review.
+- **Full convention lists** (17+ rules, including docstring format and additional MLRun-specific rules): [`CONTRIBUTING.md#python-code-conventions`](./CONTRIBUTING.md#python-code-conventions) and [`CONTRIBUTING.md#mlrun-coding-conventions`](./CONTRIBUTING.md#mlrun-coding-conventions). Read before any non-trivial code authoring or review.
 
 ## New FastAPI endpoints — security is mandatory
 
@@ -97,7 +97,7 @@ Schema changes, DB migrations, import-linter rule changes, and deprecations requ
 
 | Task | File |
 |---|---|
-| Writing or reviewing Python in `mlrun/` or `server/py/` (full convention list, docstring format) | `CONTRIBUTING.md` §L309 + §L376 |
+| Writing or reviewing Python in `mlrun/` or `server/py/` (full convention list, docstring format) | [`CONTRIBUTING.md#python-code-conventions`](./CONTRIBUTING.md#python-code-conventions) + [`#mlrun-coding-conventions`](./CONTRIBUTING.md#mlrun-coding-conventions) |
 | Dev env setup, ARM64, testing, PR process, lock-file updates, system tests | `CONTRIBUTING.md` |
 | Deprecating an API / parameter / endpoint | `DEPRECATION.md` |
 | Architecture, deployment, non-root user model | `docs/architecture.md` |

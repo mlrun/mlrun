@@ -14,8 +14,6 @@
 import threading
 from typing import TYPE_CHECKING, Any, Optional, Union
 
-from tqdm import tqdm
-
 import mlrun
 from mlrun.datastore.model_provider.model_provider import (
     InvokeResponseFormat,
@@ -122,6 +120,7 @@ class HuggingFaceProvider(ModelProvider):
         """
         try:
             from huggingface_hub import snapshot_download
+            from tqdm import tqdm
 
             # Pre-initialize tqdm's global lock to prevent AttributeError race condition
             # when multiple threads call snapshot_download concurrently for the first time.

@@ -98,7 +98,7 @@ Disable batch mode by:
  `batching_spec = mlrun.runtimes.nuclio.function.BatchSpec(enabled=False)`
 - Set `batching_spec=None` when calling `with_http` to reset the modes to its default configurations
 
-See how to use batching in a serving graph in {ref}`hf-model-image-classification`.
+See how to use batching in a serving graph in {ref}`hf-model-batch-serving-graph`.
 ### GPU allocation
 
 When running multiple models, it is important to allocate the GPUs dynamically per demand. MLRun uses Nuclio for serverless functions, which can free up the GPU when the function is not running or when it scales down. This can lead to better GPU utilization.

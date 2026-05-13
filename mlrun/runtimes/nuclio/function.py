@@ -450,7 +450,8 @@ class RemoteRuntime(KubeResource):
                 for extra_instruction in extra_model_endpoint_instructions
             ):
                 raise mlrun.errors.MLRunInvalidArgumentError(
-                    "Model endpoint function_name mismatch, all instruction function_names must be the same as the function name"
+                    "Model endpoint function_name mismatch, all instruction function_names must be the same as the "
+                    "function name"
                 )
             if any(
                 extra_instruction.function_tag is not None

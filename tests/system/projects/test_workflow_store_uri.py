@@ -17,6 +17,7 @@ import tempfile
 
 import pytest
 
+import mlrun.datastore.datastore_profile as datastore_profile
 import mlrun_pipelines.common.models
 import tests.system.base
 
@@ -85,43 +86,72 @@ class TestWorkflowStoreUri(tests.system.base.TestMLRunSystem):
         )
         return artifact.uri
 
-    @pytest.mark.parametrize(
-        "engine",
-        [
-            # In-process compile + submit to cluster KFP. Exercises
-            # WorkflowSpec.get_source_file via _KFPRunner.save /
-            # _PipelineRunner._get_handler — no runner pod involved.
-            "kfp",
-            # Spawns a workflow-runner pod that resolves the store:// URI
-            # inside K8s. Skipped pending follow-up wiring (cluster image
-            # freshness + project.spec.source cloneable URL).
-            pytest.param(
-                "remote",
-                marks=pytest.mark.skip(
-                    reason=(
-                        "TODO(ML-11981): wire engine='remote' end-to-end. "
-                        "Requires (a) runner-pod image with THIS PR's mlrun "
-                        "and (b) project.spec.source as a cloneable URL — "
-                        "see test_remote_pipeline_with_kfp_engine_from_github "
-                        "in test_project.py for the established pattern. The "
-                        "structural code engine='remote' adds is already "
-                        "covered: _RemoteRunner.resolve_relative_workflow_path "
-                        "by unit tests, WorkflowSpec.get_source_file (runner "
-                        "pod) by the engine='kfp' case above."
-                    )
-                ),
-            ),
-        ],
-    )
+    @pytest.mark.parametrize("engine", ["kfp", "remote"])
     def test_run_workflow_from_store_artifact(self, engine):
         """Run a workflow whose ``workflow_path`` is a ``store://`` CodeArtifact
         URI, end-to-end against the cluster."""
-        # Use a hub function so the workflow doesn't need a local function source.
+        # The remote engine requires `project.spec.source` to be a cloneable
+        # URL (for the runner pod's `load_project` call). Auto-detection from
+        # the worktree picks up `git@...` which the server rejects, so set
+        # a known-cloneable demo repo. Its content isn't used here — the
+        # function comes from hub://describe and the workflow from store://.
+        self.project.spec.source = "git://github.com/mlrun/project-demo.git"
+        self.project.save()
         self.project.set_function("hub://describe", "describe")
         store_uri = self._setup_store_workflow(f"{engine}_workflow_code")
 
         workflow_name = f"store_pipeline_{engine}"
         self.project.set_workflow(workflow_name, workflow_path=store_uri, engine=engine)
+        run = self.project.run(
+            workflow_name,
+            watch=True,
+            engine=engine,
+            artifact_path=f"v3io:///projects/{self.project_name}",
+        )
+
+        assert run.state == mlrun_pipelines.common.models.RunStatuses.succeeded, (
+            f"workflow did not finish successfully (state={run.state})"
+        )
+
+    @pytest.mark.parametrize("engine", ["kfp", "remote"])
+    def test_run_workflow_with_ds_profile_target(self, engine):
+        """The workflow CodeArtifact's target_path is behind a ds:// v3io
+        profile. Exercises the secrets / profile-resolution path inside
+        load_source_code → get_dataitem at the get_source_file call site
+        (client-side for engine=kfp, runner-pod-side for engine=remote)."""
+        access_key = os.environ.get("V3IO_ACCESS_KEY")
+        assert access_key, "V3IO_ACCESS_KEY required for this system test"
+
+        profile_name = "wf-store-test-v3io-profile"
+        profile = datastore_profile.DatastoreProfileV3io(
+            name=profile_name, v3io_access_key=access_key
+        )
+        self.project.register_datastore_profile(profile)
+        datastore_profile.register_temporary_client_datastore_profile(profile)
+
+        # Cloneable project source for the remote runner pod (its content is
+        # unused — function is hub://, workflow is store://).
+        self.project.spec.source = "git://github.com/mlrun/project-demo.git"
+        self.project.save()
+
+        artifact_key = f"ds_workflow_code_{engine}"
+        workflow_src = self._write_pipeline_to_tempfile()
+        artifact = self.project.log_code_file(
+            key=artifact_key,
+            local_path=workflow_src,
+            code_type="workflow",
+            target_path=(
+                f"ds://{profile_name}/projects/{self.project_name}/code/"
+                f"{artifact_key}.py"
+            ),
+        )
+        store_uri = artifact.uri
+
+        self.project.set_function("hub://describe", "describe")
+        workflow_name = f"store_pipeline_ds_{engine}"
+        self.project.set_workflow(
+            workflow_name, workflow_path=store_uri, engine=engine
+        )
         run = self.project.run(
             workflow_name,
             watch=True,

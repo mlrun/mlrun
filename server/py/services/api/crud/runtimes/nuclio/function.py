@@ -847,9 +847,9 @@ def _configure_source_code_loading(
 
     raise mlrun.errors.MLRunInvalidArgumentError(
         f"Function '{function.metadata.name}' (kind={function.kind!r}) has "
-        f"source={source!r} with load_source_on_run=True, which is supported "
-        "on Application kind only. Either set kind='application' or use a "
-        "store:// CodeArtifact source."
+        f"source={source!r} with load_source_on_run=True. Git/archive "
+        "sources with load_source_on_run are supported on Application kind "
+        "only; for Nuclio/Serving use a store:// CodeArtifact source instead."
     )
 
 

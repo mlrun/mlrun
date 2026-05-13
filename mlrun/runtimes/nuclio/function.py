@@ -436,7 +436,8 @@ class RemoteRuntime(KubeResource):
                 general_model_endpoint_instructions.function_name != self.metadata.name
             ):
                 raise mlrun.errors.MLRunInvalidArgumentError(
-                    "Model endpoint function_name mismatch, instruction function_name must be the same as the function name"
+                    "Model endpoint function_name mismatch, instruction function_name must be the same as the function "
+                    "name"
                 )
             if general_model_endpoint_instructions.function_tag is not None and (
                 general_model_endpoint_instructions.function_tag != self.metadata.tag

@@ -2024,10 +2024,11 @@ def test_set_workflow_rejects_store_uri_with_non_code_artifact(
         project.set_workflow("my_pipeline", workflow_path=artifact.uri, engine="kfp")
 
 
-def test_set_workflow_propagates_typed_mlrun_error_from_resolver(monkeypatch):
-    """When get_store_resource raises a typed MLRunBaseError (e.g. user typo'd
-    the artifact key → MLRunNotFoundError), set_workflow must surface it
-    instead of silently deferring to the runner pod."""
+def test_set_workflow_propagates_resolver_error(monkeypatch):
+    """All resolver errors propagate (typo'd key → MLRunNotFoundError, DB
+    unreachable → MLRunRuntimeError, etc.). set_workflow has no deferral
+    fallback — get_store_resource is a metadata-only DB read and is
+    expected to work in any client setup with backend connectivity."""
 
     def _raise(*args, **kwargs):
         raise mlrun.errors.MLRunNotFoundError("artifact not found")
@@ -2038,32 +2039,6 @@ def test_set_workflow_propagates_typed_mlrun_error_from_resolver(monkeypatch):
 
     with pytest.raises(mlrun.errors.MLRunNotFoundError, match="artifact not found"):
         project.set_workflow("my_pipeline", workflow_path=store_uri, engine="kfp")
-
-
-@pytest.mark.parametrize(
-    "exc",
-    [
-        # httpdb wraps requests.RequestException into this.
-        mlrun.errors.MLRunRuntimeError("simulated httpdb wrap"),
-        # Datastore raised before reaching the API (e.g. DNS failure).
-        ConnectionError("DB unreachable"),
-    ],
-)
-def test_set_workflow_defers_on_connectivity_error(monkeypatch, exc):
-    """Connectivity-shaped errors — the client can't distinguish "missing
-    artifact" from "can't reach DB", so it defers to the runner pod's
-    authoritative check rather than failing loudly."""
-
-    def _raise(*args, **kwargs):
-        raise exc
-
-    monkeypatch.setattr(mlrun.datastore, "get_store_resource", _raise)
-    project = mlrun.new_project("set-wf-offline", save=False)
-    store_uri = "store://artifacts/set-wf-offline/some_key"
-
-    # Should not raise; runner pod will validate.
-    project.set_workflow("my_pipeline", workflow_path=store_uri, engine="kfp")
-    assert _workflow_entry_path(project, "my_pipeline") == store_uri
 
 
 @pytest.mark.parametrize(
@@ -2207,26 +2182,26 @@ def test_validate_workflow_code_artifact_pure():
         (None, None),
     ],
 )
-def test_remote_runner_make_workflow_path_relative(
+def test_remote_runner_resolve_relative_workflow_path(
     workflow_path, expected_after_rewrite
 ):
-    """_RemoteRunner.make_workflow_path_relative: convert project-local paths
+    """_RemoteRunner.resolve_relative_workflow_path: convert project-local paths
     to ``./relative`` form; leave URL paths verbatim so the runner pod can
     resolve them via WorkflowSpec.get_source_file."""
-    result = mlrun.projects.pipelines._RemoteRunner.make_workflow_path_relative(
+    result = mlrun.projects.pipelines._RemoteRunner.resolve_relative_workflow_path(
         workflow_path, "/path/to/project"
     )
     assert result == expected_after_rewrite
 
 
 @pytest.mark.parametrize("code_path", ["", None])
-def test_make_workflow_path_relative_passes_through_when_code_path_empty(code_path):
+def test_resolve_relative_workflow_path_passes_through_when_code_path_empty(code_path):
     """Empty / None code_path must pass workflow_path through unchanged.
     Without this guard, ``startswith("")`` is True for every path and every
     input gets a stray ``./`` prefix.
     """
     workflow_path = "/some/abs/path.py"
-    result = mlrun.projects.pipelines._RemoteRunner.make_workflow_path_relative(
+    result = mlrun.projects.pipelines._RemoteRunner.resolve_relative_workflow_path(
         workflow_path, code_path
     )
     assert result == workflow_path
@@ -2242,6 +2217,23 @@ def test_validate_workflow_code_artifact_rejects_none():
         mlrun.errors.MLRunNotFoundError, match="did not resolve to an artifact"
     ):
         validate(None, "store://artifacts/p/missing_link_target")
+
+
+def test_validate_workflow_code_artifact_rejects_non_artifact():
+    """get_store_resource can also return FeatureSet / FeatureVector / DataItem
+    for non-artifact store URIs; the validator must reject those at the type
+    boundary before touching .kind / .spec.code_type.
+    """
+    validate = mlrun.projects.pipelines._validate_workflow_code_artifact
+
+    class _NotAnArtifact:
+        kind = "code"
+
+    with pytest.raises(
+        mlrun.errors.MLRunInvalidArgumentError,
+        match="resolves to a _NotAnArtifact; expected an Artifact",
+    ):
+        validate(_NotAnArtifact(), "store://feature-sets/p/x")
 
 
 def test_remote_runner_run_relativizes_workflow_path(monkeypatch, tmp_path):

@@ -191,16 +191,25 @@ def _validate_workflow_code_artifact(artifact, workflow_path: str) -> None:
     Pure validation — no I/O. ``code_type=None`` is accepted for backward
     compatibility; only an *explicit* non-workflow value fails.
 
-    :param artifact:      Resolved artifact (or ``None``).
+    :param artifact:      Resolved store-resource (or ``None``).
     :param workflow_path: Original ``store://`` URI, used in error messages.
     :raises MLRunNotFoundError: if ``artifact`` is ``None``.
-    :raises MLRunInvalidArgumentError: if kind or code_type mismatch.
+    :raises MLRunInvalidArgumentError: if not an Artifact, or if kind /
+                                       code_type mismatch.
     """
     if artifact is None:
         raise mlrun.errors.MLRunNotFoundError(
             f"Workflow path {workflow_path!r} did not resolve to an artifact "
             "(the store returned no resource; the URI may be malformed or "
             "point at a missing link target)."
+        )
+    if not isinstance(artifact, mlrun.artifacts.Artifact):
+        # get_store_resource can also return FeatureSet / FeatureVector /
+        # DataItem for non-artifact store URIs (e.g. store://feature-sets/...).
+        raise mlrun.errors.MLRunInvalidArgumentError(
+            f"Workflow path {workflow_path!r} resolves to a "
+            f"{type(artifact).__name__}; expected an Artifact (specifically, "
+            f"a code artifact)."
         )
     if artifact.kind != mlrun.artifacts.CodeArtifact.kind:
         raise mlrun.errors.MLRunInvalidArgumentError(
@@ -220,31 +229,13 @@ def _validate_workflow_code_artifact(artifact, workflow_path: str) -> None:
         )
 
 
-def _try_validate_remote_workflow_artifact(
-    workflow_path: str, project_name: str
-) -> None:
-    """Client-side pre-check for a ``store://`` workflow path.
+def _validate_remote_workflow_artifact(workflow_path: str, project_name: str) -> None:
+    """Resolve and validate a ``store://`` workflow artifact via the API.
 
-    Validation failures (kind/code_type) propagate. Connectivity-shaped errors
-    (``MLRunRuntimeError``, ``ConnectionError``, ``TimeoutError``) are deferred
-    to the runner pod's authoritative check; every other error propagates.
+    Metadata-only check — ``get_store_resource`` reads from the MLRun DB, no
+    artifact content is downloaded here. All errors propagate.
     """
-    try:
-        artifact = mlrun.datastore.get_store_resource(
-            workflow_path, project=project_name
-        )
-    except (
-        mlrun.errors.MLRunRuntimeError,
-        ConnectionError,
-        TimeoutError,
-    ) as exc:
-        logger.debug(
-            "Workflow store:// artifact not reachable client-side; "
-            "deferring validation to runner pod",
-            workflow_path=workflow_path,
-            exc=mlrun.errors.err_to_str(exc),
-        )
-        return
+    artifact = mlrun.datastore.get_store_resource(workflow_path, project=project_name)
     _validate_workflow_code_artifact(artifact, workflow_path)
 
 
@@ -976,8 +967,9 @@ class _RemoteRunner(_PipelineRunner):
     engine = "remote"
 
     @staticmethod
-    def make_workflow_path_relative(workflow_path: str, code_path: str) -> str:
-        """Make ``workflow_path`` relative to ``code_path`` if it lives under it.
+    def resolve_relative_workflow_path(workflow_path: str, code_path: str) -> str:
+        """Resolve ``workflow_path`` to a ``./``-prefixed form relative to
+        ``code_path`` if it lives under it.
 
         The runner pod mounts the project context at ``code_path``, so absolute
         client-side paths must be made relative before being shipped.
@@ -1032,7 +1024,7 @@ class _RemoteRunner(_PipelineRunner):
                 project_name=project.name,
             )
 
-            workflow_spec.path = cls.make_workflow_path_relative(
+            workflow_spec.path = cls.resolve_relative_workflow_path(
                 workflow_spec.path, project.spec.get_code_path()
             )
 

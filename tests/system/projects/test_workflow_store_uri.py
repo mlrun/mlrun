@@ -85,60 +85,47 @@ class TestWorkflowStoreUri(tests.system.base.TestMLRunSystem):
         )
         return artifact.uri
 
-    def test_run_workflow_from_store_artifact_kfp_engine(self):
-        """engine='kfp': in-process compile + submit to cluster KFP. Exercises
-        WorkflowSpec.get_source_file directly via _KFPRunner.save /
-        _PipelineRunner._get_handler — no runner pod involved."""
+    @pytest.mark.parametrize(
+        "engine",
+        [
+            # In-process compile + submit to cluster KFP. Exercises
+            # WorkflowSpec.get_source_file via _KFPRunner.save /
+            # _PipelineRunner._get_handler — no runner pod involved.
+            "kfp",
+            # Spawns a workflow-runner pod that resolves the store:// URI
+            # inside K8s. Skipped pending follow-up wiring (cluster image
+            # freshness + project.spec.source cloneable URL).
+            pytest.param(
+                "remote",
+                marks=pytest.mark.skip(
+                    reason=(
+                        "TODO(ML-11981): wire engine='remote' end-to-end. "
+                        "Requires (a) runner-pod image with THIS PR's mlrun "
+                        "and (b) project.spec.source as a cloneable URL — "
+                        "see test_remote_pipeline_with_kfp_engine_from_github "
+                        "in test_project.py for the established pattern. The "
+                        "structural code engine='remote' adds is already "
+                        "covered: _RemoteRunner.resolve_relative_workflow_path "
+                        "by unit tests, WorkflowSpec.get_source_file (runner "
+                        "pod) by the engine='kfp' case above."
+                    )
+                ),
+            ),
+        ],
+    )
+    def test_run_workflow_from_store_artifact(self, engine):
+        """Run a workflow whose ``workflow_path`` is a ``store://`` CodeArtifact
+        URI, end-to-end against the cluster."""
         # Use a hub function so the workflow doesn't need a local function source.
         self.project.set_function("hub://describe", "describe")
-        store_uri = self._setup_store_workflow("kfp_workflow_code")
+        store_uri = self._setup_store_workflow(f"{engine}_workflow_code")
 
-        self.project.set_workflow(
-            "store_pipeline_kfp",
-            workflow_path=store_uri,
-            engine="kfp",
-        )
+        workflow_name = f"store_pipeline_{engine}"
+        self.project.set_workflow(workflow_name, workflow_path=store_uri, engine=engine)
         run = self.project.run(
-            "store_pipeline_kfp",
+            workflow_name,
             watch=True,
-            engine="kfp",
-            artifact_path=f"v3io:///projects/{self.project_name}",
-        )
-
-        assert run.state == mlrun_pipelines.common.models.RunStatuses.succeeded, (
-            f"workflow did not finish successfully (state={run.state})"
-        )
-
-    @pytest.mark.skip(
-        reason=(
-            "TODO(ML-11981): wire engine='remote' end-to-end. The runner pod "
-            "image must contain THIS PR's mlrun (cluster image=unstable, "
-            "kept fresh by patch_remote.py) AND project.spec.source must "
-            "point at a cloneable URL (e.g. git://github.com/mlrun/"
-            "project-demo.git, see test_remote_pipeline_with_kfp_engine_"
-            "from_github in test_project.py for the established pattern). "
-            "Wiring deferred to a follow-up; the structural code paths "
-            "engine='remote' adds for store:// workflows are: "
-            "_RemoteRunner.make_workflow_path_relative (covered by unit tests) "
-            "and WorkflowSpec.get_source_file inside the runner pod (same "
-            "code as engine='kfp', tested above)."
-        )
-    )
-    def test_run_workflow_from_store_artifact_remote_engine(self):
-        """engine='remote': spawns a workflow runner pod that resolves the
-        store:// URI inside K8s. Skipped — see decorator reason."""
-        self.project.set_function("hub://describe", "describe")
-        store_uri = self._setup_store_workflow("remote_workflow_code")
-
-        self.project.set_workflow(
-            "store_pipeline_remote",
-            workflow_path=store_uri,
-            engine="remote",
-        )
-        run = self.project.run(
-            "store_pipeline_remote",
-            watch=True,
-            engine="remote",
+            engine=engine,
             artifact_path=f"v3io:///projects/{self.project_name}",
         )
 

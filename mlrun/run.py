@@ -1337,9 +1337,8 @@ def get_model_monitoring_url(project: str | None = None) -> str | None:
         project = mlrun.get_secret_or_env("MLRUN_ACTIVE_PROJECT")
         should_warn_fallback = True
 
-    url = mlrun.get_secret_or_env(
-        mm_constants.NuclioMonitoringEnvVars.MODEL_MONITORING_URL
-    )
+    env_var = mm_constants.NuclioMonitoringEnvVars.MODEL_MONITORING_URL
+    url = mlrun.get_secret_or_env(env_var)
     if url:
         if project not in url:
             logger.warning(

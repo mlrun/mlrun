@@ -334,8 +334,8 @@ class MonitoringPreProcessor(storey.MapClass):
         data_from_path = get_data_from_path(data_path, raw_data)
         if isinstance(data_from_path, dict) and not schema:
             logger.warn(
-                f"No schema provided through add_model(); the order of {data_from_path} "
-                "may not be preserved."
+                "No schema provided through add_model(); the order of data may not be preserved.",
+                data=data_from_path,
             )
         return _to_listed_data(data_from_path, schema)
 

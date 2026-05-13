@@ -2980,8 +2980,8 @@ class TestHTTPIngest(TestMLRunSystemModelMonitoring):
         A dedicated Nuclio handler first sends one request to measure the
         per-request round-trip baseline, then fires ``num_events`` requests
         simultaneously.  If the stream pod serialised requests the concurrent
-        batch would take ≈ N × single_elapsed; because it uses storey
-        ConcurrentExecution the batch should complete in ≈ single_elapsed.
+        batch would take ≈ N × single_elapsed; because Nuclio dispatches HTTP
+        requests concurrently the batch should complete in ≈ single_elapsed.
         The assertion concurrent_elapsed < single_elapsed * 2 is self-calibrating
         and does not rely on any hardcoded timing constant.
         """

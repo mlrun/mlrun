@@ -52,10 +52,13 @@ import mlrun.common.schemas
 import framework.api.deps
 import framework.utils.auth.verifier
 
+
 @router.get("/projects/{project}/resource")
 async def my_endpoint(
     project: str,
-    auth_info: mlrun.common.schemas.AuthInfo = Depends(framework.api.deps.authenticate_request),
+    auth_info: mlrun.common.schemas.AuthInfo = Depends(
+        framework.api.deps.authenticate_request
+    ),
 ):
     await framework.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
         resource_type=mlrun.common.schemas.AuthorizationResourceTypes.function,

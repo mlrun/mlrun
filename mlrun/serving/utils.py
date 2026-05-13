@@ -188,12 +188,6 @@ def combine_serving_endpoint_key(method: HTTPMethod, path: str) -> str:
     return f"{method.value}:{path}"
 
 
-def split_serving_endpoint_key(endpoint_key: str) -> tuple[HTTPMethod, str]:
-    """Split the endpoint key into method and path"""
-    method_str, path = endpoint_key.split(":", 1)
-    return HTTPMethod(method_str), path
-
-
 def check_body_and_path_parameters_overlapping(
     template_patterns: list[
         tuple[HTTPMethod, Pattern, "mlrun.runtimes.nuclio.serving.EndpointConfig"]

@@ -332,6 +332,29 @@ class TestProcessHTTPEvent:
         )
         assert result[EventFieldType.FUNCTION_URI] == "my-project/my-fn:latest"
 
+    def test_translation_exception_returns_error_sentinel(
+        self, monkeypatch: pytest.MonkeyPatch
+    ):
+        import mlrun.serving.system_steps
+
+        monkeypatch.setattr(
+            mlrun.serving.system_steps,
+            "_to_listed_data",
+            lambda data, schema: (_ for _ in ()).throw(ValueError("boom")),
+        )
+        step = self._step()
+        result = step.do(
+            {
+                "model_endpoint_uid": "ep-1",
+                "model_endpoint_name": "my-model",
+                "inputs": [[1.0]],
+                "outputs": [[0.8]],
+            }
+        )
+        assert _HTTP_ERROR_KEY in result
+        assert "failed to translate event" in result[_HTTP_ERROR_KEY]
+        assert "boom" in result[_HTTP_ERROR_KEY]
+
     def test_function_uri_empty_for_user_ep(self):
         step = self._step(function_uri="")
         result = step.do(
@@ -402,12 +425,15 @@ class TestGetModelMonitoringUrl:
 
     _ENV_VAR = NuclioMonitoringEnvVars.MODEL_MONITORING_URL
 
+    _ACTIVE_PROJECT_VAR = "MLRUN_ACTIVE_PROJECT"
+
     def setup_method(self):
-        # Ensure the env var is clear before each test
         os.environ.pop(self._ENV_VAR, None)
+        os.environ.pop(self._ACTIVE_PROJECT_VAR, None)
 
     def teardown_method(self):
         os.environ.pop(self._ENV_VAR, None)
+        os.environ.pop(self._ACTIVE_PROJECT_VAR, None)
 
     def test_returns_env_var_without_db_call(self, monkeypatch: pytest.MonkeyPatch):
         """When the env var is already set the DB must not be called."""
@@ -470,3 +496,76 @@ class TestGetModelMonitoringUrl:
 
         assert url is None
         assert self._ENV_VAR not in os.environ
+
+    def test_warns_when_cached_url_project_mismatch(
+        self, monkeypatch: pytest.MonkeyPatch
+    ):
+        """A warning is emitted when the cached URL does not contain the project name."""
+        mock = pytest.importorskip("unittest.mock")
+        os.environ[self._ENV_VAR] = "http://stream-pod-other-project/ingest"
+
+        with mock.patch("mlrun.run.logger") as mock_logger:
+            url = mlrun.get_model_monitoring_url(project="my-project")
+
+        assert url == "http://stream-pod-other-project/ingest"
+        mock_logger.warning.assert_called_once()
+        call_args = mock_logger.warning.call_args
+        assert "my-project" in str(call_args)
+
+    def test_no_warning_when_cached_url_matches_project(
+        self, monkeypatch: pytest.MonkeyPatch
+    ):
+        """No warning is emitted when the cached URL contains the project name."""
+        mock = pytest.importorskip("unittest.mock")
+        os.environ[self._ENV_VAR] = "http://stream-pod/my-project/ingest"
+
+        with mock.patch("mlrun.run.logger") as mock_logger:
+            url = mlrun.get_model_monitoring_url(project="my-project")
+
+        assert url == "http://stream-pod/my-project/ingest"
+        mock_logger.warning.assert_not_called()
+
+    def test_uses_active_project_when_no_project_given(
+        self, monkeypatch: pytest.MonkeyPatch
+    ):
+        """When project is omitted, MLRUN_ACTIVE_PROJECT is used."""
+        os.environ[self._ACTIVE_PROJECT_VAR] = "active-project"
+        mock_db = pytest.importorskip("unittest.mock").MagicMock()
+        mock_db.get_model_monitoring_url.return_value = "http://stream/ingest"
+        monkeypatch.setattr(mlrun.db, "get_run_db", lambda: mock_db)
+
+        url = mlrun.get_model_monitoring_url()
+
+        assert url == "http://stream/ingest"
+        mock_db.get_model_monitoring_url.assert_called_once_with("active-project")
+
+    def test_warns_when_no_project_given_and_cache_miss(
+        self, monkeypatch: pytest.MonkeyPatch
+    ):
+        """When project is omitted and the URL is not cached, a warning is emitted."""
+        mock = pytest.importorskip("unittest.mock")
+        os.environ[self._ACTIVE_PROJECT_VAR] = "active-project"
+        mock_db = mock.MagicMock()
+        mock_db.get_model_monitoring_url.return_value = "http://stream/ingest"
+        monkeypatch.setattr(mlrun.db, "get_run_db", lambda: mock_db)
+
+        with mock.patch("mlrun.run.logger") as mock_logger:
+            mlrun.get_model_monitoring_url()
+
+        mock_logger.warning.assert_called_once()
+        call_args = mock_logger.warning.call_args
+        assert "active-project" in str(call_args)
+
+    def test_no_warning_when_project_explicitly_given(
+        self, monkeypatch: pytest.MonkeyPatch
+    ):
+        """When project is provided explicitly, the fallback warning is not emitted."""
+        mock = pytest.importorskip("unittest.mock")
+        mock_db = mock.MagicMock()
+        mock_db.get_model_monitoring_url.return_value = "http://stream/ingest"
+        monkeypatch.setattr(mlrun.db, "get_run_db", lambda: mock_db)
+
+        with mock.patch("mlrun.run.logger") as mock_logger:
+            mlrun.get_model_monitoring_url(project="my-project")
+
+        mock_logger.warning.assert_not_called()

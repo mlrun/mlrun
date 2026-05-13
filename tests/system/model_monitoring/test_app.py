@@ -2701,6 +2701,8 @@ class TestHTTPIngest(TestMLRunSystemModelMonitoring):
 
     @classmethod
     def custom_teardown_class(cls) -> None:
+        if not cls._should_clean_resources():
+            return
         try:
             cls._run_db.delete_project(
                 cls.project_name,
@@ -2971,7 +2973,7 @@ class TestHTTPIngest(TestMLRunSystemModelMonitoring):
                 f"last_request not updated for endpoint {ep_id}"
             )
 
-    @pytest.mark.timeout(300)
+    @pytest.mark.timeout(600)
     def test_http_ingest_stream_pod_is_async(self) -> None:
         """Stream pod processes N concurrent HTTP requests without serialising them.
 

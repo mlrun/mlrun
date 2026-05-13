@@ -13,6 +13,7 @@
 # limitations under the License.
 import asyncio
 import datetime
+import json
 import typing
 import uuid
 
@@ -361,11 +362,8 @@ class TriggerRouter(storey.Choice):
         return ["FilterBatchComplete", "FilterError", "ForwardError"]
 
 
-class ProcessHTTPEvent(storey.ConcurrentExecution):
+class ProcessHTTPEvent(storey.MapClass):
     """Validate and translate an HTTP monitoring payload to StreamProcessingEvent format.
-
-    Inherits from ``storey.ConcurrentExecution`` so that multiple concurrent
-    HTTP requests are processed in parallel without blocking the event loop.
 
     Model endpoint schemas (feature_names / label_names) are fetched from the
     DB on first use and cached in memory per endpoint_id, matching the pattern
@@ -379,14 +377,13 @@ class ProcessHTTPEvent(storey.ConcurrentExecution):
     Optional fields:
         model, model_class, microsec, when, labels, metrics, request_id.
 
-    On validation failure returns ``None`` (event is dropped by the downstream
-    filter step).
+    On validation failure returns an error sentinel dict with ``_HTTP_ERROR_KEY``.
     On success returns a dict in ``StreamProcessingEvent`` format ready to be
     re-injected into the monitoring stream for standard processing.
     """
 
     def __init__(self, project: str, **kwargs):
-        super().__init__(event_processor=self.do, **kwargs)
+        super().__init__(**kwargs)
         self.project = project
         # {endpoint_id: (feature_names, label_names, function_uri)} — populated lazily from DB
         self._schema_cache: dict[str, tuple[list | None, list | None, str]] = {}
@@ -414,7 +411,7 @@ class ProcessHTTPEvent(storey.ConcurrentExecution):
                     endpoint_id=endpoint_id,
                     err=mlrun.errors.err_to_str(exc),
                 )
-                self._schema_cache[endpoint_id] = (None, None, "")
+                return None, None, ""
         return self._schema_cache[endpoint_id]
 
     def do(self, event: dict) -> dict:
@@ -449,21 +446,32 @@ class ProcessHTTPEvent(storey.ConcurrentExecution):
         input_schema = db_feature_names
         output_schema = db_label_names
 
-        # Normalize to listed form using schema (handles dicts, lists of dicts, scalars).
-        # Fall back to the original schema when _to_listed_data couldn't infer one
-        # (e.g. plain list or scalar input where no dict keys are available).
-        listed_inputs, resolved_input_schema = (
-            mlrun.serving.system_steps._to_listed_data(inputs, input_schema)
-        )
-        resolved_input_schema = resolved_input_schema or input_schema
-        listed_outputs, resolved_output_schema = (
-            mlrun.serving.system_steps._to_listed_data(outputs, output_schema)
-        )
-        resolved_output_schema = resolved_output_schema or output_schema
+        try:
+            # Normalize to listed form using schema (handles dicts, lists of dicts, scalars).
+            # Fall back to the original schema when _to_listed_data couldn't infer one
+            # (e.g. plain list or scalar input where no dict keys are available).
+            listed_inputs, resolved_input_schema = (
+                mlrun.serving.system_steps._to_listed_data(inputs, input_schema)
+            )
+            resolved_input_schema = resolved_input_schema or input_schema
+            listed_outputs, resolved_output_schema = (
+                mlrun.serving.system_steps._to_listed_data(outputs, output_schema)
+            )
+            resolved_output_schema = resolved_output_schema or output_schema
 
-        when = event.get(MonitoringHTTPPayload.TIMESTAMP) or datetime.datetime.now(
-            datetime.UTC
-        ).isoformat(sep=" ", timespec="microseconds")
+            when = event.get(MonitoringHTTPPayload.TIMESTAMP) or datetime.datetime.now(
+                datetime.UTC
+            ).isoformat(sep=" ", timespec="microseconds")
+        except Exception as e:
+            logger.error(
+                "Failed to translate HTTP event",
+                err=mlrun.errors.err_to_str(e),
+                event=event,
+            )
+            return {
+                _HTTP_ERROR_KEY: f"failed to translate event: {mlrun.errors.err_to_str(e)}"
+            }
+
         request_id = event.get(EventFieldType.REQUEST_ID) or str(uuid.uuid4())
 
         return {
@@ -488,7 +496,7 @@ class ProcessHTTPEvent(storey.ConcurrentExecution):
         }
 
 
-class HTTPAckResponder(mlrun.feature_store.steps.MapClass):
+class HTTPAckResponder(storey.MapClass):
     """Return an HTTP response for events arriving on the HTTP trigger branch.
 
     Returns 202 Accepted with endpoint info for valid translated events.
@@ -501,8 +509,6 @@ class HTTPAckResponder(mlrun.feature_store.steps.MapClass):
     """
 
     def do(self, event: dict):
-        import json
-
         if _HTTP_ERROR_KEY in event:
             return self.context.Response(
                 body=json.dumps({"error": event[_HTTP_ERROR_KEY]}),

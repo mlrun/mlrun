@@ -1549,6 +1549,69 @@ def test_export_to_zip_downloads_store_workflow_code(rundb_mock, tmp_path):
     )
 
 
+def test_export_to_zip_downloads_store_function_code_for_runtime_object(
+    rundb_mock, tmp_path
+):
+    """Runtime-object branch of the export walker: function assigned via
+    `project.spec.functions = [runtime_obj]` stores a BaseRuntime whose
+    source lives at `spec.build.source` (separate code path from the
+    dict-form `set_function(func=store_uri)`).
+    """
+    project_dir = tmp_path / "store-zip-runtime"
+    project_dir.mkdir(parents=True)
+
+    handler_path = project_dir / "handler_source.py"
+    handler_path.write_text("def my_func(context):\n    return 1\n")
+
+    project = mlrun.new_project(
+        "toziprt", context=str(project_dir / "code"), save=False
+    )
+    code_artifact = project.log_code_file(
+        key="rt_handler", local_path=str(handler_path)
+    )
+    store_uri = code_artifact.uri
+
+    rt = mlrun.code_to_function(
+        name="rt-fn",
+        kind="job",
+        filename=str(handler_path),
+        handler="my_func",
+        image="mlrun/mlrun",
+    )
+    rt.spec.build.source = store_uri
+    project.spec.functions = [rt]
+
+    zip_path = str(project_dir / "proj.zip")
+    project.export(zip_path)
+
+    extract_dir = project_dir / "extracted"
+    extract_dir.mkdir()
+    with zipfile.ZipFile(zip_path, "r") as zipf:
+        zipf.extractall(extract_dir)
+
+    code_files = list((extract_dir / ".mlrun" / "code").glob("rt_handler*.py"))
+    assert len(code_files) == 1, (
+        f"expected exactly one downloaded code file, got {code_files}"
+    )
+
+    project_data = yaml.safe_load((extract_dir / "project.yaml").read_text())
+    function_entries = [
+        f for f in project_data["spec"]["functions"] if f["name"] == "rt-fn"
+    ]
+    assert len(function_entries) == 1
+    rewritten_source = function_entries[0]["spec"]["spec"]["build"]["source"]
+    assert rewritten_source == f".mlrun/code/{code_files[0].name}", (
+        f"runtime function spec.build.source must be rewritten to local "
+        f"arcname, got {rewritten_source!r}"
+    )
+
+    restored_rt = project.spec._function_definitions["rt-fn"]
+    assert restored_rt.spec.build.source == store_uri, (
+        f"in-memory runtime source must be restored after export, "
+        f"got {restored_rt.spec.build.source!r}"
+    )
+
+
 def test_export_to_zip_keeps_context_yaml_loadable(rundb_mock, tmp_path):
     """After `export("proj.zip")`, the on-disk `<context>/project.yaml`
     must still carry the ORIGINAL store:// URIs, not the .mlrun/code/...

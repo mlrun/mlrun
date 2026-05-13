@@ -936,11 +936,16 @@ class ProjectSpec(ModelObj):
     def functions(self) -> list:
         """list of function object/specs used in this project"""
         functions = []
+        source_repo = self._source_repo()
         for name, function in self._function_definitions.items():
             if hasattr(function, "to_dict"):
                 spec = function.to_dict(strip=True)
-                if function.spec.build.source and function.spec.build.source.startswith(
-                    self._source_repo()
+                # Empty source_repo would make every path "start with" "",
+                # silently clobbering valid build.source values.
+                if (
+                    source_repo
+                    and function.spec.build.source
+                    and function.spec.build.source.startswith(source_repo)
                 ):
                     update_in(spec, "spec.build.source", "./")
                 functions.append({"name": name, "spec": spec})
@@ -6217,7 +6222,7 @@ def _download_store_artifact_for_export(
 
 
 def _stage_store_downloads_for_export(
-    spec: "ProjectSpec",
+    spec: ProjectSpec,
     staging_dir: str,
     project_name: str,
 ) -> tuple[dict, dict, dict[str, pathlib.Path], list[str]]:

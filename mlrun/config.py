@@ -1549,6 +1549,11 @@ class Config:
 
         return []
 
+    def is_project_sync_2pc_enabled(self) -> bool:
+        return (
+            self.httpdb.clusterization.chief.feature_gates.project_sync_2pc == "enabled"
+        )
+
 
 # Global configuration
 config = Config.from_dict(default_config)

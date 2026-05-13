@@ -27,7 +27,6 @@ import framework.utils.auth.verifier
 import framework.utils.background_tasks
 import framework.utils.clients.chief
 import framework.utils.helpers
-import framework.utils.projects.leader
 import services.api.crud
 from framework.utils.singletons.project_member import get_project_member
 
@@ -124,7 +123,7 @@ async def delete_project(
             # if the strategy is checked, we don't want to delete the project, only to check if it is empty
             return fastapi.Response(status_code=http.HTTPStatus.NO_CONTENT.value)
 
-    if framework.utils.projects.leader.project_sync_2pc_enabled():
+    if mlrun.mlconf.is_project_sync_2pc_enabled():
         # 2PC delete: run begin synchronously at the endpoint so precondition
         # checks (state==online, op_id stamping) surface to the caller as
         # ordinary HTTP errors. Then schedule the orchestration as its own

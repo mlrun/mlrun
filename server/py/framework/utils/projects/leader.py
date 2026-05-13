@@ -47,13 +47,6 @@ import framework.utils.projects.remotes.nop_follower
 import services.api.crud
 
 
-def project_sync_2pc_enabled() -> bool:
-    return (
-        mlrun.mlconf.httpdb.clusterization.chief.feature_gates.project_sync_2pc
-        == "enabled"
-    )
-
-
 class Member(
     project_member.Member,
     metaclass=mlrun.utils.singleton.AbstractSingleton,
@@ -101,7 +94,7 @@ class Member(
 
         runner: project_member.ProjectSyncRunner | None = None
 
-        if project_sync_2pc_enabled():
+        if mlrun.mlconf.is_project_sync_2pc_enabled():
             op_id, _ = self._crud_leader_follower.begin_create_project(
                 db_session, project
             )
@@ -131,7 +124,7 @@ class Member(
 
         runner: project_member.ProjectSyncRunner | None = None
 
-        if project_sync_2pc_enabled():
+        if mlrun.mlconf.is_project_sync_2pc_enabled():
             try:
                 op_id, _ = self._crud_leader_follower.begin_update_project(
                     db_session, name, project
@@ -164,7 +157,7 @@ class Member(
         self._enrich_project_patch(project)
         self._validate_body_and_path_names_matches(name, project)
 
-        if project_sync_2pc_enabled():
+        if mlrun.mlconf.is_project_sync_2pc_enabled():
             # 2PC has no patch primitive — merge the patch into the current
             # project and run a full store through the 2PC update flow.
             current_project = self.get_project(db_session, name)
@@ -191,7 +184,7 @@ class Member(
     ) -> tuple[bool, project_member.ProjectSyncRunner | None]:
         runner: project_member.ProjectSyncRunner | None = None
 
-        if project_sync_2pc_enabled():
+        if mlrun.mlconf.is_project_sync_2pc_enabled():
             result = self._crud_leader_follower.begin_delete_project(
                 db_session, name, deletion_strategy, auth_info
             )
@@ -289,7 +282,7 @@ class Member(
         framework.utils.periodic.cancel_periodic_function(self._sync_projects.__name__)
 
     def _sync_projects(self):
-        if project_sync_2pc_enabled():
+        if mlrun.mlconf.is_project_sync_2pc_enabled():
             # The legacy periodic sync is incompatible with 2PC's row-level
             # state machine. The 2PC reconciliation loop (separate work)
             # will subsume this responsibility.
@@ -686,7 +679,7 @@ class Member(
             follower: self._initialize_follower(follower) for follower in followers
         }
 
-        if project_sync_2pc_enabled():
+        if mlrun.mlconf.is_project_sync_2pc_enabled():
             # Eagerly trigger the runtime check so a misconfigured leader fails
             # at init rather than on the first 2PC request.
             _ = self._crud_leader_follower

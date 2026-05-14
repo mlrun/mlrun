@@ -86,38 +86,22 @@ class _APIHandlerStep(mlrun.serving.states.TaskStep):
 
         mlrun.utils.logger.debug("The context in API handler", context=self.context)
 
-    def _compile_patterns(
+    def _compile_dynamic_path_patterns(
         self,
     ) -> tuple[
-        list[
-            tuple[HTTPMethod, Pattern, "mlrun.runtimes.nuclio.serving.EndpointConfig"]
-        ],
+        list[tuple[HTTPMethod, Pattern, "mlrun.runtimes.nuclio.serving.EndpointConfig"]],
         list[tuple[HTTPMethod, str, "mlrun.runtimes.nuclio.serving.EndpointConfig"]],
-        dict[str, dict[str, tuple[Any, bool]]],
     ]:
-        """Compile all non-exact endpoint patterns and input body maps in a single pass.
+        """Compile dynamic endpoint path patterns into matchable structures.
 
-        Exact endpoints (no ``{`` or ``*``) are handled by O(1) dict lookup at
-        request time and do not need pre-compilation.
+        Handles two dynamic pattern types (exact paths need no compilation):
 
-        Template patterns (``{param}``):
-            /api/{user_id}/items/{item_id}
-            ↓ becomes ↓
-            ^/api/(?P<user_id>[^/]+)/items/(?P<item_id>[^/]+)$
+        - **Path parameters** (``{param}``): e.g. ``/api/{user_id}/items`` →
+          compiled regex ``^/api/(?P<user_id>[^/]+)/items$`` with named capture groups.
+        - **Wildcard** (``*`` at end): e.g. ``/api/v1/*`` → prefix ``/api/v1/``
+          matched against the start of the request path.
 
-            - ^ and $ anchor the full path
-            - ``(?P<name>[^/]+)`` captures one non-slash path segment per parameter
-
-        Star (wildcard) patterns (``*`` at end only):
-            /api/v1/*  → prefix ``/api/v1/``
-            Matches any path that starts with the prefix and has at least one
-            additional character after it.
-
-        :return: Tuple of (template_patterns, star_patterns, parsed_body_map) where
-
-            * ``template_patterns`` is a list of ``(method, compiled_regex, EndpointConfig)``
-            * ``star_patterns`` is a list of ``(method, prefix, EndpointConfig)``
-            * ``parsed_body_map`` maps endpoint key → ``{destination_path: (compiled_expr, mandatory)}``
+        :return: Tuple of (template_patterns, star_patterns).
         """
         template_patterns: list[
             tuple[HTTPMethod, Pattern, mlrun.runtimes.nuclio.serving.EndpointConfig]
@@ -125,7 +109,6 @@ class _APIHandlerStep(mlrun.serving.states.TaskStep):
         star_patterns: list[
             tuple[HTTPMethod, str, mlrun.runtimes.nuclio.serving.EndpointConfig]
         ] = []
-        parsed_body_map: dict[str, dict[str, tuple[Any, bool]]] = {}
 
         # Tracks normalized template shapes per method to detect overlapping templates.
         # e.g. /a/{key} and /a/{user_id} both normalize to /a/{*} → conflict.
@@ -157,8 +140,6 @@ class _APIHandlerStep(mlrun.serving.states.TaskStep):
             elif "{" in path_pattern:
                 # --- Template pattern ---
                 # Detect overlapping templates: /a/{key} and /a/{user_id} are ambiguous.
-                # Normalize by replacing all {param} placeholders with {*} and check for
-                # duplicates per HTTP method.
                 shape = re.sub(r"\{[^}]*\}", "{*}", path_pattern)
                 shape_key = (method, shape)
                 if shape_key in seen_template_shapes:
@@ -188,29 +169,61 @@ class _APIHandlerStep(mlrun.serving.states.TaskStep):
                 template_patterns.append((method, compiled, ep))
             # else: exact endpoint – handled by dict lookup, no compilation needed
 
-            # Compile input_body_mappings for this endpoint (any pattern type)
-            if ep.input_body_mappings:
-                compiled_map: dict[str, tuple[Any, bool]] = {}
-                for mapping in ep.input_body_mappings.mappings:
-                    try:
-                        compiled_expr = jsonpath_ng.parse(mapping["source_json_path"])
-                    except (
-                        jsonpath_ng.exceptions.JsonPathLexerError,
-                        jsonpath_ng.exceptions.JsonPathParserError,
-                    ) as e:
-                        raise mlrun.errors.MLRunValueError(
-                            f"Invalid JSONPath expression '{mapping['source_json_path']}' "
-                            f"in endpoint '{ep.get_endpoint_key()}': {e}"
-                        ) from e
-                    compiled_map[mapping["destination_path"]] = (
-                        compiled_expr,
-                        mapping["mandatory"],
-                    )
-                parsed_body_map[ep.get_endpoint_key()] = compiled_map
-
         # Sort star patterns by prefix length descending — longer prefix = more specific = higher priority
         star_patterns.sort(key=lambda x: len(x[1]), reverse=True)
+        return template_patterns, star_patterns
+
+    @staticmethod
+    def _compile_body_map(
+        body_mappings: "mlrun.runtimes.nuclio.serving.BodyMappings",
+        endpoint_key: str,
+    ) -> dict[str, tuple[Any, bool]]:
+        """Compile a BodyMappings object into a map of {destination_path: (compiled_expr, mandatory)}.
+
+        :param body_mappings: The :class:`BodyMappings` to compile.
+        :param endpoint_key: Endpoint key used in error messages.
+        :return: Compiled map ready for use with :func:`apply_body_map`.
+        :raises mlrun.errors.MLRunValueError: If a JSONPath expression is invalid.
+        """
+        compiled_map: dict[str, tuple[Any, bool]] = {}
+        for mapping in body_mappings.mappings:
+            try:
+                compiled_expr = jsonpath_ng.parse(mapping["source_json_path"])
+            except (
+                jsonpath_ng.exceptions.JsonPathLexerError,
+                jsonpath_ng.exceptions.JsonPathParserError,
+            ) as e:
+                raise mlrun.errors.MLRunValueError(
+                    f"Invalid JSONPath expression '{mapping['source_json_path']}' "
+                    f"in endpoint '{endpoint_key}': {e}"
+                ) from e
+            compiled_map[mapping["destination_path"]] = (
+                compiled_expr,
+                mapping["mandatory"],
+            )
+        return compiled_map
+
+    def _compile_patterns(
+        self,
+    ) -> tuple[
+        list[tuple[HTTPMethod, Pattern, "mlrun.runtimes.nuclio.serving.EndpointConfig"]],
+        list[tuple[HTTPMethod, str, "mlrun.runtimes.nuclio.serving.EndpointConfig"]],
+        dict[str, dict[str, tuple[Any, bool]]],
+    ]:
+        """Compile path patterns and input body maps.
+
+        :return: Tuple of (template_patterns, star_patterns, parsed_input_body_map).
+        """
+        template_patterns, star_patterns = self._compile_dynamic_path_patterns()
         check_body_and_path_parameters_overlapping(template_patterns, star_patterns)
+
+        parsed_body_map: dict[str, dict[str, tuple[Any, bool]]] = {}
+        for ep in self.config.endpoints.values():
+            if ep.input_body_mappings:
+                parsed_body_map[ep.get_endpoint_key()] = self._compile_body_map(
+                    ep.input_body_mappings, ep.get_endpoint_key()
+                )
+
         return template_patterns, star_patterns, parsed_body_map
 
 

@@ -38,6 +38,62 @@ from mlrun.serving.utils import (
 )
 
 
+def collect_endpoint_matches(
+    method: HTTPMethod,
+    path: str,
+    endpoints: "dict[str, mlrun.runtimes.nuclio.serving.EndpointConfig]",
+    endpoint_patterns: "list[tuple[HTTPMethod, Pattern, mlrun.runtimes.nuclio.serving.EndpointConfig]]",
+    star_patterns: "list[tuple[HTTPMethod, str, mlrun.runtimes.nuclio.serving.EndpointConfig]]",
+) -> list[EndpointMatch]:
+    """Collect all matching endpoints for the given method and path, ordered by priority.
+
+    Priority (highest first):
+    1. Exact match
+    2. Template match  (/api/{id})  — skipped when an exact match is found, because
+       templates are siblings of exact paths (same depth), not parents.
+    3. Star match      (/api/*) — always collected even when an exact match exists,
+       because stars are true parent scopes.  Ordered by prefix length descending,
+       so /a/b/c/* has higher priority than /a/b/* which has higher priority than /a/*.
+
+    :param method: HTTP method to match.
+    :param path: Request path to match.
+    :param endpoints: Dict of exact endpoint key → :class:`EndpointConfig`.
+    :param endpoint_patterns: Compiled path-parameter patterns.
+    :param star_patterns: Compiled wildcard patterns.
+    :return: List of :class:`EndpointMatch`, highest priority first.
+    """
+    matches: list[EndpointMatch] = []
+
+    # Phase 1: Exact match
+    endpoint_key = serving_utils.combine_serving_endpoint_key(method, path)
+    exact_found = endpoint_key in endpoints
+    if exact_found:
+        matches.append(EndpointMatch(endpoints[endpoint_key]))
+
+    # Phase 2: Template matches — skipped when an exact match was found
+    if not exact_found:
+        for pattern_method, compiled_pattern, ep in endpoint_patterns:
+            if pattern_method != method:
+                continue
+            match = compiled_pattern.match(path)
+            if match:
+                path_params = {
+                    name: unquote(value)
+                    for name, value in match.groupdict().items()
+                }
+                matches.append(EndpointMatch(ep, path_params))
+
+    # Phase 3: Star matches — always collected (true parent scopes)
+    path_with_slash = path if path.endswith("/") else path + "/"
+    for star_method, prefix, ep in star_patterns:
+        if star_method != method:
+            continue
+        if path_with_slash.startswith(prefix) and len(path_with_slash) > len(prefix):
+            matches.append(EndpointMatch(ep))
+
+    return matches
+
+
 class _APIHandlerStep(mlrun.serving.states.TaskStep):
     """Private API handler step for routing and validating serving requests"""
 
@@ -444,51 +500,10 @@ class _APIHandlerStep(mlrun.serving.states.TaskStep):
     def _collect_endpoint_matches(
         self, method: HTTPMethod, path: str
     ) -> list[EndpointMatch]:
-        """Collect all matching endpoints for the given method and path, ordered by priority.
-
-        Priority (highest first):
-        1. Exact match
-        2. Template match  (/api/{id})  — skipped when an exact match is found, because
-           templates are siblings of exact paths (same depth), not parents.  Including
-           them when an exact match exists would inject spurious path parameters and
-           unintended body-map inheritance.
-        3. Star match      (/api/*) — always collected even when an exact match exists,
-           because stars are true parent scopes.  Ordered by prefix length descending,
-           so /a/b/c/* has higher priority than /a/b/* which has higher priority than /a/*.
-
-        :param method: HTTP method to match
-        :param path: Request path to match
-        :return: List of :class:`EndpointMatch`, highest priority first.
-        """
-        matches: list[EndpointMatch] = []
-
-        # Phase 1: Exact match
-        endpoint_key = serving_utils.combine_serving_endpoint_key(method, path)
-        exact_found = endpoint_key in self.config.endpoints
-        if exact_found:
-            matches.append(EndpointMatch(self.config.endpoints[endpoint_key]))
-
-        # Phase 2: Template matches — skipped when an exact match was found
-        if not exact_found:
-            for pattern_method, compiled_pattern, ep in self._endpoint_patterns:
-                if pattern_method != method:
-                    continue
-                match = compiled_pattern.match(path)
-                if match:
-                    path_params = {
-                        name: unquote(value)
-                        for name, value in match.groupdict().items()
-                    }
-                    matches.append(EndpointMatch(ep, path_params))
-
-        # Phase 3: Star matches — always collected (true parent scopes)
-        path_with_slash = path if path.endswith("/") else path + "/"
-        for star_method, prefix, ep in self._star_patterns:
-            if star_method != method:
-                continue
-            if path_with_slash.startswith(prefix) and len(path_with_slash) > len(
-                prefix
-            ):
-                matches.append(EndpointMatch(ep))
-
-        return matches
+        return collect_endpoint_matches(
+            method,
+            path,
+            self.config.endpoints,
+            self._endpoint_patterns,
+            self._star_patterns,
+        )

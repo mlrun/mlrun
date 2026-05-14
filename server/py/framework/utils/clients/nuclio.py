@@ -294,7 +294,7 @@ class Client(
             "PUT",
             f"projects/{name}",
             json=body,
-            headers={"x-mlrun-force-sync": ""},
+            headers={"x-mlrun-force-sync": "true"},
         )
 
     def _get_project_from_nuclio(

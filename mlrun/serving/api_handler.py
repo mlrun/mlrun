@@ -41,7 +41,6 @@ from mlrun.serving.utils import (
 )
 
 
-
 class _APIHandlerStep(mlrun.serving.states.TaskStep):
     """Private API handler step for routing and validating serving requests"""
 
@@ -93,7 +92,9 @@ class _APIHandlerStep(mlrun.serving.states.TaskStep):
     def _compile_patterns(
         self,
     ) -> tuple[
-        list[tuple[HTTPMethod, Pattern, "mlrun.runtimes.nuclio.serving.EndpointConfig"]],
+        list[
+            tuple[HTTPMethod, Pattern, "mlrun.runtimes.nuclio.serving.EndpointConfig"]
+        ],
         list[tuple[HTTPMethod, str, "mlrun.runtimes.nuclio.serving.EndpointConfig"]],
         dict[str, dict[str, tuple[Any, bool]]],
     ]:
@@ -114,7 +115,6 @@ class _APIHandlerStep(mlrun.serving.states.TaskStep):
                 )
 
         return template_patterns, star_patterns, parsed_body_map
-
 
     @staticmethod
     def _parse_query_params(path_query: str) -> tuple[str, dict[str, str | list[str]]]:
@@ -171,7 +171,6 @@ class _APIHandlerStep(mlrun.serving.states.TaskStep):
                         query_params[key] = values
 
         return normalized_path, query_params
-
 
     def do(
         self, event: Union[nuclio_sdk.Event, "mlrun.serving.server.MockEvent"]

@@ -58,10 +58,10 @@ def compile_dynamic_path_patterns(
     :return: Tuple of (template_patterns, star_patterns).
     """
     template_patterns: list[
-        tuple[HTTPMethod, Pattern, "mlrun.runtimes.nuclio.serving.EndpointConfig"]
+        tuple[HTTPMethod, Pattern, mlrun.runtimes.nuclio.serving.EndpointConfig]
     ] = []
     star_patterns: list[
-        tuple[HTTPMethod, str, "mlrun.runtimes.nuclio.serving.EndpointConfig"]
+        tuple[HTTPMethod, str, mlrun.runtimes.nuclio.serving.EndpointConfig]
     ] = []
 
     # Tracks normalized template shapes per method to detect overlapping templates.
@@ -198,8 +198,7 @@ def collect_endpoint_matches(
             match = compiled_pattern.match(path)
             if match:
                 path_params = {
-                    name: unquote(value)
-                    for name, value in match.groupdict().items()
+                    name: unquote(value) for name, value in match.groupdict().items()
                 }
                 matches.append(EndpointMatch(ep, path_params))
 
@@ -234,7 +233,9 @@ def apply_body_map(
                     f"Mandatory field '{dest_path}' not found in body"
                 )
             continue
-        result[dest_path] = matches[0].value if len(matches) == 1 else [m.value for m in matches]
+        result[dest_path] = (
+            matches[0].value if len(matches) == 1 else [m.value for m in matches]
+        )
     return result
 
 

@@ -46,6 +46,7 @@ import mlrun.utils
 from mlrun.config import config
 from mlrun.errors import err_to_str
 from mlrun.secrets import SecretsStore
+from mlrun.serving.result_handler import ResultHandler
 
 from ..common.helpers import parse_versioned_object_uri
 from ..common.schemas.model_monitoring.constants import FileTargetKind
@@ -159,6 +160,9 @@ class GraphServer(ModelObj):
         self.model_endpoint_creation_task_name = model_endpoint_creation_task_name
         self.streaming = False
         self.api_handler_config = api_handler_config
+        self.result_handler = (
+            ResultHandler(api_handler_config) if api_handler_config else None
+        )
 
     def set_current_function(self, function):
         """set which child function this server is currently running on"""
@@ -349,6 +353,12 @@ class GraphServer(ModelObj):
         # TODO: this is only relevant in certain flows (MockServer, sync...)
         if hasattr(response, "body"):
             response = response.body
+
+        if self.http_trigger and self.result_handler:
+            method = getattr(event, "method", None)
+            path = getattr(event, "path", None)
+            if method and path:
+                response = self.result_handler.apply(method, path, response)
 
         return response
 

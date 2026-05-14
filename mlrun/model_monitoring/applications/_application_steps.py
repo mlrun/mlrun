@@ -21,6 +21,7 @@ from typing import Any, Union
 import mlrun.common.schemas
 import mlrun.common.schemas.alert as alert_objects
 import mlrun.common.schemas.model_monitoring.constants as mm_constants
+import mlrun.errors
 import mlrun.model_monitoring.helpers
 import mlrun.platforms.iguazio
 from mlrun.serving import GraphContext
@@ -93,6 +94,115 @@ class _PushToMonitoringWriter(StepToDict):
         return self._output_stream
 
 
+class _PrepareOTelEvent(StepToDict):
+    """Adapter step between an MM application's output and
+    :class:`mlrun.serving.OTelMetricsExporter`.
+
+    The application emits a ``(results, MonitoringApplicationContext)`` tuple
+    where ``results`` mixes :class:`ModelMonitoringApplicationResult` (drift
+    detection / scoring) and :class:`ModelMonitoringApplicationMetric`
+    (free-form numeric metrics). The OTel exporter expects events shaped as::
+
+        {
+            "metrics": [
+                {
+                    "metric_name": "...",
+                    "value": 0.42,
+                    "type": "gauge",
+                    "attributes": {...},
+                },
+                ...,
+            ]
+        }
+
+    Naming convention (ML-12532 HLD):
+        * ``mlrun.model_monitoring.result.<name>`` for results
+        * ``mlrun.model_monitoring.metric.<name>`` for metrics
+
+    Instrument type: gauge for both — raw value flows through, and
+    ``result.status`` is the normalized signal for alerting / dashboarding.
+
+    Attributes (shared from MonitoringApplicationContext):
+        * ``project``
+        * ``app.name``
+        * ``function.name``
+        * ``endpoint.uid``
+        * ``endpoint.name``
+
+    Result-only attributes:
+        * ``result.kind``   (e.g. ``"data_drift"``)
+        * ``result.status`` (e.g. ``"detected"``)
+
+    Attribute key names live in
+    :class:`mlrun.common.schemas.model_monitoring.constants.OTelMonitoringAttribute`
+    so downstream consumers (alerts, dashboards) have one canonical
+    reference rather than scattered string literals.
+
+    ``_ModelMonitoringApplicationStats`` entries (histogram drift app
+    internal stats) are skipped — they don't map cleanly onto an OTel
+    instrument.
+    """
+
+    kind = "monitoring_otel_event_preparer"
+
+    def do(
+        self,
+        event: tuple[
+            list[
+                Union[
+                    ModelMonitoringApplicationResult,
+                    ModelMonitoringApplicationMetric,
+                    _ModelMonitoringApplicationStats,
+                ]
+            ],
+            MonitoringApplicationContext,
+        ],
+    ) -> dict[str, Any]:
+        results, ctx = event
+        attr = mm_constants.OTelMonitoringAttribute
+        prefix = mm_constants.OTelMonitoringMetricNamePrefix
+        # MM-app functions are named after the application in the current
+        # design, so app.name and function.name come from the same field.
+        # Kept as separate attributes per the HLD so they can diverge later
+        # without renaming a label.
+        base_attributes = {
+            attr.PROJECT.value: ctx.project_name,
+            attr.APP_NAME.value: ctx.application_name,
+            attr.FUNCTION_NAME.value: ctx.application_name,
+            attr.ENDPOINT_UID.value: ctx.endpoint_id,
+            attr.ENDPOINT_NAME.value: ctx.endpoint_name,
+        }
+        # Strip None-valued attributes — the OTel SDK rejects them with a
+        # warning on every record() call.
+        base_attributes = {k: v for k, v in base_attributes.items() if v is not None}
+
+        metrics: list[dict[str, Any]] = []
+        for entry in results:
+            if isinstance(entry, _ModelMonitoringApplicationStats):
+                # Histogram stats are a side payload, not a metric value.
+                continue
+            attributes = dict(base_attributes)
+            if isinstance(entry, ModelMonitoringApplicationResult):
+                metric_name = f"{prefix.RESULT.value}{entry.name}"
+                # Strings, not raw ints — alerts / dashboards filter on
+                # "detected" / "data_drift" without knowing the underlying
+                # enum integer values.
+                attributes[attr.RESULT_KIND.value] = entry.kind.name
+                attributes[attr.RESULT_STATUS.value] = entry.status.name
+            else:
+                # ModelMonitoringApplicationMetric — no kind/status.
+                metric_name = f"{prefix.METRIC.value}{entry.name}"
+            metrics.append(
+                {
+                    "metric_name": metric_name,
+                    "value": float(entry.value),
+                    "type": "gauge",
+                    "attributes": attributes,
+                }
+            )
+        return {"metrics": metrics}
+
+
 class _PrepareMonitoringEvent(StepToDict):
     MAX_MODEL_ENDPOINTS: int = 1500
 
@@ -163,21 +273,90 @@ class _PrepareMonitoringEvent(StepToDict):
         return application_context
 
 
+# Canonical names of the steps on the OTel export branch. Used both by
+# `mlrun.model_monitoring.api` (when adding the steps to the graph) and by
+# `_ApplicationErrorHandler` to recognize a branch failure from the
+# `event.origin_state` storey populates when it routes to the recovery step.
+OTEL_PREP_STEP_NAME = "PrepareOTelEvent"
+OTEL_EXPORTER_STEP_NAME = "OTelMetricsExporter"
+_OTEL_BRANCH_STEP_NAMES = frozenset({OTEL_PREP_STEP_NAME, OTEL_EXPORTER_STEP_NAME})
+# Surfaced on the alert entity id (suffix) and in the value_dict so alert
+# configs can target OTel exporter failures independently of regular MM
+# application failures.
+_OTEL_BRANCH_SOURCE = "otel_exporter"
+
+
 class _ApplicationErrorHandler(StepToDict):
-    def __init__(self, project: str, name: str | None = None):
+    def __init__(
+        self,
+        project: str,
+        name: str | None = None,
+        application_name: str | None = None,
+    ):
+        """Single error-handler step shared across the MM serving graph.
+
+        Storey populates ``event.origin_state`` with the failing step's
+        name before invoking the recovery step (see
+        ``storey.Flow._do_and_recover``). The handler dispatches on that:
+
+        * **Main app branch** — ``event.body`` is the controller event,
+          which carries ``application_name`` and ``endpoint_id``. Alerts
+          go out with entity id ``<project>_<app>``.
+        * **OTel export branch** — ``event.body`` is the upstream step's
+          output (``(results, ctx)`` from PrepareOTelEvent, or
+          ``{"metrics": [...]}`` from OTelMetricsExporter), with no app
+          name on the body. ``application_name`` must be pinned at
+          construction time; the entity id is suffixed
+          ``_otel_exporter`` and ``value_dict`` carries an explicit
+          ``"Source"`` so the alert config can route only this failure
+          mode.
+
+        :param project: Project name; goes on the alert event entity.
+        :param name: Step name in the serving graph; defaults to the
+            class-derived "ApplicationErrorHandler".
+        :param application_name: Required for OTel-branch failures (the
+            branch event body does not carry it). Optional for main-app
+            failures, where the body carries it.
+        """
         self.project = project
         self.name = name or "ApplicationErrorHandler"
+        self.application_name = application_name
 
     def do(self, event):
         """
-        Handle model monitoring application error. This step will generate an event, describing the error.
+        Handle a model-monitoring application or OTel-branch error.
+        Generates an ``MM_APP_FAILED`` alert event tagged with the
+        failure source.
 
-        :param event: Application event.
+        :param event: Application event (storey adds ``origin_state``
+            and ``error`` before routing to this step).
         """
+        origin_state = getattr(event, "origin_state", None)
+        is_otel_branch = origin_state in _OTEL_BRANCH_STEP_NAMES
+
+        if is_otel_branch:
+            # Branch event body shape varies (depends on which step
+            # raised). Identifying data comes from handler config.
+            if not self.application_name:
+                raise mlrun.errors.MLRunRuntimeError(
+                    "OTel-branch failure but application_name was not "
+                    "pinned on the error handler; cannot tag the alert."
+                )
+            application_name = self.application_name
+            endpoint_id = None
+            source: str | None = _OTEL_BRANCH_SOURCE
+            log_message = (
+                f"Error on model-monitoring OTel export branch ({origin_state})"
+            )
+        else:
+            application_name = event.body.application_name
+            endpoint_id = event.body.endpoint_id
+            source = None
+            log_message = "Error in application step"
 
         error_data = {
-            "Endpoint ID": event.body.endpoint_id,
-            "Application Class": event.body.application_name,
+            "Endpoint ID": endpoint_id,
+            "Application Class": application_name,
             "Error": "".join(
                 traceback.format_exception(
                     None, value=event.error, tb=event.error.__traceback__
@@ -185,16 +364,22 @@ class _ApplicationErrorHandler(StepToDict):
             ),
             "Timestamp": event.timestamp,
         }
-        logger.error("Error in application step", **error_data)
+        if source:
+            error_data["Source"] = source
+        logger.error(log_message, **error_data)
 
         error_data["Error"] = event.error
+
+        entity_id = f"{self.project}_{application_name}"
+        if source:
+            entity_id = f"{entity_id}_{source}"
 
         event_data = alert_objects.Event(
             kind=alert_objects.EventKind.MM_APP_FAILED,
             entity=alert_objects.EventEntities(
                 kind=alert_objects.EventEntityKind.MODEL_MONITORING_APPLICATION,
                 project=self.project,
-                ids=[f"{self.project}_{event.body.application_name}"],
+                ids=[entity_id],
             ),
             value_dict=error_data,
         )

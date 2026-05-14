@@ -24,16 +24,24 @@ import pytest
 import mlrun
 import mlrun.artifacts
 import mlrun.common.schemas.model_monitoring.constants as mm_constants
+import mlrun.errors
 import mlrun.model_monitoring.applications.context as mm_context
 import mlrun.serving.states
+from mlrun.common.schemas import alert as alert_objects
 from mlrun.common.schemas.model_monitoring import ResultData
 from mlrun.model_monitoring.applications import (
     ModelMonitoringApplicationMetric,
     ModelMonitoringApplicationResult,
 )
 from mlrun.model_monitoring.applications._application_steps import (
+    _OTEL_BRANCH_SOURCE,
+    _ApplicationErrorHandler,
     _PrepareMonitoringEvent,  # noqa: F401
+    _PrepareOTelEvent,
     _PushToMonitoringWriter,
+)
+from mlrun.model_monitoring.applications.results import (
+    _ModelMonitoringApplicationStats,
 )
 from mlrun.utils import Logger, logger
 
@@ -262,3 +270,220 @@ def test_push_result_to_monitoring_writer_stream(
                 "event_kind": event_kind.value,
                 "data": json.dumps(result),
             }
+
+
+class TestPrepareOTelEvent:
+    PROJECT = "my-proj"
+    APP = "my-app"
+    EP_ID = "ep-1234"
+    EP_NAME = "ep-name"
+    BASE_ATTRS = {
+        "project": PROJECT,
+        "app.name": APP,
+        "function.name": APP,
+        "endpoint.uid": EP_ID,
+        "endpoint.name": EP_NAME,
+    }
+
+    @classmethod
+    @pytest.fixture
+    def app_ctx(cls) -> Mock:
+        ctx = Mock(spec=mm_context.MonitoringApplicationContext)
+        ctx.project_name = cls.PROJECT
+        ctx.application_name = cls.APP
+        ctx.endpoint_id = cls.EP_ID
+        ctx.endpoint_name = cls.EP_NAME
+        return ctx
+
+    @staticmethod
+    def _by_name(metrics: list[dict[str, typing.Any]]) -> dict[str, dict]:
+        return {m["metric_name"]: m for m in metrics}
+
+    @classmethod
+    def test_result_and_metric_shape(cls, app_ctx: Mock) -> None:
+        """Results carry `result.kind` + `result.status` and the
+        `mlrun.model_monitoring.result.` prefix; metrics use the
+        `.metric.` prefix and don't get those extra attributes."""
+        results = [
+            ModelMonitoringApplicationResult(
+                name="general_drift",
+                value=0.42,
+                kind=mm_constants.ResultKindApp.data_drift,
+                status=mm_constants.ResultStatusApp.detected,
+            ),
+            ModelMonitoringApplicationMetric(name="hellinger", value=0.1),
+        ]
+        event = _PrepareOTelEvent().do((results, app_ctx))
+        by_name = cls._by_name(event["metrics"])
+
+        result_entry = by_name["mlrun.model_monitoring.result.general_drift"]
+        assert result_entry == {
+            "metric_name": "mlrun.model_monitoring.result.general_drift",
+            "value": 0.42,
+            "type": "gauge",
+            "attributes": {
+                **cls.BASE_ATTRS,
+                "result.kind": "data_drift",
+                "result.status": "detected",
+            },
+        }
+        metric_entry = by_name["mlrun.model_monitoring.metric.hellinger"]
+        assert metric_entry == {
+            "metric_name": "mlrun.model_monitoring.metric.hellinger",
+            "value": 0.1,
+            "type": "gauge",
+            "attributes": cls.BASE_ATTRS,
+        }
+
+    @classmethod
+    def test_stats_entries_skipped(cls, app_ctx: Mock) -> None:
+        """Histogram drift stats are a side payload and have no OTel
+        instrument — they're filtered out."""
+        results = [
+            _ModelMonitoringApplicationStats(
+                name=mm_constants.StatsKind.CURRENT_STATS,
+                timestamp="2026-05-14T00:00:00",
+                stats={"feat": {"mean": 0.5}},
+            ),
+            ModelMonitoringApplicationMetric(name="some_metric", value=1.0),
+        ]
+        event = _PrepareOTelEvent().do((results, app_ctx))
+        assert [m["metric_name"] for m in event["metrics"]] == [
+            "mlrun.model_monitoring.metric.some_metric"
+        ]
+
+    @classmethod
+    def test_none_attributes_stripped(cls) -> None:
+        """The OTel SDK warns on None-valued attributes; the step must
+        drop them rather than forward them."""
+        ctx = Mock(spec=mm_context.MonitoringApplicationContext)
+        ctx.project_name = cls.PROJECT
+        ctx.application_name = cls.APP
+        ctx.endpoint_id = None
+        ctx.endpoint_name = None
+        results = [ModelMonitoringApplicationMetric(name="m", value=1.0)]
+        event = _PrepareOTelEvent().do((results, ctx))
+        attrs = event["metrics"][0]["attributes"]
+        assert "endpoint.uid" not in attrs
+        assert "endpoint.name" not in attrs
+        assert attrs == {
+            "project": cls.PROJECT,
+            "app.name": cls.APP,
+            "function.name": cls.APP,
+        }
+
+    @classmethod
+    def test_empty_results(cls, app_ctx: Mock) -> None:
+        assert _PrepareOTelEvent().do(([], app_ctx)) == {"metrics": []}
+
+
+class TestApplicationErrorHandler:
+    PROJECT = "my-proj"
+    APP = "my-app"
+
+    @staticmethod
+    def _make_event(
+        *,
+        origin_state: str | None,
+        body: typing.Any = None,
+        error: Exception | None = None,
+    ) -> Mock:
+        event = Mock()
+        event.body = body
+        # Raise + catch so event.error has a real traceback for
+        # traceback.format_exception() to render.
+        try:
+            raise error or RuntimeError("kaboom")
+        except Exception as e:
+            event.error = e
+        event.timestamp = "2026-05-14T00:00:00"
+        # None is a valid value: handler dispatch is "in frozenset of
+        # branch names", and None is not in that set, so the main-app
+        # path runs — covers the defensive case.
+        event.origin_state = origin_state
+        return event
+
+    @classmethod
+    def _captured_event(cls, generate_event: Mock) -> alert_objects.Event:
+        assert generate_event.called, "Handler did not generate an alert event"
+        return generate_event.call_args.kwargs["event_data"]
+
+    @classmethod
+    def test_main_app_failure_uses_body_fields(cls) -> None:
+        """Failure on the main app step: body is the controller event;
+        endpoint id and app name come from there. Alert entity id is
+        plain `<project>_<app>` — no source suffix."""
+        handler = _ApplicationErrorHandler(project=cls.PROJECT)
+        body = Mock()
+        body.application_name = cls.APP
+        body.endpoint_id = "ep-1234"
+        event = cls._make_event(origin_state="DemoMonitoringApp", body=body)
+
+        with patch("mlrun.get_run_db") as get_db:
+            handler.do(event)
+        alert = cls._captured_event(get_db.return_value.generate_event)
+
+        assert alert.entity.ids == [f"{cls.PROJECT}_{cls.APP}"]
+        assert alert.value_dict["Application Class"] == cls.APP
+        assert alert.value_dict["Endpoint ID"] == "ep-1234"
+        # No source tag on regular app failures — keeps backward compat
+        # with existing alert configs.
+        assert "Source" not in alert.value_dict
+
+    @classmethod
+    @pytest.mark.parametrize(
+        "origin_state", ["PrepareOTelEvent", "OTelMetricsExporter"]
+    )
+    def test_otel_branch_failure_is_tagged(cls, origin_state: str) -> None:
+        """Failure on the OTel branch (either prep or exporter):
+        application_name is pinned on the handler (body shape doesn't
+        carry it); alert entity id is suffixed with `_otel_exporter` so
+        alert configs can route this failure mode separately."""
+        handler = _ApplicationErrorHandler(
+            project=cls.PROJECT, application_name=cls.APP
+        )
+        # Different bodies per step — neither has application_name.
+        body = [Mock()] if origin_state == "PrepareOTelEvent" else {"metrics": []}
+        event = cls._make_event(origin_state=origin_state, body=body)
+
+        with patch("mlrun.get_run_db") as get_db:
+            handler.do(event)
+        alert = cls._captured_event(get_db.return_value.generate_event)
+
+        expected_id = f"{cls.PROJECT}_{cls.APP}_{_OTEL_BRANCH_SOURCE}"
+        assert alert.entity.ids == [expected_id]
+        assert alert.value_dict["Source"] == _OTEL_BRANCH_SOURCE
+        assert alert.value_dict["Application Class"] == cls.APP
+        # Endpoint id isn't reliably available on the branch event body.
+        assert alert.value_dict["Endpoint ID"] is None
+
+    @classmethod
+    def test_otel_branch_failure_without_pinned_app_name_raises(cls) -> None:
+        """If wiring forgot to pin application_name on the handler, an
+        OTel-branch failure has no way to identify the application —
+        raise loudly rather than emit a malformed alert."""
+        handler = _ApplicationErrorHandler(project=cls.PROJECT)
+        event = cls._make_event(origin_state="OTelMetricsExporter", body={})
+
+        with patch("mlrun.get_run_db"):
+            with pytest.raises(
+                mlrun.errors.MLRunRuntimeError, match="application_name"
+            ):
+                handler.do(event)
+
+    @classmethod
+    def test_main_app_failure_works_without_origin_state(cls) -> None:
+        """Defensive: if storey didn't set origin_state for some reason,
+        the handler still works for the main-app path (body has the
+        controller event fields)."""
+        handler = _ApplicationErrorHandler(project=cls.PROJECT)
+        body = Mock()
+        body.application_name = cls.APP
+        body.endpoint_id = "ep-x"
+        event = cls._make_event(origin_state=None, body=body)
+
+        with patch("mlrun.get_run_db") as get_db:
+            handler.do(event)
+        alert = cls._captured_event(get_db.return_value.generate_event)
+        assert alert.entity.ids == [f"{cls.PROJECT}_{cls.APP}"]
+        assert "Source" not in alert.value_dict

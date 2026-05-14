@@ -266,11 +266,10 @@ def test_create_model_monitoring_function(function: dict[str, Any]) -> None:
 
 
 def test_create_model_monitoring_function_otlp_enabled() -> None:
-    """When `otlp_enabled=True`, an OTelMetricsExporter step is added in
-    parallel with PushToMonitoringWriter (both fan out from the app step).
-    The endpoint isn't baked into the spec at build time — the step is
-    re-instantiated in the function pod where mlconf.telemetry.* is
-    populated from /client-spec.
+    """When `otlp_enabled=True`, the OTel branch is:
+        app_step → PrepareOTelEvent → OTelMetricsExporter
+    running in parallel with PushToMonitoringWriter (which sits directly
+    under app_step).
     """
     app = mlrun.model_monitoring.api._create_model_monitoring_function_base(
         project="",
@@ -283,6 +282,7 @@ def test_create_model_monitoring_function_otlp_enabled() -> None:
     )
     steps = app.spec.graph.steps
     assert "PushToMonitoringWriter" in steps
+    assert "PrepareOTelEvent" in steps
     assert "OTelMetricsExporter" in steps
 
     otel_step = steps["OTelMetricsExporter"]
@@ -291,11 +291,27 @@ def test_create_model_monitoring_function_otlp_enabled() -> None:
     assert otel_step.class_args == {"headers_source": "file"}
     assert otel_step.class_name == "mlrun.serving.OTelMetricsExporter"
 
-    # Both PushToMonitoringWriter and OTelMetricsExporter must be siblings
-    # of the app step (parallel fanout), not chained through one another.
+    prep_step = steps["PrepareOTelEvent"]
+    assert (
+        prep_step.class_name
+        == "mlrun.model_monitoring.applications._application_steps._PrepareOTelEvent"
+    )
+
+    # PushToMonitoringWriter and PrepareOTelEvent are siblings of the app
+    # step (parallel fanout); the exporter chains AFTER the adapter, not
+    # directly off the app step.
     app_step_name = "DemoMonitoringApp"
     assert steps["PushToMonitoringWriter"].after == [app_step_name]
-    assert steps["OTelMetricsExporter"].after == [app_step_name]
+    assert steps["PrepareOTelEvent"].after == [app_step_name]
+    assert steps["OTelMetricsExporter"].after == ["PrepareOTelEvent"]
+
+    # Both OTel-branch steps route to the same ApplicationErrorHandler;
+    # the handler dispatches on event.origin_state to tag OTel failures.
+    assert steps["PrepareOTelEvent"].on_error == "ApplicationErrorHandler"
+    assert steps["OTelMetricsExporter"].on_error == "ApplicationErrorHandler"
+    # application_name must be pinned on the handler so OTel-branch
+    # failures (whose body shape doesn't carry it) can be tagged.
+    assert steps["ApplicationErrorHandler"].class_args["application_name"] == "my-app"
 
 
 def test_create_model_monitoring_function_otlp_disabled_omits_step() -> None:

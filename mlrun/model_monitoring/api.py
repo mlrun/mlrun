@@ -615,6 +615,7 @@ def _create_model_monitoring_function_base(
         name="ApplicationErrorHandler",
         full_event=True,
         project=project,
+        application_name=name,
     )
 
     app_step.to(
@@ -624,11 +625,22 @@ def _create_model_monitoring_function_base(
     )
 
     if otlp_enabled:
-        app_step.to(
+        otel_prep = app_step.to(
+            class_name="mlrun.model_monitoring.applications._application_steps._PrepareOTelEvent",
+            name="PrepareOTelEvent",
+        )
+        otel_exporter = otel_prep.to(
             class_name="mlrun.serving.OTelMetricsExporter",
             name="OTelMetricsExporter",
             headers_source="file",
         )
+        # Route OTel-branch failures to the single ApplicationErrorHandler.
+        # The handler dispatches on `event.origin_state` (set by storey
+        # before invoking the recovery step) and tags the alert with an
+        # `_otel_exporter` suffix so alert configs can target this
+        # failure mode independently of regular app errors.
+        otel_prep.on_error = "ApplicationErrorHandler"
+        otel_exporter.on_error = "ApplicationErrorHandler"
 
     def block_to_mock_server(*args, **kwargs) -> typing.NoReturn:
         raise NotImplementedError(

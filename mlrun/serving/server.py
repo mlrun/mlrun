@@ -159,10 +159,10 @@ class GraphServer(ModelObj):
         self.project = project
         self.model_endpoint_creation_task_name = model_endpoint_creation_task_name
         self.streaming = False
+        if isinstance(api_handler_config, dict):
+            api_handler_config = mlrun.runtimes.nuclio.serving.APIHandlerConfig.from_dict(api_handler_config)
         self.api_handler_config = api_handler_config
-        self.result_handler = (
-            ResultHandler(api_handler_config) if api_handler_config else None
-        )
+        self.result_handler = ResultHandler(api_handler_config) if api_handler_config else None
 
     def set_current_function(self, function):
         """set which child function this server is currently running on"""

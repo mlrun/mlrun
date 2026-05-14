@@ -3197,6 +3197,179 @@ class TestModelMonitoring:
         # enable hasn't been called yet — the enable flag stays False.
         assert project.spec.model_monitoring.enabled is False
 
+    # --- ML-12532: set_model_monitoring_function otlp_enabled wiring -------
+
+    @staticmethod
+    @pytest.mark.parametrize(
+        "param_value, project_spec_value, expected",
+        [
+            # Explicit True only allowed when the project has also opted in
+            # (see test_set_model_monitoring_function_otlp_true_raises_when_project_off
+            # for the rejection path).
+            (True, True, True),
+            # Explicit False pins the function to off regardless of project.
+            (False, True, False),
+            (False, False, False),
+            # None inherits the project-level value.
+            (None, True, True),
+            (None, False, False),
+        ],
+        ids=[
+            "explicit_true_project_true",
+            "explicit_false_overrides_project_true",
+            "explicit_false_project_false",
+            "none_inherits_project_true",
+            "none_inherits_project_false",
+        ],
+    )
+    def test_set_model_monitoring_function_otlp_resolution(
+        param_value: bool | None,
+        project_spec_value: bool,
+        expected: bool,
+        tmp_path,
+    ) -> None:
+        """`otlp_enabled` resolution truth table at set-time.
+
+        Side effects of the resolution:
+        - When resolved True, the graph contains an `OTelMetricsExporter`
+          step (parallel sibling of PushToMonitoringWriter).
+        - When resolved False, the OTel step is absent.
+        - `function.spec.mount_otlp_secret` reflects the resolved value so the
+          server-side runtime injector mounts the operator-managed headers
+          secret on True.
+        """
+        project = mlrun.new_project(
+            "otlp-resolution",
+            context=str(tmp_path),
+            save=False,
+        )
+        # Seed project-level otlp_enabled; SDK setter coerces None → default
+        # instance, so we can mutate the field directly.
+        project.spec.model_monitoring.otlp_enabled = project_spec_value
+
+        app_path = str(
+            pathlib.Path(__file__).parents[1]
+            / "model_monitoring"
+            / "assets"
+            / "application.py"
+        )
+
+        fn = project.set_model_monitoring_function(
+            name=f"resolution-{param_value}-{project_spec_value}",
+            func=app_path,
+            application_class="DemoMonitoringApp",
+            param_1=1,
+            param_2=2,
+            otlp_enabled=param_value,
+        )
+
+        assert fn.spec.mount_otlp_secret is expected
+        if expected:
+            assert "OTelMetricsExporter" in fn.spec.graph.steps
+        else:
+            assert "OTelMetricsExporter" not in fn.spec.graph.steps
+
+    @staticmethod
+    def test_set_model_monitoring_function_otlp_true_raises_when_project_off(
+        tmp_path,
+    ) -> None:
+        """Explicit `otlp_enabled=True` on a function whose project hasn't
+        opted into OTel raises `MLRunInvalidArgumentError`, preventing the
+        user from registering a function that exports OTel metrics into a
+        project the operator hasn't configured for that. The error message
+        points at the right escape hatch (`enable_model_monitoring`)."""
+        project = mlrun.new_project(
+            "otlp-raise",
+            context=str(tmp_path),
+            save=False,
+        )
+        # Project default — never opted into OTel.
+        assert project.spec.model_monitoring.otlp_enabled is False
+
+        app_path = str(
+            pathlib.Path(__file__).parents[1]
+            / "model_monitoring"
+            / "assets"
+            / "application.py"
+        )
+
+        with pytest.raises(
+            mlrun.errors.MLRunInvalidArgumentError,
+            match="project hasn't opted into OTel",
+        ):
+            project.set_model_monitoring_function(
+                name="must-raise",
+                func=app_path,
+                application_class="DemoMonitoringApp",
+                param_1=1,
+                param_2=2,
+                otlp_enabled=True,
+            )
+
+    @staticmethod
+    def test_create_model_monitoring_function_forwards_otlp_enabled(tmp_path) -> None:
+        """`create_model_monitoring_function` (which does not register the
+        function on the project) honors the same resolution rule.
+        """
+        project = mlrun.new_project(
+            "otlp-create",
+            context=str(tmp_path),
+            save=False,
+        )
+        project.spec.model_monitoring.otlp_enabled = True
+        app_path = str(
+            pathlib.Path(__file__).parents[1]
+            / "model_monitoring"
+            / "assets"
+            / "application.py"
+        )
+
+        fn = project.create_model_monitoring_function(
+            name="created-app",
+            func=app_path,
+            application_class="DemoMonitoringApp",
+            param_1=1,
+            param_2=2,
+            # otlp_enabled=None → inherit True from project spec
+        )
+        assert fn.spec.mount_otlp_secret is True
+        assert "OTelMetricsExporter" in fn.spec.graph.steps
+
+    @staticmethod
+    def test_create_model_monitoring_function_otlp_true_raises_when_project_off(
+        tmp_path,
+    ) -> None:
+        """`create_model_monitoring_function` goes through the same
+        `_instantiate_model_monitoring_function` as `set_…`, so the
+        project-not-opted-in raise applies here too.
+        """
+        project = mlrun.new_project(
+            "otlp-create-raise",
+            context=str(tmp_path),
+            save=False,
+        )
+        assert project.spec.model_monitoring.otlp_enabled is False
+
+        app_path = str(
+            pathlib.Path(__file__).parents[1]
+            / "model_monitoring"
+            / "assets"
+            / "application.py"
+        )
+
+        with pytest.raises(
+            mlrun.errors.MLRunInvalidArgumentError,
+            match="project hasn't opted into OTel",
+        ):
+            project.create_model_monitoring_function(
+                name="must-raise-create",
+                func=app_path,
+                application_class="DemoMonitoringApp",
+                param_1=1,
+                param_2=2,
+                otlp_enabled=True,
+            )
+
 
 def _auth_prefix() -> str:
     # Matches how the code builds the pattern: format(hashed_access_key="")

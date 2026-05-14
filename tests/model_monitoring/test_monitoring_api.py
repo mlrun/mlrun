@@ -255,9 +255,58 @@ def test_create_model_monitoring_function(function: dict[str, Any]) -> None:
     assert "DemoMonitoringApp" in steps
     assert "PushToMonitoringWriter" in steps
     assert "ApplicationErrorHandler" in steps
+    # Default `otlp_enabled=False` → no OTel exporter in the graph.
+    assert "OTelMetricsExporter" not in steps
 
     app_step = steps["DemoMonitoringApp"]
     assert app_step.class_args == {"param_1": 1, "param_2": 2}
 
     with pytest.raises(NotImplementedError):
         app.to_mock_server()
+
+
+def test_create_model_monitoring_function_otlp_enabled() -> None:
+    """When `otlp_enabled=True`, an OTelMetricsExporter step is added in
+    parallel with PushToMonitoringWriter (both fan out from the app step).
+    The endpoint isn't baked into the spec at build time — the step is
+    re-instantiated in the function pod where mlconf.telemetry.* is
+    populated from /client-spec.
+    """
+    app = mlrun.model_monitoring.api._create_model_monitoring_function_base(
+        project="",
+        name="my-app",
+        func=str(pathlib.Path(__file__).parent / "assets" / "application.py"),
+        application_class="DemoMonitoringApp",
+        otlp_enabled=True,
+        param_1=1,
+        param_2=2,
+    )
+    steps = app.spec.graph.steps
+    assert "PushToMonitoringWriter" in steps
+    assert "OTelMetricsExporter" in steps
+
+    otel_step = steps["OTelMetricsExporter"]
+    # MM apps default to the operator-managed headers secret mounted onto
+    # the pod (gated by runtime.spec.mount_otlp_secret).
+    assert otel_step.class_args == {"headers_source": "file"}
+    assert otel_step.class_name == "mlrun.serving.OTelMetricsExporter"
+
+    # Both PushToMonitoringWriter and OTelMetricsExporter must be siblings
+    # of the app step (parallel fanout), not chained through one another.
+    app_step_name = "DemoMonitoringApp"
+    assert steps["PushToMonitoringWriter"].after == [app_step_name]
+    assert steps["OTelMetricsExporter"].after == [app_step_name]
+
+
+def test_create_model_monitoring_function_otlp_disabled_omits_step() -> None:
+    """Explicit `otlp_enabled=False` matches the default — no OTel step."""
+    app = mlrun.model_monitoring.api._create_model_monitoring_function_base(
+        project="",
+        name="my-app",
+        func=str(pathlib.Path(__file__).parent / "assets" / "application.py"),
+        application_class="DemoMonitoringApp",
+        otlp_enabled=False,
+        param_1=1,
+        param_2=2,
+    )
+    assert "OTelMetricsExporter" not in app.spec.graph.steps

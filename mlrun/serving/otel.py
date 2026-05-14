@@ -49,9 +49,9 @@ class OTelMetricsExporter(storey.OTelMetricsExporter):
         * ``"file"`` (default): read from the kubelet-mounted secret at
           ``mlrun.common.constants.MLRUN_TELEMETRY_OTLP_HEADERS_PATH``. The
           server-side runtime injector mounts the secret when the function's
-          ``runtime.spec.otlp_enabled=True`` (see PR #9668). One file per
-          header — filename = header name, contents = header value. Used by
-          MLRun's internal Model Monitoring applications.
+          ``runtime.spec.mount_otlp_secret=True``. One file per header —
+          filename = header name, contents = header value. Used by MLRun's
+          internal Model Monitoring applications.
         * ``"project_secret"``: read from a single project secret whose value
           is a JSON dict of ``{header_name: header_value}``. Use this when
           app authors want to manage their own OTel auth headers without

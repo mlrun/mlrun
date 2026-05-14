@@ -552,6 +552,7 @@ def _create_model_monitoring_function_base(
     requirements: typing.Union[list[str], None] = None,
     requirements_file: str = "",
     local_path: str | None = None,
+    otlp_enabled: bool = False,
     **application_kwargs,
 ) -> mlrun.runtimes.ServingRuntime:
     """
@@ -621,6 +622,13 @@ def _create_model_monitoring_function_base(
         name="PushToMonitoringWriter",
         project=project,
     )
+
+    if otlp_enabled:
+        app_step.to(
+            class_name="mlrun.serving.OTelMetricsExporter",
+            name="OTelMetricsExporter",
+            headers_source="file",
+        )
 
     def block_to_mock_server(*args, **kwargs) -> typing.NoReturn:
         raise NotImplementedError(

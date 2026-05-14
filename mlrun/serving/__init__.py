@@ -30,6 +30,7 @@ __all__ = [
     "ModelRunnerSelector",
     "MonitoredStep",
     "LLModel",
+    "OTelMetricsExporter",
 ]
 
 from .routers import ModelRouter, VotingEnsemble  # noqa
@@ -52,5 +53,6 @@ from .states import (
     MonitoredStep,
     LLModel,
 )  # noqa
+from .otel import OTelMetricsExporter  # noqa
 from .v1_serving import MLModelServer, new_v1_model_server  # noqa
 from .v2_serving import V2ModelServer  # noqa

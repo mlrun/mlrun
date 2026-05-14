@@ -249,6 +249,15 @@ class Client(
         name: str,
         project: mlrun.common.schemas.Project,
         op_id: uuid.UUID,
+        current_op_id: uuid.UUID | None,
+    ) -> None:
+        raise NotImplementedError
+
+    def retry_update_project_follower(
+        self,
+        name: str,
+        project: mlrun.common.schemas.Project,
+        op_id: uuid.UUID,
     ) -> None:
         raise NotImplementedError
 

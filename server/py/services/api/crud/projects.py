@@ -843,6 +843,18 @@ class Projects(
         name: str,
         project: mlrun.common.schemas.Project,
         op_id: uuid.UUID,
+        current_op_id: uuid.UUID | None,
+    ) -> None:
+        raise NotImplementedError(
+            "MLRun is the leader of the 2PC project sync flow, not a follower; "
+            "this hook must not be invoked on the mlrun follower"
+        )
+
+    def retry_update_project_follower(
+        self,
+        name: str,
+        project: mlrun.common.schemas.Project,
+        op_id: uuid.UUID,
     ) -> None:
         raise NotImplementedError(
             "MLRun is the leader of the 2PC project sync flow, not a follower; "

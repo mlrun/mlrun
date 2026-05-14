@@ -154,5 +154,15 @@ class Member(abc.ABC):
         name: str,
         project: mlrun.common.schemas.Project,
         op_id: uuid.UUID,
+        current_op_id: uuid.UUID | None,
+    ) -> None:
+        pass
+
+    @abc.abstractmethod
+    def retry_update_project_follower(
+        self,
+        name: str,
+        project: mlrun.common.schemas.Project,
+        op_id: uuid.UUID,
     ) -> None:
         pass

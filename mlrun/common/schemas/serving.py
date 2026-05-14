@@ -55,10 +55,3 @@ class APIHandlerAction(StrEnum):
 
     ALLOW = "allow"
     FORBID = "forbid"
-
-
-class _APIEndpointKeys(StrEnum):
-    """Private enum for endpoint configuration dictionary keys"""
-
-    ACTION = "action"
-    DESCRIPTION = "description"

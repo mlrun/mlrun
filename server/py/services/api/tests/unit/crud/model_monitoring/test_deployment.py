@@ -20,8 +20,14 @@ import kafka.errors
 import pytest
 
 import mlrun.common.schemas
+import mlrun.common.schemas.model_monitoring.constants as mm_constants
 import mlrun.runtimes
-from mlrun.datastore.datastore_profile import DatastoreProfileKafkaStream
+from mlrun.datastore.datastore_profile import (
+    DatastoreProfileKafkaSource,
+    DatastoreProfileKafkaStream,
+    DatastoreProfilePostgreSQL,
+    DatastoreProfileV3io,
+)
 
 import services.api
 import services.api.crud.model_monitoring.deployment as mm_dep
@@ -755,3 +761,303 @@ def test_kafka_migration_not_invoked_when_ignore_flag_false(
                 ignore_stream_already_exists_failure=False,
             )
     migrate_offsets_mock.assert_not_called()
+
+
+# --- ML-12543: project.spec.model_monitoring persistence + OTel validation -----
+
+
+class TestOtelEnableValidation:
+    """deploy_monitoring_functions(otlp_enabled=True) must fail fast when the
+    operator hasn't configured a usable OTLP endpoint.
+
+    Note on bool vs. string: `mlconf.telemetry.enabled` is a Python bool at
+    runtime (env vars are type-coerced from the schema default in
+    mlrun/config.py). Tests set True/False, not the strings "true"/"false".
+    """
+
+    @staticmethod
+    @pytest.fixture(autouse=True)
+    def reset_telemetry_config(monkeypatch):
+        # Keep tests deterministic regardless of repo defaults.
+        monkeypatch.setattr(mlrun.mlconf.telemetry, "enabled", False, raising=False)
+        monkeypatch.setattr(mlrun.mlconf.telemetry, "otlp_endpoint", "", raising=False)
+
+    @staticmethod
+    def test_raises_when_telemetry_disabled(
+        monitoring_deployment: mm_dep.MonitoringDeployment, monkeypatch
+    ) -> None:
+        # Endpoint configured but master kill-switch off → reject.
+        monkeypatch.setattr(
+            mlrun.mlconf.telemetry,
+            "otlp_endpoint",
+            "https://otel.example.com:4317",
+            raising=False,
+        )
+        monkeypatch.setattr(mlrun.mlconf.telemetry, "enabled", False, raising=False)
+
+        with pytest.raises(
+            mlrun.errors.MLRunBadRequestError, match="disabled telemetry"
+        ):
+            monitoring_deployment.deploy_monitoring_functions(otlp_enabled=True)
+
+    @staticmethod
+    def test_raises_when_endpoint_blank(
+        monitoring_deployment: mm_dep.MonitoringDeployment, monkeypatch
+    ) -> None:
+        # Telemetry on but no endpoint → reject.
+        monkeypatch.setattr(mlrun.mlconf.telemetry, "enabled", True, raising=False)
+        monkeypatch.setattr(mlrun.mlconf.telemetry, "otlp_endpoint", "", raising=False)
+
+        with pytest.raises(
+            mlrun.errors.MLRunBadRequestError, match="otlp_endpoint is blank"
+        ):
+            monitoring_deployment.deploy_monitoring_functions(otlp_enabled=True)
+
+    @staticmethod
+    def test_passes_when_telemetry_enabled_and_endpoint_set(
+        monitoring_deployment: mm_dep.MonitoringDeployment, monkeypatch
+    ) -> None:
+        """Regression guard for the original bug: the precheck used `!= "true"`
+        which always fired against the bool True value. With the bool-truthy
+        fix, this happy path must not raise the OTel validator at all.
+        """
+        monkeypatch.setattr(mlrun.mlconf.telemetry, "enabled", True, raising=False)
+        monkeypatch.setattr(
+            mlrun.mlconf.telemetry,
+            "otlp_endpoint",
+            "https://otel.example.com:4317",
+            raising=False,
+        )
+
+        # Deploy will still fail later (no credentials configured in this fixture),
+        # but it must NOT raise either of the OTel-precheck errors.
+        with pytest.raises(Exception) as exc_info:
+            monitoring_deployment.deploy_monitoring_functions(otlp_enabled=True)
+        assert "disabled telemetry" not in str(exc_info.value)
+        assert "otlp_endpoint is blank" not in str(exc_info.value)
+
+    @staticmethod
+    def test_does_not_check_when_otlp_disabled(
+        monitoring_deployment: mm_dep.MonitoringDeployment,
+    ) -> None:
+        """When the project doesn't opt in to OTel, operator config is irrelevant.
+        deploy will fail later on credentials, but NOT on the telemetry check."""
+        with pytest.raises(Exception) as exc_info:
+            monitoring_deployment.deploy_monitoring_functions(otlp_enabled=False)
+        # Anything OTHER than our bad-request validator is acceptable here —
+        # the test only proves the OTel pre-check didn't fire.
+        assert "disabled telemetry" not in str(exc_info.value)
+        assert "otlp_endpoint is blank" not in str(exc_info.value)
+
+
+class TestPersistModelMonitoringSpec:
+    """`_persist_model_monitoring_spec` writes exactly the fields it was given."""
+
+    @staticmethod
+    def test_writes_only_provided_fields(
+        monitoring_deployment: mm_dep.MonitoringDeployment,
+    ) -> None:
+        with patch.object(services.api.crud.Projects, "patch_project") as patch_mock:
+            monitoring_deployment._persist_model_monitoring_spec(
+                enabled=True, otlp_enabled=True
+            )
+
+        patch_mock.assert_called_once()
+        kwargs = patch_mock.call_args.kwargs
+        assert kwargs["patch_mode"] == mlrun.common.schemas.PatchMode.additive
+        # The patch dict must contain only the keys we passed — no stream/tsdb
+        # type leaked in with default Nones.
+        assert kwargs["project"] == {
+            "spec": {
+                "model_monitoring": {
+                    "enabled": True,
+                    "otlp_enabled": True,
+                }
+            }
+        }
+
+    @staticmethod
+    def test_skips_patch_when_no_fields_set(
+        monitoring_deployment: mm_dep.MonitoringDeployment,
+    ) -> None:
+        """Empty call → no DB write."""
+        with patch.object(services.api.crud.Projects, "patch_project") as patch_mock:
+            monitoring_deployment._persist_model_monitoring_spec()
+
+        patch_mock.assert_not_called()
+
+
+class TestResolveStreamTarget:
+    """`_resolve_stream_target` maps a stream datastore profile class to its
+    `StreamTarget` enum so the project spec gets a canonical type string.
+    """
+
+    @staticmethod
+    def test_kafka_stream_resolves_to_kafka() -> None:
+        profile = DatastoreProfileKafkaStream(
+            name="p", brokers=["broker:9092"], topics=[]
+        )
+        assert (
+            mm_dep.MonitoringDeployment._resolve_stream_target(profile)
+            == mm_constants.StreamTarget.KAFKA
+        )
+
+    @staticmethod
+    def test_kafka_source_subclass_resolves_to_kafka() -> None:
+        # DatastoreProfileKafkaSource subclasses DatastoreProfileKafkaStream so
+        # the isinstance check still classifies it as KAFKA.
+        profile = DatastoreProfileKafkaSource(
+            name="p", brokers=["broker:9092"], topics=[]
+        )
+        assert (
+            mm_dep.MonitoringDeployment._resolve_stream_target(profile)
+            == mm_constants.StreamTarget.KAFKA
+        )
+
+    @staticmethod
+    def test_v3io_resolves_to_v3io() -> None:
+        profile = DatastoreProfileV3io(name="p")
+        assert (
+            mm_dep.MonitoringDeployment._resolve_stream_target(profile)
+            == mm_constants.StreamTarget.V3IO
+        )
+
+    @staticmethod
+    def test_unknown_profile_returns_none() -> None:
+        # Postgres isn't a stream profile — caller's contract is to get None
+        # back so it can decide whether to skip the persist.
+        profile = DatastoreProfilePostgreSQL(
+            name="p", host="h", port=5432, user="u", password="p", database="d"
+        )
+        assert mm_dep.MonitoringDeployment._resolve_stream_target(profile) is None
+
+
+class TestResolveTSDBTarget:
+    """`_resolve_tsdb_target` maps a TSDB datastore profile class to its
+    `TSDBTarget` enum.
+    """
+
+    @staticmethod
+    def test_postgresql_resolves_to_timescaledb() -> None:
+        profile = DatastoreProfilePostgreSQL(
+            name="p", host="h", port=5432, user="u", password="p", database="d"
+        )
+        assert (
+            mm_dep.MonitoringDeployment._resolve_tsdb_target(profile)
+            == mm_constants.TSDBTarget.TimescaleDB
+        )
+
+    @staticmethod
+    def test_v3io_resolves_to_v3io_tsdb() -> None:
+        profile = DatastoreProfileV3io(name="p")
+        assert (
+            mm_dep.MonitoringDeployment._resolve_tsdb_target(profile)
+            == mm_constants.TSDBTarget.V3IO_TSDB
+        )
+
+    @staticmethod
+    def test_unknown_profile_returns_none() -> None:
+        # Kafka isn't a TSDB profile.
+        profile = DatastoreProfileKafkaStream(
+            name="p", brokers=["broker:9092"], topics=[]
+        )
+        assert mm_dep.MonitoringDeployment._resolve_tsdb_target(profile) is None
+
+
+class TestSetCredentialsPersistsResolvedTypes:
+    """`set_credentials` derives stream_type/tsdb_type from the registered
+    profiles and writes them through `_persist_model_monitoring_spec` so the
+    project spec immediately reflects the chosen backends.
+    """
+
+    @staticmethod
+    def test_kafka_stream_and_postgres_types_persisted(
+        monitoring_deployment: mm_dep.MonitoringDeployment,
+    ) -> None:
+        stream_profile = DatastoreProfileKafkaStream(
+            name="my-kafka", brokers=["broker:9092"], topics=[]
+        )
+        tsdb_profile = DatastoreProfilePostgreSQL(
+            name="my-pg",
+            host="h",
+            port=5432,
+            user="u",
+            password="p",
+            database="d",
+        )
+
+        with (
+            patch.object(
+                monitoring_deployment,
+                "check_if_credentials_are_set",
+                side_effect=mlrun.errors.MLRunBadRequestError,
+            ),
+            patch.object(
+                monitoring_deployment,
+                "_get_monitoring_mandatory_project_secrets",
+                return_value={},
+            ),
+            patch.object(
+                monitoring_deployment,
+                "_validate_stream_profile",
+                return_value=stream_profile,
+            ),
+            patch.object(
+                monitoring_deployment,
+                "_validate_and_get_tsdb_profile",
+                return_value=tsdb_profile,
+            ),
+            patch.object(monitoring_deployment, "_create_tsdb_tables"),
+            patch("services.api.crud.Secrets.store_project_secrets"),
+            patch.object(
+                monitoring_deployment, "_persist_model_monitoring_spec"
+            ) as persist_mock,
+        ):
+            monitoring_deployment.set_credentials(
+                tsdb_profile_name="my-pg",
+                stream_profile_name="my-kafka",
+            )
+
+        # Server resolves the profile classes to enum values and persists onto
+        # the project spec — the SDK's _enrich then picks these up on the
+        # client side.
+        persist_mock.assert_called_once_with(
+            stream_type=mm_constants.StreamTarget.KAFKA,
+            tsdb_type=mm_constants.TSDBTarget.TimescaleDB,
+        )
+
+
+class TestDisableModelMonitoringPersistsDisabledSpec:
+    """`disable_model_monitoring` must declaratively reset
+    `project.spec.model_monitoring.enabled` and `.otlp_enabled` to False
+    regardless of which functions were torn down.
+    """
+
+    @staticmethod
+    @pytest.mark.asyncio
+    async def test_persists_disabled_after_teardown(
+        monitoring_deployment: mm_dep.MonitoringDeployment,
+    ) -> None:
+        # Make the function-existence probe return falsy so the per-function
+        # teardown loop is a no-op — we only want to exercise the
+        # spec-persist line at the end of disable_model_monitoring.
+        with (
+            patch.object(
+                monitoring_deployment,
+                "_get_monitoring_application_to_delete",
+                return_value=[],
+            ),
+            patch.object(
+                monitoring_deployment, "_get_function_state", return_value=None
+            ),
+            patch.object(
+                monitoring_deployment, "_persist_model_monitoring_spec"
+            ) as persist_mock,
+        ):
+            await monitoring_deployment.disable_model_monitoring(
+                delete_resources=True,
+                delete_stream_function=False,
+                delete_histogram_data_drift_app=True,
+            )
+
+        persist_mock.assert_called_once_with(enabled=False, otlp_enabled=False)

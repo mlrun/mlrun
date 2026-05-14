@@ -21,7 +21,9 @@ import tempfile
 import pytest
 from nuclio.auth import AuthInfo as NuclioAuthInfo
 
+import mlrun.common.constants
 import mlrun.common.schemas
+import mlrun.datastore.datastore_profile as datastore_profile
 import mlrun.runtimes
 import mlrun.runtimes.utils
 import tests.system.base
@@ -451,6 +453,93 @@ class TestApplicationRuntime(tests.system.base.TestMLRunSystem):
         )
         function.with_source_archive(source=delay_healthcheck_source)
         return function
+
+    def test_deploy_application_with_store_uri_via_datastore_profile(self):
+        """End-to-end: an Application function whose store:// CodeArtifact
+        target_path resolves through a DataStore profile with private members
+        deploys successfully.
+
+        Verifies that the source-loader init container can resolve the profile
+        at fetch time — which requires the profile's private body to be readable
+        from env via the project-secret envFrom mount on the init container.
+
+        Without the envFrom mount on Application's init container, the deploy
+        would fail with MLRunNotFoundError during artifact resolution (the
+        profile's private body would be absent from the init container's env).
+        """
+        access_key = os.environ.get("V3IO_ACCESS_KEY")
+        assert access_key, "V3IO_ACCESS_KEY required for this system test"
+
+        profile_name = "application-store-test-v3io-profile"
+        profile = datastore_profile.DatastoreProfileV3io(
+            name=profile_name,
+            v3io_access_key=access_key,
+        )
+        self.project.register_datastore_profile(profile)
+        # Also register client-side so log_code_file can resolve the ds:// URL.
+        datastore_profile.register_temporary_client_datastore_profile(profile)
+
+        # Log the simple flask app as a CodeArtifact whose target_path lives
+        # on the ds:// profile — the init container will resolve the profile
+        # at fetch time, which requires the project-secret envFrom mount.
+        artifact_key = "simple_flask_app_via_profile"
+        local_path = os.path.join(self.assets_path, self._simple_flask_app)
+        artifact_target_path = (
+            f"ds://{profile_name}"
+            f"/projects/{self.project_name}/code/{self._simple_flask_app}"
+        )
+        artifact = self.project.log_code_file(
+            key=artifact_key,
+            local_path=local_path,
+            target_path=artifact_target_path,
+        )
+        # Use the artifact's canonical URI — see TESTING_STANDARDS.md §7.
+        store_uri = artifact.uri
+
+        function = self.project.set_function(
+            func=store_uri,
+            name="store-app-via-profile",
+            kind="application",
+            requirements=["Flask==3.0.0"],
+        )
+        function.set_internal_application_port(5000)
+        function.spec.command = "python"
+        function.spec.args = [
+            "-m",
+            "flask",
+            "--app=simple_flask_app",
+            "run",
+            "--host=0.0.0.0",
+            "--port=5000",
+        ]
+
+        self._logger.debug(
+            "Deploying Application with store:// + DataStore profile source"
+        )
+        function.deploy(with_mlrun=False)
+        assert function.status.state == "ready"
+
+        # The source-loader init container must have the project-secret envFrom
+        # mount, otherwise the deploy would have failed at profile resolution.
+        # Asserting the spec wiring catches future regressions of the gating.
+        init_containers = function.spec.config.get("spec.initContainers") or []
+        loader = next(
+            c
+            for c in init_containers
+            if c.get("name") == mlrun.common.constants.SOURCE_LOADER_INIT_CONTAINER_NAME
+        )
+        env_from = loader.get("envFrom") or []
+        expected_secret = f"mlrun-project-secrets-{self.project_name}"
+        assert any(
+            e.get("secretRef", {}).get("name") == expected_secret for e in env_from
+        ), (
+            f"Init container missing envFrom secretRef to {expected_secret}; "
+            f"got envFrom={env_from}"
+        )
+
+        # Functional check — the deployed flask app responds.
+        response = function.invoke("/", verify=False)
+        assert response.content.decode("utf-8") == "version-1"
 
     def _create_simple_flask_application(self, name="simple-flask-app", source=None):
         """Create a simple Flask application for testing source reload."""

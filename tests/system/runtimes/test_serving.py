@@ -19,7 +19,30 @@ import pytest
 import mlrun
 import tests.system.base
 from mlrun.common.schemas.serving import APIHandlerAction
-from mlrun.runtimes.nuclio.serving import APIHandlerConfig
+from mlrun.runtimes.nuclio.serving import APIHandlerConfig, BodyMappings
+
+
+def assert_endpoint_configs_equal(
+    actual: dict, expected: dict, context: str = ""
+) -> None:
+    """Assert two endpoint dicts are equal by comparing all EndpointConfig fields."""
+    prefix = f"{context}: " if context else ""
+    assert set(actual.keys()) == set(expected.keys()), (
+        f"{prefix}endpoint keys differ: {set(actual.keys())} != {set(expected.keys())}"
+    )
+    for key in expected:
+        a, e = actual[key], expected[key]
+        assert a.path == e.path, f"{prefix}[{key}] path: {a.path!r} != {e.path!r}"
+        assert a.http_method == e.http_method, (
+            f"{prefix}[{key}] http_method: {a.http_method} != {e.http_method}"
+        )
+        assert a.action == e.action, f"{prefix}[{key}] action: {a.action} != {e.action}"
+        assert a.description == e.description, (
+            f"{prefix}[{key}] description: {a.description!r} != {e.description!r}"
+        )
+        a_bm = a.input_body_mappings.to_dict() if a.input_body_mappings else None
+        e_bm = e.input_body_mappings.to_dict() if e.input_body_mappings else None
+        assert a_bm == e_bm
 
 
 @tests.system.base.TestMLRunSystem.skip_test_if_env_not_configured
@@ -78,8 +101,10 @@ class TestServingAPIHandler(tests.system.base.TestMLRunSystem):
         )
         # Convert back to APIHandlerConfig for comparison
         spec_config = APIHandlerConfig.from_dict(function.spec.api_handler_config)
-        assert spec_config.endpoints == config.endpoints, (
-            "API handler endpoints should match the config set"
+        assert_endpoint_configs_equal(
+            spec_config.endpoints,
+            config.endpoints,
+            context="API handler endpoints should match the config set",
         )
         self._logger.debug(
             "API handler config correctly set in function spec",
@@ -136,42 +161,35 @@ class TestServingAPIHandler(tests.system.base.TestMLRunSystem):
 
     @pytest.mark.parametrize("engine", ["sync", "async"])
     def test_api_handler_with_body_mapping(self, engine: str) -> None:
-        """Test API handler with body_map JSONPath extraction."""
+        """Test API handler with per-endpoint input_body_mappings JSONPath extraction."""
         self._logger.info("Testing API handler with body_map functionality")
 
-        # Create API handler config with body_map for JSONPath extraction
+        bm = BodyMappings()
+        bm.add_mapping("$.user.name", destination_path="user_name")
+        bm.add_mapping("$.user.contact.email", destination_path="user_email")
+        bm.add_mapping("$.purchases[*].title", destination_path="book_titles")
+
         config = APIHandlerConfig()
-
-        config.add_body_mapping("user_name", "$.user.name")
-        config.add_body_mapping("user_email", "$.user.contact.email")
-        # Multiple matches return list
-        config.add_body_mapping("book_titles", "$.purchases[*].title")
-
         config.add_endpoint_handler(
             "/api/v1/process",
             HTTPMethod.POST,
             APIHandlerAction.ALLOW,
             "Process endpoint with body mapping",
+            input_body_mappings=bm,
         )
 
-        # Create serving function with handler source file using helper method
         function = self._create_serving_function(
             name="body-map-handler",
             api_config=config,
             func=str(self.assets_path / "body_map_handler.py"),
         )
 
-        # Set up topology with handler that receives kwargs from body_map
         graph = function.set_topology("flow", engine=engine, exist_ok=True)
-        graph.to(
-            name="processor", handler="process_mapped_data"
-        ).respond()  # Reference handler by name
+        graph.to(name="processor", handler="process_mapped_data").respond()
 
-        # Deploy the function
         self._logger.debug("Deploying serving function with body_map")
         function.deploy()
 
-        # Test with request body that has nested structure
         test_body = {
             "user": {
                 "name": "Alice Smith",
@@ -188,7 +206,6 @@ class TestServingAPIHandler(tests.system.base.TestMLRunSystem):
         self._logger.debug("Testing body_map with nested JSONPath extraction")
         response = function.invoke(path="/api/v1/process", body=test_body)
 
-        # Verify the mapped values were extracted correctly
         assert response is not None, "Handler should return a response"
         assert response["name"] == "Alice Smith", "user_name should be extracted"
         assert response["email"] == "alice@example.com", (
@@ -202,6 +219,132 @@ class TestServingAPIHandler(tests.system.base.TestMLRunSystem):
         assert response["count"] == 3, "count should match number of books"
 
         self._logger.info("Body mapping API handler test passed")
+
+    def test_body_map_merge_and_method_isolation(self) -> None:
+        """Test two scenarios in one deployment:
+
+        1. Hierarchical merge: star /*  maps $.model, specific /api/v1/predict maps $.temperature.
+           A POST to /api/v1/predict receives both fields merged.
+        2. HTTP method isolation: GET /api/v1/predict has its own body map ($.query → q).
+           A GET request only receives q, not model or temperature.
+        """
+        self._logger.info("Testing body map inheritance and HTTP method isolation")
+
+        star_bm = BodyMappings()
+        star_bm.add_mapping("$.model", destination_path="model")
+
+        post_bm = BodyMappings()
+        post_bm.add_mapping("$.temperature", destination_path="temperature")
+
+        get_bm = BodyMappings()
+        get_bm.add_mapping("$.query", destination_path="q")
+
+        config = APIHandlerConfig()
+        config.add_endpoint_handler(
+            "/*", HTTPMethod.POST, APIHandlerAction.ALLOW, input_body_mappings=star_bm
+        )
+        config.add_endpoint_handler(
+            "/api/v1/predict",
+            HTTPMethod.POST,
+            APIHandlerAction.ALLOW,
+            input_body_mappings=post_bm,
+        )
+        config.add_endpoint_handler(
+            "/api/v1/predict",
+            HTTPMethod.GET,
+            APIHandlerAction.ALLOW,
+            input_body_mappings=get_bm,
+        )
+
+        function = self._create_serving_function(
+            name="bm-inherit-method",
+            api_config=config,
+            func=str(self.assets_path / "body_map_handler.py"),
+        )
+        graph = function.set_topology("flow", engine="sync", exist_ok=True)
+        graph.to(name="echo", handler="echo_kwargs").respond()
+
+        self._logger.debug(
+            "Deploying function for inheritance and method isolation test"
+        )
+        function.deploy()
+
+        # POST: star contributes model, specific contributes temperature — both merged
+        post_response = function.invoke(
+            path="/api/v1/predict",
+            method="POST",
+            body={"model": "gpt-4", "temperature": 0.7, "extra": "ignored"},
+        )
+        assert post_response["model"] == "gpt-4", "model from star bm should be present"
+        assert post_response["temperature"] == 0.7, (
+            "temperature from specific bm should be present"
+        )
+        assert "extra" not in post_response, "unmapped field should be dropped"
+        assert "q" not in post_response, (
+            "GET-only field should not appear in POST response"
+        )
+
+        # GET: only q should be extracted, model and temperature must not appear
+        get_response = function.invoke(
+            path="/api/v1/predict",
+            method="GET",
+            body={"query": "hello", "model": "gpt-4", "temperature": 0.7},
+        )
+        assert get_response["q"] == "hello", "query mapped to q should be extracted"
+        assert "model" not in get_response, (
+            "POST-only field should not appear in GET response"
+        )
+        assert "temperature" not in get_response, (
+            "POST-only field should not appear in GET response"
+        )
+
+        self._logger.info("Body map inheritance and HTTP method isolation test passed")
+
+    def test_api_handler_mandatory_field_missing_returns_400(self) -> None:
+        """Test that a missing mandatory field returns HTTP 400."""
+        self._logger.info("Testing mandatory field enforcement")
+
+        bm = BodyMappings()
+        bm.add_mapping("$.model", destination_path="model", mandatory=True)
+        bm.add_mapping("$.temperature", destination_path="temperature", mandatory=False)
+
+        config = APIHandlerConfig()
+        config.add_endpoint_handler(
+            "/api/v1/predict",
+            HTTPMethod.POST,
+            APIHandlerAction.ALLOW,
+            input_body_mappings=bm,
+        )
+
+        function = self._create_serving_function(
+            name="mandatory-bm",
+            api_config=config,
+            func=str(self.assets_path / "body_map_handler.py"),
+        )
+        graph = function.set_topology("flow", engine="sync", exist_ok=True)
+        graph.to(name="echo", handler="echo_kwargs").respond()
+
+        self._logger.debug("Deploying function for mandatory field test")
+        function.deploy()
+
+        # Missing mandatory field → expect 400
+        with pytest.raises(RuntimeError, match="400"):
+            function.invoke(
+                path="/api/v1/predict",
+                method="POST",
+                body={"temperature": 0.7},  # model is missing
+            )
+
+        # Optional field missing → no error, only temperature extracted
+        response = function.invoke(
+            path="/api/v1/predict",
+            method="POST",
+            body={"model": "gpt-4"},  # temperature is missing but optional
+        )
+        assert response["model"] == "gpt-4"
+        assert "temperature" not in response
+
+        self._logger.info("Mandatory field enforcement test passed")
 
     def test_api_handler_with_path_and_query_params(self) -> None:
         """Test API handler with path parameters and query parameters."""

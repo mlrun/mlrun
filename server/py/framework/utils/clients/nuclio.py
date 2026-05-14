@@ -261,7 +261,17 @@ class Client(
         name: str,
         op_id: uuid.UUID,
     ) -> None:
-        raise NotImplementedError
+        body = self._generate_2pc_request_body(
+            self._bare_project(name),
+            op_id,
+            mlrun.common.schemas.ProjectState.deleting,
+        )
+        self._send_request_to_api(
+            "PUT",
+            f"projects/{name}",
+            json=body,
+            headers={"x-mlrun-force-sync": "true"},
+        )
 
     def commit_delete_project(
         self,

@@ -822,6 +822,17 @@ class Projects(
         self,
         name: str,
         op_id: uuid.UUID,
+        current_op_id: uuid.UUID | None,
+    ) -> None:
+        raise NotImplementedError(
+            "MLRun is the leader of the 2PC project sync flow, not a follower; "
+            "this hook must not be invoked on the mlrun follower"
+        )
+
+    def retry_prepare_delete_project(
+        self,
+        name: str,
+        op_id: uuid.UUID,
     ) -> None:
         raise NotImplementedError(
             "MLRun is the leader of the 2PC project sync flow, not a follower; "

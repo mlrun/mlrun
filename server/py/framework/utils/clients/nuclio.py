@@ -245,6 +245,7 @@ class Client(
         self,
         name: str,
         op_id: uuid.UUID,
+        current_op_id: uuid.UUID | None,
     ) -> None:
         body = self._generate_2pc_request_body(
             self._bare_project(name),
@@ -252,6 +253,13 @@ class Client(
             mlrun.common.schemas.ProjectState.deleting,
         )
         self._put_project_to_nuclio(name, body)
+
+    def retry_prepare_delete_project(
+        self,
+        name: str,
+        op_id: uuid.UUID,
+    ) -> None:
+        raise NotImplementedError
 
     def commit_delete_project(
         self,

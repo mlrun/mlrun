@@ -137,6 +137,15 @@ class Member(abc.ABC):
         self,
         name: str,
         op_id: uuid.UUID,
+        current_op_id: uuid.UUID | None,
+    ) -> None:
+        pass
+
+    @abc.abstractmethod
+    def retry_prepare_delete_project(
+        self,
+        name: str,
+        op_id: uuid.UUID,
     ) -> None:
         pass
 

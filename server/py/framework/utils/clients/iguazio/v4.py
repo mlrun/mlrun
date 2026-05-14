@@ -410,6 +410,14 @@ class Client(BaseClient, project_follower.Member):
         self,
         name: str,
         op_id: uuid.UUID,
+        current_op_id: uuid.UUID | None,
+    ) -> None:
+        raise NotImplementedError
+
+    def retry_prepare_delete_project(
+        self,
+        name: str,
+        op_id: uuid.UUID,
     ) -> None:
         raise NotImplementedError
 

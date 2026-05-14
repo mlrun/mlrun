@@ -15,7 +15,6 @@
 """API Handler implementation for serving graphs"""
 
 import re
-from dataclasses import dataclass, field
 from http import HTTPMethod
 from re import Pattern
 from typing import Any, Union
@@ -32,18 +31,11 @@ import mlrun.serving.server
 import mlrun.serving.states
 import mlrun.serving.utils as serving_utils
 import mlrun.utils
+from mlrun.serving.body_map import EndpointMatch, apply_body_map, merge_body_maps
 from mlrun.serving.utils import (
     _RequestContext,
     check_body_and_path_parameters_overlapping,
 )
-
-
-@dataclass
-class EndpointMatch:
-    """A single matched endpoint with its extracted path parameters."""
-
-    endpoint: "mlrun.runtimes.nuclio.serving.EndpointConfig"
-    path_params: dict[str, str] = field(default_factory=dict)
 
 
 class _APIHandlerStep(mlrun.serving.states.TaskStep):
@@ -221,32 +213,6 @@ class _APIHandlerStep(mlrun.serving.states.TaskStep):
         check_body_and_path_parameters_overlapping(template_patterns, star_patterns)
         return template_patterns, star_patterns, parsed_body_map
 
-    def _apply_body_map(
-        self,
-        body: dict,
-        effective_map: dict[str, tuple[Any, bool]],
-    ) -> dict:
-        """Apply a compiled body map to extract parameters from the event body.
-
-        :param body: The event body dict to extract parameters from.
-        :param effective_map: Merged map of ``{destination_path: (compiled_expr, mandatory)}``.
-        :return: Dict of extracted parameters.
-        :raises mlrun.errors.MLRunBadRequestError: If a mandatory field is missing.
-        """
-        result = {}
-        for dest_path, (compiled_expr, mandatory) in effective_map.items():
-            matches = compiled_expr.find(body)
-            if not matches:
-                if mandatory:
-                    raise mlrun.errors.MLRunBadRequestError(
-                        f"Mandatory field '{dest_path}' not found in request body"
-                    )
-                continue
-            if len(matches) == 1:
-                result[dest_path] = matches[0].value
-            else:
-                result[dest_path] = [match.value for match in matches]
-        return result
 
     @staticmethod
     def _parse_query_params(path_query: str) -> tuple[str, dict[str, str | list[str]]]:
@@ -304,35 +270,6 @@ class _APIHandlerStep(mlrun.serving.states.TaskStep):
 
         return normalized_path, query_params
 
-    def _merge_body_maps(
-        self,
-        matches: list[EndpointMatch],
-    ) -> dict[str, tuple[Any, bool]]:
-        """Merge input body maps from all matched endpoints, lowest priority first.
-
-        Most specific endpoint wins on conflict:
-        - Same destination → higher-priority source overwrites (dict key collision).
-        - Same source, different destination → stale destination is removed so the
-          value is not passed to two destinations at once.
-
-        :param matches: Ordered list of :class:`EndpointMatch` from
-                        :meth:`_collect_endpoint_matches` (index 0 = highest priority).
-        :return: Merged map of ``{destination_path: (compiled_expr, mandatory)}``.
-        """
-        effective_map: dict[str, tuple[Any, bool]] = {}
-        src_to_dest: dict[str, str] = {}  # str(expr) → current destination
-
-        for match in reversed(matches):
-            ep_key = match.endpoint.get_endpoint_key()
-            if ep_key not in self._parsed_body_map:
-                continue
-            for dest, (expr, mandatory) in self._parsed_body_map[ep_key].items():
-                src = str(expr)
-                if src in src_to_dest:
-                    effective_map.pop(src_to_dest[src])
-                effective_map[dest] = (expr, mandatory)
-                src_to_dest[src] = dest
-        return effective_map
 
     def do(
         self, event: Union[nuclio_sdk.Event, "mlrun.serving.server.MockEvent"]
@@ -394,14 +331,14 @@ class _APIHandlerStep(mlrun.serving.states.TaskStep):
 
             # Handle the action
             if ep.action == schemas.APIHandlerAction.ALLOW:
-                effective_map = self._merge_body_maps(matches)
+                effective_map = merge_body_maps(matches, self._parsed_body_map)
 
                 body_params = {}
                 if effective_map:
                     body = event.body if hasattr(event, "body") else event
                     if isinstance(body, dict):
                         try:
-                            body_params = self._apply_body_map(body, effective_map)
+                            body_params = apply_body_map(body, effective_map)
                             mlrun.utils.logger.debug(
                                 "Applied input body mapping",
                                 extracted_params=list(body_params.keys()),

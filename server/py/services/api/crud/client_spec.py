@@ -148,6 +148,21 @@ class ClientSpec(
             default_runtime_image_by_kind=self._get_config_value_diff_from_default(
                 "function_defaults.image_by_kind"
             ),
+            # OpenTelemetry config — each field is `None` when the operator
+            # hasn't overridden the default so the client knows to use its
+            # own local mlconf value (existing convention).
+            telemetry_enabled=self._get_config_value_if_not_default(
+                "telemetry.enabled"
+            ),
+            telemetry_otlp_endpoint=self._get_config_value_if_not_default(
+                "telemetry.otlp_endpoint"
+            ),
+            telemetry_insecure=self._get_config_value_if_not_default(
+                "telemetry.insecure"
+            ),
+            telemetry_model_monitoring_interval=self._get_config_value_if_not_default(
+                "telemetry.model_monitoring.interval"
+            ),
         )
 
     @staticmethod

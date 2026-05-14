@@ -73,3 +73,13 @@ class ClientSpec(pydantic.v1.BaseModel):
     oauth_external_token_endpoint: str | None
     authorization_namespaces_resources: str | None
     default_runtime_image_by_kind: dict[str, str] | None
+    # OpenTelemetry config carried from the operator's `mlconf.telemetry.*` to
+    # both dev SDKs and runtime function pods, so graph steps like
+    # `mlrun.serving.OTelMetricsExporter` can construct themselves with the
+    # right OTLP endpoint / TLS mode / MM export interval without re-reading
+    # operator-side env vars. Fields are `None` when the operator hasn't
+    # overridden the schema default in `mlrun/config.py`.
+    telemetry_enabled: bool | None = None
+    telemetry_otlp_endpoint: str | None = None
+    telemetry_insecure: bool | None = None
+    telemetry_model_monitoring_interval: int | None = None

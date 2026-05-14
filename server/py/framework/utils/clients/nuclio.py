@@ -402,11 +402,11 @@ class Client(
         body = self._generate_request_body(project)
         annotations = body["metadata"].setdefault("annotations", {})
 
-        annotations["nuclio.io/project-op-id"] = str(op_id)
+        annotations["mlrun/op_id"] = str(op_id)
         if state is not None:
-            annotations["nuclio.io/project-sync-status"] = str(state)
+            annotations["mlrun/sync-status"] = str(state)
         if current_op_id is not None:
-            annotations["nuclio.io/project-current-op-id"] = str(current_op_id)
+            annotations["mlrun/current-op-id"] = str(current_op_id)
 
         return body
 

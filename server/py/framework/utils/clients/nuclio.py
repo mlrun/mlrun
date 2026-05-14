@@ -251,6 +251,8 @@ class Client(
             self._bare_project(name),
             op_id,
             mlrun.common.schemas.ProjectState.deleting,
+            current_op_id,
+            force_current_op_id=True,
         )
         self._put_project_to_nuclio(name, body)
 
@@ -284,6 +286,7 @@ class Client(
             op_id,
             mlrun.common.schemas.ProjectState.online,
             current_op_id,
+            force_current_op_id=True,
         )
         self._put_project_to_nuclio(name, body)
 
@@ -406,15 +409,18 @@ class Client(
         op_id: uuid.UUID,
         state: mlrun.common.schemas.ProjectState | None = None,
         current_op_id: uuid.UUID | None = None,
+        force_current_op_id: bool = False,
     ) -> dict[str, typing.Any]:
         body = self._generate_request_body(project)
-        annotations = body["metadata"].setdefault("annotations", {})
+        labels = body["metadata"].setdefault("labels", {})
 
-        annotations["mlrun/op_id"] = str(op_id)
+        labels["mlrun/op-id"] = str(op_id)
         if state is not None:
-            annotations["mlrun/sync-status"] = str(state)
+            labels["mlrun/sync-status"] = str(state)
         if current_op_id is not None:
-            annotations["mlrun/current-op-id"] = str(current_op_id)
+            labels["mlrun/current-op-id"] = str(current_op_id)
+        elif force_current_op_id:
+            labels["mlrun/current-op-id"] = ""
 
         return body
 

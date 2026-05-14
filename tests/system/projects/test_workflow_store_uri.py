@@ -149,9 +149,7 @@ class TestWorkflowStoreUri(tests.system.base.TestMLRunSystem):
 
         self.project.set_function("hub://describe", "describe")
         workflow_name = f"store_pipeline_ds_{engine}"
-        self.project.set_workflow(
-            workflow_name, workflow_path=store_uri, engine=engine
-        )
+        self.project.set_workflow(workflow_name, workflow_path=store_uri, engine=engine)
         run = self.project.run(
             workflow_name,
             watch=True,

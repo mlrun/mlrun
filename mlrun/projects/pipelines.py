@@ -113,7 +113,7 @@ class WorkflowSpec(mlrun.model.ModelObj):
 
         - Inline ``self.code``: write to a temp file.
         - ``store://`` URI: validate kind/code_type, download to
-          ``<context>/.mlrun/artifacts/``. Each call re-downloads.
+          ``<context>/.mlrun/code/``. Each call re-downloads.
         - Local path: join with ``context`` if relative.
 
         :param context:      Project context directory.
@@ -137,7 +137,9 @@ class WorkflowSpec(mlrun.model.ModelObj):
             return workflow_path
 
         if self.path and mlrun.datastore.is_store_uri(self.path):
-            target_dir = os.path.join(context or ".", _WORKFLOW_ARTIFACTS_SUBDIR)
+            target_dir = os.path.join(
+                context or ".", mlrun_constants.CODE_ARTIFACT_DOWNLOAD_SUBDIR
+            )
             return _download_store_workflow_artifact(
                 workflow_path=self.path,
                 target_dir=target_dir,
@@ -179,10 +181,6 @@ class WorkflowSpec(mlrun.model.ModelObj):
     def clear_tmp(self):
         if self._tmp_path:
             os.remove(self._tmp_path)
-
-
-# Project-context subdir where store:// workflow downloads land.
-_WORKFLOW_ARTIFACTS_SUBDIR = os.path.join(".mlrun", "artifacts")
 
 
 def _validate_workflow_code_artifact(artifact, workflow_path: str) -> None:

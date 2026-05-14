@@ -2083,8 +2083,8 @@ def test_workflow_spec_get_source_file_resolves_store_uri(
 
     assert os.path.isfile(workflow_file)
     assert pathlib.Path(workflow_file).read_text() == src.read_text()
-    # Resolved file lives under <context>/.mlrun/artifacts/
-    assert ".mlrun/artifacts" in workflow_file
+    # Resolved file lives under <context>/.mlrun/code/
+    assert ".mlrun/code" in workflow_file
 
 
 def test_workflow_spec_get_source_file_rejects_store_uri_with_wrong_code_type(

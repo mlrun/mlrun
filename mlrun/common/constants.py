@@ -22,6 +22,7 @@ MLRUN_SERVING_SPEC_PATH = (
 )
 DEFAULT_SOURCE_CODE_TARGET_DIR = "/home/mlrun_code"
 SOURCE_LOADER_INIT_CONTAINER_NAME = "mlrun-source-loader"
+CODE_ARTIFACT_DOWNLOAD_SUBDIR = ".mlrun/code"
 SOURCE_CODE_VOLUME_NAME = "mlrun-source-code"
 STORE_URI_HANDLER_LOADER_MODULE = "_mlrun_store_uri_loader"
 # Bump when the loader stub body changes — existing functions re-bake on

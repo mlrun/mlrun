@@ -41,6 +41,7 @@ import requests
 import yaml
 
 import mlrun.artifacts.model
+import mlrun.common.constants
 import mlrun.common.formatters
 import mlrun.common.helpers
 import mlrun.common.runtimes.constants
@@ -6406,7 +6407,9 @@ def _download_store_artifact_for_export(
             )
         # POSIX-style separators in the YAML so the zip unpacks correctly
         # on any OS the recipient uses.
-        arcname = f".mlrun/code/{unique_filename}"
+        arcname = (
+            f"{mlrun.common.constants.CODE_ARTIFACT_DOWNLOAD_SUBDIR}/{unique_filename}"
+        )
         return real_path, arcname
     except (
         mlrun.errors.MLRunNotFoundError,

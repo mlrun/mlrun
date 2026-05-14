@@ -16,6 +16,7 @@ import copy
 import datetime
 import enum
 import http
+import typing
 import uuid
 
 import requests.adapters
@@ -221,28 +222,47 @@ class Client(
         project: mlrun.common.schemas.Project,
         op_id: uuid.UUID,
     ) -> None:
-        raise NotImplementedError
+        body = self._generate_2pc_request_body(
+            project,
+            op_id,
+            mlrun.common.schemas.ProjectState.creating,
+        )
+        self._post_project_to_nuclio(body)
 
     def commit_create_project(
         self,
         name: str,
         op_id: uuid.UUID,
     ) -> None:
-        raise NotImplementedError
+        body = self._generate_2pc_request_body(
+            self._bare_project(name),
+            op_id,
+            mlrun.common.schemas.ProjectState.online,
+        )
+        self._put_project_to_nuclio(name, body)
 
     def prepare_delete_project(
         self,
         name: str,
         op_id: uuid.UUID,
     ) -> None:
-        raise NotImplementedError
+        body = self._generate_2pc_request_body(
+            self._bare_project(name),
+            op_id,
+            mlrun.common.schemas.ProjectState.deleting,
+        )
+        self._put_project_to_nuclio(name, body)
 
     def commit_delete_project(
         self,
         name: str,
         op_id: uuid.UUID,
     ) -> None:
-        raise NotImplementedError
+        body = self._generate_2pc_request_body(
+            self._bare_project(name),
+            op_id,
+        )
+        self._send_request_to_api("DELETE", f"projects/{name}", json=body)
 
     def update_project_follower(
         self,
@@ -251,7 +271,13 @@ class Client(
         op_id: uuid.UUID,
         current_op_id: uuid.UUID | None,
     ) -> None:
-        raise NotImplementedError
+        body = self._generate_2pc_request_body(
+            project,
+            op_id,
+            mlrun.common.schemas.ProjectState.online,
+            current_op_id,
+        )
+        self._put_project_to_nuclio(name, body)
 
     def retry_update_project_follower(
         self,
@@ -259,7 +285,17 @@ class Client(
         project: mlrun.common.schemas.Project,
         op_id: uuid.UUID,
     ) -> None:
-        raise NotImplementedError
+        body = self._generate_2pc_request_body(
+            project,
+            op_id,
+            mlrun.common.schemas.ProjectState.online,
+        )
+        self._send_request_to_api(
+            "PUT",
+            f"projects/{name}",
+            json=body,
+            headers={"x-mlrun-force-sync": ""},
+        )
 
     def _get_project_from_nuclio(
         self, name, auth_info: mlrun.common.schemas.AuthInfo = None
@@ -336,7 +372,15 @@ class Client(
         return response
 
     @staticmethod
-    def _generate_request_body(project: mlrun.common.schemas.Project):
+    def _bare_project(name: str) -> mlrun.common.schemas.Project:
+        return mlrun.common.schemas.Project(
+            metadata=mlrun.common.schemas.ProjectMetadata(name=name)
+        )
+
+    @staticmethod
+    def _generate_request_body(
+        project: mlrun.common.schemas.Project,
+    ) -> dict[str, typing.Any]:
         body = {
             "metadata": {"name": project.metadata.name},
         }
@@ -346,6 +390,24 @@ class Client(
             body["metadata"]["annotations"] = project.metadata.annotations
         if project.spec.description:
             body["spec"] = {"description": project.spec.description}
+        return body
+
+    def _generate_2pc_request_body(
+        self,
+        project: mlrun.common.schemas.Project,
+        op_id: uuid.UUID,
+        state: mlrun.common.schemas.ProjectState | None = None,
+        current_op_id: uuid.UUID | None = None,
+    ) -> dict[str, typing.Any]:
+        body = self._generate_request_body(project)
+        annotations = body["metadata"].setdefault("annotations", {})
+
+        annotations["nuclio.io/project-op-id"] = str(op_id)
+        if state is not None:
+            annotations["nuclio.io/project-sync-status"] = str(state)
+        if current_op_id is not None:
+            annotations["nuclio.io/project-current-op-id"] = str(current_op_id)
+
         return body
 
     @staticmethod

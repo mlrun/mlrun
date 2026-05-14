@@ -660,12 +660,7 @@ class Member(
                 "commit_delete_project", name, op_id
             )
             await mlrun.utils.run_in_threadpool(
-                self._crud_leader_follower.delete_project_resources,
-                db_session,
-                name,
-            )
-            await mlrun.utils.run_in_threadpool(
-                self._crud_leader_follower.complete_delete_project,
+                self._delete_project_resources_and_complete_delete,
                 db_session,
                 name,
                 op_id,
@@ -675,6 +670,15 @@ class Member(
             # (log streams stopped + deleted).
             await self.post_delete_project(name)
             phase = None
+
+    def _delete_project_resources_and_complete_delete(
+        self,
+        db_session: sqlalchemy.orm.Session,
+        name: str,
+        op_id: uuid.UUID,
+    ) -> None:
+        self._crud_leader_follower.delete_project_resources(db_session, name)
+        self._crud_leader_follower.complete_delete_project(db_session, name, op_id)
 
     def _initialize_followers(self):
         leader_name = mlrun.mlconf.httpdb.projects.leader

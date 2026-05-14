@@ -116,7 +116,7 @@ class BodyMappings(mlrun.model.ModelObj):
     def add_mapping(
         self,
         source_json_path: str,
-        destination_path: str | None = None,
+        destination_path: str,
         mandatory: bool = False,
     ) -> None:
         """Add a single field mapping.
@@ -127,15 +127,18 @@ class BodyMappings(mlrun.model.ModelObj):
         :param destination_path: Where to place the extracted value.
                                  For input — the parameter name passed into the graph.
                                  For output — the field name in the REST response returned to the caller.
-                                 If ``None``, the field is validated for existence only and not passed anywhere.
         :param mandatory: If ``True``, a missing field raises an error at request time.
-                          If ``False``, the field is silently ignored when absent.
-        :raises mlrun.errors.MLRunInvalidArgumentError: If mixing destination-bearing and
-            destination-less mappings on the same instance (config-time validation).
+                          If ``False``, a missing field is included as ``None`` in the output
+                          (output) or silently skipped (input).
+        :raises mlrun.errors.MLRunInvalidArgumentError: If ``destination_path`` is empty.
         """
         if not source_json_path:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "source_json_path must be a non-empty string"
+            )
+        if not destination_path:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "destination_path must be a non-empty string"
             )
         try:
             jsonpath_ng.parse(source_json_path)
@@ -148,21 +151,6 @@ class BodyMappings(mlrun.model.ModelObj):
                 f"'{source_json_path}'. Error: {exc}"
             ) from exc
 
-        # Validate: mixed destination_path mode is not allowed.
-        # All mappings must either all have destination_path or all omit it.
-        # If _by_dest_index is non-empty, existing mappings have destinations; otherwise they are validate-only.
-        if self._by_src:
-            existing_has_dest = bool(self._by_dest_index)
-            new_has_dest = destination_path is not None
-            if existing_has_dest != new_has_dest:
-                raise mlrun.errors.MLRunInvalidArgumentError(
-                    f"Mixed destination_path mode is not allowed on a single BodyMappings instance. "
-                    f"Existing mappings {'have' if existing_has_dest else 'do not have'} "
-                    f"destination_path, but the new mapping for source '{source_json_path}' "
-                    f"{'has' if new_has_dest else 'does not have'} destination_path. "
-                    f"Either all mappings must have destination_path or none of them."
-                )
-
         entry = {"destination_path": destination_path, "mandatory": mandatory}
 
         # Duplicate source — overwrite existing entry.
@@ -174,15 +162,13 @@ class BodyMappings(mlrun.model.ModelObj):
                 old_destination=old_dest,
                 new_destination=destination_path,
             )
-            if old_dest is not None:
-                self._by_dest_index.pop(old_dest, None)
+            self._by_dest_index.pop(old_dest, None)
             self._by_src[source_json_path] = entry
-            if destination_path is not None:
-                self._by_dest_index[destination_path] = source_json_path
+            self._by_dest_index[destination_path] = source_json_path
             return
 
         # Duplicate destination — overwrite existing entry.
-        if destination_path is not None and destination_path in self._by_dest_index:
+        if destination_path in self._by_dest_index:
             old_src = self._by_dest_index[destination_path]
             mlrun.utils.logger.warning(
                 "Overriding existing body mapping",
@@ -196,8 +182,7 @@ class BodyMappings(mlrun.model.ModelObj):
             return
 
         self._by_src[source_json_path] = entry
-        if destination_path is not None:
-            self._by_dest_index[destination_path] = source_json_path
+        self._by_dest_index[destination_path] = source_json_path
 
     def remove_mapping(self, destination_path: str) -> None:
         """Remove the mapping with the given destination_path. No-op if not found.

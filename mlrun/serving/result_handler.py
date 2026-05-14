@@ -96,4 +96,4 @@ class ResultHandler:
         if not effective_map:
             return response
 
-        return apply_body_map(response, effective_map)
+        return apply_body_map(response, effective_map, fill_missing_with_none=True)

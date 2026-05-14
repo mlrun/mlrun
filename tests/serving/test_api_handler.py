@@ -68,15 +68,14 @@ class EchoStep:
 class TestBodyMappings:
     """Tests for BodyMappings class"""
 
-    def test_mixed_destination_path_raises(self) -> None:
-        """Test that mixing destination-bearing and destination-less mappings raises an error"""
+    def test_empty_destination_path_raises(self) -> None:
+        """destination_path is always required; empty string raises an error"""
         bm = BodyMappings()
-        bm.add_mapping("$.model", destination_path="model")
         with pytest.raises(
             mlrun.errors.MLRunInvalidArgumentError,
-            match="Mixed destination_path mode is not allowed",
+            match="destination_path must be a non-empty string",
         ):
-            bm.add_mapping("$.messages")  # no destination_path — mixed mode
+            bm.add_mapping("$.model", destination_path="")
 
     def test_empty_source_json_path_raises(self) -> None:
         """Test that empty source_json_path raises an error"""
@@ -85,7 +84,7 @@ class TestBodyMappings:
             mlrun.errors.MLRunInvalidArgumentError,
             match="source_json_path must be a non-empty string",
         ):
-            bm.add_mapping("")
+            bm.add_mapping("", destination_path="model")
 
     def test_serialization_roundtrip(self) -> None:
         """BodyMappings and APIHandlerConfig both survive to_dict / from_dict round-trips."""

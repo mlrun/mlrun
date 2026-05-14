@@ -216,11 +216,14 @@ def collect_endpoint_matches(
 def apply_body_map(
     body: dict,
     effective_map: dict[str, tuple[Any, bool]],
+    fill_missing_with_none: bool = False,
 ) -> dict:
     """Apply a compiled body map to extract parameters from a body dict.
 
     :param body: The body dict to extract parameters from.
     :param effective_map: Merged map of ``{destination_path: (compiled_expr, mandatory)}``.
+    :param fill_missing_with_none: If True, missing non-mandatory fields are included as None
+        instead of being skipped. Use for output mapping where callers expect a full structure.
     :return: Dict of extracted parameters.
     :raises mlrun.errors.MLRunBadRequestError: If a mandatory field is missing.
     """
@@ -232,6 +235,8 @@ def apply_body_map(
                 raise mlrun.errors.MLRunBadRequestError(
                     f"Mandatory field '{dest_path}' not found in body"
                 )
+            if fill_missing_with_none:
+                result[dest_path] = None
             continue
         result[dest_path] = (
             matches[0].value if len(matches) == 1 else [m.value for m in matches]

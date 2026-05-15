@@ -430,7 +430,7 @@ class Client(
         if current_op_id is not None:
             labels["mlrun/current-op-id"] = str(current_op_id)
         elif force_current_op_id:
-            labels["mlrun/current-op-id"] = ""
+            labels["mlrun/current-op-id"] = str(op_id)
 
         return body
 

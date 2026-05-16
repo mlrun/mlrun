@@ -1654,8 +1654,83 @@ def calculate_local_file_hash(filename):
 
 
 def calculate_dataframe_hash(dataframe: pandas.DataFrame):
-    # https://stackoverflow.com/questions/49883236/how-to-generate-a-hash-or-checksum-value-on-python-dataframe-created-from-a-fix/62754084#62754084
-    return hashlib.sha1(pandas.util.hash_pandas_object(dataframe).values).hexdigest()
+    dataframe_hash = hashlib.sha256()
+    dataframe_hash.update(_get_dataframe_hash_schema(dataframe))
+    _update_hash_with_dataframe_values(dataframe_hash, dataframe)
+    return dataframe_hash.hexdigest()
+
+
+def _update_hash_with_dataframe_values(dataframe_hash, dataframe: pandas.DataFrame):
+    dataframe_hash.update(b"\0index")
+    index_frame = dataframe.index.to_frame(index=False)
+    for index_position in range(len(index_frame.columns)):
+        dataframe_hash.update(f"\0level:{index_position}".encode())
+        _update_hash_with_pandas_object(
+            dataframe_hash, index_frame.iloc[:, index_position]
+        )
+
+    dataframe_hash.update(b"\0columns")
+    for column_position in range(len(dataframe.columns)):
+        dataframe_hash.update(f"\0column:{column_position}".encode())
+        _update_hash_with_pandas_object(
+            dataframe_hash, dataframe.iloc[:, column_position]
+        )
+
+
+def _update_hash_with_pandas_object(
+    dataframe_hash, pandas_object: pandas.Index | pandas.Series
+):
+    pandas_object_hash = pandas.util.hash_pandas_object(
+        pandas_object, index=False
+    ).values
+    dataframe_hash.update(len(pandas_object_hash).to_bytes(8, "big"))
+    dataframe_hash.update(pandas_object_hash.tobytes())
+
+
+def _get_dataframe_hash_schema(dataframe: pandas.DataFrame) -> bytes:
+    schema = {
+        "columns": [
+            {
+                "name": _serialize_pandas_label(column),
+                "dtype": str(dtype),
+                "dtype_repr": repr(dtype),
+            }
+            for column, dtype in zip(dataframe.columns, dataframe.dtypes, strict=True)
+        ],
+        "column_index": {
+            "type": type(dataframe.columns).__qualname__,
+            "names": [
+                _serialize_pandas_label(name) for name in dataframe.columns.names
+            ],
+        },
+        "index": {
+            "type": type(dataframe.index).__qualname__,
+            "names": [_serialize_pandas_label(name) for name in dataframe.index.names],
+            "dtypes": _get_dataframe_index_dtypes(dataframe.index),
+        },
+    }
+    return json.dumps(schema, sort_keys=True, separators=(",", ":")).encode()
+
+
+def _get_dataframe_index_dtypes(index: pandas.Index) -> list[dict[str, str]]:
+    if isinstance(index, pandas.MultiIndex):
+        return [
+            {"dtype": str(dtype), "dtype_repr": repr(dtype)}
+            for dtype in index.to_frame(index=False).dtypes
+        ]
+    return [{"dtype": str(index.dtype), "dtype_repr": repr(index.dtype)}]
+
+
+def _serialize_pandas_label(label) -> dict[str, Any]:
+    if isinstance(label, tuple):
+        value = [_serialize_pandas_label(item) for item in label]
+    else:
+        value = repr(label)
+
+    return {
+        "type": type(label).__qualname__,
+        "value": value,
+    }
 
 
 def template_artifact_path(artifact_path, project, run_uid=None):

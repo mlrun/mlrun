@@ -4074,6 +4074,7 @@ class HTTPRunDB(RunDBInterface):
         fetch_credentials_from_sys_config: bool = False,
         lag_threshold: int | None = None,
         lag_event_cooldown: int | None = None,
+        otlp_enabled: bool = False,
     ) -> None:
         """
         Deploy model monitoring application controller, writer and stream functions.
@@ -4094,6 +4095,9 @@ class HTTPRunDB(RunDBInterface):
         :param fetch_credentials_from_sys_config: If true, fetch the credentials from the system configuration.
         :param lag_threshold:                     Lag threshold in minutes for writer lag detection.
         :param lag_event_cooldown:                Cooldown in minutes between consecutive lag events per worker.
+        :param otlp_enabled:                      If true, monitoring application results and metrics are also
+                                                  exported via OpenTelemetry. Persisted to
+                                                  ``project.spec.model_monitoring.otlp_enabled``.
 
         """
         auth_token_name = mlrun.runtime_configuration_context.RuntimeConfigurationContext.get_auth_token_name()
@@ -4103,6 +4107,7 @@ class HTTPRunDB(RunDBInterface):
             "deploy_histogram_data_drift_app": deploy_histogram_data_drift_app,
             "fetch_credentials_from_sys_config": fetch_credentials_from_sys_config,
             "auth_token_name": auth_token_name,
+            "otlp_enabled": otlp_enabled,
         }
         # Only forward `image` when caller specified one — otherwise let the
         # API server resolve it from `function_defaults.image_by_kind.nuclio`.

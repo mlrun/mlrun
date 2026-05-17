@@ -13,11 +13,13 @@
 # limitations under the License.
 
 import base64
+import json
 import unittest.mock
 
 import pytest
 
 import mlrun
+import mlrun.common.constants as mlrun_constants
 
 import services.api.crud.runtimes.nuclio.function
 import services.api.crud.runtimes.nuclio.helpers
@@ -81,6 +83,31 @@ def test_compiled_function_config_nuclio_python():
         "wrong handler"
     )
     assert mlrun.utils.get_in(config, "metadata.annotations.something") == "somewhat"
+
+
+def test_compiled_function_config_merges_default_pod_labels(monkeypatch):
+    monkeypatch.setattr(
+        mlrun.mlconf,
+        "default_function_pod_labels",
+        base64.b64encode(json.dumps({"team": "ml", "env": "dev"}).encode()).decode(),
+    )
+    name = f"{assets_path}/training.py"
+    fn = mlrun.code_to_function(
+        "nuclio", filename=name, kind="nuclio", handler="my_hand"
+    )
+    fn.metadata.labels = {"env": "prod"}
+    (
+        _name,
+        _project,
+        config,
+    ) = services.api.crud.runtimes.nuclio.function._compile_function_config(fn)
+    labels = mlrun.utils.get_in(config, "metadata.labels")
+    # service default flows through
+    assert labels["team"] == "ml"
+    # function label overrides service default
+    assert labels["env"] == "prod"
+    # mlrun/class system label always applied
+    assert labels[mlrun_constants.MLRunInternalLabels.mlrun_class] == "remote"
 
 
 def test_compiled_function_config_sidecar_image_enrichment():

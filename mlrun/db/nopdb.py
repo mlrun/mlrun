@@ -866,6 +866,7 @@ class NopDB(RunDBInterface):
         fetch_credentials_from_sys_config: bool = False,
         lag_threshold: int | None = None,
         lag_event_cooldown: int | None = None,
+        otlp_enabled: bool = False,
     ) -> None:
         pass
 

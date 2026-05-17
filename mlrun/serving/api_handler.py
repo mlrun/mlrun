@@ -15,14 +15,15 @@
 """API Handler implementation for serving graphs"""
 
 import re
+from dataclasses import dataclass, field
 from http import HTTPMethod
 from re import Pattern
 from typing import Any, Union
 from urllib.parse import parse_qs, unquote, urlsplit
 
+import jsonpath_ng
+import jsonpath_ng.exceptions
 import nuclio_sdk
-from jsonpath_ng import parse as jsonpath_parse
-from jsonpath_ng.exceptions import JsonPathLexerError, JsonPathParserError
 
 import mlrun.common.schemas as schemas
 import mlrun.errors
@@ -31,8 +32,18 @@ import mlrun.serving.server
 import mlrun.serving.states
 import mlrun.serving.utils as serving_utils
 import mlrun.utils
-from mlrun.common.schemas.serving import _APIEndpointKeys
-from mlrun.serving.utils import _RequestContext
+from mlrun.serving.utils import (
+    _RequestContext,
+    check_body_and_path_parameters_overlapping,
+)
+
+
+@dataclass
+class EndpointMatch:
+    """A single matched endpoint with its extracted path parameters."""
+
+    endpoint: "mlrun.runtimes.nuclio.serving.EndpointConfig"
+    path_params: dict[str, str] = field(default_factory=dict)
 
 
 class _APIHandlerStep(mlrun.serving.states.TaskStep):
@@ -64,34 +75,35 @@ class _APIHandlerStep(mlrun.serving.states.TaskStep):
             self.config = mlrun.runtimes.nuclio.serving.APIHandlerConfig()
         self.context = context
 
-        # Parse JSONPath expressions during initialization for performance and early error detection
-        self._parsed_body_map = {}
-        if self.config.body_map:
-            for param_name, jsonpath_expr in self.config.body_map.items():
-                try:
-                    self._parsed_body_map[param_name] = jsonpath_parse(jsonpath_expr)
-                except (JsonPathLexerError, JsonPathParserError) as exc:
-                    raise mlrun.errors.MLRunInvalidArgumentError(
-                        f"Invalid JSON path expression for parameter '{param_name}': "
-                        f"'{jsonpath_expr}'. Error: {exc}"
-                    ) from exc
-
-        # Pre-compile patterns in a single pass for performance.
+        # Pre-compile patterns and body maps in a single pass for performance.
         # Template patterns: /api/{user_id}/items → regex with named groups.
         # Star patterns:     /api/v1/*           → plain prefix string.
-        self._endpoint_patterns: list[tuple[HTTPMethod, Pattern, str, dict]]
-        self._star_patterns: list[tuple[HTTPMethod, str, str, dict]]
-        self._endpoint_patterns, self._star_patterns = self._compile_patterns()
+        # Body map cache:    endpoint key → {destination_path: (compiled_expr, mandatory)}
+        self._endpoint_patterns: list[
+            tuple[HTTPMethod, Pattern, mlrun.runtimes.nuclio.serving.EndpointConfig]
+        ]
+        self._star_patterns: list[
+            tuple[HTTPMethod, str, mlrun.runtimes.nuclio.serving.EndpointConfig]
+        ]
+        self._parsed_body_map: dict[str, dict[str, tuple[Any, bool]]]
+        (
+            self._endpoint_patterns,
+            self._star_patterns,
+            self._parsed_body_map,
+        ) = self._compile_patterns()
 
         mlrun.utils.logger.debug("The context in API handler", context=self.context)
 
     def _compile_patterns(
         self,
     ) -> tuple[
-        list[tuple[HTTPMethod, Pattern, str, dict]],
-        list[tuple[HTTPMethod, str, str, dict]],
+        list[
+            tuple[HTTPMethod, Pattern, "mlrun.runtimes.nuclio.serving.EndpointConfig"]
+        ],
+        list[tuple[HTTPMethod, str, "mlrun.runtimes.nuclio.serving.EndpointConfig"]],
+        dict[str, dict[str, tuple[Any, bool]]],
     ]:
-        """Compile all non-exact endpoint patterns in a single pass.
+        """Compile all non-exact endpoint patterns and input body maps in a single pass.
 
         Exact endpoints (no ``{`` or ``*``) are handled by O(1) dict lookup at
         request time and do not need pre-compilation.
@@ -109,18 +121,27 @@ class _APIHandlerStep(mlrun.serving.states.TaskStep):
             Matches any path that starts with the prefix and has at least one
             additional character after it.
 
-        :return: Tuple of (template_patterns, star_patterns) where
+        :return: Tuple of (template_patterns, star_patterns, parsed_body_map) where
 
-            * ``template_patterns`` is a list of
-              ``(method, compiled_regex, endpoint_key, endpoint_config)``
-            * ``star_patterns`` is a list of
-              ``(method, prefix, endpoint_key, endpoint_config)``
+            * ``template_patterns`` is a list of ``(method, compiled_regex, EndpointConfig)``
+            * ``star_patterns`` is a list of ``(method, prefix, EndpointConfig)``
+            * ``parsed_body_map`` maps endpoint key → ``{destination_path: (compiled_expr, mandatory)}``
         """
-        template_patterns: list[tuple[HTTPMethod, Pattern, str, dict]] = []
-        star_patterns: list[tuple[HTTPMethod, str, str, dict]] = []
+        template_patterns: list[
+            tuple[HTTPMethod, Pattern, mlrun.runtimes.nuclio.serving.EndpointConfig]
+        ] = []
+        star_patterns: list[
+            tuple[HTTPMethod, str, mlrun.runtimes.nuclio.serving.EndpointConfig]
+        ] = []
+        parsed_body_map: dict[str, dict[str, tuple[Any, bool]]] = {}
 
-        for endpoint_key, endpoint_config in self.config._endpoints.items():
-            method, path_pattern = self.config._parse_endpoint_key(endpoint_key)
+        # Tracks normalized template shapes per method to detect overlapping templates.
+        # e.g. /a/{key} and /a/{user_id} both normalize to /a/{*} → conflict.
+        seen_template_shapes: dict[tuple[HTTPMethod, str], str] = {}
+
+        for ep in self.config.endpoints.values():
+            method = ep.http_method
+            path_pattern = ep.path
 
             if "*" in path_pattern:
                 # --- Star (wildcard) pattern ---
@@ -139,10 +160,23 @@ class _APIHandlerStep(mlrun.serving.states.TaskStep):
                 prefix = path_pattern.rstrip("*")
                 if not prefix.endswith("/"):
                     prefix += "/"
-                star_patterns.append((method, prefix, endpoint_key, endpoint_config))
+                star_patterns.append((method, prefix, ep))
 
             elif "{" in path_pattern:
                 # --- Template pattern ---
+                # Detect overlapping templates: /a/{key} and /a/{user_id} are ambiguous.
+                # Normalize by replacing all {param} placeholders with {*} and check for
+                # duplicates per HTTP method.
+                shape = re.sub(r"\{[^}]*\}", "{*}", path_pattern)
+                shape_key = (method, shape)
+                if shape_key in seen_template_shapes:
+                    raise mlrun.errors.MLRunValueError(
+                        f"Overlapping template endpoints for {method.value}: "
+                        f"'{path_pattern}' and '{seen_template_shapes[shape_key]}' "
+                        f"match the same set of paths"
+                    )
+                seen_template_shapes[shape_key] = path_pattern
+
                 # Convert {param} placeholders to named regex capture groups.
                 # Example: /api/{user_id}/data → ^/api/(?P<user_id>[^/]+)/data$
                 regex_pattern = re.escape(path_pattern)
@@ -157,48 +191,61 @@ class _APIHandlerStep(mlrun.serving.states.TaskStep):
                 except re.error as exc:
                     raise mlrun.errors.MLRunValueError(
                         f"Failed to compile regex for endpoint pattern '{path_pattern}' "
-                        f"(key: {endpoint_key}): {exc}"
+                        f"(key: {ep.get_endpoint_key()}): {exc}"
                     ) from exc
-                template_patterns.append(
-                    (method, compiled, endpoint_key, endpoint_config)
-                )
+                template_patterns.append((method, compiled, ep))
             # else: exact endpoint – handled by dict lookup, no compilation needed
 
-        # Validate that body_map parameter names don't overlap with path template
-        # parameter names. This is a static conflict that can be caught early,
-        # before any request arrives.
-        if self._parsed_body_map and template_patterns:
-            body_map_names = set(self._parsed_body_map.keys())
-            for _, compiled_pattern, _, _ in template_patterns:
-                path_param_names = set(compiled_pattern.groupindex.keys())
-                overlapping = body_map_names & path_param_names
-                if overlapping:
-                    raise mlrun.errors.MLRunValueError(
-                        f"Configuration conflict: body_map parameter(s) "
-                        f"{', '.join(sorted(overlapping))} overlap with path template "
-                        f"parameter(s) in pattern '{compiled_pattern.pattern}'. "
-                        f"Rename the body_map parameter(s) or the path template "
-                        f"placeholder(s) to avoid ambiguity."
+            # Compile input_body_mappings for this endpoint (any pattern type)
+            if ep.input_body_mappings:
+                compiled_map: dict[str, tuple[Any, bool]] = {}
+                for mapping in ep.input_body_mappings.mappings:
+                    try:
+                        compiled_expr = jsonpath_ng.parse(mapping["source_json_path"])
+                    except (
+                        jsonpath_ng.exceptions.JsonPathLexerError,
+                        jsonpath_ng.exceptions.JsonPathParserError,
+                    ) as e:
+                        raise mlrun.errors.MLRunValueError(
+                            f"Invalid JSONPath expression '{mapping['source_json_path']}' "
+                            f"in endpoint '{ep.get_endpoint_key()}': {e}"
+                        ) from e
+                    compiled_map[mapping["destination_path"]] = (
+                        compiled_expr,
+                        mapping["mandatory"],
                     )
+                parsed_body_map[ep.get_endpoint_key()] = compiled_map
 
-        return template_patterns, star_patterns
+        # Sort star patterns by prefix length descending — longer prefix = more specific = higher priority
+        star_patterns.sort(key=lambda x: len(x[1]), reverse=True)
+        check_body_and_path_parameters_overlapping(template_patterns, star_patterns)
+        return template_patterns, star_patterns, parsed_body_map
 
-    def _apply_parsed_body_map(self, body: dict) -> dict:
-        """Apply pre-parsed JSONPath expressions to extract parameters from event body.
+    def _apply_body_map(
+        self,
+        body: dict,
+        effective_map: dict[str, tuple[Any, bool]],
+    ) -> dict:
+        """Apply a compiled body map to extract parameters from the event body.
 
         :param body: The event body dict to extract parameters from.
-        :return: Dict of extracted parameters (missing JSONPath matches are silently skipped).
+        :param effective_map: Merged map of ``{destination_path: (compiled_expr, mandatory)}``.
+        :return: Dict of extracted parameters.
+        :raises mlrun.errors.MLRunBadRequestError: If a mandatory field is missing.
         """
         result = {}
-        for param_name, parsed_expr in self._parsed_body_map.items():
-            matches = parsed_expr.find(body)
+        for dest_path, (compiled_expr, mandatory) in effective_map.items():
+            matches = compiled_expr.find(body)
             if not matches:
+                if mandatory:
+                    raise mlrun.errors.MLRunBadRequestError(
+                        f"Mandatory field '{dest_path}' not found in request body"
+                    )
                 continue
-            # Single match: return value; multiple matches: return list
             if len(matches) == 1:
-                result[param_name] = matches[0].value
+                result[dest_path] = matches[0].value
             else:
-                result[param_name] = [match.value for match in matches]
+                result[dest_path] = [match.value for match in matches]
         return result
 
     @staticmethod
@@ -257,6 +304,36 @@ class _APIHandlerStep(mlrun.serving.states.TaskStep):
 
         return normalized_path, query_params
 
+    def _merge_body_maps(
+        self,
+        matches: list[EndpointMatch],
+    ) -> dict[str, tuple[Any, bool]]:
+        """Merge input body maps from all matched endpoints, lowest priority first.
+
+        Most specific endpoint wins on conflict:
+        - Same destination → higher-priority source overwrites (dict key collision).
+        - Same source, different destination → stale destination is removed so the
+          value is not passed to two destinations at once.
+
+        :param matches: Ordered list of :class:`EndpointMatch` from
+                        :meth:`_collect_endpoint_matches` (index 0 = highest priority).
+        :return: Merged map of ``{destination_path: (compiled_expr, mandatory)}``.
+        """
+        effective_map: dict[str, tuple[Any, bool]] = {}
+        src_to_dest: dict[str, str] = {}  # str(expr) → current destination
+
+        for match in reversed(matches):
+            ep_key = match.endpoint.get_endpoint_key()
+            if ep_key not in self._parsed_body_map:
+                continue
+            for dest, (expr, mandatory) in self._parsed_body_map[ep_key].items():
+                src = str(expr)
+                if src in src_to_dest:
+                    effective_map.pop(src_to_dest[src])
+                effective_map[dest] = (expr, mandatory)
+                src_to_dest[src] = dest
+        return effective_map
+
     def do(
         self, event: Union[nuclio_sdk.Event, "mlrun.serving.server.MockEvent"]
     ) -> Union[nuclio_sdk.Event, "mlrun.serving.server.MockEvent"]:
@@ -298,79 +375,42 @@ class _APIHandlerStep(mlrun.serving.states.TaskStep):
                 query_params=query_params,
             )
 
-            # Find matching endpoint
-            matching_endpoint_key, path_params = self._match_endpoint(
-                method, normalized_path
-            )
+            # Find all matching endpoints (highest priority first)
+            matches = self._collect_endpoint_matches(method, normalized_path)
+            if not matches:
+                self._raise_not_found_endpoint(method, normalized_path)
 
-            if not matching_endpoint_key:
-                # Check if path exists with any method (for 405 vs 404 distinction)
-                # Note: Only checking exact paths for performance; templated paths will return 404
-                path_exists = False
-                for key in self.config._endpoints.keys():
-                    _, endpoint_path = self.config._parse_endpoint_key(key)
-                    if endpoint_path == normalized_path:
-                        path_exists = True
-                        break
-
-                if path_exists:
-                    # Path exists but method not allowed (405)
-                    mlrun.utils.logger.warning(
-                        "Method not allowed for endpoint",
-                        method=method.value,
-                        path=normalized_path,
-                    )
-                    raise mlrun.errors.MLRunMethodNotAllowedError(
-                        f"Method not allowed: {method.value} {normalized_path}"
-                    )
-                else:
-                    # No matching endpoint found (404)
-                    mlrun.utils.logger.warning(
-                        "No matching endpoint found",
-                        method=method.value,
-                        path=normalized_path,
-                    )
-                    raise mlrun.errors.MLRunNotFoundError(
-                        f"Endpoint not found: {method.value} {normalized_path}"
-                    )
-
-            # Get endpoint definition
-            endpoint_def = self.config._endpoints[matching_endpoint_key]
-            action = endpoint_def[_APIEndpointKeys.ACTION]
-
-            # Parse the endpoint key for logging
-            matched_method, matched_path = self.config._parse_endpoint_key(
-                matching_endpoint_key
-            )
+            first_match = matches[0]
+            ep = first_match.endpoint
+            path_params = first_match.path_params
 
             mlrun.utils.logger.debug(
                 "Found matching endpoint",
                 method=method.value,
                 path=normalized_path,
-                matched_path=matched_path,
-                action=action,
+                matched_path=ep.path,
+                action=ep.action,
             )
 
             # Handle the action
-            if action == schemas.APIHandlerAction.ALLOW:
-                # Extract body_map parameters if configured
+            if ep.action == schemas.APIHandlerAction.ALLOW:
+                effective_map = self._merge_body_maps(matches)
+
                 body_params = {}
-                if self._parsed_body_map:
+                if effective_map:
                     body = event.body if hasattr(event, "body") else event
                     if isinstance(body, dict):
                         try:
-                            body_params = self._apply_parsed_body_map(body)
+                            body_params = self._apply_body_map(body, effective_map)
                             mlrun.utils.logger.debug(
-                                "Applied body_map transformation",
-                                body_map=self.config.body_map,
+                                "Applied input body mapping",
                                 extracted_params=list(body_params.keys()),
                             )
                         except Exception as exc:
                             raise mlrun.errors.MLRunBadRequestError(
-                                f"Failed to process body_map transformation: {exc}"
+                                f"Failed to process body mapping: {exc}"
                             ) from exc
-                    # Non-dict body (e.g. None, string, bytes): body_map does not apply
-                    # to this endpoint's format — silently skip, same as a JSONPath miss.
+                    # Non-dict body (e.g. None, string, bytes): body mappings do not apply — silently skip.
 
                 # Build system-injected URL params when include_url_info is enabled.
                 # mlrun_request_path holds the normalized path of the matched request.
@@ -402,13 +442,15 @@ class _APIHandlerStep(mlrun.serving.states.TaskStep):
 
                 # Pass the event to the next step in the graph
                 return event
-            elif action == schemas.APIHandlerAction.FORBID:
+            elif ep.action == schemas.APIHandlerAction.FORBID:
                 # Reject the request
                 raise mlrun.errors.MLRunAccessDeniedError(
                     f"Access forbidden to {method.value} {normalized_path}"
                 )
             else:
-                raise mlrun.errors.MLRunInternalServerError(f"Unknown action: {action}")
+                raise mlrun.errors.MLRunInternalServerError(
+                    f"Unknown action: {ep.action}"
+                )
 
         except Exception as exc:
             # Log the error and re-raise
@@ -420,65 +462,83 @@ class _APIHandlerStep(mlrun.serving.states.TaskStep):
             )
             raise
 
-    def _match_endpoint(
-        self, method: HTTPMethod, path: str
-    ) -> tuple[str | None, dict[str, str]]:
-        """Find matching endpoint key for the given method and path.
+    def _raise_not_found_endpoint(self, method: str, normalized_path: str) -> None:
+        # Check if path matches any registered endpoint regardless of method (for 405 vs 404 distinction).
+        # String comparison is insufficient — template paths like /users/{id} won't match /users/123.
+        path_exists = any(
+            self._collect_endpoint_matches(m, normalized_path)
+            for m in HTTPMethod
+            if m != method
+        )
+        if path_exists:
+            # Path exists but method not allowed (405)
+            mlrun.utils.logger.warning(
+                "Method not allowed for endpoint",
+                method=method.value,
+                path=normalized_path,
+            )
+            raise mlrun.errors.MLRunMethodNotAllowedError(
+                f"Method not allowed: {method.value} {normalized_path}"
+            )
+        else:
+            # No matching endpoint found (404)
+            mlrun.utils.logger.warning(
+                "No matching endpoint found",
+                method=method.value,
+                path=normalized_path,
+            )
+            raise mlrun.errors.MLRunNotFoundError(
+                f"Endpoint not found: {method.value} {normalized_path}"
+            )
 
-        Uses a three-phase search strategy with strict precedence:
-        1. Fast exact match lookup (O(1) dict lookup)
-        2. Pre-compiled regex pattern matching for path templates (O(n), insertion order)
-        3. Star (wildcard) prefix matching (O(n), insertion order)
+    def _collect_endpoint_matches(
+        self, method: HTTPMethod, path: str
+    ) -> list[EndpointMatch]:
+        """Collect all matching endpoints for the given method and path, ordered by priority.
+
+        Priority (highest first):
+        1. Exact match
+        2. Template match  (/api/{id})  — skipped when an exact match is found, because
+           templates are siblings of exact paths (same depth), not parents.  Including
+           them when an exact match exists would inject spurious path parameters and
+           unintended body-map inheritance.
+        3. Star match      (/api/*) — always collected even when an exact match exists,
+           because stars are true parent scopes.  Ordered by prefix length descending,
+           so /a/b/c/* has higher priority than /a/b/* which has higher priority than /a/*.
 
         :param method: HTTP method to match
         :param path: Request path to match
-        :return: Tuple of (endpoint_key, extracted_path_params) or (None, {}) if no match.
-                 Path params are always strings (extracted from URL segments).
+        :return: List of :class:`EndpointMatch`, highest priority first.
         """
-        # Phase 1: Fast path for exact matches (no path parameters)
-        endpoint_key = serving_utils._combine_serving_endpoint_key(method, path)
-        if endpoint_key in self.config._endpoints:
-            return endpoint_key, {}
+        matches: list[EndpointMatch] = []
 
-        # Phase 2: Try pre-compiled regex patterns for path templates
-        for (
-            pattern_method,
-            compiled_pattern,
-            pattern_endpoint_key,
-            _,
-        ) in self._endpoint_patterns:
-            if pattern_method != method:
-                continue
+        # Phase 1: Exact match
+        endpoint_key = serving_utils.combine_serving_endpoint_key(method, path)
+        exact_found = endpoint_key in self.config.endpoints
+        if exact_found:
+            matches.append(EndpointMatch(self.config.endpoints[endpoint_key]))
 
-            match = compiled_pattern.match(path)
-            if match:
-                # Extract path parameters from named groups
-                # Note: URL-decode path segments to handle encoded characters
-                path_params = {
-                    name: unquote(value) for name, value in match.groupdict().items()
-                }
-                return pattern_endpoint_key, path_params
+        # Phase 2: Template matches — skipped when an exact match was found
+        if not exact_found:
+            for pattern_method, compiled_pattern, ep in self._endpoint_patterns:
+                if pattern_method != method:
+                    continue
+                match = compiled_pattern.match(path)
+                if match:
+                    path_params = {
+                        name: unquote(value)
+                        for name, value in match.groupdict().items()
+                    }
+                    matches.append(EndpointMatch(ep, path_params))
 
-        # Phase 3: Try star (wildcard) patterns for prefix matching
-        # Ensure path ends with / for comparison with prefix
-        # Using trailing slash ensures /apiv2/users doesn't match /api/* prefix
-        # Path must be strictly "under" the prefix, not equal to it
+        # Phase 3: Star matches — always collected (true parent scopes)
         path_with_slash = path if path.endswith("/") else path + "/"
-        for (
-            star_method,
-            prefix,
-            star_endpoint_key,
-            _,
-        ) in self._star_patterns:
+        for star_method, prefix, ep in self._star_patterns:
             if star_method != method:
                 continue
-
-            # Path must start with prefix AND be longer than prefix (at least one more char)
-            # This ensures /api/ doesn't match /api/* (only /api/something does)
             if path_with_slash.startswith(prefix) and len(path_with_slash) > len(
                 prefix
             ):
-                # Star patterns don't extract parameters
-                return star_endpoint_key, {}
+                matches.append(EndpointMatch(ep))
 
-        return None, {}
+        return matches

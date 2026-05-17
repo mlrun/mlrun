@@ -356,8 +356,11 @@ def _compile_function_config(
 
 
 def _set_function_metadata(function, config):
-    labels = function.metadata.labels or {}
-    labels.update({mlrun_constants.MLRunInternalLabels.mlrun_class: function.kind})
+    labels = mlrun.utils.helpers.merge_dicts_with_precedence(
+        mlrun.mlconf.get_default_function_pod_labels(),
+        function.metadata.labels,
+    )
+    labels[mlrun_constants.MLRunInternalLabels.mlrun_class] = function.kind
     annotations = function.metadata.annotations or {}
 
     # make sure that labels and annotations exists in dictionary

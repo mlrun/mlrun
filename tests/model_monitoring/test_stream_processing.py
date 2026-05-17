@@ -141,15 +141,25 @@ class TestProcessHTTPEvent:
     supply schemas directly in the event body.
     """
 
-    def _step(self, feature_names=None, label_names=None, function_uri=""):
-        step = ProcessHTTPEvent(project="test-project")
-        # Pre-populate cache so no DB call is made
-        step._schema_cache["ep-123"] = (feature_names, label_names, function_uri)
-        step._schema_cache["ep-1"] = (feature_names, label_names, function_uri)
-        return step
+    def _step(self, monkeypatch, feature_names=None, label_names=None, function_uri=""):
+        ep = mlrun.common.schemas.ModelEndpoint(
+            metadata=mlrun.common.schemas.ModelEndpointMetadata(
+                name="my-model", project="test-project"
+            ),
+            spec=mlrun.common.schemas.ModelEndpointSpec(
+                feature_names=feature_names or [],
+                label_names=label_names or [],
+                function_uri=function_uri,
+            ),
+            status=mlrun.common.schemas.ModelEndpointStatus(),
+        )
+        mock_db = unittest.mock.MagicMock()
+        mock_db.get_model_endpoint.return_value = ep
+        monkeypatch.setattr(mlrun.db, "get_run_db", lambda *a, **kw: mock_db)
+        return ProcessHTTPEvent(project="test-project")
 
-    def test_valid_list_payload(self):
-        step = self._step()
+    def test_valid_list_payload(self, monkeypatch):
+        step = self._step(monkeypatch)
         result = step.do(
             {
                 "model_endpoint_uid": "ep-123",
@@ -166,8 +176,8 @@ class TestProcessHTTPEvent:
         assert result[EventFieldType.FUNCTION_URI] == ""
         assert result["error"] is None
 
-    def test_dict_inputs_transposed_by_schema(self):
-        step = self._step(feature_names=["f1", "f2"], label_names=["pred"])
+    def test_dict_inputs_transposed_by_schema(self, monkeypatch):
+        step = self._step(monkeypatch, feature_names=["f1", "f2"], label_names=["pred"])
         result = step.do(
             {
                 "model_endpoint_uid": "ep-123",
@@ -182,8 +192,8 @@ class TestProcessHTTPEvent:
         assert result["request"]["input_schema"] == ["f1", "f2"]
         assert result["resp"]["output_schema"] == ["pred"]
 
-    def test_dict_inputs_without_schema_warns_and_uses_dict_order(self):
-        step = self._step()
+    def test_dict_inputs_without_schema_warns_and_uses_dict_order(self, monkeypatch):
+        step = self._step(monkeypatch)
         result = step.do(
             {
                 "model_endpoint_uid": "ep-123",
@@ -196,8 +206,8 @@ class TestProcessHTTPEvent:
         # No schema → transpose_by_key infers order from dict keys
         assert result["request"]["inputs"] == [[1.0, 2.0]]
 
-    def test_scalar_inputs_wrapped_in_list(self):
-        step = self._step()
+    def test_scalar_inputs_wrapped_in_list(self, monkeypatch):
+        step = self._step(monkeypatch)
         result = step.do(
             {
                 "model_endpoint_uid": "ep-123",
@@ -209,8 +219,8 @@ class TestProcessHTTPEvent:
         assert result["request"]["inputs"] == [42.0]
         assert result["resp"]["outputs"] == [0.8]
 
-    def test_db_schema_used_when_not_in_event(self):
-        step = self._step(feature_names=["a", "b"], label_names=["pred"])
+    def test_db_schema_used_when_not_in_event(self, monkeypatch):
+        step = self._step(monkeypatch, feature_names=["a", "b"], label_names=["pred"])
         result = step.do(
             {
                 "model_endpoint_uid": "ep-1",
@@ -224,8 +234,8 @@ class TestProcessHTTPEvent:
         assert result["resp"]["outputs"] == [0.9]
         assert result["request"]["input_schema"] == ["a", "b"]
 
-    def test_when_added_if_missing(self):
-        step = self._step()
+    def test_when_added_if_missing(self, monkeypatch):
+        step = self._step(monkeypatch)
         result = step.do(
             {
                 "model_endpoint_uid": "ep-1",
@@ -236,8 +246,8 @@ class TestProcessHTTPEvent:
         )
         assert result["when"] is not None
 
-    def test_when_preserved_if_provided(self):
-        step = self._step()
+    def test_when_preserved_if_provided(self, monkeypatch):
+        step = self._step(monkeypatch)
         result = step.do(
             {
                 "model_endpoint_uid": "ep-1",
@@ -249,16 +259,16 @@ class TestProcessHTTPEvent:
         )
         assert result["when"] == "2024-01-01T00:00:00Z"  # internal field name
 
-    def test_missing_endpoint_id_returns_error_sentinel(self):
-        step = self._step()
+    def test_missing_endpoint_id_returns_error_sentinel(self, monkeypatch):
+        step = self._step(monkeypatch)
         result = step.do(
             {"model_endpoint_name": "my-model", "inputs": [[1.0]], "outputs": [[0.9]]}
         )
         assert _HTTP_ERROR_KEY in result
         assert "model_endpoint_uid" in result[_HTTP_ERROR_KEY]
 
-    def test_missing_inputs_returns_error_sentinel(self):
-        step = self._step()
+    def test_missing_inputs_returns_error_sentinel(self, monkeypatch):
+        step = self._step(monkeypatch)
         result = step.do(
             {
                 "model_endpoint_uid": "ep-1",
@@ -269,8 +279,8 @@ class TestProcessHTTPEvent:
         assert _HTTP_ERROR_KEY in result
         assert "inputs" in result[_HTTP_ERROR_KEY]
 
-    def test_missing_outputs_returns_error_sentinel(self):
-        step = self._step()
+    def test_missing_outputs_returns_error_sentinel(self, monkeypatch):
+        step = self._step(monkeypatch)
         result = step.do(
             {
                 "model_endpoint_uid": "ep-1",
@@ -281,16 +291,16 @@ class TestProcessHTTPEvent:
         assert _HTTP_ERROR_KEY in result
         assert "outputs" in result[_HTTP_ERROR_KEY]
 
-    def test_missing_name_returns_error_sentinel(self):
-        step = self._step()
+    def test_missing_name_returns_error_sentinel(self, monkeypatch):
+        step = self._step(monkeypatch)
         result = step.do(
             {"model_endpoint_uid": "ep-1", "inputs": [[1.0]], "outputs": [[0.8]]}
         )
         assert _HTTP_ERROR_KEY in result
         assert "model_endpoint_name" in result[_HTTP_ERROR_KEY]
 
-    def test_optional_metadata_forwarded(self):
-        step = self._step()
+    def test_optional_metadata_forwarded(self, monkeypatch):
+        step = self._step(monkeypatch)
         result = step.do(
             {
                 "model_endpoint_uid": "ep-1",
@@ -308,8 +318,8 @@ class TestProcessHTTPEvent:
         assert result[EventFieldType.LABELS] == {"env": "prod"}
         assert result[EventFieldType.METRICS] == {"accuracy": 0.99}
 
-    def test_request_id_generated_when_absent(self):
-        step = self._step()
+    def test_request_id_generated_when_absent(self, monkeypatch):
+        step = self._step(monkeypatch)
         result = step.do(
             {
                 "model_endpoint_uid": "ep-1",
@@ -321,8 +331,13 @@ class TestProcessHTTPEvent:
         assert result["request"]["id"] is not None
         assert len(result["request"]["id"]) > 0
 
-    def test_function_uri_from_endpoint_schema(self):
-        step = self._step(function_uri="my-project/my-fn:latest")
+    def test_function_uri_from_endpoint_schema(self, monkeypatch):
+        step = self._step(
+            monkeypatch,
+            feature_names=["f1"],
+            label_names=["out"],
+            function_uri="my-project/my-fn:latest",
+        )
         result = step.do(
             {
                 "model_endpoint_uid": "ep-1",
@@ -343,7 +358,7 @@ class TestProcessHTTPEvent:
             "_to_listed_data",
             lambda data, schema: (_ for _ in ()).throw(ValueError("boom")),
         )
-        step = self._step()
+        step = self._step(monkeypatch)
         result = step.do(
             {
                 "model_endpoint_uid": "ep-1",
@@ -356,8 +371,8 @@ class TestProcessHTTPEvent:
         assert "failed to translate event" in result[_HTTP_ERROR_KEY]
         assert "boom" in result[_HTTP_ERROR_KEY]
 
-    def test_function_uri_empty_for_user_ep(self):
-        step = self._step(function_uri="")
+    def test_function_uri_empty_for_user_ep(self, monkeypatch):
+        step = self._step(monkeypatch, function_uri="")
         result = step.do(
             {
                 "model_endpoint_uid": "ep-1",

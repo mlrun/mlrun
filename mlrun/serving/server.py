@@ -159,16 +159,22 @@ class GraphServer(ModelObj):
         self.project = project
         self.model_endpoint_creation_task_name = model_endpoint_creation_task_name
         self.streaming = False
-        if isinstance(api_handler_config, dict):
-            api_handler_config = (
-                mlrun.runtimes.nuclio.serving.APIHandlerConfig.from_dict(
-                    api_handler_config
-                )
-            )
         self.api_handler_config = api_handler_config
-        self.result_handler = (
-            ResultHandler(api_handler_config) if api_handler_config else None
-        )
+
+    @property
+    def api_handler_config(
+        self,
+    ) -> "mlrun.runtimes.nuclio.serving.APIHandlerConfig | None":
+        return self._api_handler_config
+
+    @api_handler_config.setter
+    def api_handler_config(
+        self, value: "mlrun.runtimes.nuclio.serving.APIHandlerConfig | dict | None"
+    ) -> None:
+        if isinstance(value, dict):
+            value = mlrun.runtimes.nuclio.serving.APIHandlerConfig.from_dict(value)
+        self._api_handler_config = value
+        self.result_handler = ResultHandler(value) if value else None
 
     def set_current_function(self, function):
         """set which child function this server is currently running on"""

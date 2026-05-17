@@ -471,7 +471,9 @@ class TestServingAPIHandler(tests.system.base.TestMLRunSystem):
         out_bm = BodyMappings()
         out_bm.add_mapping("$.input_model", destination_path="output_model")
         out_bm.add_mapping("$.input_temperature", destination_path="output_temperature")
-        out_bm.add_mapping("$.nonexistent", destination_path="output_extra")  # optional — will be None
+        out_bm.add_mapping(
+            "$.nonexistent", destination_path="output_extra"
+        )  # optional — will be None
 
         config = APIHandlerConfig()
         config.add_endpoint_handler(
@@ -509,3 +511,35 @@ class TestServingAPIHandler(tests.system.base.TestMLRunSystem):
         }
 
         self._logger.info("Output body mapping test passed")
+
+    def test_output_body_mapping_mandatory_missing_returns_400(self) -> None:
+        """Missing mandatory output field raises HTTP 400."""
+        out_bm = BodyMappings()
+        out_bm.add_mapping(
+            "$.nonexistent", destination_path="output_result", mandatory=True
+        )
+
+        config = APIHandlerConfig()
+        config.add_endpoint_handler(
+            "/predict",
+            HTTPMethod.POST,
+            APIHandlerAction.ALLOW,
+            output_body_mappings=out_bm,
+        )
+
+        function = self._create_serving_function(
+            name="output-mandatory-handler",
+            api_config=config,
+            func=str(self.assets_path / "body_map_handler.py"),
+        )
+        graph = function.set_topology("flow", engine="sync", exist_ok=True)
+        graph.to(name="echo", handler="echo_kwargs").respond()
+        function.deploy()
+
+        with pytest.raises(
+            RuntimeError,
+            match=r"MLRunBadRequestError.*Mandatory field 'output_result' not found",
+        ):
+            function.invoke(path="/predict", body={"model": "gpt-4"})
+
+        self._logger.info("Output mandatory missing field test passed")

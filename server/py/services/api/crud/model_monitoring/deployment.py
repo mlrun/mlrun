@@ -249,7 +249,7 @@ class MonitoringDeployment:
         )
         ModelMonitoringSchedulesFileChief(project=self.project).get_or_create()
         if deploy_histogram_data_drift_app:
-            self.deploy_histogram_data_drift_app(image=image)
+            self.deploy_histogram_data_drift_app(image=image, otlp_enabled=otlp_enabled)
 
         self._persist_model_monitoring_spec(enabled=True, otlp_enabled=otlp_enabled)
 
@@ -1100,13 +1100,23 @@ class MonitoringDeployment:
         )
 
     def deploy_histogram_data_drift_app(
-        self, image: str, overwrite: bool = False
+        self,
+        image: str,
+        overwrite: bool = False,
+        otlp_enabled: bool = False,
     ) -> None:
         """
         Deploy the histogram data drift application.
 
-        :param image:       The image on with the function will run.
-        :param overwrite:   If True, the function will be overwritten.
+        :param image:        The image on with the function will run.
+        :param overwrite:    If True, the function will be overwritten.
+        :param otlp_enabled: If True, append the OTel branch to the application
+                             graph (``_PrepareOTelEvent`` → ``OTelMetricsExporter``)
+                             and set ``func.spec.mount_otlp_secret`` so the
+                             server-side runtime injector mounts the OTLP
+                             headers secret and OTel env onto the function pod.
+                             Matches the wiring ``set_model_monitoring_function``
+                             does for user-deployed MM apps.
         """
         if overwrite or self._should_deploy_function(
             function_name=mm_constants.HistogramDataDriftApplicationConstants.NAME
@@ -1118,7 +1128,9 @@ class MonitoringDeployment:
                 name=mm_constants.HistogramDataDriftApplicationConstants.NAME,
                 application_class="HistogramDataDriftApplication",
                 image=image,
+                otlp_enabled=otlp_enabled,
             )
+            func.spec.mount_otlp_secret = otlp_enabled
 
             if mlrun.mlconf.is_using_v3io():
                 logger.info(

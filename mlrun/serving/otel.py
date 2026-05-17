@@ -13,6 +13,8 @@
 # limitations under the License.
 
 import json
+import os
+import socket
 from typing import Literal
 
 import storey
@@ -20,6 +22,25 @@ import storey
 import mlrun
 import mlrun.errors
 import mlrun.utils.telemetry
+
+logger = mlrun.utils.logger
+
+
+# TODO move to storey
+def _warmup_endpoint(endpoint: str, timeout: float = 5.0) -> None:
+    host, _, port = endpoint.rpartition(":")
+    if not host or not port.isdigit():
+        return
+    try:
+        with socket.create_connection((host, int(port)), timeout=timeout):
+            pass
+    except OSError as exc:
+        logger.debug(
+            "OTel endpoint warmup probe failed",
+            endpoint=endpoint,
+            error=str(exc),
+        )
+
 
 # Sources for the OTLP headers passed to the underlying gRPC channel.
 _HEADERS_SOURCE_FILE = "file"
@@ -131,6 +152,10 @@ class OTelMetricsExporter(storey.OTelMetricsExporter):
             insecure=bool(resolved_insecure),
             **kwargs,
         )
+
+        # todo move to storey
+        if os.environ.get("NUCLIO_FUNCTION_NAME"):
+            _warmup_endpoint(resolved_endpoint)
 
         # Stash mlrun-specific config for introspection / serialization.
         self._mlrun_headers_source = headers_source

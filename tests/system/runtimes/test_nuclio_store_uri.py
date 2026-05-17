@@ -43,18 +43,15 @@ class TestNuclioStoreUri(tests.system.base.TestMLRunSystem):
         self._function_image = os.environ.get("MLRUN_TEST_IMAGE")
 
     def _log_code_artifact(self, key: str, src_path: str | None = None) -> str:
-        """Log a CodeArtifact and return its canonical store:// URI.
+        """Log a CodeArtifact and return a tag-only store:// URI for it.
 
         :param key:      Artifact key (must be unique per test).
         :param src_path: Path to the source file. Defaults to the test's
                          echo_handler asset.
-        :returns: The artifact's own ``.uri`` (whatever the system stored,
-                  including any tag suffix). Avoids reconstructing the URI
-                  from a string template — see TESTING_STANDARDS.md §7.
         """
         local_path = src_path or os.path.join(self.assets_path, self._handler_filename)
-        artifact = self.project.log_code_file(key=key, local_path=local_path)
-        return artifact.uri
+        self.project.log_code_file(key=key, local_path=local_path)
+        return self.project.get_artifact_uri(key)
 
     def _assert_init_container_present(self, function):
         """Assert the source-loader init container is wired correctly."""
@@ -141,16 +138,13 @@ class TestNuclioStoreUri(tests.system.base.TestMLRunSystem):
 
             with open(handler_path, "w") as f:
                 f.write(self._versioned_handler_body("v1"))
-            artifact_v1 = self.project.log_code_file(
+            self.project.log_code_file(
                 key=artifact_key,
                 local_path=handler_path,
                 tag=tag,
                 target_path=artifact_target_path,
             )
-            # Use the artifact's canonical URI rather than reconstructing it
-            # — the stored format may evolve (e.g. tree-ref encoding) and
-            # the test should follow whatever the system actually wrote.
-            store_uri = artifact_v1.uri
+            store_uri = self.project.get_artifact_uri(artifact_key, tag=tag)
 
             function = self.project.set_function(
                 func=store_uri,

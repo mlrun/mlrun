@@ -488,13 +488,12 @@ class TestApplicationRuntime(tests.system.base.TestMLRunSystem):
             f"ds://{profile_name}"
             f"/projects/{self.project_name}/code/{self._simple_flask_app}"
         )
-        artifact = self.project.log_code_file(
+        self.project.log_code_file(
             key=artifact_key,
             local_path=local_path,
             target_path=artifact_target_path,
         )
-        # Use the artifact's canonical URI — see TESTING_STANDARDS.md §7.
-        store_uri = artifact.uri
+        store_uri = self.project.get_artifact_uri(artifact_key)
 
         function = self.project.set_function(
             func=store_uri,

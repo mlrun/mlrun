@@ -227,13 +227,23 @@ def _validate_workflow_code_artifact(artifact, workflow_path: str) -> None:
         )
 
 
-def _validate_remote_workflow_artifact(workflow_path: str, project_name: str) -> None:
+def validate_remote_workflow_artifact(
+    workflow_path: str,
+    project_name: str,
+    secrets: mlrun.secrets.SecretsStore | None = None,
+    data_store_secrets: mlrun.secrets.SecretsStore | dict | None = None,
+) -> None:
     """Resolve and validate a ``store://`` workflow artifact via the API.
 
     Metadata-only check — ``get_store_resource`` reads from the MLRun DB, no
     artifact content is downloaded here. All errors propagate.
     """
-    artifact = mlrun.datastore.get_store_resource(workflow_path, project=project_name)
+    artifact = mlrun.datastore.get_store_resource(
+        workflow_path,
+        project=project_name,
+        secrets=secrets,
+        data_store_secrets=data_store_secrets,
+    )
     _validate_workflow_code_artifact(artifact, workflow_path)
 
 
@@ -249,10 +259,12 @@ def _download_store_workflow_artifact(
 
     :returns: Local filesystem path to the downloaded workflow file.
     """
-    artifact = mlrun.datastore.get_store_resource(
-        workflow_path, project=project_name, secrets=secrets, data_store_secrets=secrets
+    validate_remote_workflow_artifact(
+        workflow_path,
+        project_name,
+        secrets=secrets,
+        data_store_secrets=secrets,
     )
-    _validate_workflow_code_artifact(artifact, workflow_path)
     _, file_path = mlrun.utils.clones.load_source_code(
         source_uri=workflow_path,
         target_dir=target_dir,

@@ -1458,7 +1458,7 @@ class MlrunProject(ModelObj):
 
         if workflow_path and mlrun.datastore.is_store_uri(workflow_path):
             # Surface kind/code_type misuses now; the runner pod re-validates.
-            mlrun.projects.pipelines._validate_remote_workflow_artifact(
+            mlrun.projects.pipelines.validate_remote_workflow_artifact(
                 workflow_path, self.metadata.name
             )
 

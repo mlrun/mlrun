@@ -2984,6 +2984,219 @@ class TestModelMonitoring:
                 name="my-invalid-app-name-batch", application_class="NoApp"
             )
 
+    @staticmethod
+    def test_project_spec_accepts_model_monitoring_dict() -> None:
+        """ProjectSpec.model_monitoring accepts a dict and converts it to a
+        ProjectMonitoringSpec(ModelObj) instance via the property setter."""
+        spec = mlrun.projects.project.ProjectSpec()
+        # Default is a populated struct so callers don't need to None-guard.
+        assert isinstance(
+            spec.model_monitoring,
+            mlrun.projects.project.ProjectMonitoringSpec,
+        )
+
+        spec.model_monitoring = {
+            "enabled": True,
+            "otlp_enabled": True,
+            "stream_type": "kafka",
+            "tsdb_type": "v3io-tsdb",
+        }
+        assert isinstance(
+            spec.model_monitoring,
+            mlrun.projects.project.ProjectMonitoringSpec,
+        )
+        assert spec.model_monitoring.enabled is True
+        assert spec.model_monitoring.otlp_enabled is True
+        assert spec.model_monitoring.stream_type == "kafka"
+        assert spec.model_monitoring.tsdb_type == "v3io-tsdb"
+
+    @staticmethod
+    def test_project_spec_model_monitoring_setter_coerces_none() -> None:
+        """Assigning None back to the property yields a fresh default instance,
+        not None. Callers can rely on `project.spec.model_monitoring.<flag>`
+        working without None-guards.
+        """
+        spec = mlrun.projects.project.ProjectSpec(
+            model_monitoring=mlrun.projects.project.ProjectMonitoringSpec(enabled=True),
+        )
+        assert spec.model_monitoring.enabled is True
+
+        spec.model_monitoring = None
+        assert isinstance(
+            spec.model_monitoring,
+            mlrun.projects.project.ProjectMonitoringSpec,
+        )
+        assert spec.model_monitoring.enabled is False
+        assert spec.model_monitoring.otlp_enabled is False
+        assert spec.model_monitoring.stream_type is None
+        assert spec.model_monitoring.tsdb_type is None
+
+    @staticmethod
+    def test_project_spec_model_monitoring_round_trip() -> None:
+        """SDK ProjectSpec.model_monitoring round-trips through to_dict/from_dict."""
+        original = mlrun.projects.project.ProjectSpec(
+            model_monitoring=mlrun.projects.project.ProjectMonitoringSpec(
+                enabled=True, otlp_enabled=True
+            )
+        )
+        reparsed = mlrun.projects.project.ProjectSpec.from_dict(original.to_dict())
+        assert reparsed.model_monitoring is not None
+        assert reparsed.model_monitoring.enabled is True
+        assert reparsed.model_monitoring.otlp_enabled is True
+
+    @staticmethod
+    def test_enable_model_monitoring_forwards_otlp_enabled() -> None:
+        """MlrunProject.enable_model_monitoring forwards otlp_enabled to the DB layer."""
+        project = mlrun.projects.MlrunProject(metadata={"name": "p"})
+        # _enrich runs after the API call and needs a real project to merge.
+        server_view = mlrun.projects.MlrunProject(metadata={"name": "p"})
+
+        with unittest.mock.patch("mlrun.db.get_run_db") as get_db:
+            mock_db = unittest.mock.Mock()
+            mock_db.get_project.return_value = server_view
+            get_db.return_value = mock_db
+
+            project.enable_model_monitoring(otlp_enabled=True)
+
+        mock_db.enable_model_monitoring.assert_called_once()
+        kwargs = mock_db.enable_model_monitoring.call_args.kwargs
+        assert kwargs["otlp_enabled"] is True
+        # Default still False — sanity check on the param plumbing.
+        mock_db.reset_mock()
+        with unittest.mock.patch("mlrun.db.get_run_db") as get_db2:
+            mock_db2 = unittest.mock.Mock()
+            mock_db2.get_project.return_value = server_view
+            get_db2.return_value = mock_db2
+            project.enable_model_monitoring()
+        assert (
+            mock_db2.enable_model_monitoring.call_args.kwargs["otlp_enabled"] is False
+        )
+
+    @staticmethod
+    def test_enable_model_monitoring_refreshes_local_spec() -> None:
+        """After the server-side call, the SDK re-fetches the project and
+        merges the enriched spec (enabled=True, otlp_enabled=True) onto the
+        local object so callers don't see a stale None/False value.
+        """
+        project = mlrun.projects.MlrunProject(metadata={"name": "p"})
+
+        # Server-side post-enable state — what db.get_project returns.
+        server_view = mlrun.projects.MlrunProject(
+            metadata={"name": "p"},
+            spec={
+                "model_monitoring": {
+                    "enabled": True,
+                    "otlp_enabled": True,
+                    "stream_type": "kafka",
+                    "tsdb_type": "postgresql",
+                },
+            },
+        )
+
+        with unittest.mock.patch("mlrun.db.get_run_db") as get_db:
+            mock_db = unittest.mock.Mock()
+            mock_db.get_project.return_value = server_view
+            get_db.return_value = mock_db
+
+            project.enable_model_monitoring(otlp_enabled=True)
+
+        # The SDK must have re-fetched the project after the API call …
+        mock_db.get_project.assert_called_once_with("p")
+        # … and merged the enriched spec back onto the local object.
+        assert project.spec.model_monitoring.enabled is True
+        assert project.spec.model_monitoring.otlp_enabled is True
+        assert project.spec.model_monitoring.stream_type == "kafka"
+        assert project.spec.model_monitoring.tsdb_type == "postgresql"
+
+    @staticmethod
+    def test_disable_model_monitoring_refreshes_local_spec() -> None:
+        """After the server-side teardown, the SDK re-fetches the project and
+        merges the now-disabled spec back so the local object reflects
+        enabled=False / otlp_enabled=False without an extra get_project.
+        """
+        # Pre-populate as if monitoring was previously enabled.
+        project = mlrun.projects.MlrunProject(
+            metadata={"name": "p"},
+            spec={
+                "model_monitoring": {
+                    "enabled": True,
+                    "otlp_enabled": True,
+                    "stream_type": "kafka",
+                    "tsdb_type": "postgresql",
+                },
+            },
+        )
+        # Server-side post-disable state: server resets enabled/otlp_enabled
+        # but preserves stream/tsdb types so re-enabling doesn't need
+        # set_credentials again.
+        server_view = mlrun.projects.MlrunProject(
+            metadata={"name": "p"},
+            spec={
+                "model_monitoring": {
+                    "enabled": False,
+                    "otlp_enabled": False,
+                    "stream_type": "kafka",
+                    "tsdb_type": "postgresql",
+                },
+            },
+        )
+
+        with unittest.mock.patch("mlrun.db.get_run_db") as get_db:
+            mock_db = unittest.mock.Mock()
+            # Disable returns truthy to skip the lag-alert teardown path.
+            mock_db.disable_model_monitoring.return_value = False
+            mock_db.get_project.return_value = server_view
+            get_db.return_value = mock_db
+
+            project.disable_model_monitoring()
+
+        mock_db.disable_model_monitoring.assert_called_once()
+        mock_db.get_project.assert_called_once_with("p")
+        assert project.spec.model_monitoring.enabled is False
+        assert project.spec.model_monitoring.otlp_enabled is False
+        # Backend types preserved so a re-enable doesn't need credentials again.
+        assert project.spec.model_monitoring.stream_type == "kafka"
+        assert project.spec.model_monitoring.tsdb_type == "postgresql"
+
+    @staticmethod
+    def test_set_model_monitoring_credentials_refreshes_local_spec() -> None:
+        """After set_model_monitoring_credentials, the SDK re-fetches the
+        project so stream_type/tsdb_type derived server-side from the registered
+        profile classes land on the local spec.
+        """
+        project = mlrun.projects.MlrunProject(metadata={"name": "p"})
+
+        server_view = mlrun.projects.MlrunProject(
+            metadata={"name": "p"},
+            spec={
+                "model_monitoring": {
+                    "enabled": False,
+                    "otlp_enabled": False,
+                    "stream_type": "kafka",
+                    "tsdb_type": "postgresql",
+                },
+            },
+        )
+
+        with unittest.mock.patch("mlrun.db.get_run_db") as get_db:
+            mock_db = unittest.mock.Mock()
+            mock_db.get_project.return_value = server_view
+            get_db.return_value = mock_db
+
+            project.set_model_monitoring_credentials(
+                tsdb_profile_name="my-pg",
+                stream_profile_name="my-kafka",
+            )
+
+        # Server gets the canonical write …
+        mock_db.set_model_monitoring_credentials.assert_called_once()
+        # … and the local spec is refreshed from db.get_project.
+        mock_db.get_project.assert_called_once_with("p")
+        assert project.spec.model_monitoring.stream_type == "kafka"
+        assert project.spec.model_monitoring.tsdb_type == "postgresql"
+        # enable hasn't been called yet — the enable flag stays False.
+        assert project.spec.model_monitoring.enabled is False
+
 
 def _auth_prefix() -> str:
     # Matches how the code builds the pattern: format(hashed_access_key="")

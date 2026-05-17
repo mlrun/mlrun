@@ -158,6 +158,14 @@ def enable_model_monitoring(
         None,
         description="Cooldown in minutes between consecutive lag events per worker.",
     ),
+    otlp_enabled: bool = Query(
+        False,
+        description=(
+            "If true, export monitoring application results/metrics via OpenTelemetry "
+            "to the operator-configured OTLP endpoint. Persisted on "
+            "`project.spec.model_monitoring.otlp_enabled`."
+        ),
+    ),
 ):
     """
     Deploy model monitoring application controller, writer and stream functions.
@@ -178,6 +186,8 @@ def enable_model_monitoring(
     :param fetch_credentials_from_sys_config: Deprecated. If true, fetch the credentials from the system configuration.
     :param lag_threshold:                     Lag threshold in minutes for writer lag detection.
     :param lag_event_cooldown:                Cooldown in minutes between consecutive lag events per worker.
+    :param otlp_enabled:                      If true, export monitoring application results/metrics via OTel.
+                                              Persisted to `project.spec.model_monitoring.otlp_enabled`.
 
     """
     commons.get_monitoring_deployment().deploy_monitoring_functions(
@@ -187,6 +197,7 @@ def enable_model_monitoring(
         fetch_credentials_from_sys_config=fetch_credentials_from_sys_config,
         lag_threshold=lag_threshold,
         lag_event_cooldown=lag_event_cooldown,
+        otlp_enabled=otlp_enabled,
     )
 
 

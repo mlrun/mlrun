@@ -66,7 +66,7 @@ def test_generate_db_migration_event_basic(
     event = client.generate_db_migration_event(action)
     assert event.config_name == expected_config_name
     assert event.kind == "system"
-    assert event.class_ == "Application.Core"
+    assert event.class_ == "DB"
     assert event.severity == expected_severity
     assert event.entity_name == "mlrun-api-chief"
     # source is left empty so the orca backend can derive it
@@ -269,7 +269,7 @@ def test_generate_db_connection_event_basic(client):
     )
     assert event.config_name == iguazio_v4_events.DB_CONNECTION_FAILED
     assert event.kind == "system"
-    assert event.class_ == "Application.Core"
+    assert event.class_ == "DB"
     assert event.severity == iguazio.schemas.Severity.CRITICAL
     assert event.entity_name == "mlrun-api-chief"
     # source is left empty so the orca backend can derive it

@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """
-Integration tests for ``Platform.MLRun.DB.Connection.Failed`` against a real
+Integration tests for ``MLRun.DB.Connection.Failed`` against a real
 MySQL or PostgreSQL container. Selected via ``MLRUN_TEST_DB={mysql,postgres}``.
 
 The mapping is intentionally conservative: only true "cannot connect"

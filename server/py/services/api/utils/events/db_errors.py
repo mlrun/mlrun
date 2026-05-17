@@ -129,7 +129,7 @@ def publish_connection_failed(
     error_code: int | str | None = None,
 ) -> bool:
     """
-    Best-effort publish of a ``Platform.MLRun.DB.Connection.Failed`` event.
+    Best-effort publish of a ``MLRun.DB.Connection.Failed`` event.
 
     Throttled to one emission per process per
     ``mlconf.events.db_connection.min_emit_interval_seconds``. The throttle

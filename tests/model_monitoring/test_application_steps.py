@@ -277,10 +277,11 @@ class TestPrepareOTelEvent:
     APP = "my-app"
     EP_ID = "ep-1234"
     EP_NAME = "ep-name"
+    FUNC_NAME  = "serving"
     BASE_ATTRS = {
         "project": PROJECT,
         "app.name": APP,
-        "function.name": APP,
+        "function.name": FUNC_NAME,
         "endpoint.uid": EP_ID,
         "endpoint.name": EP_NAME,
     }
@@ -291,6 +292,7 @@ class TestPrepareOTelEvent:
         ctx = Mock(spec=mm_context.MonitoringApplicationContext)
         ctx.project_name = cls.PROJECT
         ctx.application_name = cls.APP
+        ctx.model_endpoint.spec.function_name = cls.FUNC_NAME
         ctx.endpoint_id = cls.EP_ID
         ctx.endpoint_name = cls.EP_NAME
         return ctx
@@ -359,6 +361,7 @@ class TestPrepareOTelEvent:
         ctx = Mock(spec=mm_context.MonitoringApplicationContext)
         ctx.project_name = cls.PROJECT
         ctx.application_name = cls.APP
+        ctx.model_endpoint.spec.function_name = cls.FUNC_NAME
         ctx.endpoint_id = None
         ctx.endpoint_name = None
         results = [ModelMonitoringApplicationMetric(name="m", value=1.0)]
@@ -369,7 +372,7 @@ class TestPrepareOTelEvent:
         assert attrs == {
             "project": cls.PROJECT,
             "app.name": cls.APP,
-            "function.name": cls.APP,
+            "function.name": cls.FUNC_NAME,
         }
 
     @classmethod

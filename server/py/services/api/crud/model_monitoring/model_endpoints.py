@@ -101,6 +101,17 @@ class ModelEndpoints:
             logger.info("Function tag not provided, setting to 'latest'")
             model_endpoint.spec.function_tag = DEFAULT_FUNCTION_TAG
 
+        if (
+            model_endpoint.metadata.endpoint_type == mm_constants.EndpointType.USER_EP
+            and model_endpoint.spec.function_name
+        ):
+            framework.utils.singletons.db.get_db().get_function(
+                session=db_session,
+                project=model_endpoint.metadata.project,
+                name=model_endpoint.spec.function_name,
+                tag=model_endpoint.spec.function_tag,
+            )
+
         logger.info(
             "Creating Model Endpoint record",
             model_endpoint_metadata=model_endpoint.metadata,

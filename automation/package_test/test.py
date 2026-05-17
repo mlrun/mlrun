@@ -262,6 +262,14 @@ class PackageTester:
         targets_import = "import mlrun.datastore.targets"
         redis_import = "import redis"
         mlflow_import = "import mlflow"
+        # OTel exporter step is import-time validated against opentelemetry-sdk
+        # + opentelemetry-exporter-otlp-proto-grpc (via storey[otel]).
+        otel_import = (
+            "import mlrun.serving;"
+            " import opentelemetry.sdk.metrics;"
+            " from opentelemetry.exporter.otlp.proto.grpc.metric_exporter"
+            " import OTLPMetricExporter"
+        )
 
         self._extras_tests_data = {
             "": {"import_test_command": f"{basic_import}"},
@@ -291,6 +299,9 @@ class PackageTester:
                 "perform_vulnerability_check": True,
             },
             "[mlflow]": {"import_test_command": f"{basic_import}; {mlflow_import}"},
+            "[opentelemetry]": {
+                "import_test_command": f"{basic_import}; {otel_import}"
+            },
         }
 
     def run(self):

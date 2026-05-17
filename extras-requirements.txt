@@ -49,3 +49,6 @@ distributed==2024.8
 # TimescaleDB dependencies - optional for model monitoring
 psycopg[binary,pool]~=3.2
 snowflake-connector-python~=4.4
+# OTel SDK + OTLP gRPC exporter; deferred to storey's [otel] extra so the
+# version bounds live in one place.
+storey[otel]

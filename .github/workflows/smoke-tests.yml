@@ -107,15 +107,15 @@ jobs:
           RUN_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
           BASE_REF="${{ needs.run-smoke-tests.outputs.pr_base_ref }}"
           BASE_SHA="${{ needs.run-smoke-tests.outputs.pr_base_sha }}"
-          REBASE_COUNT="${{ needs.run-smoke-tests.outputs.rebase_commit_count }}"
+          BASE_COMMITS_SINCE_SYNC="${{ needs.run-smoke-tests.outputs.base_commits_since_sync }}"
 
           BRANCH_URL="${{ github.server_url }}/${{ github.repository }}/commits/${BASE_REF}"
-          if [ "${REBASE_COUNT}" = "0" ] || [ -z "${REBASE_COUNT}" ]; then
-            REBASE_TEXT="on"
+          if [ "${BASE_COMMITS_SINCE_SYNC}" = "0" ] || [ -z "${BASE_COMMITS_SINCE_SYNC}" ]; then
+            SYNC_TEXT="synced to"
           else
-            REBASE_TEXT="rebased ${REBASE_COUNT} commits to"
+            SYNC_TEXT="merged with ${BASE_COMMITS_SINCE_SYNC} new commits from"
           fi
-          echo "Smoke Tests [${{ steps.outcome.outputs.status }}](${RUN_URL}) ${{ steps.outcome.outputs.emoji }} with the PR ${REBASE_TEXT} [\`${BASE_REF}\`](${BRANCH_URL}) HEAD \`${BASE_SHA:0:8}\`" > comment.md
+          echo "Smoke Tests [${{ steps.outcome.outputs.status }}](${RUN_URL}) ${{ steps.outcome.outputs.emoji }} with the PR ${SYNC_TEXT} [\`${BASE_REF}\`](${BRANCH_URL}) HEAD \`${BASE_SHA:0:8}\`" > comment.md
 
       - name: Post comment to PR
         uses: thollander/actions-comment-pull-request@24bffb9b452ba05a4f3f77933840a6a841d1b32b

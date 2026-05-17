@@ -392,7 +392,9 @@ class ProcessHTTPEvent(storey.MapClass):
         self, endpoint_id: str, name: str
     ) -> tuple[list | None, list | None, str]:
         """Return (feature_names, label_names, function_uri) for the given endpoint."""
-        if endpoint_id not in self._schema_cache:
+        if endpoint_id not in self._schema_cache or self._schema_cache[endpoint_id][
+            :2
+        ] == (None, None):
             try:
                 ep = mlrun.db.get_run_db().get_model_endpoint(
                     name=name,

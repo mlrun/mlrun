@@ -14,6 +14,7 @@
 
 import json
 import os
+import unittest.mock
 
 import pytest
 
@@ -366,6 +367,72 @@ class TestProcessHTTPEvent:
             }
         )
         assert result[EventFieldType.FUNCTION_URI] == ""
+
+
+class TestGetEndpointSchema:
+    """Unit tests for ProcessHTTPEvent._get_endpoint_schema cache logic."""
+
+    def _make_ep(self, feature_names=None, label_names=None, function_uri=""):
+        ep = mlrun.common.schemas.ModelEndpoint(
+            metadata=mlrun.common.schemas.ModelEndpointMetadata(
+                name="my-model", project="proj"
+            ),
+            spec=mlrun.common.schemas.ModelEndpointSpec(
+                feature_names=feature_names or [],
+                label_names=label_names or [],
+                function_uri=function_uri,
+            ),
+            status=mlrun.common.schemas.ModelEndpointStatus(),
+        )
+        return ep
+
+    def _mock_db(self, monkeypatch, ep):
+        mock_db = unittest.mock.MagicMock()
+        mock_db.get_model_endpoint.return_value = ep
+        monkeypatch.setattr(mlrun.db, "get_run_db", lambda *a, **kw: mock_db)
+        return mock_db
+
+    def test_cache_miss_calls_db_and_populates_cache(self, monkeypatch):
+        ep = self._make_ep(["f1"], ["out"], "proj/fn:latest")
+        mock_db = self._mock_db(monkeypatch, ep)
+        step = ProcessHTTPEvent(project="proj")
+
+        result = step._get_endpoint_schema("ep-1", "my-model")
+
+        assert result == (["f1"], ["out"], "proj/fn:latest")
+        mock_db.get_model_endpoint.assert_called_once()
+        assert step._schema_cache["ep-1"] == (["f1"], ["out"], "proj/fn:latest")
+
+    def test_cache_hit_with_schema_skips_db(self, monkeypatch):
+        mock_db = self._mock_db(monkeypatch, self._make_ep())
+        step = ProcessHTTPEvent(project="proj")
+        step._schema_cache["ep-1"] = (["f1"], ["out"], "proj/fn:latest")
+
+        result = step._get_endpoint_schema("ep-1", "my-model")
+
+        assert result == (["f1"], ["out"], "proj/fn:latest")
+        mock_db.get_model_endpoint.assert_not_called()
+
+    def test_cache_hit_with_none_schema_refreshes_from_db(self, monkeypatch):
+        ep = self._make_ep(["f1"], ["out"], "proj/fn:latest")
+        mock_db = self._mock_db(monkeypatch, ep)
+        step = ProcessHTTPEvent(project="proj")
+        step._schema_cache["ep-1"] = (None, None, "proj/fn:latest")
+
+        result = step._get_endpoint_schema("ep-1", "my-model")
+
+        assert result == (["f1"], ["out"], "proj/fn:latest")
+        mock_db.get_model_endpoint.assert_called_once()
+
+    def test_db_failure_returns_empty_schema(self, monkeypatch):
+        mock_db = unittest.mock.MagicMock()
+        mock_db.get_model_endpoint.side_effect = Exception("connection error")
+        monkeypatch.setattr(mlrun.db, "get_run_db", lambda *a, **kw: mock_db)
+        step = ProcessHTTPEvent(project="proj")
+
+        result = step._get_endpoint_schema("ep-1", "my-model")
+
+        assert result == (None, None, "")
 
 
 class _MockContext:

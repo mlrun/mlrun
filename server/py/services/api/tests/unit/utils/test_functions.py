@@ -143,6 +143,62 @@ def test_enrich_function_preserves_explicit_load_source_on_run_false():
     assert func.spec.build.load_source_on_run is False
 
 
+def test_enrich_function_application_accepts_artifact_kind():
+    """Application runtime accepts a generic Artifact (kind='artifact') source.
+
+    Backward compatibility for the pre-CodeArtifact single-file source workflow:
+    `project.log_artifact()` produces kind='artifact', and ApplicationRuntime
+    historically allowed pointing `spec.build.source` at such a store:// URI.
+    """
+    func = mlrun.new_function("test", kind="application")
+    func.spec.build.source = "store://artifacts/proj/app_py"
+
+    artifact = MagicMock()
+    artifact.kind = "artifact"
+    artifact.spec.requirements = None
+
+    with patch("mlrun.datastore.get_store_resource", return_value=artifact):
+        enrich_function_from_code_artifact(func, "proj")
+
+    assert func.spec.build.load_source_on_run is True
+
+
+def test_enrich_function_application_still_rejects_non_code_non_artifact_kinds():
+    """Application accepts only kind='code' or 'artifact'; other kinds still raise."""
+    func = mlrun.new_function("test", kind="application")
+    func.spec.build.source = "store://artifacts/proj/some_model"
+
+    artifact = MagicMock()
+    artifact.kind = "model"
+
+    with patch("mlrun.datastore.get_store_resource", return_value=artifact):
+        with pytest.raises(
+            mlrun.errors.MLRunInvalidArgumentError,
+            match="resolves to a 'model' artifact",
+        ):
+            enrich_function_from_code_artifact(func, "proj")
+
+
+def test_enrich_function_job_rejects_artifact_kind():
+    """Generic Artifact (kind='artifact') is accepted only for Application runtime.
+
+    Other runtimes (here: job) require a CodeArtifact — the artifact-as-source
+    workflow was never supported for non-Application runtimes.
+    """
+    func = mlrun.new_function("test", kind="job")
+    func.spec.build.source = "store://artifacts/proj/app_py"
+
+    artifact = MagicMock()
+    artifact.kind = "artifact"
+
+    with patch("mlrun.datastore.get_store_resource", return_value=artifact):
+        with pytest.raises(
+            mlrun.errors.MLRunInvalidArgumentError,
+            match="resolves to a 'artifact' artifact",
+        ):
+            enrich_function_from_code_artifact(func, "proj")
+
+
 def test_enrich_function_falls_back_to_application_source():
     """When spec.build.source is empty, falls back to status.application_source.
 

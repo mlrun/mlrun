@@ -18,6 +18,7 @@ from re import Pattern
 from typing import Any
 
 import mlrun.errors
+from mlrun.serving.endpoint_mapping import EndpointConfig
 from mlrun.utils import get_in, update_in
 
 # headers keys with underscore are getting ignored by werkzeug https://github.com/pallets/werkzeug/pull/2622
@@ -190,10 +191,10 @@ def combine_serving_endpoint_key(method: HTTPMethod, path: str) -> str:
 
 def check_body_and_path_parameters_overlapping(
     template_patterns: list[
-        tuple[HTTPMethod, Pattern, "mlrun.runtimes.nuclio.serving.EndpointConfig"]
+        tuple[HTTPMethod, Pattern, EndpointConfig]
     ],
     star_patterns: list[
-        tuple[HTTPMethod, str, "mlrun.runtimes.nuclio.serving.EndpointConfig"]
+        tuple[HTTPMethod, str, EndpointConfig]
     ],
 ) -> None:
     """Check that input_body_mappings destination_path names don't conflict with path

@@ -46,6 +46,7 @@ import mlrun.utils
 from mlrun.config import config
 from mlrun.errors import err_to_str
 from mlrun.secrets import SecretsStore
+from mlrun.serving.endpoint_mapping import APIHandlerConfig
 from mlrun.serving.result_handler import ResultHandler
 
 from ..common.helpers import parse_versioned_object_uri
@@ -132,7 +133,7 @@ class GraphServer(ModelObj):
         function_tag=None,
         project=None,
         model_endpoint_creation_task_name=None,
-        api_handler_config: "mlrun.runtimes.nuclio.serving.APIHandlerConfig | None" = None,
+        api_handler_config: "APIHandlerConfig | None" = None,
     ):
         self._graph = None
         self.graph: Union[RouterStep, RootFlowStep] = graph
@@ -162,17 +163,13 @@ class GraphServer(ModelObj):
         self.api_handler_config = api_handler_config
 
     @property
-    def api_handler_config(
-        self,
-    ) -> "mlrun.runtimes.nuclio.serving.APIHandlerConfig | None":
+    def api_handler_config(self) -> "APIHandlerConfig | None":
         return self._api_handler_config
 
     @api_handler_config.setter
-    def api_handler_config(
-        self, value: "mlrun.runtimes.nuclio.serving.APIHandlerConfig | dict | None"
-    ) -> None:
+    def api_handler_config(self, value: "APIHandlerConfig | dict | None") -> None:
         if isinstance(value, dict):
-            value = mlrun.runtimes.nuclio.serving.APIHandlerConfig.from_dict(value)
+            value = APIHandlerConfig.from_dict(value)
         self._api_handler_config = value
         self.result_handler = ResultHandler(value) if value else None
 

@@ -19,7 +19,7 @@ import pytest
 import mlrun
 import tests.system.base
 from mlrun.common.schemas.serving import APIHandlerAction
-from mlrun.runtimes.nuclio.serving import APIHandlerConfig, BodyMappings
+from mlrun.serving.endpoint_mapping import APIHandlerConfig, BodyMappings
 
 
 def assert_endpoint_configs_equal(

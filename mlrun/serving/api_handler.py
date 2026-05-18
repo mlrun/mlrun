@@ -23,11 +23,12 @@ import nuclio_sdk
 
 import mlrun.common.schemas as schemas
 import mlrun.errors
-import mlrun.runtimes.nuclio.serving
 import mlrun.serving.server
 import mlrun.serving.states
 import mlrun.utils
-from mlrun.serving.body_map import (
+from mlrun.serving.endpoint_mapping import (
+    APIHandlerConfig,
+    EndpointConfig,
     EndpointMatch,
     apply_body_map,
     collect_endpoint_matches,
@@ -49,7 +50,7 @@ class _APIHandlerStep(mlrun.serving.states.TaskStep):
 
     def __init__(
         self,
-        config: mlrun.runtimes.nuclio.serving.APIHandlerConfig | dict | None = None,
+        config: APIHandlerConfig | dict | None = None,
         name: str | None = None,
         context: mlrun.serving.server.GraphContext | None = None,
         **kwargs,
@@ -61,13 +62,13 @@ class _APIHandlerStep(mlrun.serving.states.TaskStep):
         super().__init__(name=name or "api-handler", **base_kwargs)
 
         if isinstance(config, dict):
-            self.config = mlrun.runtimes.nuclio.serving.APIHandlerConfig.from_dict(
+            self.config = APIHandlerConfig.from_dict(
                 config
             )
-        elif isinstance(config, mlrun.runtimes.nuclio.serving.APIHandlerConfig):
+        elif isinstance(config, APIHandlerConfig):
             self.config = config
         else:
-            self.config = mlrun.runtimes.nuclio.serving.APIHandlerConfig()
+            self.config = APIHandlerConfig()
         self.context = context
 
         # Pre-compile patterns and body maps in a single pass for performance.
@@ -75,10 +76,10 @@ class _APIHandlerStep(mlrun.serving.states.TaskStep):
         # Star patterns:     /api/v1/*           → plain prefix string.
         # Body map cache:    endpoint key → {destination_path: (compiled_expr, mandatory)}
         self._endpoint_patterns: list[
-            tuple[HTTPMethod, Pattern, mlrun.runtimes.nuclio.serving.EndpointConfig]
+            tuple[HTTPMethod, Pattern, EndpointConfig]
         ]
         self._star_patterns: list[
-            tuple[HTTPMethod, str, mlrun.runtimes.nuclio.serving.EndpointConfig]
+            tuple[HTTPMethod, str, EndpointConfig]
         ]
         self._parsed_body_map: dict[str, dict[str, tuple[Any, bool]]]
         (
@@ -93,9 +94,9 @@ class _APIHandlerStep(mlrun.serving.states.TaskStep):
         self,
     ) -> tuple[
         list[
-            tuple[HTTPMethod, Pattern, "mlrun.runtimes.nuclio.serving.EndpointConfig"]
+            tuple[HTTPMethod, Pattern, "EndpointConfig"]
         ],
-        list[tuple[HTTPMethod, str, "mlrun.runtimes.nuclio.serving.EndpointConfig"]],
+        list[tuple[HTTPMethod, str, "EndpointConfig"]],
         dict[str, dict[str, tuple[Any, bool]]],
     ]:
         """Compile path patterns and input body maps.

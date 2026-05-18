@@ -27,11 +27,8 @@ import pytest
 import mlrun
 import mlrun.errors
 from mlrun.common.schemas.serving import APIHandlerAction
-from mlrun.runtimes.nuclio.serving import (
-    APIHandlerConfig,
-    BodyMappings,
-    ServingRuntime,
-)
+from mlrun.runtimes.nuclio.serving import ServingRuntime
+from mlrun.serving.endpoint_mapping import APIHandlerConfig, BodyMappings
 from mlrun.serving import GraphContext
 from mlrun.serving.api_handler import _APIHandlerStep
 from mlrun.serving.server import (
@@ -849,21 +846,21 @@ class TestIncludeUrlInfo:
 
     def test_include_url_info_default_false(self) -> None:
         """include_url_info should default to False"""
-        from mlrun.runtimes.nuclio.serving import APIHandlerConfig
+        from mlrun.serving.endpoint_mapping import APIHandlerConfig
 
         config = APIHandlerConfig()
         assert config.include_url_info is False
 
     def test_include_url_info_can_be_set_true(self) -> None:
         """include_url_info should be settable to True"""
-        from mlrun.runtimes.nuclio.serving import APIHandlerConfig
+        from mlrun.serving.endpoint_mapping import APIHandlerConfig
 
         config = APIHandlerConfig(include_url_info=True)
         assert config.include_url_info is True
 
     def test_include_url_info_in_dict_fields(self) -> None:
         """include_url_info must round-trip through APIHandlerConfig.to_dict/from_dict"""
-        from mlrun.runtimes.nuclio.serving import APIHandlerConfig
+        from mlrun.serving.endpoint_mapping import APIHandlerConfig
 
         config = APIHandlerConfig(include_url_info=True)
         config.add_endpoint_handler("/api/test", HTTPMethod.GET, APIHandlerAction.ALLOW)

@@ -21,7 +21,8 @@ import pytest
 
 import mlrun
 from mlrun.common.schemas.serving import APIHandlerAction
-from mlrun.runtimes.nuclio.serving import APIHandlerConfig, BodyMappings, ServingRuntime
+from mlrun.runtimes.nuclio.serving import ServingRuntime
+from mlrun.serving.endpoint_mapping import APIHandlerConfig, BodyMappings
 from mlrun.serving.result_handler import ResultHandler
 
 # ---------------------------------------------------------------------------

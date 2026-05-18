@@ -16,9 +16,11 @@
 
 from http import HTTPMethod
 from re import Pattern
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
-from mlrun.serving.body_map import (
+from mlrun.serving.endpoint_mapping import (
+    APIHandlerConfig,
+    EndpointConfig,
     EndpointMatch,
     apply_body_map,
     collect_endpoint_matches,
@@ -26,9 +28,6 @@ from mlrun.serving.body_map import (
     compile_dynamic_path_patterns,
     merge_body_maps,
 )
-
-if TYPE_CHECKING:
-    import mlrun.runtimes.nuclio.serving
 
 
 class ResultHandler:
@@ -42,15 +41,11 @@ class ResultHandler:
 
     def __init__(
         self,
-        config: "mlrun.runtimes.nuclio.serving.APIHandlerConfig",
+        config: APIHandlerConfig,
     ) -> None:
         self._endpoints = config.endpoints
-        self._endpoint_patterns: list[
-            tuple[HTTPMethod, Pattern, mlrun.runtimes.nuclio.serving.EndpointConfig]
-        ]
-        self._star_patterns: list[
-            tuple[HTTPMethod, str, mlrun.runtimes.nuclio.serving.EndpointConfig]
-        ]
+        self._endpoint_patterns: list[tuple[HTTPMethod, Pattern, EndpointConfig]]
+        self._star_patterns: list[tuple[HTTPMethod, str, EndpointConfig]]
         self._endpoint_patterns, self._star_patterns = compile_dynamic_path_patterns(
             config.endpoints
         )

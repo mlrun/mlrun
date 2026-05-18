@@ -75,12 +75,12 @@ class TestBodyMappings:
         ):
             bm.add_mapping("$.model", destination_path="")
 
-    def test_empty_source_json_path_raises(self) -> None:
-        """Test that empty source_json_path raises an error"""
+    def test_empty_source_path_raises(self) -> None:
+        """Test that empty source_path raises an error"""
         bm = BodyMappings()
         with pytest.raises(
             mlrun.errors.MLRunInvalidArgumentError,
-            match="source_json_path must be a non-empty string",
+            match="source_path must be a non-empty string",
         ):
             bm.add_mapping("", destination_path="model")
 
@@ -95,12 +95,12 @@ class TestBodyMappings:
         assert d == {
             "mappings": [
                 {
-                    "source_json_path": "$.model",
+                    "source_path": "$.model",
                     "destination_path": "model",
                     "mandatory": True,
                 },
                 {
-                    "source_json_path": "$.messages",
+                    "source_path": "$.messages",
                     "destination_path": "messages",
                     "mandatory": False,
                 },
@@ -1696,7 +1696,7 @@ class TestAPIHandlerConfig:
         expected_input = {
             "mappings": [
                 {
-                    "source_json_path": "$.model",
+                    "source_path": "$.model",
                     "destination_path": "model",
                     "mandatory": True,
                 }
@@ -1705,7 +1705,7 @@ class TestAPIHandlerConfig:
         expected_output = {
             "mappings": [
                 {
-                    "source_json_path": "$.result",
+                    "source_path": "$.result",
                     "destination_path": "output",
                     "mandatory": False,
                 }
@@ -1727,7 +1727,7 @@ class TestAPIHandlerConfig:
                     "input_body_mappings": {
                         "mappings": [
                             {
-                                "source_json_path": "$.model",
+                                "source_path": "$.model",
                                 "destination_path": "model",
                                 "mandatory": True,
                             }
@@ -1736,7 +1736,7 @@ class TestAPIHandlerConfig:
                     "output_body_mappings": {
                         "mappings": [
                             {
-                                "source_json_path": "$.result",
+                                "source_path": "$.result",
                                 "destination_path": "output",
                                 "mandatory": True,
                             }
@@ -1754,7 +1754,7 @@ class TestAPIHandlerConfig:
         assert ep.input_body_mappings is not None
         assert ep.input_body_mappings.mappings == [
             {
-                "source_json_path": "$.model",
+                "source_path": "$.model",
                 "destination_path": "model",
                 "mandatory": True,
             }
@@ -1762,7 +1762,7 @@ class TestAPIHandlerConfig:
         assert ep.output_body_mappings is not None
         assert ep.output_body_mappings.mappings == [
             {
-                "source_json_path": "$.result",
+                "source_path": "$.result",
                 "destination_path": "output",
                 "mandatory": True,
             }

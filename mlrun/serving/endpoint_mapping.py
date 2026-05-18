@@ -108,14 +108,14 @@ class BodyMappings(mlrun.model.ModelObj):
 
     @property
     def mappings(self) -> list[dict]:
-        return [{"source_json_path": src, **data} for src, data in self._by_src.items()]
+        return [{"source_path": src, **data} for src, data in self._by_src.items()]
 
     @mappings.setter
     def mappings(self, value: list[dict]) -> None:
         self._by_src = {}
         self._by_dest_index = {}
         for m in value or []:
-            src = m["source_json_path"]
+            src = m["source_path"]
             dest = m.get("destination_path")
             self._by_src[src] = {
                 "destination_path": dest,
@@ -126,13 +126,13 @@ class BodyMappings(mlrun.model.ModelObj):
 
     def add_mapping(
         self,
-        source_json_path: str,
+        source_path: str,
         destination_path: str,
         mandatory: bool = False,
     ) -> None:
         """Add a single field mapping.
 
-        :param source_json_path: JSONPath expression to extract the value from the source.
+        :param source_path: JSONPath expression to extract the value from the source.
                                  For input — extracts from the REST request body (e.g. ``"$.model"``).
                                  For output — extracts from the graph response (e.g. ``"message.content"``).
         :param destination_path: Where to place the extracted value.
@@ -143,39 +143,39 @@ class BodyMappings(mlrun.model.ModelObj):
                           (output) or silently skipped (input).
         :raises mlrun.errors.MLRunInvalidArgumentError: If ``destination_path`` is empty.
         """
-        if not source_json_path:
+        if not source_path:
             raise mlrun.errors.MLRunInvalidArgumentError(
-                "source_json_path must be a non-empty string"
+                "source_path must be a non-empty string"
             )
         if not destination_path:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "destination_path must be a non-empty string"
             )
         try:
-            jsonpath_ng.parse(source_json_path)
+            jsonpath_ng.parse(source_path)
         except (
             jsonpath_ng.exceptions.JsonPathLexerError,
             jsonpath_ng.exceptions.JsonPathParserError,
         ) as exc:
             raise mlrun.errors.MLRunValueError(
                 f"Invalid JSON path expression for parameter '{destination_path}': "
-                f"'{source_json_path}'. Error: {exc}"
+                f"'{source_path}'. Error: {exc}"
             ) from exc
 
         entry = {"destination_path": destination_path, "mandatory": mandatory}
 
         # Duplicate source — overwrite existing entry.
-        if source_json_path in self._by_src:
-            old_dest = self._by_src[source_json_path].get("destination_path")
+        if source_path in self._by_src:
+            old_dest = self._by_src[source_path].get("destination_path")
             mlrun.utils.logger.warning(
                 "Overriding existing body mapping",
-                source_json_path=source_json_path,
+                source_path=source_path,
                 old_destination=old_dest,
                 new_destination=destination_path,
             )
             self._by_dest_index.pop(old_dest, None)
-            self._by_src[source_json_path] = entry
-            self._by_dest_index[destination_path] = source_json_path
+            self._by_src[source_path] = entry
+            self._by_dest_index[destination_path] = source_path
             return
 
         # Duplicate destination — overwrite existing entry.
@@ -183,17 +183,17 @@ class BodyMappings(mlrun.model.ModelObj):
             old_src = self._by_dest_index[destination_path]
             mlrun.utils.logger.warning(
                 "Overriding existing body mapping",
-                source_json_path=source_json_path,
+                source_path=source_path,
                 old_destination=destination_path,
                 new_destination=destination_path,
             )
             self._by_src.pop(old_src, None)
-            self._by_src[source_json_path] = entry
-            self._by_dest_index[destination_path] = source_json_path
+            self._by_src[source_path] = entry
+            self._by_dest_index[destination_path] = source_path
             return
 
-        self._by_src[source_json_path] = entry
-        self._by_dest_index[destination_path] = source_json_path
+        self._by_src[source_path] = entry
+        self._by_dest_index[destination_path] = source_path
 
     def remove_mapping(self, destination_path: str) -> None:
         """Remove the mapping with the given destination_path. No-op if not found.
@@ -581,13 +581,13 @@ def compile_body_map(
     compiled_map: dict[str, tuple[Any, bool]] = {}
     for mapping in body_mappings.mappings:
         try:
-            compiled_expr = jsonpath_ng.parse(mapping["source_json_path"])
+            compiled_expr = jsonpath_ng.parse(mapping["source_path"])
         except (
             jsonpath_ng.exceptions.JsonPathLexerError,
             jsonpath_ng.exceptions.JsonPathParserError,
         ) as e:
             raise mlrun.errors.MLRunValueError(
-                f"Invalid JSONPath expression '{mapping['source_json_path']}' "
+                f"Invalid JSONPath expression '{mapping['source_path']}' "
                 f"in endpoint '{endpoint_key}': {e}"
             ) from e
         compiled_map[mapping["destination_path"]] = (

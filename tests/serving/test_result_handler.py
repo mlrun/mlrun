@@ -37,7 +37,7 @@ def _make_handler(
 ) -> ResultHandler:
     """Build a ResultHandler with one endpoint.
 
-    Each mapping is (source_json_path, destination_path, mandatory).
+    Each mapping is (source_path, destination_path, mandatory).
     """
     bm = BodyMappings()
     for src, dest, mandatory in mappings:

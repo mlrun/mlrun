@@ -73,7 +73,7 @@ class TestAPIHandlerConfigBodyMap:
         assert classify_ep.input_body_mappings is None
 
     def test_add_mapping_same_source_overrides_destination(self, caplog) -> None:
-        """Calling add_mapping twice with the same source_json_path overwrites the destination.
+        """Calling add_mapping twice with the same source_path overwrites the destination.
 
         The second call with the same source but different destination_path must win.
         get_endpoint_config must return the updated destination.
@@ -93,7 +93,7 @@ class TestAPIHandlerConfigBodyMap:
         mappings = ep.input_body_mappings.mappings
         # Only one entry — the second add_mapping replaced the first
         assert len(mappings) == 1
-        assert mappings[0]["source_json_path"] == "$.model"
+        assert mappings[0]["source_path"] == "$.model"
         assert mappings[0]["destination_path"] == "model_new"
         assert any(
             "Overriding existing body mapping" in record.message
@@ -103,7 +103,7 @@ class TestAPIHandlerConfigBodyMap:
     def test_add_mapping_same_destination_overrides_source(self, caplog) -> None:
         """Calling add_mapping twice with the same destination_path overwrites the source.
 
-        The second call with the same destination but different source_json_path must win.
+        The second call with the same destination but different source_path must win.
         """
         bm = BodyMappings()
         bm.add_mapping("$.model_old", destination_path="model")
@@ -113,7 +113,7 @@ class TestAPIHandlerConfigBodyMap:
 
         mappings = bm.mappings
         assert len(mappings) == 1
-        assert mappings[0]["source_json_path"] == "$.model_new"
+        assert mappings[0]["source_path"] == "$.model_new"
         assert mappings[0]["destination_path"] == "model"
         assert any(
             "Overriding existing body mapping" in record.message
@@ -125,7 +125,7 @@ class TestAPIHandlerConfigBodyMap:
         bm = BodyMappings()
         bm.mappings = [
             {
-                "source_json_path": "$.invalid[[[syntax",
+                "source_path": "$.invalid[[[syntax",
                 "destination_path": "bad_param",
                 "mandatory": False,
             }
@@ -997,7 +997,7 @@ class TestBodyMapHierarchy:
     def test_same_source_different_dest_specific_wins(
         self, star_first: bool, explicit_path: str
     ) -> None:
-        """Same source_json_path on star and specific endpoint — only specific destination survives.
+        """Same source_path on star and specific endpoint — only specific destination survives.
 
         Star maps $.model → model_star; specific maps $.model → model_specific.
         After merge, only model_specific must be present; model_star must be gone.

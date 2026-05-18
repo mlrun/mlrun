@@ -54,7 +54,7 @@ on:
         type: string
         required: false
       pr_base_sha:
-        description: 'Pinned SHA of the PR base branch to rebase onto'
+        description: 'Pinned SHA of the PR base branch to merge into the PR'
         default: ''
         type: string
         required: false
@@ -113,7 +113,7 @@ jobs:
         fetch-depth: 0
         ref: refs/pull/${{ inputs.pr_number }}/head
 
-    - name: Rebase PR onto base branch
+    - name: Merge base branch into PR
       if: inputs.pr_number != ''
       run: |
         git config user.name "github-actions[bot]"
@@ -121,13 +121,13 @@ jobs:
         BASE_SHA="${{ inputs.pr_base_sha }}"
 
         git fetch origin "${BASE_SHA}"
-        if ! git rebase "${BASE_SHA}"; then
-          echo "::error::Rebase of PR #${{ inputs.pr_number }} onto ${BASE_SHA} failed due to conflicts. Please rebase your branch locally and push."
-          git rebase --abort
+        if ! git merge "${BASE_SHA}" --no-edit; then
+          echo "::error::Merge of ${BASE_SHA} into PR #${{ inputs.pr_number }} failed due to conflicts. Please merge or rebase your branch locally and push."
+          git merge --abort
           exit 1
         fi
 
-        echo "Rebased onto ${BASE_SHA}"
+        echo "Merged ${BASE_SHA} into PR"
 
     # since github-actions gives us 14G only, and fills it up with some garbage
     - name: Freeing up disk space

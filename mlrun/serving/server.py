@@ -685,7 +685,7 @@ async def async_execute_graph(
     batch_size: int | None = None,
     read_as_lists: bool = False,
     nest_under_inputs: bool = False,
-) -> Any | None:
+) -> Any:
     """See :func:`execute_graph` for parameter documentation."""
     # Fail-fast argument validation
     if data is None and data_object is None:
@@ -1011,7 +1011,7 @@ def execute_graph(
     batch_size: int | None = None,
     read_as_lists: bool = False,
     nest_under_inputs: bool = False,
-) -> Any | None:
+) -> Any:
     """
     Execute graph as a job, from start to finish.
 

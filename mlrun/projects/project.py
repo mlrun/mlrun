@@ -2728,13 +2728,6 @@ class MlrunProject(ModelObj):
             mm_constants.ModelMonitoringAppLabel.KEY,
             mm_constants.ModelMonitoringAppLabel.VAL,
         )
-
-        # Carry the resolved opt-in onto the runtime spec so the server-side
-        # injector mounts the operator-managed OTLP headers secret onto the
-        # function pod when otlp_enabled is True. The graph-step decision (add
-        # the OTelMetricsExporter or not) is already baked in by
-        # _create_model_monitoring_function_base above; this controls only the
-        # pod-side secret mount.
         function_object.spec.mount_otlp_secret = otlp_enabled
 
         return resolved_function_name, function_object, func

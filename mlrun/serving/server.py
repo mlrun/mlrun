@@ -978,7 +978,7 @@ async def async_execute_graph(
 
     context.log_result("num_rows", run_call_count)
 
-    if is_dict_path and responses and responses[0]:
+    if is_dict_path:
         return responses[0]
 
 
@@ -1044,7 +1044,8 @@ def execute_graph(
         timestamp for model monitoring purposes. On the ``data`` path, when
         used in conjunction with ``batching``, the first timestamp will be
         used for the entire batch. On the ``data_object`` path, the value is
-        read from the root of the dict.
+        read from the root of the dict - in this case it should be a string
+        that is a serialized ``datetime`` (for example using ``isoformat()``.
     :param batching: Whether to push one or more batches into the graph rather
         than row by row. Ignored on the ``data_object`` path.
     :param batch_size: The number of rows to push per batch. If not set, and

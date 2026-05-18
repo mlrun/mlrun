@@ -383,6 +383,28 @@ class TestProcessHTTPEvent:
         )
         assert result[EventFieldType.FUNCTION_URI] == ""
 
+    def test_not_found_endpoint_returns_error_sentinel(self, monkeypatch):
+        """When the endpoint does not exist, do() returns a 'not found' error sentinel."""
+        mock_db = unittest.mock.MagicMock()
+        mock_db.get_model_endpoint.side_effect = mlrun.errors.MLRunNotFoundError(
+            "endpoint not found"
+        )
+        monkeypatch.setattr(mlrun.db, "get_run_db", lambda *a, **kw: mock_db)
+        step = ProcessHTTPEvent(project="test-project")
+
+        result = step.do(
+            {
+                "model_endpoint_uid": "ep-missing",
+                "model_endpoint_name": "no-such-model",
+                "inputs": [[1.0]],
+                "outputs": [[0.8]],
+            }
+        )
+
+        assert _HTTP_ERROR_KEY in result
+        assert "model endpoint not found" in result[_HTTP_ERROR_KEY]
+        assert "ep-missing" in result[_HTTP_ERROR_KEY]
+
 
 class TestGetEndpointSchema:
     """Unit tests for ProcessHTTPEvent._get_endpoint_schema cache logic."""
@@ -439,15 +461,48 @@ class TestGetEndpointSchema:
         assert result == (["f1"], ["out"], "proj/fn:latest")
         mock_db.get_model_endpoint.assert_called_once()
 
-    def test_db_failure_returns_empty_schema(self, monkeypatch):
+    def test_db_failure_propagates(self, monkeypatch):
+        """Generic DB errors propagate from _get_endpoint_schema to the caller."""
         mock_db = unittest.mock.MagicMock()
         mock_db.get_model_endpoint.side_effect = Exception("connection error")
         monkeypatch.setattr(mlrun.db, "get_run_db", lambda *a, **kw: mock_db)
         step = ProcessHTTPEvent(project="proj")
 
-        result = step._get_endpoint_schema("ep-1", "my-model")
+        with pytest.raises(Exception, match="connection error"):
+            step._get_endpoint_schema("ep-1", "my-model")
 
-        assert result == (None, None, "")
+    def test_not_found_error_propagates(self, monkeypatch):
+        """MLRunNotFoundError from the DB is not swallowed — it propagates to the caller."""
+        mock_db = unittest.mock.MagicMock()
+        mock_db.get_model_endpoint.side_effect = mlrun.errors.MLRunNotFoundError(
+            "endpoint not found"
+        )
+        monkeypatch.setattr(mlrun.db, "get_run_db", lambda *a, **kw: mock_db)
+        step = ProcessHTTPEvent(project="proj")
+
+        with pytest.raises(mlrun.errors.MLRunNotFoundError):
+            step._get_endpoint_schema("ep-1", "my-model")
+
+    def test_expired_cache_entry_refreshed_from_db(self, monkeypatch):
+        """After the TTL elapses the entry is evicted and the DB is called again."""
+        from cachetools import TTLCache
+
+        fake_time = [0.0]
+        ep = self._make_ep(["f1"], ["out"], "proj/fn:latest")
+        mock_db = self._mock_db(monkeypatch, ep)
+        step = ProcessHTTPEvent(project="proj")
+
+        # Replace the cache with a 1-second TTL driven by a fake timer.
+        step._schema_cache = TTLCache(maxsize=100, ttl=1, timer=lambda: fake_time[0])
+
+        step._get_endpoint_schema("ep-1", "my-model")
+        assert mock_db.get_model_endpoint.call_count == 1
+
+        # Advance time past TTL — entry should be evicted on next access.
+        fake_time[0] = 2.0
+
+        step._get_endpoint_schema("ep-1", "my-model")
+        assert mock_db.get_model_endpoint.call_count == 2
 
 
 class _MockContext:

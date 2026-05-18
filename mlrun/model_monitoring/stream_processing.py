@@ -18,6 +18,7 @@ import typing
 import uuid
 
 import storey
+from cachetools import TTLCache
 
 import mlrun
 import mlrun.common.model_monitoring.helpers
@@ -40,6 +41,8 @@ from mlrun.utils import logger
 
 # Sentinel key used by ProcessHTTPEvent to signal validation failure to HTTPAckResponder.
 _HTTP_ERROR_KEY = "_http_error"
+_CACHE_MAX_ENDPOINTS = 5_000
+_CACHE_TTL_SECONDS = 24 * 60 * 60  # 24 hours
 
 
 # Stream processing code
@@ -386,7 +389,9 @@ class ProcessHTTPEvent(storey.MapClass):
         super().__init__(**kwargs)
         self.project = project
         # {endpoint_id: (feature_names, label_names, function_uri)} — populated lazily from DB
-        self._schema_cache: dict[str, tuple[list | None, list | None, str]] = {}
+        self._schema_cache: TTLCache[str, tuple[list | None, list | None, str]] = (
+            TTLCache(maxsize=_CACHE_MAX_ENDPOINTS, ttl=_CACHE_TTL_SECONDS)
+        )
 
     def _get_endpoint_schema(
         self, endpoint_id: str, name: str
@@ -395,25 +400,17 @@ class ProcessHTTPEvent(storey.MapClass):
         if endpoint_id not in self._schema_cache or self._schema_cache[endpoint_id][
             :2
         ] == (None, None):
-            try:
-                ep = mlrun.db.get_run_db().get_model_endpoint(
-                    name=name,
-                    project=self.project,
-                    endpoint_id=endpoint_id,
-                    tsdb_metrics=False,
-                )
-                self._schema_cache[endpoint_id] = (
-                    ep.spec.feature_names or None,
-                    ep.spec.label_names or None,
-                    ep.spec.function_uri or "",
-                )
-            except Exception as exc:
-                logger.warning(
-                    "Failed to fetch model endpoint schema; proceeding without schema",
-                    endpoint_id=endpoint_id,
-                    err=mlrun.errors.err_to_str(exc),
-                )
-                return None, None, ""
+            ep = mlrun.db.get_run_db().get_model_endpoint(
+                name=name,
+                project=self.project,
+                endpoint_id=endpoint_id,
+                tsdb_metrics=False,
+            )
+            self._schema_cache[endpoint_id] = (
+                ep.spec.feature_names or None,
+                ep.spec.label_names or None,
+                ep.spec.function_uri or "",
+            )
         return self._schema_cache[endpoint_id]
 
     def do(self, event: dict) -> dict:
@@ -422,6 +419,26 @@ class ProcessHTTPEvent(storey.MapClass):
         inputs = event.get(MonitoringHTTPPayload.INPUTS)
         outputs = event.get(MonitoringHTTPPayload.OUTPUTS)
 
+        if error := self._validate_event_fields(endpoint_id, name, inputs, outputs):
+            return error
+
+        return self._process_event_content(event, endpoint_id, name, inputs, outputs)
+
+    def _validate_event_fields(
+        self,
+        endpoint_id: str | None,
+        name: str | None,
+        inputs,
+        outputs,
+    ) -> dict | None:
+        """Return an error dict if any required field is missing, else None.
+
+        :param endpoint_id: value of ``model_endpoint_uid`` from the event.
+        :param name: value of ``model_endpoint_name`` from the event.
+        :param inputs: value of ``inputs`` from the event.
+        :param outputs: value of ``outputs`` from the event.
+        :return: error sentinel dict, or ``None`` when all fields are present.
+        """
         if not endpoint_id or not name or inputs is None or outputs is None:
             missing = []
             if not endpoint_id:
@@ -440,26 +457,52 @@ class ProcessHTTPEvent(storey.MapClass):
                 has_outputs=outputs is not None,
             )
             return {_HTTP_ERROR_KEY: f"missing required fields: {', '.join(missing)}"}
+        return None
 
-        # Resolve schema from DB; dict key order used when schema is absent
-        db_feature_names, db_label_names, function_uri = self._get_endpoint_schema(
-            endpoint_id, name
-        )
-        input_schema = db_feature_names
-        output_schema = db_label_names
+    def _process_event_content(
+        self,
+        event: dict,
+        endpoint_id: str,
+        name: str,
+        inputs,
+        outputs,
+    ) -> dict:
+        """Resolve endpoint schema and normalize inputs/outputs into the monitoring record.
+
+        :param event: original HTTP monitoring event dict.
+        :param endpoint_id: validated model endpoint UID.
+        :param name: validated model endpoint name.
+        :param inputs: raw input payload extracted from the event.
+        :param outputs: raw output payload extracted from the event.
+        :return: translated monitoring record dict, or an error sentinel dict on failure.
+        """
+        try:
+            # Resolve schema from DB; dict key order used when schema is absent
+            db_feature_names, db_label_names, function_uri = self._get_endpoint_schema(
+                endpoint_id, name
+            )
+        except mlrun.errors.MLRunNotFoundError:
+            logger.error(
+                "Model endpoint not found",
+                endpoint_id=endpoint_id,
+                name=name,
+            )
+            return {
+                _HTTP_ERROR_KEY: f"model endpoint not found: {name} ({endpoint_id})"
+            }
 
         try:
             # Normalize to listed form using schema (handles dicts, lists of dicts, scalars).
             # Fall back to the original schema when _to_listed_data couldn't infer one
             # (e.g. plain list or scalar input where no dict keys are available).
             listed_inputs, resolved_input_schema = (
-                mlrun.serving.system_steps._to_listed_data(inputs, input_schema)
+                mlrun.serving.system_steps._to_listed_data(inputs, db_feature_names)
             )
-            resolved_input_schema = resolved_input_schema or input_schema
+            resolved_input_schema = resolved_input_schema or db_feature_names
             listed_outputs, resolved_output_schema = (
-                mlrun.serving.system_steps._to_listed_data(outputs, output_schema)
+                mlrun.serving.system_steps._to_listed_data(outputs, db_label_names)
             )
-            resolved_output_schema = resolved_output_schema or output_schema
+            resolved_output_schema = resolved_output_schema or db_label_names
 
             when = event.get(MonitoringHTTPPayload.TIMESTAMP) or datetime.datetime.now(
                 datetime.UTC

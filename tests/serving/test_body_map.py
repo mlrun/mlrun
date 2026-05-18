@@ -96,7 +96,7 @@ class TestAPIHandlerConfigBodyMap:
         assert mappings[0]["source_path"] == "$.model"
         assert mappings[0]["destination_path"] == "model_new"
         assert any(
-            "Overriding existing body mapping" in record.message
+            "Overriding existing body mapping: duplicate source path" in record.message
             for record in caplog.records
         )
 
@@ -116,7 +116,8 @@ class TestAPIHandlerConfigBodyMap:
         assert mappings[0]["source_path"] == "$.model_new"
         assert mappings[0]["destination_path"] == "model"
         assert any(
-            "Overriding existing body mapping" in record.message
+            "Overriding existing body mapping: duplicate destination path"
+            in record.message
             for record in caplog.records
         )
 

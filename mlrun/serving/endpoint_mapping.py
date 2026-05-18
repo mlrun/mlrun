@@ -167,7 +167,7 @@ class BodyMappings(mlrun.model.ModelObj):
         if source_path in self._by_src:
             old_dest = self._by_src[source_path].get("destination_path")
             mlrun.utils.logger.warning(
-                "Overriding existing body mapping",
+                "Overriding existing body mapping: duplicate source path",
                 source_path=source_path,
                 old_destination=old_dest,
                 new_destination=destination_path,
@@ -181,10 +181,10 @@ class BodyMappings(mlrun.model.ModelObj):
         if destination_path in self._by_dest_index:
             old_src = self._by_dest_index[destination_path]
             mlrun.utils.logger.warning(
-                "Overriding existing body mapping",
-                source_path=source_path,
-                old_destination=destination_path,
-                new_destination=destination_path,
+                "Overriding existing body mapping: duplicate destination path",
+                old_source_path=old_src,
+                new_source_path=source_path,
+                destination_path=destination_path,
             )
             self._by_src.pop(old_src, None)
             self._by_src[source_path] = entry

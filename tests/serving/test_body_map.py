@@ -183,6 +183,13 @@ class TestAPIHandlerConfigBodyMap:
         bm.remove_mapping("param")  # Should not raise
         assert bm.mappings == []
 
+    @staticmethod
+    def test_mappings_setter_missing_destination_path_raises() -> None:
+        """mappings setter raises KeyError when destination_path is missing from a mapping dict."""
+        bm = BodyMappings()
+        with pytest.raises(KeyError):
+            bm.mappings = [{"source_path": "$.model", "mandatory": False}]
+
 
 # ---------------------------------------------------------------------------
 # _APIHandlerStep body_map integration tests

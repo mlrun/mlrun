@@ -116,13 +116,12 @@ class BodyMappings(mlrun.model.ModelObj):
         self._by_dest_index = {}
         for m in value or []:
             src = m["source_path"]
-            dest = m.get("destination_path")
+            dest = m["destination_path"]
             self._by_src[src] = {
                 "destination_path": dest,
                 "mandatory": m.get("mandatory", False),
             }
-            if dest is not None:
-                self._by_dest_index[dest] = src
+            self._by_dest_index[dest] = src
 
     def add_mapping(
         self,

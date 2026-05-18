@@ -161,10 +161,6 @@ class _PrepareOTelEvent(StepToDict):
         results, ctx = event
         attr = mm_constants.OTelMonitoringAttribute
         prefix = mm_constants.OTelMonitoringMetricNamePrefix
-        # MM-app functions are named after the application in the current
-        # design, so app.name and function.name come from the same field.
-        # Kept as separate attributes per the HLD so they can diverge later
-        # without renaming a label.
         base_attributes = {
             attr.PROJECT.value: ctx.project_name,
             attr.APP_NAME.value: ctx.application_name,
@@ -184,13 +180,9 @@ class _PrepareOTelEvent(StepToDict):
             attributes = dict(base_attributes)
             if isinstance(entry, ModelMonitoringApplicationResult):
                 metric_name = f"{prefix.RESULT.value}{entry.name}"
-                # Strings, not raw ints — alerts / dashboards filter on
-                # "detected" / "data_drift" without knowing the underlying
-                # enum integer values.
                 attributes[attr.RESULT_KIND.value] = entry.kind.name
                 attributes[attr.RESULT_STATUS.value] = entry.status.name
             else:
-                # ModelMonitoringApplicationMetric — no kind/status.
                 metric_name = f"{prefix.METRIC.value}{entry.name}"
             metrics.append(
                 {
@@ -273,16 +265,9 @@ class _PrepareMonitoringEvent(StepToDict):
         return application_context
 
 
-# Canonical names of the steps on the OTel export branch. Used both by
-# `mlrun.model_monitoring.api` (when adding the steps to the graph) and by
-# `_ApplicationErrorHandler` to recognize a branch failure from the
-# `event.origin_state` storey populates when it routes to the recovery step.
 OTEL_PREP_STEP_NAME = "PrepareOTelEvent"
 OTEL_EXPORTER_STEP_NAME = "OTelMetricsExporter"
 _OTEL_BRANCH_STEP_NAMES = frozenset({OTEL_PREP_STEP_NAME, OTEL_EXPORTER_STEP_NAME})
-# Surfaced on the alert entity id (suffix) and in the value_dict so alert
-# configs can target OTel exporter failures independently of regular MM
-# application failures.
 _OTEL_BRANCH_SOURCE = "otel_exporter"
 
 
@@ -335,8 +320,6 @@ class _ApplicationErrorHandler(StepToDict):
         is_otel_branch = origin_state in _OTEL_BRANCH_STEP_NAMES
 
         if is_otel_branch:
-            # Branch event body shape varies (depends on which step
-            # raised). Identifying data comes from handler config.
             if not self.application_name:
                 raise mlrun.errors.MLRunRuntimeError(
                     "OTel-branch failure but application_name was not "

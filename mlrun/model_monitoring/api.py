@@ -634,11 +634,6 @@ def _create_model_monitoring_function_base(
             name="OTelMetricsExporter",
             headers_source="file",
         )
-        # Route OTel-branch failures to the single ApplicationErrorHandler.
-        # The handler dispatches on `event.origin_state` (set by storey
-        # before invoking the recovery step) and tags the alert with an
-        # `_otel_exporter` suffix so alert configs can target this
-        # failure mode independently of regular app errors.
         otel_prep.on_error = "ApplicationErrorHandler"
         otel_exporter.on_error = "ApplicationErrorHandler"
 

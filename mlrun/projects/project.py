@@ -2667,16 +2667,6 @@ class MlrunProject(ModelObj):
     ) -> tuple[str, mlrun.runtimes.RemoteRuntime, dict]:
         import mlrun.model_monitoring.api
 
-        # Resolve the OTel opt-in:
-        # - explicit True requires the project to have opted in too; otherwise
-        #   raise so users don't end up with a function that exports OTel
-        #   metrics into an operator-disabled telemetry pipeline.
-        # - explicit False pins the function to off regardless of project.
-        # - None inherits the project-level value (set by
-        #   enable_model_monitoring(otlp_enabled=...)).
-        # The project-spec field is guaranteed non-None by ML-12543's
-        # default-factory contract, so the inheritance branch always yields a
-        # concrete bool.
         project_otlp_enabled = bool(self.spec.model_monitoring.otlp_enabled)
         if otlp_enabled is True and not project_otlp_enabled:
             raise mlrun.errors.MLRunInvalidArgumentError(

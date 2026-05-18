@@ -1385,12 +1385,12 @@ def load_source(source_uri, project, target):
     """
 
     try:
-        result_path = load_source_code(
+        loaded_dir, _ = load_source_code(
             source_uri=source_uri,
             target_dir=target,
             project=project,
         )
-        print(f"Successfully loaded source to: {result_path}")
+        print(f"Successfully loaded source to: {loaded_dir}")
     except Exception as err:
         print(f"Error loading source: {err_to_str(err)}")
         exit(1)

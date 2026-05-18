@@ -880,6 +880,57 @@ def print_df(df):
             v3io_client.close()
 
     @pytest.mark.parametrize("local", [True, False])
+    def test_job_from_serving_runtime_with_data_object(self, local: bool) -> None:
+        """data_object single-instance path on to_job() serving runtime.
+
+        Builds a serving function with a responder graph, converts to a job, then
+        runs it with a single dict input via params={"data_object": ...}. Asserts:
+        - num_rows == 1 (graph ran exactly once)
+        - run.output("return") equals the responder's output (returned as-is per Jira (6))
+        - prediction artifact has 1 row matching the input
+        """
+        serving_func_obj = self.project.set_function(
+            func=str(self.assets_path / "function_with_model.py"),
+            name="srv_fn_data_object",
+            kind="serving",
+            image=self.image,
+        )
+        model_runner_obj = ModelRunnerStep(name="model_runner_step_name")
+        model_runner_obj.add_model(
+            endpoint_name="my-endpoint",
+            model_class="DummyModel",
+            execution_mechanism="naive",
+        )
+        graph_obj = serving_func_obj.set_topology("flow", engine="async")
+        graph_obj.to(model_runner_obj).respond()
+        job = serving_func_obj.to_job()
+
+        run_object = self.project.run_function(
+            job,
+            params={
+                "data_object": {"x": "a", "y": 1},
+                "timestamp_column": None,
+            },
+            local=local,
+        )
+
+        # num_rows must be 1 (graph executed exactly once).
+        assert run_object.status.results.get("num_rows") == 1, (
+            f"Expected num_rows=1 on data_object path, got "
+            f"{run_object.status.results.get('num_rows')}"
+        )
+
+        # Per Jira (6): the graph response is returned as-is via run.output("return").
+        returned = run_object.output("return")
+        assert returned is not None, "Expected non-None return on data_object path"
+
+        # prediction artifact should be a 1-row dataset.
+        prediction_df = run_object.artifact("prediction").as_df()
+        assert len(prediction_df) == 1, (
+            f"Expected 1-row prediction artifact, got {len(prediction_df)} rows"
+        )
+
+    @pytest.mark.parametrize("local", [True, False])
     def test_async_handler_completes(self, local: bool) -> None:
         """Async handler completes with correct output for both local and remote (K8s) execution."""
         name = "async-fetch-data-local" if local else "async-fetch-data"

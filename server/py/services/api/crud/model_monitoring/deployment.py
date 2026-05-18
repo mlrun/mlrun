@@ -848,9 +848,15 @@ class MonitoringDeployment:
             secret_provider=self._secret_provider,
         )
 
+        monitoring_stream_uri = mlrun.model_monitoring.get_stream_path(
+            project=self.project,
+            function_name=mm_constants.MonitoringFunctionNames.STREAM,
+            secret_provider=self._secret_provider,
+        )
+
         # Create monitoring serving graph
         stream_processor.apply_monitoring_serving_graph(
-            function, self._tsdb_connector, controller_stream_uri
+            function, self._tsdb_connector, controller_stream_uri, monitoring_stream_uri
         )
 
         # Set the project to the serving function
@@ -2866,12 +2872,18 @@ class MonitoringDeployment:
             env_updates[mm_constants.NuclioMonitoringEnvVars.MODEL_MONITORING_URL] = (
                 stream_url
             )
-        first_uid = (
-            model_endpoints_instructions[0][0].metadata.uid
+        first_uid, first_name = (
+            (
+                model_endpoints_instructions[0][0].metadata.uid,
+                model_endpoints_instructions[0][0].metadata.name,
+            )
             if len(model_endpoints_instructions[0]) > 1
-            else ""
+            else ("", "")
         )
         env_updates[mm_constants.NuclioMonitoringEnvVars.MODEL_ENDPOINT_UID] = first_uid
+        env_updates[mm_constants.NuclioMonitoringEnvVars.MODEL_ENDPOINT_NAME] = (
+            first_name
+        )
         if len(model_endpoints_instructions) > 1:
             env_updates[mm_constants.NuclioMonitoringEnvVars.MODEL_ENDPOINTS_MAP] = (
                 json.dumps(

@@ -41,6 +41,7 @@ import requests
 import yaml
 
 import mlrun.artifacts.model
+import mlrun.common.constants
 import mlrun.common.formatters
 import mlrun.common.helpers
 import mlrun.common.runtimes.constants
@@ -1442,9 +1443,26 @@ class MlrunProject(ModelObj):
         """Add or update a workflow, specify a name and the code path
 
         :param name:          Name of the workflow
-        :param workflow_path: URL (remote) / Path (absolute or relative to the project code path i.e.
-            <project.spec.get_code_path()>/<workflow_path>) for the workflow file.
-        :param embed:         Add the workflow code into the project.yaml
+        :param workflow_path: One of:
+
+                              - Local file path (absolute, or relative to
+                                ``<project.spec.get_code_path()>``)
+                              - Remote URL (``git://``, ``s3://``, ``gs://``,
+                                ``http(s)://``)
+                              - ``store://artifacts/<project>/<key>`` — a
+                                CodeArtifact URI; the artifact must have
+                                ``kind='code'`` and ``spec.code_type='workflow'``.
+                                When reachable, the artifact is validated
+                                client-side at ``set_workflow`` time via a
+                                ``get_store_resource`` call. Transient
+                                connectivity errors are deferred to the runner
+                                pod's authoritative check; misuses (wrong kind
+                                or wrong code_type) raise immediately.
+        :param embed:         Add the workflow code into the project.yaml.
+                              **Not supported** for remote ``workflow_path``
+                              values (anything containing ``://``) — raises
+                              ``MLRunInvalidArgumentError``; use ``embed=False``
+                              so the source is fetched at execution time.
         :param engine:        Workflow processing engine ("kfp", "local", "remote" or "remote:local")
         :param args_schema:   List of arg schema definitions (:py:class`~mlrun.model.EntrypointParam`)
         :param handler:       Workflow function handler
@@ -1465,6 +1483,21 @@ class MlrunProject(ModelObj):
         self._validate_file_path(
             workflow_path, param_name="workflow_path", engine=engine
         )
+
+        # embed=True opens workflow_path as a local file; remote URLs would
+        # fail with an opaque FileNotFoundError later. Reject up front.
+        if embed and workflow_path and "://" in workflow_path:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"embed=True is not supported for remote workflow_path "
+                f"({workflow_path!r}); use embed=False (the default) so the "
+                "workflow source is fetched at execution time."
+            )
+
+        if workflow_path and mlrun.datastore.is_store_uri(workflow_path):
+            # Surface kind/code_type misuses now; the runner pod re-validates.
+            mlrun.projects.pipelines.validate_remote_workflow_artifact(
+                workflow_path, self.metadata.name
+            )
 
         if engine and "local" in engine and schedule:
             raise ValueError("'schedule' argument is not supported for 'local' engine.")
@@ -6191,8 +6224,11 @@ class MlrunProject(ModelObj):
                 f"{param_name} must be provided."
             )
 
-        # If file path is remote, verify it is a file URL
+        # If file path is remote, verify it is a file URL.
+        # store:// URIs are accepted: artifact keys have no file suffix.
         if "://" in file_path:
+            if mlrun.datastore.is_store_uri(file_path):
+                return
             if pathlib.Path(file_path).suffix:
                 return
 
@@ -6442,7 +6478,9 @@ def _download_store_artifact_for_export(
             )
         # POSIX-style separators in the YAML so the zip unpacks correctly
         # on any OS the recipient uses.
-        arcname = f".mlrun/code/{unique_filename}"
+        arcname = (
+            f"{mlrun.common.constants.CODE_ARTIFACT_DOWNLOAD_SUBDIR}/{unique_filename}"
+        )
         return real_path, arcname
     except (
         mlrun.errors.MLRunNotFoundError,

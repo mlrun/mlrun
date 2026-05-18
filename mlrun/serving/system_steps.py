@@ -32,6 +32,47 @@ from mlrun.common.schemas import MonitoringData
 from mlrun.utils import get_data_from_path, logger
 
 
+def _to_listed_data(
+    raw: typing.Any,
+    schema: list[str] | None,
+) -> tuple[list, list[str] | None]:
+    """Convert raw inputs/outputs to listed form suitable for StreamProcessingEvent.
+
+    Dispatch rules (mirrors MonitoringPreProcessor.get_listed_data with data_path=None):
+    - dict               → transpose by key (schema column order)
+    - list of same-keyed dicts → batch-merge then transpose
+    - list               → keep as-is
+    - scalar             → wrap in [value]
+
+    :returns: (listed_values, resolved_schema)  — resolved_schema is None when input was
+              already a list or scalar (schema unchanged from caller).
+    """
+    new_schema = None
+    if isinstance(raw, dict):
+        listed, new_schema = MonitoringPreProcessor.transpose_by_key(raw, schema)
+        new_schema = new_schema or schema
+    elif not isinstance(raw, list):
+        listed = [raw]
+    else:
+        all_dicts = raw and all(isinstance(item, dict) for item in raw)
+        if all_dicts:
+            same_keys = len({tuple(sorted(item.keys())) for item in raw}) == 1
+            if same_keys:
+                merged: dict = {}
+                for item in raw:
+                    for k, v in item.items():
+                        merged.setdefault(k, []).append(v)
+                listed, new_schema = MonitoringPreProcessor.transpose_by_key(
+                    merged, schema
+                )
+                new_schema = new_schema or schema
+            else:
+                listed = raw
+        else:
+            listed = raw
+    return listed, new_schema
+
+
 class MatchingEndpointsState(mlrun.common.types.StrEnum):
     all_matched = "all_matched"
     not_all_matched = "not_all_matched"
@@ -290,54 +331,13 @@ class MonitoringPreProcessor(storey.MapClass):
         schema: list[str] | None = None,
     ):
         """Get data from a path and transpose it by keys if dict is provided."""
-        new_schema = None
         data_from_path = get_data_from_path(data_path, raw_data)
-        if isinstance(data_from_path, dict):
-            # transpose by key the inputs:
-            listed_data, new_schema = self.transpose_by_key(data_from_path, schema)
-            new_schema = new_schema or schema
-            if not schema:
-                logger.warn(
-                    f"No schema provided through add_model(); the order of {data_from_path} "
-                    "may not be preserved."
-                )
-        elif not isinstance(data_from_path, list):
-            listed_data = [data_from_path]
-        else:  # list handling
-            # Check if all items are dicts
-            all_dicts = data_from_path and all(
-                isinstance(item, dict) for item in data_from_path
+        if isinstance(data_from_path, dict) and not schema:
+            logger.warn(
+                "No schema provided through add_model(); the order of data may not be preserved.",
+                data=data_from_path,
             )
-
-            if all_dicts:
-                # Check if all dicts have the same keys
-                same_keys = (
-                    len(set(tuple(sorted(item.keys())) for item in data_from_path)) == 1
-                )
-
-                if same_keys:
-                    # batch handling
-                    # All items are dicts with the same keys - transpose by key
-                    # Merge all dicts by combining values for each key into lists
-                    merged_dict = {}
-                    for item in data_from_path:
-                        for key, value in item.items():
-                            if key not in merged_dict:
-                                merged_dict[key] = []
-                            merged_dict[key].append(value)
-                    listed_data, new_schema = self.transpose_by_key(merged_dict, schema)
-                    new_schema = new_schema or schema
-                else:
-                    # Dicts with different keys - warn and fall back to default
-                    logger.warn(
-                        "List contains dicts with different keys; cannot transpose by key. "
-                        "Falling back to default list handling."
-                    )
-                    listed_data = data_from_path
-            else:
-                # Fall back to default list handling
-                listed_data = data_from_path
-        return listed_data, new_schema
+        return _to_listed_data(data_from_path, schema)
 
     @staticmethod
     def _extract_error_from_batched_event(

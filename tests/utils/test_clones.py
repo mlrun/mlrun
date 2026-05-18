@@ -89,7 +89,7 @@ def test_load_artifact_success(tmp_path, project):
             "mlrun.get_dataitem", return_value=mock_dataitem
         ) as mock_get_dataitem,
     ):
-        result = mlrun.utils.clones.load_source_code(
+        returned_dir, returned_file_path = mlrun.utils.clones.load_source_code(
             source_uri=source_uri,
             target_dir=target_dir,
             project=project,
@@ -97,9 +97,10 @@ def test_load_artifact_success(tmp_path, project):
 
     expected_local_file = os.path.join(target_dir, "handler.py")
 
-    # Returned path is the directory (consistent with git/archive sources),
-    # so callers can use it as workdir + sys.path entry.
-    assert result == target_dir
+    # store:// returns both the directory (workdir for runtime callers) and
+    # the resolved file path (for callers that need to import a single file).
+    assert returned_dir == target_dir
+    assert returned_file_path == expected_local_file
 
     # Assert directory was actually created
     assert os.path.isdir(target_dir)
@@ -159,7 +160,7 @@ def test_extract_source_store_uri_forwards_secrets():
     """extract_source forwards its secrets parameter through to load_source_code."""
     secrets = {"AWS_ACCESS_KEY_ID": "k"}
     with unittest.mock.patch("mlrun.utils.clones.load_source_code") as mock_load:
-        mock_load.return_value = "/tmp/code/my_func.py"
+        mock_load.return_value = ("/tmp/workdir", "/tmp/workdir/my_func.py")
         mlrun.utils.clones.extract_source(
             source="store://artifacts/proj/my_func",
             workdir="/tmp/workdir",
@@ -232,12 +233,14 @@ def test_load_source_code_git(tmp_path):
     target_dir = str(tmp_path / "target")
 
     with unittest.mock.patch.object(mlrun.utils.clones, "clone_git") as mock_clone_git:
-        result = mlrun.utils.clones.load_source_code(
+        returned_dir, returned_file_path = mlrun.utils.clones.load_source_code(
             source_uri=source_uri,
             target_dir=target_dir,
         )
 
-    assert result == target_dir
+    # git/archive sources have no canonical entry file → file_path is None.
+    assert returned_dir == target_dir
+    assert returned_file_path is None
     mock_clone_git.assert_called_once_with(source_uri, target_dir)
 
 
@@ -262,12 +265,13 @@ def test_load_source_code_zip(tmp_path):
     target_dir = str(tmp_path / "target")
 
     with unittest.mock.patch.object(mlrun.utils.clones, "clone_zip") as mock_clone_zip:
-        result = mlrun.utils.clones.load_source_code(
+        returned_dir, returned_file_path = mlrun.utils.clones.load_source_code(
             source_uri=source_uri,
             target_dir=target_dir,
         )
 
-    assert result == target_dir
+    assert returned_dir == target_dir
+    assert returned_file_path is None
     mock_clone_zip.assert_called_once_with(source_uri, target_dir)
 
 
@@ -276,19 +280,21 @@ def test_load_source_code_tgz(tmp_path):
     target_dir = str(tmp_path / "target")
 
     with unittest.mock.patch.object(mlrun.utils.clones, "clone_tgz") as mock_clone_tgz:
-        result = mlrun.utils.clones.load_source_code(
+        returned_dir, returned_file_path = mlrun.utils.clones.load_source_code(
             source_uri=source_uri,
             target_dir=target_dir,
         )
 
-    assert result == target_dir
+    assert returned_dir == target_dir
+    assert returned_file_path is None
     mock_clone_tgz.assert_called_once_with(source_uri, target_dir)
 
 
 def test_extract_source_store_uri_delegates_to_load_source_code():
-    """extract_source with store:// URI delegates to load_source_code."""
+    """extract_source with store:// URI delegates to load_source_code and
+    returns the directory (workdir for runtime callers)."""
     with unittest.mock.patch("mlrun.utils.clones.load_source_code") as mock_load:
-        mock_load.return_value = "/tmp/code/my_func.py"
+        mock_load.return_value = ("/tmp/workdir", "/tmp/workdir/my_func.py")
         result = mlrun.utils.clones.extract_source(
             source="store://artifacts/proj/my_func",
             workdir="/tmp/workdir",
@@ -300,13 +306,13 @@ def test_extract_source_store_uri_delegates_to_load_source_code():
             project="proj",
             secrets=None,
         )
-        assert result == "/tmp/code/my_func.py"
+        assert result == "/tmp/workdir"
 
 
 def test_extract_source_store_uri_without_project():
     """extract_source with store:// but no project passes project=None."""
     with unittest.mock.patch("mlrun.utils.clones.load_source_code") as mock_load:
-        mock_load.return_value = "/tmp/code/my_func.py"
+        mock_load.return_value = ("/tmp/workdir", "/tmp/workdir/my_func.py")
         mlrun.utils.clones.extract_source(
             source="store://artifacts/proj/my_func",
             workdir="/tmp/workdir",
@@ -322,9 +328,8 @@ def test_extract_source_store_uri_without_project():
 def test_extract_source_store_uri_default_workdir():
     """extract_source with store:// and no workdir uses default ./code dir."""
     with unittest.mock.patch("mlrun.utils.clones.load_source_code") as mock_load:
-        mock_load.return_value = "/tmp/code/my_func.py"
-
         expected_target = os.path.realpath("./code")
+        mock_load.return_value = (expected_target, f"{expected_target}/my_func.py")
         mlrun.utils.clones.extract_source(
             source="store://artifacts/proj/my_func",
             project="proj",

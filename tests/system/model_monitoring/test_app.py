@@ -49,6 +49,7 @@ import mlrun.serving
 from mlrun.common.schemas.model_monitoring import ResultKindApp
 from mlrun.common.schemas.model_monitoring.model_endpoints import (
     ModelEndpointDriftValues,
+    ModelEndpointInstruction,
     ModelEndpointMonitoringMetric,
 )
 from mlrun.datastore.datastore_profile import (
@@ -2629,3 +2630,407 @@ class TestBatchServingWithSampling(TestMLRunSystemModelMonitoring):
         # As for the model endpoint with sampling, the effective sample count should be around 155
         # corresponding to the 15.5% sampling. We will validate that it is not equal to 1000.
         assert predictions_df_with_sample["effective_sample_count"].sum() != 1000
+
+
+@TestMLRunSystemModelMonitoring.skip_test_if_env_not_configured
+@pytest.mark.enterprise
+class TestHTTPIngest(TestMLRunSystemModelMonitoring):
+    """Test HTTP-based model monitoring ingestion through the stream pod (ML-12045).
+
+    A Nuclio function with a USER_EP model endpoint is deployed.  When invoked,
+    the function handler itself POSTs prediction events to the stream pod using
+    MODEL_MONITORING_URL / MODEL_ENDPOINT_UID env vars injected at deploy time —
+    demonstrating the full user flow from inside a pod.
+
+    Monitoring infra is deployed once in setup_class so the stream pod persists
+    across all test methods (same pattern as TestNuclioAppModelEndpointCreation).
+    """
+
+    project_name = "test-mm-http-ingest"
+    image: str | None = None
+
+    app_interval: int = 1  # minutes
+    num_events: int = 20
+    feature_names = ["age", "income", "credit_score", "balance"]
+    label_names = ["approved"]
+
+    @classmethod
+    def setup_class(cls) -> None:
+        super().setup_class()
+        cls.app_interval_seconds = timedelta(minutes=cls.app_interval).total_seconds()
+        cls.run_db = mlrun.get_run_db()
+        cls.model_endpoint_name = "http-ingest-ep"
+        cls._external_stream_delay = 0
+        if isinstance(
+            cls.mm_stream_profile, DatastoreProfileKafkaStream
+        ) and cls.mm_stream_profile.attributes()["brokers"][0].endswith(
+            ".confluent.cloud:9092"
+        ):
+            cls._external_stream_delay = 90
+
+        project = mlrun.get_or_create_project(
+            cls.project_name, "./", allow_cross_project=True
+        )
+        project.register_datastore_profile(cls.mm_tsdb_profile)
+        project.register_datastore_profile(cls.mm_stream_profile)
+        project.set_model_monitoring_credentials(
+            tsdb_profile_name=cls.mm_tsdb_profile.name,
+            stream_profile_name=cls.mm_stream_profile.name,
+        )
+        try:
+            project.enable_model_monitoring(
+                base_period=cls.app_interval,
+                deploy_histogram_data_drift_app=False,
+                wait_for_deployment=True,
+                **({} if cls.image is None else {"image": cls.image}),
+            )
+        except mlrun.errors.MLRunConflictError:
+            # Monitoring already deployed from a previous run — reuse it.
+            pass
+
+    def teardown_method(self, method) -> None:
+        # Keep the project alive so the monitoring stream pod persists across
+        # test methods — only clean up at class teardown.
+        self._logger.info(
+            f"Tearing down test {self.__class__.__name__}::{method.__name__}"
+        )
+        self.custom_teardown()
+        self._logger.info(
+            f"Finished tearing down test {self.__class__.__name__}::{method.__name__}"
+        )
+
+    @classmethod
+    def custom_teardown_class(cls) -> None:
+        if not cls._should_clean_resources():
+            return
+        try:
+            cls._run_db.delete_project(
+                cls.project_name,
+                deletion_strategy=mlrun.common.schemas.DeletionStrategy.cascading,
+            )
+        except Exception:
+            pass
+
+    def _deploy_nuclio_function_with_user_ep(
+        self,
+        extra_endpoint_names: list[str] | None = None,
+    ) -> mlrun.runtimes.RemoteRuntime:
+        """Deploy a Nuclio function whose handler pushes events to the stream pod.
+
+        MLRun injects MODEL_MONITORING_URL, MODEL_ENDPOINT_UID and (when multiple
+        endpoints are registered) MODEL_ENDPOINTS_MAP into the pod env at deploy
+        time.  The handler reads these vars directly — no extra SDK calls needed.
+
+        :param extra_endpoint_names: Optional additional USER_EP names to register
+            alongside the primary endpoint (exercises MODEL_ENDPOINTS_MAP injection).
+        """
+        fn = mlrun.new_function(
+            name="http-ingest-fn",
+            project=self.project_name,
+            kind="remote",
+        )
+        fn.with_code(
+            from_file=str(Path(__file__).parent / "assets" / "http_ingest_handler.py")
+        )
+        extra_instructions = [
+            ModelEndpointInstruction(
+                name=ep_name,
+                input_schema=self.feature_names,
+                output_schema=self.label_names,
+            )
+            for ep_name in (extra_endpoint_names or [])
+        ]
+        fn.setup_model_monitoring(
+            general_model_endpoint_instructions=ModelEndpointInstruction(
+                name=self.model_endpoint_name,
+                input_schema=self.feature_names,
+                output_schema=self.label_names,
+            ),
+            extra_model_endpoint_instructions=extra_instructions or None,
+        )
+        if self.image is not None:
+            fn.spec.image = self.image
+        fn.deploy()
+        return fn
+
+    def _deploy_monitoring_app(self) -> None:
+        app_fn = self.project.set_model_monitoring_function(
+            func=str(Path(__file__).parent / "assets" / "application.py"),
+            application_class=NoCheckDemoMonitoringApp.__name__,
+            name=NoCheckDemoMonitoringApp.NAME,
+            image=self.image or mlrun.mlconf.function_defaults.image_by_kind.job,
+        )
+        self.project.deploy_function(app_fn)
+
+    # ------------------------------------------------------------------
+    # Helpers
+    # ------------------------------------------------------------------
+
+    def _get_endpoint_id(self) -> str:
+        endpoints = self.run_db.list_model_endpoints(
+            project=self.project_name,
+            names=self.model_endpoint_name,
+        ).endpoints
+        assert endpoints, f"No endpoint found with name {self.model_endpoint_name!r}"
+        return endpoints[0].metadata.uid
+
+    def _invoke_ingest_fn(
+        self,
+        fn: mlrun.runtimes.RemoteRuntime,
+        num_endpoints: int = 1,
+    ) -> None:
+        """Invoke the Nuclio function and assert all events were accepted (HTTP 202)."""
+        result = fn.invoke(
+            path="/",
+            body=json.dumps({"num_events": self.num_events}),
+        )
+        self._logger.info(
+            "Nuclio function invoked, events pushed from pod",
+            result=result,
+            num_events=self.num_events,
+        )
+        expected_pushed = self.num_events * num_endpoints
+        assert result.get("pushed") == expected_pushed, (
+            f"Expected {expected_pushed} accepted events (HTTP 202) "
+            f"but stream pod accepted {result.get('pushed')}"
+        )
+
+    def _assert_bad_payload_rejected(self, fn: mlrun.runtimes.RemoteRuntime) -> None:
+        """Verify the stream pod rejects a malformed payload with HTTP 400.
+
+        The stream pod is ClusterIP-only so we can't reach it from the test
+        machine directly.  Instead we invoke the ingest function (which runs
+        inside the cluster) with a special ``test_bad_payload`` flag; the
+        handler sends one event with missing inputs/outputs and returns the
+        stream pod's status code back to us.
+        """
+        result = fn.invoke(path="/", body=json.dumps({"test_bad_payload": True}))
+        assert result.get("bad_payload_status") == 400, (
+            f"Expected stream pod to return 400 for malformed payload, "
+            f"got {result.get('bad_payload_status')}"
+        )
+        self._logger.info(
+            "Bad payload correctly rejected by stream pod",
+            status=result.get("bad_payload_status"),
+        )
+
+    def _check_tsdb_has_data(self, endpoint_id: str) -> None:
+        tsdb = mlrun.model_monitoring.get_tsdb_connector(
+            project=self.project_name, profile=self.mm_tsdb_profile
+        )
+        lr = tsdb.get_last_request(endpoint_ids=endpoint_id)
+        assert lr and endpoint_id in lr, "TSDB last_request not yet written"
+
+        pred = tsdb.read_predictions(
+            endpoint_id=endpoint_id,
+            start=datetime.now(UTC) - timedelta(hours=1),
+            end=datetime.now(UTC),
+        )
+        assert not isinstance(
+            pred,
+            mlrun.common.schemas.model_monitoring.ModelEndpointMonitoringMetricNoData,
+        ), "No predictions in TSDB predictions table yet"
+
+    # ------------------------------------------------------------------
+    # Tests
+    # ------------------------------------------------------------------
+
+    def test_http_ingest_flow(self) -> None:
+        """USER_EP → invoke fn (pushes events from pod) → verify TSDB.
+
+        Also verifies that a malformed payload is rejected with HTTP 400.
+        """
+        fn = self._deploy_nuclio_function_with_user_ep()
+
+        time.sleep(5)
+
+        endpoint_id = self._get_endpoint_id()
+        self._logger.info("USER_EP created", endpoint_id=endpoint_id)
+
+        self._assert_bad_payload_rejected(fn)
+
+        self._invoke_ingest_fn(fn)
+
+        initial_wait = (
+            mlrun.mlconf.model_endpoint_monitoring.parquet_batching_timeout_secs
+            + mlrun.mlconf.model_endpoint_monitoring.writer_graph.flush_after_seconds
+            + self._external_stream_delay
+        )
+
+        self.wait_for_condition(
+            condition_check=lambda: self._check_tsdb_has_data(endpoint_id),
+            initial_wait=initial_wait,
+            condition_description="TSDB to receive HTTP-ingested events",
+        )
+
+        mep = self.run_db.get_model_endpoint(
+            name=self.model_endpoint_name,
+            project=self.project_name,
+            endpoint_id=endpoint_id,
+            tsdb_metrics=True,
+        )
+        assert mep.status.last_request is not None, (
+            "Model endpoint last_request not updated after HTTP ingest"
+        )
+
+    def test_http_ingest_with_monitoring_app(self) -> None:
+        """Invoke fn (pushes events from pod) → verify monitoring app processes them."""
+        with concurrent.futures.ThreadPoolExecutor() as executor:
+            fn_future = executor.submit(self._deploy_nuclio_function_with_user_ep)
+            app_future = executor.submit(self._deploy_monitoring_app)
+        fn = fn_future.result()
+        app_future.result()
+
+        time.sleep(5)
+
+        endpoint_id = self._get_endpoint_id()
+        self._invoke_ingest_fn(fn)
+
+        initial_wait = (
+            2 * self.app_interval_seconds
+            + mlrun.mlconf.model_endpoint_monitoring.parquet_batching_timeout_secs
+            + mlrun.mlconf.model_endpoint_monitoring.writer_graph.flush_after_seconds
+            + self._external_stream_delay
+        )
+
+        tsdb = mlrun.model_monitoring.get_tsdb_connector(
+            project=self.project_name, profile=self.mm_tsdb_profile
+        )
+
+        def check_app_results() -> None:
+            df = tsdb.get_results_metadata(endpoint_id=endpoint_id)
+            assert not df.empty, "No application results in TSDB yet"
+            assert (df.endpoint_id == endpoint_id).all()
+            assert DemoMonitoringApp.NAME in df.application_name.values, (
+                f"Expected app {DemoMonitoringApp.NAME!r} not found in TSDB results"
+            )
+
+        self.wait_for_condition(
+            condition_check=check_app_results,
+            initial_wait=initial_wait,
+            condition_description="monitoring app to write results for HTTP-ingested events",
+        )
+
+    def test_http_ingest_multiple_endpoints(self) -> None:
+        """One function with 3 USER_EP endpoints → each gets events via HTTP.
+
+        MLRun injects MODEL_ENDPOINT_UID + MODEL_ENDPOINTS_MAP into the pod.
+        The handler pushes ``num_events`` events per endpoint; the test verifies
+        that every endpoint has data in the TSDB.
+        """
+        extra_ep_names = ["http-ingest-ep-2", "http-ingest-ep-3"]
+
+        fn = self._deploy_nuclio_function_with_user_ep(extra_ep_names)
+
+        time.sleep(5)
+
+        # Collect UIDs for all registered endpoints
+        all_ep_names = [self.model_endpoint_name] + extra_ep_names
+        endpoint_ids = []
+        for ep_name in all_ep_names:
+            eps = self.run_db.list_model_endpoints(
+                project=self.project_name, names=ep_name
+            ).endpoints
+            assert eps, f"No endpoint found with name {ep_name!r}"
+            endpoint_ids.append(eps[0].metadata.uid)
+
+        self._logger.info(
+            "USER_EP endpoints created",
+            names=all_ep_names,
+            ids=endpoint_ids,
+        )
+
+        # Invoke once — handler pushes num_events for every endpoint from the pod
+        self._invoke_ingest_fn(fn, num_endpoints=len(all_ep_names))
+
+        initial_wait = (
+            mlrun.mlconf.model_endpoint_monitoring.parquet_batching_timeout_secs
+            + mlrun.mlconf.model_endpoint_monitoring.writer_graph.flush_after_seconds
+            + self._external_stream_delay
+        )
+
+        def check_all_endpoints() -> None:
+            for ep_id in endpoint_ids:
+                self._check_tsdb_has_data(ep_id)
+
+        self.wait_for_condition(
+            condition_check=check_all_endpoints,
+            initial_wait=initial_wait,
+            condition_description="TSDB to receive HTTP-ingested events for all endpoints",
+        )
+
+        for ep_name, ep_id in zip(all_ep_names, endpoint_ids):
+            mep = self.run_db.get_model_endpoint(
+                name=ep_name,
+                project=self.project_name,
+                endpoint_id=ep_id,
+                tsdb_metrics=True,
+            )
+            assert mep.status.last_request is not None, (
+                f"last_request not updated for endpoint {ep_id}"
+            )
+
+    def test_http_ingest_stream_pod_is_async(self) -> None:
+        """Stream pod processes N concurrent HTTP requests without serialising them.
+
+        A dedicated Nuclio handler first sends one request to measure the
+        per-request round-trip baseline, then fires ``num_events`` requests
+        simultaneously.  If the stream pod serialised requests the concurrent
+        batch would take ≈ N × single_elapsed; because Nuclio dispatches HTTP
+        requests concurrently the batch should complete in ≈ single_elapsed.
+        The assertion concurrent_elapsed < single_elapsed * 2 is self-calibrating
+        and does not rely on any hardcoded timing constant.
+        """
+        fn = mlrun.new_function(
+            name="http-ingest-concurrent-fn",
+            project=self.project_name,
+            kind="remote",
+        )
+        fn.with_code(
+            from_file=str(
+                Path(__file__).parent / "assets" / "http_ingest_concurrent_handler.py"
+            )
+        )
+        fn.setup_model_monitoring(
+            general_model_endpoint_instructions=ModelEndpointInstruction(
+                name=self.model_endpoint_name,
+                input_schema=self.feature_names,
+                output_schema=self.label_names,
+            ),
+        )
+        if self.image is not None:
+            fn.spec.image = self.image
+        fn.deploy()
+
+        time.sleep(5)
+
+        # --- baseline: one request ---
+        single_result = fn.invoke(path="/", body=json.dumps({"single": True}))
+        assert single_result.get("pushed") == 1, (
+            f"Baseline single request was not accepted: {single_result}"
+        )
+        single_elapsed = single_result["single_elapsed"]
+        self._logger.info("Single request baseline", single_elapsed=single_elapsed)
+
+        # --- concurrent: N requests in parallel ---
+        concurrent_result = fn.invoke(
+            path="/", body=json.dumps({"num_events": self.num_events})
+        )
+        assert concurrent_result.get("pushed") == self.num_events, (
+            f"Expected {self.num_events} accepted events (HTTP 202) "
+            f"but stream pod accepted {concurrent_result.get('pushed')}"
+        )
+        concurrent_elapsed = concurrent_result["concurrent_elapsed"]
+        self._logger.info(
+            "Concurrent batch result",
+            num_events=self.num_events,
+            concurrent_elapsed=concurrent_elapsed,
+            single_elapsed=single_elapsed,
+        )
+
+        assert concurrent_elapsed < single_elapsed * 2, (
+            f"Stream pod took {concurrent_elapsed:.2f}s for {self.num_events} concurrent "
+            f"requests but single request took {single_elapsed:.2f}s — expected batch "
+            f"< {single_elapsed * 2:.2f}s. "
+            "This suggests the pod is serialising requests instead of processing them concurrently."
+        )

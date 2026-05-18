@@ -2669,7 +2669,9 @@ class QueueStep(BaseStep, StepToDict):
                 retention_in_hours=self.retention_in_hours,
                 **self.options,
             )
-            if hasattr(self._stream, "create_stream"):
+            if hasattr(self._stream, "create_stream") and getattr(
+                self._stream, "_create", True
+            ):
                 self._stream.create_stream()
         self._set_error_handler()
 

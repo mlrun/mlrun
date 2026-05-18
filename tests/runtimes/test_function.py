@@ -617,18 +617,6 @@ class TestSetupModelMonitoring:
         with pytest.raises(mlrun.errors.MLRunInvalidArgumentError, match="mix"):
             fn.setup_model_monitoring(extra_model_endpoint_instructions=mixed)
 
-    def test_extra_instructions_name_mismatch_raises(self):
-        from mlrun.common.schemas.model_monitoring.model_endpoints import (
-            ModelEndpointInstruction,
-        )
-
-        fn = self._nuclio_fn(name="my-fn")
-        extra = [ModelEndpointInstruction(name="wrong-name")]
-        with pytest.raises(
-            mlrun.errors.MLRunInvalidArgumentError, match="name mismatch"
-        ):
-            fn.setup_model_monitoring(extra_model_endpoint_instructions=extra)
-
     def test_extra_instructions_tag_mismatch_raises(self):
         from mlrun.common.schemas.model_monitoring.model_endpoints import (
             ModelEndpointInstruction,
@@ -654,17 +642,29 @@ class TestSetupModelMonitoring:
         names = [i.name for i in fn.spec.model_endpoints_instructions]
         assert "my-fn" in names
 
-    def test_name_mismatch_raises(self):
+    def test_function_name_mismatch_raises(self):
         from mlrun.common.schemas.model_monitoring.model_endpoints import (
             ModelEndpointInstruction,
         )
 
         fn = self._nuclio_fn(name="my-fn")
-        instruction = ModelEndpointInstruction(name="wrong-name")
+        instruction = ModelEndpointInstruction(name="my-ep", function_name="wrong-fn")
         with pytest.raises(
-            mlrun.errors.MLRunInvalidArgumentError, match="name mismatch"
+            mlrun.errors.MLRunInvalidArgumentError, match="function_name mismatch"
         ):
             fn.setup_model_monitoring(general_model_endpoint_instructions=instruction)
+
+    def test_extra_instructions_function_name_mismatch_raises(self):
+        from mlrun.common.schemas.model_monitoring.model_endpoints import (
+            ModelEndpointInstruction,
+        )
+
+        fn = self._nuclio_fn(name="my-fn")
+        extra = [ModelEndpointInstruction(name="my-ep", function_name="wrong-fn")]
+        with pytest.raises(
+            mlrun.errors.MLRunInvalidArgumentError, match="function_name mismatch"
+        ):
+            fn.setup_model_monitoring(extra_model_endpoint_instructions=extra)
 
     def test_function_tag_mismatch_raises(self):
         from mlrun.common.schemas.model_monitoring.model_endpoints import (

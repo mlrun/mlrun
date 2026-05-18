@@ -2544,20 +2544,9 @@ class MlrunProject(ModelObj):
                                         monitoring application's constructor.
         :param local_path:              Path to a local directory to save the downloaded monitoring-app code files in,
                                         in case 'func' is a hub URL (defaults to current working directory).
-        :param otlp_enabled:            Whether this monitoring application function should export its results as
-                                        OTel metrics. ``None`` (default) inherits from
-                                        ``project.spec.model_monitoring.otlp_enabled`` (typically set by
-                                        ``enable_model_monitoring(otlp_enabled=...)``). Explicit ``True`` / ``False``
-                                        pins this function regardless of the project-level value. When the resolved
-                                        value is ``True``, an ``OTelMetricsExporter`` step is appended to the
-                                        function's graph (in parallel with the standard ``PushToMonitoringWriter``)
-                                        and ``function.spec.mount_otlp_secret`` is set so the server-side runtime
-                                        injector mounts the operator-managed OTLP headers secret onto the pod.
-                                        Note: the resolution happens at the moment of this call — a later
-                                        ``enable_model_monitoring(otlp_enabled=True)`` will NOT retroactively update
-                                        an already-set function. Call ``enable_model_monitoring`` first, or re-run
-                                        ``set_model_monitoring_function`` to pick up the new project state.
-        :returns:                       The model monitoring remote function object.
+        :param otlp_enabled:            Export this function's MM results/metrics as OTel. ``None`` (default) inherits
+                                        ``project.spec.model_monitoring.otlp_enabled``; ``True``/``False`` pins the
+                                        function.
         """
         (
             resolved_function_name,

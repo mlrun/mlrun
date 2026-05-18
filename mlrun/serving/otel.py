@@ -101,12 +101,11 @@ class OTelMetricsExporter(storey.OTelMetricsExporter):
        resolver against a missing mount, silently returns an empty headers
        dict, and bakes that empty dict into the serialized graph.
 
-    Resolution happens eagerly in ``__init__`` (same pattern as
-    :py:class:`~mlrun.serving.remote.RemoteStep`). If the OTLP endpoint
-    can't be resolved (neither passed nor present in ``mlconf.telemetry``),
-    construction raises ``MLRunRuntimeError``. In dev contexts call
-    ``mlrun.get_run_db()`` (or ``mlrun.get_or_create_project(...)``) before
-    constructing the step so the SDK has synced ``/client-spec``.
+    The OTLP endpoint is resolved at construction time; if neither passed
+    nor present in ``mlconf.telemetry``, construction raises
+    ``MLRunRuntimeError``. Call ``mlrun.get_run_db()`` (or
+    ``mlrun.get_or_create_project(...)``) first in dev contexts so the SDK
+    has synced ``/client-spec``.
 
     :param endpoint: OTLP gRPC endpoint URL (e.g. ``"otel-collector.iguazio
                      .svc.cluster.local:4317"``). Defaults to

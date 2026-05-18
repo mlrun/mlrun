@@ -113,11 +113,11 @@ class _PrepareOTelEvent(StepToDict):
             ]
         }
 
-    Naming convention (ML-12532 HLD):
+    Naming convention:
         * ``mlrun.model_monitoring.result.<name>`` for results
         * ``mlrun.model_monitoring.metric.<name>`` for metrics
 
-    Instrument type: gauge for both — raw value flows through, and
+    Both are emitted as gauges — raw value flows through, and
     ``result.status`` is the normalized signal for alerting / dashboarding.
 
     Attributes (shared from MonitoringApplicationContext):
@@ -294,9 +294,8 @@ class _ApplicationErrorHandler(StepToDict):
 
     def do(self, event):
         """
-        Handle a model-monitoring application or OTel-branch error.
-        Generates an ``MM_APP_FAILED`` alert event tagged with the
-        failure source.
+        Handle a failure from any step in the MM serving graph and emit
+        an ``MM_APP_FAILED`` alert tagged with the failing step's name.
 
         :param event: Application event (storey adds ``origin_state``
             and ``error`` before routing to this step).

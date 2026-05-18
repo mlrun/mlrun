@@ -1110,13 +1110,11 @@ class MonitoringDeployment:
 
         :param image:        The image on with the function will run.
         :param overwrite:    If True, the function will be overwritten.
-        :param otlp_enabled: If True, append the OTel branch to the application
-                             graph (``_PrepareOTelEvent`` → ``OTelMetricsExporter``)
+        :param otlp_enabled: If True, append the OTel branch
+                             (``_PrepareOTelEvent`` → ``OTelMetricsExporter``)
                              and set ``func.spec.mount_otlp_secret`` so the
-                             server-side runtime injector mounts the OTLP
-                             headers secret and OTel env onto the function pod.
-                             Matches the wiring ``set_model_monitoring_function``
-                             does for user-deployed MM apps.
+                             runtime injector mounts the OTLP headers secret
+                             onto the function pod.
         """
         if overwrite or self._should_deploy_function(
             function_name=mm_constants.HistogramDataDriftApplicationConstants.NAME

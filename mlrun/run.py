@@ -1332,21 +1332,17 @@ def get_model_monitoring_url(project: str | None = None) -> str | None:
     :raises mlrun.errors.MLRunNotFoundError: if the stream function is not deployed
     :raises mlrun.errors.MLRunPreconditionFailedError: if the stream function is not in ready state
     """
-    should_warn_fallback = False
-    if project is None:
-        project = mlrun.get_secret_or_env("MLRUN_ACTIVE_PROJECT")
-        should_warn_fallback = True
 
     env_var = mm_constants.NuclioMonitoringEnvVars.MODEL_MONITORING_URL
     url = mlrun.get_secret_or_env(env_var)
     if url:
-        if project not in url:
-            logger.warning(
-                "Cached model monitoring URL does not match the current project, use with caution.",
-                project=project,
+        if project is not None and project not in url:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"Cached model monitoring URL does not match the provided project: {project}."
             )
         return url
-    if should_warn_fallback:
+    if project is None:
+        project = mlrun.get_secret_or_env("MLRUN_ACTIVE_PROJECT")
         logger.warning(
             "No project specified; resolving from MLRUN_ACTIVE_PROJECT",
             project=project,

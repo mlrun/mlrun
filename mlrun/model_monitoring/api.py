@@ -609,15 +609,6 @@ def _create_model_monitoring_function_base(
         app_step = prepare_step.to(class_name=application_class)
 
     app_step.__class__ = mlrun.serving.MonitoringApplicationStep
-
-    app_step.error_handler(
-        class_name="mlrun.model_monitoring.applications._application_steps._ApplicationErrorHandler",
-        name="ApplicationErrorHandler",
-        full_event=True,
-        project=project,
-        application_name=name,
-    )
-
     app_step.to(
         class_name="mlrun.model_monitoring.applications._application_steps._PushToMonitoringWriter",
         name="PushToMonitoringWriter",
@@ -629,14 +620,20 @@ def _create_model_monitoring_function_base(
             class_name="mlrun.model_monitoring.applications._application_steps._PrepareOTelEvent",
             name="PrepareOTelEvent",
         )
-        otel_exporter = otel_prep.to(
+        otel_prep.to(
             class_name="mlrun.serving.OTelMetricsExporter",
             name="OTelMetricsExporter",
             headers_source="file",
         )
-        otel_prep.on_error = "ApplicationErrorHandler"
-        otel_exporter.on_error = "ApplicationErrorHandler"
         func_obj.spec.mount_otlp_secret = otlp_enabled
+    graph.error_handler(
+        class_name="mlrun.model_monitoring.applications._application_steps._ApplicationErrorHandler",
+        name="ApplicationErrorHandler",
+        full_event=True,
+        project=project,
+        application_name=name,
+        user_step_name=app_step.name,
+    )
 
     def block_to_mock_server(*args, **kwargs) -> typing.NoReturn:
         raise NotImplementedError(

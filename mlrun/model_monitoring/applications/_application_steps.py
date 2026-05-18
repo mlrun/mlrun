@@ -190,7 +190,7 @@ class _PrepareOTelEvent(StepToDict):
                     "attributes": attributes,
                 }
             )
-        return {"metrics": metrics}
+        return {"metrics": metrics, "endpoint_id": ctx.endpoint_id}
 
 
 class _PrepareMonitoringEvent(StepToDict):
@@ -263,47 +263,34 @@ class _PrepareMonitoringEvent(StepToDict):
         return application_context
 
 
-OTEL_PREP_STEP_NAME = "PrepareOTelEvent"
-OTEL_EXPORTER_STEP_NAME = "OTelMetricsExporter"
-_OTEL_BRANCH_STEP_NAMES = frozenset({OTEL_PREP_STEP_NAME, OTEL_EXPORTER_STEP_NAME})
-_OTEL_BRANCH_SOURCE = "otel_exporter"
-
-
 class _ApplicationErrorHandler(StepToDict):
     def __init__(
         self,
         project: str,
         name: str | None = None,
         application_name: str | None = None,
+        user_step_name: str | None = None,
     ):
-        """Single error-handler step shared across the MM serving graph.
+        """Single error-handler shared across the MM serving graph.
 
-        Storey populates ``event.origin_state`` with the failing step's
-        name before invoking the recovery step (see
-        ``storey.Flow._do_and_recover``). The handler dispatches on that:
-
-        * **Main app branch** — ``event.body`` is the controller event,
-          which carries ``application_name`` and ``endpoint_id``. Alerts
-          go out with entity id ``<project>_<app>``.
-        * **OTel export branch** — ``event.body`` is the upstream step's
-          output (``(results, ctx)`` from PrepareOTelEvent, or
-          ``{"metrics": [...]}`` from OTelMetricsExporter), with no app
-          name on the body. ``application_name`` must be pinned at
-          construction time; the entity id is suffixed
-          ``_otel_exporter`` and ``value_dict`` carries an explicit
-          ``"Source"`` so the alert config can route only this failure
-          mode.
+        Storey sets ``event.origin_state`` to the failing step's name.
+        Failures from the user step (``user_step_name``) produce an alert
+        with entity id ``<project>_<app>``; failures from any other step
+        produce ``<project>_<app>_<origin_state>`` so alert configs can
+        route by failing step.
 
         :param project: Project name; goes on the alert event entity.
-        :param name: Step name in the serving graph; defaults to the
-            class-derived "ApplicationErrorHandler".
-        :param application_name: Required for OTel-branch failures (the
-            branch event body does not carry it). Optional for main-app
-            failures, where the body carries it.
+        :param name: Step name in the graph (default
+            ``"ApplicationErrorHandler"``).
+        :param application_name: Application name; included on every alert.
+        :param user_step_name: The user app step name; failures whose
+            ``origin_state`` matches this are tagged as the main-app branch
+            (no suffix). Anything else is treated as an auxiliary step.
         """
         self.project = project
         self.name = name or "ApplicationErrorHandler"
         self.application_name = application_name
+        self.user_step_name = user_step_name
 
     def do(self, event):
         """
@@ -315,10 +302,16 @@ class _ApplicationErrorHandler(StepToDict):
             and ``error`` before routing to this step).
         """
         origin_state = getattr(event, "origin_state", None)
-        is_otel_branch = origin_state in _OTEL_BRANCH_STEP_NAMES
-
+        if isinstance(event.body, tuple) and len(event.body) == 2:
+            endpoint_id = event.body[1].endpoint_id
+        elif isinstance(event.body, dict):
+            endpoint_id = event.body["endpoint_id"]
+        elif isinstance(event.body, MonitoringApplicationContext):
+            endpoint_id = event.body.endpoint_id
+        else:
+            endpoint_id = None
         error_data = {
-            "Endpoint ID": event.body.endpoint_id,
+            "Endpoint ID": endpoint_id,
             "Application Class": self.application_name,
             "Error": "".join(
                 traceback.format_exception(
@@ -326,16 +319,14 @@ class _ApplicationErrorHandler(StepToDict):
                 )
             ),
             "Timestamp": event.timestamp,
+            "Step Name": origin_state,
         }
-        if is_otel_branch:
-            error_data["Source"] = _OTEL_BRANCH_STEP_NAMES
         logger.error("Error in application", **error_data)
-
         error_data["Error"] = event.error
 
         entity_id = f"{self.project}_{self.application_name}"
-        if is_otel_branch:
-            entity_id = f"{entity_id}_{_OTEL_BRANCH_STEP_NAMES}"
+        if origin_state != self.user_step_name:
+            entity_id += f"_{origin_state}"
 
         event_data = alert_objects.Event(
             kind=alert_objects.EventKind.MM_APP_FAILED,

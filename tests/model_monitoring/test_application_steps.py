@@ -34,7 +34,6 @@ from mlrun.model_monitoring.applications import (
     ModelMonitoringApplicationResult,
 )
 from mlrun.model_monitoring.applications._application_steps import (
-    _OTEL_BRANCH_SOURCE,
     _ApplicationErrorHandler,
     _PrepareMonitoringEvent,  # noqa: F401
     _PrepareOTelEvent,
@@ -44,6 +43,8 @@ from mlrun.model_monitoring.applications.results import (
     _ModelMonitoringApplicationStats,
 )
 from mlrun.utils import Logger, logger
+
+_OTEL_BRANCH_SOURCE = "otel_exporter"
 
 
 class TestEventPreparation:
@@ -377,34 +378,55 @@ class TestPrepareOTelEvent:
 
     @classmethod
     def test_empty_results(cls, app_ctx: Mock) -> None:
-        assert _PrepareOTelEvent().do(([], app_ctx)) == {"metrics": []}
+        assert _PrepareOTelEvent().do(([], app_ctx)) == {
+            "metrics": [],
+            "endpoint_id": cls.EP_ID,
+        }
 
 
 class TestApplicationErrorHandler:
     PROJECT = "my-proj"
     APP = "my-app"
 
-    @staticmethod
+    @classmethod
     def _make_event(
+        cls,
         *,
-        origin_state: str | None,
+        origin_state: str,
         body: typing.Any = None,
         error: Exception | None = None,
+        monitoring_context: mm_context.MonitoringApplicationContext,
     ) -> Mock:
         event = Mock()
         event.body = body
-        # Raise + catch so event.error has a real traceback for
-        # traceback.format_exception() to render.
         try:
             raise error or RuntimeError("kaboom")
         except Exception as e:
             event.error = e
         event.timestamp = "2026-05-14T00:00:00"
-        # None is a valid value: handler dispatch is "in frozenset of
-        # branch names", and None is not in that set, so the main-app
-        # path runs — covers the defensive case.
         event.origin_state = origin_state
+        event.body = cls._get_body(origin_state, monitoring_context)
         return event
+
+    @classmethod
+    def _get_body(
+        cls,
+        origin_state: str,
+        monitoring_context: mm_context.MonitoringApplicationContext,
+    ) -> typing.Any:
+        if origin_state == "_PushToMonitoringWriter":
+            return [], monitoring_context
+        elif origin_state == "_PrepareOTelEvent":
+            return [], monitoring_context
+        elif origin_state == "_PrepareMonitoringEvent":
+            return {mm_constants.ApplicationEvent.ENDPOINT_ID: "test_endpoint_id"}
+        elif origin_state == "OTelMetricsExporter":
+            return {
+                "metrics": [],
+                mm_constants.ApplicationEvent.ENDPOINT_ID: "test_endpoint_id",
+            }
+        else:
+            return monitoring_context
 
     @classmethod
     def _captured_event(cls, generate_event: Mock) -> alert_objects.Event:
@@ -412,81 +434,42 @@ class TestApplicationErrorHandler:
         return generate_event.call_args.kwargs["event_data"]
 
     @classmethod
-    def test_main_app_failure_uses_body_fields(cls) -> None:
-        """Failure on the main app step: body is the controller event;
-        endpoint id and app name come from there. Alert entity id is
-        plain `<project>_<app>` — no source suffix."""
-        handler = _ApplicationErrorHandler(project=cls.PROJECT)
-        body = Mock()
-        body.application_name = cls.APP
-        body.endpoint_id = "ep-1234"
-        event = cls._make_event(origin_state="DemoMonitoringApp", body=body)
-
-        with patch("mlrun.get_run_db") as get_db:
-            handler.do(event)
-        alert = cls._captured_event(get_db.return_value.generate_event)
-
-        assert alert.entity.ids == [f"{cls.PROJECT}_{cls.APP}"]
-        assert alert.value_dict["Application Class"] == cls.APP
-        assert alert.value_dict["Endpoint ID"] == "ep-1234"
-        # No source tag on regular app failures — keeps backward compat
-        # with existing alert configs.
-        assert "Source" not in alert.value_dict
-
-    @classmethod
     @pytest.mark.parametrize(
-        "origin_state", ["PrepareOTelEvent", "OTelMetricsExporter"]
+        "origin_state",
+        [
+            "_PrepareOTelEvent",
+            "OTelMetricsExporter",
+            "_PrepareMonitoringEvent",
+            "_PushToMonitoringWriter",
+            "DemoMonitoringApp",
+        ],
     )
-    def test_otel_branch_failure_is_tagged(cls, origin_state: str) -> None:
-        """Failure on the OTel branch (either prep or exporter):
-        application_name is pinned on the handler (body shape doesn't
-        carry it); alert entity id is suffixed with `_otel_exporter` so
-        alert configs can route this failure mode separately."""
+    def test_from_all_steps(
+        cls,
+        origin_state: str,
+        monitoring_context: mm_context.MonitoringApplicationContext,
+    ) -> None:
         handler = _ApplicationErrorHandler(
-            project=cls.PROJECT, application_name=cls.APP
+            project=cls.PROJECT,
+            application_name=cls.APP,
+            user_step_name="DemoMonitoringApp",
         )
         # Different bodies per step — neither has application_name.
-        body = [Mock()] if origin_state == "PrepareOTelEvent" else {"metrics": []}
-        event = cls._make_event(origin_state=origin_state, body=body)
+
+        event = cls._make_event(
+            origin_state=origin_state, monitoring_context=monitoring_context
+        )
 
         with patch("mlrun.get_run_db") as get_db:
             handler.do(event)
         alert = cls._captured_event(get_db.return_value.generate_event)
 
-        expected_id = f"{cls.PROJECT}_{cls.APP}_{_OTEL_BRANCH_SOURCE}"
+        expected_id = (
+            f"{cls.PROJECT}_{cls.APP}_{origin_state}"
+            if origin_state != "DemoMonitoringApp"
+            else f"{cls.PROJECT}_{cls.APP}"
+        )
         assert alert.entity.ids == [expected_id]
-        assert alert.value_dict["Source"] == _OTEL_BRANCH_SOURCE
+        assert alert.value_dict["Step Name"] == origin_state
         assert alert.value_dict["Application Class"] == cls.APP
-        # Endpoint id isn't reliably available on the branch event body.
-        assert alert.value_dict["Endpoint ID"] is None
-
-    @classmethod
-    def test_otel_branch_failure_without_pinned_app_name_raises(cls) -> None:
-        """If wiring forgot to pin application_name on the handler, an
-        OTel-branch failure has no way to identify the application —
-        raise loudly rather than emit a malformed alert."""
-        handler = _ApplicationErrorHandler(project=cls.PROJECT)
-        event = cls._make_event(origin_state="OTelMetricsExporter", body={})
-
-        with patch("mlrun.get_run_db"):
-            with pytest.raises(
-                mlrun.errors.MLRunRuntimeError, match="application_name"
-            ):
-                handler.do(event)
-
-    @classmethod
-    def test_main_app_failure_works_without_origin_state(cls) -> None:
-        """Defensive: if storey didn't set origin_state for some reason,
-        the handler still works for the main-app path (body has the
-        controller event fields)."""
-        handler = _ApplicationErrorHandler(project=cls.PROJECT)
-        body = Mock()
-        body.application_name = cls.APP
-        body.endpoint_id = "ep-x"
-        event = cls._make_event(origin_state=None, body=body)
-
-        with patch("mlrun.get_run_db") as get_db:
-            handler.do(event)
-        alert = cls._captured_event(get_db.return_value.generate_event)
-        assert alert.entity.ids == [f"{cls.PROJECT}_{cls.APP}"]
-        assert "Source" not in alert.value_dict
+        assert alert.value_dict["Endpoint ID"] == "test_endpoint_id"

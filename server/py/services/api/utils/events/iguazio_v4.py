@@ -24,14 +24,14 @@ import framework.utils.clients.helpers as clients_helpers
 import framework.utils.clients.service_account_token as service_account_token
 import services.api.utils.events.base as base_events
 
-DB_MIGRATION_REQUIRED = "Platform.MLRun.DB.Migration.Required"
-DB_MIGRATION_STARTED = "Platform.MLRun.DB.Migration.Started"
-DB_MIGRATION_COMPLETED = "Platform.MLRun.DB.Migration.Completed"
-DB_MIGRATION_FAILED = "Platform.MLRun.DB.Migration.Failed"
-DB_CONNECTION_FAILED = "Platform.MLRun.DB.Connection.Failed"
+DB_MIGRATION_REQUIRED = "MLRun.DB.Migration.Required"
+DB_MIGRATION_STARTED = "MLRun.DB.Migration.Started"
+DB_MIGRATION_COMPLETED = "MLRun.DB.Migration.Completed"
+DB_MIGRATION_FAILED = "MLRun.DB.Migration.Failed"
+DB_CONNECTION_FAILED = "MLRun.DB.Connection.Failed"
 
 EVENT_KIND = "system"
-EVENT_CLASS = "Application.Core"
+EVENT_CLASS = "DB"
 ERROR_DETAIL_LIMIT = 1024
 ERROR_DESCRIPTION_LIMIT = 200
 TRUNCATION_SUFFIX = "...[truncated]"

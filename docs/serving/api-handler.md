@@ -69,6 +69,7 @@ config.add_endpoint_handler(
     http_method=HTTPMethod.POST,  # HTTPMethod enum or string ("GET", "POST", ...)
     action=APIHandlerAction.ALLOW,  # ALLOW or FORBID
     description=None,  # Optional human-readable description
+    input_body_mappings=None,  # BodyMappings instance (see Body mapping section)
 )
 ```
 
@@ -102,37 +103,91 @@ When the handler allows a request, it can extract parameters from three sources:
 |--------------------------|----------------------------------|----------------------------|
 | Path template parameters | `{param}` in the path pattern    | keyword argument           |
 | Query string parameters  | automatic                        | keyword argument           |
-| Request body fields      | `body_map` (JSONPath, see below) | keyword argument           |
+| Request body fields      | `BodyMappings` (JSONPath, see below) | keyword argument       |
 
 The extracted parameters are passed to the next step as keyword arguments. If the same parameter name appears in more than one source, the request fails with an error (400). Conflicts between `body_map` and path template parameters are detected at setup time.
 
 Parameters are always forwarded to the next step. When any parameters are extracted or `include_url_info` is enabled, they are collected into a dict and passed as keyword arguments. Otherwise, the original event body is forwarded unchanged.
 
-### Body mapping (`body_map`)
+### Body mapping (`BodyMappings`)
 
-`body_map` maps parameter names to [JSONPath](https://datatracker.ietf.org/doc/html/rfc9535) expressions. It is **global** — the same mapping applies to every configured endpoint. The request body must be a JSON dict when `body_map` is configured.
+`BodyMappings` maps destination parameter names to [JSONPath](https://datatracker.ietf.org/doc/html/rfc9535) source expressions. Each endpoint has its own `BodyMappings` instance passed via `input_body_mappings`. The request body must be a JSON dict when body mappings are configured.
 
 ```python
-# Extract "model" field and nested "inputs" field from the request body
-config.add_body_mapping("model_name", "$.model")
-config.add_body_mapping("inputs", "$.data.inputs")
+from mlrun.runtimes.nuclio.serving import BodyMappings
+
+# Build a body mapping for a specific endpoint
+bm = BodyMappings()
+bm.add_mapping(destination_path="model_name", source_json_path="$.model")
+bm.add_mapping(destination_path="inputs", source_json_path="$.data.inputs")
 
 # Multiple matches (e.g. all book titles) return a list
-config.add_body_mapping("titles", "$['store']['book'][*]['title']")
+bm.add_mapping(
+    destination_path="titles", source_json_path="$['store']['book'][*]['title']"
+)
+
+# Attach the mapping to the endpoint
+config.add_endpoint_handler(
+    "/v1/predict",
+    HTTPMethod.POST,
+    APIHandlerAction.ALLOW,
+    input_body_mappings=bm,
+)
 ```
+
+`add_mapping` parameters:
+
+| Parameter          | Description                                                                 |
+|--------------------|-----------------------------------------------------------------------------|
+| `destination_path` | Name of the keyword argument passed to the next step.                       |
+| `source_json_path` | JSONPath expression evaluated against the request body dict.                |
+| `mandatory`        | If `True` (default `False`), a missing field fails the request with the error code HTTP 400 - bad request. |
 
 Rules:
-- A single match → the value is returned as-is.
+- A single JSONPath match → the value is returned as-is.
 - Multiple matches → a list is returned.
-- No match → the request fails with HTTP 422 (Unprocessable Entity).
-- Non-JSON or non-dict body → the request fails with HTTP 422 (Unprocessable Entity).
-- `body_map` applies to **all** ALLOW endpoints in the config. Because the mapping is global, a `body_map` that matches one endpoint's body format may cause 422 errors for other endpoints whose requests do not share that format.
+- No match on a **mandatory** field → the request fails with HTTP 400 (Bad Request).
+- No match on an optional field → the parameter is silently omitted.
+- Non-dict body → body mappings are silently skipped.
+- Calling `add_mapping` with a duplicate `destination_path` or `source_json_path` overwrites the existing entry and logs a warning.
 
-```{note}
-The strict 422 behavior for missing body mappings and non-JSON bodies is a known limitation in the current release and will be relaxed in a future release to allow more flexible body handling.
+To remove a mapping by destination path: `bm.remove_mapping("model_name")` — where `"model_name"` is the `destination_path`.
+
+#### Hierarchical body map merging
+
+When a request matches multiple endpoints (for example, a wildcard `/*` and a specific `/v1/predict`), their `input_body_mappings` are **merged** from least specific to most specific. The most specific endpoint wins on conflict:
+
+- **Same destination** — the more specific endpoint's source overwrites the less specific one.
+- **Same source, different destination** — the stale destination from the less specific endpoint is removed; only the more specific endpoint's destination is kept.
+
+This allows a wildcard endpoint to define shared defaults while specific endpoints override individual mappings:
+
+```python
+# Wildcard: shared defaults for all POST endpoints under /v1/
+star_bm = BodyMappings()
+star_bm.add_mapping(
+    destination_path="model", source_json_path="$.model", mandatory=True
+)
+star_bm.add_mapping(destination_path="stream", source_json_path="$.stream")
+config.add_endpoint_handler(
+    "/v1/*", HTTPMethod.POST, APIHandlerAction.ALLOW, input_body_mappings=star_bm
+)
+
+# Specific endpoint: inherits "stream" from wildcard, overrides "model" → "model_name"
+predict_bm = BodyMappings()
+predict_bm.add_mapping(destination_path="model_name", source_json_path="$.model")
+predict_bm.add_mapping(destination_path="messages", source_json_path="$.messages")
+config.add_endpoint_handler(
+    "/v1/chat/completions",
+    HTTPMethod.POST,
+    APIHandlerAction.ALLOW,
+    input_body_mappings=predict_bm,
+)
+# POST /v1/chat/completions effective mapping:
+#   model_name ← $.model   (specific wins; "model" destination from wildcard is dropped)
+#   stream     ← $.stream  (inherited from wildcard)
+#   messages   ← $.messages (specific only)
 ```
-
-To remove a mapping: `config.remove_body_mapping("model_name")`
 
 ### URL info (`include_url_info`)
 
@@ -181,7 +236,7 @@ import mlrun
 from http import HTTPMethod
 
 from mlrun.common.schemas.serving import APIHandlerAction
-from mlrun.runtimes.nuclio.serving import APIHandlerConfig
+from mlrun.runtimes.nuclio.serving import APIHandlerConfig, BodyMappings
 
 project = mlrun.get_or_create_project("chat-serving", context="./")
 
@@ -205,21 +260,27 @@ graph.to(name="chat", handler=chat_handler).respond()
 # --- Configure the API handler ---
 config = APIHandlerConfig(include_url_info=True)
 
+# Extract model and messages from the request body using JSONPath
+bm = BodyMappings()
+bm.add_mapping(
+    destination_path="model_name", source_json_path="$.model", mandatory=True
+)
+bm.add_mapping(
+    destination_path="messages", source_json_path="$.messages", mandatory=True
+)
+
 # Allow the OpenAI-compatible chat completion endpoint
 config.add_endpoint_handler(
     "/v1/chat/completions",
     HTTPMethod.POST,
     APIHandlerAction.ALLOW,
     description="OpenAI-compatible chat completion",
+    input_body_mappings=bm,
 )
 
 # Block all admin paths
 config.add_endpoint_handler("/admin/*", HTTPMethod.GET, APIHandlerAction.FORBID)
 config.add_endpoint_handler("/admin/*", HTTPMethod.POST, APIHandlerAction.FORBID)
-
-# Extract model and messages from the request body using JSONPath
-config.add_body_mapping("model_name", "$.model")
-config.add_body_mapping("messages", "$.messages")
 
 # Attach to the serving function
 serving_fn.set_api_handler_config(config)
@@ -227,7 +288,7 @@ serving_fn.set_api_handler_config(config)
 # --- Test locally with the mock server ---
 server = serving_fn.to_mock_server()
 
-# Allowed endpoint: body_map extracts model_name and messages; chat_handler receives them as kwargs
+# Allowed endpoint: body mappings extract model_name and messages; chat_handler receives them as kwargs
 result = server.test(
     "/v1/chat/completions",
     method="POST",

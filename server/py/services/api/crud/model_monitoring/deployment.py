@@ -173,6 +173,7 @@ class MonitoringDeployment:
         fetch_credentials_from_sys_config: bool = False,
         lag_threshold: int | None = None,
         lag_event_cooldown: int | None = None,
+        otlp_enabled: bool = False,
     ) -> None:
         """
         Deploy model monitoring application controller, writer and stream functions.
@@ -186,9 +187,24 @@ class MonitoringDeployment:
         :param fetch_credentials_from_sys_config: If true, fetch the credentials from the system configuration.
         :param lag_threshold:                     Lag threshold in minutes for writer lag detection.
         :param lag_event_cooldown:                Cooldown in minutes between consecutive lag events per worker.
+        :param otlp_enabled:                      If true, persist OTel export opt-in to the project spec.
         """
         if image is None:
             image = mlrun.mlconf.function_defaults.image_by_kind.nuclio
+
+        if otlp_enabled:
+            if not mlrun.mlconf.telemetry.enabled:
+                raise mlrun.errors.MLRunBadRequestError(
+                    "Cannot enable model monitoring OTel export: operator has "
+                    "disabled telemetry (mlconf.telemetry.enabled is not true)."
+                )
+            if not mlrun.mlconf.telemetry.otlp_endpoint:
+                raise mlrun.errors.MLRunBadRequestError(
+                    "Cannot enable model monitoring OTel export: operator has "
+                    "not configured an OTLP endpoint "
+                    "(mlconf.telemetry.otlp_endpoint is blank)."
+                )
+
         # check if credentials should be fetched from the system configuration or if they are already been set.
         if fetch_credentials_from_sys_config:
             self.set_credentials()
@@ -234,6 +250,45 @@ class MonitoringDeployment:
         ModelMonitoringSchedulesFileChief(project=self.project).get_or_create()
         if deploy_histogram_data_drift_app:
             self.deploy_histogram_data_drift_app(image=image)
+
+        self._persist_model_monitoring_spec(enabled=True, otlp_enabled=otlp_enabled)
+
+    def _persist_model_monitoring_spec(
+        self,
+        *,
+        enabled: bool | None = None,
+        otlp_enabled: bool | None = None,
+        stream_type: mm_constants.StreamTarget | None = None,
+        tsdb_type: mm_constants.TSDBTarget | None = None,
+    ) -> None:
+        """Patch ``project.spec.model_monitoring`` with the current MM state.
+
+        Each field is optional: only fields whose value is non-None are included
+        in the patch, so callers update one concern at a time:
+          - ``deploy_monitoring_functions``: enabled=True, otlp_enabled=<param>
+          - ``disable_model_monitoring``: enabled=False, otlp_enabled=False
+          - ``set_credentials``: stream_type=<derived>, tsdb_type=<derived>
+
+        Uses additive patch so other fields are preserved.
+        """
+        fields: dict = {}
+        if enabled is not None:
+            fields["enabled"] = bool(enabled)
+        if otlp_enabled is not None:
+            fields["otlp_enabled"] = bool(otlp_enabled)
+        if stream_type is not None:
+            fields["stream_type"] = stream_type.value
+        if tsdb_type is not None:
+            fields["tsdb_type"] = tsdb_type.value
+        if not fields:
+            return
+
+        services.api.crud.Projects().patch_project(
+            session=self.db_session,
+            name=self.project,
+            project={"spec": {"model_monitoring": fields}},
+            patch_mode=mlrun.common.schemas.PatchMode.additive,
+        )
 
     def deploy_model_monitoring_stream_processing(
         self, stream_image: str | None = None, overwrite: bool = False
@@ -1618,6 +1673,12 @@ class MonitoringDeployment:
                 )
                 tasks.append(task)
 
+        await run_in_threadpool(
+            self._persist_model_monitoring_spec,
+            enabled=False,
+            otlp_enabled=False,
+        )
+
         return mlrun.common.schemas.BackgroundTaskList(background_tasks=tasks)
 
     def _get_monitoring_application_to_delete(
@@ -1948,7 +2009,9 @@ class MonitoringDeployment:
 
         return tsdb_profile
 
-    def _validate_stream_profile(self, stream_profile_name: str) -> None:
+    def _validate_stream_profile(
+        self, stream_profile_name: str
+    ) -> mlrun.datastore.datastore_profile.DatastoreProfile:
         try:
             stream_profile = mlrun.datastore.datastore_profile.datastore_profile_read(
                 url=f"ds://{stream_profile_name}",
@@ -1975,6 +2038,37 @@ class MonitoringDeployment:
                 f"The model monitoring stream profile is of an unexpected type: '{type(stream_profile)}'\n"
                 "Expects `DatastoreProfileV3io` or `DatastoreProfileKafkaStream`."
             )
+        return stream_profile
+
+    @staticmethod
+    def _resolve_stream_target(
+        stream_profile: mlrun.datastore.datastore_profile.DatastoreProfile,
+    ) -> mm_constants.StreamTarget | None:
+        if isinstance(
+            stream_profile,
+            mlrun.datastore.datastore_profile.DatastoreProfileKafkaStream,
+        ):
+            return mm_constants.StreamTarget.KAFKA
+        if isinstance(
+            stream_profile, mlrun.datastore.datastore_profile.DatastoreProfileV3io
+        ):
+            return mm_constants.StreamTarget.V3IO
+        return None
+
+    @staticmethod
+    def _resolve_tsdb_target(
+        tsdb_profile: mlrun.datastore.datastore_profile.DatastoreProfile,
+    ) -> mm_constants.TSDBTarget | None:
+        if isinstance(
+            tsdb_profile,
+            mlrun.datastore.datastore_profile.DatastoreProfilePostgreSQL,
+        ):
+            return mm_constants.TSDBTarget.TimescaleDB
+        if isinstance(
+            tsdb_profile, mlrun.datastore.datastore_profile.DatastoreProfileV3io
+        ):
+            return mm_constants.TSDBTarget.V3IO_TSDB
+        return None
 
     def _validate_kafka_stream(
         self,
@@ -2095,11 +2189,14 @@ class MonitoringDeployment:
         secrets_dict = {}
         old_secrets_dict = self._get_monitoring_mandatory_project_secrets()
 
+        stream_profile = None
+        tsdb_profile = None
+
         stream_profile_name = stream_profile_name or old_secrets_dict.get(
             mlrun.common.schemas.model_monitoring.ProjectSecretKeys.STREAM_PROFILE_NAME
         )
         if stream_profile_name:
-            self._validate_stream_profile(stream_profile_name)
+            stream_profile = self._validate_stream_profile(stream_profile_name)
             secrets_dict[
                 mlrun.common.schemas.model_monitoring.ProjectSecretKeys.STREAM_PROFILE_NAME
             ] = stream_profile_name
@@ -2131,6 +2228,11 @@ class MonitoringDeployment:
                 provider=mlrun.common.schemas.SecretProviderName.kubernetes,
                 secrets=secrets_dict,
             ),
+        )
+
+        self._persist_model_monitoring_spec(
+            stream_type=self._resolve_stream_target(stream_profile),
+            tsdb_type=self._resolve_tsdb_target(tsdb_profile),
         )
 
     def _is_the_same_cred(

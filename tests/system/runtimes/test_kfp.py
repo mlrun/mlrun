@@ -13,12 +13,14 @@
 # limitations under the License.
 
 import os
+import tempfile
 import time
 
 import kfp.dsl as dsl
 import pytest
 
 import mlrun
+import mlrun.datastore.datastore_profile as datastore_profile
 import mlrun.runtimes.mounts
 import tests.system.base
 from mlrun import mlconf
@@ -280,3 +282,116 @@ class TestKFP(tests.system.base.TestMLRunSystem):
             f"Expected 2 steps with run_uid, got {len(steps_with_run_uid)}. "
             f"Graph: {graph}"
         )
+
+    @pytest.mark.parametrize("engine", ["kfp", "remote"])
+    def test_run_workflow_from_store_artifact(self, engine):
+        """Run a workflow whose ``workflow_path`` is a ``store://`` CodeArtifact
+        URI, end-to-end against the cluster (ML-11981)."""
+        # The remote engine requires `project.spec.source` to be a cloneable
+        # URL (for the runner pod's `load_project` call). Auto-detection from
+        # the worktree picks up `git@...` which the server rejects, so set
+        # a known-cloneable demo repo. Its content isn't used here — the
+        # function comes from hub://describe and the workflow from store://.
+        self.project.spec.source = "git://github.com/mlrun/project-demo.git"
+        self.project.save()
+        self.project.set_function("hub://describe", "describe")
+
+        workflow_src = self._write_kfp_pipeline_tempfile()
+        try:
+            artifact = self.project.log_code_file(
+                key=f"{engine}_workflow_code",
+                local_path=workflow_src,
+                code_type="workflow",
+            )
+            store_uri = artifact.uri
+
+            workflow_name = f"store_pipeline_{engine}"
+            self.project.set_workflow(
+                workflow_name, workflow_path=store_uri, engine=engine
+            )
+            run = self.project.run(
+                workflow_name,
+                watch=True,
+                engine=engine,
+                artifact_path=f"v3io:///projects/{self.project_name}",
+            )
+            assert run.state == RunStatuses.succeeded, (
+                f"workflow did not finish successfully (state={run.state})"
+            )
+        finally:
+            try:
+                os.unlink(workflow_src)
+            except OSError:
+                pass
+
+    @pytest.mark.parametrize("engine", ["kfp", "remote"])
+    def test_run_workflow_with_ds_profile_target(self, engine):
+        """The workflow CodeArtifact's target_path is behind a ds:// v3io
+        profile. Exercises the secrets / profile-resolution path inside
+        load_source_code → get_dataitem at the get_source_file call site
+        (client-side for engine=kfp, runner-pod-side for engine=remote)."""
+        access_key = os.environ.get("V3IO_ACCESS_KEY")
+        assert access_key, "V3IO_ACCESS_KEY required for this system test"
+
+        profile_name = "wf-store-test-v3io-profile"
+        profile = datastore_profile.DatastoreProfileV3io(
+            name=profile_name, v3io_access_key=access_key
+        )
+        self.project.register_datastore_profile(profile)
+        datastore_profile.register_temporary_client_datastore_profile(profile)
+
+        # Cloneable project source for the remote runner pod (its content is
+        # unused — function is hub://, workflow is store://).
+        self.project.spec.source = "git://github.com/mlrun/project-demo.git"
+        self.project.save()
+
+        workflow_src = self._write_kfp_pipeline_tempfile()
+        try:
+            artifact_key = f"ds_workflow_code_{engine}"
+            artifact = self.project.log_code_file(
+                key=artifact_key,
+                local_path=workflow_src,
+                code_type="workflow",
+                target_path=(
+                    f"ds://{profile_name}/projects/{self.project_name}/code/"
+                    f"{artifact_key}.py"
+                ),
+            )
+            store_uri = artifact.uri
+
+            self.project.set_function("hub://describe", "describe")
+            workflow_name = f"store_pipeline_ds_{engine}"
+            self.project.set_workflow(
+                workflow_name, workflow_path=store_uri, engine=engine
+            )
+            run = self.project.run(
+                workflow_name,
+                watch=True,
+                engine=engine,
+                artifact_path=f"v3io:///projects/{self.project_name}",
+            )
+            assert run.state == RunStatuses.succeeded, (
+                f"workflow did not finish successfully (state={run.state})"
+            )
+        finally:
+            try:
+                os.unlink(workflow_src)
+            except OSError:
+                pass
+
+    @staticmethod
+    def _write_kfp_pipeline_tempfile() -> str:
+        """Write a minimal kfp pipeline source to a temp file and return its path.
+        Caller is responsible for cleanup."""
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as wf:
+            wf.write(
+                "from kfp import dsl\n"
+                "import mlrun\n"
+                "\n"
+                "funcs = {}\n"
+                "\n"
+                '@dsl.pipeline(name="store-uri pipeline")\n'
+                "def kfpipeline():\n"
+                '    funcs["describe"].as_step(name="describe-step")\n'
+            )
+            return wf.name

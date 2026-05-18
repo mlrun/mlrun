@@ -114,7 +114,7 @@ def _build_no_responder_spec() -> str:
 def _build_full_event_spec() -> str:
     """Variant whose step receives the full storey Event (not just the body).
 
-    Used by U12 to capture per-event IDs and verify the batch-path
+    Used to capture per-event IDs and verify the batch-path
     closure-over-loop-variable bug is fixed by the index→idx rename.
     """
     fn = mlrun.new_function(
@@ -153,7 +153,7 @@ def _set_serving_spec(spec_json: str) -> None:
 
 
 def test_execute_graph_requires_data_or_data_object():
-    """U1 / AC-4: calling execute_graph with neither data nor data_object raises."""
+    """Calling execute_graph with neither data nor data_object raises."""
     context = MLClientCtx.from_dict(
         {"metadata": {"name": "test"}, "spec": {}}, autocommit=False
     )
@@ -165,7 +165,7 @@ def test_execute_graph_requires_data_or_data_object():
 
 
 def test_execute_graph_rejects_both_data_and_data_object():
-    """U2 / AC-5: data and data_object are mutually exclusive."""
+    """Data and data_object are mutually exclusive."""
     context = MLClientCtx.from_dict(
         {"metadata": {"name": "test"}, "spec": {}}, autocommit=False
     )
@@ -183,7 +183,7 @@ def test_execute_graph_rejects_both_data_and_data_object():
     [1, "a-string", [1, 2, 3], (1, 2), 3.14, True],
 )
 def test_execute_graph_data_object_must_be_dict(bad_value):
-    """U3 / AC-6: data_object must be a dict (or subclass)."""
+    """data_object must be a dict (or subclass)."""
     context = MLClientCtx.from_dict(
         {"metadata": {"name": "test"}, "spec": {}}, autocommit=False
     )
@@ -195,7 +195,7 @@ def test_execute_graph_data_object_must_be_dict(bad_value):
 
 
 def test_execute_graph_data_object_accepts_dict_subclasses():
-    """AC-6 corollary: dict subclasses (e.g. OrderedDict) are accepted by the type check.
+    """Corollary: dict subclasses (e.g. OrderedDict) are accepted by the type check.
 
     Note: this test only verifies the type check passes; it intentionally does
     not run the full graph (which is exercised by behavioral tests below).
@@ -213,7 +213,7 @@ def test_execute_graph_data_object_accepts_dict_subclasses():
 
 
 def test_execute_graph_data_object_does_not_trigger_legacy_dataitem_error():
-    """U11 / AC-7 negative: when data_object is set, the legacy DataItem error must NOT fire.
+    """Negative: when data_object is set, the legacy DataItem error must NOT fire.
 
     The mutual-exclusion check (step 2) fires first; the legacy DataItem check
     (step 4) is only reached when data_object is None.
@@ -229,7 +229,7 @@ def test_execute_graph_data_object_does_not_trigger_legacy_dataitem_error():
 
 
 def test_execute_graph_dataitem_validation_still_fires_when_data_object_is_none():
-    """AC-7 positive (mirrors existing test_execute_graph_dataitem_parameter_validation):
+    """Positive (mirrors existing test_execute_graph_dataitem_parameter_validation):
     when data_object is None, the legacy DataItem error must still fire for non-DataItem data.
     """
     context = MLClientCtx.from_dict(
@@ -248,7 +248,7 @@ def test_execute_graph_dataitem_validation_still_fires_when_data_object_is_none(
 
 
 def test_execute_graph_data_object_runs_once_and_returns_response(tmp_path):
-    """U4 / AC-9, AC-21, AC-23, AC-25: dict input runs the graph exactly once,
+    """Dict input runs the graph exactly once,
     returns the response, logs num_rows=1, and produces a 1-row prediction artifact."""
     _reset_capture()
     _set_serving_spec(_build_dict_path_spec())
@@ -268,11 +268,8 @@ def test_execute_graph_data_object_runs_once_and_returns_response(tmp_path):
 
 
 def test_execute_graph_data_object_with_timestamp_column(tmp_path):
-    """U5 / AC-10: timestamp_column extracted from dict root; the value is
+    """timestamp_column extracted from dict root; the value is
     attached to the event via _original_timestamp by the inner run() closure.
-
-    Note: full AC-24 (batch_complete stream record assertion) requires a
-    configured monitoring stream and is exercised by the system test S1.
     """
     _reset_capture()
     _set_serving_spec(_build_dict_path_spec())
@@ -285,7 +282,7 @@ def test_execute_graph_data_object_with_timestamp_column(tmp_path):
 
 
 def test_execute_graph_data_object_missing_timestamp_column_raises(tmp_path):
-    """U6 / AC-11: missing timestamp_column key raises MLRunRuntimeError.
+    """Missing timestamp_column key raises MLRunRuntimeError.
 
     When track_models is True, the dict-path outer check fires; when False,
     the inner closure fires. Both paths raise MLRunRuntimeError with wording
@@ -302,7 +299,7 @@ def test_execute_graph_data_object_missing_timestamp_column_raises(tmp_path):
 
 
 def test_execute_graph_data_object_clock_time_when_no_timestamp_column(tmp_path):
-    """U7 / AC-12: when timestamp_column is None, start_time falls back to clock time."""
+    """When timestamp_column is None, start_time falls back to clock time."""
     _reset_capture()
     _set_serving_spec(_build_dict_path_spec())
     context = _make_context(tmp_path)
@@ -318,7 +315,7 @@ def test_execute_graph_data_object_clock_time_when_no_timestamp_column(tmp_path)
 def test_execute_graph_data_object_body_shape_matrix(
     tmp_path, read_as_lists, nest_under_inputs
 ):
-    """U8 / AC-13, AC-14, AC-15, AC-16: 4-cell matrix of read_as_lists × nest_under_inputs.
+    """4-cell matrix of read_as_lists × nest_under_inputs.
 
     Verifies the graph step receives the body in the documented shape.
     """
@@ -346,7 +343,7 @@ def test_execute_graph_data_object_body_shape_matrix(
 
 
 def test_execute_graph_data_object_ignores_batching(tmp_path):
-    """U9 / AC-9: batching / batch_size are ignored on the data_object path.
+    """Batching / batch_size are ignored on the data_object path.
 
     Runs once, num_rows == 1, no error.
     """
@@ -366,7 +363,7 @@ def test_execute_graph_data_object_ignores_batching(tmp_path):
 
 
 def test_execute_graph_with_empty_data_object_runs_once(tmp_path):
-    """U10 / Q4: empty data_object {} runs the graph exactly once (no early-out).
+    """Empty data_object {} runs the graph exactly once (no early-out).
 
     Uses a graph WITHOUT a responder so we exercise just the "run once" semantic
     — the prediction-artifact-logging path with pd.DataFrame([{}]) is a
@@ -393,7 +390,7 @@ def test_execute_graph_with_empty_data_object_runs_once(tmp_path):
 
 
 def test_execute_graph_batch_path_event_ids_are_per_row(tmp_path):
-    """U12 / AC-31: each task in the batch loop must receive its own event.id.
+    """Each task in the batch loop must receive its own event.id.
 
     Pins the secondary fix from the index → idx closure-arg rename. Before the
     fix every task captured the loop's terminal index value (len(df) - 1).
@@ -417,9 +414,3 @@ def test_execute_graph_batch_path_event_ids_are_per_row(tmp_path):
         "If this is [2,2,2], the closure-over-loop-variable bug has regressed."
     )
     assert context.results.get("num_rows") == 3
-
-
-# Note: signature-shape (inspect.signature) tests were removed during code
-# review — the behavioral tests above (U1 calling with no args, U3 type-check)
-# already prove that data_object is an optional dict parameter, making
-# structural signature inspection redundant.

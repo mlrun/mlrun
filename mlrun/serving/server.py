@@ -687,9 +687,7 @@ async def async_execute_graph(
     nest_under_inputs: bool = False,
 ) -> Any | None:
     """See :func:`execute_graph` for parameter documentation."""
-    # Fail-fast argument validation, in this exact order:
-    # 1. neither provided, 2. both provided, 3. data_object type check,
-    # 4. legacy DataItem check (only when data_object is None).
+    # Fail-fast argument validation
     if data is None and data_object is None:
         raise MLRunInvalidArgumentError(
             "exactly one of 'data' or 'data_object' must be provided"
@@ -868,8 +866,7 @@ async def async_execute_graph(
 
     tasks = []
     if is_dict_path:
-        # Per Jira: `batching` / `batch_size` are ignored on the data_object path.
-        # DEBUG-log the flag values (never the data_object contents) for visibility.
+        # `batching` / `batch_size` are ignored on the data_object path.
         if batching or batch_size:
             context.logger.debug(
                 "ignoring batch params on data_object path",
@@ -981,12 +978,8 @@ async def async_execute_graph(
 
     context.log_result("num_rows", run_call_count)
 
-    if is_dict_path:
-        # Per Jira (6): return the graph's response as-is, to simulate a single
-        # execution of a runtime with a single input. Surfaces at run.output("return").
+    if is_dict_path and responses and responses[0]:
         return responses[0]
-    # Legacy data path: preserve the historical None return (no system test reads it).
-    return None
 
 
 def _is_inside_asyncio_loop():
@@ -1031,7 +1024,7 @@ def execute_graph(
       ``prediction`` (and per-model ``prediction_<model>``) dataset artifacts.
     - **Single-instance mode** (``data_object``): runs the graph **exactly
       once** with the provided dict as the event body. Returns the graph
-      response as-is so the caller can read it via ``run.output("return")``.
+      response as-is so the caller can read it.
       ``batching`` and ``batch_size`` are ignored (a DEBUG log entry is emitted
       when they are set). If ``timestamp_column`` is set, the value is read
       from the root of ``data_object`` (e.g. ``timestamp_column="ts"`` with
@@ -1039,9 +1032,6 @@ def execute_graph(
       raises :class:`mlrun.errors.MLRunRuntimeError`. If ``read_as_lists=True``
       the body is ``list(data_object.values())`` (insertion order). If
       ``nest_under_inputs=True`` the body is wrapped as ``{"inputs": body}``.
-
-      Note: for non-``local=True`` runs, the graph response must be
-      JSON-serializable to round-trip through the runDB.
 
     :param context: The job's execution client context.
     :param data: The input data (``DataItem``) to be pushed into the graph row
@@ -1065,8 +1055,7 @@ def execute_graph(
     :param nest_under_inputs: Whether to wrap each event body with
         ``{"inputs": ...}``.
 
-    :return: On the ``data_object`` path, the graph's response (any
-        JSON-serializable Python object). On the ``data`` path, ``None``.
+    :return: On the ``data_object`` path, the graph's response. On the ``data`` path, ``None``.
     """
     if _is_inside_asyncio_loop():
         _workaround_asyncio_nesting()

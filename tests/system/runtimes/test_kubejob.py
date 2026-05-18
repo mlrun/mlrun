@@ -881,7 +881,7 @@ def print_df(df):
 
     @pytest.mark.parametrize("local", [True, False])
     def test_job_from_serving_runtime_with_data_object(self, local: bool) -> None:
-        """ML-12578 S1: data_object single-instance path on to_job() serving runtime.
+        """data_object single-instance path on to_job() serving runtime.
 
         Builds a serving function with a responder graph, converts to a job, then
         runs it with a single dict input via params={"data_object": ...}. Asserts:

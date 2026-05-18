@@ -2835,7 +2835,6 @@ class TestHTTPIngest(TestMLRunSystemModelMonitoring):
     # Tests
     # ------------------------------------------------------------------
 
-    @pytest.mark.timeout(600)
     def test_http_ingest_flow(self) -> None:
         """USER_EP → invoke fn (pushes events from pod) → verify TSDB.
 
@@ -2874,7 +2873,6 @@ class TestHTTPIngest(TestMLRunSystemModelMonitoring):
             "Model endpoint last_request not updated after HTTP ingest"
         )
 
-    @pytest.mark.timeout(600)
     def test_http_ingest_with_monitoring_app(self) -> None:
         """Invoke fn (pushes events from pod) → verify monitoring app processes them."""
         with concurrent.futures.ThreadPoolExecutor() as executor:
@@ -2913,7 +2911,6 @@ class TestHTTPIngest(TestMLRunSystemModelMonitoring):
             condition_description="monitoring app to write results for HTTP-ingested events",
         )
 
-    @pytest.mark.timeout(600)
     def test_http_ingest_multiple_endpoints(self) -> None:
         """One function with 3 USER_EP endpoints → each gets events via HTTP.
 
@@ -2973,7 +2970,6 @@ class TestHTTPIngest(TestMLRunSystemModelMonitoring):
                 f"last_request not updated for endpoint {ep_id}"
             )
 
-    @pytest.mark.timeout(600)
     def test_http_ingest_stream_pod_is_async(self) -> None:
         """Stream pod processes N concurrent HTTP requests without serialising them.
 

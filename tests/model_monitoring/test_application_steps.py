@@ -277,7 +277,7 @@ class TestPrepareOTelEvent:
     APP = "my-app"
     EP_ID = "ep-1234"
     EP_NAME = "ep-name"
-    FUNC_NAME  = "serving"
+    FUNC_NAME = "serving"
     BASE_ATTRS = {
         "project": PROJECT,
         "app.name": APP,

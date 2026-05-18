@@ -698,11 +698,6 @@ class HTTPRunDB(RunDBInterface):
                 if hasattr(config.function_defaults.image_by_kind, kind):
                     setattr(config.function_defaults.image_by_kind, kind, image_value)
 
-            # Telemetry — server only sends non-default values, so a `None`
-            # here means "keep the local mlconf value" (which itself might
-            # have come from a local env var like MLRUN_TELEMETRY__*). Use
-            # `is not None` for booleans/ints so an operator-set False or 0
-            # isn't treated as falsy and skipped.
             if server_cfg.get("telemetry_enabled") is not None:
                 config.telemetry.enabled = server_cfg["telemetry_enabled"]
             if server_cfg.get("telemetry_otlp_endpoint"):

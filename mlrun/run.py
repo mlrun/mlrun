@@ -21,6 +21,7 @@ import sys
 import tempfile
 import time
 import typing
+import urllib.parse
 import uuid
 from base64 import b64decode
 from copy import deepcopy
@@ -1336,10 +1337,12 @@ def get_model_monitoring_url(project: str | None = None) -> str | None:
     env_var = mm_constants.NuclioMonitoringEnvVars.MODEL_MONITORING_URL
     url = mlrun.get_secret_or_env(env_var)
     if url:
-        if project is not None and project not in url:
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                f"Cached model monitoring URL does not match the provided project: {project}."
-            )
+        if project is not None:
+            hostname = urllib.parse.urlparse(url).hostname or ""
+            if project not in hostname.split("."):
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    f"Cached model monitoring URL does not match the provided project: {project}."
+                )
         return url
     if project is None:
         project = mlrun.get_secret_or_env("MLRUN_ACTIVE_PROJECT")

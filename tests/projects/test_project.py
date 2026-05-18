@@ -2244,7 +2244,7 @@ def test_init_function_from_dict_function_in_spec():
                 },
                 "description": "",
                 "disable_auto_mount": False,
-                "otlp_enabled": False,
+                "mount_otlp_secret": False,
                 "replicas": 1,
                 "image_pull_policy": "Always",
                 "priority_class_name": "dummy-class",

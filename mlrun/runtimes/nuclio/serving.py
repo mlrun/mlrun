@@ -32,7 +32,9 @@ from mlrun.datastore import get_kafka_brokers_from_dict, parse_kafka_url
 from mlrun.model import ObjectList
 from mlrun.runtimes.function_reference import FunctionReference
 from mlrun.secrets import SecretsStore
-from mlrun.serving.endpoint_mapping import APIHandlerConfig, BodyMappings, EndpointConfig
+from mlrun.serving.endpoint_mapping import (
+    APIHandlerConfig,
+)
 from mlrun.serving.server import (
     GraphServer,
     add_system_steps_to_graph,
@@ -50,7 +52,6 @@ from mlrun.serving.states import (
 from mlrun.utils import get_caller_globals, logger, merge_requirements, set_paths
 
 serving_subkind = "serving_v2"
-
 
 
 def new_v2_model_server(

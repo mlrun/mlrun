@@ -28,19 +28,20 @@ import mlrun
 import mlrun.errors
 from mlrun.common.schemas.serving import APIHandlerAction
 from mlrun.runtimes.nuclio.serving import ServingRuntime
-from mlrun.serving.endpoint_mapping import APIHandlerConfig, BodyMappings
 from mlrun.serving import GraphContext
 from mlrun.serving.api_handler import _APIHandlerStep
+from mlrun.serving.endpoint_mapping import (
+    APIHandlerConfig,
+    BodyMappings,
+    combine_serving_endpoint_key,
+)
 from mlrun.serving.server import (
     GraphServer,
     MockEvent,
     RootFlowStep,
     _add_api_handler_step_to_graph,
 )
-from mlrun.serving.utils import (
-    _RequestContext,
-    combine_serving_endpoint_key,
-)
+from mlrun.serving.utils import _RequestContext
 
 
 class EchoStep:

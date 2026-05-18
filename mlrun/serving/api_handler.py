@@ -31,15 +31,13 @@ from mlrun.serving.endpoint_mapping import (
     EndpointConfig,
     EndpointMatch,
     apply_body_map,
+    check_body_and_path_parameters_overlapping,
     collect_endpoint_matches,
     compile_body_map,
     compile_dynamic_path_patterns,
     merge_body_maps,
 )
-from mlrun.serving.utils import (
-    _RequestContext,
-    check_body_and_path_parameters_overlapping,
-)
+from mlrun.serving.utils import _RequestContext
 
 
 class _APIHandlerStep(mlrun.serving.states.TaskStep):
@@ -62,9 +60,7 @@ class _APIHandlerStep(mlrun.serving.states.TaskStep):
         super().__init__(name=name or "api-handler", **base_kwargs)
 
         if isinstance(config, dict):
-            self.config = APIHandlerConfig.from_dict(
-                config
-            )
+            self.config = APIHandlerConfig.from_dict(config)
         elif isinstance(config, APIHandlerConfig):
             self.config = config
         else:
@@ -75,12 +71,8 @@ class _APIHandlerStep(mlrun.serving.states.TaskStep):
         # Template patterns: /api/{user_id}/items → regex with named groups.
         # Star patterns:     /api/v1/*           → plain prefix string.
         # Body map cache:    endpoint key → {destination_path: (compiled_expr, mandatory)}
-        self._endpoint_patterns: list[
-            tuple[HTTPMethod, Pattern, EndpointConfig]
-        ]
-        self._star_patterns: list[
-            tuple[HTTPMethod, str, EndpointConfig]
-        ]
+        self._endpoint_patterns: list[tuple[HTTPMethod, Pattern, EndpointConfig]]
+        self._star_patterns: list[tuple[HTTPMethod, str, EndpointConfig]]
         self._parsed_body_map: dict[str, dict[str, tuple[Any, bool]]]
         (
             self._endpoint_patterns,
@@ -93,9 +85,7 @@ class _APIHandlerStep(mlrun.serving.states.TaskStep):
     def _compile_patterns(
         self,
     ) -> tuple[
-        list[
-            tuple[HTTPMethod, Pattern, "EndpointConfig"]
-        ],
+        list[tuple[HTTPMethod, Pattern, "EndpointConfig"]],
         list[tuple[HTTPMethod, str, "EndpointConfig"]],
         dict[str, dict[str, tuple[Any, bool]]],
     ]:

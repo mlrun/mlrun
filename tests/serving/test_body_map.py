@@ -23,8 +23,8 @@ import pytest
 import mlrun
 from mlrun.common.schemas.serving import APIHandlerAction
 from mlrun.runtimes.nuclio.serving import ServingRuntime
-from mlrun.serving.endpoint_mapping import APIHandlerConfig, BodyMappings
 from mlrun.serving.api_handler import _APIHandlerStep, _RequestContext
+from mlrun.serving.endpoint_mapping import APIHandlerConfig, BodyMappings
 from mlrun.serving.server import MockEvent
 
 

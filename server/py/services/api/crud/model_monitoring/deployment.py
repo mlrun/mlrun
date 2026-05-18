@@ -1130,7 +1130,6 @@ class MonitoringDeployment:
                 image=image,
                 otlp_enabled=otlp_enabled,
             )
-            func.spec.mount_otlp_secret = otlp_enabled
 
             if mlrun.mlconf.is_using_v3io():
                 logger.info(

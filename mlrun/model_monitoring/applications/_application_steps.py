@@ -53,11 +53,9 @@ class _PushToMonitoringWriter(StepToDict):
         self,
         event: tuple[
             list[
-                Union[
-                    ModelMonitoringApplicationResult,
-                    ModelMonitoringApplicationMetric,
-                    _ModelMonitoringApplicationStats,
-                ]
+                ModelMonitoringApplicationResult
+                | ModelMonitoringApplicationMetric
+                | _ModelMonitoringApplicationStats,
             ],
             MonitoringApplicationContext,
         ],
@@ -319,27 +317,9 @@ class _ApplicationErrorHandler(StepToDict):
         origin_state = getattr(event, "origin_state", None)
         is_otel_branch = origin_state in _OTEL_BRANCH_STEP_NAMES
 
-        if is_otel_branch:
-            if not self.application_name:
-                raise mlrun.errors.MLRunRuntimeError(
-                    "OTel-branch failure but application_name was not "
-                    "pinned on the error handler; cannot tag the alert."
-                )
-            application_name = self.application_name
-            endpoint_id = None
-            source: str | None = _OTEL_BRANCH_SOURCE
-            log_message = (
-                f"Error on model-monitoring OTel export branch ({origin_state})"
-            )
-        else:
-            application_name = event.body.application_name
-            endpoint_id = event.body.endpoint_id
-            source = None
-            log_message = "Error in application step"
-
         error_data = {
-            "Endpoint ID": endpoint_id,
-            "Application Class": application_name,
+            "Endpoint ID": event.body.endpoint_id,
+            "Application Class": self.application_name,
             "Error": "".join(
                 traceback.format_exception(
                     None, value=event.error, tb=event.error.__traceback__
@@ -347,15 +327,15 @@ class _ApplicationErrorHandler(StepToDict):
             ),
             "Timestamp": event.timestamp,
         }
-        if source:
-            error_data["Source"] = source
-        logger.error(log_message, **error_data)
+        if is_otel_branch:
+            error_data["Source"] = _OTEL_BRANCH_STEP_NAMES
+        logger.error("Error in application", **error_data)
 
         error_data["Error"] = event.error
 
-        entity_id = f"{self.project}_{application_name}"
-        if source:
-            entity_id = f"{entity_id}_{source}"
+        entity_id = f"{self.project}_{self.application_name}"
+        if is_otel_branch:
+            entity_id = f"{entity_id}_{_OTEL_BRANCH_STEP_NAMES}"
 
         event_data = alert_objects.Event(
             kind=alert_objects.EventKind.MM_APP_FAILED,

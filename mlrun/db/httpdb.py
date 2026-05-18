@@ -700,7 +700,7 @@ class HTTPRunDB(RunDBInterface):
 
             if server_cfg.get("telemetry_enabled") is not None:
                 config.telemetry.enabled = server_cfg["telemetry_enabled"]
-            if server_cfg.get("telemetry_otlp_endpoint"):
+            if server_cfg.get("telemetry_otlp_endpoint") is not None:
                 config.telemetry.otlp_endpoint = server_cfg["telemetry_otlp_endpoint"]
             if server_cfg.get("telemetry_insecure") is not None:
                 config.telemetry.insecure = server_cfg["telemetry_insecure"]

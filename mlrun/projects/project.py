@@ -2718,7 +2718,6 @@ class MlrunProject(ModelObj):
             mm_constants.ModelMonitoringAppLabel.KEY,
             mm_constants.ModelMonitoringAppLabel.VAL,
         )
-        function_object.spec.mount_otlp_secret = otlp_enabled
 
         return resolved_function_name, function_object, func
 

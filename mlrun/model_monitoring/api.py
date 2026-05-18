@@ -636,6 +636,7 @@ def _create_model_monitoring_function_base(
         )
         otel_prep.on_error = "ApplicationErrorHandler"
         otel_exporter.on_error = "ApplicationErrorHandler"
+        func_obj.spec.mount_otlp_secret = otlp_enabled
 
     def block_to_mock_server(*args, **kwargs) -> typing.NoReturn:
         raise NotImplementedError(

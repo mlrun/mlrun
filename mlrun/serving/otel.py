@@ -84,11 +84,22 @@ class OTelMetricsExporter(storey.OTelMetricsExporter):
 
         flow = function.set_topology("flow", engine="async")
         flow.to(name="my_app", class_name="MyApp").to(
-            mlrun.serving.OTelMetricsExporter(
-                # endpoint, insecure default from mlconf.telemetry
-                headers_source="file",
-            )
+            class_name="mlrun.serving.OTelMetricsExporter",
+            # endpoint, insecure default from mlconf.telemetry
+            headers_source="file",
         )
+
+    .. warning::
+
+       When ``headers_source`` is ``"file"`` or ``"project_secret"``, headers
+       are resolved **eagerly** in ``__init__``. Always add the step via the
+       ``class_name="mlrun.serving.OTelMetricsExporter"`` form (above) so
+       construction is deferred to function-pod startup, where the secret
+       mount (or project-secret env) actually exists. Instantiating the class
+       directly on the SDK side — e.g.
+       ``flow.to(OTelMetricsExporter(headers_source="file"))`` — runs the
+       resolver against a missing mount, silently returns an empty headers
+       dict, and bakes that empty dict into the serialized graph.
 
     Resolution happens eagerly in ``__init__`` (same pattern as
     :py:class:`~mlrun.serving.remote.RemoteStep`). If the OTLP endpoint
@@ -121,6 +132,7 @@ class OTelMetricsExporter(storey.OTelMetricsExporter):
         insecure: bool | None = None,
         headers_source: Literal["file", "project_secret", "none"] = "file",
         project_secret_key: str | None = None,
+        export_interval_millis: int | None = None,
         **kwargs,
     ):
         if headers_source not in _HEADERS_SOURCES:
@@ -145,6 +157,15 @@ class OTelMetricsExporter(storey.OTelMetricsExporter):
         resolved_insecure = (
             insecure if insecure is not None else mlrun.mlconf.telemetry.insecure
         )
+
+        mm_interval_s = mlrun.mlconf.telemetry.model_monitoring.interval
+        export_interval_millis = export_interval_millis or (
+            int(mm_interval_s) * 1000 if mm_interval_s is not None else None
+        )
+        if export_interval_millis is None:
+            kwargs["flush_mode"] = "immediate"
+        else:
+            kwargs["export_interval_millis"] = export_interval_millis
 
         super().__init__(
             endpoint=resolved_endpoint,

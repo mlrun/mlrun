@@ -1170,7 +1170,7 @@ class ServingRuntime(nuclio_function.RemoteRuntime):
         )
 
         for ep_group in endpoints or list(OpenAIEndpoint):
-            for ep_def in ENDPOINT_CLASSES[ep_group].endpoints():
-                config.add_endpoint_handler(**ep_def.to_handler_kwargs())
+            for ep in ENDPOINT_CLASSES[ep_group].endpoints():
+                config.add_endpoint_handler(**ep)
 
         self.set_api_handler_config(config)

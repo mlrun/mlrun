@@ -58,9 +58,9 @@ class TestSetOpenAIFrontend:
         responses_endpoints = ENDPOINT_CLASSES[OpenAIEndpoint.RESPONSES].endpoints()
 
         for ep_def in responses_endpoints:
-            ep = config.get_endpoint_config(ep_def.http_method, ep_def.path)
+            ep = config.get_endpoint_config(ep_def["http_method"], ep_def["path"])
             assert ep is not None, (
-                f"Expected {ep_def.http_method} {ep_def.path} to be registered"
+                f"Expected {ep_def['http_method']} {ep_def['path']} to be registered"
             )
 
         assert len(config.endpoints) == len(responses_endpoints)
@@ -73,7 +73,7 @@ class TestSetOpenAIFrontend:
         config = _config(fn)
         for group in OpenAIEndpoint:
             for ep_def in ENDPOINT_CLASSES[group].endpoints():
-                ep = config.get_endpoint_config(ep_def.http_method, ep_def.path)
+                ep = config.get_endpoint_config(ep_def["http_method"], ep_def["path"])
                 assert ep is not None, (
                     f"Expected {ep_def['http_method']} {ep_def['path']} to be registered"
                 )

@@ -33,7 +33,7 @@ Graphs can run inside your IDE or Notebook for test and simulation.
 
 Serving graphs are built on top of the [Nuclio real-time serverless engine](https://docs.nuclio.io/en/latest/), {ref}`MLRun jobs<job-function>`, [MLRun Storey](<https://github.com/mlrun/storey>) (native Python async and stream processing engine), and other MLRun facilities. 
 
-By default, all steps of the serving graph run on the same pod. It is possible to run different steps on different pods using distributed pipelines.Typically you run steps that require CPU on one pod, and steps that require a GPU on a different pod that is running on a potentially different node that has GPU support. See {ref}`distributed-graph-oview`.
+By default, all steps of the serving graph run on the same pod. It is possible to run different steps on different pods using distributed pipelines. Typically you run steps that require CPU on one pod, and steps that require a GPU on a different pod that is running on a potentially different node that has GPU support. See {ref}`distributed-graph-oview`.
 
 ## Serving graph UI
 The realtime pipelines UI page displays: 

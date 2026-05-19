@@ -115,6 +115,14 @@ class BodyMappings(mlrun.model.ModelObj):
         self._by_src = {}
         self._by_dest_index = {}
         for m in value or []:
+            if "source_path" not in m:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    "Each body mapping must include 'source_path'"
+                )
+            if "destination_path" not in m:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    "Each body mapping must include 'destination_path'"
+                )
             src = m["source_path"]
             dest = m["destination_path"]
             self._by_src[src] = {

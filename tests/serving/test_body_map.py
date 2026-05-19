@@ -185,16 +185,20 @@ class TestAPIHandlerConfigBodyMap:
         assert bm.mappings == []
 
     @pytest.mark.parametrize(
-        "mapping",
+        "mapping,missing_field",
         [
-            {"destination_path": "model", "mandatory": False},
-            {"source_path": "$.model", "mandatory": False},
+            ({"destination_path": "model", "mandatory": False}, "source_path"),
+            ({"source_path": "$.model", "mandatory": False}, "destination_path"),
         ],
     )
-    def test_mappings_setter_missing_required_field_raises(self, mapping: dict) -> None:
-        """mappings setter raises KeyError when source_path or destination_path is missing."""
+    def test_mappings_setter_missing_required_field_raises(
+        self, mapping: dict, missing_field: str
+    ) -> None:
+        """mappings setter raises MLRunInvalidArgumentError when source_path or destination_path is missing."""
         bm = BodyMappings()
-        with pytest.raises(KeyError):
+        with pytest.raises(
+            mlrun.errors.MLRunInvalidArgumentError, match=f"'{missing_field}'"
+        ):
             bm.mappings = [mapping]
 
 

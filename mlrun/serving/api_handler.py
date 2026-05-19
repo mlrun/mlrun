@@ -23,20 +23,10 @@ import nuclio_sdk
 
 import mlrun.common.schemas as schemas
 import mlrun.errors
+import mlrun.serving.endpoint_mapping as endpoint_mapping
 import mlrun.serving.server
 import mlrun.serving.states
 import mlrun.utils
-from mlrun.serving.endpoint_mapping import (
-    APIHandlerConfig,
-    EndpointConfig,
-    EndpointMatch,
-    apply_body_map,
-    check_body_and_path_parameters_overlapping,
-    collect_endpoint_matches,
-    compile_body_map,
-    compile_dynamic_path_patterns,
-    merge_body_maps,
-)
 from mlrun.serving.utils import _RequestContext
 
 
@@ -48,7 +38,7 @@ class _APIHandlerStep(mlrun.serving.states.TaskStep):
 
     def __init__(
         self,
-        config: APIHandlerConfig | dict | None = None,
+        config: endpoint_mapping.APIHandlerConfig | dict | None = None,
         name: str | None = None,
         context: mlrun.serving.server.GraphContext | None = None,
         **kwargs,
@@ -60,19 +50,23 @@ class _APIHandlerStep(mlrun.serving.states.TaskStep):
         super().__init__(name=name or "api-handler", **base_kwargs)
 
         if isinstance(config, dict):
-            self.config = APIHandlerConfig.from_dict(config)
-        elif isinstance(config, APIHandlerConfig):
+            self.config = endpoint_mapping.APIHandlerConfig.from_dict(config)
+        elif isinstance(config, endpoint_mapping.APIHandlerConfig):
             self.config = config
         else:
-            self.config = APIHandlerConfig()
+            self.config = endpoint_mapping.APIHandlerConfig()
         self.context = context
 
         # Pre-compile patterns and body maps in a single pass for performance.
         # Template patterns: /api/{user_id}/items → regex with named groups.
         # Star patterns:     /api/v1/*           → plain prefix string.
         # Body map cache:    endpoint key → {destination_path: (compiled_expr, mandatory)}
-        self._endpoint_patterns: list[tuple[HTTPMethod, Pattern, EndpointConfig]]
-        self._star_patterns: list[tuple[HTTPMethod, str, EndpointConfig]]
+        self._endpoint_patterns: list[
+            tuple[HTTPMethod, Pattern, endpoint_mapping.EndpointConfig]
+        ]
+        self._star_patterns: list[
+            tuple[HTTPMethod, str, endpoint_mapping.EndpointConfig]
+        ]
         self._parsed_body_map: dict[str, dict[str, tuple[Any, bool]]]
         (
             self._endpoint_patterns,
@@ -85,24 +79,28 @@ class _APIHandlerStep(mlrun.serving.states.TaskStep):
     def _compile_patterns(
         self,
     ) -> tuple[
-        list[tuple[HTTPMethod, Pattern, "EndpointConfig"]],
-        list[tuple[HTTPMethod, str, "EndpointConfig"]],
+        list[tuple[HTTPMethod, Pattern, "endpoint_mapping.EndpointConfig"]],
+        list[tuple[HTTPMethod, str, "endpoint_mapping.EndpointConfig"]],
         dict[str, dict[str, tuple[Any, bool]]],
     ]:
         """Compile path patterns and input body maps.
 
         :return: Tuple of (template_patterns, star_patterns, parsed_input_body_map).
         """
-        template_patterns, star_patterns = compile_dynamic_path_patterns(
-            self.config.endpoints
+        template_patterns, star_patterns = (
+            endpoint_mapping.compile_dynamic_path_patterns(self.config.endpoints)
         )
-        check_body_and_path_parameters_overlapping(template_patterns, star_patterns)
+        endpoint_mapping.check_body_and_path_parameters_overlapping(
+            template_patterns, star_patterns
+        )
 
         parsed_body_map: dict[str, dict[str, tuple[Any, bool]]] = {}
         for ep in self.config.endpoints.values():
             if ep.input_body_mappings:
-                parsed_body_map[ep.get_endpoint_key()] = compile_body_map(
-                    ep.input_body_mappings, ep.get_endpoint_key()
+                parsed_body_map[ep.get_endpoint_key()] = (
+                    endpoint_mapping.compile_body_map(
+                        ep.input_body_mappings, ep.get_endpoint_key()
+                    )
                 )
 
         return template_patterns, star_patterns, parsed_body_map
@@ -223,14 +221,18 @@ class _APIHandlerStep(mlrun.serving.states.TaskStep):
 
             # Handle the action
             if ep.action == schemas.APIHandlerAction.ALLOW:
-                effective_map = merge_body_maps(matches, self._parsed_body_map)
+                effective_map = endpoint_mapping.merge_body_maps(
+                    matches, self._parsed_body_map
+                )
 
                 body_params = {}
                 if effective_map:
                     body = event.body if hasattr(event, "body") else event
                     if isinstance(body, dict):
                         try:
-                            body_params = apply_body_map(body, effective_map)
+                            body_params = endpoint_mapping.apply_body_map(
+                                body, effective_map
+                            )
                             mlrun.utils.logger.debug(
                                 "Applied input body mapping",
                                 extracted_params=list(body_params.keys()),
@@ -322,8 +324,8 @@ class _APIHandlerStep(mlrun.serving.states.TaskStep):
 
     def _collect_endpoint_matches(
         self, method: HTTPMethod, path: str
-    ) -> list[EndpointMatch]:
-        return collect_endpoint_matches(
+    ) -> list[endpoint_mapping.EndpointMatch]:
+        return endpoint_mapping.collect_endpoint_matches(
             method,
             path,
             self.config.endpoints,

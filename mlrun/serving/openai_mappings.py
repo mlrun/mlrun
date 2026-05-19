@@ -15,10 +15,31 @@
 """Pre-built OpenAI body mappings and endpoint registry for set_openai_frontend()."""
 
 import abc
+import dataclasses
 from enum import StrEnum
 from http import HTTPMethod
 
 from mlrun.serving.endpoint_mapping import BodyMappings
+
+
+@dataclasses.dataclass
+class OpenAIEndpointDef:
+    """Definition of a single OpenAI endpoint."""
+
+    path: str
+    http_method: HTTPMethod
+    description: str = ""
+    input_body_mappings: BodyMappings | None = None
+    output_body_mappings: BodyMappings | None = None
+
+    def to_handler_kwargs(self) -> dict:
+        """Return kwargs suitable for APIHandlerConfig.add_endpoint_handler()."""
+        kwargs = {"path": self.path, "http_method": self.http_method}
+        if self.input_body_mappings is not None:
+            kwargs["input_body_mappings"] = self.input_body_mappings
+        if self.output_body_mappings is not None:
+            kwargs["output_body_mappings"] = self.output_body_mappings
+        return kwargs
 
 
 class OpenAIEndpoint(StrEnum):
@@ -40,10 +61,10 @@ class _OpenAIEndpointGroup(abc.ABC):
 
     @classmethod
     @abc.abstractmethod
-    def endpoints(cls) -> list[dict]:
+    def endpoints(cls) -> list[OpenAIEndpointDef]:
         """Return endpoint definitions for this group.
 
-        :return: List of dicts whose keys match add_endpoint_handler() kwargs.
+        :return: List of OpenAIEndpointDef instances.
         """
 
 
@@ -75,18 +96,20 @@ class ResponsesEndpoints(_OpenAIEndpointGroup):
         return bm
 
     @classmethod
-    def endpoints(cls) -> list[dict]:
+    def endpoints(cls) -> list[OpenAIEndpointDef]:
         return [
-            {
-                "path": "/responses/{response_id}",
-                "http_method": HTTPMethod.DELETE,
-            },
-            {
-                "path": "/responses/compact",
-                "http_method": HTTPMethod.POST,
-                "input_body_mappings": cls._compact_input_bm(),
-                "output_body_mappings": cls._compact_output_bm(),
-            },
+            OpenAIEndpointDef(
+                description="Delete a stored response by ID.",
+                path="/responses/{response_id}",
+                http_method=HTTPMethod.DELETE,
+            ),
+            OpenAIEndpointDef(
+                description="Create a compacted response from prior context.",
+                path="/responses/compact",
+                http_method=HTTPMethod.POST,
+                input_body_mappings=cls._compact_input_bm(),
+                output_body_mappings=cls._compact_output_bm(),
+            ),
         ]
 
 
@@ -94,7 +117,7 @@ class ChatCompletionsEndpoints(_OpenAIEndpointGroup):
     """OpenAI /chat/completions operation group — endpoint definitions and body mappings."""
 
     @classmethod
-    def endpoints(cls) -> list[dict]:
+    def endpoints(cls) -> list[OpenAIEndpointDef]:
         return []  # TODO: ML-12461
 
 
@@ -102,7 +125,7 @@ class AudioEndpoints(_OpenAIEndpointGroup):
     """OpenAI /audio operation group — endpoint definitions and body mappings."""
 
     @classmethod
-    def endpoints(cls) -> list[dict]:
+    def endpoints(cls) -> list[OpenAIEndpointDef]:
         return []  # TODO: ML-12461
 
 
@@ -110,7 +133,7 @@ class ImagesEndpoints(_OpenAIEndpointGroup):
     """OpenAI /images operation group — endpoint definitions and body mappings."""
 
     @classmethod
-    def endpoints(cls) -> list[dict]:
+    def endpoints(cls) -> list[OpenAIEndpointDef]:
         return []  # TODO: ML-12461
 
 

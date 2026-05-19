@@ -100,3 +100,37 @@ class BaseEventClient:
         :return: event object to emit, or None if the client doesn't support this event
         """
         return None
+
+    def generate_project_lifecycle_event(
+        self,
+        action: mlrun.common.schemas.ProjectLifecycleEventActions,
+        project_name: str,
+        actor: str | None = None,
+        error: BaseException | str | None = None,
+    ) -> typing.Any | None:
+        """
+        Generate a project lifecycle event (creation/deletion, succeeded/failed)
+        :param action: which lifecycle transition occurred
+        :param project_name: the project name
+        :param actor: username that initiated the operation, if known
+        :param error: optional exception or string (only relevant for the failed actions)
+        :return: event object to emit, or None if the client doesn't support this event
+        """
+        return None
+
+    def generate_project_owner_set_event(
+        self,
+        project_name: str,
+        prev_owner: str | None,
+        new_owner: str | None,
+        actor: str | None = None,
+    ) -> typing.Any | None:
+        """
+        Generate a project-owner-changed event
+        :param project_name: the project name
+        :param prev_owner: previous owner username (may be None if not set)
+        :param new_owner: new owner username
+        :param actor: username that initiated the change, if known
+        :return: event object to emit, or None if the client doesn't support this event
+        """
+        return None

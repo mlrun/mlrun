@@ -60,7 +60,7 @@ class TestSetOpenAIFrontend:
         for ep_def in responses_endpoints:
             ep = config.get_endpoint_config(ep_def.http_method, ep_def.path)
             assert ep is not None, (
-                f"Expected {ep_def['http_method']} {ep_def['path']} to be registered"
+                f"Expected {ep_def.http_method} {ep_def.path} to be registered"
             )
 
         assert len(config.endpoints) == len(responses_endpoints)

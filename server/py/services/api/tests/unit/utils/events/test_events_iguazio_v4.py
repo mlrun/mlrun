@@ -454,5 +454,3 @@ def test_project_lifecycle_unsupported_action_raises(client):
             project_name="my-project",
             actor=None,
         )
-
-

@@ -337,6 +337,7 @@ class TestBuildAndInjectMonitoringEnvVars:
         env = {e["name"]: e["value"] for e in fn["spec"]["env"]}
         assert env["MODEL_MONITORING_URL"] == "http://stream:8080"
         assert env["MODEL_ENDPOINT_UID"] == "uid-111"
+        assert env["MODEL_ENDPOINT_NAME"] == "ep1"
         assert "MODEL_ENDPOINTS_MAP" not in env
 
     def test_multiple_endpoints_injects_map(self):
@@ -360,6 +361,7 @@ class TestBuildAndInjectMonitoringEnvVars:
         )
         env = {e["name"]: e["value"] for e in fn["spec"]["env"]}
         assert env["MODEL_ENDPOINT_UID"] == "uid-1"
+        assert env["MODEL_ENDPOINT_NAME"] == "ep1"
         assert "MODEL_MONITORING_URL" not in env
         ep_map = json.loads(env["MODEL_ENDPOINTS_MAP"])
         assert ep_map == {"ep1": "uid-1", "ep2": "uid-2"}
@@ -379,6 +381,7 @@ class TestBuildAndInjectMonitoringEnvVars:
         names = {e["name"] for e in fn["spec"]["env"]}
         assert "MODEL_MONITORING_URL" not in names
         assert "MODEL_ENDPOINT_UID" in names
+        assert "MODEL_ENDPOINT_NAME" in names
 
     def test_empty_instructions_raises(self):
         dep = mm_dep.MonitoringDeployment(project="proj")

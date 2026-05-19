@@ -834,6 +834,21 @@ class TestModelEndpointsOperations(TestMLRunSystemModelMonitoring):
         assert ep2.spec.feature_names == ["a", "b"]
         assert ep2.spec.label_names == ["out"]
 
+    def test_create_user_model_endpoint_nonexistent_function_raises(self):
+        """create_user_model_endpoint raises MLRunNotFoundError for unknown function name or tag."""
+        with pytest.raises(mlrun.errors.MLRunNotFoundError):
+            self.project.create_user_model_endpoint(
+                "ep-bad-fn",
+                function_name="no-such-function",
+            )
+
+        with pytest.raises(mlrun.errors.MLRunNotFoundError):
+            self.project.create_user_model_endpoint(
+                "ep-bad-tag",
+                function_name="function-1",
+                function_tag="no-such-tag",
+            )
+
 
 @TestMLRunSystemModelMonitoring.skip_test_if_env_not_configured
 @pytest.mark.enterprise

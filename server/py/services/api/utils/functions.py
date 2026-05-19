@@ -146,7 +146,10 @@ def enrich_function_from_code_artifact(
 
     When ``function.spec.build.source`` is a store:// URI:
 
-    1. Validates that the artifact is a CodeArtifact (kind == "code").
+    1. Validates the artifact kind. Most runtimes require a CodeArtifact
+       (kind == "code"). Application runtime additionally accepts a generic
+       Artifact (kind == "artifact") for backward compatibility with the
+       single-file source workflow that predates CodeArtifact.
     2. Merges artifact ``spec.requirements`` into ``function.spec.build.requirements``
        (user requirements win on conflict).
     3. Defaults ``function.spec.build.load_source_on_run`` to True when unset, so
@@ -175,7 +178,10 @@ def enrich_function_from_code_artifact(
             f"Cannot resolve code artifact {source}: {err_to_str(exc)}"
         ) from exc
 
-    if artifact.kind != "code":
+    allowed_kinds = {"code"}
+    if function.kind == mlrun.runtimes.RuntimeKinds.application:
+        allowed_kinds.add("artifact")
+    if artifact.kind not in allowed_kinds:
         raise mlrun.errors.MLRunInvalidArgumentError(
             f"Source {source} resolves to a {artifact.kind!r} artifact; "
             "expected a code artifact (kind='code')."

@@ -698,6 +698,17 @@ class HTTPRunDB(RunDBInterface):
                 if hasattr(config.function_defaults.image_by_kind, kind):
                     setattr(config.function_defaults.image_by_kind, kind, image_value)
 
+            if server_cfg.get("telemetry_enabled") is not None:
+                config.telemetry.enabled = server_cfg["telemetry_enabled"]
+            if server_cfg.get("telemetry_otlp_endpoint") is not None:
+                config.telemetry.otlp_endpoint = server_cfg["telemetry_otlp_endpoint"]
+            if server_cfg.get("telemetry_insecure") is not None:
+                config.telemetry.insecure = server_cfg["telemetry_insecure"]
+            if server_cfg.get("telemetry_model_monitoring_interval") is not None:
+                config.telemetry.model_monitoring.interval = server_cfg[
+                    "telemetry_model_monitoring_interval"
+                ]
+
         except Exception as exc:
             logger.warning(
                 "Failed syncing config from server",

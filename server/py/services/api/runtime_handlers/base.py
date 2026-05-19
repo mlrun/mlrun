@@ -298,7 +298,7 @@ class BaseRuntimeHandler(ABC):
         token_name: str | None = None,
         auth_info: mlrun.common.schemas.AuthInfo | None = None,
     ):
-        otlp_enabled = bool(getattr(runtime.spec, "otlp_enabled", False))
+        mount_otlp_secret = bool(getattr(runtime.spec, "mount_otlp_secret", False))
         if runtime._secrets:
             if runtime._secrets.has_vault_source():
                 self.add_vault_params_to_spec(
@@ -314,7 +314,7 @@ class BaseRuntimeHandler(ABC):
                 project_name=project_name,
                 token_name=token_name,
                 auth_info=auth_info,
-                otlp_enabled=otlp_enabled,
+                mount_otlp_secret=mount_otlp_secret,
             )
         else:
             self.add_k8s_secrets_to_spec(
@@ -323,7 +323,7 @@ class BaseRuntimeHandler(ABC):
                 project_name=project_name,
                 token_name=token_name,
                 auth_info=auth_info,
-                otlp_enabled=otlp_enabled,
+                mount_otlp_secret=mount_otlp_secret,
             )
 
     @staticmethod
@@ -414,12 +414,12 @@ class BaseRuntimeHandler(ABC):
         encode_key_names: bool = True,
         token_name: str | None = None,
         auth_info: mlrun.common.schemas.AuthInfo | None = None,
-        otlp_enabled: bool = False,
+        mount_otlp_secret: bool = False,
     ):
         # In IG4, we add auth token secret as volumes and volumes mounts
         cls._mount_secret_token_to_runtime(runtime, token_name, auth_info)
 
-        if otlp_enabled:
+        if mount_otlp_secret:
             # Mount OTLP telemetry headers when configured. The function pod reads
             # them via mlrun.utils.telemetry.resolve_otlp_headers().
             cls._mount_telemetry_headers_to_runtime(runtime)

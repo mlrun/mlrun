@@ -103,7 +103,27 @@ class WorkflowSpec(mlrun.model.ModelObj):
         self.image = image
         self.workflow_runner_node_selector = workflow_runner_node_selector
 
-    def get_source_file(self, context=""):
+    def get_source_file(
+        self,
+        context: str = "",
+        project_name: str | None = None,
+        secrets: mlrun.secrets.SecretsStore | None = None,
+    ) -> str:
+        """Resolve the workflow path to a local file the runner can import.
+
+        - Inline ``self.code``: write to a temp file.
+        - ``store://`` URI: validate kind/code_type, download to
+          ``<context>/.mlrun/code/``. Each call re-downloads.
+        - Local path: join with ``context`` if relative.
+
+        :param context:      Project context directory.
+        :param project_name: Required for ``store://`` resolution.
+        :param secrets:      Forwarded to ``load_source_code`` for
+                             credential-protected stores. ``None`` is correct
+                             from the runner pod (K8s auto-mounts project
+                             secrets as env vars).
+        :returns: Local filesystem path to the workflow Python file.
+        """
         if not self.code and not self.path:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "workflow must have code or path properties"
@@ -114,16 +134,28 @@ class WorkflowSpec(mlrun.model.ModelObj):
             ) as workflow_fh:
                 workflow_fh.write(self.code)
                 self._tmp_path = workflow_path = workflow_fh.name
-        else:
-            workflow_path = self.path or ""
-            if (
-                context
-                and not workflow_path.startswith("/")
-                # since the user may provide a path the includes the context,
-                # we need to make sure we don't add it twice
-                and not workflow_path.startswith(context)
-            ):
-                workflow_path = os.path.join(context, workflow_path.lstrip("./"))
+            return workflow_path
+
+        if self.path and mlrun.datastore.is_store_uri(self.path):
+            target_dir = os.path.join(
+                context or ".", mlrun_constants.CODE_ARTIFACT_DOWNLOAD_SUBDIR
+            )
+            return _download_store_workflow_artifact(
+                workflow_path=self.path,
+                target_dir=target_dir,
+                project_name=project_name,
+                secrets=secrets,
+            )
+
+        workflow_path = self.path or ""
+        if (
+            context
+            and not workflow_path.startswith("/")
+            # since the user may provide a path the includes the context,
+            # we need to make sure we don't add it twice
+            and not workflow_path.startswith(context)
+        ):
+            workflow_path = os.path.join(context, workflow_path.lstrip("./"))
         return workflow_path
 
     def merge_args(self, extra_args):
@@ -149,6 +181,97 @@ class WorkflowSpec(mlrun.model.ModelObj):
     def clear_tmp(self):
         if self._tmp_path:
             os.remove(self._tmp_path)
+
+
+def _validate_workflow_code_artifact(artifact, workflow_path: str) -> None:
+    """Validate ``artifact`` is a code artifact with ``code_type='workflow'``.
+
+    Pure validation — no I/O. ``code_type=None`` is accepted for backward
+    compatibility; only an *explicit* non-workflow value fails.
+
+    :param artifact:      Resolved store-resource (or ``None``).
+    :param workflow_path: Original ``store://`` URI, used in error messages.
+    :raises MLRunNotFoundError: if ``artifact`` is ``None``.
+    :raises MLRunInvalidArgumentError: if not an Artifact, or if kind /
+                                       code_type mismatch.
+    """
+    if artifact is None:
+        raise mlrun.errors.MLRunNotFoundError(
+            f"Workflow path {workflow_path!r} did not resolve to an artifact "
+            "(the store returned no resource; the URI may be malformed or "
+            "point at a missing link target)."
+        )
+    if not isinstance(artifact, mlrun.artifacts.Artifact):
+        # get_store_resource can also return FeatureSet / FeatureVector /
+        # DataItem for non-artifact store URIs (e.g. store://feature-sets/...).
+        raise mlrun.errors.MLRunInvalidArgumentError(
+            f"Workflow path {workflow_path!r} resolves to a "
+            f"{type(artifact).__name__}; expected an Artifact (specifically, "
+            f"a code artifact)."
+        )
+    if artifact.kind != mlrun.artifacts.CodeArtifact.kind:
+        raise mlrun.errors.MLRunInvalidArgumentError(
+            f"Workflow path {workflow_path!r} resolves to a "
+            f"{artifact.kind!r} artifact; expected a code artifact "
+            f"(kind={mlrun.artifacts.CodeArtifact.kind!r})."
+        )
+    code_type = artifact.spec.code_type
+    if (
+        code_type is not None
+        and code_type != mlrun.artifacts.CodeArtifactCodeType.workflow
+    ):
+        raise mlrun.errors.MLRunInvalidArgumentError(
+            f"Workflow path {workflow_path!r} resolves to a code artifact "
+            f"with code_type={code_type.value!r}; expected "
+            f"{mlrun.artifacts.CodeArtifactCodeType.workflow.value!r}."
+        )
+
+
+def validate_remote_workflow_artifact(
+    workflow_path: str,
+    project_name: str,
+    secrets: mlrun.secrets.SecretsStore | None = None,
+    data_store_secrets: mlrun.secrets.SecretsStore | dict | None = None,
+) -> None:
+    """Resolve and validate a ``store://`` workflow artifact via the API.
+
+    Metadata-only check — ``get_store_resource`` reads from the MLRun DB, no
+    artifact content is downloaded here. All errors propagate.
+    """
+    artifact = mlrun.datastore.get_store_resource(
+        workflow_path,
+        project=project_name,
+        secrets=secrets,
+        data_store_secrets=data_store_secrets,
+    )
+    _validate_workflow_code_artifact(artifact, workflow_path)
+
+
+def _download_store_workflow_artifact(
+    workflow_path: str,
+    target_dir: str,
+    project_name: str | None,
+    secrets: mlrun.secrets.SecretsStore | None,
+) -> str:
+    """Resolve, validate, and download a ``store://`` workflow artifact.
+
+    Runner-pod authoritative path; all errors propagate.
+
+    :returns: Local filesystem path to the downloaded workflow file.
+    """
+    validate_remote_workflow_artifact(
+        workflow_path,
+        project_name,
+        secrets=secrets,
+        data_store_secrets=secrets,
+    )
+    _, file_path = mlrun.utils.clones.load_source_code(
+        source_uri=workflow_path,
+        target_dir=target_dir,
+        project=project_name,
+        secrets=secrets,
+    )
+    return file_path
 
 
 class FunctionsDict:
@@ -542,7 +665,11 @@ class _PipelineRunner(abc.ABC):
     @staticmethod
     def _get_handler(workflow_handler, workflow_spec, project, secrets):
         if not (workflow_handler and callable(workflow_handler)):
-            workflow_file = workflow_spec.get_source_file(project.spec.get_code_path())
+            workflow_file = workflow_spec.get_source_file(
+                project.spec.get_code_path(),
+                project_name=project.metadata.name,
+                secrets=secrets,
+            )
             workflow_handler = create_pipeline(
                 project,
                 workflow_file,
@@ -572,7 +699,11 @@ class _KFPRunner(_PipelineRunner):
     @classmethod
     def save(cls, project, workflow_spec: WorkflowSpec, target, artifact_path=None):
         pipeline_context.set(project, workflow_spec)
-        workflow_file = workflow_spec.get_source_file(project.spec.get_code_path())
+        workflow_file = workflow_spec.get_source_file(
+            project.spec.get_code_path(),
+            project_name=project.metadata.name,
+            secrets=project._secrets,
+        )
         functions = FunctionsDict(project)
         pipeline = create_pipeline(
             project,
@@ -845,6 +976,34 @@ class _RemoteRunner(_PipelineRunner):
 
     engine = "remote"
 
+    @staticmethod
+    def resolve_relative_workflow_path(workflow_path: str, code_path: str) -> str:
+        """Resolve ``workflow_path`` to a ``./``-prefixed form relative to
+        ``code_path`` if it lives under it.
+
+        The runner pod mounts the project context at ``code_path``, so absolute
+        client-side paths must be made relative before being shipped.
+
+        Pass-through (returned unchanged): empty/``None`` ``workflow_path`` or
+        ``code_path``, URL paths (``store://``, ``s3://``, ``git://``, ...),
+        and paths that don't start with ``code_path``.
+
+        :param workflow_path: The workflow path to convert.
+        :param code_path:     The project code-path prefix to strip.
+        :returns: The relative path, or the original if no conversion applies.
+        """
+        if not workflow_path or "://" in workflow_path:
+            return workflow_path
+        if not code_path:
+            # str.startswith("") is True for every path, so guard explicitly
+            # to avoid prefixing every input with "./".
+            return workflow_path
+        if not workflow_path.startswith(code_path):
+            return workflow_path
+        relative = workflow_path.removeprefix(code_path)
+        prefix = "." if relative.startswith("/") else "./"
+        return f"{prefix}{relative}"
+
     @classmethod
     def run(
         cls,
@@ -875,20 +1034,9 @@ class _RemoteRunner(_PipelineRunner):
                 project_name=project.name,
             )
 
-            # set it relative to project path
-            # as the runner pod will mount and use `load_and_run` which will use the project context
-            # to load the workflow file to.
-            # e.g.
-            # /path/to/project/workflow.py -> ./workflow.py
-            # /path/to/project/subdir/workflow.py -> ./workflow.py
-            if workflow_spec.path:
-                prefix = project.spec.get_code_path()
-                if workflow_spec.path.startswith(prefix):
-                    workflow_spec.path = workflow_spec.path.removeprefix(prefix)
-                    relative_prefix = "."
-                    if not workflow_spec.path.startswith("/"):
-                        relative_prefix += "/"
-                    workflow_spec.path = f"{relative_prefix}{workflow_spec.path}"
+            workflow_spec.path = cls.resolve_relative_workflow_path(
+                workflow_spec.path, project.spec.get_code_path()
+            )
 
             workflow_response = run_db.submit_workflow(
                 project=project.name,

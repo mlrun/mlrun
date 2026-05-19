@@ -112,7 +112,7 @@ class KubeResourceSpec(FunctionSpec):
         "parameters",
         "graph",
         "filename",
-        "otlp_enabled",
+        "mount_otlp_secret",
     ]
     _default_fields_to_strip = FunctionSpec._default_fields_to_strip + [
         "volumes",
@@ -194,7 +194,7 @@ class KubeResourceSpec(FunctionSpec):
         parameters=None,
         graph=None,
         env_from=None,
-        otlp_enabled: bool = False,
+        mount_otlp_secret: bool = False,
     ):
         super().__init__(
             command=command,
@@ -249,7 +249,7 @@ class KubeResourceSpec(FunctionSpec):
         # When True, the API server mounts the OTLP telemetry headers secret onto
         # the function pod so the runtime can authenticate against the OTLP endpoint
         # via mlrun.utils.telemetry.resolve_otlp_headers().
-        self.otlp_enabled = otlp_enabled
+        self.mount_otlp_secret = mount_otlp_secret
         # Termination grace period is internal for runtimes that have a pod termination hook hence it is not in the
         # _dict_fields and doesn't have a setter.
         self._termination_grace_period_seconds = None

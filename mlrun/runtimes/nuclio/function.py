@@ -181,7 +181,7 @@ class NuclioSpec(KubeResourceSpec):
         track_models=None,
         auth=None,
         env_from=None,
-        otlp_enabled: bool = False,
+        mount_otlp_secret: bool = False,
         model_endpoints_instructions=None,
     ):
         super().__init__(
@@ -217,7 +217,7 @@ class NuclioSpec(KubeResourceSpec):
             graph=graph,
             parameters=parameters,
             track_models=track_models,
-            otlp_enabled=otlp_enabled,
+            mount_otlp_secret=mount_otlp_secret,
         )
 
         self.auth = auth or {}
@@ -432,9 +432,12 @@ class RemoteRuntime(KubeResource):
                     general_model_endpoint_instructions
                 )
             )
-            if self.metadata.name != general_model_endpoint_instructions.name:
+            if general_model_endpoint_instructions.function_name is not None and (
+                general_model_endpoint_instructions.function_name != self.metadata.name
+            ):
                 raise mlrun.errors.MLRunInvalidArgumentError(
-                    "Model endpoint name mismatch, instruction name must be the same as the function name"
+                    "Model endpoint function_name mismatch, instruction function_name must be the same as the function "
+                    "name"
                 )
             if general_model_endpoint_instructions.function_tag is not None and (
                 general_model_endpoint_instructions.function_tag != self.metadata.tag
@@ -460,11 +463,13 @@ class RemoteRuntime(KubeResource):
                     "ModelEndpointInstruction objects or dicts, not a mix of both."
                 )
             if any(
-                extra_instruction.name != self.metadata.name
+                extra_instruction.function_name is not None
+                and extra_instruction.function_name != self.metadata.name
                 for extra_instruction in extra_model_endpoint_instructions
             ):
                 raise mlrun.errors.MLRunInvalidArgumentError(
-                    "Model endpoint name mismatch, all instruction names must be the same as the function name"
+                    "Model endpoint function_name mismatch, all instruction function_names must be the same as the "
+                    "function name"
                 )
             if any(
                 extra_instruction.function_tag is not None

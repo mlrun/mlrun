@@ -97,7 +97,7 @@ def test_cli_load_source_success(project):
 
     with unittest.mock.patch(
         "mlrun.__main__.load_source_code",
-        return_value="/home/mlrun_code/handler.py",
+        return_value=("/home/mlrun_code", "/home/mlrun_code/handler.py"),
     ) as mock_load:
         result = runner.invoke(main, cli_args)
 
@@ -141,7 +141,7 @@ def test_cli_load_source_git_and_archives(source_uri, expected_target):
 
     with unittest.mock.patch(
         "mlrun.__main__.load_source_code",
-        return_value=expected_target,
+        return_value=(expected_target, None),
     ) as mock_load:
         result = runner.invoke(main, ["load-source", source_uri])
 
@@ -162,7 +162,7 @@ def test_cli_load_source_custom_target():
 
     with unittest.mock.patch(
         "mlrun.__main__.load_source_code",
-        return_value=custom_target,
+        return_value=(custom_target, None),
     ) as mock_load:
         result = runner.invoke(
             main, ["load-source", source_uri, "--target", custom_target]

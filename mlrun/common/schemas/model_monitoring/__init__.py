@@ -33,6 +33,7 @@ from .constants import (
     ModelMonitoringInfraLabel,
     ModelMonitoringMode,
     MonitoringFunctionNames,
+    MonitoringHTTPPayload,
     NuclioMonitoringEnvVars,
     PredictionsQueryConstants,
     ProjectSecretKeys,

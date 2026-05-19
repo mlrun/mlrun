@@ -21,6 +21,7 @@ from typing import Any, Union
 import mlrun.common.schemas
 import mlrun.common.schemas.alert as alert_objects
 import mlrun.common.schemas.model_monitoring.constants as mm_constants
+import mlrun.errors
 import mlrun.model_monitoring.helpers
 import mlrun.platforms.iguazio
 from mlrun.serving import GraphContext
@@ -52,11 +53,9 @@ class _PushToMonitoringWriter(StepToDict):
         self,
         event: tuple[
             list[
-                Union[
-                    ModelMonitoringApplicationResult,
-                    ModelMonitoringApplicationMetric,
-                    _ModelMonitoringApplicationStats,
-                ]
+                ModelMonitoringApplicationResult
+                | ModelMonitoringApplicationMetric
+                | _ModelMonitoringApplicationStats,
             ],
             MonitoringApplicationContext,
         ],
@@ -91,6 +90,107 @@ class _PushToMonitoringWriter(StepToDict):
                 function_name=mm_constants.MonitoringFunctionNames.WRITER,
             )
         return self._output_stream
+
+
+class _PrepareOTelEvent(StepToDict):
+    """Adapter step between an MM application's output and
+    :class:`mlrun.serving.OTelMetricsExporter`.
+
+    The application emits a ``(results, MonitoringApplicationContext)`` tuple
+    where ``results`` mixes :class:`ModelMonitoringApplicationResult` (drift
+    detection / scoring) and :class:`ModelMonitoringApplicationMetric`
+    (free-form numeric metrics). The OTel exporter expects events shaped as::
+
+        {
+            "metrics": [
+                {
+                    "metric_name": "...",
+                    "value": 0.42,
+                    "type": "gauge",
+                    "attributes": {...},
+                },
+                ...,
+            ]
+        }
+
+    Naming convention:
+        * ``mlrun.model_monitoring.result.<name>`` for results
+        * ``mlrun.model_monitoring.metric.<name>`` for metrics
+
+    Both are emitted as gauges — raw value flows through, and
+    ``result.status`` is the normalized signal for alerting / dashboarding.
+
+    Attributes (shared from MonitoringApplicationContext):
+        * ``project``
+        * ``app.name``
+        * ``function.name``
+        * ``endpoint.uid``
+        * ``endpoint.name``
+
+    Result-only attributes:
+        * ``result.kind``   (e.g. ``"data_drift"``)
+        * ``result.status`` (e.g. ``"detected"``)
+
+    Attribute key names live in
+    :class:`mlrun.common.schemas.model_monitoring.constants.OTelMonitoringAttribute`
+    so downstream consumers (alerts, dashboards) have one canonical
+    reference rather than scattered string literals.
+
+    ``_ModelMonitoringApplicationStats`` entries (histogram drift app
+    internal stats) are skipped — they don't map cleanly onto an OTel
+    instrument.
+    """
+
+    kind = "monitoring_otel_event_preparer"
+
+    def do(
+        self,
+        event: tuple[
+            list[
+                Union[
+                    ModelMonitoringApplicationResult,
+                    ModelMonitoringApplicationMetric,
+                    _ModelMonitoringApplicationStats,
+                ]
+            ],
+            MonitoringApplicationContext,
+        ],
+    ) -> dict[str, Any]:
+        results, ctx = event
+        attr = mm_constants.OTelMonitoringAttribute
+        prefix = mm_constants.OTelMonitoringMetricNamePrefix
+        base_attributes = {
+            attr.PROJECT.value: ctx.project_name,
+            attr.APP_NAME.value: ctx.application_name,
+            attr.FUNCTION_NAME.value: ctx.model_endpoint.spec.function_name,
+            attr.ENDPOINT_UID.value: ctx.endpoint_id,
+            attr.ENDPOINT_NAME.value: ctx.endpoint_name,
+        }
+        # Strip None-valued attributes — the OTel SDK rejects them with a
+        # warning on every record() call.
+        base_attributes = {k: v for k, v in base_attributes.items() if v is not None}
+
+        metrics: list[dict[str, Any]] = []
+        for entry in results:
+            if isinstance(entry, _ModelMonitoringApplicationStats):
+                # Histogram stats are a side payload, not a metric value.
+                continue
+            attributes = dict(base_attributes)
+            if isinstance(entry, ModelMonitoringApplicationResult):
+                metric_name = f"{prefix.RESULT.value}{entry.name}"
+                attributes[attr.RESULT_KIND.value] = entry.kind.name
+                attributes[attr.RESULT_STATUS.value] = entry.status.name
+            else:
+                metric_name = f"{prefix.METRIC.value}{entry.name}"
+            metrics.append(
+                {
+                    "metric_name": metric_name,
+                    "value": float(entry.value),
+                    "type": "gauge",
+                    "attributes": attributes,
+                }
+            )
+        return {"metrics": metrics, "endpoint_id": ctx.endpoint_id}
 
 
 class _PrepareMonitoringEvent(StepToDict):
@@ -164,37 +264,75 @@ class _PrepareMonitoringEvent(StepToDict):
 
 
 class _ApplicationErrorHandler(StepToDict):
-    def __init__(self, project: str, name: str | None = None):
+    def __init__(
+        self,
+        project: str,
+        name: str | None = None,
+        application_name: str | None = None,
+        user_step_name: str | None = None,
+    ):
+        """Single error-handler shared across the MM serving graph.
+
+        Storey sets ``event.origin_state`` to the failing step's name.
+        Failures from the user step (``user_step_name``) produce an alert
+        with entity id ``<project>_<app>``; failures from any other step
+        produce ``<project>_<app>_<origin_state>`` so alert configs can
+        route by failing step.
+
+        :param project: Project name; goes on the alert event entity.
+        :param name: Step name in the graph (default
+            ``"ApplicationErrorHandler"``).
+        :param application_name: Application name; included on every alert.
+        :param user_step_name: The user app step name; failures whose
+            ``origin_state`` matches this are tagged as the main-app branch
+            (no suffix). Anything else is treated as an auxiliary step.
+        """
         self.project = project
         self.name = name or "ApplicationErrorHandler"
+        self.application_name = application_name
+        self.user_step_name = user_step_name
 
     def do(self, event):
         """
-        Handle model monitoring application error. This step will generate an event, describing the error.
+        Handle a failure from any step in the MM serving graph and emit
+        an ``MM_APP_FAILED`` alert tagged with the failing step's name.
 
-        :param event: Application event.
+        :param event: Application event (storey adds ``origin_state``
+            and ``error`` before routing to this step).
         """
-
+        origin_state = getattr(event, "origin_state", None)
+        if isinstance(event.body, tuple) and len(event.body) == 2:
+            endpoint_id = event.body[1].endpoint_id
+        elif isinstance(event.body, dict):
+            endpoint_id = event.body["endpoint_id"]
+        elif isinstance(event.body, MonitoringApplicationContext):
+            endpoint_id = event.body.endpoint_id
+        else:
+            endpoint_id = None
         error_data = {
-            "Endpoint ID": event.body.endpoint_id,
-            "Application Class": event.body.application_name,
+            "Endpoint ID": endpoint_id,
+            "Application Class": self.application_name,
             "Error": "".join(
                 traceback.format_exception(
                     None, value=event.error, tb=event.error.__traceback__
                 )
             ),
             "Timestamp": event.timestamp,
+            "Step Name": origin_state,
         }
-        logger.error("Error in application step", **error_data)
-
+        logger.error("Error in application", **error_data)
         error_data["Error"] = event.error
+
+        entity_id = f"{self.project}_{self.application_name}"
+        if origin_state != self.user_step_name:
+            entity_id += f"_{origin_state}"
 
         event_data = alert_objects.Event(
             kind=alert_objects.EventKind.MM_APP_FAILED,
             entity=alert_objects.EventEntities(
                 kind=alert_objects.EventEntityKind.MODEL_MONITORING_APPLICATION,
                 project=self.project,
-                ids=[f"{self.project}_{event.body.application_name}"],
+                ids=[entity_id],
             ),
             value_dict=error_data,
         )

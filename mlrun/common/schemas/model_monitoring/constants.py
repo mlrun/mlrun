@@ -255,6 +255,36 @@ class StatsKind(MonitoringStrEnum):
     DRIFT_MEASURES = "drift_measures"
 
 
+class OTelMonitoringAttribute(MonitoringStrEnum):
+    """Attribute keys exported on OTel metric events for model-monitoring
+    application results / metrics.
+
+    Dot-separated naming follows the OpenTelemetry semantic-conventions
+    convention. ``project``, ``app.name``, ``function.name``,
+    ``endpoint.uid``, ``endpoint.name`` are shared by every entry in a
+    batch; ``result.kind`` and ``result.status`` apply only to entries
+    coming from a :class:`ModelMonitoringApplicationResult`.
+    """
+
+    PROJECT = "project"
+    APP_NAME = "app.name"
+    FUNCTION_NAME = "function.name"
+    ENDPOINT_UID = "endpoint.uid"
+    ENDPOINT_NAME = "endpoint.name"
+    RESULT_KIND = "result.kind"
+    RESULT_STATUS = "result.status"
+
+
+class OTelMonitoringMetricNamePrefix(MonitoringStrEnum):
+    """OTel instrument-name prefixes for model-monitoring application
+    outputs. The full metric name is ``<prefix><result-or-metric name>``,
+    e.g. ``mlrun.model_monitoring.result.general_drift``.
+    """
+
+    RESULT = "mlrun.model_monitoring.result."
+    METRIC = "mlrun.model_monitoring.metric."
+
+
 class EventLiveStats:
     LATENCY_AVG_5M = "latency_avg_5m"
     LATENCY_AVG_1H = "latency_avg_1h"
@@ -349,7 +379,19 @@ class NuclioMonitoringEnvVars(MonitoringStrEnum):
 
     MODEL_MONITORING_URL = "MODEL_MONITORING_URL"
     MODEL_ENDPOINT_UID = "MODEL_ENDPOINT_UID"
+    MODEL_ENDPOINT_NAME = "MODEL_ENDPOINT_NAME"
     MODEL_ENDPOINTS_MAP = "MODEL_ENDPOINTS_MAP"
+
+
+class MonitoringHTTPPayload(MonitoringStrEnum):
+    """Field names for the HTTP ingest payload POSTed to the stream pod."""
+
+    MODEL_ENDPOINT_UID = "model_endpoint_uid"
+    MODEL_ENDPOINT_NAME = "model_endpoint_name"
+    TIMESTAMP = "timestamp"  # optional
+    INPUTS = "inputs"
+    OUTPUTS = "outputs"
+    LATENCY = "latency"  # optional: inference latency in microseconds
 
 
 class MonitoringFunctionNames(MonitoringStrEnum):

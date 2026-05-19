@@ -62,7 +62,7 @@ class RemoteSparkSpec(KubeResourceSpec):
         parameters=None,
         track_models=None,
         env_from=None,
-        otlp_enabled: bool = False,
+        mount_otlp_secret: bool = False,
     ):
         super().__init__(
             command=command,
@@ -97,7 +97,7 @@ class RemoteSparkSpec(KubeResourceSpec):
             graph=graph,
             parameters=parameters,
             track_models=track_models,
-            otlp_enabled=otlp_enabled,
+            mount_otlp_secret=mount_otlp_secret,
         )
         self.provider = provider
 

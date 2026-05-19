@@ -199,12 +199,13 @@ def extract_source(source: str, workdir=None, secrets=None, clone=True, project=
         # target dir before fetching) — not applicable to store:// URIs,
         # where _load_store_artifact downloads a single file.
         target_dir = workdir or os.path.realpath("./code")
-        return load_source_code(
+        loaded_dir, _ = load_source_code(
             source_uri=source,
             target_dir=target_dir,
             project=project,
             secrets=secrets,
         )
+        return loaded_dir
     clone = clone if workdir else False
     target_dir = workdir or os.path.realpath("./code")
     if source.endswith(".zip"):
@@ -229,7 +230,7 @@ def load_source_code(
     target_dir: str,
     project: str | None = None,
     secrets=None,
-) -> str:
+) -> tuple[str, str | None]:
     """
     Load source code from various sources into a target directory.
     This function is used by the Application Runtime init container to prepare
@@ -247,7 +248,10 @@ def load_source_code(
     :param secrets:    Optional secrets used to access secured data stores
                        (forwarded to the store:// resolver)
 
-    :returns: Path to the directory containing the loaded source.
+    :returns: ``(target_dir, file_path)``. ``target_dir`` is always set.
+              ``file_path`` is the resolved local file path for ``store://``
+              single-file artifacts, and ``None`` for git/archive sources
+              where there is no canonical entry file.
     """
     if not source_uri:
         raise mlrun.errors.MLRunInvalidArgumentError("source_uri is required")
@@ -260,11 +264,11 @@ def load_source_code(
 
     # Handle git:// URLs
     if source_uri.startswith("git://"):
-        return _load_git_source(source_uri, target_dir)
+        return _load_git_source(source_uri, target_dir), None
 
     # Handle archive files (.zip, .tar.gz)
     if source_uri.endswith(".zip") or source_uri.endswith(".tar.gz"):
-        return _load_archive_source(source_uri, target_dir)
+        return _load_archive_source(source_uri, target_dir), None
 
     raise mlrun.errors.MLRunInvalidArgumentError(
         f"Unsupported source type: {source_uri}. "
@@ -277,7 +281,7 @@ def _load_store_artifact(
     target_dir: str,
     project: str | None = None,
     secrets=None,
-) -> str:
+) -> tuple[str, str]:
     """
     Load a single-file artifact from the MLRun artifact store.
 
@@ -289,7 +293,10 @@ def _load_store_artifact(
                        download for cases where the artifact target path lives
                        on a credential-protected store)
 
-    :returns: Path to the directory containing the loaded source file.
+    :returns: ``(target_dir, local_file_path)`` — the directory the file was
+              downloaded into and the resolved file path within it. Each call
+              re-downloads the artifact content, overwriting any previous local
+              copy at the same path.
     """
     # Resolve the artifact from the store
     artifact = mlrun.datastore.get_store_resource(
@@ -326,9 +333,7 @@ def _load_store_artifact(
             f"Failed to download artifact from {artifact_target_path} to {local_file_path}"
         ) from exc
 
-    # Return the directory (not the file path) so that callers like _pre_run()
-    # can set it as the working directory and add it to sys.path for imports.
-    return target_dir
+    return target_dir, local_file_path
 
 
 def _load_git_source(source_uri: str, target_dir: str) -> str:

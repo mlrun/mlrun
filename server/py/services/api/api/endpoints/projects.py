@@ -44,7 +44,6 @@ router = fastapi.APIRouter()
 )
 async def create_project(
     project: mlrun.common.schemas.Project,
-    request: fastapi.Request,
     response: fastapi.Response,
     # TODO: we're in a http request context here, therefore it doesn't make sense that by default it will hold the
     #  request until the process will be completed - after UI supports waiting - change default to False
@@ -62,16 +61,6 @@ async def create_project(
             mlrun.common.schemas.AuthorizationAction.create,
             auth_info,
         )
-
-    # we reroute to chief to ensure project sync is handled properly
-    if (
-        mlrun.mlconf.httpdb.clusterization.role
-        != mlrun.common.schemas.ClusterizationRole.chief
-    ):
-        logger.info("Requesting to create project, re-routing to chief")
-        chief_client = framework.utils.clients.chief.Client()
-        return await chief_client.create_project(request=request)
-
     project, is_running_in_background = await run_in_threadpool(
         get_project_member().create_project,
         db_session,
@@ -101,7 +90,6 @@ async def create_project(
 async def store_project(
     project: mlrun.common.schemas.Project,
     name: str,
-    request: fastapi.Request,
     # TODO: we're in a http request context here, therefore it doesn't make sense that by default it will hold the
     #  request until the process will be completed - after UI supports waiting - change default to False
     wait_for_completion: bool = fastapi.Query(True, alias="wait-for-completion"),
@@ -113,19 +101,6 @@ async def store_project(
     ),
 ):
     await _ensure_project_create_or_update_permissions(db_session, name, auth_info)
-
-    # we reroute to chief to ensure project sync is handled properly
-    if (
-        mlrun.mlconf.httpdb.clusterization.role
-        != mlrun.common.schemas.ClusterizationRole.chief
-    ):
-        logger.info(
-            "Requesting to store project, re-routing to chief",
-            project=name,
-        )
-        chief_client = framework.utils.clients.chief.Client()
-        return await chief_client.store_project(name=name, request=request)
-
     project, is_running_in_background = await run_in_threadpool(
         get_project_member().store_project,
         db_session,

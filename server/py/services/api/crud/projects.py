@@ -106,18 +106,7 @@ class Projects(
             artifact_amount=len(project.spec.artifacts or []),
             workflows_amount=len(project.spec.workflows or []),
         )
-        prev_owner = self._get_existing_project_owner(session, name)
         framework.utils.singletons.db.get_db().store_project(session, name, project)
-        new_owner = project.spec.owner
-        # Only emit when there was an existing project (i.e. this was not a
-        # create-via-store) and the owner actually changed.
-        if prev_owner is not None and prev_owner != new_owner:
-            self._emit_project_owner_set_event(
-                project_name=name,
-                prev_owner=prev_owner,
-                new_owner=new_owner,
-                actor=auth_info.username,
-            )
 
     def patch_project(
         self,
@@ -130,25 +119,9 @@ class Projects(
         logger.debug(
             "Patching project", name=name, project=project, patch_mode=patch_mode
         )
-        # Only inspect the prev owner if the patch actually carries one — patches
-        # that don't touch spec.owner can never trigger an Owner.Set event.
-        spec_patch = project.get("spec") if isinstance(project, dict) else None
-        owner_in_patch = isinstance(spec_patch, dict) and "owner" in spec_patch
-        prev_owner = (
-            self._get_existing_project_owner(session, name) if owner_in_patch else None
-        )
         framework.utils.singletons.db.get_db().patch_project(
             session, name, project, patch_mode
         )
-        if owner_in_patch:
-            new_owner = spec_patch.get("owner")
-            if prev_owner != new_owner:
-                self._emit_project_owner_set_event(
-                    project_name=name,
-                    prev_owner=prev_owner,
-                    new_owner=new_owner,
-                    actor=auth_info.username,
-                )
 
     def delete_project(
         self,
@@ -468,24 +441,6 @@ class Projects(
             project=name,
         )
 
-    def _get_existing_project_owner(
-        self,
-        session: sqlalchemy.orm.Session,
-        name: str,
-    ) -> str | None:
-        """
-        Return the current owner of the project, or ``None`` if the project
-        doesn't yet exist (e.g. create-via-store upsert). Errors other than
-        ``MLRunNotFoundError`` propagate.
-        """
-        try:
-            existing = framework.utils.singletons.db.get_db().get_project(
-                session, name=name
-            )
-        except mlrun.errors.MLRunNotFoundError:
-            return None
-        return existing.spec.owner if existing.spec else None
-
     def _emit_project_lifecycle_event(
         self,
         action: mlrun.common.schemas.ProjectLifecycleEventActions,
@@ -509,32 +464,6 @@ class Projects(
             logger.warning(
                 "Failed to publish project lifecycle event",
                 action=action,
-                project=project_name,
-                exc=mlrun.errors.err_to_str(publish_exc),
-            )
-
-    def _emit_project_owner_set_event(
-        self,
-        project_name: str,
-        prev_owner: str | None,
-        new_owner: str | None,
-        actor: str | None,
-    ) -> None:
-        """Best-effort emit of a project-owner-changed event; never raises."""
-        try:
-            client = events_factory.EventsFactory.get_events_client()
-            event = client.generate_project_owner_set_event(
-                project_name=project_name,
-                prev_owner=prev_owner,
-                new_owner=new_owner,
-                actor=actor,
-            )
-            if event is None:
-                return
-            client.emit(event)
-        except Exception as publish_exc:
-            logger.warning(
-                "Failed to publish project owner-set event",
                 project=project_name,
                 exc=mlrun.errors.err_to_str(publish_exc),
             )

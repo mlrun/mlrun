@@ -117,20 +117,3 @@ class BaseEventClient:
         :return: event object to emit, or None if the client doesn't support this event
         """
         return None
-
-    def generate_project_owner_set_event(
-        self,
-        project_name: str,
-        prev_owner: str | None,
-        new_owner: str | None,
-        actor: str | None = None,
-    ) -> typing.Any | None:
-        """
-        Generate a project-owner-changed event
-        :param project_name: the project name
-        :param prev_owner: previous owner username (may be None if not set)
-        :param new_owner: new owner username
-        :param actor: username that initiated the change, if known
-        :return: event object to emit, or None if the client doesn't support this event
-        """
-        return None

@@ -456,33 +456,3 @@ def test_project_lifecycle_unsupported_action_raises(client):
         )
 
 
-def test_generate_project_owner_set_event(client):
-    event = client.generate_project_owner_set_event(
-        project_name="my-project",
-        prev_owner="alice",
-        new_owner="bob",
-        actor="admin",
-    )
-    assert event.config_name == iguazio_v4_events.PROJECT_OWNER_SET
-    assert event.kind == "system"
-    assert event.class_ == "Project"
-    assert event.severity == iguazio.schemas.Severity.INFO
-    assert event.entity_name == "mlrun-api-chief"
-    assert event.source == ""
-    assert event.description == "Project owner was changed"
-    assert event.details == {
-        "project_name": "my-project",
-        "prev_owner": "alice",
-        "new_owner": "bob",
-        "actor": "admin",
-    }
-
-
-def test_generate_project_owner_set_event_omits_none_fields(client):
-    event = client.generate_project_owner_set_event(
-        project_name="my-project",
-        prev_owner=None,
-        new_owner="bob",
-        actor=None,
-    )
-    assert event.details == {"project_name": "my-project", "new_owner": "bob"}

@@ -34,7 +34,6 @@ PROJECT_CREATION_SUCCEEDED = "MLRun.Project.Creation.Succeeded"
 PROJECT_CREATION_FAILED = "MLRun.Project.Creation.Failed"
 PROJECT_DELETION_SUCCEEDED = "MLRun.Project.Deletion.Succeeded"
 PROJECT_DELETION_FAILED = "MLRun.Project.Deletion.Failed"
-PROJECT_OWNER_SET = "MLRun.Project.Owner.Set"
 
 EVENT_KIND = "system"
 EVENT_CLASS = "DB"
@@ -252,32 +251,6 @@ class Client(base_events.BaseEventClient):
             class_=EVENT_CLASS_PROJECT,
             entity_name=self._entity_name,
             description=description,
-            details=details,
-        )
-
-    def generate_project_owner_set_event(
-        self,
-        project_name: str,
-        prev_owner: str | None,
-        new_owner: str | None,
-        actor: str | None = None,
-    ) -> iguazio.schemas.EventActivationSpec:
-        details: dict = {"project_name": project_name}
-        if prev_owner is not None:
-            details["prev_owner"] = prev_owner
-        if new_owner is not None:
-            details["new_owner"] = new_owner
-        if actor:
-            details["actor"] = actor
-
-        return iguazio.schemas.EventActivationSpec(
-            config_name=PROJECT_OWNER_SET,
-            source="",
-            kind=EVENT_KIND,
-            severity=iguazio.schemas.Severity.INFO,
-            class_=EVENT_CLASS_PROJECT,
-            entity_name=self._entity_name,
-            description="Project owner was changed",
             details=details,
         )
 

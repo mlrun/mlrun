@@ -1142,3 +1142,35 @@ class ServingRuntime(nuclio_function.RemoteRuntime):
 
         # Store the configuration in the spec for serialization
         self.spec.api_handler_config = config
+
+    def set_openai_frontend(
+        self,
+        endpoints: "list[mlrun.serving.openai_mappings.OpenAIEndpoint] | None" = None,
+    ) -> None:
+        """Wire up OpenAI-compatible API handler endpoints in one call.
+
+        Registers pre-built input and output body mappings for each selected OpenAI
+        operation group. If ``endpoints`` is ``None``, all supported groups are registered.
+
+        :param endpoints: Optional list of :class:`~mlrun.serving.openai_mappings.OpenAIEndpoint`
+            values selecting which operation groups to enable. Defaults to all groups.
+
+        Example::
+
+            from mlrun.serving.openai_mappings import OpenAIEndpoint
+
+            fn.set_openai_frontend()  # all groups
+            fn.set_openai_frontend([OpenAIEndpoint.RESPONSES])  # Responses only
+        """
+        from mlrun.serving.openai_mappings import ENDPOINT_CLASSES, OpenAIEndpoint
+
+        existing = self.spec.api_handler_config
+        config = (
+            APIHandlerConfig.from_dict(existing) if existing else APIHandlerConfig()
+        )
+
+        for ep_group in endpoints or list(OpenAIEndpoint):
+            for ep_def in ENDPOINT_CLASSES[ep_group].endpoints():
+                config.add_endpoint_handler(**ep_def)
+
+        self.set_api_handler_config(config)

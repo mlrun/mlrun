@@ -14,8 +14,8 @@ multi-agent patterns (router → tools → planner → responder), and feedback 
 - Streaming responses or high concurrency, supported by the streaming and async integration in serving graphs. For LLMs and other I/O bound workloads, you can stream partial outputs to the user, and efficiently handle many concurrent requests.
 - Standard API support while keeping custom internal logic. With the API handler you can implement industry-defined REST API schemas on your serving graph
   (for example, the OpenAI chat-completion interface for LLMs), and gate access to specific paths.
-   This paradigm is useful if you want compatibility with existing clients and tools, with the freedom to evolve your internal pipeline.
-- Production grade operations. Serving graphs are integrated with: model monitoring; storey’s "at least once" semantics on streams; Nuclio’s scaling and async HTTP; UI for status and topology.
+  This paradigm is useful if you want compatibility with existing clients and tools, with the freedom to evolve your internal pipeline.
+- Production grade operations. Serving graphs are integrated with: model monitoring; Nuclio’s scaling and async HTTP; UI for status and topology.
 
 
 ## Building graphs
@@ -41,6 +41,9 @@ The realtime pipelines UI page displays:
 - The total number of graphs/pipelines, the status of the main function, and the total number of endpoints
 - Each graph step is identified by an icon according to its category, and displays details of the graph steps
 - A model endpoints tab
+
+Typical serving graph in the UI:
+<img src="../_static/images/serving-graph.png" >
 
 **In this section**
 

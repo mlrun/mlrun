@@ -60,18 +60,20 @@ class ResponsesEndpoints(_OpenAIEndpointGroup):
             "$.previous_response_id", destination_path="previous_response_id"
         )
         bm.add_mapping("$.prompt_cache_key", destination_path="prompt_cache_key")
+        bm.add_mapping(
+            "$.prompt_cache_retention", destination_path="prompt_cache_retention"
+        )
+        bm.add_mapping("$.service_tier", destination_path="service_tier")
         return bm
 
     @staticmethod
     def _compact_output_bm() -> BodyMappings:
         bm = BodyMappings()
-        bm.add_mapping("$.id", destination_path="id")
-        bm.add_mapping("$.object", destination_path="object")
-        bm.add_mapping("$.created_at", destination_path="created_at")
-        bm.add_mapping("$.model", destination_path="model")
-        bm.add_mapping("$.status", destination_path="status")
-        bm.add_mapping("$.output", destination_path="output")
-        bm.add_mapping("$.usage", destination_path="usage")
+        bm.add_mapping("$.id", destination_path="id", mandatory=True)
+        bm.add_mapping("$.object", destination_path="object", mandatory=True)
+        bm.add_mapping("$.created_at", destination_path="created_at", mandatory=True)
+        bm.add_mapping("$.output", destination_path="output", mandatory=True)
+        bm.add_mapping("$.usage", destination_path="usage", mandatory=True)
         return bm
 
     @classmethod

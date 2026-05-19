@@ -137,25 +137,21 @@ class TestHub(tests.integration.sdk_api.base.TestMLRunIntegration):
 
     def test_import_module_from_hub(self):
         hub_prefix = "hub://"
-        source_name = mlrun.mlconf.hub.default_source.name
-        db = mlrun.get_run_db()
-        modules_catalog = db.get_hub_catalog(
-            source_name, object_type=mlrun.common.schemas.hub.HubSourceType.modules
-        )
-        item = random.choice(modules_catalog.catalog)
-        name = item.metadata.name
+        name = "count_events"
+        tag = "1.0.0"
+        module_ref = f"{hub_prefix}{name}:{tag}"
 
         # import_module
         # create temp dir in cwd
         Path.cwd().joinpath("temp").mkdir(exist_ok=True)
-        mod = mlrun.import_module(hub_prefix + name, local_path="./temp")
+        mod = mlrun.import_module(module_ref, local_path="./temp")
         assert isinstance(mod, types.ModuleType)
         # delete the temp dir
         shutil.rmtree("temp")
 
         # get_hub_module and module
         Path.cwd().joinpath("temp").mkdir(exist_ok=True)
-        hub_module = mlrun.get_hub_module(hub_prefix + name, download_files=False)
+        hub_module = mlrun.get_hub_module(module_ref, download_files=False)
         with pytest.raises(MLRunBadRequestError):  # didn't download files first
             hub_module.module()
         hub_module.set_local_path("./temp")
@@ -171,7 +167,7 @@ class TestHub(tests.integration.sdk_api.base.TestMLRunIntegration):
 
         # local_path doesn't exist
         with pytest.raises(ValueError):
-            mlrun.import_module(hub_prefix + name, local_path="./temp")
+            mlrun.import_module(module_ref, local_path="./temp")
 
     def test_get_hub_step(self):
         hub_prefix = "hub://"

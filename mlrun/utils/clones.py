@@ -307,10 +307,10 @@ def _load_store_artifact(
     """
     Load an artifact from the MLRun artifact store onto disk.
 
-    Code artifacts take a code-aware path: inline ``spec.body`` is preferred
-    over the target-path download, and ``.zip`` / ``.tar.gz`` payloads are
-    extracted in place. Other artifact kinds keep today's single-file
-    download behavior.
+    Code artifacts take a code-aware path: inline ``spec.body`` (plain source)
+    is written directly when set, otherwise the target_path is downloaded and
+    an archive payload (zip or tar, detected by content) is extracted in
+    place. Other artifact kinds keep today's single-file download behavior.
 
     :param source_uri: Artifact URI (store://artifacts/project/key)
     :param target_dir: Target directory where the file will be placed
@@ -322,9 +322,9 @@ def _load_store_artifact(
 
     :returns: ``(target_dir, local_file_path)`` — the directory the artifact
               was materialized into and the resolved file path within it. For
-              archive code artifacts (.zip/.tar.gz) that are extracted in
-              place, ``local_file_path`` is ``None`` since the archive itself
-              is removed after extraction.
+              archive code artifacts that are extracted in place,
+              ``local_file_path`` is ``None`` since the archive itself is
+              removed after extraction.
     """
     artifact = mlrun.datastore.get_store_resource(
         source_uri,
@@ -332,6 +332,20 @@ def _load_store_artifact(
         secrets=secrets,
         data_store_secrets=secrets,
     )
+
+    if artifact is None:
+        raise mlrun.errors.MLRunNotFoundError(
+            f"Source {source_uri!r} did not resolve to an artifact "
+            "(the store returned no resource; the URI may be malformed or "
+            "point at a missing link target)."
+        )
+    if not isinstance(artifact, mlrun.artifacts.Artifact):
+        # get_store_resource can also return FeatureSet / FeatureVector /
+        # DataItem for non-artifact store URIs (e.g. store://feature-sets/...).
+        raise mlrun.errors.MLRunInvalidArgumentError(
+            f"Source {source_uri!r} resolves to a {type(artifact).__name__}; "
+            "expected an artifact."
+        )
 
     if artifact.kind == mlrun.artifacts.CodeArtifact.kind:
         return _load_code_artifact(artifact, target_dir, secrets=secrets)
@@ -363,22 +377,11 @@ def _download_artifact_to_dir(artifact, target_dir: str, secrets) -> tuple[str, 
 def _load_code_artifact(artifact, target_dir: str, secrets) -> tuple[str, str | None]:
     """Materialize a CodeArtifact onto disk in target_dir.
 
-    Body-backed code artifacts are written directly. Target-path-backed
-    artifacts are downloaded. In both cases, .zip/.tar.gz archives are
-    extracted in place after landing — the original archive file is then
-    removed and the returned file path is ``None``.
+    Inline ``body`` is plain source written directly as a single file. A
+    target-path-backed artifact is downloaded; if it is an archive (zip or
+    tar, detected by content) it is extracted in place, the original archive
+    is removed, and the returned file path is ``None``.
     """
-    body = artifact.spec.get_body()
-
-    artifact_target_path = None
-    if body is None:
-        artifact_target_path = artifact.get_target_path()
-        if not artifact_target_path:
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                f"Code artifact {artifact.uri} has neither inline body nor a "
-                "target_path"
-            )
-
     filename = resolve_artifact_filename(artifact)
     if not filename:
         raise mlrun.errors.MLRunInvalidArgumentError(
@@ -389,90 +392,107 @@ def _load_code_artifact(artifact, target_dir: str, secrets) -> tuple[str, str | 
     os.makedirs(target_dir, exist_ok=True)
     local_file_path = os.path.join(target_dir, filename)
 
-    if body is None:
-        _download_dataitem_to(local_file_path, artifact_target_path, secrets=secrets)
-    else:
+    body = artifact.spec.get_body()
+    if body is not None:
         _write_body_to_path(body, local_file_path)
+        return target_dir, local_file_path
 
-    extracted = _maybe_extract_archive(local_file_path, target_dir)
-    return target_dir, (None if extracted else local_file_path)
+    artifact_target_path = artifact.get_target_path()
+    if not artifact_target_path:
+        raise mlrun.errors.MLRunInvalidArgumentError(
+            f"Code artifact {artifact.uri} has neither inline body nor a target_path"
+        )
+    _download_dataitem_to(local_file_path, artifact_target_path, secrets=secrets)
+
+    if _maybe_extract_archive(local_file_path, target_dir):
+        os.remove(local_file_path)
+        return target_dir, None
+    return target_dir, local_file_path
 
 
 def _download_dataitem_to(local_file_path: str, source_path: str, secrets) -> None:
     """Download a data item from ``source_path`` into ``local_file_path``.
 
-    Wraps any failure as ``MLRunRuntimeError`` so callers can fail loudly
-    without leaking internals from the underlying datastore implementation.
+    Wraps any failure as ``MLRunRuntimeError`` for a consistent error type,
+    surfacing the underlying cause in the message so a log-only context still
+    shows why the download failed.
     """
     try:
         mlrun.get_dataitem(source_path, secrets=secrets).download(local_file_path)
     except Exception as exc:
         raise mlrun.errors.MLRunRuntimeError(
-            f"Failed to download artifact from {source_path} to {local_file_path}"
+            f"Failed to download artifact from {source_path} to {local_file_path}: "
+            f"{mlrun.errors.err_to_str(exc)}"
         ) from exc
 
 
 def _write_body_to_path(body, dest_path: str) -> None:
-    """Write an artifact body to disk in binary mode.
+    """Write an inline artifact body (plain source) to disk in binary mode.
 
-    ``body`` shape matches what ``Artifact._upload_body`` writes today:
-    either ``bytes`` (e.g. .zip / .tar.gz archives) or ``str`` (e.g. .py
-    source). String bodies are encoded as UTF-8 so the bytes on disk are
-    independent of host locale and so no newline translation happens.
-    Archive payloads round-trip byte-for-byte.
+    ``body`` is the inline source — typically ``str`` (e.g. .py source),
+    optionally ``bytes``. String bodies are encoded as UTF-8 so the bytes on
+    disk are independent of host locale and no newline translation happens.
     """
-    data = body.encode("utf-8") if isinstance(body, str) else bytes(body)
+    if isinstance(body, str):
+        data = body.encode("utf-8")
+    elif isinstance(body, (bytes, bytearray, memoryview)):
+        data = bytes(body)
+    else:
+        raise mlrun.errors.MLRunInvalidArgumentError(
+            f"Unsupported artifact body type {type(body).__name__}; "
+            "expected str or bytes"
+        )
     with open(dest_path, "wb") as fh:
         fh.write(data)
 
 
 def _maybe_extract_archive(local_file_path: str, target_dir: str) -> bool:
-    """Extract a .zip / .tar.gz in place and remove the archive.
+    """Extract an archive into target_dir; no-op for a single file.
 
-    No-op for non-archive payloads (the single file stays on disk).
+    Archive type is detected by content, not filename suffix, so any
+    extension (or none) works: ``zipfile`` for zip, and ``tarfile`` for the
+    whole tar family (gzip/.tgz, bzip2, xz, uncompressed). The archive file
+    itself is left on disk for the caller to remove.
 
-    :returns: ``True`` if the file was an archive that was extracted (and the
-              original archive removed); ``False`` for non-archive payloads
-              that stay on disk untouched.
+    :returns: ``True`` if the file was an archive and was extracted; ``False``
+              for a single-file payload that stays on disk untouched.
     """
-    lower = local_file_path.lower()
-    if lower.endswith(".zip"):
+    if zipfile.is_zipfile(local_file_path):
         with zipfile.ZipFile(local_file_path, "r") as zf:
             _safe_extract_zip(zf, target_dir)
-    elif lower.endswith(".tar.gz"):
+    elif tarfile.is_tarfile(local_file_path):
         with tarfile.TarFile.open(local_file_path, "r:*") as tf:
             _safe_extract_tar(tf, target_dir)
     else:
         return False
-    os.remove(local_file_path)
     return True
 
 
 def _safe_extract_zip(zf: zipfile.ZipFile, target_dir: str) -> None:
     """Extract a zip into target_dir, rejecting any member that escapes it."""
     for member in zf.namelist():
-        member_path = os.path.join(target_dir, member)
-        if not _is_path_under(member_path, target_dir):
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                f"Refusing to extract zip member {member!r}: resolved path "
-                f"escapes target directory"
-            )
+        _reject_member_escaping_target(member, target_dir)
     zf.extractall(target_dir)
 
 
 def _safe_extract_tar(tf: tarfile.TarFile, target_dir: str) -> None:
     """Extract a tar into target_dir, rejecting any member that escapes it."""
     for member in tf.getmembers():
-        member_path = os.path.join(target_dir, member.name)
-        if not _is_path_under(member_path, target_dir):
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                f"Refusing to extract tar member {member.name!r}: resolved "
-                f"path escapes target directory"
-            )
+        _reject_member_escaping_target(member.name, target_dir)
     # PEP 706 data filter: defense-in-depth — also rejects link members
     # whose linkname escapes target_dir (the pre-flight only inspects
     # member.name, not member.linkname).
     tf.extractall(path=target_dir, filter="data")
+
+
+def _reject_member_escaping_target(member_name: str, target_dir: str) -> None:
+    """Raise if extracting ``member_name`` would resolve outside target_dir."""
+    member_path = os.path.join(target_dir, member_name)
+    if not _is_path_under(member_path, target_dir):
+        raise mlrun.errors.MLRunInvalidArgumentError(
+            f"Refusing to extract archive member {member_name!r}: resolved "
+            f"path escapes target directory"
+        )
 
 
 def _is_path_under(child: str, parent: str) -> bool:

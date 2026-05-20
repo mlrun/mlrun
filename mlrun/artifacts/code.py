@@ -74,7 +74,7 @@ class CodeArtifact(Artifact):
     """Code Artifact
 
     Store source code for use as a function or workflow source. The artifact
-    payload is a Python file or an archive (``.zip`` / ``.tar.gz``) whose
+    payload is a source file or an archive (``.zip`` / ``.tar.gz``) whose
     members are extracted on resolution. The payload may be carried inline
     as ``body`` (subject to the inline-artifact size limit) or uploaded to
     ``target_path`` like any other artifact.

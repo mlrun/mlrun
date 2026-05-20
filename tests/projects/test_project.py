@@ -2135,12 +2135,13 @@ def test_validate_workflow_code_artifact_pure():
     # accepted: kind='code' + code_type='workflow'
     ok = mlrun.artifacts.CodeArtifact(
         key="ok",
+        src_path="ok.py",
         code_type=mlrun.artifacts.CodeArtifactCodeType.workflow,
     )
     validate(ok, "store://artifacts/p/ok")
 
     # accepted: kind='code' + code_type=None (older clients, backward compat)
-    legacy = mlrun.artifacts.CodeArtifact(key="legacy")
+    legacy = mlrun.artifacts.CodeArtifact(key="legacy", src_path="legacy.py")
     legacy.spec.code_type = None
     validate(legacy, "store://artifacts/p/legacy")
 
@@ -2239,25 +2240,27 @@ def test_validate_workflow_code_artifact_rejects_non_artifact():
 @pytest.mark.parametrize(
     "src_path, target_path, key",
     [
-        # rejected via src_path
+        # archive suffixes are not .py
         ("workflow.zip", None, "k"),
         ("workflow.tar.gz", None, "k"),
-        # case-insensitive suffix match
-        ("workflow.ZIP", None, "k"),
+        # .tgz (the suffix a blacklist would miss) is rejected for free
+        ("workflow.tgz", None, "k"),
+        # non-python single file
+        ("workflow.sh", None, "k"),
         # rejected via target_path fallback (src_path unset)
         (None, "s3://b/archive.zip", "k"),
         # rejected via metadata.key fallback (src_path + target_path unset)
         (None, None, "archive.tar.gz"),
+        # no resolvable filename at all -> "" -> not .py -> rejected
+        (None, None, None),
     ],
 )
-def test_validate_workflow_code_artifact_rejects_archive_payloads(
+def test_validate_workflow_code_artifact_rejects_non_python_payloads(
     src_path, target_path, key
 ):
-    """Archive code artifacts cannot back a workflow: the runner needs a
-    single .py path to import (KFP submits one source file, not a tree),
-    and _load_code_artifact extracts archives in place and returns
-    (target_dir, None). Pre-CodeArtifact, set_workflow only ever accepted
-    a single Python file; this validator preserves that contract.
+    """KFP runs Python workflows, so a workflow code artifact must resolve
+    to a single .py file. The validator whitelists .py — archives (incl.
+    .tgz), other languages, and unresolvable filenames are all rejected.
     """
     artifact = mlrun.artifacts.CodeArtifact(
         key=key,
@@ -2268,19 +2271,20 @@ def test_validate_workflow_code_artifact_rejects_archive_payloads(
     validate = mlrun.projects.pipelines._validate_workflow_code_artifact
     with pytest.raises(
         mlrun.errors.MLRunInvalidArgumentError,
-        match="archive code artifact",
+        match="must be a single Python",
     ):
         validate(artifact, "store://artifacts/p/k")
 
 
-def test_validate_workflow_code_artifact_accepts_python_payload():
-    """A workflow code artifact with a .py src_path passes the archive
-    rejection — pins that the new check doesn't over-match.
+@pytest.mark.parametrize("src_path", ["workflow.py", "workflow.PY", "./sub/wf.py"])
+def test_validate_workflow_code_artifact_accepts_python_payload(src_path):
+    """A workflow code artifact resolving to a .py file passes (case-
+    insensitive) — pins that the whitelist doesn't over-reject.
     """
     artifact = mlrun.artifacts.CodeArtifact(
         key="k",
         code_type=mlrun.artifacts.CodeArtifactCodeType.workflow,
-        src_path="workflow.py",
+        src_path=src_path,
     )
     mlrun.projects.pipelines._validate_workflow_code_artifact(
         artifact, "store://artifacts/p/k"

@@ -80,7 +80,8 @@ def test_load_artifact_success(tmp_path, project):
     target_dir = str(tmp_path / "target")
     artifact_target_path = "s3://bucket/artifacts/handler.py"
 
-    mock_artifact = unittest.mock.MagicMock()
+    mock_artifact = unittest.mock.MagicMock(spec=mlrun.artifacts.Artifact)
+    mock_artifact.kind = "artifact"
     mock_artifact.get_target_path.return_value = artifact_target_path
     mock_artifact.spec.src_path = "handler.py"
     mock_dataitem = unittest.mock.MagicMock()
@@ -132,7 +133,8 @@ def test_load_artifact_forwards_secrets(tmp_path):
     artifact_target_path = "s3://bucket/artifacts/handler.py"
     secrets = {"AWS_ACCESS_KEY_ID": "k", "AWS_SECRET_ACCESS_KEY": "s"}
 
-    mock_artifact = unittest.mock.MagicMock()
+    mock_artifact = unittest.mock.MagicMock(spec=mlrun.artifacts.Artifact)
+    mock_artifact.kind = "artifact"
     mock_artifact.get_target_path.return_value = artifact_target_path
     mock_artifact.spec.src_path = "handler.py"
     mock_dataitem = unittest.mock.MagicMock()
@@ -215,7 +217,8 @@ def test_load_source_code_failures(
     source_uri, target_dir, is_store_uri_return, artifact_target_path, error_match
 ):
     # Test various failure scenarios for load_source_code
-    mock_artifact = unittest.mock.MagicMock()
+    mock_artifact = unittest.mock.MagicMock(spec=mlrun.artifacts.Artifact)
+    mock_artifact.kind = "artifact"
     mock_artifact.get_target_path.return_value = artifact_target_path
 
     with (
@@ -413,6 +416,15 @@ def test_write_body_to_path(tmp_path, body, expected_bytes):
     assert target.read_bytes() == expected_bytes
 
 
+def test_write_body_to_path_rejects_non_str_bytes(tmp_path):
+    """A body that is neither str nor bytes must raise rather than silently
+    writing a corrupted file (e.g. bytes(int) producing a zero buffer)."""
+    with pytest.raises(
+        mlrun.errors.MLRunInvalidArgumentError, match="Unsupported artifact body type"
+    ):
+        mlrun.utils.clones._write_body_to_path(123, str(tmp_path / "out.bin"))
+
+
 # ---------------------------------------------------------------------------
 # Archive builder helpers
 # ---------------------------------------------------------------------------
@@ -477,7 +489,7 @@ def _mock_code_artifact(
     uri="store://artifacts/proj/key",
 ):
     """Build a MagicMock standing in for a resolved code artifact."""
-    artifact = unittest.mock.MagicMock()
+    artifact = unittest.mock.MagicMock(spec=mlrun.artifacts.CodeArtifact)
     artifact.kind = mlrun.artifacts.CodeArtifact.kind if kind is None else kind
     artifact.spec.get_body.return_value = body
     artifact.spec.src_path = src_path
@@ -563,9 +575,24 @@ def test_maybe_extract_archive(
     archive = tmp_path / f"src{suffix}"
     archive.write_bytes(make_archive(members))
 
-    mlrun.utils.clones._maybe_extract_archive(str(archive), str(tmp_path))
+    extracted = mlrun.utils.clones._maybe_extract_archive(str(archive), str(tmp_path))
 
-    assert not archive.exists()
+    assert extracted is True
+    # Removal is the caller's responsibility; the archive stays on disk here.
+    assert archive.exists()
+    assert (tmp_path / "a.py").read_bytes() == members["a.py"]
+    assert (tmp_path / "b.py").read_bytes() == members["b.py"]
+
+
+def test_maybe_extract_archive_tgz_suffix(tmp_path):
+    """`.tgz` is gzipped tar and must be extracted like `.tar.gz`."""
+    members = {"a.py": b"a", "b.py": b"b"}
+    archive = tmp_path / "src.tgz"
+    archive.write_bytes(_make_tgz_bytes(members))
+
+    extracted = mlrun.utils.clones._maybe_extract_archive(str(archive), str(tmp_path))
+
+    assert extracted is True
     assert (tmp_path / "a.py").read_bytes() == members["a.py"]
     assert (tmp_path / "b.py").read_bytes() == members["b.py"]
 
@@ -607,7 +634,12 @@ def test_load_code_artifact_target_path_single_file(tmp_path):
     artifact.get_target_path.return_value = "s3://bucket/abc/handler.py"
     target_dir = str(tmp_path)
 
+    def fake_download(dest_path):
+        with open(dest_path, "wb") as fh:
+            fh.write(b"print('handler')\n")
+
     mock_dataitem = unittest.mock.MagicMock()
+    mock_dataitem.download.side_effect = fake_download
     with unittest.mock.patch(
         "mlrun.get_dataitem", return_value=mock_dataitem
     ) as mock_get_dataitem:
@@ -615,34 +647,15 @@ def test_load_code_artifact_target_path_single_file(tmp_path):
             artifact, target_dir, secrets=None
         )
 
+    # A plain source file is content-detected as a non-archive and left as-is.
     assert result == (target_dir, os.path.join(target_dir, "handler.py"))
+    assert (tmp_path / "handler.py").read_bytes() == b"print('handler')\n"
     mock_get_dataitem.assert_called_once_with(
         "s3://bucket/abc/handler.py", secrets=None
     )
     mock_dataitem.download.assert_called_once_with(
         os.path.join(target_dir, "handler.py")
     )
-
-
-@pytest.mark.parametrize(
-    "make_archive, suffix, _opener, _extract_fn_name, _bad_archive_exc",
-    ARCHIVE_FORMATS,
-)
-def test_load_code_artifact_body_archive_extracted(
-    tmp_path, make_archive, suffix, _opener, _extract_fn_name, _bad_archive_exc
-):
-    members = {"a.py": b"print('a')\n", "pkg/b.py": b"print('b')\n"}
-    artifact = _mock_code_artifact(
-        body=make_archive(members), src_path=f"src{suffix}", key="src"
-    )
-    target_dir = str(tmp_path)
-
-    result = mlrun.utils.clones._load_code_artifact(artifact, target_dir, secrets=None)
-
-    assert result == (target_dir, None)
-    assert not (tmp_path / f"src{suffix}").exists()
-    assert (tmp_path / "a.py").read_bytes() == members["a.py"]
-    assert (tmp_path / "pkg" / "b.py").read_bytes() == members["pkg/b.py"]
 
 
 @pytest.mark.parametrize(
@@ -677,7 +690,7 @@ def test_load_code_artifact_target_path_archive_extracted(
 
 
 def test_load_code_artifact_no_body_no_target_path_raises(tmp_path):
-    artifact = _mock_code_artifact()
+    artifact = _mock_code_artifact(src_path="handler.py")
     artifact.get_target_path.return_value = ""
 
     with pytest.raises(
@@ -703,47 +716,69 @@ def test_load_code_artifact_body_with_unresolvable_filename_raises(tmp_path):
         mlrun.utils.clones._load_code_artifact(artifact, str(tmp_path), secrets=None)
 
 
-def test_load_code_artifact_body_zip_slip_rejected(tmp_path):
-    artifact = _mock_code_artifact(
-        body=_make_zip_bytes({"../escape.py": b"print('escape')\n"}),
-        src_path="evil.zip",
-        key="evil",
-    )
-    target_dir = tmp_path / "target"
-    target_dir.mkdir()
-
-    with pytest.raises(mlrun.errors.MLRunInvalidArgumentError, match="escape"):
-        mlrun.utils.clones._load_code_artifact(artifact, str(target_dir), secrets=None)
-
-    # Nothing leaked outside target_dir
-    assert not (tmp_path / "escape.py").exists()
-
-
-@pytest.mark.parametrize(
-    "_make_archive, suffix, _opener, _extract_fn_name, bad_archive_exc",
-    ARCHIVE_FORMATS,
-)
-def test_load_code_artifact_body_corrupted_archive_propagates(
-    tmp_path, _make_archive, suffix, _opener, _extract_fn_name, bad_archive_exc
-):
-    """Corrupted archive body must surface the stdlib decoder error uncaught.
-
-    Pins the spec contract: extraction errors fail loudly so the runner
-    init container does not silently start from a half-extracted dir.
+def test_load_code_artifact_target_path_archive_extension_not_an_archive(tmp_path):
+    """Archive detection is by content, not suffix: a payload named like an
+    archive but whose bytes are not a valid zip/tar is left as a single file
+    (not extracted), and the returned path is the file itself.
     """
-    artifact = _mock_code_artifact(
-        body=b"not actually an archive",
-        src_path=f"broken{suffix}",
-        key="broken",
-    )
+    artifact = _mock_code_artifact(src_path="broken.zip")
+    artifact.get_target_path.return_value = "s3://bucket/abc/broken.zip"
+    target_dir = str(tmp_path)
 
-    with pytest.raises(bad_archive_exc):
-        mlrun.utils.clones._load_code_artifact(artifact, str(tmp_path), secrets=None)
+    def fake_download(dest_path):
+        with open(dest_path, "wb") as fh:
+            fh.write(b"not actually an archive")
+
+    mock_dataitem = unittest.mock.MagicMock()
+    mock_dataitem.download.side_effect = fake_download
+
+    with unittest.mock.patch("mlrun.get_dataitem", return_value=mock_dataitem):
+        result = mlrun.utils.clones._load_code_artifact(
+            artifact, target_dir, secrets=None
+        )
+
+    assert result == (target_dir, os.path.join(target_dir, "broken.zip"))
+    assert (tmp_path / "broken.zip").read_bytes() == b"not actually an archive"
 
 
 # ---------------------------------------------------------------------------
 # Kind switch in _load_store_artifact
 # ---------------------------------------------------------------------------
+
+
+def test_load_store_artifact_none_resolution_raises(tmp_path):
+    """get_store_resource can return None (e.g. a link artifact whose target
+    re-read is falsy); the resolver must surface a typed NotFound rather than
+    an AttributeError on None.kind."""
+    with (
+        unittest.mock.patch.object(
+            mlrun.datastore, "get_store_resource", return_value=None
+        ),
+        pytest.raises(
+            mlrun.errors.MLRunNotFoundError, match="did not resolve to an artifact"
+        ),
+    ):
+        mlrun.utils.clones._load_store_artifact(
+            "store://artifacts/proj/missing", str(tmp_path)
+        )
+
+
+def test_load_store_artifact_non_artifact_resolution_raises(tmp_path):
+    """get_store_resource can return FeatureSet / DataItem for non-artifact
+    store URIs; the resolver must reject those before touching .kind."""
+    not_an_artifact = unittest.mock.MagicMock()
+
+    with (
+        unittest.mock.patch.object(
+            mlrun.datastore, "get_store_resource", return_value=not_an_artifact
+        ),
+        pytest.raises(
+            mlrun.errors.MLRunInvalidArgumentError, match="expected an artifact"
+        ),
+    ):
+        mlrun.utils.clones._load_store_artifact(
+            "store://feature-sets/proj/x", str(tmp_path)
+        )
 
 
 def test_load_store_artifact_code_kind_uses_body(tmp_path):

@@ -187,17 +187,17 @@ def _validate_workflow_code_artifact(artifact, workflow_path: str) -> None:
     """Validate ``artifact`` is a code artifact with ``code_type='workflow'``.
 
     Pure validation — no I/O. ``code_type=None`` is accepted for backward
-    compatibility; only an *explicit* non-workflow value fails. Archive
-    payloads (``.zip`` / ``.tar.gz``) are rejected: the workflow runner
-    needs a single source-file path to submit to KFP, and archive code
-    artifacts resolve to ``(target_dir, None)`` from ``load_source_code``.
+    compatibility; only an *explicit* non-workflow value fails. The payload
+    must be a single ``.py`` file: KFP runs Python workflows, so a non-Python
+    file (or an archive, which resolves to ``(target_dir, None)`` from
+    ``load_source_code`` with no single entry file) cannot be submitted.
 
     :param artifact:      Resolved store-resource (or ``None``).
     :param workflow_path: Original ``store://`` URI, used in error messages.
     :raises MLRunNotFoundError: if ``artifact`` is ``None``.
     :raises MLRunInvalidArgumentError: if not an Artifact, if kind /
-                                       code_type mismatch, or if payload is
-                                       an archive.
+                                       code_type mismatch, or if the payload
+                                       is not a single ``.py`` file.
     """
     if artifact is None:
         raise mlrun.errors.MLRunNotFoundError(
@@ -230,11 +230,11 @@ def _validate_workflow_code_artifact(artifact, workflow_path: str) -> None:
             f"{mlrun.artifacts.CodeArtifactCodeType.workflow.value!r}."
         )
     filename = mlrun.utils.clones.resolve_artifact_filename(artifact)
-    if filename.lower().endswith((".zip", ".tar.gz")):
+    if not filename.lower().endswith(".py"):
         raise mlrun.errors.MLRunInvalidArgumentError(
-            f"Workflow path {workflow_path!r} resolves to an archive code "
-            f"artifact ({filename!r}); workflow code artifacts must be a "
-            f"single source file."
+            f"Workflow path {workflow_path!r} resolves to {filename!r}; "
+            f"workflow code artifacts must be a single Python (.py) file "
+            f"(KFP runs Python workflows)."
         )
 
 

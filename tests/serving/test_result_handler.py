@@ -1,0 +1,306 @@
+# Copyright 2026 Iguazio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+"""Unit and end-to-end tests for ResultHandler (output body mapping)."""
+
+from http import HTTPMethod
+from typing import cast
+
+import pytest
+
+import mlrun
+from mlrun.common.schemas.serving import APIHandlerAction
+from mlrun.runtimes.nuclio.serving import ServingRuntime
+from mlrun.serving.endpoint_mapping import APIHandlerConfig, BodyMappings
+from mlrun.serving.result_handler import ResultHandler
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+
+def _make_handler(
+    path: str,
+    *mappings: tuple[str, str, bool],
+    method: HTTPMethod = HTTPMethod.POST,
+) -> ResultHandler:
+    """Build a ResultHandler with one endpoint.
+
+    Each mapping is (source_path, destination_path, mandatory).
+    """
+    bm = BodyMappings()
+    for src, dest, mandatory in mappings:
+        bm.add_mapping(src, destination_path=dest, mandatory=mandatory)
+    config = APIHandlerConfig()
+    config.add_endpoint_handler(
+        path, method, APIHandlerAction.ALLOW, output_body_mappings=bm
+    )
+    return ResultHandler(config)
+
+
+# ---------------------------------------------------------------------------
+# Group 1 — Endpoint matching
+# ---------------------------------------------------------------------------
+class TestResultHandlerEndpointMatching:
+    """ResultHandler applies the mapping only when the endpoint matches."""
+
+    def test_exact_path_match_applies_mapping(self) -> None:
+        handler = _make_handler("/predict", ("$.result", "answer", False))
+        response = {"result": 42, "extra": "ignored"}
+        assert handler.apply(HTTPMethod.POST, "/predict", response) == {"answer": 42}
+
+    def test_template_path_match_applies_mapping(self) -> None:
+        handler = _make_handler("/predict/{model_id}", ("$.result", "answer", False))
+        response = {"result": 42}
+        assert handler.apply(HTTPMethod.POST, "/predict/my-model", response) == {
+            "answer": 42
+        }
+
+    def test_star_path_match_applies_mapping(self) -> None:
+        handler = _make_handler("/predict/*", ("$.result", "answer", False))
+        response = {"result": 42}
+        assert handler.apply(HTTPMethod.POST, "/predict/anything", response) == {
+            "answer": 42
+        }
+
+    def test_different_http_method_does_not_apply_mapping(self) -> None:
+        """Output mapping configured for POST must not affect a GET request on the same path."""
+        handler = _make_handler(
+            "/predict", ("$.result", "answer", False), method=HTTPMethod.POST
+        )
+        response = {"result": 42, "extra": "value"}
+        assert handler.apply(HTTPMethod.GET, "/predict", response) is response
+
+    _SPECIFIC_PATHS = ["/predict/1", "/predict/{model_id}"]
+
+    @pytest.mark.parametrize("specific_path", _SPECIFIC_PATHS)
+    def test_override_specific_wins_over_star_on_same_source(
+        self, specific_path: str
+    ) -> None:
+        """Same source on both star and specific — only specific destination survives."""
+        star_bm = BodyMappings()
+        star_bm.add_mapping("$.result", destination_path="result_star")
+
+        specific_bm = BodyMappings()
+        specific_bm.add_mapping("$.result", destination_path="result_specific")
+
+        config = APIHandlerConfig()
+        config.add_endpoint_handler(
+            "/*", HTTPMethod.POST, APIHandlerAction.ALLOW, output_body_mappings=star_bm
+        )
+        config.add_endpoint_handler(
+            specific_path,
+            HTTPMethod.POST,
+            APIHandlerAction.ALLOW,
+            output_body_mappings=specific_bm,
+        )
+        handler = ResultHandler(config)
+
+        result = handler.apply(HTTPMethod.POST, "/predict/1", {"result": 99})
+        assert result == {"result_specific": 99}
+        assert "result_star" not in result
+
+    @pytest.mark.parametrize("specific_path", _SPECIFIC_PATHS)
+    def test_combine_star_and_specific_different_sources(
+        self, specific_path: str
+    ) -> None:
+        """Star and specific each map a different field — both appear in the output."""
+        star_bm = BodyMappings()
+        star_bm.add_mapping("$.result", destination_path="result")
+
+        specific_bm = BodyMappings()
+        specific_bm.add_mapping("$.confidence", destination_path="score")
+
+        config = APIHandlerConfig()
+        config.add_endpoint_handler(
+            "/*", HTTPMethod.POST, APIHandlerAction.ALLOW, output_body_mappings=star_bm
+        )
+        config.add_endpoint_handler(
+            specific_path,
+            HTTPMethod.POST,
+            APIHandlerAction.ALLOW,
+            output_body_mappings=specific_bm,
+        )
+        handler = ResultHandler(config)
+
+        result = handler.apply(
+            HTTPMethod.POST,
+            "/predict/1",
+            {"result": "cat", "confidence": 0.95, "extra": "ignored"},
+        )
+        assert result == {"result": "cat", "score": 0.95}
+
+
+# ---------------------------------------------------------------------------
+# Group 2 — Passthrough cases
+# ---------------------------------------------------------------------------
+class TestResultHandlerPassthrough:
+    """ResultHandler returns the response unchanged when no mapping applies."""
+
+    def test_no_output_body_mappings_configured(self) -> None:
+        config = APIHandlerConfig()
+        config.add_endpoint_handler("/predict", HTTPMethod.POST, APIHandlerAction.ALLOW)
+        handler = ResultHandler(config)
+        response = {"result": 42, "extra": "value"}
+        assert handler.apply(HTTPMethod.POST, "/predict", response) is response
+
+
+# ---------------------------------------------------------------------------
+# Group 3 — Happy path reshape
+# ---------------------------------------------------------------------------
+class TestResultHandlerReshape:
+    """ResultHandler correctly extracts and remaps graph response fields."""
+
+    def test_multiple_fields_extracted_and_remapped(self) -> None:
+        handler = _make_handler(
+            "/predict",
+            ("$.result", "answer", False),
+            ("$.confidence", "score", False),
+        )
+        response = {"result": "cat", "confidence": 0.95, "extra": "ignored"}
+        assert handler.apply(HTTPMethod.POST, "/predict", response) == {
+            "answer": "cat",
+            "score": 0.95,
+        }
+
+    def test_nested_source_extracted(self) -> None:
+        handler = _make_handler("/predict", ("$.result.value", "answer", False))
+        response = {"result": {"value": "deep"}, "other": "ignored"}
+        assert handler.apply(HTTPMethod.POST, "/predict", response) == {
+            "answer": "deep"
+        }
+
+
+# ---------------------------------------------------------------------------
+# Group 4 — Missing field behavior
+# ---------------------------------------------------------------------------
+class TestResultHandlerMissingFields:
+    """Missing fields are either None (non-mandatory) or raise an error (mandatory)."""
+
+    def test_missing_non_mandatory_field_is_none(self) -> None:
+        handler = _make_handler(
+            "/predict",
+            ("$.result", "answer", False),
+            ("$.nonexistent", "missing_field", False),
+        )
+        result = handler.apply(HTTPMethod.POST, "/predict", {"result": 42})
+        assert result == {"answer": 42, "missing_field": None}
+
+    def test_missing_mandatory_field_raises(self) -> None:
+        handler = _make_handler("/predict", ("$.result", "answer", True))
+        with pytest.raises(
+            mlrun.errors.MLRunBadRequestError,
+            match="Mandatory field 'answer' not found",
+        ):
+            handler.apply(HTTPMethod.POST, "/predict", {"other": "value"})
+
+    def test_full_structure_always_returned(self) -> None:
+        """All declared destinations appear in the output, even if some are None."""
+        handler = _make_handler(
+            "/predict",
+            ("$.x", "a", False),
+            ("$.y", "b", False),
+            ("$.z", "c", False),
+        )
+        result = handler.apply(HTTPMethod.POST, "/predict", {"x": 1})
+        assert result == {"a": 1, "b": None, "c": None}
+
+
+# ---------------------------------------------------------------------------
+# Group 5 — http_trigger guard (end-to-end via to_mock_server())
+# ---------------------------------------------------------------------------
+class TestResultHandlerHttpTriggerGuard:
+    """Exit mapping is only applied when http_trigger=True on GraphServer."""
+
+    @staticmethod
+    def _make_fn(output_bm: BodyMappings) -> ServingRuntime:
+        fn = cast(
+            ServingRuntime,
+            mlrun.new_function("test-result-handler", kind="serving"),
+        )
+        config = APIHandlerConfig()
+        config.add_endpoint_handler(
+            "/predict",
+            HTTPMethod.POST,
+            APIHandlerAction.ALLOW,
+            output_body_mappings=output_bm,
+        )
+        fn.set_api_handler_config(config)
+        graph = fn.set_topology("flow", engine="sync")
+        graph.to(name="passthrough", handler=lambda body, **kwargs: body).respond()
+        return fn
+
+    def test_http_trigger_true_applies_exit_mapping(self) -> None:
+        """to_mock_server() sets http_trigger=True by default — exit mapping must apply."""
+        bm = BodyMappings()
+        bm.add_mapping("$.result", destination_path="answer")
+
+        server = self._make_fn(bm).to_mock_server()
+        try:
+            resp = server.test(
+                "/predict",
+                method="POST",
+                body={"result": 42, "extra": "ignored"},
+            )
+            assert resp == {"answer": 42}
+        finally:
+            server.wait_for_completion()
+
+    def test_http_trigger_false_skips_exit_mapping(self) -> None:
+        """When http_trigger=False, the graph response is returned as-is."""
+        bm = BodyMappings()
+        bm.add_mapping("$.result", destination_path="answer")
+
+        server = self._make_fn(bm).to_mock_server()
+        server.http_trigger = False
+        try:
+            body = {"result": 42, "extra": "ignored"}
+            resp = server.test("/predict", method="POST", body=body)
+            assert resp == body
+        finally:
+            server.wait_for_completion()
+
+    def test_e2e_full_reshape(self) -> None:
+        """End-to-end: graph returns multiple fields, exit mapping reshapes to declared structure."""
+        bm = BodyMappings()
+        bm.add_mapping("$.prediction", destination_path="label")
+        bm.add_mapping("$.confidence", destination_path="score")
+
+        server = self._make_fn(bm).to_mock_server()
+        try:
+            resp = server.test(
+                "/predict",
+                method="POST",
+                body={"prediction": "cat", "confidence": 0.97, "debug": "ignored"},
+            )
+            assert resp == {"label": "cat", "score": 0.97}
+        finally:
+            server.wait_for_completion()
+
+    def test_e2e_missing_non_mandatory_is_none(self) -> None:
+        """End-to-end: missing non-mandatory field appears as None in the response."""
+        bm = BodyMappings()
+        bm.add_mapping("$.prediction", destination_path="label")
+        bm.add_mapping("$.confidence", destination_path="score")  # will be missing
+
+        server = self._make_fn(bm).to_mock_server()
+        try:
+            resp = server.test(
+                "/predict",
+                method="POST",
+                body={"prediction": "dog"},
+            )
+            assert resp == {"label": "dog", "score": None}
+        finally:
+            server.wait_for_completion()

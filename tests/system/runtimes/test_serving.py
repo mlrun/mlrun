@@ -19,7 +19,7 @@ import pytest
 import mlrun
 import tests.system.base
 from mlrun.common.schemas.serving import APIHandlerAction
-from mlrun.runtimes.nuclio.serving import APIHandlerConfig, BodyMappings
+from mlrun.serving.endpoint_mapping import APIHandlerConfig, BodyMappings
 
 
 def assert_endpoint_configs_equal(
@@ -445,3 +445,101 @@ class TestServingAPIHandler(tests.system.base.TestMLRunSystem):
         )
 
         self._logger.info("Wildcard path API handler test passed")
+
+    def test_output_body_mapping(self) -> None:
+        """Test output_body_mappings reshapes the graph response on a live deployment.
+
+        Input:  input_body_mappings extracts $.model, $.temperature, $.debug_flag from request.
+        Graph:  echo_kwargs returns them as-is: {"input_model", "input_temperature", "input_debug_flag"}.
+        Output: output_body_mappings selects and renames only model and temperature.
+                $.input_model       → output_model       (rename)
+                $.input_temperature → output_temperature  (rename)
+                $.nonexistent       → output_extra        (optional — not in response → None)
+                input_debug_flag is intentionally not mapped — verifies output drops unmapped fields.
+        """
+        self._logger.info("Testing output body mapping on live deployment")
+
+        # Input: extract three fields; input_debug_flag will NOT appear in the output mapping,
+        # proving that output_body_mappings fully controls what the caller receives.
+        in_bm = BodyMappings()
+        in_bm.add_mapping("$.model", destination_path="input_model")
+        in_bm.add_mapping("$.temperature", destination_path="input_temperature")
+        in_bm.add_mapping("$.debug_flag", destination_path="input_debug_flag")
+
+        # Output: reshape the graph response — only declare what the caller should receive.
+        # input_debug_flag is deliberately omitted here to show unmapped fields are dropped.
+        out_bm = BodyMappings()
+        out_bm.add_mapping("$.input_model", destination_path="output_model")
+        out_bm.add_mapping("$.input_temperature", destination_path="output_temperature")
+        out_bm.add_mapping(
+            "$.nonexistent", destination_path="output_extra"
+        )  # optional — will be None
+
+        config = APIHandlerConfig()
+        config.add_endpoint_handler(
+            "/predict",
+            HTTPMethod.POST,
+            APIHandlerAction.ALLOW,
+            "Predict with output body mapping",
+            input_body_mappings=in_bm,
+            output_body_mappings=out_bm,
+        )
+
+        function = self._create_serving_function(
+            name="output-body-map-handler",
+            api_config=config,
+            func=str(self.assets_path / "body_map_handler.py"),
+        )
+
+        graph = function.set_topology("flow", engine="sync", exist_ok=True)
+        graph.to(name="echo", handler="echo_kwargs").respond()
+
+        self._logger.debug("Deploying serving function with output body mapping")
+        function.deploy()
+
+        self._logger.debug("Invoking /predict")
+        response = function.invoke(
+            path="/predict",
+            body={"model": "gpt-4", "temperature": 0.7, "debug_flag": True},
+        )
+
+        assert response == {
+            "output_model": "gpt-4",
+            "output_temperature": 0.7,
+            "output_extra": None,
+            # input_debug_flag is not here — output mapping dropped it
+        }
+
+        self._logger.info("Output body mapping test passed")
+
+    def test_output_body_mapping_mandatory_missing_returns_400(self) -> None:
+        """Missing mandatory output field raises HTTP 400."""
+        out_bm = BodyMappings()
+        out_bm.add_mapping(
+            "$.nonexistent", destination_path="output_result", mandatory=True
+        )
+
+        config = APIHandlerConfig()
+        config.add_endpoint_handler(
+            "/predict",
+            HTTPMethod.POST,
+            APIHandlerAction.ALLOW,
+            output_body_mappings=out_bm,
+        )
+
+        function = self._create_serving_function(
+            name="output-mandatory-handler",
+            api_config=config,
+            func=str(self.assets_path / "body_map_handler.py"),
+        )
+        graph = function.set_topology("flow", engine="sync", exist_ok=True)
+        graph.to(name="echo", handler="echo_kwargs").respond()
+        function.deploy()
+
+        with pytest.raises(
+            RuntimeError,
+            match=r"MLRunBadRequestError.*Mandatory field 'output_result' not found",
+        ):
+            function.invoke(path="/predict", body={"model": "gpt-4"})
+
+        self._logger.info("Output mandatory missing field test passed")

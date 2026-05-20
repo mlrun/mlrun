@@ -27,23 +27,21 @@ import pytest
 import mlrun
 import mlrun.errors
 from mlrun.common.schemas.serving import APIHandlerAction
-from mlrun.runtimes.nuclio.serving import (
-    APIHandlerConfig,
-    BodyMappings,
-    ServingRuntime,
-)
+from mlrun.runtimes.nuclio.serving import ServingRuntime
 from mlrun.serving import GraphContext
 from mlrun.serving.api_handler import _APIHandlerStep
+from mlrun.serving.endpoint_mapping import (
+    APIHandlerConfig,
+    BodyMappings,
+    combine_serving_endpoint_key,
+)
 from mlrun.serving.server import (
     GraphServer,
     MockEvent,
     RootFlowStep,
     _add_api_handler_step_to_graph,
 )
-from mlrun.serving.utils import (
-    _RequestContext,
-    combine_serving_endpoint_key,
-)
+from mlrun.serving.utils import _RequestContext
 
 
 class EchoStep:
@@ -68,24 +66,23 @@ class EchoStep:
 class TestBodyMappings:
     """Tests for BodyMappings class"""
 
-    def test_mixed_destination_path_raises(self) -> None:
-        """Test that mixing destination-bearing and destination-less mappings raises an error"""
+    def test_empty_destination_path_raises(self) -> None:
+        """destination_path is always required; empty string raises an error"""
         bm = BodyMappings()
-        bm.add_mapping("$.model", destination_path="model")
         with pytest.raises(
             mlrun.errors.MLRunInvalidArgumentError,
-            match="Mixed destination_path mode is not allowed",
+            match="destination_path must be a non-empty string",
         ):
-            bm.add_mapping("$.messages")  # no destination_path — mixed mode
+            bm.add_mapping("$.model", destination_path="")
 
-    def test_empty_source_json_path_raises(self) -> None:
-        """Test that empty source_json_path raises an error"""
+    def test_empty_source_path_raises(self) -> None:
+        """Test that empty source_path raises an error"""
         bm = BodyMappings()
         with pytest.raises(
             mlrun.errors.MLRunInvalidArgumentError,
-            match="source_json_path must be a non-empty string",
+            match="source_path must be a non-empty string",
         ):
-            bm.add_mapping("")
+            bm.add_mapping("", destination_path="model")
 
     def test_serialization_roundtrip(self) -> None:
         """BodyMappings and APIHandlerConfig both survive to_dict / from_dict round-trips."""
@@ -98,12 +95,12 @@ class TestBodyMappings:
         assert d == {
             "mappings": [
                 {
-                    "source_json_path": "$.model",
+                    "source_path": "$.model",
                     "destination_path": "model",
                     "mandatory": True,
                 },
                 {
-                    "source_json_path": "$.messages",
+                    "source_path": "$.messages",
                     "destination_path": "messages",
                     "mandatory": False,
                 },
@@ -113,6 +110,9 @@ class TestBodyMappings:
         assert bm2.mappings == bm.mappings
 
         # APIHandlerConfig roundtrip — nested BodyMappings must survive deserialization
+        output_bm = BodyMappings()
+        output_bm.add_mapping("$.result", destination_path="output", mandatory=True)
+
         config = APIHandlerConfig()
         config.add_endpoint_handler(
             "/users",
@@ -120,6 +120,7 @@ class TestBodyMappings:
             APIHandlerAction.ALLOW,
             "Create user",
             input_body_mappings=bm,
+            output_body_mappings=output_bm,
         )
         config_dict = config.to_dict()
 
@@ -130,6 +131,7 @@ class TestBodyMappings:
         restored = APIHandlerConfig.from_dict(config_dict)
         ep = restored.get_endpoint_config(HTTPMethod.POST, "/users")
         assert ep.input_body_mappings.to_dict() == bm.to_dict()
+        assert ep.output_body_mappings.to_dict() == output_bm.to_dict()
 
 
 class TestRequestContext:
@@ -845,21 +847,21 @@ class TestIncludeUrlInfo:
 
     def test_include_url_info_default_false(self) -> None:
         """include_url_info should default to False"""
-        from mlrun.runtimes.nuclio.serving import APIHandlerConfig
+        from mlrun.serving.endpoint_mapping import APIHandlerConfig
 
         config = APIHandlerConfig()
         assert config.include_url_info is False
 
     def test_include_url_info_can_be_set_true(self) -> None:
         """include_url_info should be settable to True"""
-        from mlrun.runtimes.nuclio.serving import APIHandlerConfig
+        from mlrun.serving.endpoint_mapping import APIHandlerConfig
 
         config = APIHandlerConfig(include_url_info=True)
         assert config.include_url_info is True
 
     def test_include_url_info_in_dict_fields(self) -> None:
         """include_url_info must round-trip through APIHandlerConfig.to_dict/from_dict"""
-        from mlrun.runtimes.nuclio.serving import APIHandlerConfig
+        from mlrun.serving.endpoint_mapping import APIHandlerConfig
 
         config = APIHandlerConfig(include_url_info=True)
         config.add_endpoint_handler("/api/test", HTTPMethod.GET, APIHandlerAction.ALLOW)
@@ -1669,17 +1671,51 @@ class TestAPIHandlerConfig:
         assert config.get_endpoint_config(HTTPMethod.GET, "/health") is not None
 
     def test_to_dict(self) -> None:
-        """Test serialization to dictionary"""
+        """Test serialization to dictionary, including both input and output body mappings."""
+        input_bm = BodyMappings()
+        input_bm.add_mapping("$.model", destination_path="model", mandatory=True)
+
+        output_bm = BodyMappings()
+        output_bm.add_mapping("$.result", destination_path="output", mandatory=False)
+
         config = APIHandlerConfig()
-        config.add_endpoint_handler("/test", HTTPMethod.POST, APIHandlerAction.ALLOW)
+        config.add_endpoint_handler(
+            "/test",
+            HTTPMethod.POST,
+            APIHandlerAction.ALLOW,
+            input_body_mappings=input_bm,
+            output_body_mappings=output_bm,
+        )
 
         config_dict = config.to_dict()
         assert "enabled" in config_dict
         assert "endpoints" in config_dict
         assert config_dict["enabled"] is True
 
+        ep_dict = config_dict["endpoints"]["POST:/test"]
+        expected_input = {
+            "mappings": [
+                {
+                    "source_path": "$.model",
+                    "destination_path": "model",
+                    "mandatory": True,
+                }
+            ]
+        }
+        expected_output = {
+            "mappings": [
+                {
+                    "source_path": "$.result",
+                    "destination_path": "output",
+                    "mandatory": False,
+                }
+            ]
+        }
+        assert ep_dict["input_body_mappings"] == expected_input
+        assert ep_dict["output_body_mappings"] == expected_output
+
     def test_from_dict(self) -> None:
-        """Test deserialization from dictionary"""
+        """Test deserialization from dictionary, including both input and output body mappings."""
         data = {
             "enabled": True,
             "endpoints": {
@@ -1688,6 +1724,24 @@ class TestAPIHandlerConfig:
                     "description": "Prediction",
                     "path": "/predict",
                     "http_method": "POST",
+                    "input_body_mappings": {
+                        "mappings": [
+                            {
+                                "source_path": "$.model",
+                                "destination_path": "model",
+                                "mandatory": True,
+                            }
+                        ]
+                    },
+                    "output_body_mappings": {
+                        "mappings": [
+                            {
+                                "source_path": "$.result",
+                                "destination_path": "output",
+                                "mandatory": True,
+                            }
+                        ]
+                    },
                 }
             },
         }
@@ -1697,6 +1751,22 @@ class TestAPIHandlerConfig:
         assert ep is not None
         assert ep.action == APIHandlerAction.ALLOW
         assert ep.description == "Prediction"
+        assert ep.input_body_mappings is not None
+        assert ep.input_body_mappings.mappings == [
+            {
+                "source_path": "$.model",
+                "destination_path": "model",
+                "mandatory": True,
+            }
+        ]
+        assert ep.output_body_mappings is not None
+        assert ep.output_body_mappings.mappings == [
+            {
+                "source_path": "$.result",
+                "destination_path": "output",
+                "mandatory": True,
+            }
+        ]
 
     def test_add_endpoint_handler_override_warning(
         self, caplog: pytest.LogCaptureFixture

@@ -252,9 +252,11 @@ jobs:
 
     - name: Build and push unstable tag
 
-      # we don't need to have unstable tag for the test image
-      # And we don't need to run this when triggered manually (workflow dispatch)
-      if: matrix.image-name != 'test' && github.event_name != 'workflow_dispatch' && github.ref_name == 'development'
+      # Push the "unstable" tag only when building from a direct push to development
+      # (not the test image; not a PR-driven build; not a non-dev branch like 1.11.x).
+      # Fork PRs don't have write access to mlrun-org packages and would fail this
+      # step with "unauthorized" if it ran on PR builds.
+      if: matrix.image-name != 'test' && inputs.pr_number == '' && github.ref_name == 'development'
       run: |
         for registry in "ghcr.io/" "quay.io/" "registry.hub.docker.com/"; \
           do \

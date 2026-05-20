@@ -14,13 +14,17 @@
 
 """Test fixtures for OpenAI endpoint body-mapping tests."""
 
+# Shared response_id used by all endpoints that take a {response_id} path parameter.
+RESPONSE_ID = "resp_123"
+
 # ---------------------------------------------------------------------------
 # Shared: Response object
-# Returned by POST /responses and GET /responses/{response_id}.
+# Returned by POST /responses, GET /responses/{response_id},
+# and POST /responses/{response_id}/cancel.
 # ---------------------------------------------------------------------------
 
 RESPONSE_OBJECT_HANDLER_RESPONSE = {
-    "id": "resp_123",
+    "id": RESPONSE_ID,
     "created_at": 1234567890,
     "error": None,
     "incomplete_details": None,
@@ -85,16 +89,8 @@ CREATE_EXPECTED_KWARGS = {
 }
 
 # ---------------------------------------------------------------------------
-# GET /responses/{response_id}
-# ---------------------------------------------------------------------------
-
-GET_RESPONSE_ID = "resp_123"
-
-# ---------------------------------------------------------------------------
 # GET /responses/{response_id}/input_items
 # ---------------------------------------------------------------------------
-
-INPUT_ITEMS_RESPONSE_ID = "resp_123"
 
 INPUT_ITEMS_HANDLER_RESPONSE = {
     "data": [
@@ -116,13 +112,44 @@ INPUT_ITEMS_EXPECTED_RESPONSE = {
 }
 
 # ---------------------------------------------------------------------------
+# POST /responses/input_tokens
+# ---------------------------------------------------------------------------
+
+INPUT_TOKENS_REQUEST_BODY = {
+    "conversation": "conv_1",
+    "input": "Hello",
+    "instructions": "Be helpful",
+    "model": "gpt-4",
+    "parallel_tool_calls": True,
+    "previous_response_id": "resp_0",
+    "reasoning": {"effort": "medium"},
+    "text": {"format": {"type": "text"}},
+    "tool_choice": "auto",
+    "tools": [{"type": "web_search"}],
+    "truncation": "disabled",
+    "extra_field": "should_be_filtered",
+}
+
+INPUT_TOKENS_EXPECTED_KWARGS = {
+    k: v for k, v in INPUT_TOKENS_REQUEST_BODY.items() if k != "extra_field"
+}
+
+INPUT_TOKENS_HANDLER_RESPONSE = {
+    "input_tokens": 42,
+    "object": "response.input_tokens",
+    "extra_field": "should_be_filtered",
+}
+
+INPUT_TOKENS_EXPECTED_RESPONSE = {
+    k: v for k, v in INPUT_TOKENS_HANDLER_RESPONSE.items() if k != "extra_field"
+}
+
+# ---------------------------------------------------------------------------
 # DELETE /responses/{response_id}
 # ---------------------------------------------------------------------------
 
-DELETE_RESPONSE_ID = "resp_123"
-
 DELETE_HANDLER_RESPONSE = {
-    "id": DELETE_RESPONSE_ID,
+    "id": RESPONSE_ID,
     "object": "response",
     "deleted": True,
 }
@@ -147,7 +174,7 @@ COMPACT_EXPECTED_KWARGS = {
 }
 
 COMPACT_HANDLER_RESPONSE = {
-    "id": "resp_123",
+    "id": RESPONSE_ID,
     "object": "response.compaction",
     "created_at": 1234567890,
     "output": [{"type": "text", "text": "Hello"}],

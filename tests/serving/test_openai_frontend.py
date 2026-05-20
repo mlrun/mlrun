@@ -32,11 +32,13 @@ from tests.serving.assets.openai_fixtures import (
     CREATE_EXPECTED_KWARGS,
     CREATE_REQUEST_BODY,
     DELETE_HANDLER_RESPONSE,
-    DELETE_RESPONSE_ID,
-    GET_RESPONSE_ID,
     INPUT_ITEMS_EXPECTED_RESPONSE,
     INPUT_ITEMS_HANDLER_RESPONSE,
-    INPUT_ITEMS_RESPONSE_ID,
+    INPUT_TOKENS_EXPECTED_KWARGS,
+    INPUT_TOKENS_EXPECTED_RESPONSE,
+    INPUT_TOKENS_HANDLER_RESPONSE,
+    INPUT_TOKENS_REQUEST_BODY,
+    RESPONSE_ID,
     RESPONSE_OBJECT_EXPECTED_RESPONSE,
     RESPONSE_OBJECT_HANDLER_RESPONSE,
 )
@@ -186,8 +188,8 @@ class TestResponsesGroupMock:
 
         server = _make_mock_server(OpenAIEndpoint.RESPONSES, handler)
         try:
-            resp = server.test(f"/responses/{GET_RESPONSE_ID}", method="GET")
-            assert captured_kwargs.get("response_id") == GET_RESPONSE_ID
+            resp = server.test(f"/responses/{RESPONSE_ID}", method="GET")
+            assert captured_kwargs.get("response_id") == RESPONSE_ID
             assert "extra_field" not in resp
             for key, value in RESPONSE_OBJECT_EXPECTED_RESPONSE.items():
                 assert resp[key] == value, f"resp[{key!r}] mismatch"
@@ -205,7 +207,7 @@ class TestResponsesGroupMock:
             with pytest.raises(
                 mlrun.errors.MLRunBadRequestError, match="Mandatory field"
             ):
-                server.test(f"/responses/{GET_RESPONSE_ID}", method="GET")
+                server.test(f"/responses/{RESPONSE_ID}", method="GET")
         finally:
             server.wait_for_completion()
 
@@ -219,15 +221,16 @@ class TestResponsesGroupMock:
 
         def handler(body, **kwargs):
             captured_kwargs.update(kwargs)
-            return DELETE_HANDLER_RESPONSE
+            return {**DELETE_HANDLER_RESPONSE, "extra_field": "should_be_filtered"}
 
         server = _make_mock_server(OpenAIEndpoint.RESPONSES, handler)
         try:
-            resp = server.test(f"/responses/{DELETE_RESPONSE_ID}", method="DELETE")
-            assert captured_kwargs.get("response_id") == DELETE_RESPONSE_ID
-            assert resp["id"] == DELETE_RESPONSE_ID
+            resp = server.test(f"/responses/{RESPONSE_ID}", method="DELETE")
+            assert captured_kwargs.get("response_id") == RESPONSE_ID
+            assert resp["id"] == RESPONSE_ID
             assert resp["deleted"] is True
             assert resp["object"] == "response"
+            assert "extra_field" not in resp
         finally:
             server.wait_for_completion()
 
@@ -245,10 +248,8 @@ class TestResponsesGroupMock:
 
         server = _make_mock_server(OpenAIEndpoint.RESPONSES, handler)
         try:
-            resp = server.test(
-                f"/responses/{INPUT_ITEMS_RESPONSE_ID}/input_items", method="GET"
-            )
-            assert captured_kwargs.get("response_id") == INPUT_ITEMS_RESPONSE_ID
+            resp = server.test(f"/responses/{RESPONSE_ID}/input_items", method="GET")
+            assert captured_kwargs.get("response_id") == RESPONSE_ID
             assert "extra_field" not in resp
             for key, value in INPUT_ITEMS_EXPECTED_RESPONSE.items():
                 assert resp[key] == value, f"resp[{key!r}] mismatch"
@@ -266,9 +267,88 @@ class TestResponsesGroupMock:
             with pytest.raises(
                 mlrun.errors.MLRunBadRequestError, match="Mandatory field"
             ):
-                server.test(
-                    f"/responses/{INPUT_ITEMS_RESPONSE_ID}/input_items", method="GET"
-                )
+                server.test(f"/responses/{RESPONSE_ID}/input_items", method="GET")
+        finally:
+            server.wait_for_completion()
+
+    # ---------------------------------------------------------------------------
+    # POST /responses/input_tokens
+    # ---------------------------------------------------------------------------
+
+    def test_input_tokens_filters_extra_input_and_output_fields(self) -> None:
+        """POST /responses/input_tokens: extra request fields filtered from input;
+        extra graph response fields filtered from output."""
+        captured: dict = {}
+
+        def handler(body, **kwargs):
+            captured.update(kwargs)
+            return INPUT_TOKENS_HANDLER_RESPONSE
+
+        server = _make_mock_server(OpenAIEndpoint.RESPONSES, handler)
+        try:
+            resp = server.test(
+                "/responses/input_tokens",
+                method="POST",
+                body=INPUT_TOKENS_REQUEST_BODY,
+            )
+            assert "extra_field" not in captured
+            for key, value in INPUT_TOKENS_EXPECTED_KWARGS.items():
+                assert captured[key] == value, f"kwargs[{key!r}] mismatch"
+            assert "extra_field" not in resp
+            for key, value in INPUT_TOKENS_EXPECTED_RESPONSE.items():
+                assert resp[key] == value, f"resp[{key!r}] mismatch"
+        finally:
+            server.wait_for_completion()
+
+    def test_input_tokens_incomplete_response_raises(self) -> None:
+        """POST /responses/input_tokens: graph returns empty dict → mandatory fields missing → error."""
+
+        def handler(body, **kwargs):
+            return {}
+
+        server = _make_mock_server(OpenAIEndpoint.RESPONSES, handler)
+        try:
+            with pytest.raises(
+                mlrun.errors.MLRunBadRequestError, match="Mandatory field"
+            ):
+                server.test("/responses/input_tokens", method="POST", body={})
+        finally:
+            server.wait_for_completion()
+
+    # ---------------------------------------------------------------------------
+    # POST /responses/{response_id}/cancel
+    # ---------------------------------------------------------------------------
+
+    def test_cancel_path_param_extracted_and_returns_response_object(self) -> None:
+        """POST /responses/{response_id}/cancel: path param extracted; extra output fields filtered."""
+        captured_kwargs: dict = {}
+
+        def handler(body, **kwargs):
+            captured_kwargs.update(kwargs)
+            return RESPONSE_OBJECT_HANDLER_RESPONSE
+
+        server = _make_mock_server(OpenAIEndpoint.RESPONSES, handler)
+        try:
+            resp = server.test(f"/responses/{RESPONSE_ID}/cancel", method="POST")
+            assert captured_kwargs.get("response_id") == RESPONSE_ID
+            assert "extra_field" not in resp
+            for key, value in RESPONSE_OBJECT_EXPECTED_RESPONSE.items():
+                assert resp[key] == value, f"resp[{key!r}] mismatch"
+        finally:
+            server.wait_for_completion()
+
+    def test_cancel_incomplete_response_raises(self) -> None:
+        """POST /responses/{response_id}/cancel: graph returns empty dict → mandatory fields missing → error."""
+
+        def handler(body, **kwargs):
+            return {}
+
+        server = _make_mock_server(OpenAIEndpoint.RESPONSES, handler)
+        try:
+            with pytest.raises(
+                mlrun.errors.MLRunBadRequestError, match="Mandatory field"
+            ):
+                server.test(f"/responses/{RESPONSE_ID}/cancel", method="POST")
         finally:
             server.wait_for_completion()
 

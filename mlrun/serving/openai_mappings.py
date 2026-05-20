@@ -156,6 +156,33 @@ class ResponsesEndpoints(_OpenAIEndpointGroup):
         return bm
 
     @staticmethod
+    def _input_tokens_input_bm() -> BodyMappings:
+        bm = BodyMappings()
+        bm.add_mapping("$.conversation", destination_path="conversation")
+        bm.add_mapping("$.input", destination_path="input")
+        bm.add_mapping("$.instructions", destination_path="instructions")
+        bm.add_mapping("$.model", destination_path="model")
+        bm.add_mapping("$.parallel_tool_calls", destination_path="parallel_tool_calls")
+        bm.add_mapping(
+            "$.previous_response_id", destination_path="previous_response_id"
+        )
+        bm.add_mapping("$.reasoning", destination_path="reasoning")
+        bm.add_mapping("$.text", destination_path="text")
+        bm.add_mapping("$.tool_choice", destination_path="tool_choice")
+        bm.add_mapping("$.tools", destination_path="tools")
+        bm.add_mapping("$.truncation", destination_path="truncation")
+        return bm
+
+    @staticmethod
+    def _input_tokens_output_bm() -> BodyMappings:
+        bm = BodyMappings()
+        bm.add_mapping(
+            "$.input_tokens", destination_path="input_tokens", mandatory=True
+        )
+        bm.add_mapping("$.object", destination_path="object", mandatory=True)
+        return bm
+
+    @staticmethod
     def _input_items_output_bm() -> BodyMappings:
         bm = BodyMappings()
         bm.add_mapping("$.data", destination_path="data", mandatory=True)
@@ -178,27 +205,38 @@ class ResponsesEndpoints(_OpenAIEndpointGroup):
     @classmethod
     def endpoints(cls) -> list[dict]:
         return [
-            {
+            {  # Create a response
                 "path": "/responses",
                 "http_method": HTTPMethod.POST,
                 "input_body_mappings": cls._create_input_bm(),
                 "output_body_mappings": cls._response_output_bm(),
             },
-            {
+            {  # Retrieve a response
                 "path": "/responses/{response_id}",
                 "http_method": HTTPMethod.GET,
                 "output_body_mappings": cls._response_output_bm(),
             },
-            {
+            {  # Delete a response
+                "path": "/responses/{response_id}",
+                "http_method": HTTPMethod.DELETE,
+            },
+            {  # List input items
                 "path": "/responses/{response_id}/input_items",
                 "http_method": HTTPMethod.GET,
                 "output_body_mappings": cls._input_items_output_bm(),
             },
-            {
-                "path": "/responses/{response_id}",
-                "http_method": HTTPMethod.DELETE,
+            {  # Count input tokens
+                "path": "/responses/input_tokens",
+                "http_method": HTTPMethod.POST,
+                "input_body_mappings": cls._input_tokens_input_bm(),
+                "output_body_mappings": cls._input_tokens_output_bm(),
             },
-            {
+            {  # Cancel a response
+                "path": "/responses/{response_id}/cancel",
+                "http_method": HTTPMethod.POST,
+                "output_body_mappings": cls._response_output_bm(),
+            },
+            {  # Compact a response
                 "path": "/responses/compact",
                 "http_method": HTTPMethod.POST,
                 "input_body_mappings": cls._compact_input_bm(),

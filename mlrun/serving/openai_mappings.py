@@ -88,7 +88,8 @@ class ResponsesEndpoints(_OpenAIEndpointGroup):
         return bm
 
     @staticmethod
-    def _create_output_bm() -> BodyMappings:
+    def _response_output_bm() -> BodyMappings:
+        """Shared output mapping for any endpoint returning a Response object."""
         bm = BodyMappings()
         bm.add_mapping("$.id", destination_path="id", mandatory=True)
         bm.add_mapping("$.created_at", destination_path="created_at", mandatory=True)
@@ -171,7 +172,12 @@ class ResponsesEndpoints(_OpenAIEndpointGroup):
                 "path": "/responses",
                 "http_method": HTTPMethod.POST,
                 "input_body_mappings": cls._create_input_bm(),
-                "output_body_mappings": cls._create_output_bm(),
+                "output_body_mappings": cls._response_output_bm(),
+            },
+            {
+                "path": "/responses/{response_id}",
+                "http_method": HTTPMethod.GET,
+                "output_body_mappings": cls._response_output_bm(),
             },
             {
                 "path": "/responses/{response_id}",

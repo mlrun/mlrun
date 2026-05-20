@@ -30,11 +30,12 @@ from tests.serving.assets.openai_fixtures import (
     COMPACT_HANDLER_RESPONSE,
     COMPACT_REQUEST_BODY,
     CREATE_EXPECTED_KWARGS,
-    CREATE_EXPECTED_RESPONSE,
-    CREATE_HANDLER_RESPONSE,
     CREATE_REQUEST_BODY,
     DELETE_HANDLER_RESPONSE,
     DELETE_RESPONSE_ID,
+    GET_RESPONSE_ID,
+    RESPONSE_OBJECT_EXPECTED_RESPONSE,
+    RESPONSE_OBJECT_HANDLER_RESPONSE,
 )
 
 # ---------------------------------------------------------------------------
@@ -139,7 +140,7 @@ class TestResponsesGroupMock:
 
         def handler(body, **kwargs):
             captured.update(kwargs)
-            return CREATE_HANDLER_RESPONSE
+            return RESPONSE_OBJECT_HANDLER_RESPONSE
 
         server = _make_mock_server(OpenAIEndpoint.RESPONSES, handler)
         try:
@@ -148,7 +149,7 @@ class TestResponsesGroupMock:
             for key, value in CREATE_EXPECTED_KWARGS.items():
                 assert captured[key] == value, f"kwargs[{key!r}] mismatch"
             assert "extra_field" not in resp
-            for key, value in CREATE_EXPECTED_RESPONSE.items():
+            for key, value in RESPONSE_OBJECT_EXPECTED_RESPONSE.items():
                 assert resp[key] == value, f"resp[{key!r}] mismatch"
         finally:
             server.wait_for_completion()
@@ -165,6 +166,43 @@ class TestResponsesGroupMock:
                 mlrun.errors.MLRunBadRequestError, match="Mandatory field"
             ):
                 server.test("/responses", method="POST", body={})
+        finally:
+            server.wait_for_completion()
+
+    # ---------------------------------------------------------------------------
+    # GET /responses/{response_id}
+    # ---------------------------------------------------------------------------
+
+    def test_get_path_param_extracted_and_returns_response_object(self) -> None:
+        """GET /responses/{response_id}: path param extracted; response matches Response object spec."""
+        captured_kwargs: dict = {}
+
+        def handler(body, **kwargs):
+            captured_kwargs.update(kwargs)
+            return RESPONSE_OBJECT_HANDLER_RESPONSE
+
+        server = _make_mock_server(OpenAIEndpoint.RESPONSES, handler)
+        try:
+            resp = server.test(f"/responses/{GET_RESPONSE_ID}", method="GET")
+            assert captured_kwargs.get("response_id") == GET_RESPONSE_ID
+            assert "extra_field" not in resp
+            for key, value in RESPONSE_OBJECT_EXPECTED_RESPONSE.items():
+                assert resp[key] == value, f"resp[{key!r}] mismatch"
+        finally:
+            server.wait_for_completion()
+
+    def test_get_incomplete_response_raises(self) -> None:
+        """GET /responses/{response_id}: graph returns empty dict → mandatory output fields missing → error."""
+
+        def handler(body, **kwargs):
+            return {}
+
+        server = _make_mock_server(OpenAIEndpoint.RESPONSES, handler)
+        try:
+            with pytest.raises(
+                mlrun.errors.MLRunBadRequestError, match="Mandatory field"
+            ):
+                server.test(f"/responses/{GET_RESPONSE_ID}", method="GET")
         finally:
             server.wait_for_completion()
 

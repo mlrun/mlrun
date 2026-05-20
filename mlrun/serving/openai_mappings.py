@@ -156,6 +156,16 @@ class ResponsesEndpoints(_OpenAIEndpointGroup):
         return bm
 
     @staticmethod
+    def _input_items_output_bm() -> BodyMappings:
+        bm = BodyMappings()
+        bm.add_mapping("$.data", destination_path="data", mandatory=True)
+        bm.add_mapping("$.first_id", destination_path="first_id", mandatory=True)
+        bm.add_mapping("$.has_more", destination_path="has_more", mandatory=True)
+        bm.add_mapping("$.last_id", destination_path="last_id", mandatory=True)
+        bm.add_mapping("$.object", destination_path="object", mandatory=True)
+        return bm
+
+    @staticmethod
     def _compact_output_bm() -> BodyMappings:
         bm = BodyMappings()
         bm.add_mapping("$.id", destination_path="id", mandatory=True)
@@ -178,6 +188,11 @@ class ResponsesEndpoints(_OpenAIEndpointGroup):
                 "path": "/responses/{response_id}",
                 "http_method": HTTPMethod.GET,
                 "output_body_mappings": cls._response_output_bm(),
+            },
+            {
+                "path": "/responses/{response_id}/input_items",
+                "http_method": HTTPMethod.GET,
+                "output_body_mappings": cls._input_items_output_bm(),
             },
             {
                 "path": "/responses/{response_id}",

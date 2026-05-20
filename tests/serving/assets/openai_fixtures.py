@@ -91,6 +91,31 @@ CREATE_EXPECTED_KWARGS = {
 GET_RESPONSE_ID = "resp_123"
 
 # ---------------------------------------------------------------------------
+# GET /responses/{response_id}/input_items
+# ---------------------------------------------------------------------------
+
+INPUT_ITEMS_RESPONSE_ID = "resp_123"
+
+INPUT_ITEMS_HANDLER_RESPONSE = {
+    "data": [
+        {
+            "type": "message",
+            "role": "user",
+            "content": [{"type": "input_text", "text": "Hello"}],
+        }
+    ],
+    "first_id": "item_001",
+    "has_more": False,
+    "last_id": "item_001",
+    "object": "list",
+    "extra_field": "should_be_filtered",
+}
+
+INPUT_ITEMS_EXPECTED_RESPONSE = {
+    k: v for k, v in INPUT_ITEMS_HANDLER_RESPONSE.items() if k != "extra_field"
+}
+
+# ---------------------------------------------------------------------------
 # DELETE /responses/{response_id}
 # ---------------------------------------------------------------------------
 

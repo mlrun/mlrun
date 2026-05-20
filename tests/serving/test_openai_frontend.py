@@ -34,6 +34,9 @@ from tests.serving.assets.openai_fixtures import (
     DELETE_HANDLER_RESPONSE,
     DELETE_RESPONSE_ID,
     GET_RESPONSE_ID,
+    INPUT_ITEMS_EXPECTED_RESPONSE,
+    INPUT_ITEMS_HANDLER_RESPONSE,
+    INPUT_ITEMS_RESPONSE_ID,
     RESPONSE_OBJECT_EXPECTED_RESPONSE,
     RESPONSE_OBJECT_HANDLER_RESPONSE,
 )
@@ -225,6 +228,47 @@ class TestResponsesGroupMock:
             assert resp["id"] == DELETE_RESPONSE_ID
             assert resp["deleted"] is True
             assert resp["object"] == "response"
+        finally:
+            server.wait_for_completion()
+
+    # ---------------------------------------------------------------------------
+    # GET /responses/{response_id}/input_items
+    # ---------------------------------------------------------------------------
+
+    def test_input_items_path_param_extracted_and_output_filtered(self) -> None:
+        """GET /responses/{response_id}/input_items: path param extracted; extra output fields filtered."""
+        captured_kwargs: dict = {}
+
+        def handler(body, **kwargs):
+            captured_kwargs.update(kwargs)
+            return INPUT_ITEMS_HANDLER_RESPONSE
+
+        server = _make_mock_server(OpenAIEndpoint.RESPONSES, handler)
+        try:
+            resp = server.test(
+                f"/responses/{INPUT_ITEMS_RESPONSE_ID}/input_items", method="GET"
+            )
+            assert captured_kwargs.get("response_id") == INPUT_ITEMS_RESPONSE_ID
+            assert "extra_field" not in resp
+            for key, value in INPUT_ITEMS_EXPECTED_RESPONSE.items():
+                assert resp[key] == value, f"resp[{key!r}] mismatch"
+        finally:
+            server.wait_for_completion()
+
+    def test_input_items_incomplete_response_raises(self) -> None:
+        """GET /responses/{response_id}/input_items: graph returns empty dict → mandatory fields missing → error."""
+
+        def handler(body, **kwargs):
+            return {}
+
+        server = _make_mock_server(OpenAIEndpoint.RESPONSES, handler)
+        try:
+            with pytest.raises(
+                mlrun.errors.MLRunBadRequestError, match="Mandatory field"
+            ):
+                server.test(
+                    f"/responses/{INPUT_ITEMS_RESPONSE_ID}/input_items", method="GET"
+                )
         finally:
             server.wait_for_completion()
 

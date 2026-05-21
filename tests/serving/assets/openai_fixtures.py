@@ -251,3 +251,16 @@ CHAT_HANDLER_RESPONSE = {
 CHAT_EXPECTED_RESPONSE = {
     k: v for k, v in CHAT_HANDLER_RESPONSE.items() if k != "extra_field"
 }
+
+# ---------------------------------------------------------------------------
+# POST /chat/completions/{completion_id}
+# ---------------------------------------------------------------------------
+
+UPDATE_CHAT_REQUEST_BODY = {
+    "metadata": {"session": "updated"},
+    "extra_field": "should_be_filtered",
+}
+
+UPDATE_CHAT_EXPECTED_KWARGS = {
+    k: v for k, v in UPDATE_CHAT_REQUEST_BODY.items() if k != "extra_field"
+}

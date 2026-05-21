@@ -24,6 +24,8 @@ from tests.serving.assets.openai_fixtures import (
     CHAT_HANDLER_RESPONSE,
     CHAT_REQUEST_BODY,
     COMPLETION_ID,
+    UPDATE_CHAT_EXPECTED_KWARGS,
+    UPDATE_CHAT_REQUEST_BODY,
 )
 from tests.serving.openai.openai_common import make_mock_server
 
@@ -150,5 +152,69 @@ class TestChatCompletionsGroupMock:
                 mlrun.errors.MLRunBadRequestError, match="Mandatory field"
             ):
                 server.test(f"/chat/completions/{COMPLETION_ID}", method="GET")
+        finally:
+            server.wait_for_completion()
+
+    # ---------------------------------------------------------------------------
+    # POST /chat/completions/{completion_id}
+    # ---------------------------------------------------------------------------
+
+    def test_update_filters_extra_input_and_output_fields(self) -> None:
+        """POST /chat/completions/{completion_id}: path param extracted; extra input/output fields filtered."""
+        captured_kwargs: dict = {}
+
+        def handler(body, **kwargs):
+            captured_kwargs.update(kwargs)
+            return CHAT_HANDLER_RESPONSE
+
+        server = make_mock_server(OpenAIEndpoint.CHAT_COMPLETIONS, handler)
+        try:
+            resp = server.test(
+                f"/chat/completions/{COMPLETION_ID}",
+                method="POST",
+                body=UPDATE_CHAT_REQUEST_BODY,
+            )
+            assert captured_kwargs.get("completion_id") == COMPLETION_ID
+            assert "extra_field" not in captured_kwargs
+            for key, value in UPDATE_CHAT_EXPECTED_KWARGS.items():
+                assert captured_kwargs[key] == value, f"kwargs[{key!r}] mismatch"
+            assert "extra_field" not in resp
+            for key, value in CHAT_EXPECTED_RESPONSE.items():
+                assert resp[key] == value, f"resp[{key!r}] mismatch"
+        finally:
+            server.wait_for_completion()
+
+    def test_update_missing_mandatory_metadata_raises(self) -> None:
+        """POST /chat/completions/{completion_id}: missing mandatory 'metadata' input field → error."""
+
+        def handler(body, **kwargs):
+            return CHAT_HANDLER_RESPONSE
+
+        server = make_mock_server(OpenAIEndpoint.CHAT_COMPLETIONS, handler)
+        try:
+            with pytest.raises(RuntimeError, match="Mandatory field"):
+                server.test(
+                    f"/chat/completions/{COMPLETION_ID}", method="POST", body={}
+                )
+        finally:
+            server.wait_for_completion()
+
+    def test_update_incomplete_response_raises(self) -> None:
+        """POST /chat/completions/{completion_id}: graph returns empty dict → mandatory output fields
+        missing → error."""
+
+        def handler(body, **kwargs):
+            return {}
+
+        server = make_mock_server(OpenAIEndpoint.CHAT_COMPLETIONS, handler)
+        try:
+            with pytest.raises(
+                mlrun.errors.MLRunBadRequestError, match="Mandatory field"
+            ):
+                server.test(
+                    f"/chat/completions/{COMPLETION_ID}",
+                    method="POST",
+                    body={"metadata": {"session": "abc"}},
+                )
         finally:
             server.wait_for_completion()

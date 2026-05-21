@@ -27,6 +27,8 @@ from tests.serving.assets.openai_fixtures import (
     DELETE_CHAT_HANDLER_RESPONSE,
     LIST_CHAT_EXPECTED_RESPONSE,
     LIST_CHAT_HANDLER_RESPONSE,
+    LIST_MESSAGES_EXPECTED_RESPONSE,
+    LIST_MESSAGES_HANDLER_RESPONSE,
     UPDATE_CHAT_EXPECTED_KWARGS,
     UPDATE_CHAT_REQUEST_BODY,
 )
@@ -292,5 +294,44 @@ class TestChatCompletionsGroupMock:
                 mlrun.errors.MLRunBadRequestError, match="Mandatory field"
             ):
                 server.test("/chat/completions", method="GET")
+        finally:
+            server.wait_for_completion()
+
+    # ---------------------------------------------------------------------------
+    # GET /chat/completions/{completion_id}/messages
+    # ---------------------------------------------------------------------------
+
+    def test_list_messages_path_param_extracted_and_output_filtered(self) -> None:
+        """GET /chat/completions/{completion_id}/messages: path param extracted; extra output fields filtered."""
+        captured_kwargs: dict = {}
+
+        def handler(body, **kwargs):
+            captured_kwargs.update(kwargs)
+            return LIST_MESSAGES_HANDLER_RESPONSE
+
+        server = make_mock_server(OpenAIEndpoint.CHAT_COMPLETIONS, handler)
+        try:
+            resp = server.test(
+                f"/chat/completions/{COMPLETION_ID}/messages", method="GET"
+            )
+            assert captured_kwargs.get("completion_id") == COMPLETION_ID
+            assert "extra_field" not in resp
+            for key, value in LIST_MESSAGES_EXPECTED_RESPONSE.items():
+                assert resp[key] == value, f"resp[{key!r}] mismatch"
+        finally:
+            server.wait_for_completion()
+
+    def test_list_messages_incomplete_response_raises(self) -> None:
+        """GET /chat/completions/{completion_id}/messages: graph returns empty dict → mandatory output fields missing → error."""  # noqa: E501
+
+        def handler(body, **kwargs):
+            return {}
+
+        server = make_mock_server(OpenAIEndpoint.CHAT_COMPLETIONS, handler)
+        try:
+            with pytest.raises(
+                mlrun.errors.MLRunBadRequestError, match="Mandatory field"
+            ):
+                server.test(f"/chat/completions/{COMPLETION_ID}/messages", method="GET")
         finally:
             server.wait_for_completion()

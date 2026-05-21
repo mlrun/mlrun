@@ -353,6 +353,13 @@ class ChatCompletionsEndpoints(_OpenAIEndpointGroup):
                 "http_method": HTTPMethod.GET,
                 "output_body_mappings": cls._list_chat_output_bm(),
             },
+            {  # List messages for a chat completion
+                # Reuses _list_chat_output_bm() — top-level shape is identical;
+                # nested ChatCompletionStoreMessage fields inside data are not checked.
+                "path": "/chat/completions/{completion_id}/messages",
+                "http_method": HTTPMethod.GET,
+                "output_body_mappings": cls._list_chat_output_bm(),
+            },
         ]
 
 

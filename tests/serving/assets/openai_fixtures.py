@@ -207,6 +207,26 @@ LIST_CHAT_EXPECTED_RESPONSE = {
 }
 
 # ---------------------------------------------------------------------------
+# GET /chat/completions/{completion_id}/messages
+# ---------------------------------------------------------------------------
+
+LIST_MESSAGES_HANDLER_RESPONSE = {
+    "data": [
+        {"id": "msg_001", "content_parts": [{"type": "text", "text": "Hello"}]},
+        {"id": "msg_002", "content_parts": [{"type": "text", "text": "World"}]},
+    ],
+    "first_id": "msg_001",
+    "has_more": False,
+    "last_id": "msg_002",
+    "object": "list",
+    "extra_field": "should_be_filtered",
+}
+
+LIST_MESSAGES_EXPECTED_RESPONSE = {
+    k: v for k, v in LIST_MESSAGES_HANDLER_RESPONSE.items() if k != "extra_field"
+}
+
+# ---------------------------------------------------------------------------
 # POST /chat/completions
 # ---------------------------------------------------------------------------
 

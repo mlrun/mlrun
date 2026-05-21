@@ -185,3 +185,66 @@ COMPACT_HANDLER_RESPONSE = {
 COMPACT_EXPECTED_RESPONSE = {
     k: v for k, v in COMPACT_HANDLER_RESPONSE.items() if k != "extra_field"
 }
+
+# ---------------------------------------------------------------------------
+# POST /chat/completions
+# ---------------------------------------------------------------------------
+
+CHAT_REQUEST_BODY = {
+    "messages": [{"role": "user", "content": "Hello"}],
+    "model": "gpt-4",
+    "audio": {"voice": "alloy", "format": "mp3"},
+    "frequency_penalty": 0.5,
+    "logit_bias": {"50256": -100},
+    "logprobs": True,
+    "max_completion_tokens": 512,
+    "metadata": {"session": "abc"},
+    "modalities": ["text"],
+    "n": 1,
+    "parallel_tool_calls": True,
+    "prediction": {"type": "content", "content": "Hello"},
+    "presence_penalty": 0.0,
+    "prompt_cache_key": "chat_cache_1",
+    "prompt_cache_retention": False,
+    "reasoning_effort": "medium",
+    "response_format": {"type": "text"},
+    "safety_identifier": "user_456",
+    "service_tier": "default",
+    "stop": ["\n"],
+    "store": False,
+    "stream": False,
+    "stream_options": {"include_usage": True},
+    "temperature": 0.8,
+    "tool_choice": "auto",
+    "tools": [{"type": "function", "function": {"name": "get_weather"}}],
+    "top_logprobs": 3,
+    "top_p": 0.95,
+    "verbosity": "verbose",
+    "web_search_options": {"search_context_size": "medium"},
+    "extra_field": "should_be_filtered",
+}
+
+CHAT_EXPECTED_KWARGS = {
+    k: v for k, v in CHAT_REQUEST_BODY.items() if k != "extra_field"
+}
+
+CHAT_HANDLER_RESPONSE = {
+    "id": "chatcmpl_123",
+    "choices": [
+        {
+            "finish_reason": "stop",
+            "index": 0,
+            "message": {"role": "assistant", "content": "Hello!"},
+        }
+    ],
+    "created": 1234567890,
+    "model": "gpt-4",
+    "object": "chat.completion",
+    "service_tier": "default",
+    "usage": {"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15},
+    "extra_field": "should_be_filtered",
+}
+
+CHAT_EXPECTED_RESPONSE = {
+    k: v for k, v in CHAT_HANDLER_RESPONSE.items() if k != "extra_field"
+}

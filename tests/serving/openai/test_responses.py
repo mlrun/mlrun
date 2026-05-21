@@ -155,9 +155,7 @@ class TestResponsesGroupMock:
 
         server = make_mock_server(OpenAIEndpoint.RESPONSES, handler)
         try:
-            resp = server.test(
-                f"/responses/{RESPONSE_ID}/input_items", method="GET"
-            )
+            resp = server.test(f"/responses/{RESPONSE_ID}/input_items", method="GET")
             assert captured_kwargs.get("response_id") == RESPONSE_ID
             assert "extra_field" not in resp
             for key, value in INPUT_ITEMS_EXPECTED_RESPONSE.items():

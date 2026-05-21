@@ -248,9 +248,67 @@ class ResponsesEndpoints(_OpenAIEndpointGroup):
 class ChatCompletionsEndpoints(_OpenAIEndpointGroup):
     """OpenAI /chat/completions operation group — endpoint definitions and body mappings."""
 
+    @staticmethod
+    def _chat_input_bm() -> BodyMappings:
+        bm = BodyMappings()
+        bm.add_mapping("$.messages", destination_path="messages", mandatory=True)
+        bm.add_mapping("$.model", destination_path="model", mandatory=True)
+        bm.add_mapping("$.audio", destination_path="audio")
+        bm.add_mapping("$.frequency_penalty", destination_path="frequency_penalty")
+        bm.add_mapping("$.logit_bias", destination_path="logit_bias")
+        bm.add_mapping("$.logprobs", destination_path="logprobs")
+        bm.add_mapping(
+            "$.max_completion_tokens", destination_path="max_completion_tokens"
+        )
+        bm.add_mapping("$.metadata", destination_path="metadata")
+        bm.add_mapping("$.modalities", destination_path="modalities")
+        bm.add_mapping("$.n", destination_path="n")
+        bm.add_mapping("$.parallel_tool_calls", destination_path="parallel_tool_calls")
+        bm.add_mapping("$.prediction", destination_path="prediction")
+        bm.add_mapping("$.presence_penalty", destination_path="presence_penalty")
+        bm.add_mapping("$.prompt_cache_key", destination_path="prompt_cache_key")
+        bm.add_mapping(
+            "$.prompt_cache_retention", destination_path="prompt_cache_retention"
+        )
+        bm.add_mapping("$.reasoning_effort", destination_path="reasoning_effort")
+        bm.add_mapping("$.response_format", destination_path="response_format")
+        bm.add_mapping("$.safety_identifier", destination_path="safety_identifier")
+        bm.add_mapping("$.service_tier", destination_path="service_tier")
+        bm.add_mapping("$.stop", destination_path="stop")
+        bm.add_mapping("$.store", destination_path="store")
+        bm.add_mapping("$.stream", destination_path="stream")
+        bm.add_mapping("$.stream_options", destination_path="stream_options")
+        bm.add_mapping("$.temperature", destination_path="temperature")
+        bm.add_mapping("$.tool_choice", destination_path="tool_choice")
+        bm.add_mapping("$.tools", destination_path="tools")
+        bm.add_mapping("$.top_logprobs", destination_path="top_logprobs")
+        bm.add_mapping("$.top_p", destination_path="top_p")
+        bm.add_mapping("$.verbosity", destination_path="verbosity")
+        bm.add_mapping("$.web_search_options", destination_path="web_search_options")
+        return bm
+
+    @staticmethod
+    def _chat_output_bm() -> BodyMappings:
+        bm = BodyMappings()
+        bm.add_mapping("$.id", destination_path="id", mandatory=True)
+        bm.add_mapping("$.choices", destination_path="choices", mandatory=True)
+        bm.add_mapping("$.created", destination_path="created", mandatory=True)
+        bm.add_mapping("$.model", destination_path="model", mandatory=True)
+        bm.add_mapping("$.object", destination_path="object", mandatory=True)
+        bm.add_mapping("$.service_tier", destination_path="service_tier")
+        bm.add_mapping("$.usage", destination_path="usage")
+        return bm
+
     @classmethod
     def endpoints(cls) -> list[dict]:
-        return []  # TODO: ML-12461
+        return [
+            {  # Create a chat completion
+                "path": "/chat/completions",
+                "http_method": HTTPMethod.POST,
+                "input_body_mappings": cls._chat_input_bm(),
+                "output_body_mappings": cls._chat_output_bm(),
+            },
+        ]
 
 
 class AudioEndpoints(_OpenAIEndpointGroup):

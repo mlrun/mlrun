@@ -20,7 +20,6 @@ from mlrun.serving.endpoint_mapping import APIHandlerConfig
 from mlrun.serving.openai_mappings import ENDPOINT_CLASSES, OpenAIEndpoint
 from tests.serving.openai.openai_common import get_config, make_fn
 
-
 # ---------------------------------------------------------------------------
 # Registry structure
 # ---------------------------------------------------------------------------

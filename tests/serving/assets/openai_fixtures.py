@@ -264,3 +264,14 @@ UPDATE_CHAT_REQUEST_BODY = {
 UPDATE_CHAT_EXPECTED_KWARGS = {
     k: v for k, v in UPDATE_CHAT_REQUEST_BODY.items() if k != "extra_field"
 }
+
+# ---------------------------------------------------------------------------
+# DELETE /chat/completions/{completion_id}
+# ---------------------------------------------------------------------------
+
+DELETE_CHAT_HANDLER_RESPONSE = {
+    "id": COMPLETION_ID,
+    "deleted": True,
+    "object": "chat.completion",
+    "extra_field": "should_be_filtered",
+}

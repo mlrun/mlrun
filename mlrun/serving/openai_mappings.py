@@ -288,6 +288,14 @@ class ChatCompletionsEndpoints(_OpenAIEndpointGroup):
         return bm
 
     @staticmethod
+    def _delete_chat_output_bm() -> BodyMappings:
+        bm = BodyMappings()
+        bm.add_mapping("$.id", destination_path="id", mandatory=True)
+        bm.add_mapping("$.deleted", destination_path="deleted", mandatory=True)
+        bm.add_mapping("$.object", destination_path="object", mandatory=True)
+        return bm
+
+    @staticmethod
     def _update_chat_input_bm() -> BodyMappings:
         bm = BodyMappings()
         bm.add_mapping("$.metadata", destination_path="metadata", mandatory=True)
@@ -324,6 +332,11 @@ class ChatCompletionsEndpoints(_OpenAIEndpointGroup):
                 "http_method": HTTPMethod.POST,
                 "input_body_mappings": cls._update_chat_input_bm(),
                 "output_body_mappings": cls._chat_completion_output_bm(),
+            },
+            {  # Delete a chat completion
+                "path": "/chat/completions/{completion_id}",
+                "http_method": HTTPMethod.DELETE,
+                "output_body_mappings": cls._delete_chat_output_bm(),
             },
         ]
 

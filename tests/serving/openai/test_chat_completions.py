@@ -24,6 +24,7 @@ from tests.serving.assets.openai_fixtures import (
     CHAT_HANDLER_RESPONSE,
     CHAT_REQUEST_BODY,
     COMPLETION_ID,
+    DELETE_CHAT_HANDLER_RESPONSE,
     UPDATE_CHAT_EXPECTED_KWARGS,
     UPDATE_CHAT_REQUEST_BODY,
 )
@@ -216,5 +217,43 @@ class TestChatCompletionsGroupMock:
                     method="POST",
                     body={"metadata": {"session": "abc"}},
                 )
+        finally:
+            server.wait_for_completion()
+
+    # ---------------------------------------------------------------------------
+    # DELETE /chat/completions/{completion_id}
+    # ---------------------------------------------------------------------------
+
+    def test_delete_path_param_extracted_and_returns_correct_shape(self) -> None:
+        """DELETE /chat/completions/{completion_id}: path param extracted; extra output fields filtered."""
+        captured_kwargs: dict = {}
+
+        def handler(body, **kwargs):
+            captured_kwargs.update(kwargs)
+            return DELETE_CHAT_HANDLER_RESPONSE
+
+        server = make_mock_server(OpenAIEndpoint.CHAT_COMPLETIONS, handler)
+        try:
+            resp = server.test(f"/chat/completions/{COMPLETION_ID}", method="DELETE")
+            assert captured_kwargs.get("completion_id") == COMPLETION_ID
+            assert "extra_field" not in resp
+            assert resp["id"] == COMPLETION_ID
+            assert resp["deleted"] is True
+            assert resp["object"] == "chat.completion"
+        finally:
+            server.wait_for_completion()
+
+    def test_delete_incomplete_response_raises(self) -> None:
+        """DELETE /chat/completions/{completion_id}: graph returns empty dict → mandatory output fields missing → error."""
+
+        def handler(body, **kwargs):
+            return {}
+
+        server = make_mock_server(OpenAIEndpoint.CHAT_COMPLETIONS, handler)
+        try:
+            with pytest.raises(
+                mlrun.errors.MLRunBadRequestError, match="Mandatory field"
+            ):
+                server.test(f"/chat/completions/{COMPLETION_ID}", method="DELETE")
         finally:
             server.wait_for_completion()

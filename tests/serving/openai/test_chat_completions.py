@@ -23,6 +23,7 @@ from tests.serving.assets.openai_fixtures import (
     CHAT_EXPECTED_RESPONSE,
     CHAT_HANDLER_RESPONSE,
     CHAT_REQUEST_BODY,
+    COMPLETION_ID,
 )
 from tests.serving.openai.openai_common import make_mock_server
 
@@ -112,5 +113,42 @@ class TestChatCompletionsGroupMock:
                         "model": "gpt-4",
                     },
                 )
+        finally:
+            server.wait_for_completion()
+
+    # ---------------------------------------------------------------------------
+    # GET /chat/completions/{completion_id}
+    # ---------------------------------------------------------------------------
+
+    def test_get_path_param_extracted_and_returns_chat_completion(self) -> None:
+        """GET /chat/completions/{completion_id}: path param extracted; extra output fields filtered."""
+        captured_kwargs: dict = {}
+
+        def handler(body, **kwargs):
+            captured_kwargs.update(kwargs)
+            return CHAT_HANDLER_RESPONSE
+
+        server = make_mock_server(OpenAIEndpoint.CHAT_COMPLETIONS, handler)
+        try:
+            resp = server.test(f"/chat/completions/{COMPLETION_ID}", method="GET")
+            assert captured_kwargs.get("completion_id") == COMPLETION_ID
+            assert "extra_field" not in resp
+            for key, value in CHAT_EXPECTED_RESPONSE.items():
+                assert resp[key] == value, f"resp[{key!r}] mismatch"
+        finally:
+            server.wait_for_completion()
+
+    def test_get_incomplete_response_raises(self) -> None:
+        """GET /chat/completions/{completion_id}: graph returns empty dict → mandatory output fields missing → error."""
+
+        def handler(body, **kwargs):
+            return {}
+
+        server = make_mock_server(OpenAIEndpoint.CHAT_COMPLETIONS, handler)
+        try:
+            with pytest.raises(
+                mlrun.errors.MLRunBadRequestError, match="Mandatory field"
+            ):
+                server.test(f"/chat/completions/{COMPLETION_ID}", method="GET")
         finally:
             server.wait_for_completion()

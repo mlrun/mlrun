@@ -186,6 +186,9 @@ COMPACT_EXPECTED_RESPONSE = {
     k: v for k, v in COMPACT_HANDLER_RESPONSE.items() if k != "extra_field"
 }
 
+# Shared completion_id used by all endpoints that take a {completion_id} path parameter.
+COMPLETION_ID = "chatcmpl_123"
+
 # ---------------------------------------------------------------------------
 # POST /chat/completions
 # ---------------------------------------------------------------------------
@@ -229,7 +232,7 @@ CHAT_EXPECTED_KWARGS = {
 }
 
 CHAT_HANDLER_RESPONSE = {
-    "id": "chatcmpl_123",
+    "id": COMPLETION_ID,
     "choices": [
         {
             "finish_reason": "stop",

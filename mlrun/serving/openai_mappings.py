@@ -288,7 +288,7 @@ class ChatCompletionsEndpoints(_OpenAIEndpointGroup):
         return bm
 
     @staticmethod
-    def _chat_output_bm() -> BodyMappings:
+    def _chat_completion_output_bm() -> BodyMappings:
         bm = BodyMappings()
         bm.add_mapping("$.id", destination_path="id", mandatory=True)
         bm.add_mapping("$.choices", destination_path="choices", mandatory=True)
@@ -306,7 +306,12 @@ class ChatCompletionsEndpoints(_OpenAIEndpointGroup):
                 "path": "/chat/completions",
                 "http_method": HTTPMethod.POST,
                 "input_body_mappings": cls._chat_input_bm(),
-                "output_body_mappings": cls._chat_output_bm(),
+                "output_body_mappings": cls._chat_completion_output_bm(),
+            },
+            {  # Retrieve a chat completion
+                "path": "/chat/completions/{completion_id}",
+                "http_method": HTTPMethod.GET,
+                "output_body_mappings": cls._chat_completion_output_bm(),
             },
         ]
 

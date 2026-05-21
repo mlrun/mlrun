@@ -252,11 +252,13 @@ jobs:
 
     - name: Build and push unstable tag
 
-      # Push the "unstable" tag only when building from a direct push to development
-      # (not the test image; not a PR-driven build; not a non-dev branch like 1.11.x).
-      # Fork PRs don't have write access to mlrun-org packages and would fail this
-      # step with "unauthorized" if it ran on PR builds.
-      if: matrix.image-name != 'test' && inputs.pr_number == '' && github.ref_name == 'development'
+      # Push the "unstable" tag only when building from a direct push to development:
+      # - skip the test image
+      # - skip PR-driven builds (fork PRs are unauthorized to push pacakges to mlrun-org)
+      # - skip workflow_dispatch (private-release.yaml uses MLRUN_DOCKER_REPO that doesn't own the
+      #   ghcr.io path being pushed to)
+      # - skip non-dev branches (e.g., 1.11.x backports)
+      if: matrix.image-name != 'test' && inputs.pr_number == '' && github.event_name != 'workflow_dispatch' && github.ref_name == 'development'
       run: |
         for registry in "ghcr.io/" "quay.io/" "registry.hub.docker.com/"; \
           do \

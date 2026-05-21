@@ -288,6 +288,16 @@ class ChatCompletionsEndpoints(_OpenAIEndpointGroup):
         return bm
 
     @staticmethod
+    def _list_chat_output_bm() -> BodyMappings:
+        bm = BodyMappings()
+        bm.add_mapping("$.data", destination_path="data", mandatory=True)
+        bm.add_mapping("$.first_id", destination_path="first_id", mandatory=True)
+        bm.add_mapping("$.has_more", destination_path="has_more", mandatory=True)
+        bm.add_mapping("$.last_id", destination_path="last_id", mandatory=True)
+        bm.add_mapping("$.object", destination_path="object", mandatory=True)
+        return bm
+
+    @staticmethod
     def _delete_chat_output_bm() -> BodyMappings:
         bm = BodyMappings()
         bm.add_mapping("$.id", destination_path="id", mandatory=True)
@@ -337,6 +347,11 @@ class ChatCompletionsEndpoints(_OpenAIEndpointGroup):
                 "path": "/chat/completions/{completion_id}",
                 "http_method": HTTPMethod.DELETE,
                 "output_body_mappings": cls._delete_chat_output_bm(),
+            },
+            {  # List chat completions
+                "path": "/chat/completions",
+                "http_method": HTTPMethod.GET,
+                "output_body_mappings": cls._list_chat_output_bm(),
             },
         ]
 

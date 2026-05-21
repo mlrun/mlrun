@@ -25,6 +25,8 @@ from tests.serving.assets.openai_fixtures import (
     CHAT_REQUEST_BODY,
     COMPLETION_ID,
     DELETE_CHAT_HANDLER_RESPONSE,
+    LIST_CHAT_EXPECTED_RESPONSE,
+    LIST_CHAT_HANDLER_RESPONSE,
     UPDATE_CHAT_EXPECTED_KWARGS,
     UPDATE_CHAT_REQUEST_BODY,
 )
@@ -202,6 +204,7 @@ class TestChatCompletionsGroupMock:
 
     def test_update_incomplete_response_raises(self) -> None:
         """POST /chat/completions/{completion_id}: graph returns empty dict → mandatory output fields
+
         missing → error."""
 
         def handler(body, **kwargs):
@@ -244,7 +247,7 @@ class TestChatCompletionsGroupMock:
             server.wait_for_completion()
 
     def test_delete_incomplete_response_raises(self) -> None:
-        """DELETE /chat/completions/{completion_id}: graph returns empty dict → mandatory output fields missing → error."""
+        """DELETE /chat/completions/{completion_id}: graph returns empty dict → mandatory output fields missing → error."""  # noqa: E501
 
         def handler(body, **kwargs):
             return {}
@@ -255,5 +258,39 @@ class TestChatCompletionsGroupMock:
                 mlrun.errors.MLRunBadRequestError, match="Mandatory field"
             ):
                 server.test(f"/chat/completions/{COMPLETION_ID}", method="DELETE")
+        finally:
+            server.wait_for_completion()
+
+    # ---------------------------------------------------------------------------
+    # GET /chat/completions
+    # ---------------------------------------------------------------------------
+
+    def test_list_filters_extra_output_fields(self) -> None:
+        """GET /chat/completions: extra graph response fields filtered from output."""
+
+        def handler(body, **kwargs):
+            return LIST_CHAT_HANDLER_RESPONSE
+
+        server = make_mock_server(OpenAIEndpoint.CHAT_COMPLETIONS, handler)
+        try:
+            resp = server.test("/chat/completions", method="GET")
+            assert "extra_field" not in resp
+            for key, value in LIST_CHAT_EXPECTED_RESPONSE.items():
+                assert resp[key] == value, f"resp[{key!r}] mismatch"
+        finally:
+            server.wait_for_completion()
+
+    def test_list_incomplete_response_raises(self) -> None:
+        """GET /chat/completions: graph returns empty dict → mandatory output fields missing → error."""
+
+        def handler(body, **kwargs):
+            return {}
+
+        server = make_mock_server(OpenAIEndpoint.CHAT_COMPLETIONS, handler)
+        try:
+            with pytest.raises(
+                mlrun.errors.MLRunBadRequestError, match="Mandatory field"
+            ):
+                server.test("/chat/completions", method="GET")
         finally:
             server.wait_for_completion()

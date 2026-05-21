@@ -190,6 +190,23 @@ COMPACT_EXPECTED_RESPONSE = {
 COMPLETION_ID = "chatcmpl_123"
 
 # ---------------------------------------------------------------------------
+# GET /chat/completions
+# ---------------------------------------------------------------------------
+
+LIST_CHAT_HANDLER_RESPONSE = {
+    "data": [{"id": COMPLETION_ID, "object": "chat.completion"}],
+    "first_id": COMPLETION_ID,
+    "has_more": False,
+    "last_id": COMPLETION_ID,
+    "object": "list",
+    "extra_field": "should_be_filtered",
+}
+
+LIST_CHAT_EXPECTED_RESPONSE = {
+    k: v for k, v in LIST_CHAT_HANDLER_RESPONSE.items() if k != "extra_field"
+}
+
+# ---------------------------------------------------------------------------
 # POST /chat/completions
 # ---------------------------------------------------------------------------
 

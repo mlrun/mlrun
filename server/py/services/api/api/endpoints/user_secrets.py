@@ -203,8 +203,7 @@ async def _resolve_target_username_for_list_secret_tokens(
     # Keycloak/Iguazio treat usernames case-insensitively.
     # auth_info.username may be None; in that case the comparison must fail.
     if not has_system_admin_permissions and (
-        auth_info.username is None
-        or username.lower() != auth_info.username.lower()
+        auth_info.username is None or username.lower() != auth_info.username.lower()
     ):
         raise mlrun.errors.MLRunAccessDeniedError(
             "Only system admins can list tokens for other users"
@@ -245,8 +244,7 @@ async def _resolve_target_username_for_delete_secret_tokens(
     # Keycloak/Iguazio treat usernames case-insensitively.
     # auth_info.username may be None; in that case the comparison must fail.
     if not has_system_admin_permissions and (
-        auth_info.username is None
-        or username.lower() != auth_info.username.lower()
+        auth_info.username is None or username.lower() != auth_info.username.lower()
     ):
         raise mlrun.errors.MLRunAccessDeniedError(
             "Only system admins can delete tokens for other users"

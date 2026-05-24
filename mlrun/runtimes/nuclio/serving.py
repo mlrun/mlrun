@@ -35,6 +35,7 @@ from mlrun.secrets import SecretsStore
 from mlrun.serving.endpoint_mapping import (
     APIHandlerConfig,
 )
+from mlrun.serving.openai_mappings import ENDPOINT_CLASSES, OpenAIEndpoint
 from mlrun.serving.server import (
     GraphServer,
     add_system_steps_to_graph,
@@ -1162,7 +1163,6 @@ class ServingRuntime(nuclio_function.RemoteRuntime):
             fn.set_openai_frontend()  # all groups
             fn.set_openai_frontend([OpenAIEndpoint.RESPONSES])  # Responses only
         """
-        from mlrun.serving.openai_mappings import ENDPOINT_CLASSES, OpenAIEndpoint
 
         existing = self.spec.api_handler_config
         config = (

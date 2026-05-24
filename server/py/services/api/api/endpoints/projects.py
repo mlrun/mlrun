@@ -29,6 +29,7 @@ import framework.api.utils
 import framework.utils.auth.verifier
 import framework.utils.clients.chief
 import framework.utils.helpers
+import framework.utils.project_formats
 import services.api.crud
 from framework.utils.singletons.project_member import get_project_member
 
@@ -629,21 +630,46 @@ async def _ensure_project_create_or_update_permissions(
         return
 
     try:
-        await run_in_threadpool(
+        # Fetch name + owner so we can short-circuit the OPA query when the
+        # requesting user owns the project (mirrors `ensure_project` behavior).
+        project = await run_in_threadpool(
             get_project_member().get_project,
             db_session,
             project_name,
             auth_info,
-            format_=mlrun.common.formatters.ProjectFormat.name_only,
+            format_=framework.utils.project_formats.ProjectFormatCustomSelection(
+                [
+                    framework.utils.project_formats.ProjectFormatCustom.name,
+                    framework.utils.project_formats.ProjectFormatCustom.owner,
+                ]
+            ),
         )
         project_exists = True
     except mlrun.errors.MLRunNotFoundError:
+        project = None
         project_exists = False
 
     if project_exists:
-        await framework.utils.auth.verifier.AuthVerifier().query_project_permissions(
-            project_name, mlrun.common.schemas.AuthorizationAction.update, auth_info
-        )
+        # If the requesting user is the project owner, populate the OPA owner
+        # cache and skip the permissions query. This mitigates the OPA manifest
+        # propagation race on multi-pod deployments.
+        if (
+            auth_info.username
+            and getattr(project, "spec", None)
+            and project.spec.owner
+            and auth_info.username == project.spec.owner
+        ):
+            framework.utils.auth.verifier.AuthVerifier().add_allowed_project_for_owner(
+                project_name, auth_info
+            )
+        else:
+            await (
+                framework.utils.auth.verifier.AuthVerifier().query_project_permissions(
+                    project_name,
+                    mlrun.common.schemas.AuthorizationAction.update,
+                    auth_info,
+                )
+            )
         return
 
     # In Iguazio v4 mode, mlrun is the project leader and main entrypoint so we must ensure

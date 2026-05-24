@@ -434,14 +434,13 @@ def test_redirection_from_worker_to_chief_only_if_schedules_in_job(
     httpserver,
     monkeypatch,
 ):
+    mlrun.mlconf.httpdb.clusterization.role = "worker"
+
     project = "test-project"
     function_name = "test-function"
     function_tag = "latest"
 
-    # create the project while still in chief role - project CRUD reroutes to chief on workers
     services.api.tests.unit.api.utils.create_project(client, project)
-    mlrun.mlconf.httpdb.clusterization.role = "worker"
-
     function = mlrun.new_function(
         name=function_name,
         project=project,
@@ -477,6 +476,7 @@ def test_redirection_from_worker_to_chief_only_if_schedules_in_job(
 def test_redirection_from_worker_to_chief_submit_job_with_schedule(
     db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient, httpserver
 ):
+    mlrun.mlconf.httpdb.clusterization.role = "worker"
     endpoint = "/submit_job"
     project = "test-project"
 
@@ -490,10 +490,7 @@ def test_redirection_from_worker_to_chief_submit_job_with_schedule(
         image="mlrun/mlrun",
     )
 
-    # create the project while still in chief role - project CRUD reroutes to chief on workers
     services.api.tests.unit.api.utils.create_project(client, project)
-    mlrun.mlconf.httpdb.clusterization.role = "worker"
-
     submit_job_body = _create_submit_job_body_with_schedule(function, project)
 
     for test_case in [

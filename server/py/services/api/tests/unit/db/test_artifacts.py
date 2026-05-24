@@ -28,6 +28,7 @@ import mlrun.lists
 import mlrun.utils
 from mlrun.artifacts import Artifact
 from mlrun.artifacts.base import LinkArtifact
+from mlrun.artifacts.code import CodeArtifact
 from mlrun.artifacts.dataset import DatasetArtifact
 from mlrun.artifacts.document import DocumentArtifact
 from mlrun.artifacts.model import ModelArtifact
@@ -190,12 +191,15 @@ class TestArtifacts(TestDatabaseBase):
         artifact_kind_4 = DatasetArtifact.kind
         artifact_name_5 = "artifact_name_5"
         artifact_kind_5 = DocumentArtifact.kind
+        artifact_name_6 = "artifact_name_6"
+        artifact_kind_6 = CodeArtifact.kind
 
         artifact_1 = self._generate_artifact(artifact_name_1, kind=artifact_kind_1)
         artifact_2 = self._generate_artifact(artifact_name_2, kind=artifact_kind_2)
         artifact_3 = self._generate_artifact(artifact_name_3, kind=artifact_kind_3)
         artifact_4 = self._generate_artifact(artifact_name_4, kind=artifact_kind_4)
         artifact_5 = self._generate_artifact(artifact_name_5, kind=artifact_kind_5)
+        artifact_6 = self._generate_artifact(artifact_name_6, kind=artifact_kind_6)
 
         for artifact_name, artifact_object in [
             (artifact_name_1, artifact_1),
@@ -203,6 +207,7 @@ class TestArtifacts(TestDatabaseBase):
             (artifact_name_3, artifact_3),
             (artifact_name_4, artifact_4),
             (artifact_name_5, artifact_5),
+            (artifact_name_6, artifact_6),
         ]:
             self._db.store_artifact(
                 self._db_session,
@@ -212,7 +217,7 @@ class TestArtifacts(TestDatabaseBase):
             )
 
         artifacts = self._db.list_artifacts(self._db_session, project=self.project)
-        assert len(artifacts) == 5
+        assert len(artifacts) == 6
 
         artifacts = self._db.list_artifacts(
             self._db_session,
@@ -243,9 +248,16 @@ class TestArtifacts(TestDatabaseBase):
             category=mlrun.common.schemas.ArtifactCategories.other,
             project=self.project,
         )
-        assert len(artifacts) == 2
-        assert artifacts[1]["metadata"]["key"] == artifact_name_1
-        assert artifacts[0]["metadata"]["key"] == artifact_name_2
+        assert len(artifacts) == 3
+        assert artifacts[0]["metadata"]["key"] == artifact_name_6
+        assert artifacts[1]["metadata"]["key"] == artifact_name_2
+        assert artifacts[2]["metadata"]["key"] == artifact_name_1
+
+        artifacts = self._db.list_artifacts(
+            self._db_session, kind=CodeArtifact.kind, project=self.project
+        )
+        assert len(artifacts) == 1
+        assert artifacts[0]["metadata"]["key"] == artifact_name_6
 
     def test_list_artifact_label_filter(self):
         total_artifacts = 5

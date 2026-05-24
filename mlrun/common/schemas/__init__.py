@@ -86,6 +86,7 @@ from .events import (
     EventClientKinds,
     EventsModes,
     MigrationEventActions,
+    ProjectLifecycleEventActions,
     SecretEventActions,
 )
 from .feature_store import (

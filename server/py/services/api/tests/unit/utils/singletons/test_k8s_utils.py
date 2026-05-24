@@ -920,6 +920,84 @@ def test_list_user_token_secrets_valid(k8s_helper):
     )
 
 
+def test_store_user_token_secret_canonicalizes_username_to_lowercase(k8s_helper):
+    """Usernames are stored canonically (lowercase) so list lookups match regardless of
+    the case the user originally registered with — Keycloak/Iguazio are case-insensitive."""
+    k8s_helper.list_secrets = mock.MagicMock(return_value=[])
+
+    mixed_case_username = "Mixed.Case-User"
+    auth_info = mlrun.common.schemas.AuthInfo(
+        user_id="user-id-1", username=mixed_case_username
+    )
+
+    k8s_helper.store_user_token_secret(
+        auth_info=auth_info,
+        token_name="my-token",
+        token="abc123",
+        issued_at=1,
+        expiration=9999,
+        namespace="default",
+    )
+
+    labels = k8s_helper._create_secret.call_args.kwargs["labels"]
+    annotations = k8s_helper._create_secret.call_args.kwargs["annotations"]
+    assert labels[
+        mlrun_constants.MLRunInternalLabels.auth_username
+    ] == k8s_helper._hash_label(mixed_case_username.lower())
+    assert (
+        annotations[mlrun_constants.InternalAnnotations.auth_username]
+        == mixed_case_username.lower()
+    )
+
+
+def test_list_user_token_secrets_canonicalizes_username_to_lowercase(k8s_helper):
+    """Listing with mixed-case username must hit the same hashed label that was written
+    using the canonical (lowercase) form."""
+    canonical_username = "mixed.case-user"
+    secret_name = k8s_helper._resolve_auth_secret_name("user-id-1", "token1")
+    secret = _make_user_token_secret(
+        secret_name,
+        token_name="token1",
+        issued_at=1,
+        expiration=9999,
+        user_id="user-id-1",
+        username=canonical_username,
+    )
+    k8s_helper.resolve_namespace = mock.MagicMock(return_value="default")
+    k8s_helper.list_secrets = mock.MagicMock(return_value=[secret])
+
+    result = k8s_helper.list_user_token_secrets(
+        username="Mixed.Case-User", namespace="default"
+    )
+
+    # The hash-collision post-filter compares against the canonical stored username,
+    # so the match succeeds and the token is returned.
+    assert len(result) == 1
+    assert result[0].name == "token1"
+
+    k8s_helper.list_secrets.assert_called_once_with(
+        namespace="default",
+        labels={
+            mlrun_constants.MLRunInternalLabels.auth_token_name: None,
+            mlrun_constants.MLRunInternalLabels.auth_username: k8s_helper._hash_label(
+                canonical_username
+            ),
+        },
+    )
+
+
+def test_list_user_token_secrets_wildcard_not_canonicalized(k8s_helper):
+    """The "*" sentinel must not be lowercased or hashed — it skips the username filter."""
+    k8s_helper.resolve_namespace = mock.MagicMock(return_value="default")
+    k8s_helper.list_secrets = mock.MagicMock(return_value=[])
+
+    k8s_helper.list_user_token_secrets(username="*", namespace="default")
+
+    # No auth_username label key should be present — the wildcard skips the filter
+    called_labels = k8s_helper.list_secrets.call_args.kwargs["labels"]
+    assert mlrun_constants.MLRunInternalLabels.auth_username not in called_labels
+
+
 def test_list_user_token_secrets_invalid_expiration(k8s_helper):
     user_id = "test-user-id"
     username = "test-username"

@@ -19,11 +19,18 @@ permissions:
   pull-requests: write
   packages: write
 
+# Cancel any in-progress smoke run for the same PR head when a new commit arrives.
+# For workflow_dispatch the group is per-run (run_id is unique), so manual dispatches
+# never cancel each other.
+concurrency:
+  group: smoke-${{ github.event.workflow_run.head_repository.full_name || 'manual' }}-${{ github.event.workflow_run.head_branch || github.run_id }}
+  cancel-in-progress: true
+
 on:
   workflow_dispatch:
     inputs:
       pr_number:
-        description: 'PR number to target for labeling (and optionally to build from)'
+        description: 'PR number to smoke-test. When set, smoke tests the PR (merged with its base), otherwise tests workflow''s reference'
         required: false
         default: ''
       clean_resources_in_teardown:
@@ -42,23 +49,176 @@ on:
         options:
           - 'true'
           - 'false'
+  workflow_run:
+    workflows: ["CI"]
+    types: [requested]
 
 jobs:
+  should-run:
+    name: Check if smoke tests should run
+    runs-on: ubuntu-latest
+    outputs:
+      pr_number: ${{ steps.resolve.outputs.pr_number }}
+      should_run: ${{ steps.resolve.outputs.should_run }}
+      pr_head_sha: ${{ steps.resolve.outputs.pr_head_sha }}
+      pr_base_ref: ${{ steps.resolve.outputs.pr_base_ref }}
+      pr_base_sha: ${{ steps.resolve.outputs.pr_base_sha }}
+      base_commits_since_sync: ${{ steps.resolve.outputs.base_commits_since_sync }}
+    steps:
+      - name: Resolve PR number and check eligibility
+        id: resolve
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # workflow_dispatch: always run; resolve PR number from input
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            PR_NUM="${{ inputs.pr_number }}"
+            echo "pr_number=${PR_NUM}" >> $GITHUB_OUTPUT
+            echo "should_run=true" >> $GITHUB_OUTPUT
+            if [ -z "$PR_NUM" ]; then
+              exit 0
+            fi
+          else
+            # workflow_run: only run on a pull_request event
+            if [ "${{ github.event.workflow_run.event }}" != "pull_request" ]; then
+              echo "Not a PR event, skipping"
+              echo "should_run=false" >> $GITHUB_OUTPUT
+              echo "pr_number=" >> $GITHUB_OUTPUT
+              exit 0
+            fi
+
+            HEAD_OWNER="${{ github.event.workflow_run.head_repository.owner.login }}"
+            HEAD_BRANCH="${{ github.event.workflow_run.head_branch }}"
+            PR_NUM=$(curl -sS \
+              -H "Authorization: token ${GITHUB_TOKEN}" \
+              -H "Accept: application/vnd.github+json" \
+              "https://api.github.com/repos/${{ github.repository }}/pulls?head=${HEAD_OWNER}:${HEAD_BRANCH}&state=all" \
+              | jq -r '.[0].number // empty')
+            if [ -z "$PR_NUM" ]; then
+              echo "No PR found for ${HEAD_OWNER}:${HEAD_BRANCH}, skipping"
+              echo "should_run=false" >> $GITHUB_OUTPUT
+              echo "pr_number=" >> $GITHUB_OUTPUT
+              exit 0
+            fi
+
+            # Skip docs-only PRs in the auto-trigger path; manual workflow_dispatch
+            # still runs regardless.
+            NON_DOC_COUNT=$(curl -sS \
+              -H "Authorization: token ${GITHUB_TOKEN}" \
+              -H "Accept: application/vnd.github+json" \
+              "https://api.github.com/repos/${{ github.repository }}/pulls/${PR_NUM}/files?per_page=100" \
+              | jq '[.[] | select(.filename | endswith(".md") | not)] | length')
+            if [ "$NON_DOC_COUNT" = "0" ]; then
+              echo "PR #${PR_NUM} contains only documentation (*.md) changes, skipping smoke tests"
+              echo "should_run=false" >> $GITHUB_OUTPUT
+              echo "pr_number=" >> $GITHUB_OUTPUT
+              exit 0
+            fi
+
+            echo "pr_number=${PR_NUM}" >> $GITHUB_OUTPUT
+            echo "should_run=true" >> $GITHUB_OUTPUT
+          fi
+
+          # Fetch PR + base info from GitHub API. Compute once here so the merge
+          # step in system-tests-opensource.yml and the PR comments all see the
+          # same values (single source of truth).
+          PR_JSON=$(curl -sS \
+            -H "Authorization: token ${GITHUB_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/${{ github.repository }}/pulls/${PR_NUM}")
+          PR_HEAD_SHA=$(echo "$PR_JSON" | jq -r '.head.sha')
+          BASE_REF=$(echo "$PR_JSON" | jq -r '.base.ref')
+          BASE_SHA=$(curl -sS \
+            -H "Authorization: token ${GITHUB_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/${{ github.repository }}/commits/${BASE_REF}" \
+            | jq -r '.sha')
+
+          # Count base-branch commits since the PR's merge-base (the real "sync point").
+          MERGE_BASE_SHA=$(curl -sS \
+            -H "Authorization: token ${GITHUB_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/${{ github.repository }}/compare/${BASE_REF}...${PR_HEAD_SHA}" \
+            | jq -r '.merge_base_commit.sha')
+          BASE_COMMITS_SINCE_SYNC=$(curl -sS \
+            -H "Authorization: token ${GITHUB_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/${{ github.repository }}/compare/${MERGE_BASE_SHA}...${BASE_SHA}" \
+            | jq -r '.ahead_by // 0')
+
+          echo "PR #${PR_NUM} @ ${PR_HEAD_SHA:0:8} | base: ${BASE_REF} @ ${BASE_SHA:0:8} (${BASE_COMMITS_SINCE_SYNC} commits since sync)"
+          echo "pr_head_sha=${PR_HEAD_SHA:0:8}" >> $GITHUB_OUTPUT
+          echo "pr_base_ref=${BASE_REF}" >> $GITHUB_OUTPUT
+          echo "pr_base_sha=${BASE_SHA}" >> $GITHUB_OUTPUT
+          echo "base_commits_since_sync=${BASE_COMMITS_SINCE_SYNC}" >> $GITHUB_OUTPUT
+
+  post-in-progress:
+    name: Post in-progress comment
+    runs-on: ubuntu-latest
+    needs: should-run
+    if: needs.should-run.outputs.should_run == 'true' && needs.should-run.outputs.pr_number != ''
+    permissions:
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          sparse-checkout: automation/scripts
+
+      - name: Set Unknown label on PR
+        uses: actions/github-script@v9
+        with:
+          script: |
+            const addRemoveLabels = require('./automation/scripts/add-remove-labels.js')
+            await addRemoveLabels({
+              github, context,
+              prNumber: ${{ needs.should-run.outputs.pr_number }},
+              labelsToAdd: [{ name: 'Smoke tests: Unknown', color: 'c5def5' }],
+              labelsToRemove: ['Smoke tests: Pass', 'Smoke tests: Fail']
+            })
+
+      - name: Build in-progress comment
+        run: |
+          RUN_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          BASE_REF="${{ needs.should-run.outputs.pr_base_ref }}"
+          BASE_SHA="${{ needs.should-run.outputs.pr_base_sha }}"
+          BASE_COMMITS_SINCE_SYNC="${{ needs.should-run.outputs.base_commits_since_sync }}"
+
+          BRANCH_URL="${{ github.server_url }}/${{ github.repository }}/commits/${BASE_REF}"
+          if [ "${BASE_COMMITS_SINCE_SYNC}" = "0" ] || [ -z "${BASE_COMMITS_SINCE_SYNC}" ]; then
+            SYNC_TEXT="synced to"
+          else
+            SYNC_TEXT="merged with ${BASE_COMMITS_SINCE_SYNC} new commits from"
+          fi
+          echo "Smoke Tests with the PR ${SYNC_TEXT} [\`${BASE_REF}\`](${BRANCH_URL}) HEAD \`${BASE_SHA:0:8}\`: [In-progress](${RUN_URL}) ⏳" > comment.md
+
+      - name: Post in-progress comment to PR
+        uses: thollander/actions-comment-pull-request@24bffb9b452ba05a4f3f77933840a6a841d1b32b
+        with:
+          pr-number: ${{ needs.should-run.outputs.pr_number }}
+          file-path: comment.md
+          comment-tag: smoke_test_result_${{ needs.should-run.outputs.pr_head_sha }}
+          mode: upsert
+
   run-smoke-tests:
     name: Run Smoke Tests
+    needs: should-run
+    if: needs.should-run.outputs.should_run == 'true'
     uses: ./.github/workflows/system-tests-opensource.yml
     with:
-      pr_number: ${{ inputs.pr_number }}
+      pr_number: ${{ needs.should-run.outputs.pr_number }}
+      pr_base_sha: ${{ needs.should-run.outputs.pr_base_sha }}
+      pr_base_ref: ${{ needs.should-run.outputs.pr_base_ref }}
+      base_commits_since_sync: ${{ needs.should-run.outputs.base_commits_since_sync }}
       pytest_markers: 'not enterprise and smoke'
-      clean_resources_in_teardown: ${{ inputs.clean_resources_in_teardown }}
-      debug_enabled: ${{ inputs.debug_enabled }}
+      clean_resources_in_teardown: ${{ inputs.clean_resources_in_teardown || 'true' }}
+      debug_enabled: ${{ inputs.debug_enabled || 'false' }}
     secrets: inherit
 
   post-results:
     name: Post smoke test results
     runs-on: ubuntu-latest
-    if: always() && inputs.pr_number != ''
-    needs: run-smoke-tests
+    if: always() && needs.should-run.outputs.pr_number != ''
+    needs: [should-run, run-smoke-tests]
     permissions:
       pull-requests: write
     steps:
@@ -67,15 +227,23 @@ jobs:
         run: |
           OUTCOME="${{ needs.run-smoke-tests.result }}"
 
-          if [ "$OUTCOME" = "success" ]; then
-            STATUS="Pass"
-            EMOJI="✅"
-            COLOR="0e8a16"
-          else
-            STATUS="Fail"
-            EMOJI="❌"
-            COLOR="d93f0b"
-          fi
+          case "$OUTCOME" in
+            success)
+              STATUS="Pass"
+              EMOJI="✅"
+              COLOR="0e8a16"
+              ;;
+            cancelled)
+              STATUS="Cancelled"
+              EMOJI="🚫"
+              COLOR="cccccc"
+              ;;
+            *)
+              STATUS="Fail"
+              EMOJI="❌"
+              COLOR="d93f0b"
+              ;;
+          esac
 
           LABEL="Smoke tests: ${STATUS}"
           SOURCE="PR branch"
@@ -90,14 +258,16 @@ jobs:
         with:
           sparse-checkout: automation/scripts
 
+      # Cancelled runs are non-results; leave the existing label as-is.
       - name: Set label on PR
+        if: steps.outcome.outputs.status != 'Cancelled'
         uses: actions/github-script@v9
         with:
           script: |
             const addRemoveLabels = require('./automation/scripts/add-remove-labels.js')
             await addRemoveLabels({
               github, context,
-              prNumber: ${{ inputs.pr_number }},
+              prNumber: ${{ needs.should-run.outputs.pr_number }},
               labelsToAdd: [{ name: '${{ steps.outcome.outputs.label }}', color: '${{ steps.outcome.outputs.color }}' }],
               labelsToRemove: ['Smoke tests: Pass', 'Smoke tests: Fail', 'Smoke tests: Unknown']
             })
@@ -105,9 +275,9 @@ jobs:
       - name: Build comment body
         run: |
           RUN_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-          BASE_REF="${{ needs.run-smoke-tests.outputs.pr_base_ref }}"
-          BASE_SHA="${{ needs.run-smoke-tests.outputs.pr_base_sha }}"
-          BASE_COMMITS_SINCE_SYNC="${{ needs.run-smoke-tests.outputs.base_commits_since_sync }}"
+          BASE_REF="${{ needs.should-run.outputs.pr_base_ref }}"
+          BASE_SHA="${{ needs.should-run.outputs.pr_base_sha }}"
+          BASE_COMMITS_SINCE_SYNC="${{ needs.should-run.outputs.base_commits_since_sync }}"
 
           BRANCH_URL="${{ github.server_url }}/${{ github.repository }}/commits/${BASE_REF}"
           if [ "${BASE_COMMITS_SINCE_SYNC}" = "0" ] || [ -z "${BASE_COMMITS_SINCE_SYNC}" ]; then
@@ -115,12 +285,12 @@ jobs:
           else
             SYNC_TEXT="merged with ${BASE_COMMITS_SINCE_SYNC} new commits from"
           fi
-          echo "Smoke Tests [${{ steps.outcome.outputs.status }}](${RUN_URL}) ${{ steps.outcome.outputs.emoji }} with the PR ${SYNC_TEXT} [\`${BASE_REF}\`](${BRANCH_URL}) HEAD \`${BASE_SHA:0:8}\`" > comment.md
+          echo "Smoke Tests with the PR ${SYNC_TEXT} [\`${BASE_REF}\`](${BRANCH_URL}) HEAD \`${BASE_SHA:0:8}\`: [${{ steps.outcome.outputs.status }}](${RUN_URL}) ${{ steps.outcome.outputs.emoji }}" > comment.md
 
       - name: Post comment to PR
         uses: thollander/actions-comment-pull-request@24bffb9b452ba05a4f3f77933840a6a841d1b32b
         with:
-          pr-number: ${{ inputs.pr_number }}
+          pr-number: ${{ needs.should-run.outputs.pr_number }}
           file-path: comment.md
-          comment-tag: smoke_test_result
-          mode: recreate
+          comment-tag: smoke_test_result_${{ needs.should-run.outputs.pr_head_sha }}
+          mode: upsert

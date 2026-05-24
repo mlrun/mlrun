@@ -72,7 +72,21 @@ class Projects(
             artifact_amount=len(project.spec.artifacts or []),
             workflows_amount=len(project.spec.workflows or []),
         )
-        framework.utils.singletons.db.get_db().create_project(session, project)
+        try:
+            framework.utils.singletons.db.get_db().create_project(session, project)
+        except Exception as exc:
+            self._emit_project_lifecycle_event(
+                action=mlrun.common.schemas.ProjectLifecycleEventActions.creation_failed,
+                project_name=project.metadata.name,
+                actor=auth_info.username,
+                error=exc,
+            )
+            raise
+        self._emit_project_lifecycle_event(
+            action=mlrun.common.schemas.ProjectLifecycleEventActions.creation_succeeded,
+            project_name=project.metadata.name,
+            actor=auth_info.username,
+        )
 
     def store_project(
         self,
@@ -148,8 +162,22 @@ class Projects(
             raise mlrun.errors.MLRunInvalidArgumentError(
                 f"Unknown deletion strategy: {deletion_strategy}"
             )
-        framework.utils.singletons.db.get_db().delete_project(
-            session, name, deletion_strategy
+        try:
+            framework.utils.singletons.db.get_db().delete_project(
+                session, name, deletion_strategy
+            )
+        except Exception as exc:
+            self._emit_project_lifecycle_event(
+                action=mlrun.common.schemas.ProjectLifecycleEventActions.deletion_failed,
+                project_name=name,
+                actor=auth_info.username,
+                error=exc,
+            )
+            raise
+        self._emit_project_lifecycle_event(
+            action=mlrun.common.schemas.ProjectLifecycleEventActions.deletion_succeeded,
+            project_name=name,
+            actor=auth_info.username,
         )
 
     def verify_project_is_empty(
@@ -412,6 +440,33 @@ class Projects(
             session,
             project=name,
         )
+
+    def _emit_project_lifecycle_event(
+        self,
+        action: mlrun.common.schemas.ProjectLifecycleEventActions,
+        project_name: str,
+        actor: str | None,
+        error: BaseException | str | None = None,
+    ) -> None:
+        """Best-effort emit of a project lifecycle event; never raises."""
+        try:
+            client = events_factory.EventsFactory.get_events_client()
+            event = client.generate_project_lifecycle_event(
+                action=action,
+                project_name=project_name,
+                actor=actor,
+                error=error,
+            )
+            if event is None:
+                return
+            client.emit(event)
+        except Exception as publish_exc:
+            logger.warning(
+                "Failed to publish project lifecycle event",
+                action=action,
+                project=project_name,
+                exc=mlrun.errors.err_to_str(publish_exc),
+            )
 
     def _verify_project_has_no_external_resources(
         self,

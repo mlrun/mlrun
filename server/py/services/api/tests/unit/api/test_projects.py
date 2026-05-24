@@ -567,6 +567,12 @@ async def test_list_and_get_project_summaries(
         client, project_name, files_count, mlrun.artifacts.PlotArtifact.kind
     )
 
+    code_files_count = 3
+    _create_artifacts(
+        client, project_name, code_files_count, mlrun.artifacts.CodeArtifact.kind
+    )
+    files_count += code_files_count
+
     # create feature sets for the project
     feature_sets_count = 9
     _create_feature_sets(client, project_name, feature_sets_count)

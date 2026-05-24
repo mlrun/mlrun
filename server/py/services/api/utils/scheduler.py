@@ -1060,8 +1060,9 @@ class Scheduler:
     ):
         # apscheduler timezone fails when `utc` key was given as it expects
         # `UTC` key in order to work properly. this is a workaround for 3.11.0
-        if cron_trigger.timezone and isinstance(cron_trigger.timezone, str):
-            cron_trigger.timezone = cron_trigger.timezone.upper()
+        if cron_trigger.timezone == "utc":
+            cron_trigger.timezone = "UTC"
+
         return APSchedulerCronTrigger(
             cron_trigger.year,
             cron_trigger.month,

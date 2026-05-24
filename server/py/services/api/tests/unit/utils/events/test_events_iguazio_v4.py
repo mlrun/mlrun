@@ -348,3 +348,109 @@ def test_db_connection_event_truncates_long_error(client):
 def test_db_connection_unsupported_action_raises(client):
     with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
         client.generate_db_connection_event("bogus")  # type: ignore[arg-type]
+
+
+@pytest.mark.parametrize(
+    "action,expected_config_name,expected_severity",
+    [
+        (
+            mlrun.common.schemas.ProjectLifecycleEventActions.creation_succeeded,
+            iguazio_v4_events.PROJECT_CREATION_SUCCEEDED,
+            iguazio.schemas.Severity.INFO,
+        ),
+        (
+            mlrun.common.schemas.ProjectLifecycleEventActions.creation_failed,
+            iguazio_v4_events.PROJECT_CREATION_FAILED,
+            iguazio.schemas.Severity.WARNING,
+        ),
+        (
+            mlrun.common.schemas.ProjectLifecycleEventActions.deletion_succeeded,
+            iguazio_v4_events.PROJECT_DELETION_SUCCEEDED,
+            iguazio.schemas.Severity.INFO,
+        ),
+        (
+            mlrun.common.schemas.ProjectLifecycleEventActions.deletion_failed,
+            iguazio_v4_events.PROJECT_DELETION_FAILED,
+            iguazio.schemas.Severity.WARNING,
+        ),
+    ],
+)
+def test_generate_project_lifecycle_event_basic(
+    client, action, expected_config_name, expected_severity
+):
+    event = client.generate_project_lifecycle_event(
+        action=action, project_name="my-project", actor="alice"
+    )
+    assert event.config_name == expected_config_name
+    assert event.kind == "system"
+    assert event.class_ == iguazio_v4_events.EVENT_CLASS_PROJECT == "Project"
+    assert event.severity == expected_severity
+    assert event.entity_name == "mlrun-api-chief"
+    assert event.source == ""
+    assert event.details["project_name"] == "my-project"
+    assert event.details["actor"] == "alice"
+    # error is only included on failed actions, and only when supplied
+    assert "error" not in event.details
+
+
+def test_project_lifecycle_omits_actor_when_missing(client):
+    event = client.generate_project_lifecycle_event(
+        action=mlrun.common.schemas.ProjectLifecycleEventActions.creation_succeeded,
+        project_name="p",
+        actor=None,
+    )
+    assert event.details == {"project_name": "p"}
+
+
+@pytest.mark.parametrize(
+    "failed_action",
+    [
+        mlrun.common.schemas.ProjectLifecycleEventActions.creation_failed,
+        mlrun.common.schemas.ProjectLifecycleEventActions.deletion_failed,
+    ],
+)
+def test_project_lifecycle_failed_carries_error(client, failed_action):
+    err = RuntimeError("db unavailable")
+    event = client.generate_project_lifecycle_event(
+        action=failed_action,
+        project_name="my-project",
+        actor="alice",
+        error=err,
+    )
+    assert event.details["error"] == "db unavailable"
+    assert event.details["error_type"] == "RuntimeError"
+    assert "db unavailable" in event.description
+
+
+def test_project_lifecycle_failed_truncates_long_error(client):
+    long_err = "y" * 4096
+    event = client.generate_project_lifecycle_event(
+        action=mlrun.common.schemas.ProjectLifecycleEventActions.deletion_failed,
+        project_name="my-project",
+        actor=None,
+        error=long_err,
+    )
+    assert event.details["error"].endswith("...[truncated]")
+    assert len(event.details["error"]) <= iguazio_v4_events.ERROR_DETAIL_LIMIT
+    assert event.description.endswith("...[truncated]")
+
+
+def test_project_lifecycle_succeeded_ignores_error(client):
+    # even if an `error` is passed for a succeeded action it must not leak into details
+    event = client.generate_project_lifecycle_event(
+        action=mlrun.common.schemas.ProjectLifecycleEventActions.creation_succeeded,
+        project_name="my-project",
+        actor="alice",
+        error=RuntimeError("should be ignored"),
+    )
+    assert "error" not in event.details
+    assert event.description == "Project was successfully created"
+
+
+def test_project_lifecycle_unsupported_action_raises(client):
+    with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
+        client.generate_project_lifecycle_event(
+            action="bogus",  # type: ignore[arg-type]
+            project_name="my-project",
+            actor=None,
+        )

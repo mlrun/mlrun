@@ -1402,6 +1402,10 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
                 "auth_info.user_id and auth_info.username should always be filled"
             )
 
+        # Canonicalize to lowercase: Keycloak/Iguazio treat usernames case-insensitively,
+        # so labels and annotations must use a single form to keep lookups consistent.
+        username = username.lower()
+
         labels = {
             mlrun_constants.MLRunInternalLabels.auth_userid: user_id,
             mlrun_constants.MLRunInternalLabels.auth_username: self._hash_label(
@@ -1512,6 +1516,9 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
         :return: List of SecretTokenInfo objects, each containing the token name, expiration and user id.
         """
         namespace = self.resolve_namespace(namespace)
+        # Canonicalize to lowercase — secrets are stored with the lowercase form
+        # of the username (see store_user_token_secret). The "*" sentinel is a no-op.
+        username = username.lower()
         # Always filter by auth token label to only get auth token secrets
         # Use None as value to perform "label exists" check (more efficient than fetching all secrets)
         labels: dict[str, str | None] = {

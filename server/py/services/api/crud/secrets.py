@@ -796,8 +796,12 @@ class Secrets(
         :return: The user_id, or "*" for all users.
         :raises mlrun.errors.MLRunNotFoundError: If the username cannot be found.
         """
-        # No username provided or matches self -> use authenticated user's user_id
-        if not username or username == auth_info.username:
+        # No username provided or matches self -> use authenticated user's user_id.
+        # Compare case-insensitively because Keycloak/Iguazio treat usernames as such.
+        if not username or (
+            auth_info.username is not None
+            and username.lower() == auth_info.username.lower()
+        ):
             return auth_info.user_id
 
         # Wildcard for all users (list operation)

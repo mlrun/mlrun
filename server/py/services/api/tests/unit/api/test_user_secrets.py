@@ -96,6 +96,9 @@ def test_iguazio_v4_only_dependency(db: Session, client: TestClient):
         (False, "", "auth-user", None),
         # Username is self -> self
         (False, "auth-user", "auth-user", None),
+        # Username is self in different case -> self (Keycloak treats usernames case-insensitively)
+        (False, "AUTH-USER", "AUTH-USER", None),
+        (False, "Auth-User", "Auth-User", None),
         # Username is other user -> forbidden
         (
             False,
@@ -167,6 +170,9 @@ async def test_resolve_target_username_for_list(
         (False, "", "auth-user", None),
         # Username is self -> self
         (False, "auth-user", "auth-user", None),
+        # Username is self in different case -> self (Keycloak treats usernames case-insensitively)
+        (False, "AUTH-USER", "AUTH-USER", None),
+        (False, "Auth-User", "Auth-User", None),
         # Username is other user -> forbidden
         (
             False,
@@ -210,3 +216,49 @@ async def test_resolve_target_username_for_delete(
             auth_info, username_param
         )
         assert result == expected_result
+
+
+@pytest.mark.asyncio
+async def test_resolve_target_username_for_list_handles_none_auth_username(monkeypatch):
+    # auth_info.username can be None (it's typed str | None); the self-check must not crash
+    # and must deny non-admins who supply a concrete username.
+    async def _no_admin(self, *args, **kwargs):
+        return False
+
+    monkeypatch.setattr(
+        user_secrets.framework.utils.auth.verifier.AuthVerifier,
+        "query_global_resource_permissions",
+        _no_admin,
+    )
+    auth_info = mlrun.common.schemas.AuthInfo(username=None, user_id="x")
+
+    with pytest.raises(
+        mlrun.errors.MLRunAccessDeniedError,
+        match="Only system admins can list tokens for other users",
+    ):
+        await user_secrets._resolve_target_username_for_list_secret_tokens(
+            auth_info, "some-user"
+        )
+
+
+@pytest.mark.asyncio
+async def test_resolve_target_username_for_delete_handles_none_auth_username(
+    monkeypatch,
+):
+    async def _no_admin(self, *args, **kwargs):
+        return False
+
+    monkeypatch.setattr(
+        user_secrets.framework.utils.auth.verifier.AuthVerifier,
+        "query_global_resource_permissions",
+        _no_admin,
+    )
+    auth_info = mlrun.common.schemas.AuthInfo(username=None, user_id="x")
+
+    with pytest.raises(
+        mlrun.errors.MLRunAccessDeniedError,
+        match="Only system admins can delete tokens for other users",
+    ):
+        await user_secrets._resolve_target_username_for_delete_secret_tokens(
+            auth_info, "some-user"
+        )

@@ -100,3 +100,20 @@ class BaseEventClient:
         :return: event object to emit, or None if the client doesn't support this event
         """
         return None
+
+    def generate_project_lifecycle_event(
+        self,
+        action: mlrun.common.schemas.ProjectLifecycleEventActions,
+        project_name: str,
+        actor: str | None = None,
+        error: BaseException | str | None = None,
+    ) -> typing.Any | None:
+        """
+        Generate a project lifecycle event (creation/deletion, succeeded/failed)
+        :param action: which lifecycle transition occurred
+        :param project_name: the project name
+        :param actor: username that initiated the operation, if known
+        :param error: optional exception or string (only relevant for the failed actions)
+        :return: event object to emit, or None if the client doesn't support this event
+        """
+        return None

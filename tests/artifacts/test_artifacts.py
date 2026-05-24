@@ -876,23 +876,15 @@ def test_code_artifact_registered_in_artifact_types():
     )
 
 
-def test_code_artifact_category_filtering():
+def test_code_artifact_categorized_as_other():
     assert (
         mlrun.common.schemas.artifact.ArtifactCategories.from_kind("code")
-        == mlrun.common.schemas.artifact.ArtifactCategories.code
+        == mlrun.common.schemas.artifact.ArtifactCategories.other
     )
-    kinds, exclude = (
-        mlrun.common.schemas.artifact.ArtifactCategories.code.to_kinds_filter()
-    )
-    assert "code" in kinds
-    assert not exclude
-
-
-def test_code_artifact_other_category_excludes_code():
     kinds, exclude = (
         mlrun.common.schemas.artifact.ArtifactCategories.other.to_kinds_filter()
     )
-    assert "code" in kinds
+    assert "code" not in kinds
     assert exclude
 
 

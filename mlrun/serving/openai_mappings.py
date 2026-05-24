@@ -18,7 +18,7 @@ import abc
 from enum import StrEnum
 from http import HTTPMethod
 
-from mlrun.serving.endpoint_mapping import BodyMappings
+import mlrun.serving.endpoint_mapping as endpoint_mapping
 
 
 class OpenAIEndpoint(StrEnum):
@@ -51,8 +51,8 @@ class ResponsesEndpoints(_OpenAIEndpointGroup):
     """OpenAI /responses operation group — endpoint definitions and body mappings."""
 
     @staticmethod
-    def _create_input_bm() -> BodyMappings:
-        bm = BodyMappings()
+    def _create_input_bm() -> endpoint_mapping.BodyMappings:
+        bm = endpoint_mapping.BodyMappings()
         bm.add_mapping("$.background", destination_path="background")
         bm.add_mapping("$.context_management", destination_path="context_management")
         bm.add_mapping("$.conversation", destination_path="conversation")
@@ -88,9 +88,9 @@ class ResponsesEndpoints(_OpenAIEndpointGroup):
         return bm
 
     @staticmethod
-    def _response_output_bm() -> BodyMappings:
+    def _response_output_bm() -> endpoint_mapping.BodyMappings:
         """Shared output mapping for any endpoint returning a Response object."""
-        bm = BodyMappings()
+        bm = endpoint_mapping.BodyMappings()
         bm.add_mapping("$.id", destination_path="id", mandatory=True)
         bm.add_mapping("$.created_at", destination_path="created_at", mandatory=True)
         bm.add_mapping("$.error", destination_path="error", mandatory=True)
@@ -142,8 +142,8 @@ class ResponsesEndpoints(_OpenAIEndpointGroup):
         return bm
 
     @staticmethod
-    def _compact_input_bm() -> BodyMappings:
-        bm = BodyMappings()
+    def _compact_input_bm() -> endpoint_mapping.BodyMappings:
+        bm = endpoint_mapping.BodyMappings()
         bm.add_mapping("$.model", destination_path="model", mandatory=True)
         bm.add_mapping("$.input", destination_path="input")
         bm.add_mapping("$.instructions", destination_path="instructions")
@@ -158,8 +158,8 @@ class ResponsesEndpoints(_OpenAIEndpointGroup):
         return bm
 
     @staticmethod
-    def _input_tokens_input_bm() -> BodyMappings:
-        bm = BodyMappings()
+    def _input_tokens_input_bm() -> endpoint_mapping.BodyMappings:
+        bm = endpoint_mapping.BodyMappings()
         bm.add_mapping("$.conversation", destination_path="conversation")
         bm.add_mapping("$.input", destination_path="input")
         bm.add_mapping("$.instructions", destination_path="instructions")
@@ -176,8 +176,8 @@ class ResponsesEndpoints(_OpenAIEndpointGroup):
         return bm
 
     @staticmethod
-    def _input_tokens_output_bm() -> BodyMappings:
-        bm = BodyMappings()
+    def _input_tokens_output_bm() -> endpoint_mapping.BodyMappings:
+        bm = endpoint_mapping.BodyMappings()
         bm.add_mapping(
             "$.input_tokens", destination_path="input_tokens", mandatory=True
         )
@@ -185,8 +185,8 @@ class ResponsesEndpoints(_OpenAIEndpointGroup):
         return bm
 
     @staticmethod
-    def _input_items_output_bm() -> BodyMappings:
-        bm = BodyMappings()
+    def _input_items_output_bm() -> endpoint_mapping.BodyMappings:
+        bm = endpoint_mapping.BodyMappings()
         bm.add_mapping("$.data", destination_path="data", mandatory=True)
         bm.add_mapping("$.first_id", destination_path="first_id", mandatory=True)
         bm.add_mapping("$.has_more", destination_path="has_more", mandatory=True)
@@ -195,8 +195,8 @@ class ResponsesEndpoints(_OpenAIEndpointGroup):
         return bm
 
     @staticmethod
-    def _compact_output_bm() -> BodyMappings:
-        bm = BodyMappings()
+    def _compact_output_bm() -> endpoint_mapping.BodyMappings:
+        bm = endpoint_mapping.BodyMappings()
         bm.add_mapping("$.id", destination_path="id", mandatory=True)
         bm.add_mapping("$.object", destination_path="object", mandatory=True)
         bm.add_mapping("$.created_at", destination_path="created_at", mandatory=True)
@@ -251,8 +251,8 @@ class ChatCompletionsEndpoints(_OpenAIEndpointGroup):
     """OpenAI /chat/completions operation group — endpoint definitions and body mappings."""
 
     @staticmethod
-    def _chat_input_bm() -> BodyMappings:
-        bm = BodyMappings()
+    def _chat_input_bm() -> endpoint_mapping.BodyMappings:
+        bm = endpoint_mapping.BodyMappings()
         bm.add_mapping("$.messages", destination_path="messages", mandatory=True)
         bm.add_mapping("$.model", destination_path="model", mandatory=True)
         bm.add_mapping("$.audio", destination_path="audio")
@@ -290,8 +290,8 @@ class ChatCompletionsEndpoints(_OpenAIEndpointGroup):
         return bm
 
     @staticmethod
-    def _list_chat_output_bm() -> BodyMappings:
-        bm = BodyMappings()
+    def _list_chat_output_bm() -> endpoint_mapping.BodyMappings:
+        bm = endpoint_mapping.BodyMappings()
         bm.add_mapping("$.data", destination_path="data", mandatory=True)
         bm.add_mapping("$.first_id", destination_path="first_id", mandatory=True)
         bm.add_mapping("$.has_more", destination_path="has_more", mandatory=True)
@@ -300,22 +300,22 @@ class ChatCompletionsEndpoints(_OpenAIEndpointGroup):
         return bm
 
     @staticmethod
-    def _delete_chat_output_bm() -> BodyMappings:
-        bm = BodyMappings()
+    def _delete_chat_output_bm() -> endpoint_mapping.BodyMappings:
+        bm = endpoint_mapping.BodyMappings()
         bm.add_mapping("$.id", destination_path="id", mandatory=True)
         bm.add_mapping("$.deleted", destination_path="deleted", mandatory=True)
         bm.add_mapping("$.object", destination_path="object", mandatory=True)
         return bm
 
     @staticmethod
-    def _update_chat_input_bm() -> BodyMappings:
-        bm = BodyMappings()
+    def _update_chat_input_bm() -> endpoint_mapping.BodyMappings:
+        bm = endpoint_mapping.BodyMappings()
         bm.add_mapping("$.metadata", destination_path="metadata", mandatory=True)
         return bm
 
     @staticmethod
-    def _chat_completion_output_bm() -> BodyMappings:
-        bm = BodyMappings()
+    def _chat_completion_output_bm() -> endpoint_mapping.BodyMappings:
+        bm = endpoint_mapping.BodyMappings()
         bm.add_mapping("$.id", destination_path="id", mandatory=True)
         bm.add_mapping("$.choices", destination_path="choices", mandatory=True)
         bm.add_mapping("$.created", destination_path="created", mandatory=True)

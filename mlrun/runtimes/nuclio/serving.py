@@ -28,6 +28,7 @@ import mlrun.datastore.datastore_profile as ds_profile
 import mlrun.runtimes.kubejob as kubejob_runtime
 import mlrun.runtimes.nuclio.function as nuclio_function
 import mlrun.runtimes.pod as pod_runtime
+import mlrun.serving.openai_mappings
 from mlrun.datastore import get_kafka_brokers_from_dict, parse_kafka_url
 from mlrun.model import ObjectList
 from mlrun.runtimes.function_reference import FunctionReference
@@ -35,7 +36,6 @@ from mlrun.secrets import SecretsStore
 from mlrun.serving.endpoint_mapping import (
     APIHandlerConfig,
 )
-from mlrun.serving.openai_mappings import ENDPOINT_CLASSES, OpenAIEndpoint
 from mlrun.serving.server import (
     GraphServer,
     add_system_steps_to_graph,
@@ -1146,7 +1146,7 @@ class ServingRuntime(nuclio_function.RemoteRuntime):
 
     def set_openai_frontend(
         self,
-        endpoints: "list[mlrun.serving.openai_mappings.OpenAIEndpoint] | None" = None,
+        endpoints: list[mlrun.serving.openai_mappings.OpenAIEndpoint] | None = None,
     ) -> None:
         """Wire up OpenAI-compatible API handler endpoints in one call.
 
@@ -1169,8 +1169,10 @@ class ServingRuntime(nuclio_function.RemoteRuntime):
             APIHandlerConfig.from_dict(existing) if existing else APIHandlerConfig()
         )
 
-        for ep_group in endpoints or list(OpenAIEndpoint):
-            for ep in ENDPOINT_CLASSES[ep_group].endpoints():
+        for ep_group in endpoints or list(mlrun.serving.openai_mappings.OpenAIEndpoint):
+            for ep in mlrun.serving.openai_mappings.ENDPOINT_CLASSES[
+                ep_group
+            ].endpoints():
                 config.add_endpoint_handler(**ep)
 
         self.set_api_handler_config(config)

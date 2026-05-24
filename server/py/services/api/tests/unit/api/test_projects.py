@@ -23,6 +23,7 @@ from http import HTTPStatus
 from unittest.mock import AsyncMock, Mock
 from uuid import uuid4
 
+import aioresponses
 import deepdiff
 import fastapi.testclient
 import kubernetes.client
@@ -46,6 +47,7 @@ from mlrun.common.schemas.background_task import BackGroundTaskLabel
 from mlrun.common.schemas.model_monitoring import EndpointType, ModelMonitoringAppLabel
 
 import framework.api.utils
+import framework.utils.auth.providers.opa
 import framework.utils.auth.verifier
 import framework.utils.background_tasks
 import framework.utils.clients.log_collector
@@ -2208,6 +2210,182 @@ def _assert_project_summary(
     assert (
         project_summary.failed_model_monitoring_functions
         == failed_model_monitoring_functions
+    )
+
+
+@pytest.mark.parametrize("project_member_mode", ["leader"], indirect=True)
+@pytest.mark.asyncio
+async def test_store_project_recovers_from_opa_propagation_lag(
+    db: Session,
+    client: TestClient,
+    project_member_mode: str,
+    monkeypatch,
+):
+    """
+    Regression: PUT /projects/{name} must succeed when the project's owner is
+    the requester even if OPA returns deny — the existing project_owners_cache
+    (populated by #9432 / #9657 for resources inside a project) should also
+    short-circuit OPA for the project's own resource string.
+
+    Reproduces the OPA-manifest-propagation race seen on multi-replica
+    deployments when a request lands on an API pod whose OPA sidecar has not
+    yet received the manifest for the just-created project.
+
+    The full fix has two parts:
+      (a) ``_ensure_project_create_or_update_permissions`` calls
+          ``ensure_project`` (populates the owner cache from the DB) instead
+          of ``get_project`` (which does not).
+      (b) ``_check_allowed_project_owners_cache`` matches the project's own
+          resource path ``/resources/projects/<name>`` (no segment after the
+          project name), not only sub-paths like ``/resources/projects/<name>/secrets``.
+
+    Without both fixes the call returns 403; with both, 200.
+    """
+    project_name = "test-store-project-cache"
+    owner_username = "project-creator"
+    owner_user_id = "owner-uid"
+    opa_api_url = "http://127.0.0.1:8181"
+    opa_query_path = "/v1/data/service/authz/allow"
+
+    # iguazio_v4 + OPA authorization
+    monkeypatch.setattr(
+        mlrun.mlconf.httpdb.authentication,
+        "mode",
+        mlrun.common.types.AuthenticationMode.IGUAZIO_V4.value,
+    )
+    monkeypatch.setattr(mlrun.mlconf.httpdb.authorization, "mode", "opa")
+    monkeypatch.setattr(mlrun.mlconf.httpdb.authorization.opa, "address", opa_api_url)
+    monkeypatch.setattr(
+        mlrun.mlconf.httpdb.authorization.opa,
+        "permission_query_path",
+        opa_query_path,
+    )
+
+    # Swap the verifier's provider so it picks up the OPA config we just set
+    verifier = framework.utils.auth.verifier.AuthVerifier()
+    opa_provider = framework.utils.auth.providers.opa.Provider()
+    opa_provider.__init__()  # rebuild from current mlconf, also resets cache
+    monkeypatch.setattr(verifier, "_auth_provider", opa_provider)
+
+    # FastAPI auth dependency resolves to the project owner
+    async def _authenticate_as_owner(_request):
+        return mlrun.common.schemas.AuthInfo(
+            username=owner_username, user_id=owner_user_id
+        )
+
+    monkeypatch.setattr(verifier, "authenticate_request", _authenticate_as_owner)
+
+    # Seed the project in the leader DB with the owner set
+    framework.utils.singletons.project_member.get_project_member().create_project(
+        db,
+        mlrun.common.schemas.Project(
+            metadata=mlrun.common.schemas.ProjectMetadata(name=project_name),
+            spec=mlrun.common.schemas.ProjectSpec(owner=owner_username),
+        ),
+        auth_info=mlrun.common.schemas.AuthInfo(
+            username=owner_username, user_id=owner_user_id
+        ),
+    )
+
+    update_payload = mlrun.common.schemas.Project(
+        metadata=mlrun.common.schemas.ProjectMetadata(name=project_name),
+        spec=mlrun.common.schemas.ProjectSpec(
+            description="updated-by-owner",
+            owner=owner_username,
+        ),
+    )
+
+    # OPA always denies — simulating a sidecar that hasn't yet received
+    # the manifest for the freshly-created project.
+    with aioresponses.aioresponses() as aiohttp_mock:
+        aiohttp_mock.post(
+            f"{opa_api_url}{opa_query_path}",
+            payload={"result": False},
+            repeat=True,
+        )
+        response = client.put(f"projects/{project_name}", json=update_payload.dict())
+
+    assert response.status_code == HTTPStatus.OK.value, (
+        "Expected 200 — owner cache should short-circuit OPA deny for the "
+        f"project's own resource path. Got {response.status_code}: {response.text}"
+    )
+
+
+@pytest.mark.parametrize("project_member_mode", ["leader"], indirect=True)
+@pytest.mark.asyncio
+async def test_store_project_uses_ensure_project_for_owner_cache_population(
+    db: Session,
+    client: TestClient,
+    project_member_mode: str,
+    monkeypatch,
+):
+    """
+    Direct call-site assertion: ``_ensure_project_create_or_update_permissions``
+    must use ``ensure_project`` (which populates the OPA owner cache from the
+    DB) instead of ``get_project`` (which does not). This is the endpoint half
+    of the OPA race fix; the cache-check widening is exercised separately in
+    ``test_opa.py::test_allowed_project_owners_cache_matches_project_resource_itself``.
+    """
+    project_name = "test-store-project-call-site"
+    owner_username = "owner-call-site"
+    owner_user_id = "owner-uid-call-site"
+
+    project_member = framework.utils.singletons.project_member.get_project_member()
+
+    # Pre-create the project via the leader (so the endpoint will hit the
+    # "exists" branch). Done before flipping to iguazio_v4 mode so the leader
+    # call doesn't itself go through OPA.
+    project_member.create_project(
+        db,
+        mlrun.common.schemas.Project(
+            metadata=mlrun.common.schemas.ProjectMetadata(name=project_name),
+            spec=mlrun.common.schemas.ProjectSpec(owner=owner_username),
+        ),
+        auth_info=mlrun.common.schemas.AuthInfo(
+            username=owner_username, user_id=owner_user_id
+        ),
+    )
+
+    monkeypatch.setattr(
+        mlrun.mlconf.httpdb.authentication,
+        "mode",
+        mlrun.common.types.AuthenticationMode.IGUAZIO_V4.value,
+    )
+
+    ensure_project_calls: list[str] = []
+    real_ensure_project = project_member.ensure_project
+
+    def _track_ensure(db_session, name, **kwargs):
+        ensure_project_calls.append(name)
+        return real_ensure_project(db_session, name, **kwargs)
+
+    monkeypatch.setattr(project_member, "ensure_project", _track_ensure)
+
+    # Treat the requester as the project owner so that ensure_project's
+    # cache-population path is exercised (not just any call).
+    async def _authenticate_as_owner(_request):
+        return mlrun.common.schemas.AuthInfo(
+            username=owner_username, user_id=owner_user_id
+        )
+
+    monkeypatch.setattr(
+        framework.utils.auth.verifier.AuthVerifier(),
+        "authenticate_request",
+        _authenticate_as_owner,
+    )
+
+    update_payload = mlrun.common.schemas.Project(
+        metadata=mlrun.common.schemas.ProjectMetadata(name=project_name),
+        spec=mlrun.common.schemas.ProjectSpec(description="updated"),
+    )
+    response = client.put(f"projects/{project_name}", json=update_payload.dict())
+    assert response.status_code == HTTPStatus.OK.value, response.text
+
+    # The store_project permission check must go through ensure_project for
+    # this project so the OPA owner cache gets populated.
+    assert project_name in ensure_project_calls, (
+        f"expected ensure_project to be called with {project_name!r}, "
+        f"saw {ensure_project_calls}"
     )
 
 

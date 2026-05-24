@@ -261,6 +261,52 @@ def test_allowed_project_owners_cache(
     )
 
 
+def test_allowed_project_owners_cache_matches_project_resource_itself(
+    api_url: str,
+    permission_query_path: str,
+    opa_provider: framework.utils.auth.providers.opa.Provider,
+):
+    """
+    The cache must short-circuit OPA both for actions on resources inside a
+    project (``/resources/projects/<name>/<child>/...``) and for actions on
+    the project record itself (``/resources/projects/<name>`` — the URL has
+    no segment after the project name). Without the latter the OPA-
+    propagation race is still visible on ``PUT /projects/<name>``.
+    """
+    auth_info = mlrun.common.schemas.AuthInfo(user_id="user-id")
+    project_name = "project-name"
+    opa_provider.add_allowed_project_for_owner(project_name, auth_info)
+
+    # The project itself — must match (new behavior).
+    assert (
+        opa_provider._check_allowed_project_owners_cache(
+            f"/resources/projects/{project_name}", auth_info
+        )
+        is True
+    )
+    # A resource inside the project — must still match (pre-existing behavior).
+    assert (
+        opa_provider._check_allowed_project_owners_cache(
+            f"/resources/projects/{project_name}/functions", auth_info
+        )
+        is True
+    )
+    # A project whose name starts with the cached one must NOT match.
+    assert (
+        opa_provider._check_allowed_project_owners_cache(
+            f"/resources/projects/{project_name}-extended", auth_info
+        )
+        is False
+    )
+    # An unrelated project must NOT match.
+    assert (
+        opa_provider._check_allowed_project_owners_cache(
+            "/resources/projects/other-project", auth_info
+        )
+        is False
+    )
+
+
 def test_allowed_project_owners_cache_ttl_refresh(
     api_url: str,
     permission_query_path: str,

@@ -785,6 +785,101 @@ async def test_ensure_project_populates_opa_owner_cache_across_replicas(
     await opa_provider._sessions.async_close()
 
 
+@pytest.mark.asyncio
+async def test_ensure_project_populates_opa_owner_cache_for_project_resource_itself(
+    db: sqlalchemy.orm.Session,
+    projects_leader: framework.utils.projects.leader.Member,
+    leader_follower: framework.utils.projects.remotes.follower.Member,
+):
+    """
+    Sibling of
+    :func:`test_ensure_project_populates_opa_owner_cache_across_replicas`,
+    but exercises the resource string for the **project itself**
+    (``/resources/projects/<name>`` — the URL ends with the project name,
+    no further path segment) rather than for a resource inside the project.
+
+    This is the path the ``store_project`` endpoint takes when it calls
+    ``query_project_permissions``. The cache check must match this shape too,
+    or the OPA-propagation race continues to surface as 403s on
+    ``PUT /projects/<name>``.
+    """
+    project_name = "test-cross-replica-project-resource"
+    owner_username = "project-creator"
+    owner_user_id = "user-id-project-resource"
+    project_resource = f"/resources/projects/{project_name}"
+
+    # --- API A creates the project in the shared DB ---
+    project = mlrun.common.schemas.Project(
+        metadata=mlrun.common.schemas.ProjectMetadata(name=project_name),
+        spec=mlrun.common.schemas.ProjectSpec(owner=owner_username),
+    )
+    auth_info = mlrun.common.schemas.AuthInfo(
+        username=owner_username,
+        user_id=owner_user_id,
+    )
+    projects_leader.create_project(None, project, auth_info=auth_info)
+
+    stored = leader_follower.get_project(None, project_name)
+    assert stored.spec.owner == owner_username
+
+    # --- API B: fresh OPA provider, empty cache, OPA always denies ---
+    api_url = "http://127.0.0.1:8181"
+    permission_query_path = "/v1/data/service/authz/allow"
+    mlrun.mlconf.httpdb.authorization.opa.address = api_url
+    mlrun.mlconf.httpdb.authorization.opa.permission_query_path = permission_query_path
+    mlrun.mlconf.httpdb.authorization.opa.log_level = 10
+    mlrun.mlconf.httpdb.authorization.mode = "opa"
+
+    opa_provider = framework.utils.auth.providers.opa.Provider()
+    opa_provider.__init__()
+
+    # Before ensure_project: OPA denies the project resource itself.
+    with aioresponses.aioresponses() as aiohttp_mock:
+        aiohttp_mock.post(
+            f"{api_url}{permission_query_path}",
+            payload={"result": False},
+        )
+        with pytest.raises(mlrun.errors.MLRunAccessDeniedError):
+            await opa_provider.query_permissions(
+                project_resource,
+                mlrun.common.schemas.AuthorizationAction.update,
+                auth_info,
+            )
+
+    # ensure_project on API B populates the cache from the shared DB.
+    projects_leader.ensure_project(None, project_name, auth_info=auth_info)
+
+    # After ensure_project: cache short-circuits OPA for the project resource.
+    with aioresponses.aioresponses() as aiohttp_mock:
+        allowed = await opa_provider.query_permissions(
+            project_resource,
+            mlrun.common.schemas.AuthorizationAction.update,
+            auth_info,
+        )
+        assert allowed is True
+        aiohttp_mock.assert_not_called()
+
+    # Non-owner still gets denied — cache is per (user, project).
+    non_owner_auth = mlrun.common.schemas.AuthInfo(
+        username="other-user",
+        user_id="other-user-id",
+    )
+    projects_leader.ensure_project(None, project_name, auth_info=non_owner_auth)
+    with aioresponses.aioresponses() as aiohttp_mock:
+        aiohttp_mock.post(
+            f"{api_url}{permission_query_path}",
+            payload={"result": False},
+        )
+        with pytest.raises(mlrun.errors.MLRunAccessDeniedError):
+            await opa_provider.query_permissions(
+                project_resource,
+                mlrun.common.schemas.AuthorizationAction.update,
+                non_owner_auth,
+            )
+
+    await opa_provider._sessions.async_close()
+
+
 def _assert_project_not_in_followers(followers, name):
     for follower in followers:
         assert name not in follower._projects

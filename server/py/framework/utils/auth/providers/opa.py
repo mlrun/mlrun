@@ -183,7 +183,21 @@ class Provider(
             self._allowed_project_owners_cache[auth_info.user_id].keys()
         )
         for allowed_project in allowed_projects:
-            if f"/projects/{allowed_project}/" in resource:
+            # Cover both:
+            #   * actions on resources inside the project — e.g.
+            #     ``.../projects/<name>/secrets/<key>``. The trailing slash in
+            #     the match string anchors the project-name segment so that
+            #     ``alpha`` does not match ``alpha-extended``.
+            #   * actions on the project record itself — e.g.
+            #     ``.../projects/<name>`` produced by ``PUT /projects/<name>``,
+            #     which has no trailing slash. Without this second match the
+            #     owner cache populated by ``ensure_project`` (see #9432,
+            #     #9657) only covers resources inside a project, so
+            #     ``store_project`` still goes to OPA and trips the
+            #     manifest-propagation race.
+            if f"/projects/{allowed_project}/" in resource or resource.endswith(
+                f"/projects/{allowed_project}"
+            ):
                 return True
         return False
 

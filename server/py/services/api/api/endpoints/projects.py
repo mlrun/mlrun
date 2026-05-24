@@ -629,12 +629,16 @@ async def _ensure_project_create_or_update_permissions(
         return
 
     try:
+        # Use ensure_project (rather than get_project) so the OPA owner cache is
+        # populated from the DB-recorded owner before the permission check runs.
+        # Mitigates the OPA manifest propagation race on multi-replica deployments
+        # when a freshly-created project's manifest hasn't yet reached the handling
+        # pod's OPA sidecar — see #9432, #9657.
         await run_in_threadpool(
-            get_project_member().get_project,
+            get_project_member().ensure_project,
             db_session,
             project_name,
-            auth_info,
-            format_=mlrun.common.formatters.ProjectFormat.name_only,
+            auth_info=auth_info,
         )
         project_exists = True
     except mlrun.errors.MLRunNotFoundError:

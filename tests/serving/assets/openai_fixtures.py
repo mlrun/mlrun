@@ -39,6 +39,7 @@ RESPONSE_OBJECT_HANDLER_RESPONSE = {
     "tools": [],
     "top_p": 1.0,
     "status": "completed",
+    "store": True,
     "usage": {"input_tokens": 10, "output_tokens": 5},
     "extra_field": "should_be_filtered",
 }

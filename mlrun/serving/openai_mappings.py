@@ -137,6 +137,8 @@ class ResponsesEndpoints(_OpenAIEndpointGroup):
         bm.add_mapping("$.top_logprobs", destination_path="top_logprobs")
         bm.add_mapping("$.truncation", destination_path="truncation")
         bm.add_mapping("$.usage", destination_path="usage")
+        # not in the official OpenAI docs but present in the API response example
+        bm.add_mapping("$.store", destination_path="store")
         return bm
 
     @staticmethod

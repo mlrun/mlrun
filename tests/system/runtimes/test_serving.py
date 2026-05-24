@@ -14,12 +14,14 @@
 import time
 from http import HTTPMethod
 
+import httpx
 import pytest
 
 import mlrun
 import tests.system.base
 from mlrun.common.schemas.serving import APIHandlerAction
 from mlrun.serving.endpoint_mapping import APIHandlerConfig, BodyMappings
+from mlrun.serving.openai_mappings import OpenAIEndpoint
 
 
 def assert_endpoint_configs_equal(
@@ -543,3 +545,52 @@ class TestServingAPIHandler(tests.system.base.TestMLRunSystem):
             function.invoke(path="/predict", body={"model": "gpt-4"})
 
         self._logger.info("Output mandatory missing field test passed")
+
+    # ---------------------------------------------------------------------------
+    # OpenAI frontend tests (set_openai_frontend)
+    # ---------------------------------------------------------------------------
+
+    def test_chat_completions_create(self) -> None:
+        """POST /chat/completions via the real OpenAI SDK.
+
+        Verifies end-to-end: routing, input body mapping, output body mapping
+        (extra_field filtering), and that the SDK parses the response into a
+        typed ChatCompletion object.
+        """
+        openai = pytest.importorskip("openai")
+
+        function = self.project.set_function(
+            func=str(self.assets_path / "openai_serving_handler.py"),
+            name="openai-chat-completions",
+            kind="serving",
+            image=self.image,
+        )
+        function.set_openai_frontend([OpenAIEndpoint.CHAT_COMPLETIONS])
+        graph = function.set_topology("flow", engine="sync")
+        graph.to(name="handler", handler="chat_completion_handler").respond()
+
+        self._logger.debug("Deploying OpenAI chat completions serving function")
+        function.deploy()
+
+        client = openai.OpenAI(
+            base_url=function.get_url(),
+            api_key="dummy",
+            http_client=httpx.Client(verify=mlrun.mlconf.httpdb.http.verify),
+        )
+
+        self._logger.debug("Calling POST /chat/completions via OpenAI SDK")
+        response = client.chat.completions.create(
+            model="gpt-4",
+            messages=[{"role": "user", "content": "Hello"}],
+        )
+
+        assert isinstance(response, openai.types.chat.ChatCompletion), (
+            "SDK should return a ChatCompletion instance"
+        )
+        assert response.id == "chatcmpl_system_test_123"
+        assert response.model == "gpt-4"
+        assert len(response.choices) == 1
+        assert response.choices[0].message.content == "Hello from MLRun!"
+        assert response.choices[0].finish_reason == "stop"
+
+        self._logger.info("OpenAI chat completions create system test passed")

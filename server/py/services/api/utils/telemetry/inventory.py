@@ -76,6 +76,16 @@ _meter: Meter | None = None
 _gauges: dict[str, Gauge] = {}
 
 
+def is_enabled() -> bool:
+    """Whether the OTel SDK was successfully initialized.
+
+    Single source of truth for callers that want to skip the cost of building
+    an emission payload when telemetry is off — ``init()`` is the only place
+    that flips this true, and it stays true until ``shutdown()`` resets state.
+    """
+    return _provider is not None
+
+
 def init() -> None:
     """Initialize OTel SDK and create Gauge instruments.
 

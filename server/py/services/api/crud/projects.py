@@ -53,11 +53,10 @@ class Projects(
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._service_account_token_client = service_account_token.Client()
-        # Counts cache refreshes since chief startup; emits inventory telemetry
-        # only every Nth refresh. The multiplier is cached here so live edits to
-        # mlconf.telemetry.export_interval_multiplier require a chief restart —
-        # same lifecycle as the OTel exporter's export_interval, which is
-        # locked in at SDK init.
+        # Inventory telemetry — cached at construction so live edits to
+        # mlconf.telemetry.* require a chief restart, matching the OTel
+        # exporter's interval (locked in at SDK init).
+        self._inventory_telemetry_enabled: bool = telemetry_inventory.is_enabled()
         self._inventory_refresh_count: int = 0
         self._inventory_emit_multiplier: int = max(
             1, int(mlrun.mlconf.telemetry.export_interval_multiplier)
@@ -628,11 +627,12 @@ class Projects(
             project_summaries,
         )
 
-        if self._inventory_refresh_count % self._inventory_emit_multiplier == 0:
-            self._emit_inventory_telemetry(
-                projects_output, project_counters, pipeline_counters
-            )
-        self._inventory_refresh_count += 1
+        if self._inventory_telemetry_enabled:
+            if self._inventory_refresh_count % self._inventory_emit_multiplier == 0:
+                self._emit_inventory_telemetry(
+                    projects_output, project_counters, pipeline_counters
+                )
+            self._inventory_refresh_count += 1
 
     @staticmethod
     def _emit_inventory_telemetry(

@@ -49,6 +49,30 @@ def telemetry_enabled(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(mlrun.mlconf.telemetry, "headers_secret_name", "")
 
 
+def test_is_enabled_false_before_init(reset_inventory_state: None) -> None:
+    """is_enabled() must reflect a never-initialized SDK as disabled."""
+    assert telemetry_inventory.is_enabled() is False
+
+
+def test_is_enabled_true_after_successful_init(
+    reset_inventory_state: None,
+    telemetry_enabled: None,
+) -> None:
+    """is_enabled() flips to True once init() wires up a real provider."""
+    telemetry_inventory.init()
+    assert telemetry_inventory.is_enabled() is True
+
+
+def test_is_enabled_false_after_disabled_init(
+    reset_inventory_state: None,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A disabled-config init() leaves is_enabled() False."""
+    monkeypatch.setattr(mlrun.mlconf.telemetry, "enabled", False)
+    telemetry_inventory.init()
+    assert telemetry_inventory.is_enabled() is False
+
+
 def test_init_noop_when_telemetry_disabled(
     reset_inventory_state: None,
     monkeypatch: pytest.MonkeyPatch,

@@ -91,23 +91,43 @@ class TestSetOpenAIFrontend:
         )
 
     def test_responses_cache_isolation(self) -> None:
-        """Mutating a returned BodyMappings must not affect the next call."""
-        bm1 = ResponsesEndpoints._create_input_bm()
-        bm1.add_mapping("$.injected_field", destination_path="injected_field")
+        """Mutating a returned EndpointConfig must not affect the next endpoints() call."""
+        eps1 = ResponsesEndpoints.endpoints()
+        create_ep = next(
+            ep
+            for ep in eps1
+            if ep.path == "/responses" and ep.http_method == HTTPMethod.POST
+        )
+        create_ep.input_body_mappings.add_mapping(
+            "$.injected_field", destination_path="injected_field"
+        )
 
-        bm2 = ResponsesEndpoints._create_input_bm()
-        dest_keys = {m["destination_path"] for m in bm2.mappings}
+        eps2 = ResponsesEndpoints.endpoints()
+        create_ep2 = next(
+            ep
+            for ep in eps2
+            if ep.path == "/responses" and ep.http_method == HTTPMethod.POST
+        )
+        dest_keys = {
+            m["destination_path"] for m in create_ep2.input_body_mappings.mappings
+        }
         assert "injected_field" not in dest_keys
 
     def test_chat_completions_cache_isolation(self) -> None:
-        """Mutating a returned BodyMappings must not affect the next call."""
-        bm1 = ChatCompletionsEndpoints._chat_input_bm()
-        bm1.add_mapping("$.injected_field", destination_path="injected_field")
+        """Mutating a returned EndpointConfig must not affect the next endpoints() call."""
+        eps1 = ChatCompletionsEndpoints.endpoints()
+        create_ep = next(ep for ep in eps1 if ep.path == "/chat/completions")
+        create_ep.input_body_mappings.add_mapping(
+            "$.injected_field", destination_path="injected_field"
+        )
 
-        bm2 = ChatCompletionsEndpoints._chat_input_bm()
-        dest_keys = {m["destination_path"] for m in bm2.mappings}
+        eps2 = ChatCompletionsEndpoints.endpoints()
+        create_ep2 = next(ep for ep in eps2 if ep.path == "/chat/completions")
+        dest_keys = {
+            m["destination_path"] for m in create_ep2.input_body_mappings.mappings
+        }
         assert "injected_field" not in dest_keys
 
     def test_separate_classes_have_independent_caches(self) -> None:
         """ResponsesEndpoints and ChatCompletionsEndpoints must not share a cache."""
-        assert ResponsesEndpoints._bm_cache is not ChatCompletionsEndpoints._bm_cache
+        assert ResponsesEndpoints._ep_cache is not ChatCompletionsEndpoints._ep_cache

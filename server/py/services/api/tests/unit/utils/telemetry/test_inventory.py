@@ -205,18 +205,25 @@ def test_shutdown_clears_module_state(reset_inventory_state: None) -> None:
     assert telemetry_inventory._gauges == {}
 
 
-def test_shutdown_swallows_provider_exceptions(reset_inventory_state: None) -> None:
+def test_shutdown_swallows_provider_exceptions(
+    reset_inventory_state: None,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """A failing provider.shutdown() must not propagate, and state must still reset."""
     fake_provider = unittest.mock.MagicMock()
     fake_provider.shutdown.side_effect = RuntimeError("collector unreachable")
     telemetry_inventory._provider = fake_provider
     telemetry_inventory._meter = unittest.mock.MagicMock()
     telemetry_inventory._gauges = {"mlrun_projects": unittest.mock.MagicMock()}
+    warning_mock = unittest.mock.MagicMock()
+    monkeypatch.setattr(mlrun.utils.logger, "warning", warning_mock)
 
     telemetry_inventory.shutdown()
 
     assert telemetry_inventory._provider is None
     assert telemetry_inventory._gauges == {}
+    warning_mock.assert_called_once()
+    assert "shutdown failed" in warning_mock.call_args.args[0]
 
 
 def test_set_count_noop_when_sdk_uninitialized(reset_inventory_state: None) -> None:
@@ -273,12 +280,19 @@ def test_set_count_falls_back_to_empty_string_for_missing_values(
     )
 
 
-def test_set_count_swallows_gauge_exceptions(reset_inventory_state: None) -> None:
+def test_set_count_swallows_gauge_exceptions(
+    reset_inventory_state: None,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """A misbehaving gauge.set() must not propagate to the cache-refresh hook."""
     gauge = unittest.mock.MagicMock()
     gauge.set.side_effect = RuntimeError("instrument broken")
     telemetry_inventory._gauges = {"mlrun_projects": gauge}
+    warning_mock = unittest.mock.MagicMock()
+    monkeypatch.setattr(mlrun.utils.logger, "warning", warning_mock)
 
     telemetry_inventory.set_count("mlrun_projects", 1, project="p")
-    # Reaching this line means the exception was caught.
+
     gauge.set.assert_called_once()
+    warning_mock.assert_called_once()
+    assert "emission failed" in warning_mock.call_args.args[0]

@@ -1,7 +1,7 @@
 (gpu-utilization)=
 # GPU utilization
 
-Gen AI models require GPUs, and because they are usually large, they require a lot of memory to run: learn techniques improve GPU utilization during inference and how to optimize the utilization, thereby preventing GPU bottlenecks. The list here provides some important considerations, but this is not an exhaustive list.
+This page described techniques you can use to improve GPU utilization during inference and how to optimize the utilization, thereby preventing GPU bottlenecks. The strategies provide some important considerations, but this is not an exhaustive list.
 
 ## Optimization techniques
 
@@ -98,7 +98,7 @@ Disable batch mode by:
  `batching_spec = mlrun.runtimes.nuclio.function.BatchSpec(enabled=False)`
 - Set `batching_spec=None` when calling `with_http` to reset the modes to its default configurations
 
-See how to use batching in a serving graph in {ref}hf-model-image-classification.
+See how to use batching in a serving graph in {ref}`hf-model-batch-serving-graph`.
 ### GPU allocation
 
 When running multiple models, it is important to allocate the GPUs dynamically per demand. MLRun uses Nuclio for serverless functions, which can free up the GPU when the function is not running or when it scales down. This can lead to better GPU utilization.

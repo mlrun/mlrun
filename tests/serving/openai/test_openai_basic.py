@@ -17,7 +17,12 @@
 from http import HTTPMethod
 
 from mlrun.serving.endpoint_mapping import APIHandlerConfig
-from mlrun.serving.openai_mappings import ENDPOINT_CLASSES, OpenAIEndpoint
+from mlrun.serving.openai_mappings import (
+    ENDPOINT_CLASSES,
+    ChatCompletionsEndpoints,
+    OpenAIEndpoint,
+    ResponsesEndpoints,
+)
 from tests.serving.openai.openai_common import get_config, make_fn
 
 # ---------------------------------------------------------------------------
@@ -84,3 +89,26 @@ class TestSetOpenAIFrontend:
             config.get_endpoint_config(HTTPMethod.POST, "/responses/compact")
             is not None
         )
+
+
+    def test_responses_cache_isolation(self) -> None:
+        """Mutating a returned BodyMappings must not affect the next call."""
+        bm1 = ResponsesEndpoints._create_input_bm()
+        bm1.add_mapping("$.injected_field", destination_path="injected_field")
+
+        bm2 = ResponsesEndpoints._create_input_bm()
+        dest_keys = {m["destination_path"] for m in bm2.mappings}
+        assert "injected_field" not in dest_keys
+
+    def test_chat_completions_cache_isolation(self) -> None:
+        """Mutating a returned BodyMappings must not affect the next call."""
+        bm1 = ChatCompletionsEndpoints._chat_input_bm()
+        bm1.add_mapping("$.injected_field", destination_path="injected_field")
+
+        bm2 = ChatCompletionsEndpoints._chat_input_bm()
+        dest_keys = {m["destination_path"] for m in bm2.mappings}
+        assert "injected_field" not in dest_keys
+
+    def test_separate_classes_have_independent_caches(self) -> None:
+        """ResponsesEndpoints and ChatCompletionsEndpoints must not share a cache."""
+        assert ResponsesEndpoints._bm_cache is not ChatCompletionsEndpoints._bm_cache

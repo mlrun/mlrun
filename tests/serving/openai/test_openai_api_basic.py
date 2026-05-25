@@ -130,4 +130,6 @@ class TestSetOpenAIFrontend:
 
     def test_separate_classes_have_independent_caches(self) -> None:
         """ResponsesEndpoints and ChatCompletionsEndpoints must not share a cache."""
+        ResponsesEndpoints.endpoints()
+        ChatCompletionsEndpoints.endpoints()
         assert ResponsesEndpoints._ep_cache is not ChatCompletionsEndpoints._ep_cache

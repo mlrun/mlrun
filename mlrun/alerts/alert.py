@@ -107,7 +107,7 @@ class AlertConfig(ModelObj):
         :param template:       Optional parameter that allows creating an alert based on a predefined template.
                                You can pass either an AlertTemplate object or a string (the template name).
                                If a template is used, many fields of the alert will be auto-generated based on the
-                               template.However, you still need to provide the following fields:
+                               template.H owever, you still need to provide the following fields:
                                `name`, `project`, `entity`, `notifications`
         :param description:    Description of the alert
         :param summary:        Summary of the alert, will be sent in the generated notifications
@@ -116,10 +116,13 @@ class AlertConfig(ModelObj):
                                complex trigger which is based on a prometheus alert
         :param criteria:       When the alert will be triggered based on the specified number of events within the
                                defined time period.
-        :param reset_policy:   When to clear the alert. "manual" means the alert stays active after triggering
-                               and must be reset explicitly. "auto" means the alert is reset automatically
-                               after triggering and sending notifications (immediately if cooldown_period is
-                               not set, or after the cooldown period elapses if it is set).
+        :param reset_policy:   When to clear the alert. 
+
+                                - manual: the alert stays active after triggering and must be reset explicitly. 
+                                - auto: the alert is reset automatically after triggering and sending notifications
+                                  (immediately if cooldown_period is not set, or after the cooldown_period elapses
+                                  if it is set).
+
         :param cooldown_period: Period during which the alert remains active after being triggered before it
                                is automatically reset. Only applicable when reset_policy=auto and
                                cooldown_period > 0. If not set or set to zero, the alert resets

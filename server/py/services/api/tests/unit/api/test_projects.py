@@ -235,6 +235,36 @@ async def test_project_permissions_update_when_exists(
 
 
 @pytest.mark.asyncio
+async def test_project_permissions_owner_short_circuits_opa_check(
+    db: Session, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """When the requester is the project owner, skip OPA and populate the owner cache."""
+    project_name = PERMISSIONS_PROJECT_NAME
+    owner_username = "project-owner"
+    auth_info = mlrun.common.schemas.AuthInfo(username=owner_username)
+    auth_verifier = framework.utils.auth.verifier.AuthVerifier()
+    query_project = AsyncMock()
+    add_allowed = Mock()
+    monkeypatch.setattr(auth_verifier, "query_project_permissions", query_project)
+    monkeypatch.setattr(auth_verifier, "add_allowed_project_for_owner", add_allowed)
+    existing_project = mlrun.common.schemas.Project(
+        metadata=mlrun.common.schemas.ProjectMetadata(name=project_name),
+        spec=mlrun.common.schemas.ProjectSpec(owner=owner_username),
+    )
+    project_member = framework.utils.singletons.project_member.get_project_member()
+    monkeypatch.setattr(
+        project_member, "get_project", Mock(return_value=existing_project)
+    )
+
+    await projects_endpoints._ensure_project_create_or_update_permissions(
+        db, project_name, auth_info
+    )
+
+    add_allowed.assert_called_once_with(project_name, auth_info)
+    query_project.assert_not_awaited()
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize(
     "patch_body, expect_mgmt_check, expect_regular_check",
     [

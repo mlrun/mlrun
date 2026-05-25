@@ -1178,6 +1178,6 @@ class ServingRuntime(nuclio_function.RemoteRuntime):
             for ep in mlrun.serving.openai_mappings.ENDPOINT_CLASSES[
                 ep_group
             ].endpoints():
-                config.add_endpoint_handler(**ep)
+                config.add_endpoint_config(ep)
 
         self.set_api_handler_config(config)

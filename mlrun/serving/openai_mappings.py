@@ -41,10 +41,10 @@ class _OpenAIEndpointGroup(abc.ABC):
 
     @classmethod
     @abc.abstractmethod
-    def endpoints(cls) -> list[dict]:
-        """Return endpoint kwargs dicts for this group.
+    def endpoints(cls) -> list[endpoint_mapping.EndpointConfig]:
+        """Return endpoint configurations for this group.
 
-        :return: List of dicts suitable for APIHandlerConfig.add_endpoint_handler().
+        :return: List of :class:`~mlrun.serving.endpoint_mapping.EndpointConfig` instances.
         """
 
     @classmethod
@@ -256,47 +256,48 @@ class ResponsesEndpoints(_OpenAIEndpointGroup):
         return cls._cached_bm("compact_output", build)
 
     @classmethod
-    def endpoints(cls) -> list[dict]:
+    def endpoints(cls) -> list[endpoint_mapping.EndpointConfig]:
         return [
-            {  # Create a response
-                "path": "/responses",
-                "http_method": HTTPMethod.POST,
-                "input_body_mappings": cls._create_input_bm(),
-                "output_body_mappings": cls._response_output_bm(),
-            },
-            {  # Retrieve a response
-                "path": "/responses/{response_id}",
-                "http_method": HTTPMethod.GET,
-                "output_body_mappings": cls._response_output_bm(),
-            },
-            {  # Delete a response — no output mapping: the return shape ({id, object, deleted})
-                # appears only in the API example, not in a formal field table, so we treat it
-                # as passthrough rather than enforcing an undocumented contract.
-                "path": "/responses/{response_id}",
-                "http_method": HTTPMethod.DELETE,
-            },
-            {  # List input items
-                "path": "/responses/{response_id}/input_items",
-                "http_method": HTTPMethod.GET,
-                "output_body_mappings": cls._input_items_output_bm(),
-            },
-            {  # Count input tokens
-                "path": "/responses/input_tokens",
-                "http_method": HTTPMethod.POST,
-                "input_body_mappings": cls._input_tokens_input_bm(),
-                "output_body_mappings": cls._input_tokens_output_bm(),
-            },
-            {  # Cancel a response
-                "path": "/responses/{response_id}/cancel",
-                "http_method": HTTPMethod.POST,
-                "output_body_mappings": cls._response_output_bm(),
-            },
-            {  # Compact a response
-                "path": "/responses/compact",
-                "http_method": HTTPMethod.POST,
-                "input_body_mappings": cls._compact_input_bm(),
-                "output_body_mappings": cls._compact_output_bm(),
-            },
+            endpoint_mapping.EndpointConfig(  # Create a response
+                path="/responses",
+                http_method=HTTPMethod.POST,
+                input_body_mappings=cls._create_input_bm(),
+                output_body_mappings=cls._response_output_bm(),
+            ),
+            endpoint_mapping.EndpointConfig(  # Retrieve a response
+                path="/responses/{response_id}",
+                http_method=HTTPMethod.GET,
+                output_body_mappings=cls._response_output_bm(),
+            ),
+            endpoint_mapping.EndpointConfig(  # Delete a response — no output mapping: the return
+                # shape ({id, object, deleted}) appears only in the API example, not in a formal
+                # field table, so we treat it as passthrough rather than enforcing an undocumented
+                # contract.
+                path="/responses/{response_id}",
+                http_method=HTTPMethod.DELETE,
+            ),
+            endpoint_mapping.EndpointConfig(  # List input items
+                path="/responses/{response_id}/input_items",
+                http_method=HTTPMethod.GET,
+                output_body_mappings=cls._input_items_output_bm(),
+            ),
+            endpoint_mapping.EndpointConfig(  # Count input tokens
+                path="/responses/input_tokens",
+                http_method=HTTPMethod.POST,
+                input_body_mappings=cls._input_tokens_input_bm(),
+                output_body_mappings=cls._input_tokens_output_bm(),
+            ),
+            endpoint_mapping.EndpointConfig(  # Cancel a response
+                path="/responses/{response_id}/cancel",
+                http_method=HTTPMethod.POST,
+                output_body_mappings=cls._response_output_bm(),
+            ),
+            endpoint_mapping.EndpointConfig(  # Compact a response
+                path="/responses/compact",
+                http_method=HTTPMethod.POST,
+                input_body_mappings=cls._compact_input_bm(),
+                output_body_mappings=cls._compact_output_bm(),
+            ),
         ]
 
 
@@ -400,42 +401,42 @@ class ChatCompletionsEndpoints(_OpenAIEndpointGroup):
         return cls._cached_bm("chat_completion_output", build)
 
     @classmethod
-    def endpoints(cls) -> list[dict]:
+    def endpoints(cls) -> list[endpoint_mapping.EndpointConfig]:
         return [
-            {  # Create a chat completion
-                "path": "/chat/completions",
-                "http_method": HTTPMethod.POST,
-                "input_body_mappings": cls._chat_input_bm(),
-                "output_body_mappings": cls._chat_completion_output_bm(),
-            },
-            {  # Retrieve a chat completion
-                "path": "/chat/completions/{completion_id}",
-                "http_method": HTTPMethod.GET,
-                "output_body_mappings": cls._chat_completion_output_bm(),
-            },
-            {  # Update a chat completion
-                "path": "/chat/completions/{completion_id}",
-                "http_method": HTTPMethod.POST,
-                "input_body_mappings": cls._update_chat_input_bm(),
-                "output_body_mappings": cls._chat_completion_output_bm(),
-            },
-            {  # Delete a chat completion
-                "path": "/chat/completions/{completion_id}",
-                "http_method": HTTPMethod.DELETE,
-                "output_body_mappings": cls._delete_chat_output_bm(),
-            },
-            {  # List chat completions
-                "path": "/chat/completions",
-                "http_method": HTTPMethod.GET,
-                "output_body_mappings": cls._list_chat_output_bm(),
-            },
-            {  # List messages for a chat completion
+            endpoint_mapping.EndpointConfig(  # Create a chat completion
+                path="/chat/completions",
+                http_method=HTTPMethod.POST,
+                input_body_mappings=cls._chat_input_bm(),
+                output_body_mappings=cls._chat_completion_output_bm(),
+            ),
+            endpoint_mapping.EndpointConfig(  # Retrieve a chat completion
+                path="/chat/completions/{completion_id}",
+                http_method=HTTPMethod.GET,
+                output_body_mappings=cls._chat_completion_output_bm(),
+            ),
+            endpoint_mapping.EndpointConfig(  # Update a chat completion
+                path="/chat/completions/{completion_id}",
+                http_method=HTTPMethod.POST,
+                input_body_mappings=cls._update_chat_input_bm(),
+                output_body_mappings=cls._chat_completion_output_bm(),
+            ),
+            endpoint_mapping.EndpointConfig(  # Delete a chat completion
+                path="/chat/completions/{completion_id}",
+                http_method=HTTPMethod.DELETE,
+                output_body_mappings=cls._delete_chat_output_bm(),
+            ),
+            endpoint_mapping.EndpointConfig(  # List chat completions
+                path="/chat/completions",
+                http_method=HTTPMethod.GET,
+                output_body_mappings=cls._list_chat_output_bm(),
+            ),
+            endpoint_mapping.EndpointConfig(  # List messages for a chat completion
                 # Reuses _list_chat_output_bm() — top-level shape is identical;
                 # nested ChatCompletionStoreMessage fields inside data are not checked.
-                "path": "/chat/completions/{completion_id}/messages",
-                "http_method": HTTPMethod.GET,
-                "output_body_mappings": cls._list_chat_output_bm(),
-            },
+                path="/chat/completions/{completion_id}/messages",
+                http_method=HTTPMethod.GET,
+                output_body_mappings=cls._list_chat_output_bm(),
+            ),
         ]
 
 

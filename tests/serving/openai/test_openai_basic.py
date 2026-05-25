@@ -52,9 +52,9 @@ class TestSetOpenAIFrontend:
         responses_endpoints = ENDPOINT_CLASSES[OpenAIEndpoint.RESPONSES].endpoints()
 
         for ep in responses_endpoints:
-            endpoint = config.get_endpoint_config(ep["http_method"], ep["path"])
+            endpoint = config.get_endpoint_config(ep.http_method, ep.path)
             assert endpoint is not None, (
-                f"Expected {ep['http_method']} {ep['path']} to be registered"
+                f"Expected {ep.http_method} {ep.path} to be registered"
             )
 
         assert len(config.endpoints) == len(responses_endpoints)
@@ -67,9 +67,9 @@ class TestSetOpenAIFrontend:
         config = get_config(fn)
         for group in OpenAIEndpoint:
             for ep in ENDPOINT_CLASSES[group].endpoints():
-                endpoint = config.get_endpoint_config(ep["http_method"], ep["path"])
+                endpoint = config.get_endpoint_config(ep.http_method, ep.path)
                 assert endpoint is not None, (
-                    f"Expected {ep['http_method']} {ep['path']} to be registered"
+                    f"Expected {ep.http_method} {ep.path} to be registered"
                 )
 
     def test_preserves_existing_config(self) -> None:
@@ -89,7 +89,6 @@ class TestSetOpenAIFrontend:
             config.get_endpoint_config(HTTPMethod.POST, "/responses/compact")
             is not None
         )
-
 
     def test_responses_cache_isolation(self) -> None:
         """Mutating a returned BodyMappings must not affect the next call."""

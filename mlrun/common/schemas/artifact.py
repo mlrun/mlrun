@@ -26,7 +26,6 @@ class ArtifactCategories(mlrun.common.types.StrEnum):
     dataset = "dataset"
     document = "document"
     llm_prompt = "llm-prompt"
-    code = "code"
     other = "other"
 
     # we define the link as a category to prevent import cycles, but it's not a real category
@@ -44,8 +43,6 @@ class ArtifactCategories(mlrun.common.types.StrEnum):
             return [ArtifactCategories.document.value, link_kind], False
         if self.value == ArtifactCategories.llm_prompt.value:
             return [ArtifactCategories.llm_prompt.value, link_kind], False
-        if self.value == ArtifactCategories.code.value:
-            return [ArtifactCategories.code.value, link_kind], False
         if self.value == ArtifactCategories.other.value:
             return (
                 [
@@ -53,7 +50,6 @@ class ArtifactCategories(mlrun.common.types.StrEnum):
                     ArtifactCategories.dataset.value,
                     ArtifactCategories.document.value,
                     ArtifactCategories.llm_prompt.value,
-                    ArtifactCategories.code.value,
                 ],
                 True,
             )
@@ -65,7 +61,6 @@ class ArtifactCategories(mlrun.common.types.StrEnum):
             cls.dataset.value,
             cls.document.value,
             cls.llm_prompt.value,
-            cls.code.value,
         ]:
             return cls(kind)
         return cls.other
@@ -78,7 +73,6 @@ class ArtifactCategories(mlrun.common.types.StrEnum):
             ArtifactCategories.dataset,
             ArtifactCategories.document,
             ArtifactCategories.llm_prompt,
-            ArtifactCategories.code,
         ]
 
 

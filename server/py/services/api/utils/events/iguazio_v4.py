@@ -30,8 +30,14 @@ DB_MIGRATION_COMPLETED = "MLRun.DB.Migration.Completed"
 DB_MIGRATION_FAILED = "MLRun.DB.Migration.Failed"
 DB_CONNECTION_FAILED = "MLRun.DB.Connection.Failed"
 
+PROJECT_CREATION_SUCCEEDED = "MLRun.Project.Creation.Succeeded"
+PROJECT_CREATION_FAILED = "MLRun.Project.Creation.Failed"
+PROJECT_DELETION_SUCCEEDED = "MLRun.Project.Deletion.Succeeded"
+PROJECT_DELETION_FAILED = "MLRun.Project.Deletion.Failed"
+
 EVENT_KIND = "system"
 EVENT_CLASS = "DB"
+EVENT_CLASS_PROJECT = "Project"
 ERROR_DETAIL_LIMIT = 1024
 ERROR_DESCRIPTION_LIMIT = 200
 TRUNCATION_SUFFIX = "...[truncated]"
@@ -70,6 +76,32 @@ DB_CONNECTION_EVENTS: dict[
         DB_CONNECTION_FAILED,
         iguazio.schemas.Severity.CRITICAL,
         "MLRun cannot connect to its database",
+    ),
+}
+
+PROJECT_LIFECYCLE_EVENTS: dict[
+    mlrun.common.schemas.ProjectLifecycleEventActions,
+    tuple[str, iguazio.schemas.Severity, str],
+] = {
+    mlrun.common.schemas.ProjectLifecycleEventActions.creation_succeeded: (
+        PROJECT_CREATION_SUCCEEDED,
+        iguazio.schemas.Severity.INFO,
+        "Project was successfully created",
+    ),
+    mlrun.common.schemas.ProjectLifecycleEventActions.creation_failed: (
+        PROJECT_CREATION_FAILED,
+        iguazio.schemas.Severity.WARNING,
+        "Project creation failed",
+    ),
+    mlrun.common.schemas.ProjectLifecycleEventActions.deletion_succeeded: (
+        PROJECT_DELETION_SUCCEEDED,
+        iguazio.schemas.Severity.INFO,
+        "Project was successfully deleted",
+    ),
+    mlrun.common.schemas.ProjectLifecycleEventActions.deletion_failed: (
+        PROJECT_DELETION_FAILED,
+        iguazio.schemas.Severity.WARNING,
+        "Project deletion failed",
     ),
 }
 
@@ -182,6 +214,41 @@ class Client(base_events.BaseEventClient):
             kind=EVENT_KIND,
             severity=severity,
             class_=EVENT_CLASS,
+            entity_name=self._entity_name,
+            description=description,
+            details=details,
+        )
+
+    def generate_project_lifecycle_event(
+        self,
+        action: mlrun.common.schemas.ProjectLifecycleEventActions,
+        project_name: str,
+        actor: str | None = None,
+        error: BaseException | str | None = None,
+    ) -> iguazio.schemas.EventActivationSpec:
+        try:
+            config_name, severity, description = PROJECT_LIFECYCLE_EVENTS[action]
+        except KeyError as exc:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"Unsupported project lifecycle action {action}"
+            ) from exc
+
+        details: dict = {"project_name": project_name}
+        if actor:
+            details["actor"] = actor
+
+        if action in (
+            mlrun.common.schemas.ProjectLifecycleEventActions.creation_failed,
+            mlrun.common.schemas.ProjectLifecycleEventActions.deletion_failed,
+        ):
+            description = self._apply_error(details, description, error)
+
+        return iguazio.schemas.EventActivationSpec(
+            config_name=config_name,
+            source="",
+            kind=EVENT_KIND,
+            severity=severity,
+            class_=EVENT_CLASS_PROJECT,
             entity_name=self._entity_name,
             description=description,
             details=details,

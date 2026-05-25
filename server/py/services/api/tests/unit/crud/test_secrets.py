@@ -1236,5 +1236,38 @@ def test_get_secret_token_not_found():
         )
 
 
+@pytest.mark.parametrize(
+    "supplied_username", ["dummy-user", "Dummy-User", "DUMMY-USER"]
+)
+def test_get_user_id_self_match_is_case_insensitive(
+    mock_iguazio_client, supplied_username
+):
+    """When the supplied username matches the authenticated user case-insensitively,
+    _get_user_id returns auth_info.user_id directly and does NOT call Iguazio
+    (Keycloak/Iguazio treat usernames case-insensitively)."""
+    auth_info = mlrun.common.schemas.AuthInfo(
+        username="dummy-user", user_id="user-id-123"
+    )
+
+    user_id = services.api.crud.Secrets()._get_user_id(auth_info, supplied_username)
+
+    assert user_id == auth_info.user_id
+    mock_iguazio_client.get_user_id_by_username.assert_not_called()
+
+
+def test_get_user_id_handles_none_auth_username(mock_iguazio_client):
+    """auth_info.username is typed str | None; _get_user_id must not crash when it's
+    None and must fall through to the Iguazio lookup."""
+    auth_info = mlrun.common.schemas.AuthInfo(username=None, user_id="user-id-123")
+    mock_iguazio_client.get_user_id_by_username.return_value = "other-user-id"
+
+    user_id = services.api.crud.Secrets()._get_user_id(auth_info, "some-user")
+
+    assert user_id == "other-user-id"
+    mock_iguazio_client.get_user_id_by_username.assert_called_once_with(
+        "some-user", auth_info
+    )
+
+
 def _generate_token(payload: dict) -> str:
     return jwt.encode(payload, key="dummy", algorithm="HS256")

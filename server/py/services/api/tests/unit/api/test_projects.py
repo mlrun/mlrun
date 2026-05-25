@@ -98,10 +98,9 @@ def project_member_mode(request, db: Session) -> str:
 def test_redirection_from_worker_to_chief_delete_project(
     db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient, httpserver
 ):
-    project_name = "test-project"
-    # create the project while still in chief role - project CRUD reroutes to chief on workers
-    _create_project(client, project_name)
     mlrun.mlconf.httpdb.clusterization.role = "worker"
+    project_name = "test-project"
+    _create_project(client, project_name)
 
     endpoint = f"projects/{project_name}"
     for strategy in mlrun.common.schemas.DeletionStrategy:
@@ -146,93 +145,6 @@ def test_redirection_from_worker_to_chief_delete_project(
             except json.decoder.JSONDecodeError:
                 # NO_CONTENT response doesn't return json serializable response
                 assert response.text == expected_response
-
-
-def test_redirection_from_worker_to_chief_create_project(
-    db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient, httpserver
-):
-    mlrun.mlconf.httpdb.clusterization.role = "worker"
-    project_name = "test-project"
-    project = mlrun.common.schemas.Project(
-        metadata=mlrun.common.schemas.ProjectMetadata(name=project_name),
-        spec=mlrun.common.schemas.ProjectSpec(),
-    )
-
-    endpoint = "projects"
-    for test_case in [
-        # creating project accepted and is running in background
-        {
-            "expected_status": http.HTTPStatus.ACCEPTED.value,
-            "expected_body": {},
-        },
-        # project successfully created
-        {
-            "expected_status": http.HTTPStatus.CREATED.value,
-            "expected_body": project.dict(),
-        },
-        # creating project failed for unknown reason
-        {
-            "expected_status": http.HTTPStatus.INTERNAL_SERVER_ERROR.value,
-            "expected_body": {"detail": {"reason": "Unknown error"}},
-        },
-    ]:
-        expected_status = test_case.get("expected_status")
-        expected_response = test_case.get("expected_body")
-
-        httpserver.expect_ordered_request(
-            f"{ORIGINAL_VERSIONED_API_PREFIX}/{endpoint}", method="POST"
-        ).respond_with_json(expected_response, status=expected_status)
-        url = httpserver.url_for("")
-        mlrun.mlconf.httpdb.clusterization.chief.url = url
-        response = client.post(endpoint, json=project.dict())
-        assert response.status_code == expected_status
-        assert response.json() == expected_response
-
-
-def test_redirection_from_worker_to_chief_store_project(
-    db: sqlalchemy.orm.Session, client: fastapi.testclient.TestClient, httpserver
-):
-    mlrun.mlconf.httpdb.clusterization.role = "worker"
-    project_name = "test-project"
-    project = mlrun.common.schemas.Project(
-        metadata=mlrun.common.schemas.ProjectMetadata(name=project_name),
-        spec=mlrun.common.schemas.ProjectSpec(),
-    )
-
-    endpoint = f"projects/{project_name}"
-    for test_case in [
-        # storing project accepted and is running in background
-        {
-            "expected_status": http.HTTPStatus.ACCEPTED.value,
-            "expected_body": {},
-        },
-        # project successfully stored
-        {
-            "expected_status": http.HTTPStatus.OK.value,
-            "expected_body": project.dict(),
-        },
-        # project successfully created via store
-        {
-            "expected_status": http.HTTPStatus.CREATED.value,
-            "expected_body": project.dict(),
-        },
-        # storing project failed for unknown reason
-        {
-            "expected_status": http.HTTPStatus.INTERNAL_SERVER_ERROR.value,
-            "expected_body": {"detail": {"reason": "Unknown error"}},
-        },
-    ]:
-        expected_status = test_case.get("expected_status")
-        expected_response = test_case.get("expected_body")
-
-        httpserver.expect_ordered_request(
-            f"{ORIGINAL_VERSIONED_API_PREFIX}/{endpoint}", method="PUT"
-        ).respond_with_json(expected_response, status=expected_status)
-        url = httpserver.url_for("")
-        mlrun.mlconf.httpdb.clusterization.chief.url = url
-        response = client.put(endpoint, json=project.dict())
-        assert response.status_code == expected_status
-        assert response.json() == expected_response
 
 
 def test_create_project_failure_already_exists(
@@ -320,6 +232,36 @@ async def test_project_permissions_update_when_exists(
     )
     query_project.assert_awaited_once_with(project_name, action, auth_info)
     query_global.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_project_permissions_owner_short_circuits_opa_check(
+    db: Session, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """When the requester is the project owner, skip OPA and populate the owner cache."""
+    project_name = PERMISSIONS_PROJECT_NAME
+    owner_username = "project-owner"
+    auth_info = mlrun.common.schemas.AuthInfo(username=owner_username)
+    auth_verifier = framework.utils.auth.verifier.AuthVerifier()
+    query_project = AsyncMock()
+    add_allowed = Mock()
+    monkeypatch.setattr(auth_verifier, "query_project_permissions", query_project)
+    monkeypatch.setattr(auth_verifier, "add_allowed_project_for_owner", add_allowed)
+    existing_project = mlrun.common.schemas.Project(
+        metadata=mlrun.common.schemas.ProjectMetadata(name=project_name),
+        spec=mlrun.common.schemas.ProjectSpec(owner=owner_username),
+    )
+    project_member = framework.utils.singletons.project_member.get_project_member()
+    monkeypatch.setattr(
+        project_member, "get_project", Mock(return_value=existing_project)
+    )
+
+    await projects_endpoints._ensure_project_create_or_update_permissions(
+        db, project_name, auth_info
+    )
+
+    add_allowed.assert_called_once_with(project_name, auth_info)
+    query_project.assert_not_awaited()
 
 
 @pytest.mark.asyncio
@@ -654,6 +596,12 @@ async def test_list_and_get_project_summaries(
     _create_artifacts(
         client, project_name, files_count, mlrun.artifacts.PlotArtifact.kind
     )
+
+    code_files_count = 3
+    _create_artifacts(
+        client, project_name, code_files_count, mlrun.artifacts.CodeArtifact.kind
+    )
+    files_count += code_files_count
 
     # create feature sets for the project
     feature_sets_count = 9

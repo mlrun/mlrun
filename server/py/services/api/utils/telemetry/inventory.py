@@ -34,19 +34,22 @@ Call sites:
     cache refresh, once per (metric, attribute-set) tuple.
 """
 
-from typing import TYPE_CHECKING, Optional, TypeVar
+from typing import TypeVar
+
+from opentelemetry import metrics
+from opentelemetry.exporter.otlp.proto.grpc.metric_exporter import OTLPMetricExporter
+from opentelemetry.metrics import Meter, Synchronous
+from opentelemetry.sdk.metrics import MeterProvider
+from opentelemetry.sdk.metrics.export import PeriodicExportingMetricReader
 
 import mlrun
 import mlrun.errors
 import mlrun.utils
 import mlrun.utils.telemetry
 
-if TYPE_CHECKING:
-    from opentelemetry.metrics import Meter, MeterProvider, Synchronous
-
 # The concrete synchronous Gauge class is private (`_Gauge`) in
 # opentelemetry-api 1.42, so bind the TypeVar to its public base instead.
-Gauge = TypeVar("Gauge", bound="Synchronous")
+Gauge = TypeVar("Gauge", bound=Synchronous)
 
 # One Gauge per logical metric. Names mirror the fields already populated by
 # ``refresh_project_resources_counters_cache`` — adding a metric here without
@@ -68,8 +71,8 @@ _METRIC_NAMES = (
     "mlrun_model_monitoring_functions",
 )
 
-_provider: Optional["MeterProvider"] = None
-_meter: Optional["Meter"] = None
+_provider: MeterProvider | None = None
+_meter: Meter | None = None
 _gauges: dict[str, Gauge] = {}
 
 
@@ -90,14 +93,6 @@ def init() -> None:
             otlp_endpoint=cfg.otlp_endpoint or "<blank>",
         )
         return
-
-    # Imports deferred so the SDK is not pulled in when telemetry is off.
-    from opentelemetry import metrics
-    from opentelemetry.exporter.otlp.proto.grpc.metric_exporter import (
-        OTLPMetricExporter,
-    )
-    from opentelemetry.sdk.metrics import MeterProvider
-    from opentelemetry.sdk.metrics.export import PeriodicExportingMetricReader
 
     insecure = str(cfg.insecure).lower() == "true"
     # Gauges are re-set every cache cycle, so the exporter is aligned to that

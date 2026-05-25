@@ -269,7 +269,9 @@ class ResponsesEndpoints(_OpenAIEndpointGroup):
                 "http_method": HTTPMethod.GET,
                 "output_body_mappings": cls._response_output_bm(),
             },
-            {  # Delete a response
+            {  # Delete a response — no output mapping: the return shape ({id, object, deleted})
+                # appears only in the API example, not in a formal field table, so we treat it
+                # as passthrough rather than enforcing an undocumented contract.
                 "path": "/responses/{response_id}",
                 "http_method": HTTPMethod.DELETE,
             },

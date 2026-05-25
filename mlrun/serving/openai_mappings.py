@@ -27,8 +27,6 @@ class OpenAIEndpoint(StrEnum):
 
     RESPONSES = "responses"
     CHAT_COMPLETIONS = "chat_completions"
-    AUDIO = "audio"
-    IMAGES = "images"
 
 
 # ---------------------------------------------------------------------------
@@ -439,22 +437,6 @@ class ChatCompletionsEndpoints(_OpenAIEndpointGroup):
         ]
 
 
-class AudioEndpoints(_OpenAIEndpointGroup):
-    """OpenAI /audio operation group — endpoint definitions and body mappings."""
-
-    @classmethod
-    def endpoints(cls) -> list[dict]:
-        return []  # TODO: ML-12461
-
-
-class ImagesEndpoints(_OpenAIEndpointGroup):
-    """OpenAI /images operation group — endpoint definitions and body mappings."""
-
-    @classmethod
-    def endpoints(cls) -> list[dict]:
-        return []  # TODO: ML-12461
-
-
 # ---------------------------------------------------------------------------
 # Internal mapping: OpenAIEndpoint → its group class
 # ---------------------------------------------------------------------------
@@ -462,6 +444,4 @@ class ImagesEndpoints(_OpenAIEndpointGroup):
 ENDPOINT_CLASSES: dict[OpenAIEndpoint, type[_OpenAIEndpointGroup]] = {
     OpenAIEndpoint.RESPONSES: ResponsesEndpoints,
     OpenAIEndpoint.CHAT_COMPLETIONS: ChatCompletionsEndpoints,
-    OpenAIEndpoint.AUDIO: AudioEndpoints,
-    OpenAIEndpoint.IMAGES: ImagesEndpoints,
 }

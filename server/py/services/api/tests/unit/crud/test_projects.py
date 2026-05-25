@@ -96,9 +96,7 @@ def patched_refresh_dependencies(
     set_count_mock = unittest.mock.MagicMock()
     monkeypatch.setattr(projects_crud.telemetry_inventory, "set_count", set_count_mock)
     # The real SDK isn't initialized in tests, so force the enabled flag on.
-    monkeypatch.setattr(
-        projects_crud.telemetry_inventory, "is_enabled", lambda: True
-    )
+    monkeypatch.setattr(projects_crud.telemetry_inventory, "is_enabled", lambda: True)
     return set_count_mock
 
 
@@ -250,9 +248,7 @@ async def test_inventory_emission_skipped_when_telemetry_disabled(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """is_enabled()=False at __init__ → no emission, even on a refresh cycle."""
-    monkeypatch.setattr(
-        projects_crud.telemetry_inventory, "is_enabled", lambda: False
-    )
+    monkeypatch.setattr(projects_crud.telemetry_inventory, "is_enabled", lambda: False)
     set_count_mock = patched_refresh_dependencies
 
     crud = projects_crud.Projects()

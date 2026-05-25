@@ -53,6 +53,7 @@ import services.api.initial_data
 import services.api.runtime_handlers
 import services.api.utils.db.partitioner
 import services.api.utils.events.db_errors
+import services.api.utils.telemetry.inventory
 from framework.db.session import close_session, create_session
 from framework.utils.periodic import (
     run_function_periodically,
@@ -147,12 +148,23 @@ class Service(framework.service.Service):
         # we capture connection issues that surface during initial migrations.
         services.api.utils.events.db_errors.register_for_default_engine()
         await mlrun.utils.run_in_threadpool(self._initialize_data)
+        # Chief-only — inventory snapshots are emitted from a single source of truth.
+        if (
+            mlconf.httpdb.clusterization.role
+            == mlrun.common.schemas.ClusterizationRole.chief
+        ):
+            services.api.utils.telemetry.inventory.init()
 
     async def _custom_teardown_service(self):
         if get_project_member():
             get_project_member().shutdown()
         if get_scheduler():
             await get_scheduler().stop()
+        if (
+            mlconf.httpdb.clusterization.role
+            == mlrun.common.schemas.ClusterizationRole.chief
+        ):
+            services.api.utils.telemetry.inventory.shutdown()
 
     def _initialize_data(self):
         if (

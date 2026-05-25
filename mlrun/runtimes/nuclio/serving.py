@@ -1169,7 +1169,12 @@ class ServingRuntime(nuclio_function.RemoteRuntime):
             APIHandlerConfig.from_dict(existing) if existing else APIHandlerConfig()
         )
 
-        for ep_group in endpoints or list(mlrun.serving.openai_mappings.OpenAIEndpoint):
+        groups = (
+            endpoints
+            if endpoints is not None
+            else list(mlrun.serving.openai_mappings.OpenAIEndpoint)
+        )
+        for ep_group in groups:
             for ep in mlrun.serving.openai_mappings.ENDPOINT_CLASSES[
                 ep_group
             ].endpoints():

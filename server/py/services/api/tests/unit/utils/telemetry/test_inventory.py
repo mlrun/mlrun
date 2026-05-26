@@ -196,6 +196,32 @@ def test_init_clamps_invalid_interval_config(
     assert len(warning_messages) == len(expected_warnings)
 
 
+def test_init_is_idempotent(
+    reset_inventory_state: None,
+    telemetry_enabled: None,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A second init() without an intervening shutdown() is a no-op + warning.
+
+    Prevents orphaning the previous MeterProvider's export thread / gRPC
+    channel on a stray re-init (hot reload, test harness, double startup hook).
+    """
+    warning_mock = unittest.mock.MagicMock()
+    monkeypatch.setattr(mlrun.utils.logger, "warning", warning_mock)
+
+    telemetry_inventory.init()
+    first_provider = telemetry_inventory._provider
+    first_gauges = telemetry_inventory._gauges
+    assert first_provider is not None
+
+    telemetry_inventory.init()
+
+    assert telemetry_inventory._provider is first_provider
+    assert telemetry_inventory._gauges is first_gauges
+    warning_mock.assert_called_once()
+    assert "already initialized" in warning_mock.call_args.args[0]
+
+
 def test_shutdown_noop_when_uninitialized(reset_inventory_state: None) -> None:
     """shutdown() before init() must not raise."""
     telemetry_inventory.shutdown()

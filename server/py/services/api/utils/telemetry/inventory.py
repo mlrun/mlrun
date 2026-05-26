@@ -93,8 +93,19 @@ def init() -> None:
     chief-side exporter and registers gauges. No-op when telemetry is
     disabled or no OTLP endpoint is set; subsequent ``set_count`` calls then
     short-circuit on the empty gauge dict.
+
+    Idempotent: a second call without an intervening ``shutdown()`` is a
+    no-op, so a stray re-init (hot reload, test harness, double startup
+    hook) doesn't orphan the previous MeterProvider's export thread + gRPC
+    channel.
     """
     global _provider, _meter, _gauges
+
+    if _provider is not None:
+        mlrun.utils.logger.warning(
+            "Telemetry inventory already initialized; skipping re-init"
+        )
+        return
 
     cfg = mlrun.mlconf.telemetry
     enabled = str(cfg.enabled).lower() == "true"

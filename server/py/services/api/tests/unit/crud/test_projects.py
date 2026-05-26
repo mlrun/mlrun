@@ -106,7 +106,7 @@ async def test_inventory_telemetry_emits_every_cycle_when_multiplier_is_one(
     patched_refresh_dependencies: unittest.mock.MagicMock,
 ) -> None:
     """multiplier=1 → emission fires on every cache refresh."""
-    mlrun.mlconf.telemetry.export_interval_multiplier = 1
+    mlrun.mlconf.telemetry.system_counters.export_interval_multiplier = 1
     set_count_mock = patched_refresh_dependencies
 
     crud = projects_crud.Projects()
@@ -129,7 +129,7 @@ async def test_inventory_telemetry_emits_every_nth_cycle(
     patched_refresh_dependencies: unittest.mock.MagicMock,
 ) -> None:
     """multiplier=3 → emission fires on refreshes 0, 3, 6 (1-in-3 cycles)."""
-    mlrun.mlconf.telemetry.export_interval_multiplier = 3
+    mlrun.mlconf.telemetry.system_counters.export_interval_multiplier = 3
     set_count_mock = patched_refresh_dependencies
 
     crud = projects_crud.Projects()
@@ -151,7 +151,7 @@ async def test_inventory_emit_multiplier_clamps_invalid_config(
     patched_refresh_dependencies: unittest.mock.MagicMock,
 ) -> None:
     """multiplier=0 (invalid) must clamp to 1, so emission still fires every cycle."""
-    mlrun.mlconf.telemetry.export_interval_multiplier = 0
+    mlrun.mlconf.telemetry.system_counters.export_interval_multiplier = 0
     set_count_mock = patched_refresh_dependencies
 
     crud = projects_crud.Projects()
@@ -172,14 +172,14 @@ async def test_inventory_telemetry_caches_multiplier_at_init(
     patched_refresh_dependencies: unittest.mock.MagicMock,
 ) -> None:
     """Live edits to mlconf after singleton init must not change the cadence."""
-    mlrun.mlconf.telemetry.export_interval_multiplier = 2
+    mlrun.mlconf.telemetry.system_counters.export_interval_multiplier = 2
     set_count_mock = patched_refresh_dependencies
 
     crud = projects_crud.Projects()
     assert crud._inventory_emit_multiplier == 2
 
     # Change config after construction — should be ignored until restart.
-    mlrun.mlconf.telemetry.export_interval_multiplier = 1
+    mlrun.mlconf.telemetry.system_counters.export_interval_multiplier = 1
 
     for _ in range(4):
         await crud.refresh_project_resources_counters_cache(unittest.mock.MagicMock())
@@ -202,7 +202,7 @@ async def test_inventory_emits_every_registered_metric(
     corresponding ``set_count`` call (or vice versa) silently produces an
     empty Prometheus series. This test catches both drift directions.
     """
-    mlrun.mlconf.telemetry.export_interval_multiplier = 1
+    mlrun.mlconf.telemetry.system_counters.export_interval_multiplier = 1
     set_count_mock = patched_refresh_dependencies
 
     crud = projects_crud.Projects()
@@ -226,7 +226,7 @@ async def test_inventory_emission_tags_every_call_with_project(
     Only ``mlrun_projects`` is a system-level total; all others must be
     scoped per project so Prometheus can aggregate by project.
     """
-    mlrun.mlconf.telemetry.export_interval_multiplier = 1
+    mlrun.mlconf.telemetry.system_counters.export_interval_multiplier = 1
     set_count_mock = patched_refresh_dependencies
 
     crud = projects_crud.Projects()

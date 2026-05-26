@@ -59,7 +59,7 @@ class Projects(
         self._inventory_telemetry_enabled: bool = telemetry_inventory.is_enabled()
         self._inventory_refresh_count: int = 0
         self._inventory_emit_multiplier: int = max(
-            1, int(mlrun.mlconf.telemetry.export_interval_multiplier)
+            1, int(mlrun.mlconf.telemetry.system_counters.export_interval_multiplier)
         )
 
     def create_project(

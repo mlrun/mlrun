@@ -125,7 +125,9 @@ def test_init_export_interval_is_cache_interval_times_multiplier(
     monkeypatch.setattr(
         mlrun.mlconf.monitoring.projects.summaries, "cache_interval", 30
     )
-    monkeypatch.setattr(mlrun.mlconf.telemetry, "export_interval_multiplier", 4)
+    monkeypatch.setattr(
+        mlrun.mlconf.telemetry.system_counters, "export_interval_multiplier", 4
+    )
 
     captured: dict = {}
     real_reader_cls = telemetry_inventory.PeriodicExportingMetricReader
@@ -165,7 +167,9 @@ def test_init_clamps_invalid_interval_config(
         mlrun.mlconf.monitoring.projects.summaries, "cache_interval", cache_interval
     )
     monkeypatch.setattr(
-        mlrun.mlconf.telemetry, "export_interval_multiplier", multiplier
+        mlrun.mlconf.telemetry.system_counters,
+        "export_interval_multiplier",
+        multiplier,
     )
 
     captured: dict = {}

@@ -119,7 +119,9 @@ def init() -> None:
         )
     cache_interval_seconds = max(1, raw_cache_interval)
 
-    raw_multiplier = int(getattr(cfg, "export_interval_multiplier", 10))
+    raw_multiplier = int(
+        getattr(cfg.system_counters, "export_interval_multiplier", 10)
+    )
     if raw_multiplier < 1:
         mlrun.utils.logger.warning(
             "Telemetry inventory export_interval_multiplier < 1; clamping to 1",

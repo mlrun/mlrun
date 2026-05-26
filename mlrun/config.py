@@ -992,11 +992,13 @@ default_config = {
         # Name of the K8s secret holding OTLP auth headers (one key per header,
         # e.g. Authorization, X-Scope-OrgID). Blank = no auth headers.
         "headers_secret_name": "",
-        # PeriodicExportingMetricReader interval for inventory gauges, expressed
-        # as a multiple of ``monitoring.projects.summaries.cache_interval`` so
-        # the exporter samples a freshly-refreshed gauge every Nth cache cycle.
-        # Default 10 × 60s = 600s = 10 minutes. Must be >= 1.
-        "export_interval_multiplier": 10,
+        "system_counters": {
+            # PeriodicExportingMetricReader interval for inventory gauges, expressed
+            # as a multiple of ``monitoring.projects.summaries.cache_interval`` so
+            # the exporter samples a freshly-refreshed gauge every Nth cache cycle.
+            # Default 10 × 60s = 600s = 10 minutes. Must be >= 1.
+            "export_interval_multiplier": 10,
+        },
         # ML-12344 — model monitoring application Results/Metrics OTel export.
         "model_monitoring": {
             # 0 = manual flush per do() (ManualMetricReader); >0 = PeriodicExportingMetricReader interval (seconds).

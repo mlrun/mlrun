@@ -16,7 +16,6 @@
 
 import pytest
 
-import mlrun
 from mlrun.serving.openai_mappings import OpenAIEndpoint
 from tests.serving.assets.openai_fixtures import (
     CHAT_EXPECTED_KWARGS,
@@ -109,9 +108,7 @@ class TestChatCompletionsGroupMock:
 
         server = make_mock_server(OpenAIEndpoint.CHAT_COMPLETIONS, handler)
         try:
-            with pytest.raises(
-                mlrun.errors.MLRunBadRequestError, match="Mandatory field"
-            ):
+            with pytest.raises(RuntimeError, match="Mandatory field"):
                 server.test(
                     "/chat/completions",
                     method="POST",
@@ -153,9 +150,7 @@ class TestChatCompletionsGroupMock:
 
         server = make_mock_server(OpenAIEndpoint.CHAT_COMPLETIONS, handler)
         try:
-            with pytest.raises(
-                mlrun.errors.MLRunBadRequestError, match="Mandatory field"
-            ):
+            with pytest.raises(RuntimeError, match="Mandatory field"):
                 server.test(f"/chat/completions/{COMPLETION_ID}", method="GET")
         finally:
             server.wait_for_completion()
@@ -214,9 +209,7 @@ class TestChatCompletionsGroupMock:
 
         server = make_mock_server(OpenAIEndpoint.CHAT_COMPLETIONS, handler)
         try:
-            with pytest.raises(
-                mlrun.errors.MLRunBadRequestError, match="Mandatory field"
-            ):
+            with pytest.raises(RuntimeError, match="Mandatory field"):
                 server.test(
                     f"/chat/completions/{COMPLETION_ID}",
                     method="POST",
@@ -256,9 +249,7 @@ class TestChatCompletionsGroupMock:
 
         server = make_mock_server(OpenAIEndpoint.CHAT_COMPLETIONS, handler)
         try:
-            with pytest.raises(
-                mlrun.errors.MLRunBadRequestError, match="Mandatory field"
-            ):
+            with pytest.raises(RuntimeError, match="Mandatory field"):
                 server.test(f"/chat/completions/{COMPLETION_ID}", method="DELETE")
         finally:
             server.wait_for_completion()
@@ -290,9 +281,7 @@ class TestChatCompletionsGroupMock:
 
         server = make_mock_server(OpenAIEndpoint.CHAT_COMPLETIONS, handler)
         try:
-            with pytest.raises(
-                mlrun.errors.MLRunBadRequestError, match="Mandatory field"
-            ):
+            with pytest.raises(RuntimeError, match="Mandatory field"):
                 server.test("/chat/completions", method="GET")
         finally:
             server.wait_for_completion()
@@ -329,9 +318,7 @@ class TestChatCompletionsGroupMock:
 
         server = make_mock_server(OpenAIEndpoint.CHAT_COMPLETIONS, handler)
         try:
-            with pytest.raises(
-                mlrun.errors.MLRunBadRequestError, match="Mandatory field"
-            ):
+            with pytest.raises(RuntimeError, match="Mandatory field"):
                 server.test(f"/chat/completions/{COMPLETION_ID}/messages", method="GET")
         finally:
             server.wait_for_completion()

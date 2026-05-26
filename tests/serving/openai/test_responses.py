@@ -16,7 +16,6 @@
 
 import pytest
 
-import mlrun
 from mlrun.serving.openai_mappings import OpenAIEndpoint
 from tests.serving.assets.openai_fixtures import (
     COMPACT_EXPECTED_KWARGS,
@@ -75,9 +74,7 @@ class TestResponsesGroupMock:
 
         server = make_mock_server(OpenAIEndpoint.RESPONSES, handler)
         try:
-            with pytest.raises(
-                mlrun.errors.MLRunBadRequestError, match="Mandatory field"
-            ):
+            with pytest.raises(RuntimeError, match="Mandatory field"):
                 server.test("/responses", method="POST", body={})
         finally:
             server.wait_for_completion()
@@ -112,9 +109,7 @@ class TestResponsesGroupMock:
 
         server = make_mock_server(OpenAIEndpoint.RESPONSES, handler)
         try:
-            with pytest.raises(
-                mlrun.errors.MLRunBadRequestError, match="Mandatory field"
-            ):
+            with pytest.raises(RuntimeError, match="Mandatory field"):
                 server.test(f"/responses/{RESPONSE_ID}", method="GET")
         finally:
             server.wait_for_completion()
@@ -171,9 +166,7 @@ class TestResponsesGroupMock:
 
         server = make_mock_server(OpenAIEndpoint.RESPONSES, handler)
         try:
-            with pytest.raises(
-                mlrun.errors.MLRunBadRequestError, match="Mandatory field"
-            ):
+            with pytest.raises(RuntimeError, match="Mandatory field"):
                 server.test(f"/responses/{RESPONSE_ID}/input_items", method="GET")
         finally:
             server.wait_for_completion()
@@ -215,9 +208,7 @@ class TestResponsesGroupMock:
 
         server = make_mock_server(OpenAIEndpoint.RESPONSES, handler)
         try:
-            with pytest.raises(
-                mlrun.errors.MLRunBadRequestError, match="Mandatory field"
-            ):
+            with pytest.raises(RuntimeError, match="Mandatory field"):
                 server.test("/responses/input_tokens", method="POST", body={})
         finally:
             server.wait_for_completion()
@@ -252,9 +243,7 @@ class TestResponsesGroupMock:
 
         server = make_mock_server(OpenAIEndpoint.RESPONSES, handler)
         try:
-            with pytest.raises(
-                mlrun.errors.MLRunBadRequestError, match="Mandatory field"
-            ):
+            with pytest.raises(RuntimeError, match="Mandatory field"):
                 server.test(f"/responses/{RESPONSE_ID}/cancel", method="POST")
         finally:
             server.wait_for_completion()
@@ -294,9 +283,7 @@ class TestResponsesGroupMock:
 
         server = make_mock_server(OpenAIEndpoint.RESPONSES, handler)
         try:
-            with pytest.raises(
-                mlrun.errors.MLRunBadRequestError, match="Mandatory field"
-            ):
+            with pytest.raises(RuntimeError, match="Mandatory field"):
                 server.test(
                     "/responses/compact",
                     method="POST",

@@ -1154,10 +1154,9 @@ class ServingRuntime(nuclio_function.RemoteRuntime):
         operation group. If ``endpoints`` is ``None``, all supported groups are registered.
 
         **Validation scope — top-level only.** Mandatory field validation applies only to
-        the top-level keys of the request/response body. Nested fields (e.g.
-        ``choices[].message.content``) are passed through as-is. Full structural validation
-        is delegated to the OpenAI Python SDK, which deserializes responses into typed
-        objects and raises a ``ValidationError`` on any structural mismatch.
+        the top-level keys of the request/response body. Full structural validation is
+        delegated to the OpenAI Python SDK, which deserializes responses into typed objects
+        and raises a ``ValidationError`` on any structural mismatch.
 
         :param endpoints: Optional list of :class:`~mlrun.serving.openai_mappings.OpenAIEndpoint`
             values selecting which operation groups to enable. Defaults to all groups.

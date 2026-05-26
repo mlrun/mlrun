@@ -36,6 +36,7 @@ import mlrun.common.constants as mlrun_constants
 import mlrun.common.formatters
 import mlrun.common.schemas
 import mlrun.common.schemas.model_monitoring.constants as mm_constants
+import mlrun.datastore
 import mlrun.errors
 import mlrun.utils.helpers
 import mlrun_pipelines.utils
@@ -50,6 +51,7 @@ from .errors import MLRunInvalidArgumentError, MLRunTimeoutError
 from .execution import MLClientCtx
 from .model import RunObject, RunTemplate
 from .runtimes import (
+    BaseRuntime,
     DaskCluster,
     HandlerRuntime,
     KubejobRuntime,
@@ -620,6 +622,66 @@ def _process_runtime(command, runtime, kind):
     else:
         update_in(runtime, "spec.function_kind", "mlrun")
     return kind, runtime
+
+
+def enrich_function_from_code_artifact(
+    function: BaseRuntime,
+    project: str,
+) -> bool:
+    """Resolve store:// code artifact and enrich the function build spec.
+
+    Validates artifact kind, merges ``spec.requirements`` into
+    ``function.spec.build.requirements`` (user reqs win), and defaults
+    ``load_source_on_run`` to True when unset. Called from both client SDK
+    (pre-auto_build) and API server (run/build enrichment).
+
+    :param function: The function object to enrich
+    :param project:  Project name for artifact resolution
+    :returns: True if artifact requirements were merged into the build spec;
+              callers in build-decision paths should then re-run
+              ``prepare_image_for_deploy`` to shift image -> base_image.
+    """
+    source = function.spec.build.source or getattr(
+        function.status, "application_source", None
+    )
+    if not source or not mlrun.utils.is_store_uri(source):
+        return False
+
+    try:
+        artifact = mlrun.datastore.get_store_resource(source, project=project)
+    except mlrun.errors.MLRunBaseError:
+        raise
+    except Exception as exc:
+        raise MLRunInvalidArgumentError(
+            f"Cannot resolve code artifact {source}: {mlrun.errors.err_to_str(exc)}"
+        ) from exc
+
+    allowed_kinds = {"code"}
+    if function.kind == RuntimeKinds.application:
+        allowed_kinds.add("artifact")
+    if artifact.kind not in allowed_kinds:
+        raise MLRunInvalidArgumentError(
+            f"Source {source} resolves to a {artifact.kind!r} artifact; "
+            "expected a code artifact (kind='code')."
+        )
+
+    merged_requirements = False
+    artifact_requirements = getattr(artifact.spec, "requirements", None)
+    if artifact_requirements:
+        function.spec.build.requirements = mlrun.utils.merge_requirements(
+            reqs_priority=function.spec.build.requirements or [],
+            reqs_secondary=artifact_requirements,
+        )
+        merged_requirements = True
+
+    if function.spec.build.load_source_on_run is None:
+        logger.debug(
+            "Defaulting load_source_on_run=True for store:// source",
+            source=source,
+        )
+        function.spec.build.load_source_on_run = True
+
+    return merged_requirements
 
 
 def code_to_function(

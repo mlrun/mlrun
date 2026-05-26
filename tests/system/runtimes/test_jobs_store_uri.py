@@ -92,3 +92,54 @@ class TestJobStoreUri(tests.system.base.TestMLRunSystem):
             f"Expected store:// URI preserved in DB, got "
             f"{db_function.spec.build.source!r}"
         )
+
+    def test_e2e_job_from_store_with_requirements_triggers_auto_build(self):
+        """ML-12617: ``image=X`` + store:// code artifact carrying requirements
+        + ``run(auto_build=True)`` must build a new image that has the
+        artifact's requirements installed.
+
+        Before the fix, the client launcher's ``is_deployed()`` short-circuited
+        to True (because ``spec.image`` was set), auto_build was skipped, the
+        package was never installed, and the handler's import would fail
+        inside the pod. After the fix, artifact resolution populates
+        ``build.requirements`` and ``prepare_image_for_deploy`` shifts
+        ``image -> base_image`` so ``is_deployed()`` returns False and
+        auto_build fires.
+        """
+        local_path = os.path.join(self.assets_path, self._handler_filename)
+        artifact = self.project.log_code_file(
+            key="job_code_with_otel",
+            local_path=local_path,
+            requirements=["opentelemetry-api"],
+        )
+
+        function = self.project.set_function(
+            func=artifact.uri,
+            name="job-otel-auto-build",
+            kind="job",
+            handler="handler:check_otel_installed",
+            image=self._function_image,
+        )
+
+        run = function.run(auto_build=True)
+
+        assert run.status.state == "completed", (
+            f"Run did not complete: state={run.status.state}, error={run.status.error}"
+        )
+        assert run.status.results.get("otel_installed") is True, (
+            "opentelemetry-api was not installed in the pod - auto_build did "
+            "not fire after the artifact's requirements were merged"
+        )
+
+        # auto_build must have produced a fresh image; spec.image points to the
+        # built one (.mlrun/func-...), and the user-provided image is preserved
+        # as base_image.
+        db_function = self.project.get_function("job-otel-auto-build")
+        assert db_function.spec.image.startswith(".mlrun/func-"), (
+            f"Expected built image (.mlrun/func-...), got "
+            f"{db_function.spec.image!r}. auto_build did not fire."
+        )
+        assert db_function.spec.build.base_image == self._function_image, (
+            f"Expected base_image={self._function_image!r}, got "
+            f"{db_function.spec.build.base_image!r}"
+        )

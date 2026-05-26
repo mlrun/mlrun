@@ -21,6 +21,7 @@ import mlrun.errors
 import mlrun.launcher.base as launcher
 import mlrun.lists
 import mlrun.model
+import mlrun.run
 import mlrun.runtime_configuration_context
 import mlrun.runtimes
 import mlrun.utils
@@ -43,6 +44,13 @@ class ClientBaseLauncher(launcher.BaseLauncher, abc.ABC):
         runtime._fill_credentials()
         if project_name:
             runtime.metadata.project = project_name
+
+        # Shift image -> base_image only when artifact reqs were just merged,
+        # so is_deployed() doesn't short-circuit to True before auto_build.
+        if runtime.metadata.project and mlrun.run.enrich_function_from_code_artifact(
+            runtime, runtime.metadata.project
+        ):
+            runtime.prepare_image_for_deploy()
 
     @staticmethod
     def prepare_image_for_deploy(runtime: "mlrun.runtimes.BaseRuntime"):

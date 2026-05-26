@@ -147,13 +147,7 @@ class Service(framework.service.Service):
         # Attach the DB connection-failed event listener before any DB work so
         # we capture connection issues that surface during initial migrations.
         services.api.utils.events.db_errors.register_for_default_engine()
-        await mlrun.utils.run_in_threadpool(self._initialize_data)
-        # Chief-only — inventory snapshots are emitted from a single source of truth.
-        if (
-            mlconf.httpdb.clusterization.role
-            == mlrun.common.schemas.ClusterizationRole.chief
-        ):
-            services.api.utils.telemetry.inventory.init()
+        await mlrun.utils.run_in_threadpool(self._initialize_chief)
 
     async def _custom_teardown_service(self):
         if get_project_member():
@@ -166,12 +160,14 @@ class Service(framework.service.Service):
         ):
             services.api.utils.telemetry.inventory.shutdown()
 
-    def _initialize_data(self):
+    def _initialize_chief(self):
         if (
             mlconf.httpdb.clusterization.role
             == mlrun.common.schemas.ClusterizationRole.chief
         ):
             services.api.initial_data.init_data()
+            # Inventory snapshots are emitted from a single source of truth.
+            services.api.utils.telemetry.inventory.init()
 
     async def _start_periodic_functions(self):
         # runs cleanup/monitoring is not needed if we're not inside kubernetes cluster

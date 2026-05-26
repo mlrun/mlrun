@@ -87,10 +87,12 @@ def is_enabled() -> bool:
 
 
 def init() -> None:
-    """Initialize OTel SDK and create Gauge instruments.
+    """Wire up the inventory MeterProvider and Gauge instruments.
 
-    No-op when telemetry is disabled or no OTLP endpoint is set; subsequent
-    ``set_count`` calls then short-circuit on the empty gauge dict.
+    The OTel SDK is loaded at import time; this function only stands up the
+    chief-side exporter and registers gauges. No-op when telemetry is
+    disabled or no OTLP endpoint is set; subsequent ``set_count`` calls then
+    short-circuit on the empty gauge dict.
     """
     global _provider, _meter, _gauges
 
@@ -98,7 +100,7 @@ def init() -> None:
     enabled = str(cfg.enabled).lower() == "true"
     if not enabled or not cfg.otlp_endpoint:
         mlrun.utils.logger.info(
-            "Telemetry disabled — OTel SDK not initialized",
+            "Telemetry inventory disabled — gauges not registered",
             enabled=enabled,
             otlp_endpoint=cfg.otlp_endpoint or "<blank>",
         )
@@ -107,11 +109,23 @@ def init() -> None:
     insecure = str(cfg.insecure).lower() == "true"
     # Gauges are re-set every cache cycle, so the exporter is aligned to that
     # cadence: export every Nth cycle (default N=10 → 10 minutes at the default
-    # 60s cache_interval). Floored to ensure a positive interval.
-    cache_interval_seconds = max(
-        1, int(mlrun.mlconf.monitoring.projects.summaries.cache_interval)
-    )
-    multiplier = max(1, int(getattr(cfg, "export_interval_multiplier", 10)))
+    # 60s cache_interval). Sub-1 config values are misconfigurations — clamp
+    # to 1 and warn so the operator notices the override.
+    raw_cache_interval = int(mlrun.mlconf.monitoring.projects.summaries.cache_interval)
+    if raw_cache_interval < 1:
+        mlrun.utils.logger.warning(
+            "Telemetry inventory cache_interval < 1; clamping to 1",
+            configured=raw_cache_interval,
+        )
+    cache_interval_seconds = max(1, raw_cache_interval)
+
+    raw_multiplier = int(getattr(cfg, "export_interval_multiplier", 10))
+    if raw_multiplier < 1:
+        mlrun.utils.logger.warning(
+            "Telemetry inventory export_interval_multiplier < 1; clamping to 1",
+            configured=raw_multiplier,
+        )
+    multiplier = max(1, raw_multiplier)
     export_interval_ms = multiplier * cache_interval_seconds * 1000
 
     exporter = OTLPMetricExporter(
@@ -130,7 +144,7 @@ def init() -> None:
         _gauges[name] = _meter.create_gauge(name=name)
 
     mlrun.utils.logger.info(
-        "Telemetry inventory OTel SDK initialized",
+        "Telemetry inventory gauges registered",
         otlp_endpoint=cfg.otlp_endpoint,
         insecure=insecure,
         cache_interval_seconds=cache_interval_seconds,
@@ -141,7 +155,7 @@ def init() -> None:
 
 
 def shutdown(timeout_millis: int = 5000) -> None:
-    """Flush any pending gauge values and tear down the OTel SDK.
+    """Flush any pending gauge values and tear down the MeterProvider.
 
     Called from the FastAPI shutdown hook so the final cache-refresh snapshot
     is exported before the chief pod terminates — without this, any gauge
@@ -153,7 +167,7 @@ def shutdown(timeout_millis: int = 5000) -> None:
         return
     try:
         _provider.shutdown(timeout_millis=timeout_millis)
-        mlrun.utils.logger.info("Telemetry inventory OTel SDK shut down")
+        mlrun.utils.logger.info("Telemetry inventory gauges flushed and torn down")
     except Exception as exc:
         mlrun.utils.logger.warning(
             "Telemetry inventory shutdown failed",

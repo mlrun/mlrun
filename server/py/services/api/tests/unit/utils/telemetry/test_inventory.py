@@ -144,11 +144,11 @@ def test_init_export_interval_is_cache_interval_times_multiplier(
 
 
 @pytest.mark.parametrize(
-    "cache_interval,multiplier,expected_ms",
+    "cache_interval,multiplier,expected_ms,expected_warnings",
     [
-        (0, 10, 1 * 10 * 1000),  # cache_interval clamps to 1
-        (60, 0, 60 * 1 * 1000),  # multiplier clamps to 1
-        (-5, -3, 1 * 1 * 1000),  # both negative → both clamp to 1
+        (0, 10, 1 * 10 * 1000, ["cache_interval"]),  # cache_interval clamps to 1
+        (60, 0, 60 * 1 * 1000, ["export_interval_multiplier"]),  # multiplier clamps
+        (-5, -3, 1 * 1 * 1000, ["cache_interval", "export_interval_multiplier"]),
     ],
 )
 def test_init_clamps_invalid_interval_config(
@@ -158,8 +158,9 @@ def test_init_clamps_invalid_interval_config(
     cache_interval: int,
     multiplier: int,
     expected_ms: int,
+    expected_warnings: list[str],
 ) -> None:
-    """Non-positive cache_interval or multiplier values must clamp to 1."""
+    """Non-positive cache_interval or multiplier values must clamp to 1 + warn."""
     monkeypatch.setattr(
         mlrun.mlconf.monitoring.projects.summaries, "cache_interval", cache_interval
     )
@@ -177,10 +178,18 @@ def test_init_clamps_invalid_interval_config(
         )
 
     monkeypatch.setattr(telemetry_inventory, "PeriodicExportingMetricReader", _spy)
+    warning_mock = unittest.mock.MagicMock()
+    monkeypatch.setattr(mlrun.utils.logger, "warning", warning_mock)
 
     telemetry_inventory.init()
 
     assert captured["export_interval_millis"] == expected_ms
+    warning_messages = [call.args[0] for call in warning_mock.call_args_list]
+    for needle in expected_warnings:
+        assert any(needle in msg for msg in warning_messages), (
+            f"missing clamp warning for {needle}; got: {warning_messages}"
+        )
+    assert len(warning_messages) == len(expected_warnings)
 
 
 def test_shutdown_noop_when_uninitialized(reset_inventory_state: None) -> None:

@@ -152,13 +152,22 @@ class Service(framework.service.Service):
     async def _custom_teardown_service(self):
         if get_project_member():
             get_project_member().shutdown()
+        # Independent subsystems — gather so the OTel flush budget overlaps
+        # with the scheduler stop instead of stacking on top of it.
+        teardown_coros = []
         if get_scheduler():
-            await get_scheduler().stop()
+            teardown_coros.append(get_scheduler().stop())
         if (
             mlconf.httpdb.clusterization.role
             == mlrun.common.schemas.ClusterizationRole.chief
         ):
-            services.api.utils.telemetry.inventory.shutdown()
+            teardown_coros.append(
+                mlrun.utils.run_in_threadpool(
+                    services.api.utils.telemetry.inventory.shutdown
+                )
+            )
+        if teardown_coros:
+            await asyncio.gather(*teardown_coros)
 
     def _initialize_chief(self):
         if (

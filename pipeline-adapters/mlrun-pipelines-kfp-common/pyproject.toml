@@ -13,7 +13,8 @@ urls = { homepage = "https://github.com/mlrun/mlrun" }
 dependencies = [
    # TODO remove the kfp_server_api version requirement once KFP 1.8 support is removed
   "kfp_server_api~=1.8",
-  "kubernetes>=25.3"
+  # pin while awaiting fix for https://github.com/kubernetes-client/python/issues/2591
+  "kubernetes>=25.3, <36.0.0"
 ]
 
 [project.optional-dependencies]

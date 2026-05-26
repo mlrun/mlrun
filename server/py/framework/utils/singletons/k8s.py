@@ -1775,8 +1775,13 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
                 # Convert 404 → 400:
                 # Missing token during enrichment is a bad request,
                 # not a missing backend resource.
+                logger.warning(
+                    "Token not found for user",
+                    token_name=token_name,
+                    user_id=user_id,
+                )
                 raise mlrun.errors.MLRunBadRequestError(
-                    f"Token '{token_name}' not found for user id '{user_id}'."
+                    f"Token '{token_name}' not found for user"
                 ) from exc
 
             return [{"name": token_name, "token": token_value}]

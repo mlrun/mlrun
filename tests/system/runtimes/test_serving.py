@@ -540,7 +540,7 @@ class TestServingAPIHandler(tests.system.base.TestMLRunSystem):
 
         with pytest.raises(
             RuntimeError,
-            match=r"MLRunBadRequestError.*Mandatory field 'output_result' not found",
+            match=r"bad function response 400:.*MLRunBadRequestError.*Mandatory field 'output_result' not found",  # noqa: E501
         ):
             function.invoke(path="/predict", body={"model": "gpt-4"})
 
@@ -697,14 +697,16 @@ class TestServingAPIHandler(tests.system.base.TestMLRunSystem):
             http_client=httpx.Client(verify=mlrun.mlconf.httpdb.http.verify),
         )
 
-        with pytest.raises(
-            openai.APIStatusError,
-            match=r"MLRunBadRequestError: Mandatory field 'choices' not found in body",
-        ):
+        with pytest.raises(openai.APIStatusError) as exc_info:
             client.chat.completions.create(
                 model="gpt-4",
                 messages=[{"role": "user", "content": "Hello"}],
             )
+        assert exc_info.value.status_code == 400
+        assert (
+            "MLRunBadRequestError: Mandatory field 'choices' not found in body"
+            in str(exc_info.value)
+        )
 
         self._logger.info("Chat completions missing mandatory output field test passed")
 
@@ -731,13 +733,14 @@ class TestServingAPIHandler(tests.system.base.TestMLRunSystem):
             http_client=httpx.Client(verify=mlrun.mlconf.httpdb.http.verify),
         )
 
-        with pytest.raises(
-            openai.APIStatusError,
-            match=r"MLRunBadRequestError: Mandatory field 'id' not found in body",
-        ):
+        with pytest.raises(openai.APIStatusError) as exc_info:
             client.responses.create(
                 model="gpt-4",
                 input="Hello",
             )
+        assert exc_info.value.status_code == 400
+        assert "MLRunBadRequestError: Mandatory field 'id' not found in body" in str(
+            exc_info.value
+        )
 
         self._logger.info("Responses missing mandatory output field test passed")

@@ -221,21 +221,30 @@ class Client(BaseClient, project_follower.Member):
                 )
                 result = token_file_client.get_refresh_token()
                 if not result or not result[0]:
+                    self._logger.warning(
+                        "No valid tokens found for user", user_id=user_id
+                    )
                     raise mlrun.errors.MLRunNotFoundError(
-                        f"No valid tokens found for user id '{user_id}'"
+                        "No valid tokens found for user"
                     )
                 resolved_name, _ = result
                 return resolved_name
 
             except ValueError as exc:
                 # Token not found, empty, or failed validation
+                self._logger.warning(
+                    "Token not found or invalid for user",
+                    token_name=token_name,
+                    user_id=user_id,
+                )
                 raise mlrun.errors.MLRunNotFoundError(
-                    f"Token '{token_name}' not found or invalid for user id '{user_id}'"
+                    f"Token '{token_name}' not found or invalid for user"
                 ) from exc
             except RuntimeError as exc:
                 # No valid tokens found after trying all
+                self._logger.warning("No valid tokens found for user", user_id=user_id)
                 raise mlrun.errors.MLRunNotFoundError(
-                    f"No valid tokens found for user id '{user_id}'"
+                    "No valid tokens found for user"
                 ) from exc
 
     def create_project(

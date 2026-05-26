@@ -1785,9 +1785,8 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
         all_tokens = self.list_user_token_secret_values(user_id)
 
         if not all_tokens:
-            raise mlrun.errors.MLRunBadRequestError(
-                f"No valid tokens found for user id '{user_id}'. "
-            )
+            logger.warning("No valid tokens found for user", user_id=user_id)
+            raise mlrun.errors.MLRunBadRequestError("No valid tokens found for user")
 
         return [{"name": token.name, "token": token.token} for token in all_tokens]
 

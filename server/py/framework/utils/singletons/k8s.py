@@ -901,13 +901,17 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
         secrets: dict[str, str],
         namespace: str = "",
         encoded: bool = False,
+        labels: dict[str, str] | None = None,
+        annotations: dict[str, str] | None = None,
     ):
         """
         Update an existing Kubernetes Secret with new or updated key/value pairs.
 
-        Existing keys in the secret are preserved unless they are overwritten by
-        keys provided in the `secrets` dictionary. By default, values in `secrets`
-        are expected to be plain strings; they will be base64-encoded before storing
+        Existing keys in the secret's data, labels, and annotations are preserved
+        unless they are overwritten by keys in the corresponding input parameter;
+        any other keys on the secret (e.g. set by admission controllers or
+        operators) are left untouched. By default, values in `secrets` are
+        expected to be plain strings; they will be base64-encoded before storing
         in the secret's `data` field. If `encoded` is True, the values are assumed
         to be already base64-encoded.
 
@@ -916,6 +920,8 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
         :param secrets: Dictionary of key/value pairs to add or update in the secret.
         :param namespace: Kubernetes namespace of the secret. Defaults to the current namespace if empty.
         :param encoded: Whether the secret values are already base64-encoded. Defaults to False.
+        :param labels: Optional dictionary of labels to merge into the secret's metadata.
+        :param annotations: Optional dictionary of annotations to merge into the secret's metadata.
         """
 
         logger.debug("Updating secret", secret_name=secret_name)
@@ -926,6 +932,14 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
                 value if encoded else base64.b64encode(value.encode()).decode("utf-8")
             )
         k8s_secret.data = secret_data
+        if labels is not None:
+            merged_labels = (k8s_secret.metadata.labels or {}).copy()
+            merged_labels.update(labels)
+            k8s_secret.metadata.labels = merged_labels
+        if annotations is not None:
+            merged_annotations = (k8s_secret.metadata.annotations or {}).copy()
+            merged_annotations.update(annotations)
+            k8s_secret.metadata.annotations = merged_annotations
         try:
             self.v1api.replace_namespaced_secret(
                 secret_name,
@@ -1420,18 +1434,28 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
             mlrun_constants.InternalAnnotations.auth_token_name: token_name,
         }
 
-        create = False
-        k8s_secret = self._get_user_token_secret(user_id, token_name, namespace)
-        if not k8s_secret:
-            create = True
+        # Look up the destination secret directly by name. A label-based lookup
+        # keyed on the incoming token_name could miss an existing secret that
+        # the new token should replace, leading to a 409 on create.
+        namespace = self.resolve_namespace(namespace)
+        secret_name = self._resolve_auth_secret_name(user_id, token_name)
+        try:
+            k8s_secret = self.v1api.read_namespaced_secret(
+                secret_name,
+                namespace,
+                _request_timeout=self._resolve_k8s_timeout(),
+            )
+        except k8s_client_rest.ApiException as exc:
+            if exc.status != 404:
+                raise
+            k8s_secret = None
 
-        if create:
-            # Secret does not exist (or labels mismatch) → create it
+        if k8s_secret is None:
             self._create_secret(
                 labels=labels,
                 annotations=annotations,
                 namespace=namespace,
-                secret_name=self._resolve_auth_secret_name(user_id, token_name),
+                secret_name=secret_name,
                 secrets=self._encode_user_token(
                     token_name, token, expiration, issued_at
                 ),
@@ -1439,15 +1463,34 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
             )
             return mlrun.common.schemas.SecretEventActions.created
 
-        # Update if force or if expiration is newer
-        if force or self._should_update_token_secret(k8s_secret, expiration, issued_at):
+        # Stale labels/annotations on the existing secret are a reason to
+        # update on their own — the expiration guard only protects the data.
+        # We iterate the keys WE manage instead of comparing dicts directly:
+        # admission controllers and operators often add labels/annotations of
+        # their own, and we don't want their presence to count as drift on
+        # our own metadata.
+        existing_labels = k8s_secret.metadata.labels or {}
+        existing_annotations = k8s_secret.metadata.annotations or {}
+        metadata_stale = any(
+            existing_labels.get(k) != v for k, v in labels.items()
+        ) or any(
+            existing_annotations.get(k) != v for k, v in annotations.items()
+        )
+
+        if (
+            force
+            or metadata_stale
+            or self._should_update_token_secret(k8s_secret, expiration, issued_at)
+        ):
             self._update_secret(
                 k8s_secret=k8s_secret,
                 namespace=namespace,
-                secret_name=self._resolve_auth_secret_name(user_id, token_name),
+                secret_name=secret_name,
                 secrets=self._encode_user_token(
                     token_name, token, expiration, issued_at
                 ),
+                labels=labels,
+                annotations=annotations,
                 encoded=True,
             )
             return mlrun.common.schemas.SecretEventActions.updated
@@ -1455,10 +1498,10 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
         return None
 
     def _resolve_auth_secret_name(self, user_id: str, token_name: str) -> str:
+        # token name is not used to enforce one token per user until we properly
+        # mitigate the revocation issues
         return mlrun.mlconf.secret_stores.kubernetes.auth_secret_name.format(
-            hashed_access_key=hashlib.sha224(
-                (user_id + token_name).encode()
-            ).hexdigest()
+            hashed_access_key=hashlib.sha224(user_id.encode()).hexdigest()
         )
 
     def _encode_user_token(

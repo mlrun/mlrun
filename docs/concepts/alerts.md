@@ -38,17 +38,19 @@ The SDK supports these alert operations:
 - {py:func}`~mlrun.projects.MlrunProject.list_alerts_configs` &mdash; Retrieve the list of alerts of a project.
 
 ## Predefined events (`EventKind`)
-The predefined event types are:
-- `data-drift-detected` &mdash; A detected change in model input data that potentially leads to model performance degradation. 
-- `data-drift-suspected` &mdash; A suspected change in model input data that potentially leads to model performance degradation. 
+The predefined event types ({py:class}`~mlrun.common.schemas.alert.EventKind`) are:
 - `concept-drift-detected` &mdash; A detected change, over time, of  statistical properties of the target variable (what the model is predicting). 
 - `concept-drift-suspected` &mdash; A suspected change, over time, of  statistical properties of the target variable (what the model is predicting). 
+- `data-drift-detected` &mdash; A detected change in model input data that potentially leads to model performance degradation. 
+- `data-drift-suspected` &mdash; A suspected change in model input data that potentially leads to model performance degradation. 
+- `mm-app-anomaly-detected` &mdash; An alert based on user-defined metrics/results.
+- `mm-app-anomaly-suspected` &mdash; An alert based on user-defined metrics/results.
+- `mm-app-failed` &mdash; A model monitoring app failed.
+- `model-monitoring-lag-detected` &mdash; Rhe monitoring writer falls behind the processing of inference events.
 - `model-performance-detected` &mdash; A detected change of the overall model performance and/or feature-level performance. 
 - `model-performance-suspected` &mdash; A suspected change of the overall model performance and/or feature-level performance. 
 - `model-serving-performance-detected` &mdash; A detected change in how much time the prediction takes (i.e. the latency, measured in time units).
 - `model-serving-performance-suspected` &mdash; A suspected change in how much time the prediction takes (i.e. the latency, measured in time units).
-- `mm-app-anomaly-detected` &mdash; An alert based on user-defined metrics/results.
-- `mm-app-anomaly-suspected` &mdash; An alert based on user-defined metrics/results.
 - `failed` &mdash; The job failed.
 
 See {ref}`model-monitoring-overview` for more details on drift and performance.
@@ -57,7 +59,9 @@ See {ref}`model-monitoring-overview` for more details on drift and performance.
 When creating an alert you can select an event type for a specific model, for example `data_drift_suspected` or any of the predefined events above.
 You can optionally specify the frequency of the alert using the criteria field, which controls the threshold number of events in a given time window that triggers the alert.
 If criteria is not specified, the default is `count=1` and `period=None`, in which case the alert triggers immediately upon the first matching event.
-You can configure Slack, Git, or webhook notifications for the alert.
+
+You can configure Slack, Git, and webhook notifications for alerts.
+
 ``` {Admonition} Note on run identification
 Alerts track the job runs by name (`run.metadata.name`), not by the unique run UID. The run name can either be set explicitly or automatically generated when a job is executed. 
 You can access the run name from the result of the `run_function` call, for example:
@@ -109,11 +113,11 @@ project.store_alert_config(alert_data)
 ```
 ## Creating a model monitoring alert
 
-Model monitoring alerts notify you when measured input data and/or statistic/result produce unexpected results, the same as other alerts. The difference is that the configuration of a model monitoring alert is based on specific model endpoints and optionally result names, including wildcards. See the full parameter details in {py:func}`~mlrun.projects.MlrunProject.create_model_monitoring_alert_configs`. 
+Model monitoring alerts notify you when measured input data and/or statistics/results produce unexpected results, the same as other alerts. The difference is that the configuration of a model monitoring alert is based on specific model endpoints and optionally result names, including wildcards. See the full parameter details in {py:func}`~mlrun.projects.MlrunProject.create_model_monitoring_alert_configs`. 
 (You could also use `mlrun.alerts.alert.AlertConfig` to configure ModelEndpoint alerts, but `create_model_monitoring_alert_configs` is much easier to configure).
 
 ```{admonition} Important
-Create model monitoring alerts after your serving function is deployed. When using a wildcard or when not specifying exact name of app+result (for example when not specifying results at all), the apps in question need to already be running and generating some metrics, so that the `get_model_endpoint_monitoring_metrics` API call is able to extract the details for the specific ModelEndpoint.
+Create model monitoring alerts after your serving function is deployed. When using a wildcard or when not specifying exact name of app+result (for example when not specifying results at all), the apps in question must already be running and generating some metrics, so that the `get_model_endpoint_monitoring_metrics` API call is able to extract the details for the specific ModelEndpoint.
 ```
 This example illustrates creating a model monitoring alert to detect data drift, with a webhook notification for the alert.
 ```py
@@ -162,6 +166,14 @@ The `ResetPolicy` options are:
 If you change the `reset-policy` of an active alert from manual to auto, the alert is immediately reset. 
 This ensures that the behavior aligns with the `auto-reset` behavior.
 ```
+
+The `cooldown_period` can be used to delay resetting an alert when `reset_policy` is set to `auto`.
+The alert remains active for the duration of the `cooldown_period`, though incoming events are ignored. 
+Once the cooldown expires and the alert is reset, it can be triggered again by new events.
+You can manually reset an alarm at any time, whether or not the `cooldown_period` is still active.
+Cooldown periods can be set as, for example, 1d, 3h, 5m, 15s, etc. 
+If the cooldown period is 0, alarms are reset immediately.
+
 ## Alert templates
 Alert templates simplify the creation of alerts by providing a predefined set of configurations. The system comes with several 
 predefined templates that can be used with MLRun applications. 

@@ -167,13 +167,18 @@ def init() -> None:
     )
 
 
-def shutdown(timeout_millis: int = 5000) -> None:
+def shutdown(timeout_millis: int = 2000) -> None:
     """Flush any pending gauge values and tear down the MeterProvider.
 
     Called from the FastAPI shutdown hook so the final cache-refresh snapshot
     is exported before the chief pod terminates — without this, any gauge
     values set between the last exporter tick and pod termination are lost.
     No-op when telemetry was never initialized.
+
+    The default ``timeout_millis`` is intentionally short (2s): the call sits
+    in the async teardown path with nothing to run concurrently, so the
+    timeout is the upper bound on how long an unreachable collector can stall
+    pod termination. A healthy collector flushes in milliseconds.
     """
     global _provider, _meter, _gauges
     if _provider is None:

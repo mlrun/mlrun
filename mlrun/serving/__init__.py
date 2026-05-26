@@ -56,3 +56,4 @@ from .states import (
 from .otel import OTelMetricsExporter  # noqa
 from .v1_serving import MLModelServer, new_v1_model_server  # noqa
 from .v2_serving import V2ModelServer  # noqa
+from . import openai_mappings  # noqa

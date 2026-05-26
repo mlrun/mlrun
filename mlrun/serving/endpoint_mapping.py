@@ -380,26 +380,32 @@ class APIHandlerConfig(mlrun.model.ModelObj):
             If ``None``, the response is returned as-is.
         :raises mlrun.errors.MLRunValueError: If the path contains an invalid wildcard ``*`` pattern
         """
-        ep = EndpointConfig(
-            path=path,
-            http_method=http_method,
-            action=action,
-            description=description,
-            input_body_mappings=input_body_mappings,
-            output_body_mappings=output_body_mappings,
+        self.add_endpoint_config(
+            EndpointConfig(
+                path=path,
+                http_method=http_method,
+                action=action,
+                description=description,
+                input_body_mappings=input_body_mappings,
+                output_body_mappings=output_body_mappings,
+            )
         )
-        endpoint_key = ep.get_endpoint_key()
 
+    def add_endpoint_config(self, endpoint: "EndpointConfig") -> None:
+        """Add a pre-built :class:`EndpointConfig` directly.
+
+        :param endpoint: The endpoint configuration to add.
+        """
+        endpoint_key = endpoint.get_endpoint_key()
         if endpoint_key in self._endpoints:
             mlrun.utils.logger.warning(
                 "Overriding existing endpoint handler configuration",
-                method=ep.http_method.value,
-                path=ep.path,
+                method=endpoint.http_method.value,
+                path=endpoint.path,
                 old_action=self._endpoints[endpoint_key].action,
-                new_action=str(action),
+                new_action=str(endpoint.action),
             )
-
-        self._endpoints[endpoint_key] = ep
+        self._endpoints[endpoint_key] = endpoint
 
     def remove_endpoint_handler(
         self,

@@ -14,12 +14,14 @@
 import time
 from http import HTTPMethod
 
+import httpx
 import pytest
 
 import mlrun
 import tests.system.base
 from mlrun.common.schemas.serving import APIHandlerAction
 from mlrun.serving.endpoint_mapping import APIHandlerConfig, BodyMappings
+from mlrun.serving.openai_mappings import OpenAIEndpoint
 
 
 def assert_endpoint_configs_equal(
@@ -543,3 +545,199 @@ class TestServingAPIHandler(tests.system.base.TestMLRunSystem):
             function.invoke(path="/predict", body={"model": "gpt-4"})
 
         self._logger.info("Output mandatory missing field test passed")
+
+    # ---------------------------------------------------------------------------
+    # OpenAI frontend tests (set_openai_frontend)
+    # ---------------------------------------------------------------------------
+
+    def test_chat_completions_create(self) -> None:
+        """POST /chat/completions via the real OpenAI SDK.
+
+        Verifies end-to-end: routing, input body mapping, output body mapping
+        (extra_field filtering), and that the SDK parses the response into a
+        typed ChatCompletion object.
+        """
+        openai = pytest.importorskip("openai")
+
+        function = self.project.set_function(
+            func=str(self.assets_path / "openai_serving_handler.py"),
+            name="openai-chat-completions",
+            kind="serving",
+            image=self.image,
+        )
+        function.set_openai_frontend([OpenAIEndpoint.CHAT_COMPLETIONS])
+        graph = function.set_topology("flow", engine="sync")
+        graph.to(name="handler", handler="chat_completion_handler").respond()
+
+        self._logger.debug("Deploying OpenAI chat completions serving function")
+        function.deploy()
+
+        client = openai.OpenAI(
+            base_url=function.get_url(),
+            api_key="dummy",
+            http_client=httpx.Client(verify=mlrun.mlconf.httpdb.http.verify),
+        )
+
+        self._logger.debug("Calling POST /chat/completions via OpenAI SDK")
+        response = client.chat.completions.create(
+            model="gpt-4",
+            messages=[{"role": "user", "content": "Hello"}],
+        )
+
+        assert isinstance(response, openai.types.chat.ChatCompletion), (
+            "SDK should return a ChatCompletion instance"
+        )
+        assert response.id == "chatcmpl_system_test_123"
+        assert response.object == "chat.completion"
+        assert response.created == 1234567890
+        assert response.model == "gpt-4"
+        assert response.service_tier == "default"
+        assert response.usage.prompt_tokens == 10
+        assert response.usage.completion_tokens == 5
+        assert response.usage.total_tokens == 15
+        assert len(response.choices) == 1
+        assert response.choices[0].index == 0
+        assert response.choices[0].finish_reason == "stop"
+        assert response.choices[0].logprobs is None
+        assert response.choices[0].message.role == "assistant"
+        assert response.choices[0].message.content == "Hello from MLRun!"
+
+        self._logger.info("OpenAI chat completions create system test passed")
+
+    def test_responses_create(self) -> None:
+        """POST /responses via the real OpenAI SDK.
+
+        Verifies end-to-end: routing, input body mapping, output body mapping
+        (extra_field filtering), and that the SDK parses the response into a
+        typed Response object.
+        """
+        openai = pytest.importorskip("openai")
+
+        function = self.project.set_function(
+            func=str(self.assets_path / "openai_serving_handler.py"),
+            name="openai-responses",
+            kind="serving",
+            image=self.image,
+        )
+        function.set_openai_frontend([OpenAIEndpoint.RESPONSES])
+        graph = function.set_topology("flow", engine="sync")
+        graph.to(name="handler", handler="response_handler").respond()
+
+        self._logger.debug("Deploying OpenAI responses serving function")
+        function.deploy()
+
+        client = openai.OpenAI(
+            base_url=function.get_url(),
+            api_key="dummy",
+            http_client=httpx.Client(verify=mlrun.mlconf.httpdb.http.verify),
+        )
+
+        self._logger.debug("Calling POST /responses via OpenAI SDK")
+        response = client.responses.create(
+            model="gpt-4",
+            input="Hello",
+        )
+
+        assert isinstance(response, openai.types.responses.Response), (
+            "SDK should return a Response instance"
+        )
+        assert response.id == "resp_system_test_123"
+        assert response.object == "response"
+        assert response.created_at == 1741476542
+        assert response.status == "completed"
+        assert response.completed_at == 1741476543
+        assert response.model == "gpt-4"
+        assert response.error is None
+        assert response.incomplete_details is None
+        assert response.instructions is None
+        assert response.max_output_tokens is None
+        assert response.parallel_tool_calls is True
+        assert response.previous_response_id is None
+        assert response.reasoning.effort is None
+        assert response.temperature == 1.0
+        assert response.tool_choice == "auto"
+        assert response.tools == []
+        assert response.top_p == 1.0
+        assert response.truncation == "disabled"
+        assert response.store is True
+        assert response.usage.input_tokens == 36
+        assert response.usage.output_tokens == 87
+        assert response.usage.total_tokens == 123
+        assert response.metadata == {}
+        assert len(response.output) == 1
+        assert response.output[0].role == "assistant"
+        assert response.output[0].content[0].text == "Hello from MLRun!"
+
+        self._logger.info("OpenAI responses create system test passed")
+
+    def test_chat_completions_missing_mandatory_output_raises(self) -> None:
+        """POST /chat/completions — handler omits mandatory 'choices' output field → error."""
+        openai = pytest.importorskip("openai")
+
+        function = self.project.set_function(
+            func=str(self.assets_path / "openai_serving_handler.py"),
+            name="openai-chat-missing-mandatory",
+            kind="serving",
+            image=self.image,
+        )
+        function.set_openai_frontend([OpenAIEndpoint.CHAT_COMPLETIONS])
+        graph = function.set_topology("flow", engine="sync")
+        graph.to(
+            name="handler", handler="chat_completion_handler_missing_mandatory"
+        ).respond()
+
+        self._logger.debug(
+            "Deploying chat completions function with incomplete handler"
+        )
+        function.deploy()
+
+        client = openai.OpenAI(
+            base_url=function.get_url(),
+            api_key="dummy",
+            http_client=httpx.Client(verify=mlrun.mlconf.httpdb.http.verify),
+        )
+
+        with pytest.raises(
+            openai.APIStatusError,
+            match=r"MLRunBadRequestError: Mandatory field 'choices' not found in body",
+        ):
+            client.chat.completions.create(
+                model="gpt-4",
+                messages=[{"role": "user", "content": "Hello"}],
+            )
+
+        self._logger.info("Chat completions missing mandatory output field test passed")
+
+    def test_responses_missing_mandatory_output_raises(self) -> None:
+        """POST /responses — handler omits mandatory 'id' output field → error."""
+        openai = pytest.importorskip("openai")
+
+        function = self.project.set_function(
+            func=str(self.assets_path / "openai_serving_handler.py"),
+            name="openai-responses-missing-mandatory",
+            kind="serving",
+            image=self.image,
+        )
+        function.set_openai_frontend([OpenAIEndpoint.RESPONSES])
+        graph = function.set_topology("flow", engine="sync")
+        graph.to(name="handler", handler="response_handler_missing_mandatory").respond()
+
+        self._logger.debug("Deploying responses function with incomplete handler")
+        function.deploy()
+
+        client = openai.OpenAI(
+            base_url=function.get_url(),
+            api_key="dummy",
+            http_client=httpx.Client(verify=mlrun.mlconf.httpdb.http.verify),
+        )
+
+        with pytest.raises(
+            openai.APIStatusError,
+            match=r"MLRunBadRequestError: Mandatory field 'id' not found in body",
+        ):
+            client.responses.create(
+                model="gpt-4",
+                input="Hello",
+            )
+
+        self._logger.info("Responses missing mandatory output field test passed")

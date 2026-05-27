@@ -99,7 +99,9 @@ async def delete_project(
         mlrun.mlconf.is_iguazio_v4_mode()
         or not framework.utils.helpers.is_request_from_leader(auth_info.projects_role)
     ):
-        # skip permission check, user owns the project
+        # Circuit breaker: a stale or missing OPA authorization record must
+        # not block a project owner from deleting their own project. When the
+        # requester matches spec.owner, skip the follower permission check.
         user_owns_project = bool(
             auth_info.username
             and getattr(project, "spec", None)

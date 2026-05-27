@@ -1523,6 +1523,55 @@ def test_delete_project_not_found_in_leader(
         assert response.status_code == HTTPStatus.OK.value
 
 
+@pytest.mark.parametrize(
+    "requester_username, expect_permission_check",
+    [
+        ("project-owner", False),
+        ("someone-else", True),
+    ],
+)
+def test_delete_project_v2_owner_skips_permission_check(
+    unversioned_client: TestClient,
+    mock_project_follower_iguazio_client,
+    mocked_k8s_helper,
+    monkeypatch: pytest.MonkeyPatch,
+    requester_username: str,
+    expect_permission_check: bool,
+) -> None:
+    """When the requester is the project owner, the v2 delete endpoint must
+    skip the follower permission check. Other requesters still go through it.
+    """
+    owner_username = "project-owner"
+    project = mlrun.common.schemas.Project(
+        metadata=mlrun.common.schemas.ProjectMetadata(name="owned-project"),
+        spec=mlrun.common.schemas.ProjectSpec(owner=owner_username),
+    )
+    response = unversioned_client.post("v1/projects", json=project.dict())
+    assert response.status_code == HTTPStatus.CREATED.value
+
+    query_project_permissions = AsyncMock()
+    monkeypatch.setattr(
+        framework.utils.auth.verifier.AuthVerifier(),
+        "query_project_permissions",
+        query_project_permissions,
+    )
+
+    response = unversioned_client.delete(
+        f"v2/projects/{project.metadata.name}",
+        headers={mlrun.common.schemas.HeaderNames.remote_user: requester_username},
+    )
+    assert response.status_code == HTTPStatus.ACCEPTED.value
+
+    if expect_permission_check:
+        query_project_permissions.assert_awaited_once_with(
+            project.metadata.name,
+            mlrun.common.schemas.AuthorizationAction.delete,
+            unittest.mock.ANY,
+        )
+    else:
+        query_project_permissions.assert_not_awaited()
+
+
 # Test should not run more than a few seconds because we test that if the background task fails,
 # the wrapper task fails fast
 @pytest.mark.usefixtures("mock_process_model_monitoring_secret")

@@ -140,9 +140,15 @@ class TestGetModelMonitoringURL:
             yield mock
 
     def test_function_not_found_returns_404(self, client, mock_get_function):
-        mock_get_function.return_value = None
+        # Real get_function raises MLRunNotFoundError when the function is missing;
+        # get_stream_url must translate that into a project-scoped message pointing
+        # the user at project.enable_model_monitoring().
+        mock_get_function.side_effect = mlrun.errors.MLRunNotFoundError(
+            f"Function tag not found {self._PROJECT}/model-monitoring-stream"
+        )
         resp = client.get(self._URL_PATH)
         assert resp.status_code == HTTPStatus.NOT_FOUND, resp.text
+        assert "enable_model_monitoring" in resp.text
 
     def test_function_not_ready_returns_412(self, client, mock_get_function):
         mock_get_function.return_value = {"status": {"state": "deploying"}}

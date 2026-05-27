@@ -64,17 +64,18 @@ async def get_stream_url(
     :raises MLRunNotFoundError: if the stream function is not deployed.
     :raises MLRunPreconditionFailedError: if the stream function is not in ready state.
     """
-    func = await run_in_threadpool(
-        services.api.crud.functions.Functions().get_function,
-        db_session,
-        mm_constants.MonitoringFunctionNames.STREAM,
-        project,
-    )
-    if not func:
+    try:
+        func = await run_in_threadpool(
+            services.api.crud.functions.Functions().get_function,
+            db_session,
+            mm_constants.MonitoringFunctionNames.STREAM,
+            project,
+        )
+    except mlrun.errors.MLRunNotFoundError as exc:
         raise mlrun.errors.MLRunNotFoundError(
             f"Model monitoring stream function not found for project {project!r}. "
             f"Run `project.enable_model_monitoring()` first."
-        )
+        ) from exc
 
     status = func.get("status", {})
     state = status.get("state", "")

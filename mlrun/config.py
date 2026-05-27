@@ -919,6 +919,14 @@ default_config = {
             # one event per failed query.
             "min_emit_interval_seconds": 60,
         },
+        "log_collector": {
+            # Per-process throttle: at most one MLRun.LogCollector.Failed event
+            # every N seconds. Log-collector failures often arrive in bursts
+            # (many concurrent runs trying to fetch logs against a crashed
+            # collector); this cap matches the db_connection one above so a
+            # sustained outage emits at a manageable rate.
+            "min_emit_interval_seconds": 60,
+        },
     },
     "grafana_url": "",
     "alerts": {

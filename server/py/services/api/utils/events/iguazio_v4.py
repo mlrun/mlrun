@@ -30,6 +30,8 @@ DB_MIGRATION_COMPLETED = "MLRun.DB.Migration.Completed"
 DB_MIGRATION_FAILED = "MLRun.DB.Migration.Failed"
 DB_CONNECTION_FAILED = "MLRun.DB.Connection.Failed"
 
+LOG_COLLECTOR_FAILED = "MLRun.LogCollector.Failed"
+
 PROJECT_CREATION_SUCCEEDED = "MLRun.Project.Creation.Succeeded"
 PROJECT_CREATION_FAILED = "MLRun.Project.Creation.Failed"
 PROJECT_DELETION_SUCCEEDED = "MLRun.Project.Deletion.Succeeded"
@@ -37,6 +39,7 @@ PROJECT_DELETION_FAILED = "MLRun.Project.Deletion.Failed"
 
 EVENT_KIND = "system"
 EVENT_CLASS = "DB"
+EVENT_CLASS_LOG_COLLECTION = "LogCollection"
 EVENT_CLASS_PROJECT = "Project"
 ERROR_DETAIL_LIMIT = 1024
 ERROR_DESCRIPTION_LIMIT = 200
@@ -76,6 +79,20 @@ DB_CONNECTION_EVENTS: dict[
         DB_CONNECTION_FAILED,
         iguazio.schemas.Severity.CRITICAL,
         "MLRun cannot connect to its database",
+    ),
+}
+
+# Description text is kept identical to the orca catalog entry for
+# MLRun.LogCollector.Failed so the canonical event description stays in lockstep
+# across producer and catalog; per-operation context is attached to ``details``.
+LOG_COLLECTOR_EVENTS: dict[
+    mlrun.common.schemas.LogCollectorEventActions,
+    tuple[str, iguazio.schemas.Severity, str],
+] = {
+    mlrun.common.schemas.LogCollectorEventActions.failed: (
+        LOG_COLLECTOR_FAILED,
+        iguazio.schemas.Severity.MAJOR,
+        "MLRun log collector failed to retrieve logs",
     ),
 }
 
@@ -214,6 +231,48 @@ class Client(base_events.BaseEventClient):
             kind=EVENT_KIND,
             severity=severity,
             class_=EVENT_CLASS,
+            entity_name=self._entity_name,
+            description=description,
+            details=details,
+        )
+
+    def generate_log_collector_event(
+        self,
+        action: mlrun.common.schemas.LogCollectorEventActions,
+        error: BaseException | str | None = None,
+        error_category: str | None = None,
+        error_code: int | str | None = None,
+        operation: str | None = None,
+        run_uid: str | None = None,
+        project: str | None = None,
+    ) -> iguazio.schemas.EventActivationSpec:
+        try:
+            config_name, severity, description = LOG_COLLECTOR_EVENTS[action]
+        except KeyError as exc:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"Unsupported log collector action {action}"
+            ) from exc
+
+        details: dict = {}
+        if operation:
+            details["operation"] = operation
+        if run_uid:
+            details["run_uid"] = run_uid
+        if project:
+            details["project"] = project
+        if error_category:
+            details["error_category"] = error_category
+        if error_code is not None:
+            details["error_code"] = error_code
+
+        description = self._apply_error(details, description, error)
+
+        return iguazio.schemas.EventActivationSpec(
+            config_name=config_name,
+            source="",
+            kind=EVENT_KIND,
+            severity=severity,
+            class_=EVENT_CLASS_LOG_COLLECTION,
             entity_name=self._entity_name,
             description=description,
             details=details,

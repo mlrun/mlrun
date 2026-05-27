@@ -350,6 +350,58 @@ def test_db_connection_unsupported_action_raises(client):
         client.generate_db_connection_event("bogus")  # type: ignore[arg-type]
 
 
+def test_generate_log_collector_event_basic(client):
+    event = client.generate_log_collector_event(
+        mlrun.common.schemas.LogCollectorEventActions.failed,
+    )
+    assert event.config_name == iguazio_v4_events.LOG_COLLECTOR_FAILED
+    assert event.kind == "system"
+    assert event.class_ == "LogCollection"
+    assert event.severity == iguazio.schemas.Severity.MAJOR
+    assert event.entity_name == "mlrun-api-chief"
+    assert event.source == ""
+    assert event.description == "MLRun log collector failed to retrieve logs"
+    assert event.details == {}
+
+
+def test_log_collector_event_renders_context(client):
+    event = client.generate_log_collector_event(
+        mlrun.common.schemas.LogCollectorEventActions.failed,
+        error=RuntimeError("collector unreachable"),
+        error_category="get_logs_failed",
+        error_code=1,
+        operation="get_logs",
+        run_uid="run-7",
+        project="proj-a",
+    )
+    assert event.details["operation"] == "get_logs"
+    assert event.details["run_uid"] == "run-7"
+    assert event.details["project"] == "proj-a"
+    assert event.details["error_category"] == "get_logs_failed"
+    assert event.details["error_code"] == 1
+    assert event.details["error_type"] == "RuntimeError"
+    assert "collector unreachable" in event.details["error"]
+    # Description carries the canonical catalog text plus the truncated error.
+    assert "MLRun log collector failed to retrieve logs" in event.description
+    assert "collector unreachable" in event.description
+
+
+def test_log_collector_event_truncates_long_error(client):
+    long_err = "x" * 4096
+    event = client.generate_log_collector_event(
+        mlrun.common.schemas.LogCollectorEventActions.failed,
+        error=long_err,
+    )
+    assert event.details["error"].endswith("...[truncated]")
+    assert len(event.details["error"]) <= iguazio_v4_events.ERROR_DETAIL_LIMIT
+    assert event.description.endswith("...[truncated]")
+
+
+def test_log_collector_unsupported_action_raises(client):
+    with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
+        client.generate_log_collector_event("bogus")  # type: ignore[arg-type]
+
+
 @pytest.mark.parametrize(
     "action,expected_config_name,expected_severity",
     [

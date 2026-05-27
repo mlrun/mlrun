@@ -101,6 +101,32 @@ class BaseEventClient:
         """
         return None
 
+    def generate_log_collector_event(
+        self,
+        action: mlrun.common.schemas.LogCollectorEventActions,
+        error: BaseException | str | None = None,
+        error_category: str | None = None,
+        error_code: int | str | None = None,
+        operation: str | None = None,
+        run_uid: str | None = None,
+        project: str | None = None,
+    ) -> typing.Any | None:
+        """
+        Generate a log-collector lifecycle event
+        :param action: ``failed``
+        :param error: optional underlying exception or string
+        :param error_category: short label classifying the failure (e.g.
+            ``start_logs_failed``, ``get_logs_failed``, ``get_log_size_failed``)
+        :param error_code: optional gRPC error code surfaced by the log-collector
+            service (typically the ``LogCollectorErrorCode`` enum value)
+        :param operation: log-collector operation that failed (e.g. ``start_logs``,
+            ``get_logs``, ``get_log_size``)
+        :param run_uid: run uid the operation was scoped to, if known
+        :param project: project name the operation was scoped to, if known
+        :return: event object to emit, or None if the client doesn't support this event
+        """
+        return None
+
     def generate_project_lifecycle_event(
         self,
         action: mlrun.common.schemas.ProjectLifecycleEventActions,

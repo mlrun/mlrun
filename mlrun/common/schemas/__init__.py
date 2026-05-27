@@ -85,6 +85,7 @@ from .events import (
     DBConnectionEventActions,
     EventClientKinds,
     EventsModes,
+    LogCollectorEventActions,
     MigrationEventActions,
     ProjectLifecycleEventActions,
     SecretEventActions,

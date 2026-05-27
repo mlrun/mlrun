@@ -33,8 +33,22 @@ def _make_projects_output(project_names: list[str]) -> types.SimpleNamespace:
 
 
 def _make_project_counters(project_names: list[str]) -> tuple[dict, ...]:
-    """20-tuple of {project: count} dicts matching get_project_resources_counters."""
-    return tuple({name: 0 for name in project_names} for _ in range(20))
+    """23-tuple matching get_project_resources_counters.
+
+    Slots 0–19 + 21–22: {project: count}. Slot 20 maps project to a list of
+    ``(kind, count)`` pairs for the per-kind function counter; we seed one
+    pair per project to keep the emission path's iteration non-empty.
+    """
+    simple_dicts = tuple({name: 0 for name in project_names} for _ in range(20))
+    project_to_function_kind_counts = {name: [("job", 0)] for name in project_names}
+    project_to_alert_config_count = {name: 0 for name in project_names}
+    project_to_workflow_count = {name: 0 for name in project_names}
+    return (
+        *simple_dicts,
+        project_to_function_kind_counts,
+        project_to_alert_config_count,
+        project_to_workflow_count,
+    )
 
 
 def _make_pipeline_counters() -> tuple[collections.defaultdict, ...]:
@@ -257,3 +271,89 @@ async def test_inventory_emission_skipped_when_telemetry_disabled(
     await crud.refresh_project_resources_counters_cache(unittest.mock.MagicMock())
 
     set_count_mock.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_inventory_functions_alerts_workflows_use_cached_counts(
+    reset_projects_singleton: None,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Function/alert/workflow counters must flow from the cache into emissions.
+
+    Regression guard: an earlier version emitted hardcoded zeros for these
+    three metrics. Verifies emission values track the cache, including the
+    ``(project, kind)`` shape for ``mlrun_functions``.
+    """
+    project_names = ["proj-a", "proj-b"]
+    projects_output = _make_projects_output(project_names)
+    pipeline_counters = _make_pipeline_counters()
+
+    # Build a counters tuple with non-zero values in the new slots.
+    base = tuple({name: 0 for name in project_names} for _ in range(20))
+    project_to_function_kind_counts = {
+        "proj-a": [("job", 3), ("serving", 1)],
+        "proj-b": [("nuclio", 2)],
+    }
+    project_to_alert_config_count = {"proj-a": 5, "proj-b": 7}
+    project_to_workflow_count = {"proj-a": 2, "proj-b": 4}
+    project_counters = (
+        *base,
+        project_to_function_kind_counts,
+        project_to_alert_config_count,
+        project_to_workflow_count,
+    )
+
+    def _run_sync(func, *args, **kwargs):
+        return func(unittest.mock.MagicMock(), *args, **kwargs)
+
+    monkeypatch.setattr(
+        "framework.db.session.run_function_with_new_db_session", _run_sync
+    )
+    db_mock = unittest.mock.MagicMock()
+    db_mock.get_project_resources_counters = unittest.mock.AsyncMock(
+        return_value=project_counters
+    )
+    db_mock.refresh_project_summaries = unittest.mock.MagicMock()
+    monkeypatch.setattr("framework.utils.singletons.db.get_db", lambda: db_mock)
+    monkeypatch.setattr(
+        projects_crud.Projects,
+        "list_projects",
+        lambda self, *args, **kwargs: projects_output,
+    )
+    monkeypatch.setattr(
+        projects_crud.Projects,
+        "_calculate_pipelines_counters",
+        unittest.mock.AsyncMock(return_value=pipeline_counters),
+    )
+    set_count_mock = unittest.mock.MagicMock()
+    monkeypatch.setattr(projects_crud.telemetry_inventory, "set_count", set_count_mock)
+    monkeypatch.setattr(projects_crud.telemetry_inventory, "is_enabled", lambda: True)
+
+    mlrun.mlconf.telemetry.system_counters.export_interval_multiplier = 1
+    crud = projects_crud.Projects()
+    await crud.refresh_project_resources_counters_cache(unittest.mock.MagicMock())
+
+    fn_calls = {
+        (call.kwargs["project"], call.kwargs["kind"]): call.args[1]
+        for call in set_count_mock.call_args_list
+        if call.args[0] == "mlrun_functions"
+    }
+    assert fn_calls == {
+        ("proj-a", "job"): 3,
+        ("proj-a", "serving"): 1,
+        ("proj-b", "nuclio"): 2,
+    }
+
+    alert_calls = {
+        call.kwargs["project"]: call.args[1]
+        for call in set_count_mock.call_args_list
+        if call.args[0] == "mlrun_alerts"
+    }
+    assert alert_calls == {"proj-a": 5, "proj-b": 7}
+
+    workflow_calls = {
+        call.kwargs["project"]: call.args[1]
+        for call in set_count_mock.call_args_list
+        if call.args[0] == "mlrun_workflows"
+    }
+    assert workflow_calls == {"proj-a": 2, "proj-b": 4}

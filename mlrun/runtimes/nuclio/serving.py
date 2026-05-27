@@ -1175,6 +1175,11 @@ class ServingRuntime(nuclio_function.RemoteRuntime):
             fn.set_openai_frontend([OpenAIEndpoint.RESPONSES], prefix="/v1")
         """
 
+        if prefix is not None and not prefix.startswith("/"):
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"OpenAI API prefix must start with '/': {prefix!r}"
+            )
+
         existing = self.spec.api_handler_config
         config = (
             APIHandlerConfig.from_dict(existing) if existing else APIHandlerConfig()

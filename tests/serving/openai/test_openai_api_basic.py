@@ -16,6 +16,9 @@
 
 from http import HTTPMethod
 
+import pytest
+
+import mlrun.errors
 from mlrun.serving.endpoint_mapping import APIHandlerConfig
 from mlrun.serving.openai_mappings import (
     ENDPOINT_CLASSES,
@@ -147,3 +150,13 @@ class TestSetOpenAIFrontend:
             assert config.get_endpoint_config(ep.http_method, ep.path) is None, (
                 f"Expected {ep.http_method} {ep.path} (without prefix) to NOT be registered"
             )
+
+    def test_invalid_prefix_raises(self) -> None:
+        """set_openai_frontend(prefix='v1') raises MLRunInvalidArgumentError — must start with /."""  # noqa: E501
+
+        fn = make_fn()
+        with pytest.raises(
+            mlrun.errors.MLRunInvalidArgumentError,
+            match="OpenAI API prefix must start with '/'",
+        ):
+            fn.set_openai_frontend(prefix="v1")

@@ -1266,7 +1266,7 @@ router.add_route("m2", class_name="ClassifierModel", model_path=path2)
 # add the final step (after the router), which handles post-processing and response to the client
 graph.add_step(class_name="Echo", name="final", after="ensemble").respond()
 ```
-![](./_static/images/graph-flow.svg)
+![](./_static/images/serving-router-graph.png)
 
 ## Hyperparameter tuning
 Docs: [Hyperparameter tuning optimization](./hyper-params.ipynb)

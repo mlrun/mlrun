@@ -1333,6 +1333,7 @@ def get_model_monitoring_url(project: str | None = None) -> str | None:
         A non-ready stream pod still returns its URL — the URL may not be reachable until
         the pod becomes ready (a warning is logged on the server side).
     :raises mlrun.errors.MLRunNotFoundError: if the stream function is not deployed
+    :raises mlrun.errors.MLRunPreconditionFailedError: if the stream function is in terminal error state
     """
 
     env_var = mm_constants.NuclioMonitoringEnvVars.MODEL_MONITORING_URL

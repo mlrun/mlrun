@@ -4299,6 +4299,7 @@ class MlrunProject(ModelObj):
             A non-ready stream pod still returns its URL — the URL may not be reachable until
             the pod becomes ready.
         :raises mlrun.errors.MLRunNotFoundError: if the stream function is not deployed.
+        :raises mlrun.errors.MLRunPreconditionFailedError: if the stream function is in terminal error state.
         """
         db = mlrun.db.get_run_db(secrets=self._secrets)
         return db.get_model_monitoring_url(project=self.name)

@@ -4290,6 +4290,7 @@ class HTTPRunDB(RunDBInterface):
             A non-ready stream pod still returns its URL — the URL may not be reachable until
             the pod becomes ready.
         :raises mlrun.errors.MLRunNotFoundError: if the stream function is not deployed.
+        :raises mlrun.errors.MLRunPreconditionFailedError: if the stream function is in terminal error state.
         """
         resp = self.api_call(
             method=mlrun.common.types.HTTPMethod.GET,

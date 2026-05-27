@@ -264,41 +264,42 @@ def mount_s3(
                     FutureWarning,
                 )
 
+        # Auto-mount fills only env vars the user did not already set as a plain value,
+        # so explicit user input (e.g. from the UI batch-run wizard) survives enrichment.
+        def _set_if_not_user_set(name, value=None, value_from=None):
+            if runtime.has_user_set_plain_env(name):
+                return
+            runtime.set_env(name, value=value, value_from=value_from)
+
         if _endpoint_url:
-            runtime.set_env(prefix + "AWS_ENDPOINT_URL_S3", _endpoint_url)
+            _set_if_not_user_set(prefix + "AWS_ENDPOINT_URL_S3", _endpoint_url)
         if aws_region:
-            runtime.set_env(prefix + "AWS_REGION", aws_region)
+            _set_if_not_user_set(prefix + "AWS_REGION", aws_region)
         if non_anonymous:
-            runtime.set_env(prefix + "S3_NON_ANONYMOUS", "true")
+            _set_if_not_user_set(prefix + "S3_NON_ANONYMOUS", "true")
 
         if secret_name:
-            runtime.set_envs(
-                {
-                    f"{prefix}AWS_ACCESS_KEY_ID": {
-                        "valueFrom": {
-                            "secretKeyRef": {
-                                "name": secret_name,
-                                "key": "AWS_ACCESS_KEY_ID",
-                            }
-                        }
-                    },
-                    f"{prefix}AWS_SECRET_ACCESS_KEY": {
-                        "valueFrom": {
-                            "secretKeyRef": {
-                                "name": secret_name,
-                                "key": "AWS_SECRET_ACCESS_KEY",
-                            }
-                        },
-                    },
-                }
-            )
-        else:
-            runtime.set_envs(
-                {
-                    f"{prefix}AWS_ACCESS_KEY_ID": _access_key,
-                    f"{prefix}AWS_SECRET_ACCESS_KEY": _secret_key,
+            _set_if_not_user_set(
+                f"{prefix}AWS_ACCESS_KEY_ID",
+                value_from={
+                    "secretKeyRef": {
+                        "name": secret_name,
+                        "key": "AWS_ACCESS_KEY_ID",
+                    }
                 },
             )
+            _set_if_not_user_set(
+                f"{prefix}AWS_SECRET_ACCESS_KEY",
+                value_from={
+                    "secretKeyRef": {
+                        "name": secret_name,
+                        "key": "AWS_SECRET_ACCESS_KEY",
+                    }
+                },
+            )
+        else:
+            _set_if_not_user_set(f"{prefix}AWS_ACCESS_KEY_ID", _access_key)
+            _set_if_not_user_set(f"{prefix}AWS_SECRET_ACCESS_KEY", _secret_key)
 
         return runtime
 

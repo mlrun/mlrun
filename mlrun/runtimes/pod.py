@@ -812,6 +812,20 @@ class KubeResource(BaseRuntime):
                 return True
         return False
 
+    def has_user_set_plain_env(self, name: str) -> bool:
+        """Check whether `name` is present in the runtime spec as a plain-value env var.
+
+        Returns True only for env vars with a plain `.value` (e.g. set via
+        ``set_env(name, value)`` or supplied verbatim by the user); returns False
+        for secret-injected vars that have ``.value_from``. Auto-mount modifiers
+        and secret-store injection consult this to defer to user-set values
+        instead of overriding them.
+        """
+        for env_var in self.spec.env:
+            if get_item_name(env_var) == name:
+                return get_item_name(env_var, "value") is not None
+        return False
+
     def _set_env(self, name, value=None, value_from=None):
         new_var = k8s_client.V1EnvVar(name=name, value=value, value_from=value_from)
 

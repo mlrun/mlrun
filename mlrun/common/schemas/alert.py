@@ -241,6 +241,7 @@ class AlertActivation(pydantic.v1.BaseModel):
     def group_key(self, attributes: list[str]) -> Union[Any, tuple]:
         """
         Dynamically create a key for grouping based on the provided attributes.
+        
         - If there's only one attribute, return the value directly (not a single-element tuple).
         - If there are multiple attributes, return them as a tuple for grouping.
 
@@ -304,7 +305,9 @@ class AlertActivations(pydantic.v1.BaseModel):
         Example::
 
             # Aggregate by name and entity_id and count number of activations in each group
-            activations.aggregate_by(["name", "entity_id"], lambda activations: len(activations))
+            activations.aggregate_by(
+                ["name", "entity_id"], lambda activations: len(activations)
+            )
         """
         grouped = self.group_by(*group_by_attrs)
         aggregated = {

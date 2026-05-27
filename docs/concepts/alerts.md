@@ -22,7 +22,7 @@ These variables control the basic alert behavior:
 - `alerts.mode` &mdash; Enables/disables the feature. Enabled by default.
 - `alerts.max_allowed` &mdash; Maximum number of alerts allowed to be configured, by default 10000. Any new alerts above this limit return an error.
 - `alerts.max_criteria_count` &mdash; Maximum number of events. By default, 100.
-- `alerts.cooldown_reset_interval` &mdash; Interval at which alerts, whose `cooldown_period` have completed, are reset. By default, 15s.
+- `alerts.cooldown_reset_interval` &mdash; Interval at which alerts, whose `cooldown_period` have completed, are reset. By default, 15 seconds.
 
 These values can be modified by the [support team](mailto:support@iguazio.com).
 
@@ -47,7 +47,7 @@ The predefined event types ({py:class}`~mlrun.common.schemas.alert.EventKind`) a
 - `mm-app-anomaly-detected` &mdash; An alert based on user-defined metrics/results.
 - `mm-app-anomaly-suspected` &mdash; An alert based on user-defined metrics/results.
 - `mm-app-failed` &mdash; A model monitoring app failed.
-- `model-monitoring-lag-detected` &mdash; Rhe monitoring writer falls behind the processing of inference events.
+- `model-monitoring-lag-detected` &mdash; The monitoring writer falls behind the processing of inference events.
 - `model-performance-detected` &mdash; A detected change of the overall model performance and/or feature-level performance. 
 - `model-performance-suspected` &mdash; A suspected change of the overall model performance and/or feature-level performance. 
 - `model-serving-performance-detected` &mdash; A detected change in how much time the prediction takes (i.e. the latency, measured in time units).
@@ -82,11 +82,11 @@ By default, the `cooldown_period` is not set.
 
 Guidelines:
 - The `reset_policy` must be set to `auto`.
-- The `cooldown_period` must be >0. (If set to 0, alarms are reset immediately.)
+- The `cooldown_period` must be >0. (If set to 0, alerts are reset immediately.)
 - Cooldown periods can be set as, for example, 1d, 3h, 5m, 15s, etc.
 - `cooldown_period` must be at least `cooldown_reset_interval`. See [System configuration](#system-configuration).
 
-You can manually reset an alarm at any time ({py:func}`~mlrun.projects.MlrunProject.reset_alert_config`), whether or not the `cooldown_period` is active.
+You can manually reset an alert at any time ({py:func}`~mlrun.projects.MlrunProject.reset_alert_config`), whether or not the `cooldown_period` is active.
 
 ### Example
 This example illustrates creating an alert with a Slack notification for a job failure with defined criteria
@@ -122,7 +122,7 @@ alert_data = mlrun.alerts.alert.AlertConfig(
     ),
     trigger=alert_objects.AlertTrigger(events=[event_name]),
     criteria=alert_objects.AlertCriteria(period="10m", count=3),
-    cooldown_period=30s,
+    cooldown_period="30s",
     notifications=notifications,
 )
 

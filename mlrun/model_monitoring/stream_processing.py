@@ -956,7 +956,8 @@ class MapFeatureNames(mlrun.feature_store.steps.MapClass):
                 attributes_to_update[EventFieldType.FEATURE_NAMES] = feature_names
 
                 if endpoint_type != EndpointType.ROUTER.value:
-                    update_monitoring_feature_set(
+                    await mlrun.utils.run_in_threadpool(
+                        update_monitoring_feature_set,
                         endpoint_record=endpoint_record,
                         feature_names=feature_names,
                         feature_values=feature_values,
@@ -976,7 +977,8 @@ class MapFeatureNames(mlrun.feature_store.steps.MapClass):
                 ]
                 attributes_to_update[EventFieldType.LABEL_NAMES] = label_columns
                 if endpoint_type != EndpointType.ROUTER.value:
-                    update_monitoring_feature_set(
+                    await mlrun.utils.run_in_threadpool(
+                        update_monitoring_feature_set,
                         endpoint_record=endpoint_record,
                         feature_names=label_columns,
                         feature_values=label_values,
@@ -1020,7 +1022,8 @@ class MapFeatureNames(mlrun.feature_store.steps.MapClass):
                 endpoint_id=endpoint_id,
                 attributes=attributes_to_update,
             )
-            update_endpoint_record(
+            await mlrun.utils.run_in_threadpool(
+                update_endpoint_record,
                 project=self.project,
                 endpoint_id=endpoint_id,
                 attributes=attributes_to_update,
@@ -1103,17 +1106,23 @@ class InferSchema(mlrun.feature_store.steps.MapClass):
         self.table = table
         self.keys = set()
 
-    def do(self, event: dict):
+    async def do(self, event: dict):
         key_set = set(event.keys())
         if not key_set.issubset(self.keys):
             import mlrun.utils.v3io_clients
 
             self.keys.update(key_set)
-            # Apply infer_schema on the kv table for generating the schema file
-            mlrun.utils.v3io_clients.get_frames_client(
+            frames_client = mlrun.utils.v3io_clients.get_frames_client(
                 container=self.container,
                 address=self.v3io_framesd,
-            ).execute(backend="kv", table=self.table, command="infer_schema")
+            )
+            # Apply infer_schema on the kv table for generating the schema file
+            await mlrun.utils.run_in_threadpool(
+                frames_client.execute,
+                backend="kv",
+                table=self.table,
+                command="infer_schema",
+            )
 
         return event
 

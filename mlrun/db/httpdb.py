@@ -133,7 +133,7 @@ class HTTPRunDB(RunDBInterface):
         r"\/?user-secrets/tokens",
     ]
 
-    def __init__(self, url):
+    def __init__(self, url, *, credentials: "mlrun.client.Credentials | None" = None):
         self.server_version = ""
         self.session = None
         self._wait_for_project_terminal_state_retry_interval = 3
@@ -149,6 +149,9 @@ class HTTPRunDB(RunDBInterface):
         self.token_provider = None
         self.base_url = None
         self._parsed_url = None
+        # When provided, auth is bound to this instance and the env-/
+        # config-derived fallback paths are bypassed entirely.
+        self._explicit_credentials = credentials
 
         self._enrich_and_validate(url)
 
@@ -157,8 +160,15 @@ class HTTPRunDB(RunDBInterface):
 
         self.base_url = base_url
         self._parsed_url = parsed_url
-        self.user = parsed_url.username or config.httpdb.user
-        self.password = parsed_url.password or config.httpdb.password
+        c = self._explicit_credentials
+        if c is not None and not c._use_env:
+            # Explicit credentials — use whatever they carry, no env/URL fallback.
+            self.user = c.username
+            self.password = c.password
+        else:
+            # No credentials, or Credentials.from_env() — legacy URL/config lookup.
+            self.user = parsed_url.username or config.httpdb.user
+            self.password = parsed_url.password or config.httpdb.password
         self._init_token_provider()
 
     def _init_token_provider(self):
@@ -169,6 +179,19 @@ class HTTPRunDB(RunDBInterface):
         some auth flows (e.g. Iguazio V4 OAuth token) require values fetched from the API.
         """
         self.token_provider = None
+
+        # Explicit credentials passed at construction (e.g. via mlrun.Client)
+        # take precedence over every other auth source — UNLESS they were
+        # built via Credentials.from_env(), in which case we delegate to the
+        # legacy resolution path below.
+        c = self._explicit_credentials
+        if c is not None and not c._use_env:
+            if c.token_provider is not None:
+                self.token_provider = c.token_provider
+            elif c.token is not None:
+                self.token_provider = mlrun.auth.StaticTokenProvider(c.token)
+            # username/password were already applied in _enrich_and_validate.
+            return
 
         if config.auth_with_client_id.enabled:
             self.token_provider = mlrun.auth.OAuthClientIDTokenProvider(

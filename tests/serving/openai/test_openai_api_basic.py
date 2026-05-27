@@ -152,8 +152,7 @@ class TestSetOpenAIFrontend:
             )
 
     def test_invalid_prefix_raises(self) -> None:
-        """set_openai_frontend(prefix='v1') raises MLRunInvalidArgumentError — must start with /."""  # noqa: E501
-
+        """set_openai_frontend(prefix='v1') raises MLRunInvalidArgumentError — must start with /."""
         fn = make_fn()
         with pytest.raises(
             mlrun.errors.MLRunInvalidArgumentError,

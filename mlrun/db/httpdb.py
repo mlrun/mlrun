@@ -738,7 +738,7 @@ class HTTPRunDB(RunDBInterface):
             )
 
         # Initialize token provider after syncing config from server
-        self._init_token_provider()
+        self._init_token_provider_from_env()
 
         if config.is_iguazio_v4_mode() and config.auth_with_oauth_token.enabled:
             mlrun.secrets.sync_secret_tokens()

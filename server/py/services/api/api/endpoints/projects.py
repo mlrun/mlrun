@@ -195,11 +195,18 @@ async def get_project(
         mlrun.mlconf.is_iguazio_v4_mode()
         or not framework.utils.helpers.is_request_from_leader(auth_info.projects_role)
     ):
-        await framework.utils.auth.verifier.AuthVerifier().query_project_permissions(
-            name,
-            mlrun.common.schemas.AuthorizationAction.read,
-            auth_info,
-        )
+        # If the requesting user is the project owner, populate the OPA owner
+        # cache and skip the permissions query. This mitigates the OPA manifest
+        # propagation race on multi-pod deployments.
+        verifier = framework.utils.auth.verifier.AuthVerifier()
+        if verifier.is_project_owner(auth_info, project):
+            verifier.add_allowed_project_for_owner(name, auth_info)
+        else:
+            await verifier.query_project_permissions(
+                name,
+                mlrun.common.schemas.AuthorizationAction.read,
+                auth_info,
+            )
     return project
 
 
@@ -653,22 +660,14 @@ async def _ensure_project_create_or_update_permissions(
         # If the requesting user is the project owner, populate the OPA owner
         # cache and skip the permissions query. This mitigates the OPA manifest
         # propagation race on multi-pod deployments.
-        if (
-            auth_info.username
-            and getattr(project, "spec", None)
-            and project.spec.owner
-            and auth_info.username == project.spec.owner
-        ):
-            framework.utils.auth.verifier.AuthVerifier().add_allowed_project_for_owner(
-                project_name, auth_info
-            )
+        verifier = framework.utils.auth.verifier.AuthVerifier()
+        if verifier.is_project_owner(auth_info, project):
+            verifier.add_allowed_project_for_owner(project_name, auth_info)
         else:
-            await (
-                framework.utils.auth.verifier.AuthVerifier().query_project_permissions(
-                    project_name,
-                    mlrun.common.schemas.AuthorizationAction.update,
-                    auth_info,
-                )
+            await verifier.query_project_permissions(
+                project_name,
+                mlrun.common.schemas.AuthorizationAction.update,
+                auth_info,
             )
         return
 

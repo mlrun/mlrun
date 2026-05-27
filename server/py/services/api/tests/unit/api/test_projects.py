@@ -265,6 +265,87 @@ async def test_project_permissions_owner_short_circuits_opa_check(
 
 
 @pytest.mark.asyncio
+async def test_get_project_owner_short_circuits_opa_check(
+    db: Session, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """When the requester owns the project, GET /projects/{name} skips OPA and primes the owner cache."""
+    project_name = PERMISSIONS_PROJECT_NAME
+    owner_username = "project-owner"
+    auth_info = mlrun.common.schemas.AuthInfo(username=owner_username)
+    auth_verifier = framework.utils.auth.verifier.AuthVerifier()
+    query_project = AsyncMock()
+    add_allowed = Mock()
+    monkeypatch.setattr(auth_verifier, "query_project_permissions", query_project)
+    monkeypatch.setattr(auth_verifier, "add_allowed_project_for_owner", add_allowed)
+    monkeypatch.setattr(
+        mlrun.mlconf.httpdb.authentication,
+        "mode",
+        mlrun.common.types.AuthenticationMode.IGUAZIO_V4,
+    )
+    existing_project = mlrun.common.schemas.Project(
+        metadata=mlrun.common.schemas.ProjectMetadata(name=project_name),
+        spec=mlrun.common.schemas.ProjectSpec(owner=owner_username),
+    )
+    project_member = framework.utils.singletons.project_member.get_project_member()
+    monkeypatch.setattr(
+        project_member, "get_project", Mock(return_value=existing_project)
+    )
+
+    returned = await projects_endpoints.get_project(
+        name=project_name,
+        format_=mlrun.common.formatters.ProjectFormat.full,
+        db_session=db,
+        auth_info=auth_info,
+    )
+
+    assert returned is existing_project
+    add_allowed.assert_called_once_with(project_name, auth_info)
+    query_project.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_get_project_non_owner_falls_back_to_opa(
+    db: Session, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """When the requester is not the project owner, GET /projects/{name} queries OPA as before."""
+    project_name = PERMISSIONS_PROJECT_NAME
+    auth_info = mlrun.common.schemas.AuthInfo(username="not-the-owner")
+    auth_verifier = framework.utils.auth.verifier.AuthVerifier()
+    query_project = AsyncMock()
+    add_allowed = Mock()
+    monkeypatch.setattr(auth_verifier, "query_project_permissions", query_project)
+    monkeypatch.setattr(auth_verifier, "add_allowed_project_for_owner", add_allowed)
+    monkeypatch.setattr(
+        mlrun.mlconf.httpdb.authentication,
+        "mode",
+        mlrun.common.types.AuthenticationMode.IGUAZIO_V4,
+    )
+    existing_project = mlrun.common.schemas.Project(
+        metadata=mlrun.common.schemas.ProjectMetadata(name=project_name),
+        spec=mlrun.common.schemas.ProjectSpec(owner="someone-else"),
+    )
+    project_member = framework.utils.singletons.project_member.get_project_member()
+    monkeypatch.setattr(
+        project_member, "get_project", Mock(return_value=existing_project)
+    )
+
+    returned = await projects_endpoints.get_project(
+        name=project_name,
+        format_=mlrun.common.formatters.ProjectFormat.full,
+        db_session=db,
+        auth_info=auth_info,
+    )
+
+    assert returned is existing_project
+    add_allowed.assert_not_called()
+    query_project.assert_awaited_once_with(
+        project_name,
+        mlrun.common.schemas.AuthorizationAction.read,
+        auth_info,
+    )
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize(
     "patch_body, expect_mgmt_check, expect_regular_check",
     [

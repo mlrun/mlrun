@@ -265,11 +265,16 @@ def mount_s3(
                 )
 
         # Auto-mount fills only env vars the user did not already set as a plain value,
-        # so explicit user input (e.g. from the UI batch-run wizard) survives enrichment.
+        # so explicit user input (e.g. from the UI batch-run wizard) survives enrichment
+        # (ML-12330). Plain values we *do* write get flagged so server-side project-secret
+        # injection can later override them (ML-12572); value_from writes don't need the
+        # flag — has_user_set_plain_env already returns False for them.
         def _set_if_not_user_set(name, value=None, value_from=None):
             if runtime.has_user_set_plain_env(name):
                 return
             runtime.set_env(name, value=value, value_from=value_from)
+            if value_from is None:
+                runtime.mark_env_auto_mount_injected(name)
 
         if _endpoint_url:
             _set_if_not_user_set(prefix + "AWS_ENDPOINT_URL_S3", _endpoint_url)

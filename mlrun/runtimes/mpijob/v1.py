@@ -55,6 +55,7 @@ class MPIV1ResourceSpec(MPIResourceSpec):
         track_models=None,
         env_from=None,
         mount_otlp_secret: bool = False,
+        auto_mount_injected_env_names: list[str] | None = None,
     ):
         super().__init__(
             command=command,
@@ -91,6 +92,7 @@ class MPIV1ResourceSpec(MPIResourceSpec):
             parameters=parameters,
             track_models=track_models,
             mount_otlp_secret=mount_otlp_secret,
+            auto_mount_injected_env_names=auto_mount_injected_env_names,
         )
         self.clean_pod_policy = clean_pod_policy or MPIJobV1CleanPodPolicies.default()
 

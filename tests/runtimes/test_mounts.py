@@ -639,3 +639,165 @@ def test_mount_secret_allows_regular_secret_and_sets_volume():
         )
         == {}
     )
+
+
+def test_mount_s3_marks_plain_value_writes_as_auto_mount_injected():
+    """mount_s3(secret_name=...) flags only the plain-value writes.
+
+    Regression for ML-12572: with secret_name set, only the endpoint URL is
+    written as a plain value; access/secret keys are secretKeyRefs and must NOT
+    be marked.
+    """
+    function = mlrun.new_function(
+        "function-name", "function-project", kind=mlrun.runtimes.RuntimeKinds.job
+    )
+
+    function.apply(
+        mlrun.runtimes.mounts.mount_s3(
+            secret_name="minio-credentials",
+            endpoint_url="http://seaweedfs:8333",
+            aws_region="us-east-1",
+        )
+    )
+
+    assert sorted(function.spec.auto_mount_injected_env_names) == [
+        "AWS_ENDPOINT_URL_S3",
+        "AWS_REGION",
+    ]
+
+
+def test_mount_s3_marks_plain_value_writes_on_explicit_key_path():
+    """All plain-value writes are flagged on the explicit-key path (no secret_name)."""
+    function = mlrun.new_function(
+        "function-name", "function-project", kind=mlrun.runtimes.RuntimeKinds.job
+    )
+
+    function.apply(
+        mlrun.runtimes.mounts.mount_s3(
+            aws_access_key="modifier-access-key",
+            aws_secret_key="modifier-secret-key",
+            endpoint_url="http://seaweedfs:8333",
+        )
+    )
+
+    assert sorted(function.spec.auto_mount_injected_env_names) == [
+        "AWS_ACCESS_KEY_ID",
+        "AWS_ENDPOINT_URL_S3",
+        "AWS_SECRET_ACCESS_KEY",
+    ]
+
+
+def test_has_user_set_plain_env_false_for_auto_mount_marked_env():
+    """has_user_set_plain_env yields False for an auto-mount-injected plain value.
+
+    Regression for ML-12572: the server-side project-secret resolver must be
+    able to override mount_s3's plain writes.
+    """
+    function = mlrun.new_function(
+        "function-name", "function-project", kind=mlrun.runtimes.RuntimeKinds.job
+    )
+
+    function.apply(
+        mlrun.runtimes.mounts.mount_s3(
+            secret_name="minio-credentials",
+            endpoint_url="http://seaweedfs:8333",
+        )
+    )
+
+    assert any(
+        var["name"] == "AWS_ENDPOINT_URL_S3"
+        and var.get("value") == "http://seaweedfs:8333"
+        for var in function.spec.env
+    )
+    assert function.has_user_set_plain_env("AWS_ENDPOINT_URL_S3") is False
+
+
+def test_user_set_env_after_auto_mount_clears_marker_and_wins():
+    """A user-set plain value after auto-mount reclaims user-set semantics."""
+    function = mlrun.new_function(
+        "function-name", "function-project", kind=mlrun.runtimes.RuntimeKinds.job
+    )
+
+    function.apply(
+        mlrun.runtimes.mounts.mount_s3(
+            secret_name="minio-credentials",
+            endpoint_url="http://seaweedfs:8333",
+        )
+    )
+    assert "AWS_ENDPOINT_URL_S3" in function.spec.auto_mount_injected_env_names
+
+    function.set_env("AWS_ENDPOINT_URL_S3", "https://real-s3.amazonaws.com")
+
+    assert "AWS_ENDPOINT_URL_S3" not in function.spec.auto_mount_injected_env_names
+    assert function.has_user_set_plain_env("AWS_ENDPOINT_URL_S3") is True
+
+
+def test_project_secret_value_from_clears_auto_mount_marker():
+    """Once a project secret writes a secretKeyRef for a key, the auto-mount
+    marker is dropped — the auto-mount plain value has been replaced.
+    """
+    function = mlrun.new_function(
+        "function-name", "function-project", kind=mlrun.runtimes.RuntimeKinds.job
+    )
+
+    function.apply(
+        mlrun.runtimes.mounts.mount_s3(
+            secret_name="minio-credentials",
+            endpoint_url="http://seaweedfs:8333",
+        )
+    )
+    assert "AWS_ENDPOINT_URL_S3" in function.spec.auto_mount_injected_env_names
+
+    # Simulate what add_k8s_secrets_to_spec does on the server side.
+    function.set_env_from_secret(
+        "AWS_ENDPOINT_URL_S3",
+        secret="mlrun-project-secrets-ppzdswyube",
+        secret_key="AWS_ENDPOINT_URL_S3",
+    )
+
+    assert "AWS_ENDPOINT_URL_S3" not in function.spec.auto_mount_injected_env_names
+
+    # Locate AWS_ENDPOINT_URL_S3 in spec.env; entries may be dicts (sanitized
+    # from .apply()) or V1EnvVar (direct set_env_from_secret).
+    endpoint_var = next(
+        var
+        for var in function.spec.env
+        if mlrun.runtimes.utils.get_item_name(var) == "AWS_ENDPOINT_URL_S3"
+    )
+    plain_value = mlrun.runtimes.utils.get_item_name(endpoint_var, "value")
+    assert plain_value is None
+    assert getattr(endpoint_var, "value_from", None) is not None
+    secret_key_ref = endpoint_var.value_from.secret_key_ref
+    assert secret_key_ref.key == "AWS_ENDPOINT_URL_S3"
+    assert secret_key_ref.name == "mlrun-project-secrets-ppzdswyube"
+
+
+def test_kuberesourcespec_auto_mount_injected_env_names_round_trip():
+    """The marker list survives spec serialization (SDK -> API)."""
+    function = mlrun.new_function(
+        "function-name", "function-project", kind=mlrun.runtimes.RuntimeKinds.job
+    )
+    function.apply(
+        mlrun.runtimes.mounts.mount_s3(
+            secret_name="minio-credentials",
+            endpoint_url="http://seaweedfs:8333",
+        )
+    )
+    assert "AWS_ENDPOINT_URL_S3" in function.spec.auto_mount_injected_env_names
+
+    spec_dict = function.spec.to_dict()
+    assert "auto_mount_injected_env_names" in spec_dict
+    assert "AWS_ENDPOINT_URL_S3" in spec_dict["auto_mount_injected_env_names"]
+
+    # Reconstruct a spec the way new_function(runtime=<dict>) does.
+    rebuilt = mlrun.runtimes.pod.KubeResourceSpec.from_dict(spec_dict)
+    assert "AWS_ENDPOINT_URL_S3" in rebuilt.auto_mount_injected_env_names
+
+
+def test_kuberesourcespec_defaults_auto_mount_injected_env_names_for_legacy_dict():
+    """Spec dicts that pre-date the field default to an empty list (no KeyError)."""
+    legacy_spec_dict = {
+        "env": [{"name": "FOO", "value": "bar"}],
+    }
+    rebuilt = mlrun.runtimes.pod.KubeResourceSpec.from_dict(legacy_spec_dict)
+    assert rebuilt.auto_mount_injected_env_names == []

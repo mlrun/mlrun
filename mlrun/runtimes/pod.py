@@ -199,7 +199,6 @@ class KubeResourceSpec(FunctionSpec):
         graph=None,
         env_from=None,
         mount_otlp_secret: bool = False,
-        auto_mount_injected_env_names: list[str] | None = None,
     ):
         super().__init__(
             command=command,
@@ -257,9 +256,10 @@ class KubeResourceSpec(FunctionSpec):
         self.mount_otlp_secret = mount_otlp_secret
         # Names of env vars an auto-mount modifier wrote as plain values. Project-secret
         # injection (server-side) consults this via has_user_set_plain_env to know it
-        # may override these — they were not set by the user. Maintained as a list for
-        # JSON-friendly serialization; deduped on insert.
-        self.auto_mount_injected_env_names = list(auto_mount_injected_env_names or [])
+        # may override these — they were not set by the user. Internal book-keeping:
+        # in _dict_fields so it round-trips SDK↔API via from_dict's setattr, but
+        # deliberately not a constructor kwarg (no external caller sets it).
+        self.auto_mount_injected_env_names = []
         # Termination grace period is internal for runtimes that have a pod termination hook hence it is not in the
         # _dict_fields and doesn't have a setter.
         self._termination_grace_period_seconds = None
@@ -846,6 +846,11 @@ class KubeResource(BaseRuntime):
         values) right after writing the env var, so that project-secret
         injection can override the value via ``has_user_set_plain_env``.
         Idempotent.
+
+        Ordering contract: must be called *after* ``set_env``/``_set_env``,
+        never before. Any write to ``name`` via ``_set_env`` clears the marker
+        (see the comment there), so flagging first and writing second would
+        silently wipe the flag.
         """
         if name not in self.spec.auto_mount_injected_env_names:
             self.spec.auto_mount_injected_env_names.append(name)

@@ -183,7 +183,6 @@ class NuclioSpec(KubeResourceSpec):
         env_from=None,
         mount_otlp_secret: bool = False,
         model_endpoints_instructions=None,
-        auto_mount_injected_env_names: list[str] | None = None,
     ):
         super().__init__(
             command=command,
@@ -219,7 +218,6 @@ class NuclioSpec(KubeResourceSpec):
             parameters=parameters,
             track_models=track_models,
             mount_otlp_secret=mount_otlp_secret,
-            auto_mount_injected_env_names=auto_mount_injected_env_names,
         )
 
         self.auth = auth or {}

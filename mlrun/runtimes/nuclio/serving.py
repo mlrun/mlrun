@@ -167,7 +167,6 @@ class ServingSpec(nuclio_function.NuclioSpec):
         api_handler_config: APIHandlerConfig | None = None,
         env_from=None,
         mount_otlp_secret: bool = False,
-        auto_mount_injected_env_names: list[str] | None = None,
     ):
         super().__init__(
             command=command,
@@ -214,7 +213,6 @@ class ServingSpec(nuclio_function.NuclioSpec):
             serving_spec=serving_spec,
             auth=auth,
             mount_otlp_secret=mount_otlp_secret,
-            auto_mount_injected_env_names=auto_mount_injected_env_names,
         )
 
         self.models = models or {}

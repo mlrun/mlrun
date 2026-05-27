@@ -801,3 +801,32 @@ def test_kuberesourcespec_defaults_auto_mount_injected_env_names_for_legacy_dict
     }
     rebuilt = mlrun.runtimes.pod.KubeResourceSpec.from_dict(legacy_spec_dict)
     assert rebuilt.auto_mount_injected_env_names == []
+
+
+def test_mount_s3_marker_survives_round_trip_on_application_runtime():
+    """The actual ML-12572 reproducer: ApplicationRuntime + SDK↔API round-trip.
+
+    For nuclio/application runtimes, mount_s3 runs in the SDK *before* the
+    function spec is serialized and sent to the API server. The marker must
+    survive `to_dict` / `new_function(runtime=dict)` so the server-side
+    `has_user_set_plain_env` check sees it and project-secret injection wins.
+    """
+    function = mlrun.new_function(
+        "application-test", kind="application", image="mlrun/mlrun"
+    )
+
+    function.apply(
+        mlrun.runtimes.mounts.mount_s3(
+            secret_name="minio-credentials",
+            endpoint_url="https://minio-lab.iguazeng.com",
+        )
+    )
+    assert "AWS_ENDPOINT_URL_S3" in function.spec.auto_mount_injected_env_names
+
+    # SDK serializes the runtime; API server reconstructs it.
+    runtime_dict = function.to_dict()
+    rebuilt = mlrun.new_function(runtime=runtime_dict)
+
+    assert "AWS_ENDPOINT_URL_S3" in rebuilt.spec.auto_mount_injected_env_names
+    # And the server-side resolver's gate yields False, so project-secret wins.
+    assert rebuilt.has_user_set_plain_env("AWS_ENDPOINT_URL_S3") is False

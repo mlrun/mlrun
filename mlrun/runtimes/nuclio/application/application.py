@@ -93,7 +93,6 @@ class ApplicationSpec(nuclio_function.NuclioSpec):
         auth=None,
         env_from=None,
         mount_otlp_secret: bool = False,
-        auto_mount_injected_env_names: list[str] | None = None,
     ):
         super().__init__(
             command=command,
@@ -144,7 +143,6 @@ class ApplicationSpec(nuclio_function.NuclioSpec):
             model_endpoints_instructions=model_endpoints_instructions,
             auth=auth,
             mount_otlp_secret=mount_otlp_secret,
-            auto_mount_injected_env_names=auto_mount_injected_env_names,
         )
 
         # Override default min/max replicas (don't assume application is stateless)

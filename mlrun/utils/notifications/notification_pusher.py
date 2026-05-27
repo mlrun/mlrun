@@ -627,11 +627,8 @@ class CustomNotificationPusher(_NotificationPusherBase):
         project: str,
         commit_id: str | None = None,
         pipeline_id: str | None = None,
-        has_workflow_url: bool = False,
     ):
-        html, message = self.generate_start_message(
-            commit_id, has_workflow_url, pipeline_id, project
-        )
+        html, message = self.generate_start_message(commit_id, pipeline_id, project)
         self.push(message, "info", custom_html=html)
 
     def push_pipeline_run_results(
@@ -664,9 +661,7 @@ class CustomNotificationPusher(_NotificationPusherBase):
             text += f", state={state}"
         self.push(text, "info", runs=runs_list)
 
-    def generate_start_message(
-        self, commit_id=None, has_workflow_url=None, pipeline_id=None, project=None
-    ):
+    def generate_start_message(self, commit_id=None, pipeline_id=None, project=None):
         message = f"Workflow started in project {project}"
         if pipeline_id:
             message += f" id={pipeline_id}"
@@ -675,7 +670,7 @@ class CustomNotificationPusher(_NotificationPusherBase):
         )
         if commit_id:
             message += f", commit={commit_id}"
-        if has_workflow_url:
+        if pipeline_id is not None:
             url = mlrun.utils.helpers.get_workflow_url(project, pipeline_id)
         else:
             url = mlrun.utils.helpers.get_runs_url(project)

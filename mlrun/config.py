@@ -1006,6 +1006,7 @@ default_config = {
         },
     },
     "system_id": "",
+    "system_id_len": 12,
 }
 _is_running_as_api = None
 

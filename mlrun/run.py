@@ -1329,9 +1329,10 @@ def get_model_monitoring_url(project: str | None = None) -> str | None:
     subsequent calls.
 
     :param project: optional name of the project, if not provided will use active project
-    :return: HTTP URL of the model monitoring stream pod, or None if no HTTP trigger is configured
+    :return: HTTP URL of the model monitoring stream pod, or None if no HTTP trigger is configured.
+        A non-ready stream pod still returns its URL — the URL may not be reachable until
+        the pod becomes ready (a warning is logged on the server side).
     :raises mlrun.errors.MLRunNotFoundError: if the stream function is not deployed
-    :raises mlrun.errors.MLRunPreconditionFailedError: if the stream function is not in ready state
     """
 
     env_var = mm_constants.NuclioMonitoringEnvVars.MODEL_MONITORING_URL

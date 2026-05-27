@@ -24,6 +24,7 @@ import mlrun.errors
 
 import services.api.crud.functions
 import services.api.crud.projects
+from mlrun.utils import logger
 
 
 def json_loads_if_not_none(field: typing.Any) -> typing.Any:
@@ -61,8 +62,9 @@ async def get_stream_url(
     :param db_session: A session that manages the current dialog with the database.
     :param project:    Project name.
     :return: Internal cluster HTTP URL of the stream pod, or None when no HTTP trigger is configured.
+        A non-ready stream pod still returns its URL (with a warning) — the URL may not be
+        reachable until the pod becomes ready.
     :raises MLRunNotFoundError: if the stream function is not deployed.
-    :raises MLRunPreconditionFailedError: if the stream function is not in ready state.
     """
     try:
         func = await run_in_threadpool(
@@ -80,9 +82,11 @@ async def get_stream_url(
     status = func.get("status", {})
     state = status.get("state", "")
     if state != "ready":
-        raise mlrun.errors.MLRunPreconditionFailedError(
-            f"Model monitoring stream function is not ready "
-            f"(state={state!r}) for project {project!r}."
+        logger.warning(
+            "Model monitoring stream function is not in ready state — "
+            "MODEL_MONITORING_URL may not be reachable until the stream pod becomes ready.",
+            project=project,
+            state=state,
         )
 
     internal_urls = status.get("internal_invocation_urls") or []

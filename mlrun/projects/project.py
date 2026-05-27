@@ -4296,8 +4296,9 @@ class MlrunProject(ModelObj):
         Get the HTTP URL of the model monitoring stream pod for this project.
 
         :return: HTTP URL of the model monitoring stream pod, or None if no HTTP trigger is configured.
+            A non-ready stream pod still returns its URL — the URL may not be reachable until
+            the pod becomes ready.
         :raises mlrun.errors.MLRunNotFoundError: if the stream function is not deployed.
-        :raises mlrun.errors.MLRunPreconditionFailedError: if the stream function is not in ready state.
         """
         db = mlrun.db.get_run_db(secrets=self._secrets)
         return db.get_model_monitoring_url(project=self.name)

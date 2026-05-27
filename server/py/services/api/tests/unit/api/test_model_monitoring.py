@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import logging
 from collections.abc import Iterator
 from http import HTTPStatus
 from typing import Any
@@ -150,10 +151,39 @@ class TestGetModelMonitoringURL:
         assert resp.status_code == HTTPStatus.NOT_FOUND, resp.text
         assert "enable_model_monitoring" in resp.text
 
-    def test_function_not_ready_returns_412(self, client, mock_get_function):
-        mock_get_function.return_value = {"status": {"state": "deploying"}}
-        resp = client.get(self._URL_PATH)
-        assert resp.status_code == HTTPStatus.PRECONDITION_FAILED, resp.text
+    def test_not_ready_still_returns_url(self, client, mock_get_function, caplog):
+        # A non-ready stream pod must not block the caller: return the URL anyway
+        # and log a warning so the operator knows the URL may not be reachable yet.
+        mock_get_function.return_value = {
+            "status": {
+                "state": "deploying",
+                "internal_invocation_urls": ["internal:8080"],
+            }
+        }
+        with caplog.at_level(logging.WARNING):
+            resp = client.get(self._URL_PATH)
+        assert resp.status_code == HTTPStatus.OK, resp.text
+        assert resp.json() == "http://internal:8080"
+        assert any(
+            "is not in ready state" in record.message
+            and record.levelno == logging.WARNING
+            for record in caplog.records
+        ), f"expected not-ready warning, got: {[r.message for r in caplog.records]}"
+
+    def test_not_ready_without_url_returns_none(self, client, mock_get_function, caplog):
+        # Non-ready and no URL yet → None, with the not-ready warning still emitted.
+        mock_get_function.return_value = {
+            "status": {"state": "deploying", "internal_invocation_urls": []}
+        }
+        with caplog.at_level(logging.WARNING):
+            resp = client.get(self._URL_PATH)
+        assert resp.status_code == HTTPStatus.OK, resp.text
+        assert resp.json() is None
+        assert any(
+            "is not in ready state" in record.message
+            and record.levelno == logging.WARNING
+            for record in caplog.records
+        ), f"expected not-ready warning, got: {[r.message for r in caplog.records]}"
 
     def test_returns_internal_url(self, client, mock_get_function):
         # Even when external_invocation_urls is populated, always use the internal URL.

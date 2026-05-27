@@ -625,17 +625,17 @@ async def get_model_monitoring_url(
     """
     Get the internal cluster HTTP URL of the model monitoring stream pod for the given project.
 
-    Verifies that the stream function is deployed and in a ready state, then returns
-    its internal_invocation_url. The returned URL is only reachable from within the
-    Kubernetes cluster and is intended for use by other pods/functions running in the
-    same cluster (e.g. nuclio functions sending prediction data to the stream pod).
+    Returns the stream pod's internal_invocation_url. The returned URL is only reachable
+    from within the Kubernetes cluster and is intended for use by other pods/functions
+    running in the same cluster (e.g. nuclio functions sending prediction data to the
+    stream pod). If the stream pod is not in a ready state, the URL is still returned
+    (with a server-side warning) — it may not be reachable until the pod becomes ready.
 
     :param project:    The name of the project.
     :param auth_info:  The auth info of the request.
     :param db_session: A session that manages the current dialog with the database.
     :return: Internal cluster HTTP URL of the stream pod, or None if no HTTP trigger is configured.
     :raises MLRunNotFoundError: if the stream function is not deployed.
-    :raises MLRunPreconditionFailedError: if the stream function is not in ready state.
     """
     await framework.utils.auth.verifier.AuthVerifier().query_project_permissions(
         project_name=project,

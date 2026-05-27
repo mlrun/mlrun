@@ -27,6 +27,7 @@ import framework.utils.auth.verifier
 import framework.utils.background_tasks
 import framework.utils.clients.chief
 import framework.utils.helpers
+import framework.utils.project_formats
 import services.api.crud
 from framework.utils.singletons.project_member import get_project_member
 
@@ -59,7 +60,17 @@ async def delete_project(
     # check if project exists
     try:
         project = await run_in_threadpool(
-            get_project_member().get_project, db_session, name, auth_info
+            get_project_member().get_project,
+            db_session,
+            name,
+            auth_info,
+            format_=framework.utils.project_formats.ProjectFormatCustomSelection(
+                [
+                    framework.utils.project_formats.ProjectFormatCustom.name,
+                    framework.utils.project_formats.ProjectFormatCustom.owner,
+                    framework.utils.project_formats.ProjectFormatCustom.state,
+                ]
+            ),
         )
     except mlrun.errors.MLRunNotFoundError:
         logger.info("Project not found, nothing to delete", project=name)
@@ -88,8 +99,18 @@ async def delete_project(
         mlrun.mlconf.is_iguazio_v4_mode()
         or not framework.utils.helpers.is_request_from_leader(auth_info.projects_role)
     ):
-        skip_permission_check = False
-        if project.status.state == mlrun.common.schemas.ProjectState.archived:
+        # skip permission check, user owns the project
+        user_owns_project = bool(
+            auth_info.username
+            and getattr(project, "spec", None)
+            and project.spec.owner
+            and auth_info.username == project.spec.owner
+        )
+        skip_permission_check = user_owns_project
+        if (
+            not skip_permission_check
+            and project.status.state == mlrun.common.schemas.ProjectState.archived
+        ):
             try:
                 await run_in_threadpool(
                     get_project_member().get_project,

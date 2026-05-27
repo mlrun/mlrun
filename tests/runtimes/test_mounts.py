@@ -500,6 +500,81 @@ def test_auto_mount_raises_without_config():
         mlrun.runtimes.mounts.auto_mount()
 
 
+def test_mount_s3_does_not_override_user_set_aws_access_key():
+    """User-set plain AWS_ACCESS_KEY_ID survives mount_s3(secret_name=...).
+
+    Regression for ML-12330: on IG4 the platform auto-mounts mount_s3 with
+    secret_name='minio-credentials', which previously clobbered a user-supplied
+    AWS_ACCESS_KEY_ID (e.g. set via the UI batch-run wizard) with a secretKeyRef.
+    """
+    function = mlrun.new_function(
+        "function-name", "function-project", kind=mlrun.runtimes.RuntimeKinds.job
+    )
+    function.set_env("AWS_ACCESS_KEY_ID", "user-custom-value")
+
+    function.apply(
+        mlrun.runtimes.mounts.mount_s3(
+            secret_name="minio-credentials",
+            endpoint_url="http://seaweedfs:8333",
+        )
+    )
+
+    env_dict = {
+        var["name"]: var.get("value", var.get("valueFrom")) for var in function.spec.env
+    }
+    # User's plain value is preserved (no secretKeyRef override).
+    assert env_dict["AWS_ACCESS_KEY_ID"] == "user-custom-value"
+    # AWS_SECRET_ACCESS_KEY was not user-set, so the secretKeyRef from the
+    # modifier still wins — confirming the guard only fires per-key.
+    assert env_dict["AWS_SECRET_ACCESS_KEY"] == {
+        "secretKeyRef": {"key": "AWS_SECRET_ACCESS_KEY", "name": "minio-credentials"}
+    }
+    # Endpoint URL was not user-set, so the modifier's value wins.
+    assert env_dict["AWS_ENDPOINT_URL_S3"] == "http://seaweedfs:8333"
+
+
+def test_mount_s3_does_not_override_user_set_endpoint_url():
+    """User-set plain AWS_ENDPOINT_URL_S3 survives mount_s3()."""
+    function = mlrun.new_function(
+        "function-name", "function-project", kind=mlrun.runtimes.RuntimeKinds.job
+    )
+    function.set_env("AWS_ENDPOINT_URL_S3", "https://my-corp-s3.example.com")
+
+    function.apply(
+        mlrun.runtimes.mounts.mount_s3(
+            secret_name="minio-credentials",
+            endpoint_url="http://seaweedfs:8333",
+        )
+    )
+
+    env_dict = {
+        var["name"]: var.get("value", var.get("valueFrom")) for var in function.spec.env
+    }
+    assert env_dict["AWS_ENDPOINT_URL_S3"] == "https://my-corp-s3.example.com"
+
+
+def test_mount_s3_without_secret_does_not_override_user_set_aws_access_key():
+    """User-set plain AWS_ACCESS_KEY_ID also wins on the explicit-key path (no secret_name)."""
+    function = mlrun.new_function(
+        "function-name", "function-project", kind=mlrun.runtimes.RuntimeKinds.job
+    )
+    function.set_env("AWS_ACCESS_KEY_ID", "user-custom-value")
+
+    function.apply(
+        mlrun.runtimes.mounts.mount_s3(
+            aws_access_key="modifier-access-key",
+            aws_secret_key="modifier-secret-key",
+        )
+    )
+
+    env_dict = {
+        var["name"]: var.get("value", var.get("valueFrom")) for var in function.spec.env
+    }
+    assert env_dict["AWS_ACCESS_KEY_ID"] == "user-custom-value"
+    # The non-user-set key is still filled by the modifier.
+    assert env_dict["AWS_SECRET_ACCESS_KEY"] == "modifier-secret-key"
+
+
 def _auth_prefix() -> str:
     # Matches how the code builds the pattern: format(hashed_access_key="")
     return mlrun.mlconf.secret_stores.kubernetes.auth_secret_name.format(

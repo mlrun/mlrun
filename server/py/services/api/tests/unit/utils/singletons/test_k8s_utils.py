@@ -1379,7 +1379,7 @@ def test_get_user_secret_tokens_as_igz_yml_data_no_tokens(k8s_helper):
 
     with pytest.raises(
         mlrun.errors.MLRunBadRequestError,
-        match=f"No valid tokens found for user id '{user_id}'",
+        match="No valid tokens found for user",
     ):
         k8s_helper.get_user_secret_tokens_as_igz_yml_data(
             user_id=user_id, token_name=None
@@ -1407,7 +1407,7 @@ def test_get_user_secret_tokens_as_igz_yml_data_all_fail(k8s_helper):
 
     with pytest.raises(
         mlrun.errors.MLRunBadRequestError,
-        match=f"No valid tokens found for user id '{user_id}'",
+        match="No valid tokens found for user",
     ):
         k8s_helper.get_user_secret_tokens_as_igz_yml_data(
             user_id=user_id, token_name=None

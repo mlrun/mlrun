@@ -3139,7 +3139,7 @@ class TestNuclioAppModelEndpointCreation(TestMLRunSystemModelMonitoring):
                 name=fn_name,
                 kind=kind,
                 project=self.project_name,
-                image=self.image,
+                image=self.image or os.environ.get("MLRUN_TEST_IMAGE", "mlrun/mlrun"),
             )
             fn.spec.command = "python"
             fn.spec.args = ["-m", "http.server", "8050"]
@@ -3152,7 +3152,6 @@ class TestNuclioAppModelEndpointCreation(TestMLRunSystemModelMonitoring):
             )
             fn.deploy(with_mlrun=False)
         else:
-            import os
             import tempfile
 
             with tempfile.NamedTemporaryFile(suffix=".py", mode="w", delete=False) as f:

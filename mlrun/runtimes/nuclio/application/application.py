@@ -513,6 +513,7 @@ class ApplicationRuntime(nuclio_function.RemoteRuntime):
         mlrun_version_specifier=None,
         show_on_failure: bool = False,
         create_default_api_gateway: bool = True,
+        track_models: bool | None = None,
     ):
         """
         Deploy function, builds the application image if required (self.requires_build()) or force_build is True,
@@ -536,6 +537,9 @@ class ApplicationRuntime(nuclio_function.RemoteRuntime):
         :param create_default_api_gateway:  When deploy finishes the default API gateway will be created for the
                                             application. Disabling this flag means that the application will not be
                                             accessible until an API gateway is created for it.
+        :param track_models:                override state of self.spec.track_models. If not provided, uses the spec
+                                            value (False by default, True after setup_model_monitoring() is called).
+                                            When True, model endpoints are created at deployment time.
 
         :return: The default API gateway URL if created or True if the function is ready (deployed)
         """
@@ -575,6 +579,7 @@ class ApplicationRuntime(nuclio_function.RemoteRuntime):
                 tag=tag,
                 verbose=verbose,
                 builder_env=builder_env,
+                track_models=track_models,
             )
             logger.info(
                 "Successfully deployed function.",

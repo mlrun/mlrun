@@ -25,6 +25,7 @@ import mlrun.errors
 import mlrun.runtimes
 import mlrun.utils
 from mlrun.common.runtimes.constants import ProbeTimeConfig, ProbeType
+from mlrun.common.schemas.model_monitoring import ModelEndpointInstruction
 
 assets_path = pathlib.Path(__file__).absolute().parent / "assets"
 
@@ -165,6 +166,102 @@ def test_consecutive_deploy_application_runtime(rundb_mock, igz_version_mock):
 
     # Ensure the image is updated
     _assert_application_post_deploy_spec(fn, image)
+
+
+@pytest.mark.parametrize(
+    "track_models_arg, expected_forwarded",
+    [
+        (True, True),
+        (False, False),
+    ],
+)
+def test_deploy_forwards_track_models(
+    rundb_mock, igz_version_mock, track_models_arg, expected_forwarded
+):
+    fn: mlrun.runtimes.ApplicationRuntime = mlrun.new_function(
+        "application-test", kind="application", image="my/web-app:latest"
+    )
+    with unittest.mock.patch.object(
+        mlrun.runtimes.nuclio.function.RemoteRuntime, "deploy"
+    ) as mock_super_deploy:
+        fn.deploy(track_models=track_models_arg)
+    mock_super_deploy.assert_called_once()
+    assert mock_super_deploy.call_args.kwargs.get("track_models") is expected_forwarded
+
+
+def test_deploy_default_track_models_is_none(rundb_mock, igz_version_mock):
+    # When track_models is not provided, ApplicationRuntime.deploy must forward None
+    # so RemoteRuntime.deploy preserves whatever value is on self.spec.track_models
+    # (e.g. set by setup_model_monitoring()).
+    fn: mlrun.runtimes.ApplicationRuntime = mlrun.new_function(
+        "application-test", kind="application", image="my/web-app:latest"
+    )
+    with unittest.mock.patch.object(
+        mlrun.runtimes.nuclio.function.RemoteRuntime, "deploy"
+    ) as mock_super_deploy:
+        fn.deploy()
+    mock_super_deploy.assert_called_once()
+    assert mock_super_deploy.call_args.kwargs.get("track_models") is None
+
+
+def test_deploy_track_models_true_invokes_setup_model_monitoring(
+    rundb_mock, igz_version_mock
+):
+    # End-to-end: ApplicationRuntime.deploy(track_models=True) on a fresh function (no prior
+    # setup_model_monitoring) must reach RemoteRuntime.deploy and trigger setup_model_monitoring()
+    # so that model_endpoints_instructions gets populated before the deploy API call.
+    fn: mlrun.runtimes.ApplicationRuntime = mlrun.new_function(
+        "application-test", kind="application", image="my/web-app:latest"
+    )
+    with unittest.mock.patch.object(
+        mlrun.runtimes.nuclio.function.RemoteRuntime,
+        "setup_model_monitoring",
+        autospec=True,
+    ) as mock_setup:
+        fn.deploy(track_models=True)
+    mock_setup.assert_called_once()
+
+
+def test_deploy_does_not_resetup_when_instructions_already_exist(
+    rundb_mock, igz_version_mock
+):
+    # If the user already called setup_model_monitoring() (or otherwise populated
+    # model_endpoints_instructions), a subsequent deploy(track_models=True) must NOT
+    # re-invoke setup_model_monitoring — that would override the user's instructions.
+    fn: mlrun.runtimes.ApplicationRuntime = mlrun.new_function(
+        "application-test", kind="application", image="my/web-app:latest"
+    )
+    fn.spec.model_endpoints_instructions = [
+        ModelEndpointInstruction(
+            name="application-test_model_endpoint",
+            function_name="application-test",
+        ),
+    ]
+    fn.spec.track_models = True
+    with unittest.mock.patch.object(
+        mlrun.runtimes.nuclio.function.RemoteRuntime,
+        "setup_model_monitoring",
+        autospec=True,
+    ) as mock_setup:
+        fn.deploy(track_models=True)
+    mock_setup.assert_not_called()
+
+
+def test_deploy_default_does_not_invoke_setup_model_monitoring(
+    rundb_mock, igz_version_mock
+):
+    # A plain deploy() (no track_models arg) on a fresh function must NOT trigger
+    # setup_model_monitoring — the feature must be opt-in.
+    fn: mlrun.runtimes.ApplicationRuntime = mlrun.new_function(
+        "application-test", kind="application", image="my/web-app:latest"
+    )
+    with unittest.mock.patch.object(
+        mlrun.runtimes.nuclio.function.RemoteRuntime,
+        "setup_model_monitoring",
+        autospec=True,
+    ) as mock_setup:
+        fn.deploy()
+    mock_setup.assert_not_called()
 
 
 @pytest.mark.parametrize(

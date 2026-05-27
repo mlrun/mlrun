@@ -60,7 +60,7 @@ When creating an alert you can select an event type for a specific model, for ex
 You can optionally specify the frequency of the alert using the criteria field, which controls the threshold number of events in a given time window that triggers the alert.
 If criteria is not specified, the default is `count=1` and `period=None`, in which case the alert triggers immediately upon the first matching event.
 
-You can configure Slack, Git, and webhook notifications for alerts.
+You can configure Slack, Git, and webhook {ref}`notifications` for alerts.
 
 ``` {Admonition} Note on run identification
 Alerts track the job runs by name (`run.metadata.name`), not by the unique run UID. The run name can either be set explicitly or automatically generated when a job is executed. 
@@ -86,7 +86,7 @@ To configure the cooldown period:
 - The `cooldown_period` must be >0. (If set to 0, alarms are reset immediately.)
 - Cooldown periods can be set as, for example, 1d, 3h, 5m, 15s, etc.
  
-You can manually reset an alarm at any time, whether or not the `cooldown_period` is still active.
+You can manually reset an alarm at any time ({py:func}`~mlrun.projects.MlrunProject.reset_alert_config`), whether or not the `cooldown_period` is still active.
 
 ### Example
 This example illustrates creating an alert with a Slack notification for a job failure with defined criteria
@@ -174,7 +174,7 @@ You can use the `force_reset` option when running `store_alert_config` to force 
 
 ## Alert reset policy
 
-The {py:class}`mlrun.common.schemas.alert.ResetPolicy` specifies when to clear the alert and change the alert's status from active to inactive. When an alert 
+The {py:class}`~mlrun.common.schemas.alert.ResetPolicy` specifies when to clear the alert and change the alert's status from active to inactive. When an alert 
 becomes inactive, its notifications cease. When it is re-activated, notifications are renewed.
 The `ResetPolicy` options are:
 - manual &mdash; for manual reset of the alert

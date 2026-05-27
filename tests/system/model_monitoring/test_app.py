@@ -2901,8 +2901,8 @@ class TestHTTPIngest(TestMLRunSystemModelMonitoring):
             df = tsdb.get_results_metadata(endpoint_id=endpoint_id)
             assert not df.empty, "No application results in TSDB yet"
             assert (df.endpoint_id == endpoint_id).all()
-            assert DemoMonitoringApp.NAME in df.application_name.values, (
-                f"Expected app {DemoMonitoringApp.NAME!r} not found in TSDB results"
+            assert NoCheckDemoMonitoringApp.NAME in df.application_name.values, (
+                f"Expected app {NoCheckDemoMonitoringApp.NAME!r} not found in TSDB results"
             )
 
         self.wait_for_condition(
@@ -3033,4 +3033,232 @@ class TestHTTPIngest(TestMLRunSystemModelMonitoring):
             f"requests but single request took {single_elapsed:.2f}s — expected batch "
             f"< {single_elapsed * 2:.2f}s. "
             "This suggests the pod is serialising requests instead of processing them concurrently."
+        )
+
+
+@TestMLRunSystem.skip_test_if_env_not_configured
+class TestUserEndpointHTTPIngest(TestMLRunSystemModelMonitoring):
+    """End-to-end HTTP ingest via the explicit ``create_user_model_endpoint`` +
+    ``get_model_monitoring_url`` flow (ML-12045).
+
+    Unlike :class:`TestHTTPIngest`, this test does NOT call
+    ``fn.setup_model_monitoring()`` — which auto-creates endpoints and injects
+    env vars on the function.  Instead it exercises the lower-level flow a user
+    would follow when they already have a Nuclio function and just want to
+    register a USER_EP and push events to the stream pod:
+
+    1. ``project.create_user_model_endpoint(...)`` → returns ``(name, uid)``.
+    2. ``project.get_model_monitoring_url()`` → internal stream pod HTTP URL.
+    3. Deploy a Nuclio remote function and wire the URL + endpoint UID into
+       it manually via ``fn.set_env(...)``.
+    4. Invoke; the handler POSTs prediction events to the stream pod.
+    5. Verify TSDB receives the events and the endpoint's ``last_request``
+       is updated.
+    """
+
+    project_name = "test-mm-user-ep-http-ingest"
+    image: str | None = None
+
+    app_interval: int = 1  # minutes
+    num_events: int = 20
+    feature_names = ["age", "income", "credit_score", "balance"]
+    label_names = ["approved"]
+    model_endpoint_name = "user-ep-http-ingest"
+
+    @classmethod
+    def setup_class(cls) -> None:
+        super().setup_class()
+        cls.app_interval_seconds = timedelta(minutes=cls.app_interval).total_seconds()
+        cls.run_db = mlrun.get_run_db()
+        cls._external_stream_delay = 0
+        if isinstance(
+            cls.mm_stream_profile, DatastoreProfileKafkaStream
+        ) and cls.mm_stream_profile.attributes()["brokers"][0].endswith(
+            ".confluent.cloud:9092"
+        ):
+            cls._external_stream_delay = 90
+
+        project = mlrun.get_or_create_project(
+            cls.project_name, "./", allow_cross_project=True
+        )
+        project.register_datastore_profile(cls.mm_tsdb_profile)
+        project.register_datastore_profile(cls.mm_stream_profile)
+        project.set_model_monitoring_credentials(
+            tsdb_profile_name=cls.mm_tsdb_profile.name,
+            stream_profile_name=cls.mm_stream_profile.name,
+        )
+        try:
+            project.enable_model_monitoring(
+                base_period=cls.app_interval,
+                deploy_histogram_data_drift_app=False,
+                wait_for_deployment=True,
+                **({} if cls.image is None else {"image": cls.image}),
+            )
+        except mlrun.errors.MLRunConflictError:
+            # Monitoring already deployed from a previous run — reuse it.
+            pass
+
+    @classmethod
+    def custom_teardown_class(cls) -> None:
+        if not cls._should_clean_resources():
+            return
+        try:
+            cls._run_db.delete_project(
+                cls.project_name,
+                deletion_strategy=mlrun.common.schemas.DeletionStrategy.cascading,
+            )
+        except Exception:
+            pass
+
+    def _check_tsdb_has_data(self, endpoint_id: str) -> None:
+        tsdb = mlrun.model_monitoring.get_tsdb_connector(
+            project=self.project_name, profile=self.mm_tsdb_profile
+        )
+        lr = tsdb.get_last_request(endpoint_ids=endpoint_id)
+        assert lr and endpoint_id in lr, "TSDB last_request not yet written"
+
+        pred = tsdb.read_predictions(
+            endpoint_id=endpoint_id,
+            start=datetime.now(UTC) - timedelta(hours=1),
+            end=datetime.now(UTC),
+        )
+        assert not isinstance(
+            pred,
+            mlrun.common.schemas.model_monitoring.ModelEndpointMonitoringMetricNoData,
+        ), "No predictions in TSDB predictions table yet"
+
+    def _deploy_monitoring_app(self) -> None:
+        """Deploy the no-check demo monitoring application for this project."""
+        app_fn = self.project.set_model_monitoring_function(
+            func=str(Path(__file__).parent / "assets" / "application.py"),
+            application_class=NoCheckDemoMonitoringApp.__name__,
+            name=NoCheckDemoMonitoringApp.NAME,
+            image=self.image or mlrun.mlconf.function_defaults.image_by_kind.job,
+        )
+        self.project.deploy_function(app_fn)
+
+    def _deploy_ingest_fn(
+        self, monitoring_url: str, endpoint_id: str, endpoint_name: str
+    ) -> mlrun.runtimes.RemoteRuntime:
+        """Deploy the Nuclio HTTP-ingest function with env vars wired manually."""
+        fn = mlrun.new_function(
+            name="user-ep-ingest-fn",
+            project=self.project_name,
+            kind="remote",
+        )
+        fn.with_code(
+            from_file=str(Path(__file__).parent / "assets" / "http_ingest_handler.py")
+        )
+        fn.set_env(
+            mm_constants.NuclioMonitoringEnvVars.MODEL_MONITORING_URL,
+            monitoring_url,
+        )
+        fn.set_env(
+            mm_constants.NuclioMonitoringEnvVars.MODEL_ENDPOINT_UID,
+            endpoint_id,
+        )
+        fn.set_env(
+            mm_constants.NuclioMonitoringEnvVars.MODEL_ENDPOINT_NAME,
+            endpoint_name,
+        )
+        if self.image is not None:
+            fn.spec.image = self.image
+        fn.deploy()
+        return fn
+
+    def test_user_endpoint_http_ingest_flow(self) -> None:
+        """End-to-end: create_user_model_endpoint + get_model_monitoring_url →
+        manual env-var wiring on a remote fn → HTTP ingest → TSDB predictions
+        AND monitoring-application results.
+        """
+        # 1. Register a USER_EP via the explicit project-level API.
+        name, endpoint_id = self.project.create_user_model_endpoint(
+            name=self.model_endpoint_name,
+            input_schema=self.feature_names,
+            output_schema=self.label_names,
+            creation_strategy=mm_constants.ModelEndpointCreationStrategy.OVERWRITE,
+        )
+        assert name == self.model_endpoint_name
+        assert endpoint_id, "Expected a non-empty endpoint UID"
+        self._logger.info(
+            "USER_EP created via create_user_model_endpoint",
+            name=name,
+            endpoint_id=endpoint_id,
+        )
+
+        # 2. Fetch the stream pod HTTP URL via the project API.
+        monitoring_url = self.project.get_model_monitoring_url()
+        assert monitoring_url, (
+            "project.get_model_monitoring_url() returned no URL — "
+            "enable_model_monitoring should have provisioned the HTTP trigger"
+        )
+        assert monitoring_url.startswith("http"), (
+            f"Expected an http(s):// URL, got {monitoring_url!r}"
+        )
+        self._logger.info("Fetched monitoring URL", url=monitoring_url)
+
+        # 3. Deploy the ingest fn and the monitoring app in parallel.
+        with concurrent.futures.ThreadPoolExecutor() as executor:
+            fn_future = executor.submit(
+                self._deploy_ingest_fn, monitoring_url, endpoint_id, name
+            )
+            app_future = executor.submit(self._deploy_monitoring_app)
+        fn = fn_future.result()
+        app_future.result()
+
+        time.sleep(5)
+
+        # 4. Invoke the function; the handler POSTs num_events to the stream pod.
+        result = fn.invoke(
+            path="/",
+            body=json.dumps({"num_events": self.num_events}),
+        )
+        assert result.get("pushed") == self.num_events, (
+            f"Expected {self.num_events} accepted events (HTTP 202) "
+            f"but stream pod accepted {result.get('pushed')}"
+        )
+
+        # 5. Wait for TSDB to receive the prediction events.
+        predictions_initial_wait = (
+            mlrun.mlconf.model_endpoint_monitoring.parquet_batching_timeout_secs
+            + mlrun.mlconf.model_endpoint_monitoring.writer_graph.flush_after_seconds
+            + self._external_stream_delay
+        )
+        self.wait_for_condition(
+            condition_check=lambda: self._check_tsdb_has_data(endpoint_id),
+            initial_wait=predictions_initial_wait,
+            condition_description="TSDB to receive HTTP-ingested events",
+        )
+
+        # 6. Verify the endpoint's last_request was updated.
+        mep = self.run_db.get_model_endpoint(
+            name=self.model_endpoint_name,
+            project=self.project_name,
+            endpoint_id=endpoint_id,
+            tsdb_metrics=True,
+        )
+        assert mep.status.last_request is not None, (
+            "Model endpoint last_request not updated after HTTP ingest"
+        )
+
+        # 7. Wait for the monitoring application to write results to the TSDB.
+        tsdb = mlrun.model_monitoring.get_tsdb_connector(
+            project=self.project_name, profile=self.mm_tsdb_profile
+        )
+        app_results_initial_wait = (
+            2 * self.app_interval_seconds + predictions_initial_wait
+        )
+
+        def check_app_results() -> None:
+            df = tsdb.get_results_metadata(endpoint_id=endpoint_id)
+            assert not df.empty, "No application results in TSDB yet"
+            assert (df.endpoint_id == endpoint_id).all()
+            assert NoCheckDemoMonitoringApp.NAME in df.application_name.values, (
+                f"Expected app {NoCheckDemoMonitoringApp.NAME!r} not found in TSDB results"
+            )
+
+        self.wait_for_condition(
+            condition_check=check_app_results,
+            initial_wait=app_results_initial_wait,
+            condition_description="monitoring app to write results for HTTP-ingested events",
         )

@@ -4310,6 +4310,7 @@ class MlrunProject(ModelObj):
         function_name: str | None = None,
         function_tag: str | None = None,
         creation_strategy: mm_constants.ModelEndpointCreationStrategy | None = None,
+        monitoring_mode: mm_constants.ModelMonitoringMode | None = None,
         model_endpoint_instruction: ModelEndpointInstruction | None = None,
         **kwargs,
     ) -> tuple[str, str]:
@@ -4335,6 +4336,11 @@ class MlrunProject(ModelObj):
             * **archive**:
             1. If model endpoints with the same name exist, preserve them.
             2. Create a new model endpoint with the same name and set it to `latest`.
+        :param monitoring_mode:    Monitoring mode written to the endpoint ``status.monitoring_mode``.
+            Accepts a :class:`~mlrun.common.schemas.model_monitoring.constants.ModelMonitoringMode`
+            (``enabled`` or ``disabled``). Defaults to ``enabled`` when neither this param
+            nor ``model_endpoint_instruction.monitoring_mode`` is provided. Mutually exclusive
+            with ``model_endpoint_instruction``.
         :param model_endpoint_instruction: Optional instruction for the model endpoint, which can be used to provide
             data as above.
         :param kwargs:             Advanced: additional ``ModelEndpointSpec`` or ``ModelEndpointMetadata``
@@ -4350,6 +4356,7 @@ class MlrunProject(ModelObj):
                     function_name,
                     function_tag,
                     creation_strategy,
+                    monitoring_mode,
                 ]
             ):
                 raise mlrun.errors.MLRunInvalidArgumentError(
@@ -4366,6 +4373,8 @@ class MlrunProject(ModelObj):
                 output_schema=output_schema,
                 creation_strategy=creation_strategy
                 or mm_constants.ModelEndpointCreationStrategy.INPLACE,
+                monitoring_mode=monitoring_mode
+                or mm_constants.ModelMonitoringMode.enabled,
             )
 
         metadata_fields, spec_fields = self._split_endpoint_kwargs(kwargs)
@@ -4391,7 +4400,9 @@ class MlrunProject(ModelObj):
                 **metadata_fields,
             ),
             spec=mlrun.common.schemas.ModelEndpointSpec(**spec_fields),
-            status=mlrun.common.schemas.ModelEndpointStatus(),
+            status=mlrun.common.schemas.ModelEndpointStatus(
+                monitoring_mode=model_endpoint_instruction.monitoring_mode,
+            ),
         )
         db = mlrun.db.get_run_db(secrets=self._secrets)
         endpoint = db.create_model_endpoint(

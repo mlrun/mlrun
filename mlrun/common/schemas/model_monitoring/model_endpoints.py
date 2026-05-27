@@ -298,6 +298,10 @@ class ModelEndpointInstruction(BaseModel):
             * **archive**:
             1. If model endpoints with the same name exist, preserve them.
             2. Create a new model endpoint with the same name and set it to `latest`.
+    :param monitoring_mode: Monitoring mode written to the created endpoint's
+        ``status.monitoring_mode``. One of
+        :class:`~mlrun.common.schemas.model_monitoring.constants.ModelMonitoringMode`
+        (``enabled`` or ``disabled``). Defaults to ``enabled``.
     """
 
     name: constr(regex=MODEL_ENDPOINT_ID_PATTERN)
@@ -308,6 +312,7 @@ class ModelEndpointInstruction(BaseModel):
     creation_strategy: ModelEndpointCreationStrategy = (
         ModelEndpointCreationStrategy.INPLACE
     )
+    monitoring_mode: ModelMonitoringMode = ModelMonitoringMode.enabled
 
     def to_dict(self) -> dict:
         """Serialize to a plain dictionary (enum values are converted to their primitives)."""

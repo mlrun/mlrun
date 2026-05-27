@@ -3989,6 +3989,79 @@ def test_create_user_model_endpoint_instruction_and_params_conflict(
 
 
 @unittest.mock.patch.object(mlrun.db.nopdb.NopDB, "create_model_endpoint")
+def test_create_user_model_endpoint_monitoring_mode_default(mock_create, context):
+    """Without a monitoring_mode arg, status.monitoring_mode defaults to enabled."""
+    mock_create.return_value = _make_endpoint_response("ep1")
+    project = mlrun.new_project("project-name", context=str(context), save=False)
+
+    project.create_user_model_endpoint("ep1")
+
+    endpoint_arg = mock_create.call_args[1]["model_endpoint"]
+    assert (
+        endpoint_arg.status.monitoring_mode == mm_consts.ModelMonitoringMode.enabled
+    )
+
+
+@unittest.mock.patch.object(mlrun.db.nopdb.NopDB, "create_model_endpoint")
+def test_create_user_model_endpoint_monitoring_mode_from_param(mock_create, context):
+    """An explicit monitoring_mode param is written to status.monitoring_mode."""
+    mock_create.return_value = _make_endpoint_response("ep1")
+    project = mlrun.new_project("project-name", context=str(context), save=False)
+
+    project.create_user_model_endpoint(
+        "ep1",
+        monitoring_mode=mm_consts.ModelMonitoringMode.disabled,
+    )
+
+    endpoint_arg = mock_create.call_args[1]["model_endpoint"]
+    assert (
+        endpoint_arg.status.monitoring_mode == mm_consts.ModelMonitoringMode.disabled
+    )
+
+
+@unittest.mock.patch.object(mlrun.db.nopdb.NopDB, "create_model_endpoint")
+def test_create_user_model_endpoint_monitoring_mode_from_instruction(
+    mock_create, context
+):
+    """monitoring_mode on the instruction is written to status.monitoring_mode."""
+    from mlrun.common.schemas.model_monitoring.model_endpoints import (
+        ModelEndpointInstruction,
+    )
+
+    mock_create.return_value = _make_endpoint_response("ep1")
+    project = mlrun.new_project("project-name", context=str(context), save=False)
+    instruction = ModelEndpointInstruction(
+        name="ep1",
+        monitoring_mode=mm_consts.ModelMonitoringMode.disabled,
+    )
+
+    project.create_user_model_endpoint(model_endpoint_instruction=instruction)
+
+    endpoint_arg = mock_create.call_args[1]["model_endpoint"]
+    assert (
+        endpoint_arg.status.monitoring_mode == mm_consts.ModelMonitoringMode.disabled
+    )
+
+
+def test_create_user_model_endpoint_monitoring_mode_with_instruction_conflicts(
+    context,
+):
+    """Passing monitoring_mode together with an instruction raises."""
+    from mlrun.common.schemas.model_monitoring.model_endpoints import (
+        ModelEndpointInstruction,
+    )
+
+    project = mlrun.new_project("project-name", context=str(context), save=False)
+    instruction = ModelEndpointInstruction(name="ep1")
+
+    with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
+        project.create_user_model_endpoint(
+            model_endpoint_instruction=instruction,
+            monitoring_mode=mm_consts.ModelMonitoringMode.disabled,
+        )
+
+
+@unittest.mock.patch.object(mlrun.db.nopdb.NopDB, "create_model_endpoint")
 def test_create_user_model_endpoint_creation_strategy_forwarded(mock_create, context):
     """The creation_strategy kwarg is forwarded to the DB call."""
     mock_create.return_value = _make_endpoint_response("ep1")

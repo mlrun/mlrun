@@ -20,27 +20,54 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from contextvars import ContextVar
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
+
+import mlrun.errors
 
 # No top-level runtime ``import mlrun.*`` — would race with
 # ``mlrun.config._populate()``'s deferred ``from mlrun.db import get_run_db``.
-if TYPE_CHECKING:
-    import mlrun.auth
+# ``mlrun.errors`` is a leaf module (stdlib + aiohttp + requests only) and safe.
 
 
 @dataclass(frozen=True)
 class Credentials:
     """User credentials for MLRun API access.
 
-    One of: ``token=``, ``token_provider=``, ``username=/password=``, or
+    One of: ``token=``, ``username=/password=``, or
     ``Credentials.from_env()`` for legacy env/config/file resolution.
     """
 
     token: str | None = None
-    token_provider: mlrun.auth.TokenProvider | None = None
     username: str | None = None
     password: str | None = None
     _use_env: bool = False
+
+    def __post_init__(self):
+        if (self.username is None) != (self.password is None):
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Basic auth requires both username and password."
+            )
+        active = [
+            name
+            for name, on in (
+                ("token", self.token is not None),
+                (
+                    "basic_auth",
+                    self.username is not None or self.password is not None,
+                ),
+                ("env", self._use_env),
+            )
+            if on
+        ]
+        if not active:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Credentials need an auth mode. Use Credentials(token=...), "
+                "Credentials(username=..., password=...), "
+                "or Credentials.from_env()."
+            )
+        if len(active) > 1:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"Credentials require exactly one auth mode; got: {active}."
+            )
 
     @classmethod
     def from_env(cls) -> Credentials:
@@ -59,18 +86,23 @@ def get_active_client() -> Client | None:
 class Client:
     """A per-session MLRun client owning its own ``HTTPRunDB``.
 
+    The backend URL is taken from ``mlrun.mlconf.dbpath`` (already populated
+    by ``import mlrun``); a single MLRun cluster per Python process is
+    assumed. Only credentials vary per ``Client``.
+
     Example::
 
-        client = mlrun.Client(dbpath="...", credentials=mlrun.Credentials(token="..."))
+        client = mlrun.Client(credentials=mlrun.Credentials(token="..."))
         with client.session():
             project = mlrun.get_or_create_project("my-proj")
     """
 
-    def __init__(self, dbpath: str, credentials: Credentials):
-        import mlrun.db.httpdb  # deferred; see module-level comment
+    def __init__(self, credentials: Credentials):
+        # Deferred imports — see module-level comment.
+        from mlrun.config import config
+        from mlrun.db.httpdb import HTTPRunDB
 
-        self._http_db = mlrun.db.httpdb.HTTPRunDB(dbpath, credentials=credentials)
-        self._http_db.connect()
+        self._http_db = HTTPRunDB(config.dbpath, credentials=credentials)
 
     @contextmanager
     def session(self) -> Iterator[Client]:

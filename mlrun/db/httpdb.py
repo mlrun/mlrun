@@ -186,9 +186,7 @@ class HTTPRunDB(RunDBInterface):
         # legacy resolution path below.
         c = self._explicit_credentials
         if c is not None and not c._use_env:
-            if c.token_provider is not None:
-                self.token_provider = c.token_provider
-            elif c.token is not None:
+            if c.token is not None:
                 self.token_provider = mlrun.auth.StaticTokenProvider(c.token)
             # username/password were already applied in _enrich_and_validate.
             return

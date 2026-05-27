@@ -142,6 +142,7 @@ aiohttp==3.13.5 \
     #   aiohttp-retry
     #   aiooss2
     #   gcsfs
+    #   kubernetes
     #   kubernetes-asyncio
     #   s3fs
     #   storey
@@ -1330,9 +1331,9 @@ kfp-server-api==1.8.5 \
     # via
     #   mlrun-pipelines-kfp-common
     #   mlrun-pipelines-kfp-v1-8
-kubernetes==35.0.0 \
-    --hash=sha256:39e2b33b46e5834ef6c3985ebfe2047ab39135d41de51ce7641a7ca5b372a13d \
-    --hash=sha256:3d00d344944239821458b9efd484d6df9f011da367ecb155dadf9513f05f09ee
+kubernetes==36.0.1 \
+    --hash=sha256:3eadd6ae1be3b742ae63bd382b139c9fd5171afb6e00771dcefaae2d49001992 \
+    --hash=sha256:7631d11dd761f18658064a6ee91a36923cec3bef3cd92b99e08a53745b95f7d0
     # via
     #   dask-kubernetes
     #   mlrun-pipelines-kfp-common
@@ -1859,7 +1860,9 @@ opentelemetry-exporter-otlp-proto-common==1.42.1 \
 opentelemetry-exporter-otlp-proto-grpc==1.42.1 \
     --hash=sha256:0ae1177e2038b18a929b3098215243631ef91136cba26b7e2b12790ceb7e87cc \
     --hash=sha256:975c4461f167dd8ed8857d68d3b6b25f3d272eab896f6a9470d0f5b90e2faf15
-    # via storey
+    # via
+    #   -r dockerfiles/mlrun-api/requirements.txt
+    #   storey
 opentelemetry-proto==1.42.1 \
     --hash=sha256:c6a51e6b4f05ae63565f3a113217f3d2bfaec68f78c02d7a6c85f9010d1cfca6 \
     --hash=sha256:dedb74cba2886c59c7789b227a7a670613025a07489040050aedff6e5c0fb43c
@@ -1870,6 +1873,7 @@ opentelemetry-sdk==1.42.1 \
     --hash=sha256:083cd4bbfaa5aa7b5a9e552430d9951219967cfb27aa61feb13a77aba1fc839d \
     --hash=sha256:8c834e8f8c9ba4171d4ec843d0cb8a67e4c7394d3f9e9297e582cbd9456ddbf7
     # via
+    #   -r dockerfiles/mlrun-api/requirements.txt
     #   opentelemetry-exporter-otlp-proto-grpc
     #   storey
 opentelemetry-semantic-conventions==0.63b1 \

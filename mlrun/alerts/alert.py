@@ -107,7 +107,7 @@ class AlertConfig(ModelObj):
         :param template:       Optional parameter that allows creating an alert based on a predefined template.
                                You can pass either an AlertTemplate object or a string (the template name).
                                If a template is used, many fields of the alert will be auto-generated based on the
-                               template.H owever, you still need to provide the following fields:
+                               template.However, you still need to provide the following fields:
                                `name`, `project`, `entity`, `notifications`
         :param description:    Description of the alert
         :param summary:        Summary of the alert, will be sent in the generated notifications

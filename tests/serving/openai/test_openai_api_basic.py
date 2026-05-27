@@ -133,3 +133,17 @@ class TestSetOpenAIFrontend:
         ResponsesEndpoints.endpoints()
         ChatCompletionsEndpoints.endpoints()
         assert ResponsesEndpoints._ep_cache is not ChatCompletionsEndpoints._ep_cache
+
+    def test_prefix_prepended_to_all_paths(self) -> None:
+        """set_openai_frontend(prefix='/v1') registers paths under /v1/ and not without it."""
+        fn = make_fn()
+        fn.set_openai_frontend([OpenAIEndpoint.CHAT_COMPLETIONS], prefix="/v1")
+
+        config = get_config(fn)
+        for ep in ENDPOINT_CLASSES[OpenAIEndpoint.CHAT_COMPLETIONS].endpoints():
+            assert (
+                config.get_endpoint_config(ep.http_method, f"/v1{ep.path}") is not None
+            ), f"Expected {ep.http_method} /v1{ep.path} to be registered"
+            assert config.get_endpoint_config(ep.http_method, ep.path) is None, (
+                f"Expected {ep.http_method} {ep.path} (without prefix) to NOT be registered"
+            )

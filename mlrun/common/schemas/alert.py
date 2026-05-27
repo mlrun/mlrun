@@ -294,7 +294,7 @@ class AlertActivations(pydantic.v1.BaseModel):
         """
         Aggregate alert activations by specified attributes using a given aggregation function.
 
-        
+
         :param group_by_attrs: Attributes to group by.
         :param aggregation_function: Function to aggregate grouped activations.
 

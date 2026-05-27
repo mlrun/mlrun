@@ -32,14 +32,14 @@ import mlrun.errors
 class Credentials:
     """User credentials for MLRun API access.
 
-    One of: ``token=``, ``username=/password=``, or
-    ``Credentials.from_env()`` for legacy env/config/file resolution.
+    One of: ``token=``, ``username=/password=``, or ``use_env=True``
+    for legacy env/config/file resolution.
     """
 
     token: str | None = None
     username: str | None = None
     password: str | None = None
-    _use_env: bool = False
+    use_env: bool = False
 
     def __post_init__(self):
         if (self.username is None) != (self.password is None):
@@ -54,7 +54,7 @@ class Credentials:
                     "basic_auth",
                     self.username is not None or self.password is not None,
                 ),
-                ("env", self._use_env),
+                ("env", self.use_env),
             )
             if on
         ]
@@ -62,17 +62,12 @@ class Credentials:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "Credentials need an auth mode. Use Credentials(token=...), "
                 "Credentials(username=..., password=...), "
-                "or Credentials.from_env()."
+                "or Credentials(use_env=True)."
             )
         if len(active) > 1:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 f"Credentials require exactly one auth mode; got: {active}."
             )
-
-    @classmethod
-    def from_env(cls) -> Credentials:
-        """Delegate auth resolution to ``HTTPRunDB``'s legacy env/config/file path."""
-        return cls(_use_env=True)
 
 
 _active_client: ContextVar[Client | None] = ContextVar("_active_client", default=None)

@@ -61,12 +61,12 @@ def test_session_carries_client_credentials_to_requests():
     assert headers.get("authorization") == "Bearer my-token"
 
 
-def test_credentials_from_env_matches_legacy_singleton_auth(monkeypatch):
-    """``Credentials.from_env()`` resolves auth like the legacy singleton."""
+def test_credentials_use_env_matches_legacy_singleton_auth(monkeypatch):
+    """``Credentials(use_env=True)`` resolves auth like the legacy singleton."""
     monkeypatch.setenv("V3IO_ACCESS_KEY", "host-process-token")
 
     legacy = mlrun.db.httpdb.HTTPRunDB("https://mock-server")
-    client = Client(credentials=Credentials.from_env())
+    client = Client(credentials=Credentials(use_env=True))
 
     # Same provider class, same captured token.
     assert type(client._http_db.token_provider) is type(legacy.token_provider)
@@ -94,6 +94,8 @@ def test_credentials_mixed_modes_are_rejected():
     """Combining multiple auth modes must error fast."""
     with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
         Credentials(token="t", username="u", password="p")
+    with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
+        Credentials(token="t", use_env=True)
 
 
 def test_credentials_partial_basic_auth_is_rejected():

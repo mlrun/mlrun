@@ -170,7 +170,9 @@ class TestGetModelMonitoringURL:
             for record in caplog.records
         ), f"expected not-ready warning, got: {[r.message for r in caplog.records]}"
 
-    def test_not_ready_without_url_returns_none(self, client, mock_get_function, caplog):
+    def test_not_ready_without_url_returns_none(
+        self, client, mock_get_function, caplog
+    ):
         # Non-ready and no URL yet → None, with the not-ready warning still emitted.
         mock_get_function.return_value = {
             "status": {"state": "deploying", "internal_invocation_urls": []}

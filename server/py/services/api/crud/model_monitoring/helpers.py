@@ -21,10 +21,10 @@ from fastapi.concurrency import run_in_threadpool
 import mlrun.common.schemas
 import mlrun.common.schemas.model_monitoring.constants as mm_constants
 import mlrun.errors
+from mlrun.utils import logger
 
 import services.api.crud.functions
 import services.api.crud.projects
-from mlrun.utils import logger
 
 
 def json_loads_if_not_none(field: typing.Any) -> typing.Any:

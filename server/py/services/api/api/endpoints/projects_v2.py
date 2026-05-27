@@ -102,13 +102,18 @@ async def delete_project(
                 skip_permission_check = True
 
         if not skip_permission_check:
-            await (
-                framework.utils.auth.verifier.AuthVerifier().query_project_permissions(
+            # If the requesting user is the project owner, populate the OPA
+            # owner cache and skip the permissions query. This mitigates the
+            # OPA manifest propagation race on multi-pod deployments.
+            verifier = framework.utils.auth.verifier.AuthVerifier()
+            if verifier.is_project_owner(auth_info, project):
+                verifier.add_allowed_project_for_owner(name, auth_info)
+            else:
+                await verifier.query_project_permissions(
                     name,
                     mlrun.common.schemas.AuthorizationAction.delete,
                     auth_info,
                 )
-            )
 
     # we need to implement the verify_project_is_empty, since we don't want
     # to spawn a background task for this, only to return a response

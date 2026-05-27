@@ -22,6 +22,7 @@ These variables control the basic alert behavior:
 - `alerts.mode` &mdash; Enables/disables the feature. Enabled by default.
 - `alerts.max_allowed` &mdash; Maximum number of alerts allowed to be configured, by default 10000. Any new alerts above this limit return an error.
 - `alerts.max_criteria_count` &mdash; Maximum number of events. By default, 100.
+- `alerts.cooldown_reset_interval` &mdash; Interval at which alerts, whose `cooldown_period` have completed, are reset. By default, 15s.
 
 These values can be modified by the [support team](mailto:support@iguazio.com).
 
@@ -77,16 +78,15 @@ The `cooldown_period` parameter of `AlertConfig` can be used to delay resetting 
 The alert remains active for the duration of the `cooldown_period`, and incoming events are ignored. 
 After the cooldown period expires and the alert is reset, it can be triggered again by new events.
 The reset timing is approximate: reset happens when a periodic task runs, by default, every ~15s. 
-By default, the cooldown period is not set.
+By default, the `cooldown_period` is not set.
 
-and that cooldown_period must be at least cooldown_reset_interval
-
-To configure the cooldown period:
-- The `reset_policy` must be set to `auto`
+Guidelines:
+- The `reset_policy` must be set to `auto`.
 - The `cooldown_period` must be >0. (If set to 0, alarms are reset immediately.)
 - Cooldown periods can be set as, for example, 1d, 3h, 5m, 15s, etc.
- 
-You can manually reset an alarm at any time ({py:func}`~mlrun.projects.MlrunProject.reset_alert_config`), whether or not the `cooldown_period` is still active.
+- `cooldown_period` must be at least `cooldown_reset_interval`. See [System configuration](#system-configuration).
+
+You can manually reset an alarm at any time ({py:func}`~mlrun.projects.MlrunProject.reset_alert_config`), whether or not the `cooldown_period` is active.
 
 ### Example
 This example illustrates creating an alert with a Slack notification for a job failure with defined criteria

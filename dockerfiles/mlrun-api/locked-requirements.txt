@@ -693,9 +693,9 @@ deprecated==1.2.18 \
     # via
     #   -r requirements.txt
     #   igz-mgmt
-distributed==2024.8.0 \
-    --hash=sha256:11af55d22dd6e04eb868b87f166b8f59ef1b300f659f87c016643b7f98280ec6 \
-    --hash=sha256:b99caf0a7f257f59477a70a334e081c1241f7cd9860211cc669742e6450e1310
+distributed==2026.1.0 \
+    --hash=sha256:84bfff6e4e0b27b59e7ef441f818b4e0741040295c74da988f11274e70f62cf4 \
+    --hash=sha256:c78f3acb21ff9504d7c11c3cf55e037fda0663636ac0c011d0d59586d14c2897
     # via
     #   -r extras-requirements.txt
     #   dask-kubernetes

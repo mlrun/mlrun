@@ -992,10 +992,12 @@ default_config = {
         # Name of the K8s secret holding OTLP auth headers (one key per header,
         # e.g. Authorization, X-Scope-OrgID). Blank = no auth headers.
         "headers_secret_name": "",
-        # ML-16 — chief-only periodic system-size counters.
         "system_counters": {
-            # Seconds between collection cycles. Default once per day; minimum 3600.
-            "interval": 86400,
+            # PeriodicExportingMetricReader interval for inventory gauges, expressed
+            # as a multiple of ``monitoring.projects.summaries.cache_interval`` so
+            # the exporter samples a freshly-refreshed gauge every Nth cache cycle.
+            # Default 10 × 60s = 600s = 10 minutes. Must be >= 1.
+            "export_interval_multiplier": 10,
         },
         # ML-12344 — model monitoring application Results/Metrics OTel export.
         "model_monitoring": {

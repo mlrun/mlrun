@@ -53,6 +53,7 @@ import services.api.initial_data
 import services.api.runtime_handlers
 import services.api.utils.db.partitioner
 import services.api.utils.events.db_errors
+import services.api.utils.telemetry.inventory
 from framework.db.session import close_session, create_session
 from framework.utils.periodic import (
     run_function_periodically,
@@ -146,20 +147,36 @@ class Service(framework.service.Service):
         # Attach the DB connection-failed event listener before any DB work so
         # we capture connection issues that surface during initial migrations.
         services.api.utils.events.db_errors.register_for_default_engine()
-        await mlrun.utils.run_in_threadpool(self._initialize_data)
+        await mlrun.utils.run_in_threadpool(self._initialize_chief)
 
     async def _custom_teardown_service(self):
         if get_project_member():
             get_project_member().shutdown()
+        # Independent subsystems — gather so the OTel flush budget overlaps
+        # with the scheduler stop instead of stacking on top of it.
+        teardown_coros = []
         if get_scheduler():
-            await get_scheduler().stop()
+            teardown_coros.append(get_scheduler().stop())
+        if (
+            mlconf.httpdb.clusterization.role
+            == mlrun.common.schemas.ClusterizationRole.chief
+        ):
+            teardown_coros.append(
+                mlrun.utils.run_in_threadpool(
+                    services.api.utils.telemetry.inventory.shutdown
+                )
+            )
+        if teardown_coros:
+            await asyncio.gather(*teardown_coros)
 
-    def _initialize_data(self):
+    def _initialize_chief(self):
         if (
             mlconf.httpdb.clusterization.role
             == mlrun.common.schemas.ClusterizationRole.chief
         ):
             services.api.initial_data.init_data()
+            # Inventory snapshots are emitted from a single source of truth.
+            services.api.utils.telemetry.inventory.init()
 
     async def _start_periodic_functions(self):
         # runs cleanup/monitoring is not needed if we're not inside kubernetes cluster

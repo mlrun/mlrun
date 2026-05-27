@@ -15,7 +15,6 @@
 import asyncio
 import collections
 import datetime
-import typing
 import uuid
 
 import fastapi.concurrency
@@ -26,13 +25,13 @@ import mlrun.common.constants as mlrun_constants
 import mlrun.common.formatters
 import mlrun.common.schemas
 import mlrun.errors
+import mlrun.runtimes.constants
 import mlrun.utils.singleton
 import mlrun_pipelines.client
 from mlrun.utils import logger, retry_until_successful
 
 import framework.db.session
 import framework.utils.auth.verifier
-import framework.utils.background_tasks
 import framework.utils.clients.messaging
 import framework.utils.clients.nuclio
 import framework.utils.clients.service_account_token as service_account_token
@@ -41,9 +40,9 @@ import framework.utils.singletons.db
 import services.alerts.crud
 import services.api.crud
 import services.api.crud.model_monitoring
-import services.api.crud.runtimes.nuclio
 import services.api.utils.events.events_factory as events_factory
 import services.api.utils.singletons.scheduler
+import services.api.utils.telemetry.inventory as telemetry_inventory
 from framework.utils.singletons.k8s import get_k8s_helper
 
 
@@ -54,6 +53,14 @@ class Projects(
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._service_account_token_client = service_account_token.Client()
+        # Inventory telemetry — cached at construction so live edits to
+        # mlconf.telemetry.* require a chief restart, matching the OTel
+        # exporter's interval (locked in at SDK init).
+        self._inventory_telemetry_enabled: bool = telemetry_inventory.is_enabled()
+        self._inventory_refresh_count: int = 0
+        self._inventory_emit_multiplier: int = max(
+            1, int(mlrun.mlconf.telemetry.system_counters.export_interval_multiplier)
+        )
 
     def create_project(
         self,
@@ -620,6 +627,195 @@ class Projects(
             project_summaries,
         )
 
+        if self._inventory_telemetry_enabled:
+            if self._inventory_refresh_count % self._inventory_emit_multiplier == 0:
+                self._emit_inventory_telemetry(
+                    projects_output, project_counters, pipeline_counters
+                )
+            self._inventory_refresh_count += 1
+
+    @staticmethod
+    def _emit_inventory_telemetry(
+        projects_output: mlrun.common.schemas.ProjectsOutput,
+        project_counters: tuple[dict[str, int], ...],
+        pipeline_counters: tuple[dict[str, int], ...],
+    ) -> None:
+        """Emit periodic-snapshot inventory gauges to OTel.
+
+        Mirrors the cache fields produced by
+        ``refresh_project_resources_counters_cache``. No-op when telemetry is
+        disabled at startup; individual emission failures are swallowed and
+        logged by ``telemetry_inventory.set_count``.
+        """
+        (
+            project_to_files_count,
+            project_to_schedule_count,
+            project_to_schedule_pending_jobs_count,
+            project_to_schedule_pending_workflows_count,
+            project_to_feature_set_count,
+            project_to_models_count,
+            project_to_recent_completed_runs_count,
+            project_to_recent_failed_runs_count,
+            project_to_running_runs_count,
+            project_to_endpoint_alerts_count,
+            project_to_job_alerts_count,
+            project_to_application_alerts_count,
+            project_to_infra_alerts_count,
+            project_to_datasets_count,
+            project_to_documents_count,
+            project_to_llm_prompts_count,
+            project_to_running_mm_functions,
+            project_to_failed_mm_functions_count,
+            project_to_real_time_mep_count,
+            project_to_batch_mep_count,
+        ) = project_counters
+        (
+            project_to_recent_completed_pipelines_count,
+            project_to_recent_failed_pipelines_count,
+            project_to_running_pipelines_count,
+        ) = pipeline_counters
+
+        telemetry_inventory.set_count("mlrun_projects", len(projects_output.projects))
+        for project_data in projects_output.projects:
+            project_name = project_data[0]
+
+            for kind, by_project in (
+                ("model", project_to_models_count),
+                ("dataset", project_to_datasets_count),
+                ("document", project_to_documents_count),
+                ("llm_prompt", project_to_llm_prompts_count),
+                ("other", project_to_files_count),
+            ):
+                telemetry_inventory.set_count(
+                    "mlrun_artifacts",
+                    by_project.get(project_name, 0),
+                    project=project_name,
+                    kind=kind,
+                )
+
+            telemetry_inventory.set_count(
+                "mlrun_feature_sets",
+                project_to_feature_set_count.get(project_name, 0),
+                project=project_name,
+            )
+
+            # TODO: source from cache once `get_project_resources_counters` is
+            # extended with per-(project, kind) function counts (ML-16).
+            # Kinds drawn from `RuntimeKinds`; `local`/`handler` are excluded
+            # since they're not deployable inventory items.
+            fn_kinds = mlrun.runtimes.constants.RuntimeKinds
+            for kind in (
+                fn_kinds.job,
+                fn_kinds.nuclio,
+                fn_kinds.remote,
+                fn_kinds.serving,
+                fn_kinds.application,
+                fn_kinds.dask,
+                fn_kinds.spark,
+                fn_kinds.remotespark,
+                fn_kinds.mpijob,
+                fn_kinds.databricks,
+            ):
+                telemetry_inventory.set_count(
+                    "mlrun_functions",
+                    0,
+                    project=project_name,
+                    kind=kind,
+                )
+            telemetry_inventory.set_count(
+                "mlrun_schedules",
+                project_to_schedule_count.get(project_name, 0),
+                project=project_name,
+            )
+            # schedule-pending counters are defaultdict → index, do not .get()
+            for kind, by_project in (
+                ("job", project_to_schedule_pending_jobs_count),
+                ("workflow", project_to_schedule_pending_workflows_count),
+            ):
+                telemetry_inventory.set_count(
+                    "mlrun_schedules_pending",
+                    by_project[project_name],
+                    project=project_name,
+                    kind=kind,
+                )
+
+            # TODO: source from cache once `get_project_resources_counters` is
+            # extended with workflow-definition counts (ML-16).
+            telemetry_inventory.set_count(
+                "mlrun_workflows",
+                0,
+                project=project_name,
+            )
+
+            # TODO: source from cache once `get_project_resources_counters` is
+            # extended with alert-configuration counts (ML-16). Distinct from
+            # `mlrun_alert_activations` above, which counts recent activations.
+            telemetry_inventory.set_count(
+                "mlrun_alerts",
+                0,
+                project=project_name,
+            )
+
+            for state, by_project in (
+                ("completed", project_to_recent_completed_runs_count),
+                ("failed", project_to_recent_failed_runs_count),
+                ("running", project_to_running_runs_count),
+            ):
+                telemetry_inventory.set_count(
+                    "mlrun_runs",
+                    by_project.get(project_name, 0),
+                    project=project_name,
+                    state=state,
+                )
+
+            # pipeline counters are defaultdict → index, do not .get()
+            for state, by_project in (
+                ("completed", project_to_recent_completed_pipelines_count),
+                ("failed", project_to_recent_failed_pipelines_count),
+                ("running", project_to_running_pipelines_count),
+            ):
+                telemetry_inventory.set_count(
+                    "mlrun_pipeline_executions",
+                    by_project[project_name],
+                    project=project_name,
+                    state=state,
+                )
+
+            for kind, by_project in (
+                ("endpoint", project_to_endpoint_alerts_count),
+                ("job", project_to_job_alerts_count),
+                ("application", project_to_application_alerts_count),
+                ("infra", project_to_infra_alerts_count),
+            ):
+                telemetry_inventory.set_count(
+                    "mlrun_alert_activations",
+                    by_project.get(project_name, 0),
+                    project=project_name,
+                    kind=kind,
+                )
+
+            for kind, by_project in (
+                ("real_time", project_to_real_time_mep_count),
+                ("batch", project_to_batch_mep_count),
+            ):
+                telemetry_inventory.set_count(
+                    "mlrun_model_endpoints",
+                    by_project.get(project_name, 0),
+                    project=project_name,
+                    kind=kind,
+                )
+
+            for state, by_project in (
+                ("running", project_to_running_mm_functions),
+                ("failed", project_to_failed_mm_functions_count),
+            ):
+                telemetry_inventory.set_count(
+                    "mlrun_model_monitoring_functions",
+                    by_project.get(project_name, 0),
+                    project=project_name,
+                    state=state,
+                )
+
     @staticmethod
     def _list_pipelines(
         session,
@@ -637,11 +833,7 @@ class Projects(
 
     async def _calculate_pipelines_counters(
         self,
-    ) -> (
-        dict[str, typing.Union[int, None]],
-        dict[str, typing.Union[int, None]],
-        dict[str, typing.Union[int, None]],
-    ):
+    ) -> tuple[dict[str, int | None], dict[str, int | None], dict[str, int | None]]:
         # creating defaultdict instead of a regular dict, because it possible that not all projects have pipelines
         # and we want to return 0 for those projects, or None if we failed to get the information
         project_to_running_pipelines_count = collections.defaultdict(lambda: 0)

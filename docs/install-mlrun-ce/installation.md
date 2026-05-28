@@ -16,4 +16,4 @@ storing-artifact-in-aws-s3-storage
 After installation, check the [development notes](./mlrun-ce-development-notes.md) for optional development configuration.
 
 <br>
-<img class="dark-light" src="../_static/images/maintenance_logo.svg" alt="Maintenance logo" width="250"/>
+<img class="dark-light" src="../_static/images/maintenance_logo.png" alt="Maintenance logo" width="250"/>

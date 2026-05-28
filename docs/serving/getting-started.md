@@ -333,7 +333,7 @@ graph.to(name="PrintEvent", handler="print_event").to(
 
 graph.plot(rankdir="LR")
 ```
-<br><img src="../_static/images/serving-graph-kafka-queue-flows.svg" alt="graph-flow" width="800"/><br>
+<br><img src="../_static/images/serving-graph-kafka-queue-flows.png" alt="graph-flow" width="800"/><br>
 
 ```Python
 addr_serving = fn_serving.deploy()

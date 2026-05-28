@@ -1473,9 +1473,7 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
         existing_annotations = k8s_secret.metadata.annotations or {}
         metadata_stale = any(
             existing_labels.get(k) != v for k, v in labels.items()
-        ) or any(
-            existing_annotations.get(k) != v for k, v in annotations.items()
-        )
+        ) or any(existing_annotations.get(k) != v for k, v in annotations.items())
 
         if (
             force

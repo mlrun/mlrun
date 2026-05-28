@@ -98,7 +98,7 @@ class TestLogCollector:
             f"{mlrun_constants.MLRunInternalLabels.project}={project_name},"
             f"{mlrun_constants.MLRunInternalLabels.uid}={run_uid}"
         )
-        log_collector = self._client_with_listener()
+        log_collector = framework.utils.clients.log_collector.LogCollectorClient()
 
         log_collector._call = unittest.mock.AsyncMock(
             return_value=BaseLogCollectorResponse(True, "")
@@ -128,7 +128,7 @@ class TestLogCollector:
     async def test_get_logs(self):
         run_uid = "123"
         project_name = "some-project"
-        log_collector = self._client_with_listener()
+        log_collector = framework.utils.clients.log_collector.LogCollectorClient()
 
         log_byte_string = b"some log"
 
@@ -169,7 +169,7 @@ class TestLogCollector:
     async def test_get_log_with_retryable_error(self):
         run_uid = "123"
         project_name = "some-project"
-        log_collector = self._client_with_listener()
+        log_collector = framework.utils.clients.log_collector.LogCollectorClient()
 
         # mock responses for GetLogSize to return a retryable error
         log_collector._call = unittest.mock.AsyncMock(
@@ -202,7 +202,7 @@ class TestLogCollector:
     async def test_stop_logs(self):
         run_uids = ["123"]
         project_name = "some-project"
-        log_collector = self._client_with_listener()
+        log_collector = framework.utils.clients.log_collector.LogCollectorClient()
 
         # test successful stop logs
         log_collector._call = unittest.mock.AsyncMock(
@@ -227,7 +227,7 @@ class TestLogCollector:
     async def test_delete_logs(self):
         run_uids = None
         project_name = "some-project"
-        log_collector = self._client_with_listener()
+        log_collector = framework.utils.clients.log_collector.LogCollectorClient()
 
         # test successful stop logs
         log_collector._call = unittest.mock.AsyncMock(
@@ -259,7 +259,7 @@ class TestLogCollector:
     @pytest.mark.asyncio
     async def test_list_runs_in_progress(self):
         project_name = "some-project"
-        log_collector = self._client_with_listener()
+        log_collector = framework.utils.clients.log_collector.LogCollectorClient()
 
         async def _verify_runs(run_uids_stream):
             async for run_uid_list in run_uids_stream:

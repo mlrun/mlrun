@@ -13,8 +13,6 @@
 # limitations under the License.
 
 import asyncio
-import threading
-import time
 
 import mlrun
 import mlrun.common.schemas
@@ -22,9 +20,11 @@ from mlrun.utils import logger
 
 import framework.utils.clients.log_collector as log_collector_client
 import services.api.utils.events.events_factory as events_factory
+import services.api.utils.events.throttle as throttle
 
-_throttle_lock = threading.Lock()
-_last_emit_monotonic: float = 0.0
+_slot = throttle.ThrottledSlot(
+    lambda: mlrun.mlconf.events.log_collector.min_emit_interval_seconds
+)
 
 
 def publish_log_collector_failed(
@@ -59,14 +59,10 @@ def publish_log_collector_failed(
         )
         if event is None:
             return False
-        previous_slot = _try_claim_emit_slot()
-        if previous_slot is None:
-            return False
-        try:
+        with _slot.claim() as acquired:
+            if not acquired:
+                return False
             client.emit(event)
-        except Exception:
-            _release_emit_slot(previous_slot)
-            raise
         return True
     except Exception as publish_exc:
         logger.warning(
@@ -121,27 +117,3 @@ def _on_log_collector_failure(context: dict) -> None:
             error_category=context.get("error_category"),
         ),
     )
-
-
-def _try_claim_emit_slot() -> float | None:
-    """
-    Try to claim the throttle slot. On success returns the previous
-    ``_last_emit_monotonic`` value (pass to :func:`_release_emit_slot` to undo
-    on delivery failure); returns None if throttled.
-    """
-    global _last_emit_monotonic
-    min_interval = float(mlrun.mlconf.events.log_collector.min_emit_interval_seconds)
-    now = time.monotonic()
-    with _throttle_lock:
-        if now - _last_emit_monotonic < min_interval:
-            return None
-        previous = _last_emit_monotonic
-        _last_emit_monotonic = now
-        return previous
-
-
-def _release_emit_slot(previous: float) -> None:
-    """Restore the slot to ``previous`` so the next failure can retry emit."""
-    global _last_emit_monotonic
-    with _throttle_lock:
-        _last_emit_monotonic = previous

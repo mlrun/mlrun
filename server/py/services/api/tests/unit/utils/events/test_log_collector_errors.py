@@ -25,7 +25,7 @@ import services.api.utils.events.log_collector_errors as log_collector_errors
 
 @pytest.fixture(autouse=True)
 def reset_state(monkeypatch):
-    monkeypatch.setattr(log_collector_errors, "_last_emit_monotonic", 0.0)
+    monkeypatch.setattr(log_collector_errors._slot, "_last_emit_monotonic", 0.0)
     # The listener registry lives on the framework module; tests that touch it
     # should leave it clean to avoid bleeding registrations across cases.
     log_collector_client._FAILURE_LISTENERS.clear()
@@ -111,7 +111,7 @@ def test_publish_throttled_within_interval(monkeypatch):
     )
     fake_now = {"value": 1000.0}
     monkeypatch.setattr(
-        log_collector_errors.time, "monotonic", lambda: fake_now["value"]
+        log_collector_errors.throttle.time, "monotonic", lambda: fake_now["value"]
     )
 
     assert (
@@ -137,7 +137,7 @@ def test_publish_unthrottled_after_interval(monkeypatch):
     )
     fake_now = {"value": 1000.0}
     monkeypatch.setattr(
-        log_collector_errors.time, "monotonic", lambda: fake_now["value"]
+        log_collector_errors.throttle.time, "monotonic", lambda: fake_now["value"]
     )
 
     assert (
@@ -166,7 +166,7 @@ def test_publish_releases_slot_when_emit_raises(monkeypatch):
     )
     fake_now = {"value": 1000.0}
     monkeypatch.setattr(
-        log_collector_errors.time, "monotonic", lambda: fake_now["value"]
+        log_collector_errors.throttle.time, "monotonic", lambda: fake_now["value"]
     )
 
     assert (

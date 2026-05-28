@@ -68,53 +68,56 @@ class LogCollectorErrorRegex:
         ]
 
 
-# Failure listeners registered here are invoked when a log-retrieval RPC
-# (``start_logs``, ``get_logs``, ``get_log_size``) hard-fails. Lifecycle and
-# inventory RPCs (``stop_logs``, ``delete_logs``, ``list_runs_in_progress``)
-# intentionally do not notify — they are not "failed to retrieve logs" per the
-# event spec. This hook is the only inbound coupling from telemetry: keeping it
-# out of the data path lets ``services.api.utils.events`` register a publisher
-# without the framework layer depending on services-layer modules.
-_FAILURE_LISTENERS: list[typing.Callable[[dict], None]] = []
-
-
-def add_failure_listener(listener: typing.Callable[[dict], None]) -> None:
-    """
-    Register a callback to be notified when a log-retrieval RPC fails. The
-    callback receives a context dict with at least ``operation`` and the
-    relevant scope keys (``run_uid``, ``project``) and optional ``error`` /
-    ``error_code``. Duplicate registrations are ignored.
-
-    :param listener: callable invoked synchronously after each retrieval-RPC
-        failure; must not raise. Exceptions are caught and logged.
-    """
-    if listener in _FAILURE_LISTENERS:
-        return
-    _FAILURE_LISTENERS.append(listener)
-
-
-def _notify_failure(context: dict) -> None:
-    """Invoke registered failure listeners; never raise."""
-    for listener in list(_FAILURE_LISTENERS):
-        try:
-            listener(context)
-        except Exception as exc:
-            logger.warning(
-                "Log collector failure listener raised, ignoring",
-                exc=mlrun.errors.err_to_str(exc),
-            )
-
-
 class LogCollectorClient(
     framework.utils.clients.protocols.grpc.BaseGRPCClient,
     metaclass=mlrun.utils.singleton.Singleton,
 ):
+    """
+    gRPC client for the log-collector sidecar.
+
+    Failure listeners (see :meth:`add_failure_listener`) are invoked when a
+    log-retrieval RPC (``start_logs``, ``get_logs``, ``get_log_size``)
+    hard-fails. Lifecycle and inventory RPCs (``stop_logs``, ``delete_logs``,
+    ``list_runs_in_progress``) intentionally do not notify — they are not
+    "failed to retrieve logs" per the event spec. This hook is the only
+    inbound coupling from telemetry: keeping it out of the data path lets
+    ``services.api.utils.events`` register a publisher without the framework
+    layer depending on services-layer modules.
+    """
+
     name = "log_collector"
 
     def __init__(self, address: str | None = None):
         self._initialize_proto_client_imports()
         self.stub_class = self._log_collector_pb2_grpc.LogCollectorStub
+        self._failure_listeners: list[typing.Callable[[dict], None]] = []
         super().__init__(address=address or mlrun.mlconf.log_collector.address)
+
+    def add_failure_listener(self, listener: typing.Callable[[dict], None]) -> None:
+        """
+        Register a callback to be notified when a log-retrieval RPC fails. The
+        callback receives a context dict with at least ``operation`` and the
+        relevant scope keys (``run_uid``, ``project``) and optional ``error`` /
+        ``error_code``. Duplicate registrations (by identity) are ignored.
+
+        :param listener: callable invoked synchronously after each
+            retrieval-RPC failure; must not raise. Exceptions are caught and
+            logged.
+        """
+        if listener in self._failure_listeners:
+            return
+        self._failure_listeners.append(listener)
+
+    def _notify_failure(self, context: dict) -> None:
+        """Invoke registered failure listeners; never raise."""
+        for listener in list(self._failure_listeners):
+            try:
+                listener(context)
+            except Exception as exc:
+                logger.warning(
+                    "Log collector failure listener raised, ignoring",
+                    exc=mlrun.errors.err_to_str(exc),
+                )
 
     def _initialize_proto_client_imports(self):
         # Importing the proto client classes here and not at the top of the file to avoid raising an import error
@@ -158,7 +161,7 @@ class LogCollectorClient(
         response = await self._call("StartLog", request)
         if not response.success:
             if response.errorCode != LogCollectorErrorCode.ErrCodeNotFound.value:
-                _notify_failure(
+                self._notify_failure(
                     {
                         "operation": "start_logs",
                         "run_uid": run_uid,
@@ -242,7 +245,7 @@ class LogCollectorClient(
                             and chunk.errorCode
                             != LogCollectorErrorCode.ErrCodeNotFound.value
                         ):
-                            _notify_failure(
+                            self._notify_failure(
                                 {
                                     "operation": "get_logs",
                                     "run_uid": run_uid,
@@ -271,7 +274,7 @@ class LogCollectorClient(
                 )
                 if try_count == config.log_collector.get_logs.max_retries:
                     if not notified:
-                        _notify_failure(
+                        self._notify_failure(
                             {
                                 "operation": "get_logs",
                                 "run_uid": run_uid,
@@ -323,7 +326,7 @@ class LogCollectorClient(
                 return 0
 
             if response.errorCode != LogCollectorErrorCode.ErrCodeNotFound.value:
-                _notify_failure(
+                self._notify_failure(
                     {
                         "operation": "get_log_size",
                         "run_uid": run_uid,

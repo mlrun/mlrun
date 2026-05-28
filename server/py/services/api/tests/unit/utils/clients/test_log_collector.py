@@ -20,7 +20,6 @@ import pytest
 import mlrun
 import mlrun.common.constants as mlrun_constants
 import mlrun.common.schemas
-import mlrun.utils.singleton
 
 import framework.utils.clients.log_collector
 
@@ -99,7 +98,7 @@ class TestLogCollector:
             f"{mlrun_constants.MLRunInternalLabels.project}={project_name},"
             f"{mlrun_constants.MLRunInternalLabels.uid}={run_uid}"
         )
-        log_collector = framework.utils.clients.log_collector.LogCollectorClient()
+        log_collector = self._client_with_listener()
 
         log_collector._call = unittest.mock.AsyncMock(
             return_value=BaseLogCollectorResponse(True, "")
@@ -129,7 +128,7 @@ class TestLogCollector:
     async def test_get_logs(self):
         run_uid = "123"
         project_name = "some-project"
-        log_collector = framework.utils.clients.log_collector.LogCollectorClient()
+        log_collector = self._client_with_listener()
 
         log_byte_string = b"some log"
 
@@ -170,7 +169,7 @@ class TestLogCollector:
     async def test_get_log_with_retryable_error(self):
         run_uid = "123"
         project_name = "some-project"
-        log_collector = framework.utils.clients.log_collector.LogCollectorClient()
+        log_collector = self._client_with_listener()
 
         # mock responses for GetLogSize to return a retryable error
         log_collector._call = unittest.mock.AsyncMock(
@@ -203,7 +202,7 @@ class TestLogCollector:
     async def test_stop_logs(self):
         run_uids = ["123"]
         project_name = "some-project"
-        log_collector = framework.utils.clients.log_collector.LogCollectorClient()
+        log_collector = self._client_with_listener()
 
         # test successful stop logs
         log_collector._call = unittest.mock.AsyncMock(
@@ -228,7 +227,7 @@ class TestLogCollector:
     async def test_delete_logs(self):
         run_uids = None
         project_name = "some-project"
-        log_collector = framework.utils.clients.log_collector.LogCollectorClient()
+        log_collector = self._client_with_listener()
 
         # test successful stop logs
         log_collector._call = unittest.mock.AsyncMock(
@@ -260,7 +259,7 @@ class TestLogCollector:
     @pytest.mark.asyncio
     async def test_list_runs_in_progress(self):
         project_name = "some-project"
-        log_collector = framework.utils.clients.log_collector.LogCollectorClient()
+        log_collector = self._client_with_listener()
 
         async def _verify_runs(run_uids_stream):
             async for run_uid_list in run_uids_stream:
@@ -350,6 +349,8 @@ class TestLogCollectorFailureListener:
         # The real __init__ imports a generated grpc stub module that requires
         # `make schemas`; for these tests we only need a LogCollectorClient
         # whose `_call` / `_call_stream` we mock, so stub the proto wiring.
+        # Singleton instances themselves are wiped between tests by the autouse
+        # `config_test_base` fixture in tests/common_fixtures.py.
         def _stub_proto_init(self):
             self._log_collector_pb2 = unittest.mock.MagicMock()
             self._log_collector_pb2_grpc = unittest.mock.MagicMock()
@@ -359,21 +360,20 @@ class TestLogCollectorFailureListener:
             "_initialize_proto_client_imports",
             _stub_proto_init,
         )
-        mlrun.utils.singleton.Singleton._instances.pop(
-            framework.utils.clients.log_collector.LogCollectorClient, None
-        )
-        framework.utils.clients.log_collector._FAILURE_LISTENERS.clear()
         self.calls: list[dict] = []
-        framework.utils.clients.log_collector.add_failure_listener(self.calls.append)
-        yield
-        framework.utils.clients.log_collector._FAILURE_LISTENERS.clear()
-        mlrun.utils.singleton.Singleton._instances.pop(
-            framework.utils.clients.log_collector.LogCollectorClient, None
-        )
+        # NB: construct LogCollectorClient inside each test, not here — the
+        # gRPC base client needs a running event loop and this fixture runs
+        # outside one.
+
+    def _client_with_listener(self):
+        """Singleton LogCollectorClient with the capture listener attached."""
+        client = framework.utils.clients.log_collector.LogCollectorClient()
+        client.add_failure_listener(self.calls.append)
+        return client
 
     @pytest.mark.asyncio
     async def test_start_logs_failure_notifies(self):
-        log_collector = framework.utils.clients.log_collector.LogCollectorClient()
+        log_collector = self._client_with_listener()
         log_collector._call = unittest.mock.AsyncMock(
             return_value=_NotifiableResponse(
                 success=False, error="collector down", error_code=_INTERNAL_CODE
@@ -397,7 +397,7 @@ class TestLogCollectorFailureListener:
     async def test_start_logs_not_found_does_not_notify(self):
         """ErrCodeNotFound = "logs not yet produced" — benign, must not fire
         a MAJOR system event."""
-        log_collector = framework.utils.clients.log_collector.LogCollectorClient()
+        log_collector = self._client_with_listener()
         log_collector._call = unittest.mock.AsyncMock(
             return_value=_NotifiableResponse(
                 success=False, error="run not found", error_code=_NOT_FOUND_CODE
@@ -416,7 +416,7 @@ class TestLogCollectorFailureListener:
         """A failed multi-chunk stream notifies on the first failing chunk
         only — subsequent failing chunks must not re-notify (per-call
         deduplication, distinct from the 60s process-level throttle)."""
-        log_collector = framework.utils.clients.log_collector.LogCollectorClient()
+        log_collector = self._client_with_listener()
         log_collector._call = unittest.mock.AsyncMock(
             return_value=_NotifiableResponse(
                 success=True, error="", error_code=_INTERNAL_CODE
@@ -447,7 +447,7 @@ class TestLogCollectorFailureListener:
 
     @pytest.mark.asyncio
     async def test_get_logs_not_found_chunk_does_not_notify(self):
-        log_collector = framework.utils.clients.log_collector.LogCollectorClient()
+        log_collector = self._client_with_listener()
         log_collector._call = unittest.mock.AsyncMock(
             return_value=GetLogSizeResponse(True, "", 1)
         )
@@ -470,7 +470,7 @@ class TestLogCollectorFailureListener:
 
     @pytest.mark.asyncio
     async def test_get_log_size_failure_notifies(self):
-        log_collector = framework.utils.clients.log_collector.LogCollectorClient()
+        log_collector = self._client_with_listener()
         log_collector._call = unittest.mock.AsyncMock(
             return_value=_NotifiableResponse(
                 success=False, error="kaboom", error_code=_INTERNAL_CODE
@@ -488,7 +488,7 @@ class TestLogCollectorFailureListener:
     async def test_get_log_size_readdirent_retryable_does_not_notify(self):
         """The readdirent transient-error path returns 0 without raising; it
         is self-healing and must not fire a MAJOR event."""
-        log_collector = framework.utils.clients.log_collector.LogCollectorClient()
+        log_collector = self._client_with_listener()
         log_collector._call = unittest.mock.AsyncMock(
             return_value=_NotifiableResponse(
                 success=False,
@@ -505,7 +505,7 @@ class TestLogCollectorFailureListener:
     async def test_stop_logs_failure_does_not_notify(self):
         """Lifecycle RPCs are out of scope per the spec wording 'failed to
         retrieve logs'."""
-        log_collector = framework.utils.clients.log_collector.LogCollectorClient()
+        log_collector = self._client_with_listener()
         log_collector._call = unittest.mock.AsyncMock(
             return_value=BaseLogCollectorResponse(False, "stop failed")
         )
@@ -517,7 +517,7 @@ class TestLogCollectorFailureListener:
 
     @pytest.mark.asyncio
     async def test_delete_logs_failure_does_not_notify(self):
-        log_collector = framework.utils.clients.log_collector.LogCollectorClient()
+        log_collector = self._client_with_listener()
         log_collector._call = unittest.mock.AsyncMock(
             return_value=BaseLogCollectorResponse(False, "delete failed")
         )
@@ -530,15 +530,13 @@ class TestLogCollectorFailureListener:
     @pytest.mark.asyncio
     async def test_failure_listener_raise_is_swallowed(self):
         """A misbehaving listener must not break the underlying RPC."""
-        framework.utils.clients.log_collector._FAILURE_LISTENERS.clear()
 
         def bad_listener(_ctx):
             raise RuntimeError("listener bug")
 
-        framework.utils.clients.log_collector.add_failure_listener(bad_listener)
-
-        log_collector = framework.utils.clients.log_collector.LogCollectorClient()
-        log_collector._call = unittest.mock.AsyncMock(
+        client = framework.utils.clients.log_collector.LogCollectorClient()
+        client.add_failure_listener(bad_listener)
+        client._call = unittest.mock.AsyncMock(
             return_value=_NotifiableResponse(
                 success=False, error="boom", error_code=_INTERNAL_CODE
             )
@@ -547,19 +545,18 @@ class TestLogCollectorFailureListener:
         # The RPC's own failure mode (raise) must still surface; the listener
         # exception is swallowed.
         with pytest.raises(mlrun.errors.MLRunInternalServerError):
-            await log_collector.start_logs(
+            await client.start_logs(
                 run_uid="r1", selector="application=mlrun", project="p1"
             )
 
-    def test_add_failure_listener_is_idempotent(self):
-        framework.utils.clients.log_collector._FAILURE_LISTENERS.clear()
-
+    @pytest.mark.asyncio
+    async def test_add_failure_listener_is_idempotent(self):
+        # Async to ensure we're inside an event loop when LogCollectorClient
+        # is constructed (the gRPC base needs a running loop).
         def listener(_ctx):
             pass
 
-        framework.utils.clients.log_collector.add_failure_listener(listener)
-        framework.utils.clients.log_collector.add_failure_listener(listener)
-        assert (
-            framework.utils.clients.log_collector._FAILURE_LISTENERS.count(listener)
-            == 1
-        )
+        client = framework.utils.clients.log_collector.LogCollectorClient()
+        client.add_failure_listener(listener)
+        client.add_failure_listener(listener)
+        assert client._failure_listeners.count(listener) == 1

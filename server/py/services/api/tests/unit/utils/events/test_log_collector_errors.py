@@ -26,11 +26,22 @@ import services.api.utils.events.log_collector_errors as log_collector_errors
 @pytest.fixture(autouse=True)
 def reset_state(monkeypatch):
     monkeypatch.setattr(log_collector_errors._slot, "_last_emit_monotonic", 0.0)
-    # The listener registry lives on the framework module; tests that touch it
-    # should leave it clean to avoid bleeding registrations across cases.
-    log_collector_client._FAILURE_LISTENERS.clear()
-    yield
-    log_collector_client._FAILURE_LISTENERS.clear()
+
+    # `register_for_log_collector` constructs the LogCollectorClient singleton,
+    # which imports a generated grpc stub module that requires `make schemas`;
+    # stub out the proto wiring so the suite runs without generated protos.
+    # Singleton instances themselves are wiped between tests by the autouse
+    # `config_test_base` fixture in tests/common_fixtures.py, so we don't need
+    # to pop them here.
+    def _stub_proto_init(self):
+        self._log_collector_pb2 = unittest.mock.MagicMock()
+        self._log_collector_pb2_grpc = unittest.mock.MagicMock()
+
+    monkeypatch.setattr(
+        log_collector_client.LogCollectorClient,
+        "_initialize_proto_client_imports",
+        _stub_proto_init,
+    )
 
 
 def _factory_returning(client):
@@ -196,10 +207,9 @@ def test_publish_swallows_factory_exception(monkeypatch):
 def test_register_is_idempotent():
     log_collector_errors.register_for_log_collector()
     log_collector_errors.register_for_log_collector()
+    client = log_collector_client.LogCollectorClient()
     assert (
-        log_collector_client._FAILURE_LISTENERS.count(
-            log_collector_errors._on_log_collector_failure
-        )
+        client._failure_listeners.count(log_collector_errors._on_log_collector_failure)
         == 1
     )
 

@@ -79,10 +79,14 @@ def publish_log_collector_failed(
 
 def register_for_log_collector() -> None:
     """
-    Attach the log-collector failure listener to the framework client. Safe to
-    call multiple times — the framework helper deduplicates by identity.
+    Attach the log-collector failure listener to the (singleton) framework
+    client. Safe to call multiple times — listener deduplication is by
+    identity. Constructing the singleton here means a listener registered
+    before any RPC fires sees every retrieval failure from process start.
     """
-    log_collector_client.add_failure_listener(_on_log_collector_failure)
+    log_collector_client.LogCollectorClient().add_failure_listener(
+        _on_log_collector_failure
+    )
 
 
 def _on_log_collector_failure(context: dict) -> None:

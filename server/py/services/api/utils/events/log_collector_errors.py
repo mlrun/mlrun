@@ -89,7 +89,9 @@ def register_for_log_collector() -> None:
     )
 
 
-def _on_log_collector_failure(context: dict) -> None:
+def _on_log_collector_failure(
+    context: log_collector_client.LogCollectorFailureContext,
+) -> None:
     """
     Failure listener registered on the framework log-collector client.
 
@@ -102,22 +104,22 @@ def _on_log_collector_failure(context: dict) -> None:
         loop = asyncio.get_running_loop()
     except RuntimeError:
         publish_log_collector_failed(
-            operation=context.get("operation"),
-            run_uid=context.get("run_uid"),
-            project=context.get("project"),
-            error=context.get("error"),
-            error_code=context.get("error_code"),
-            error_category=context.get("error_category"),
+            operation=context.operation,
+            run_uid=context.run_uid,
+            project=context.project,
+            error=context.error,
+            error_code=context.error_code,
+            error_category=context.error_category,
         )
         return
     loop.run_in_executor(
         None,
         lambda: publish_log_collector_failed(
-            operation=context.get("operation"),
-            run_uid=context.get("run_uid"),
-            project=context.get("project"),
-            error=context.get("error"),
-            error_code=context.get("error_code"),
-            error_category=context.get("error_category"),
+            operation=context.operation,
+            run_uid=context.run_uid,
+            project=context.project,
+            error=context.error,
+            error_code=context.error_code,
+            error_category=context.error_category,
         ),
     )

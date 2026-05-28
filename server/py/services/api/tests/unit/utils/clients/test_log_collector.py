@@ -360,7 +360,9 @@ class TestLogCollectorFailureListener:
             "_initialize_proto_client_imports",
             _stub_proto_init,
         )
-        self.calls: list[dict] = []
+        self.calls: list[
+            framework.utils.clients.log_collector.LogCollectorFailureContext
+        ] = []
         # NB: construct LogCollectorClient inside each test, not here — the
         # gRPC base client needs a running event loop and this fixture runs
         # outside one.
@@ -387,11 +389,11 @@ class TestLogCollectorFailureListener:
 
         assert len(self.calls) == 1
         ctx = self.calls[0]
-        assert ctx["operation"] == "start_logs"
-        assert ctx["run_uid"] == "r1"
-        assert ctx["project"] == "p1"
-        assert ctx["error_category"] == "start_logs_failed"
-        assert ctx["error_code"] == _INTERNAL_CODE
+        assert ctx.operation == "start_logs"
+        assert ctx.run_uid == "r1"
+        assert ctx.project == "p1"
+        assert ctx.error_category == "start_logs_failed"
+        assert ctx.error_code == _INTERNAL_CODE
 
     @pytest.mark.asyncio
     async def test_start_logs_not_found_does_not_notify(self):
@@ -442,8 +444,8 @@ class TestLogCollectorFailureListener:
             pass
 
         assert len(self.calls) == 1
-        assert self.calls[0]["operation"] == "get_logs"
-        assert self.calls[0]["error_category"] == "get_logs_failed"
+        assert self.calls[0].operation == "get_logs"
+        assert self.calls[0].error_category == "get_logs_failed"
 
     @pytest.mark.asyncio
     async def test_get_logs_not_found_chunk_does_not_notify(self):
@@ -481,8 +483,8 @@ class TestLogCollectorFailureListener:
             await log_collector.get_log_size(run_uid="r1", project="p1")
 
         assert len(self.calls) == 1
-        assert self.calls[0]["operation"] == "get_log_size"
-        assert self.calls[0]["error_category"] == "get_log_size_failed"
+        assert self.calls[0].operation == "get_log_size"
+        assert self.calls[0].error_category == "get_log_size_failed"
 
     @pytest.mark.asyncio
     async def test_get_log_size_readdirent_retryable_does_not_notify(self):

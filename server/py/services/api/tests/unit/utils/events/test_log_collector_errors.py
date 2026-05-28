@@ -234,7 +234,12 @@ def test_listener_dispatch_offloads_to_executor(monkeypatch):
     monkeypatch.setattr(asyncio, "get_running_loop", lambda: fake_loop)
 
     log_collector_errors._on_log_collector_failure(
-        {"operation": "get_logs", "run_uid": "r", "project": "p"}
+        log_collector_client.LogCollectorFailureContext(
+            operation="get_logs",
+            error_category="get_logs_failed",
+            run_uid="r",
+            project="p",
+        )
     )
 
     # Inline publish would block; dispatch must have gone through the executor.
@@ -264,7 +269,12 @@ def test_listener_falls_back_to_inline_when_no_running_loop(monkeypatch):
     monkeypatch.setattr(asyncio, "get_running_loop", raises_no_loop)
 
     log_collector_errors._on_log_collector_failure(
-        {"operation": "start_logs", "run_uid": "r", "project": "p"}
+        log_collector_client.LogCollectorFailureContext(
+            operation="start_logs",
+            error_category="start_logs_failed",
+            run_uid="r",
+            project="p",
+        )
     )
 
     assert len(calls) == 1

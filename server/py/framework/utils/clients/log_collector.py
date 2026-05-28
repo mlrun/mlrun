@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import asyncio
+import dataclasses
 import enum
 import http
 import re
@@ -23,6 +24,26 @@ from mlrun.config import config
 from mlrun.utils import logger
 
 import framework.utils.clients.protocols.grpc
+
+
+@dataclasses.dataclass(frozen=True)
+class LogCollectorFailureContext:
+    """
+    Payload delivered to failure listeners registered on
+    :class:`LogCollectorClient`. Distinct values are passed for the operation
+    that failed and the scope it was invoked with; ``error`` and ``error_code``
+    are best-effort and may be absent on transport-level failures.
+    """
+
+    operation: str
+    error_category: str
+    run_uid: str | None = None
+    project: str | None = None
+    error: BaseException | str | None = None
+    error_code: int | str | None = None
+
+
+LogCollectorFailureListener = typing.Callable[[LogCollectorFailureContext], None]
 
 
 class LogCollectorErrorCode(enum.Enum):
@@ -90,15 +111,15 @@ class LogCollectorClient(
     def __init__(self, address: str | None = None):
         self._initialize_proto_client_imports()
         self.stub_class = self._log_collector_pb2_grpc.LogCollectorStub
-        self._failure_listeners: list[typing.Callable[[dict], None]] = []
+        self._failure_listeners: list[LogCollectorFailureListener] = []
         super().__init__(address=address or mlrun.mlconf.log_collector.address)
 
-    def add_failure_listener(self, listener: typing.Callable[[dict], None]) -> None:
+    def add_failure_listener(self, listener: LogCollectorFailureListener) -> None:
         """
-        Register a callback to be notified when a log-retrieval RPC fails. The
-        callback receives a context dict with at least ``operation`` and the
-        relevant scope keys (``run_uid``, ``project``) and optional ``error`` /
-        ``error_code``. Duplicate registrations (by identity) are ignored.
+        Register a callback to be notified when a log-retrieval RPC fails.
+        The callback receives a :class:`LogCollectorFailureContext` describing
+        the failed operation, its scope, and (best-effort) the underlying
+        error. Duplicate registrations (by identity) are ignored.
 
         :param listener: callable invoked synchronously after each
             retrieval-RPC failure; must not raise. Exceptions are caught and
@@ -108,7 +129,7 @@ class LogCollectorClient(
             return
         self._failure_listeners.append(listener)
 
-    def _notify_failure(self, context: dict) -> None:
+    def _notify_failure(self, context: LogCollectorFailureContext) -> None:
         """Invoke registered failure listeners; never raise."""
         for listener in list(self._failure_listeners):
             try:
@@ -162,14 +183,14 @@ class LogCollectorClient(
         if not response.success:
             if response.errorCode != LogCollectorErrorCode.ErrCodeNotFound.value:
                 self._notify_failure(
-                    {
-                        "operation": "start_logs",
-                        "run_uid": run_uid,
-                        "project": project,
-                        "error": response.errorMessage,
-                        "error_code": response.errorCode,
-                        "error_category": "start_logs_failed",
-                    }
+                    LogCollectorFailureContext(
+                        operation="start_logs",
+                        error_category="start_logs_failed",
+                        run_uid=run_uid,
+                        project=project,
+                        error=response.errorMessage,
+                        error_code=response.errorCode,
+                    )
                 )
             msg = f"Failed to start logs for run {run_uid}"
             if raise_on_error:
@@ -246,14 +267,14 @@ class LogCollectorClient(
                             != LogCollectorErrorCode.ErrCodeNotFound.value
                         ):
                             self._notify_failure(
-                                {
-                                    "operation": "get_logs",
-                                    "run_uid": run_uid,
-                                    "project": project,
-                                    "error": chunk.errorMessage,
-                                    "error_code": chunk.errorCode,
-                                    "error_category": "get_logs_failed",
-                                }
+                                LogCollectorFailureContext(
+                                    operation="get_logs",
+                                    error_category="get_logs_failed",
+                                    run_uid=run_uid,
+                                    project=project,
+                                    error=chunk.errorMessage,
+                                    error_code=chunk.errorCode,
+                                )
                             )
                             notified = True
                         msg = f"Failed to get logs for run {run_uid}"
@@ -275,13 +296,13 @@ class LogCollectorClient(
                 if try_count == config.log_collector.get_logs.max_retries:
                     if not notified:
                         self._notify_failure(
-                            {
-                                "operation": "get_logs",
-                                "run_uid": run_uid,
-                                "project": project,
-                                "error": exc,
-                                "error_category": "get_logs_failed",
-                            }
+                            LogCollectorFailureContext(
+                                operation="get_logs",
+                                error_category="get_logs_failed",
+                                run_uid=run_uid,
+                                project=project,
+                                error=exc,
+                            )
                         )
                         notified = True
                     raise mlrun.errors.err_for_status_code(
@@ -327,14 +348,14 @@ class LogCollectorClient(
 
             if response.errorCode != LogCollectorErrorCode.ErrCodeNotFound.value:
                 self._notify_failure(
-                    {
-                        "operation": "get_log_size",
-                        "run_uid": run_uid,
-                        "project": project,
-                        "error": response.errorMessage,
-                        "error_code": response.errorCode,
-                        "error_category": "get_log_size_failed",
-                    }
+                    LogCollectorFailureContext(
+                        operation="get_log_size",
+                        error_category="get_log_size_failed",
+                        run_uid=run_uid,
+                        project=project,
+                        error=response.errorMessage,
+                        error_code=response.errorCode,
+                    )
                 )
             msg = f"Failed to log file size for {run_uid}"
             if verbose:

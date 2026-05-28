@@ -144,7 +144,9 @@ jobs:
 
     # skip releasing to pypi for feature branches
     # pypi do not allow local version identifier (https://peps.python.org/pep-0440/#local-version-identifiers)
-    if: needs.prepare-inputs.outputs.is_feature_branch == 'false'
+    # TODO REVERT THIS CHANGE BEFORE MERGING
+    #if: needs.prepare-inputs.outputs.is_feature_branch == 'false'
+    if: true
 
     # publishing to artifactory after images are built successfully
     needs: [ prepare-inputs ]

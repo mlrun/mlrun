@@ -30,7 +30,7 @@ Once a feature-set is created, its internal execution graph can be observed by c
 graph. This is very useful when running within a Jupyter notebook, and produces a graph such as the 
 following example:
 
-<br><img src="../_static/images/feature-store-graph.svg" alt="feature-store-graph" width="800"/><br>
+<br><img src="../_static/images/feature-store-graph.png" alt="feature-store-graph" width="800"/><br>
 
 This plot shows various transformations and aggregations being used as part of the feature-set processing, as well as 
 the targets where results are saved to (in this case two targets). Feature-sets can also be observed in the MLRun

@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import unittest.mock
 import uuid
 from datetime import UTC, datetime, timedelta
 
@@ -20,6 +21,7 @@ from fastapi.testclient import TestClient
 from kubernetes import client as k8s_client
 from sqlalchemy.orm import Session
 
+import mlrun
 import mlrun.common.constants as mlrun_constants
 import mlrun.common.schemas
 from mlrun.common.runtimes.constants import PodPhases, RunStates
@@ -724,3 +726,104 @@ class TestMPIjobRuntimeHandler(TestRuntimeHandlerBase):
             "replicaStatuses": {"Launcher": {"failed": 1}, "Worker": {}},
             "conditions": [{"reason": "Some reason", "message": "Some message"}],
         }
+
+
+def _crd_with_completion_offset(offset_seconds: float) -> dict:
+    completion_time = datetime.now(UTC) - timedelta(seconds=offset_seconds)
+    return {
+        "status": {"completionTime": completion_time.isoformat().replace("+00:00", "Z")}
+    }
+
+
+# desired_state is what monitoring wants to apply; current_state is the run's state in the DB.
+# In the ML-12650 race the run is still "running" when monitoring resolves "completed" from the CRD.
+@pytest.mark.parametrize(
+    "desired_state,current_state,results,runtime_resource,expected",
+    [
+        # Not a completed transition - never deferred.
+        (
+            RunStates.running,
+            RunStates.running,
+            {},
+            _crd_with_completion_offset(5),
+            False,
+        ),
+        (RunStates.error, RunStates.running, {}, _crd_with_completion_offset(5), False),
+        # Run already terminal (the logging worker already committed it) - nothing to wait for.
+        (
+            RunStates.completed,
+            RunStates.completed,
+            {},
+            _crd_with_completion_offset(5),
+            False,
+        ),
+        # Results already present - proceed.
+        (
+            RunStates.completed,
+            RunStates.running,
+            {"time": 1.0},
+            _crd_with_completion_offset(5),
+            False,
+        ),
+        # No CRD (e.g. pre-deletion path) - proceed.
+        (RunStates.completed, RunStates.running, {}, None, False),
+        # CRD lacks a completion time - proceed.
+        (RunStates.completed, RunStates.running, {}, {"status": {}}, False),
+        # ML-12650: monitoring wants completed, run still running with no results, within grace - defer.
+        (
+            RunStates.completed,
+            RunStates.running,
+            {},
+            _crd_with_completion_offset(5),
+            True,
+        ),
+        # Grace period elapsed - proceed (do not hang).
+        (
+            RunStates.completed,
+            RunStates.running,
+            {},
+            _crd_with_completion_offset(10_000),
+            False,
+        ),
+    ],
+)
+def test_mpijob_should_wait_for_results(
+    monkeypatch, desired_state, current_state, results, runtime_resource, expected
+):
+    monkeypatch.setattr(mlrun.mlconf.monitoring.runs, "result_settle_grace_seconds", 30)
+    handler = get_runtime_handler(RuntimeKinds.mpijob)
+    run = {"status": {"state": current_state, "results": results}}
+
+    assert (
+        handler._should_wait_for_results(run, desired_state, runtime_resource)
+        is expected
+    )
+
+
+def test_mpijob_ensure_run_state_defers_completed_until_results(monkeypatch):
+    # The deferral path itself: monitoring resolves completed while the run is still running with no
+    # results -> _ensure_run_state must not advance the state and must not write to the DB this cycle.
+    monkeypatch.setattr(mlrun.mlconf.monitoring.runs, "result_settle_grace_seconds", 30)
+    handler = get_runtime_handler(RuntimeKinds.mpijob)
+    run = {
+        "metadata": {"project": "proj", "uid": "uid-1", "labels": {}},
+        "status": {"state": RunStates.running, "results": {}},
+    }
+    db = unittest.mock.MagicMock()
+
+    updated, state, returned_run = handler._ensure_run_state(
+        db,
+        None,
+        project="proj",
+        uid="uid-1",
+        name="trainer",
+        run_state=RunStates.completed,
+        run=run,
+        search_run=False,
+        runtime_resource=_crd_with_completion_offset(5),
+    )
+
+    assert updated is False
+    assert state == RunStates.running  # state not advanced to completed
+    assert returned_run is run
+    db.update_run.assert_not_called()  # no DB write while deferring

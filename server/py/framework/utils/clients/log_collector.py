@@ -96,7 +96,7 @@ class LogCollectorClient(
     """
     gRPC client for the log-collector sidecar.
 
-    Failure listeners (see :meth:`add_failure_listener`) are invoked when a
+    A failure listener (see :meth:`set_failure_listener`) is invoked when a
     log-retrieval RPC (``start_logs``, ``get_logs``, ``get_log_size``)
     hard-fails. Lifecycle and inventory RPCs (``stop_logs``, ``delete_logs``,
     ``list_runs_in_progress``) intentionally do not notify — they are not
@@ -111,34 +111,34 @@ class LogCollectorClient(
     def __init__(self, address: str | None = None):
         self._initialize_proto_client_imports()
         self.stub_class = self._log_collector_pb2_grpc.LogCollectorStub
-        self._failure_listeners: list[LogCollectorFailureListener] = []
+        self._failure_listener: LogCollectorFailureListener | None = None
         super().__init__(address=address or mlrun.mlconf.log_collector.address)
 
-    def add_failure_listener(self, listener: LogCollectorFailureListener) -> None:
+    def set_failure_listener(self, listener: LogCollectorFailureListener) -> None:
         """
-        Register a callback to be notified when a log-retrieval RPC fails.
+        Install the callback to be notified when a log-retrieval RPC fails.
         The callback receives a :class:`LogCollectorFailureContext` describing
         the failed operation, its scope, and (best-effort) the underlying
-        error. Duplicate registrations (by identity) are ignored.
+        error. Calling again replaces the previously installed listener.
 
         :param listener: callable invoked synchronously after each
             retrieval-RPC failure; must not raise. Exceptions are caught and
             logged.
         """
-        if listener in self._failure_listeners:
-            return
-        self._failure_listeners.append(listener)
+        self._failure_listener = listener
 
     def _notify_failure(self, context: LogCollectorFailureContext) -> None:
-        """Invoke registered failure listeners; never raise."""
-        for listener in list(self._failure_listeners):
-            try:
-                listener(context)
-            except Exception as exc:
-                logger.warning(
-                    "Log collector failure listener raised, ignoring",
-                    exc=mlrun.errors.err_to_str(exc),
-                )
+        """Invoke the registered failure listener; never raise."""
+        listener = self._failure_listener
+        if listener is None:
+            return
+        try:
+            listener(context)
+        except Exception as exc:
+            logger.warning(
+                "Log collector failure listener raised, ignoring",
+                exc=mlrun.errors.err_to_str(exc),
+            )
 
     def _initialize_proto_client_imports(self):
         # Importing the proto client classes here and not at the top of the file to avoid raising an import error

@@ -204,16 +204,6 @@ def test_publish_swallows_factory_exception(monkeypatch):
     assert emitted is False
 
 
-def test_register_is_idempotent():
-    log_collector_errors.register_for_log_collector()
-    log_collector_errors.register_for_log_collector()
-    client = log_collector_client.LogCollectorClient()
-    assert (
-        client._failure_listeners.count(log_collector_errors._on_log_collector_failure)
-        == 1
-    )
-
-
 def test_listener_dispatch_offloads_to_executor(monkeypatch):
     """
     The framework client fires `_notify_failure` from an `async def`. The

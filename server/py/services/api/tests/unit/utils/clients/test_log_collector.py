@@ -370,7 +370,7 @@ class TestLogCollectorFailureListener:
     def _client_with_listener(self):
         """Singleton LogCollectorClient with the capture listener attached."""
         client = framework.utils.clients.log_collector.LogCollectorClient()
-        client.add_failure_listener(self.calls.append)
+        client.set_failure_listener(self.calls.append)
         return client
 
     @pytest.mark.asyncio
@@ -537,7 +537,7 @@ class TestLogCollectorFailureListener:
             raise RuntimeError("listener bug")
 
         client = framework.utils.clients.log_collector.LogCollectorClient()
-        client.add_failure_listener(bad_listener)
+        client.set_failure_listener(bad_listener)
         client._call = unittest.mock.AsyncMock(
             return_value=_NotifiableResponse(
                 success=False, error="boom", error_code=_INTERNAL_CODE
@@ -552,13 +552,16 @@ class TestLogCollectorFailureListener:
             )
 
     @pytest.mark.asyncio
-    async def test_add_failure_listener_is_idempotent(self):
+    async def test_set_failure_listener_replaces_prior(self):
         # Async to ensure we're inside an event loop when LogCollectorClient
         # is constructed (the gRPC base needs a running loop).
-        def listener(_ctx):
+        def listener_a(_ctx):
+            pass
+
+        def listener_b(_ctx):
             pass
 
         client = framework.utils.clients.log_collector.LogCollectorClient()
-        client.add_failure_listener(listener)
-        client.add_failure_listener(listener)
-        assert client._failure_listeners.count(listener) == 1
+        client.set_failure_listener(listener_a)
+        client.set_failure_listener(listener_b)
+        assert client._failure_listener is listener_b

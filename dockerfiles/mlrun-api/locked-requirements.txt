@@ -694,9 +694,9 @@ deprecated==1.2.18 \
     # via
     #   -r requirements.txt
     #   igz-mgmt
-distributed==2024.8.0 \
-    --hash=sha256:11af55d22dd6e04eb868b87f166b8f59ef1b300f659f87c016643b7f98280ec6 \
-    --hash=sha256:b99caf0a7f257f59477a70a334e081c1241f7cd9860211cc669742e6450e1310
+distributed==2026.1.0 \
+    --hash=sha256:84bfff6e4e0b27b59e7ef441f818b4e0741040295c74da988f11274e70f62cf4 \
+    --hash=sha256:c78f3acb21ff9504d7c11c3cf55e037fda0663636ac0c011d0d59586d14c2897
     # via
     #   -r extras-requirements.txt
     #   dask-kubernetes
@@ -2182,17 +2182,15 @@ proto-plus==1.28.0 \
     # via
     #   google-api-core
     #   google-cloud-bigquery-storage
-protobuf==6.33.6 \
-    --hash=sha256:0cd27b587afca21b7cfa59a74dcbd48a50f0a6400cfb59391340ad729d91d326 \
-    --hash=sha256:77179e006c476e69bf8e8ce866640091ec42e1beb80b213c3900006ecfba6901 \
-    --hash=sha256:7d29d9b65f8afef196f8334e80d6bc1d5d4adedb449971fefd3723824e6e77d3 \
-    --hash=sha256:9720e6961b251bde64edfdab7d500725a2af5280f3f4c87e57c0208376aa8c3a \
-    --hash=sha256:a6768d25248312c297558af96a9f9c929e8c4cee0659cb07e780731095f38135 \
-    --hash=sha256:bd56799fb262994b2c2faa1799693c95cc2e22c62f56fb43af311cae45d26f0e \
-    --hash=sha256:c96c37eec15086b79762ed265d59ab204dabc53056e3443e702d2681f4b39ce3 \
-    --hash=sha256:e2afbae9b8e1825e3529f88d514754e094278bb95eadc0e199751cdd9a2e82a2 \
-    --hash=sha256:e9db7e292e0ab79dd108d7f1a94fe31601ce1ee3f7b79e0692043423020b0593 \
-    --hash=sha256:f443a394af5ed23672bc6c486be138628fbe5c651ccbc536873d7da23d1868cf
+protobuf==7.35.0 \
+    --hash=sha256:4c4617b83ade0e279d1d2bfe04025a1adb87f9ed657de038620dc0ff959357f6 \
+    --hash=sha256:4cbf5cc286130e06a6c9bbefac442431173906dfcc979712183d4adcc01b37ee \
+    --hash=sha256:66be6c513931c794fa92c080ffee41671390da3d79da219cf9c0c0907f035dda \
+    --hash=sha256:6c0f98f10c8a05ea30f8993dfef2de093d27b490fdae78bb60c8343795d55011 \
+    --hash=sha256:a2efd84605f41e559f1881b0912b44099d0a2ac9bf46b3474823f10fb393b0e6 \
+    --hash=sha256:c13f325cf242bad135c350629eeb5d54b24228eb472fb3e2e9ebbd4c5dc20ca0 \
+    --hash=sha256:f05bcadf9a2a6b8dda047007075135fb7d08c73d9177aabc067e1be46881a201 \
+    --hash=sha256:fcbe42a4ac09d3ec9c987ddfcd956afd0b15f1ff613bd8371bde9405ffd5c8e5
     # via
     #   google-api-core
     #   google-cloud-bigquery-storage

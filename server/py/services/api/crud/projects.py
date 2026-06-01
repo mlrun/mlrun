@@ -25,7 +25,6 @@ import mlrun.common.constants as mlrun_constants
 import mlrun.common.formatters
 import mlrun.common.schemas
 import mlrun.errors
-import mlrun.runtimes.constants
 import mlrun.utils.singleton
 import mlrun_pipelines.client
 from mlrun.utils import logger, retry_until_successful
@@ -547,6 +546,9 @@ class Projects(
             project_to_failed_mm_functions_count,
             project_to_real_time_mep_count,
             project_to_batch_mep_count,
+            _project_to_function_kind_counts,
+            _project_to_alert_config_count,
+            _project_to_workflow_count,
         ) = project_counters
         (
             project_to_recent_completed_pipelines_count,
@@ -668,6 +670,9 @@ class Projects(
             project_to_failed_mm_functions_count,
             project_to_real_time_mep_count,
             project_to_batch_mep_count,
+            project_to_function_kind_counts,
+            project_to_alert_config_count,
+            project_to_workflow_count,
         ) = project_counters
         (
             project_to_recent_completed_pipelines_count,
@@ -699,28 +704,17 @@ class Projects(
                 project=project_name,
             )
 
-            # TODO: source from cache once `get_project_resources_counters` is
-            # extended with per-(project, kind) function counts (ML-16).
-            # Kinds drawn from `RuntimeKinds`; `local`/`handler` are excluded
-            # since they're not deployable inventory items.
-            fn_kinds = mlrun.runtimes.constants.RuntimeKinds
-            for kind in (
-                fn_kinds.job,
-                fn_kinds.nuclio,
-                fn_kinds.remote,
-                fn_kinds.serving,
-                fn_kinds.application,
-                fn_kinds.dask,
-                fn_kinds.spark,
-                fn_kinds.remotespark,
-                fn_kinds.mpijob,
-                fn_kinds.databricks,
+            # `local`/`handler` are excluded since they're not deployable
+            # inventory items; we report whichever kinds the DB actually
+            # contains for this project.
+            for fn_kind, fn_count in project_to_function_kind_counts.get(
+                project_name, ()
             ):
                 telemetry_inventory.set_count(
                     "mlrun_functions",
-                    0,
+                    fn_count,
                     project=project_name,
-                    kind=kind,
+                    kind=fn_kind,
                 )
             telemetry_inventory.set_count(
                 "mlrun_schedules",
@@ -739,20 +733,17 @@ class Projects(
                     kind=kind,
                 )
 
-            # TODO: source from cache once `get_project_resources_counters` is
-            # extended with workflow-definition counts (ML-16).
             telemetry_inventory.set_count(
                 "mlrun_workflows",
-                0,
+                project_to_workflow_count.get(project_name, 0),
                 project=project_name,
             )
 
-            # TODO: source from cache once `get_project_resources_counters` is
-            # extended with alert-configuration counts (ML-16). Distinct from
-            # `mlrun_alert_activations` above, which counts recent activations.
+            # Distinct from `mlrun_alert_activations` below, which counts
+            # recent activations rather than configured alerts.
             telemetry_inventory.set_count(
                 "mlrun_alerts",
-                0,
+                project_to_alert_config_count.get(project_name, 0),
                 project=project_name,
             )
 

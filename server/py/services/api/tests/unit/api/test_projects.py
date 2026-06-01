@@ -1665,6 +1665,68 @@ def test_delete_project_fail_fast(
             )
 
 
+@pytest.mark.parametrize("delete_api_version", ["v1", "v2"])
+@pytest.mark.parametrize(
+    "requester_username, expect_permission_check",
+    [
+        ("project-owner", False),
+        ("someone-else", True),
+    ],
+)
+def test_delete_project_owner_short_circuits_opa_check(
+    unversioned_client: TestClient,
+    mock_project_follower_iguazio_client,
+    mocked_k8s_helper,
+    monkeypatch: pytest.MonkeyPatch,
+    delete_api_version: str,
+    requester_username: str,
+    expect_permission_check: bool,
+) -> None:
+    """When the requester is the project owner, both delete endpoints must skip
+    the OPA permission query and prime the owner cache. Non-owners still go
+    through query_project_permissions and never prime the cache.
+    """
+    owner_username = "project-owner"
+    project = mlrun.common.schemas.Project(
+        metadata=mlrun.common.schemas.ProjectMetadata(name="owned-project"),
+        spec=mlrun.common.schemas.ProjectSpec(owner=owner_username),
+    )
+    response = unversioned_client.post("v1/projects", json=project.dict())
+    assert response.status_code == HTTPStatus.CREATED.value
+
+    auth_verifier = framework.utils.auth.verifier.AuthVerifier()
+    query_project_permissions = AsyncMock()
+    add_allowed_project_for_owner = Mock()
+    monkeypatch.setattr(
+        auth_verifier, "query_project_permissions", query_project_permissions
+    )
+    monkeypatch.setattr(
+        auth_verifier, "add_allowed_project_for_owner", add_allowed_project_for_owner
+    )
+
+    response = unversioned_client.delete(
+        f"{delete_api_version}/projects/{project.metadata.name}",
+        headers={mlrun.common.schemas.HeaderNames.remote_user: requester_username},
+    )
+    assert response.status_code in (
+        HTTPStatus.NO_CONTENT.value,
+        HTTPStatus.ACCEPTED.value,
+    )
+
+    if expect_permission_check:
+        query_project_permissions.assert_awaited_once_with(
+            project.metadata.name,
+            mlrun.common.schemas.AuthorizationAction.delete,
+            unittest.mock.ANY,
+        )
+        add_allowed_project_for_owner.assert_not_called()
+    else:
+        query_project_permissions.assert_not_awaited()
+        add_allowed_project_for_owner.assert_called_once_with(
+            project.metadata.name, unittest.mock.ANY
+        )
+
+
 def test_project_image_builder_validation(
     db: Session,
     client: TestClient,

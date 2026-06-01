@@ -249,9 +249,11 @@ async def delete_project(
         mlrun.mlconf.is_iguazio_v4_mode()
         or not framework.utils.helpers.is_request_from_leader(auth_info.projects_role)
     ):
-        # If the requesting user is the project owner, populate the OPA owner
-        # cache and skip the permissions query. This mitigates the OPA manifest
-        # propagation race on multi-pod deployments.
+        # Owners are trusted via spec.owner; populate the OPA owner cache
+        # and skip the permissions query. This mitigates the OPA manifest
+        # propagation race on multi-pod deployments, and keeps the owner
+        # short-circuit in place for retries / follow-up calls if the
+        # delete fails.
         verifier = framework.utils.auth.verifier.AuthVerifier()
         if verifier.is_project_owner(auth_info, project):
             verifier.add_allowed_project_for_owner(name, auth_info)

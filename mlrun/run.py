@@ -1342,12 +1342,12 @@ def get_model_monitoring_url(project: str | None = None) -> str | None:
     url = mlrun.get_secret_or_env(env_var)
     if url:
         if project is not None:
-            hostname = urllib.parse.urlparse(url).hostname or ""
-            if project not in hostname.split("."):
+            cached_project = _extract_project_from_stream_url(url)
+            if cached_project != project:
                 logger.warning(
                     "Cached model monitoring URL belongs to a different project; "
                     "refreshing from the MLRun API for the requested project",
-                    cached_hostname=hostname,
+                    cached_project=cached_project,
                     requested_project=project,
                 )
                 url = mlrun.db.get_run_db().get_model_monitoring_url(project)
@@ -1364,6 +1364,30 @@ def get_model_monitoring_url(project: str | None = None) -> str | None:
     if url:
         os.environ[env_var] = url
     return url
+
+
+def _extract_project_from_stream_url(url: str) -> str | None:
+    """
+    Parse the project name from a model-monitoring stream nuclio service URL.
+
+    Expects the nuclio service-name pattern
+    ``nuclio-<project>-model-monitoring-stream.<namespace>.svc.cluster.local:<port>``.
+    Returns ``None`` if the URL doesn't match — e.g. the service name was
+    truncated and hash-suffixed because ``<project>`` is long enough to push
+    the DNS label past the 63-char limit. Callers treat ``None`` as a
+    mismatch and refresh from the MLRun API.
+    """
+    hostname = urllib.parse.urlparse(url).hostname or ""
+    service_name = hostname.split(".", 1)[0]
+    prefix = "nuclio-"
+    suffix = f"-{mm_constants.MonitoringFunctionNames.STREAM}"
+    if not (
+        service_name.startswith(prefix)
+        and service_name.endswith(suffix)
+        and len(service_name) > len(prefix) + len(suffix)
+    ):
+        return None
+    return service_name[len(prefix) : -len(suffix)]
 
 
 def _ensure_path_confined_to_base_dir(

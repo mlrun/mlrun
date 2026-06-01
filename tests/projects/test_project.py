@@ -1000,7 +1000,7 @@ def test_set_function_from_object_override_tag():
     assert func.metadata.tag == "v3"
 
 
-def test_set_function_with_relative_path(context):
+def test_set_function_with_relative_path():
     project = mlrun.new_project("inline", context=str(assets_path()), save=False)
 
     project.set_function(
@@ -2502,8 +2502,8 @@ def test_unauthenticated_git_action_with_remote_pristine(mock_git_repo):
     project.spec.repo.remotes["origin"].set_url.assert_not_called()
 
 
-def test_get_or_create_project_no_db():
-    mlrun.mlconf.dbpath = ""
+def test_get_or_create_project_no_db(monkeypatch):
+    monkeypatch.setattr(mlrun.mlconf, "dbpath", "")
     project_name = "project-name"
     project = mlrun.get_or_create_project(project_name, allow_cross_project=True)
     assert project.name == project_name
@@ -2754,8 +2754,9 @@ def test_create_api_gateway_valid(
     canary,
     upstreams,
     authentication_mode,
+    monkeypatch,
 ):
-    mlrun.mlconf.igz_version = "3.6.0"
+    monkeypatch.setattr(mlrun.mlconf, "igz_version", "3.6.0")
     patched_create_api_gateway.return_value = mlrun.common.schemas.APIGateway(
         metadata=mlrun.common.schemas.APIGatewayMetadata(
             name="new-gw",
@@ -3299,8 +3300,10 @@ def test_run_project_sync_functions_fails_silently(rundb_mock):
         (None, True),
     ],
 )
-def test_run_remote_engine_not_syncing_functions(rundb_mock, engine, should_call):
-    mlrun.mlconf.force_run_local = False
+def test_run_remote_engine_not_syncing_functions(
+    rundb_mock, engine, should_call, monkeypatch
+):
+    monkeypatch.setattr(mlrun.mlconf, "force_run_local", False)
     proj = mlrun.new_project("proj", save=False)
     proj.spec._function_definitions = {
         "prep-data": {

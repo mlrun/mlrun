@@ -591,6 +591,11 @@ default_config = {
             "kaniko_image_push_retry": "3",
             # additional docker build args in json encoded base64 format
             "build_args": "",
+            # labels to be applied to builder pods - json string base64 encoded format.
+            # used (for example) to attach the azure.workload.identity/use label so the Azure
+            # workload-identity webhook injects credentials into the builder pod for pushing to ACR.
+            # system-assigned mlrun/* labels take precedence over these.
+            "pod_labels": "e30=",
             "pip_ca_secret_name": "",
             "pip_ca_secret_key": "",
             "pip_ca_path": "/etc/ssl/certs/mlrun/pip-ca-certificates.crt",
@@ -1180,6 +1185,11 @@ class Config:
             "default_function_pod_labels", dict
         )
 
+    def get_builder_pod_labels(self) -> dict:
+        return self.decode_base64_config_and_load_to_object(
+            "httpdb.builder.pod_labels", dict
+        )
+
     def get_preemptible_node_selector(self) -> dict:
         return self.decode_base64_config_and_load_to_object(
             "preemptible_nodes.node_selector", dict
@@ -1635,6 +1645,8 @@ def _validate_config(config):
     # Fail-fast on malformed base64/JSON in default_function_pod_labels so the
     # API pod doesn't start with config that would crash every function deploy.
     config.get_default_function_pod_labels()
+    # Fail-fast on malformed base64/JSON in the builder pod labels for the same reason.
+    config.get_builder_pod_labels()
 
 
 def _verify_gpu_requests_and_limits(

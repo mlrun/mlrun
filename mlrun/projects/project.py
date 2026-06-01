@@ -402,12 +402,16 @@ def load_project(
     from_db = False
     if url:
         url = str(url)  # to support path objects
+        is_db_bound = url.startswith("db://") or (
+            "://" not in url and not is_yaml_path(url)
+        )
+        if mlrun.client.get_active_client() is not None and not is_db_bound:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Loading a project from a yaml, git, or archive URL is not "
+                "supported inside client.session(); use a 'db://' URL or "
+                "pass the project name."
+            )
         if is_yaml_path(url):
-            if mlrun.client.get_active_client() is not None:
-                raise mlrun.errors.MLRunInvalidArgumentError(
-                    "Loading a project from a local yaml file is not supported "
-                    "inside client.session(); load from the DB instead."
-                )
             project = _load_project_file(url, name, secrets, allow_cross_project)
             project.spec.context = context
         elif url.startswith("git://"):
@@ -436,9 +440,9 @@ def load_project(
 
     if not project:
         if mlrun.client.get_active_client() is not None:
-            raise mlrun.errors.MLRunNotFoundError(
-                f"Project '{name}' not found in DB and disk fallback is "
-                "disabled inside client.session()."
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"Cannot load project '{name}' inside client.session() without "
+                "a 'db://' URL or a project name resolvable from the DB."
             )
         project = _load_project_dir(context, name, subpath, allow_cross_project)
 

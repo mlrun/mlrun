@@ -1328,7 +1328,9 @@ def get_model_monitoring_url(project: str | None = None) -> str | None:
     is not set, fetches the URL from the MLRun API and caches it in the environment for
     subsequent calls.
 
-    :param project: optional name of the project, if not provided will use active project
+    :param project: optional name of the project, if not provided will use active project.
+        If the cached URL belongs to a different project, the cache is refreshed from the
+        MLRun API for the requested project (a warning is logged).
     :return: HTTP URL of the model monitoring stream pod, or None if no HTTP trigger is configured.
         A non-ready stream pod still returns its URL — the URL may not be reachable until
         the pod becomes ready (a warning is logged on the server side).
@@ -1342,9 +1344,15 @@ def get_model_monitoring_url(project: str | None = None) -> str | None:
         if project is not None:
             hostname = urllib.parse.urlparse(url).hostname or ""
             if project not in hostname.split("."):
-                raise mlrun.errors.MLRunInvalidArgumentError(
-                    f"Cached model monitoring URL does not match the provided project: {project}."
+                logger.warning(
+                    "Cached model monitoring URL belongs to a different project; "
+                    "refreshing from the MLRun API for the requested project",
+                    cached_hostname=hostname,
+                    requested_project=project,
                 )
+                url = mlrun.db.get_run_db().get_model_monitoring_url(project)
+                if url:
+                    os.environ[env_var] = url
         return url
     if project is None:
         project = mlrun.get_secret_or_env("MLRUN_ACTIVE_PROJECT")

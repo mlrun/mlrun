@@ -634,16 +634,27 @@ class TestGetModelMonitoringUrl:
         assert url is None
         assert self._ENV_VAR not in os.environ
 
-    def test_raises_when_cached_url_project_mismatch(
+    def test_refreshes_cache_when_cached_url_project_mismatch(
         self, monkeypatch: pytest.MonkeyPatch
     ):
-        """MLRunInvalidArgumentError is raised when the cached URL belongs to a different project."""
+        """When the cached URL belongs to a different project the cache is refreshed from the DB and a warning is
+        logged."""
         os.environ[self._ENV_VAR] = (
             "http://model-monitoring-stream.other-project.svc.cluster.local:8080"
         )
+        refreshed = "http://model-monitoring-stream.my-project.svc.cluster.local:8080"
+        mock_db = unittest.mock.MagicMock()
+        mock_db.get_model_monitoring_url.return_value = refreshed
+        monkeypatch.setattr(mlrun.db, "get_run_db", lambda: mock_db)
 
-        with pytest.raises(mlrun.errors.MLRunInvalidArgumentError, match="my-project"):
-            mlrun.get_model_monitoring_url(project="my-project")
+        with unittest.mock.patch("mlrun.run.logger") as mock_logger:
+            url = mlrun.get_model_monitoring_url(project="my-project")
+
+        assert url == refreshed
+        assert os.environ[self._ENV_VAR] == refreshed
+        mock_db.get_model_monitoring_url.assert_called_once_with("my-project")
+        mock_logger.warning.assert_called_once()
+        assert "my-project" in str(mock_logger.warning.call_args)
 
     def test_no_error_when_cached_url_matches_project(
         self, monkeypatch: pytest.MonkeyPatch
@@ -659,13 +670,20 @@ class TestGetModelMonitoringUrl:
     def test_no_false_positive_for_project_name_prefix(
         self, monkeypatch: pytest.MonkeyPatch
     ):
-        """'project' must not match a URL whose namespace is 'project-1' (substring false positive)."""
+        """'project' must not match a URL whose namespace is 'project-1' (substring false positive) —
+        cache is refreshed instead."""
         os.environ[self._ENV_VAR] = (
             "http://model-monitoring-stream.project-1.svc.cluster.local:8080"
         )
+        refreshed = "http://model-monitoring-stream.project.svc.cluster.local:8080"
+        mock_db = unittest.mock.MagicMock()
+        mock_db.get_model_monitoring_url.return_value = refreshed
+        monkeypatch.setattr(mlrun.db, "get_run_db", lambda: mock_db)
 
-        with pytest.raises(mlrun.errors.MLRunInvalidArgumentError, match="project"):
-            mlrun.get_model_monitoring_url(project="project")
+        url = mlrun.get_model_monitoring_url(project="project")
+
+        assert url == refreshed
+        mock_db.get_model_monitoring_url.assert_called_once_with("project")
 
     def test_uses_active_project_when_no_project_given(
         self, monkeypatch: pytest.MonkeyPatch

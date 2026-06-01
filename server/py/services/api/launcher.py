@@ -242,7 +242,9 @@ class ServerSideLauncher(launcher.BaseLauncher):
 
         # Merge code-artifact reqs before requires_build() so the build decision
         # accounts for them.
-        mlrun.run.enrich_function_from_code_artifact(runtime, runtime.metadata.project)
+        mlrun.runtimes.utils.enrich_function_from_code_artifact(
+            runtime, runtime.metadata.project
+        )
 
         if (
             not runtime.spec.image

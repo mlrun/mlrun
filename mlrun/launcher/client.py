@@ -24,6 +24,7 @@ import mlrun.model
 import mlrun.run
 import mlrun.runtime_configuration_context
 import mlrun.runtimes
+import mlrun.runtimes.utils
 import mlrun.utils
 import mlrun.utils.version
 
@@ -47,8 +48,11 @@ class ClientBaseLauncher(launcher.BaseLauncher, abc.ABC):
 
         # Shift image -> base_image only when artifact reqs were just merged,
         # so is_deployed() doesn't short-circuit to True before auto_build.
-        if runtime.metadata.project and mlrun.run.enrich_function_from_code_artifact(
-            runtime, runtime.metadata.project
+        if (
+            runtime.metadata.project
+            and mlrun.runtimes.utils.enrich_function_from_code_artifact(
+                runtime, runtime.metadata.project
+            )
         ):
             runtime.prepare_image_for_deploy()
 

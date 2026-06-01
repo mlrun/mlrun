@@ -80,15 +80,13 @@ When running locally (`fn.run(local=True)`), the client resolves the artifact an
 When the source is a `store://` code artifact, the `handler` argument must be in `"<module>:<function>"` form:
 
 ```python
-artifact = project.log_code_file(
-    "my_func_code", local_path="./my_func.py"
-)
+artifact = project.log_code_file("my_func_code", local_path="./my_func.py")
 
 fn = project.set_function(
     func=artifact.uri,
     name="my_func",
     kind="job",
-    handler="my_func:main",   # <module>:<function>
+    handler="my_func:main",  # <module>:<function>
 )
 fn.run()
 ```
@@ -98,15 +96,13 @@ The module segment is the file's basename without the `.py` extension. The colon
 When the artifact is an archive (`.zip` / `.tar.gz`), the module segment refers to a file **inside the extracted archive**, not to the archive itself. For example, if `my_pkg.zip` extracts to `trainer.py` and `utils.py`, the handler is `"trainer:main"` — not `"my_pkg:main"`:
 
 ```python
-artifact = project.log_code_file(
-    "my_pkg_code", local_path="./my_pkg.zip"
-)
+artifact = project.log_code_file("my_pkg_code", local_path="./my_pkg.zip")
 
 fn = project.set_function(
     func=artifact.uri,
     name="trainer",
     kind="job",
-    handler="trainer:main",   # file inside the archive, not "my_pkg"
+    handler="trainer:main",  # file inside the archive, not "my_pkg"
 )
 ```
 

@@ -1147,6 +1147,7 @@ class ServingRuntime(nuclio_function.RemoteRuntime):
     def set_openai_frontend(
         self,
         endpoints: list[mlrun.serving.openai_mappings.OpenAIEndpoint] | None = None,
+        prefix: str | None = None,
     ) -> None:
         """Wire up OpenAI-compatible API handler endpoints in one call.
 
@@ -1160,14 +1161,24 @@ class ServingRuntime(nuclio_function.RemoteRuntime):
 
         :param endpoints: Optional list of :class:`~mlrun.serving.openai_mappings.OpenAIEndpoint`
             values selecting which operation groups to enable. Defaults to all groups.
+        :param prefix: Optional path prefix to prepend to every registered endpoint path.
+            Use this when clients send requests with a path prefix (e.g. ``prefix="/v1"``
+            registers ``/v1/chat/completions`` instead of ``/chat/completions``).
+            Defaults to ``None`` (no prefix).
 
         Example::
 
             from mlrun.serving.openai_mappings import OpenAIEndpoint
 
-            fn.set_openai_frontend()  # all groups
-            fn.set_openai_frontend([OpenAIEndpoint.RESPONSES])  # Responses only
+            fn.set_openai_frontend()  # all groups, no prefix
+            fn.set_openai_frontend(prefix="/v1")  # all groups, /v1/ prefix
+            fn.set_openai_frontend([OpenAIEndpoint.RESPONSES], prefix="/v1")
         """
+
+        if prefix is not None and not prefix.startswith("/"):
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"OpenAI API prefix must start with '/': {prefix!r}"
+            )
 
         existing = self.spec.api_handler_config
         config = (
@@ -1183,6 +1194,8 @@ class ServingRuntime(nuclio_function.RemoteRuntime):
             for ep in mlrun.serving.openai_mappings.ENDPOINT_CLASSES[
                 ep_group
             ].endpoints():
+                if prefix:
+                    ep.path = prefix + ep.path
                 config.add_endpoint_config(ep)
 
         self.set_api_handler_config(config)

@@ -3997,9 +3997,7 @@ def test_create_user_model_endpoint_monitoring_mode_default(mock_create, context
     project.create_user_model_endpoint("ep1")
 
     endpoint_arg = mock_create.call_args[1]["model_endpoint"]
-    assert (
-        endpoint_arg.status.monitoring_mode == mm_consts.ModelMonitoringMode.enabled
-    )
+    assert endpoint_arg.status.monitoring_mode == mm_consts.ModelMonitoringMode.enabled
 
 
 @unittest.mock.patch.object(mlrun.db.nopdb.NopDB, "create_model_endpoint")
@@ -4014,9 +4012,7 @@ def test_create_user_model_endpoint_monitoring_mode_from_param(mock_create, cont
     )
 
     endpoint_arg = mock_create.call_args[1]["model_endpoint"]
-    assert (
-        endpoint_arg.status.monitoring_mode == mm_consts.ModelMonitoringMode.disabled
-    )
+    assert endpoint_arg.status.monitoring_mode == mm_consts.ModelMonitoringMode.disabled
 
 
 @unittest.mock.patch.object(mlrun.db.nopdb.NopDB, "create_model_endpoint")
@@ -4038,9 +4034,7 @@ def test_create_user_model_endpoint_monitoring_mode_from_instruction(
     project.create_user_model_endpoint(model_endpoint_instruction=instruction)
 
     endpoint_arg = mock_create.call_args[1]["model_endpoint"]
-    assert (
-        endpoint_arg.status.monitoring_mode == mm_consts.ModelMonitoringMode.disabled
-    )
+    assert endpoint_arg.status.monitoring_mode == mm_consts.ModelMonitoringMode.disabled
 
 
 def test_create_user_model_endpoint_monitoring_mode_with_instruction_conflicts(

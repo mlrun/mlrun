@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""B: project.yaml opt-out under ``client.session()``."""
+"""project.yaml opt-out under ``client.session()``"""
 
 from __future__ import annotations
 

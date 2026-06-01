@@ -9,7 +9,6 @@ You can apply this method to the project object or the context object when loggi
 - [Log Plotly artifacts](#log-plotly-artifacts)
 - [Log directory artifacts](#log-directory-artifacts)
 - [Log dataset artifacts](#log-dataset-artifacts)
-- [Log a code artifact](#log-a-code-artifact)
 
 **See also**
 - {ref}`working-with-data-and-model-artifacts`
@@ -97,17 +96,3 @@ dataset_artifact = project.log_dataset(key="to-index", df=data)
 dataset_artifact.uri
 ```
 See a full example in {ref}`working-with-rag`.
-
-## Log a code artifact
-Use {py:meth}`~mlrun.projects.MlrunProject.log_code_file` to log a Python file or archive that will later be used as a function or workflow source:
-
-```python
-artifact = project.log_code_file(
-    "my_func_code",
-    local_path="./my_func.py",
-    code_type="function",
-    requirements=["pandas>=2.0"],
-)
-```
-
-See {ref}`code-artifacts` for the full how-to, including running functions and workflows from `store://` URIs.

@@ -96,14 +96,17 @@ class LogCollectorClient(
     """
     gRPC client for the log-collector sidecar.
 
-    A failure listener (see :meth:`set_failure_listener`) is invoked when a
-    log-retrieval RPC (``start_logs``, ``get_logs``, ``get_log_size``)
-    hard-fails. Lifecycle and inventory RPCs (``stop_logs``, ``delete_logs``,
-    ``list_runs_in_progress``) intentionally do not notify — they are not
-    "failed to retrieve logs" per the event spec. This hook is the only
-    inbound coupling from telemetry: keeping it out of the data path lets
-    ``services.api.utils.events`` register a publisher without the framework
-    layer depending on services-layer modules.
+    A failure listener (see :meth:`set_failure_listener`) is invoked when
+    ``get_logs`` *terminally* fails to retrieve a run's logs — either because
+    the log-size pre-check gives up or the streaming retries are exhausted.
+    Transient single-attempt failures (e.g. pods not yet scheduled) are
+    retried internally and do not notify, and other RPCs (``start_logs``,
+    standalone ``get_log_size``, ``stop_logs``, ``delete_logs``,
+    ``list_runs_in_progress``) intentionally do not notify either — they are
+    not the "could not retrieve logs" signal the event represents. This hook
+    is the only inbound coupling from telemetry: keeping it out of the data
+    path lets ``services.api.utils.events`` register a publisher without the
+    framework layer depending on services-layer modules.
     """
 
     name = "log_collector"
@@ -181,17 +184,6 @@ class LogCollectorClient(
         )
         response = await self._call("StartLog", request)
         if not response.success:
-            if response.errorCode != LogCollectorErrorCode.ErrCodeNotFound.value:
-                self._notify_failure(
-                    LogCollectorFailureContext(
-                        operation="start_logs",
-                        error_category="start_logs_failed",
-                        run_uid=run_uid,
-                        project=project,
-                        error=response.errorMessage,
-                        error_code=response.errorCode,
-                    )
-                )
             msg = f"Failed to start logs for run {run_uid}"
             if raise_on_error:
                 raise LogCollectorErrorCode.map_error_code_to_mlrun_error(
@@ -241,6 +233,18 @@ class LogCollectorClient(
                 "Failed to check if run has logs to collect", run_uid=run_uid
             )
             if raise_on_error:
+                # Terminal failure of the retrieval: we couldn't even determine
+                # whether the run has logs. Surface the system event before
+                # propagating.
+                self._notify_failure(
+                    LogCollectorFailureContext(
+                        operation="get_logs",
+                        error_category="get_logs_failed",
+                        run_uid=run_uid,
+                        project=project,
+                        error=exc,
+                    )
+                )
                 raise mlrun.errors.MLRunInternalServerError(
                     f"Failed to check if run has logs to collect for {run_uid}. exception= {exc}"
                 )
@@ -255,28 +259,11 @@ class LogCollectorClient(
         # retry calling the server, it can fail in case the log-collector hasn't started collecting logs for this yet
         # TODO: add async retry function
         try_count = 0
-        notified = False
         while True:
             try:
                 response_stream = self._call_stream("GetLogs", request)
                 async for chunk in response_stream:
                     if not chunk.success:
-                        if (
-                            not notified
-                            and chunk.errorCode
-                            != LogCollectorErrorCode.ErrCodeNotFound.value
-                        ):
-                            self._notify_failure(
-                                LogCollectorFailureContext(
-                                    operation="get_logs",
-                                    error_category="get_logs_failed",
-                                    run_uid=run_uid,
-                                    project=project,
-                                    error=chunk.errorMessage,
-                                    error_code=chunk.errorCode,
-                                )
-                            )
-                            notified = True
                         msg = f"Failed to get logs for run {run_uid}"
                         if raise_on_error:
                             raise LogCollectorErrorCode.map_error_code_to_mlrun_error(
@@ -294,17 +281,19 @@ class LogCollectorClient(
                     exc=mlrun.errors.err_to_str(exc),
                 )
                 if try_count == config.log_collector.get_logs.max_retries:
-                    if not notified:
-                        self._notify_failure(
-                            LogCollectorFailureContext(
-                                operation="get_logs",
-                                error_category="get_logs_failed",
-                                run_uid=run_uid,
-                                project=project,
-                                error=exc,
-                            )
+                    # Retries exhausted — this is the terminal "could not
+                    # retrieve logs" signal support cares about. Transient
+                    # single-attempt failures were retried above and do not
+                    # reach here.
+                    self._notify_failure(
+                        LogCollectorFailureContext(
+                            operation="get_logs",
+                            error_category="get_logs_failed",
+                            run_uid=run_uid,
+                            project=project,
+                            error=exc,
                         )
-                        notified = True
+                    )
                     raise mlrun.errors.err_for_status_code(
                         http.HTTPStatus.INTERNAL_SERVER_ERROR.value,
                         mlrun.errors.err_to_str(exc),
@@ -346,17 +335,6 @@ class LogCollectorClient(
                     )
                 return 0
 
-            if response.errorCode != LogCollectorErrorCode.ErrCodeNotFound.value:
-                self._notify_failure(
-                    LogCollectorFailureContext(
-                        operation="get_log_size",
-                        error_category="get_log_size_failed",
-                        run_uid=run_uid,
-                        project=project,
-                        error=response.errorMessage,
-                        error_code=response.errorCode,
-                    )
-                )
             msg = f"Failed to log file size for {run_uid}"
             if verbose:
                 logger.warning(msg, error=response.errorMessage)

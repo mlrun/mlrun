@@ -374,7 +374,107 @@ class TestLogCollectorFailureListener:
         return client
 
     @pytest.mark.asyncio
-    async def test_start_logs_failure_notifies(self):
+    async def test_get_logs_retries_exhausted_notifies(self, monkeypatch):
+        """The terminal signal: GetLogs streaming fails past the retry budget.
+        Exactly one event, tagged get_logs_failed."""
+        # Don't actually sleep between retries.
+        monkeypatch.setattr(
+            framework.utils.clients.log_collector.asyncio,
+            "sleep",
+            unittest.mock.AsyncMock(),
+        )
+        log_collector = self._client_with_listener()
+        # GetLogSize pre-check succeeds with logs present...
+        log_collector._call = unittest.mock.AsyncMock(
+            return_value=GetLogSizeResponse(True, "", 1)
+        )
+        # ...then every GetLogs attempt blows up until retries are exhausted.
+        log_collector._call_stream = unittest.mock.MagicMock(
+            side_effect=RuntimeError("connection lost")
+        )
+
+        with pytest.raises(mlrun.errors.MLRunInternalServerError):
+            async for _ in log_collector.get_logs(run_uid="r1", project="p1"):
+                pass
+
+        assert len(self.calls) == 1
+        ctx = self.calls[0]
+        assert ctx.operation == "get_logs"
+        assert ctx.run_uid == "r1"
+        assert ctx.project == "p1"
+        assert ctx.error_category == "get_logs_failed"
+
+    @pytest.mark.asyncio
+    async def test_get_logs_transient_failure_then_success_does_not_notify(
+        self, monkeypatch
+    ):
+        """A single transient GetLogs failure that recovers on retry is NOT a
+        "could not retrieve logs" event — the whole point of narrowing to the
+        retry-exhaust signal."""
+        monkeypatch.setattr(
+            framework.utils.clients.log_collector.asyncio,
+            "sleep",
+            unittest.mock.AsyncMock(),
+        )
+        log_collector = self._client_with_listener()
+        log_collector._call = unittest.mock.AsyncMock(
+            return_value=GetLogSizeResponse(True, "", 1)
+        )
+        # First attempt raises, second yields a healthy chunk.
+        good_stream = GetLogsResponse(True, "", b"some log", 1)
+        log_collector._call_stream = unittest.mock.MagicMock(
+            side_effect=[RuntimeError("transient"), good_stream]
+        )
+
+        logs = [
+            chunk async for chunk in log_collector.get_logs(run_uid="r1", project="p1")
+        ]
+
+        assert logs == [b"some log"]
+        assert self.calls == []
+
+    @pytest.mark.asyncio
+    async def test_get_logs_log_size_failure_notifies(self):
+        """If the GetLogSize pre-check fails hard, get_logs terminally gives up
+        before the retry loop — that still counts as failing to retrieve."""
+        log_collector = self._client_with_listener()
+        log_collector._call = unittest.mock.AsyncMock(
+            return_value=_NotifiableResponse(
+                success=False, error="kaboom", error_code=_INTERNAL_CODE
+            )
+        )
+
+        with pytest.raises(mlrun.errors.MLRunInternalServerError):
+            async for _ in log_collector.get_logs(run_uid="r1", project="p1"):
+                pass
+
+        assert len(self.calls) == 1
+        ctx = self.calls[0]
+        assert ctx.operation == "get_logs"
+        assert ctx.error_category == "get_logs_failed"
+
+    @pytest.mark.asyncio
+    async def test_get_logs_log_size_not_found_does_not_notify(self):
+        """A NotFound from the GetLogSize pre-check surfaces as
+        MLRunNotFoundError, which get_logs does not treat as a retrieval
+        failure — no event."""
+        log_collector = self._client_with_listener()
+        log_collector._call = unittest.mock.AsyncMock(
+            return_value=_NotifiableResponse(
+                success=False, error="run not found", error_code=_NOT_FOUND_CODE
+            )
+        )
+
+        with pytest.raises(mlrun.errors.MLRunNotFoundError):
+            async for _ in log_collector.get_logs(run_uid="r1", project="p1"):
+                pass
+
+        assert self.calls == []
+
+    @pytest.mark.asyncio
+    async def test_start_logs_failure_does_not_notify(self):
+        """start_logs is collection-initiation, not retrieval — it does not
+        fire the event even when it fails."""
         log_collector = self._client_with_listener()
         log_collector._call = unittest.mock.AsyncMock(
             return_value=_NotifiableResponse(
@@ -387,91 +487,12 @@ class TestLogCollectorFailureListener:
                 run_uid="r1", selector="application=mlrun", project="p1"
             )
 
-        assert len(self.calls) == 1
-        ctx = self.calls[0]
-        assert ctx.operation == "start_logs"
-        assert ctx.run_uid == "r1"
-        assert ctx.project == "p1"
-        assert ctx.error_category == "start_logs_failed"
-        assert ctx.error_code == _INTERNAL_CODE
-
-    @pytest.mark.asyncio
-    async def test_start_logs_not_found_does_not_notify(self):
-        """ErrCodeNotFound = "logs not yet produced" — benign, must not fire
-        a MAJOR system event."""
-        log_collector = self._client_with_listener()
-        log_collector._call = unittest.mock.AsyncMock(
-            return_value=_NotifiableResponse(
-                success=False, error="run not found", error_code=_NOT_FOUND_CODE
-            )
-        )
-
-        with pytest.raises(mlrun.errors.MLRunNotFoundError):
-            await log_collector.start_logs(
-                run_uid="r1", selector="application=mlrun", project="p1"
-            )
-
         assert self.calls == []
 
     @pytest.mark.asyncio
-    async def test_get_logs_chunk_failure_notifies_once(self):
-        """A failed multi-chunk stream notifies on the first failing chunk
-        only — subsequent failing chunks must not re-notify (per-call
-        deduplication, distinct from the 60s process-level throttle)."""
-        log_collector = self._client_with_listener()
-        log_collector._call = unittest.mock.AsyncMock(
-            return_value=_NotifiableResponse(
-                success=True, error="", error_code=_INTERNAL_CODE
-            )
-        )
-        # GetLogSize succeeds with size>0, then GetLogs stream yields 3 failing chunks.
-        size_response = GetLogSizeResponse(True, "", 1)
-        get_logs_stream = _NotifiableResponse(
-            success=False,
-            error="stream broken",
-            error_code=_INTERNAL_CODE,
-            logs=b"",
-            total_calls=3,
-        )
-        log_collector._call = unittest.mock.AsyncMock(return_value=size_response)
-        log_collector._call_stream = unittest.mock.MagicMock(
-            return_value=get_logs_stream
-        )
-
-        async for _ in log_collector.get_logs(
-            run_uid="r1", project="p1", raise_on_error=False
-        ):
-            pass
-
-        assert len(self.calls) == 1
-        assert self.calls[0].operation == "get_logs"
-        assert self.calls[0].error_category == "get_logs_failed"
-
-    @pytest.mark.asyncio
-    async def test_get_logs_not_found_chunk_does_not_notify(self):
-        log_collector = self._client_with_listener()
-        log_collector._call = unittest.mock.AsyncMock(
-            return_value=GetLogSizeResponse(True, "", 1)
-        )
-        log_collector._call_stream = unittest.mock.MagicMock(
-            return_value=_NotifiableResponse(
-                success=False,
-                error="logs not yet collected",
-                error_code=_NOT_FOUND_CODE,
-                logs=b"",
-                total_calls=1,
-            )
-        )
-
-        async for _ in log_collector.get_logs(
-            run_uid="r1", project="p1", raise_on_error=False
-        ):
-            pass
-
-        assert self.calls == []
-
-    @pytest.mark.asyncio
-    async def test_get_log_size_failure_notifies(self):
+    async def test_standalone_get_log_size_failure_does_not_notify(self):
+        """A direct get_log_size call (outside get_logs) does not emit — the
+        event fires at the get_logs orchestration level only."""
         log_collector = self._client_with_listener()
         log_collector._call = unittest.mock.AsyncMock(
             return_value=_NotifiableResponse(
@@ -482,25 +503,6 @@ class TestLogCollectorFailureListener:
         with pytest.raises(mlrun.errors.MLRunInternalServerError):
             await log_collector.get_log_size(run_uid="r1", project="p1")
 
-        assert len(self.calls) == 1
-        assert self.calls[0].operation == "get_log_size"
-        assert self.calls[0].error_category == "get_log_size_failed"
-
-    @pytest.mark.asyncio
-    async def test_get_log_size_readdirent_retryable_does_not_notify(self):
-        """The readdirent transient-error path returns 0 without raising; it
-        is self-healing and must not fire a MAJOR event."""
-        log_collector = self._client_with_listener()
-        log_collector._call = unittest.mock.AsyncMock(
-            return_value=_NotifiableResponse(
-                success=False,
-                error="readdirent /var/mlrun/logs/proj: resource temporarily unavailable",
-                error_code=_INTERNAL_CODE,
-            )
-        )
-
-        size = await log_collector.get_log_size(run_uid="r1", project="p1")
-        assert size == 0
         assert self.calls == []
 
     @pytest.mark.asyncio
@@ -538,6 +540,7 @@ class TestLogCollectorFailureListener:
 
         client = framework.utils.clients.log_collector.LogCollectorClient()
         client.set_failure_listener(bad_listener)
+        # Drive the get_log_size-pre-check terminal-failure path, which notifies.
         client._call = unittest.mock.AsyncMock(
             return_value=_NotifiableResponse(
                 success=False, error="boom", error_code=_INTERNAL_CODE
@@ -547,9 +550,8 @@ class TestLogCollectorFailureListener:
         # The RPC's own failure mode (raise) must still surface; the listener
         # exception is swallowed.
         with pytest.raises(mlrun.errors.MLRunInternalServerError):
-            await client.start_logs(
-                run_uid="r1", selector="application=mlrun", project="p1"
-            )
+            async for _ in client.get_logs(run_uid="r1", project="p1"):
+                pass
 
     @pytest.mark.asyncio
     async def test_set_failure_listener_replaces_prior(self):

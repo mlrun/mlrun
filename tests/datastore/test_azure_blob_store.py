@@ -727,3 +727,106 @@ class TestAzureBlobStore:
         assert options["client_id"] is not None
         assert options["client_secret"] is not None
         assert options["tenant_id"] is not None
+
+    def test_storage_options_workload_identity_drops_partial_triple(self):
+        """ML-12668: client_id/tenant_id injected without a secret (workload identity) must be
+        dropped and anon forced to False so adlfs routes to DefaultAzureCredential instead of
+        building a ClientSecretCredential(client_secret=None)."""
+        env_vars = {
+            "AZURE_STORAGE_ACCOUNT_NAME": "teststorage",
+            "AZURE_CLIENT_ID": "wi-client-id",
+            "AZURE_TENANT_ID": "wi-tenant-id",
+            # no client secret anywhere — the webhook injects only id/tenant/federated-token-file
+        }
+        store = self._create_store(schema="az", endpoint="mycontainer")
+
+        with patch.object(store, "_get_secret_or_env") as mock_get_secret:
+            mock_get_secret.side_effect = lambda key: env_vars.get(key)
+            options = store.storage_options
+
+        assert "client_id" not in options
+        assert "tenant_id" not in options
+        assert options["anon"] is False
+        assert options["account_name"] == "teststorage"
+
+    def test_storage_options_keeps_full_service_principal(self):
+        """An explicit service principal (client_id + client_secret + tenant_id) is preserved
+        untouched, and anon is not injected — the WI fallback must not hijack it."""
+        env_vars = {
+            "AZURE_STORAGE_ACCOUNT_NAME": "teststorage",
+            "AZURE_CLIENT_ID": "sp-client-id",
+            "AZURE_CLIENT_SECRET": "sp-client-secret",
+            "AZURE_TENANT_ID": "sp-tenant-id",
+        }
+        store = self._create_store(schema="az", endpoint="mycontainer")
+
+        with patch.object(store, "_get_secret_or_env") as mock_get_secret:
+            mock_get_secret.side_effect = lambda key: env_vars.get(key)
+            options = store.storage_options
+
+        assert options["client_id"] == "sp-client-id"
+        assert options["client_secret"] == "sp-client-secret"
+        assert options["tenant_id"] == "sp-tenant-id"
+        assert "anon" not in options
+
+    def test_storage_options_account_key_only_unchanged(self):
+        """Account-key auth has no client_id, so the WI branch must not fire — no anon key added."""
+        env_vars = {
+            "AZURE_STORAGE_ACCOUNT_NAME": "teststorage",
+            "AZURE_STORAGE_ACCOUNT_KEY": "the-key",
+        }
+        store = self._create_store(schema="az", endpoint="mycontainer")
+
+        with patch.object(store, "_get_secret_or_env") as mock_get_secret:
+            mock_get_secret.side_effect = lambda key: env_vars.get(key)
+            options = store.storage_options
+
+        assert options["account_key"] == "the-key"
+        assert "client_id" not in options
+        assert "anon" not in options
+
+    def test_do_connect_workload_identity_uses_default_credential(self):
+        """ML-12668: with anon=False and no key/SAS/client_id/secret, the service client must be
+        built with DefaultAzureCredential (the workload-identity path), not ClientSecretCredential."""
+        store = self._create_store(schema="az", endpoint="mycontainer")
+        mock_storage_options = {"account_name": "teststorage", "anon": False}
+
+        with (
+            patch.object(store, "_storage_options", mock_storage_options),
+            patch("azure.identity.DefaultAzureCredential") as mock_default,
+            patch("azure.identity.ClientSecretCredential") as mock_client_secret,
+            patch("mlrun.datastore.azure_blob.BlobServiceClient") as mock_blob_client,
+        ):
+            store._do_connect()
+
+        mock_default.assert_called_once()
+        mock_client_secret.assert_not_called()
+        _, kwargs = mock_blob_client.call_args
+        assert kwargs["credential"] is mock_default.return_value
+
+    def test_do_connect_service_principal_uses_client_secret_credential(self):
+        """A full service principal still builds a ClientSecretCredential with the supplied secret."""
+        store = self._create_store(schema="az", endpoint="mycontainer")
+        mock_storage_options = {
+            "account_name": "teststorage",
+            "client_id": "sp-client-id",
+            "client_secret": "sp-client-secret",
+            "tenant_id": "sp-tenant-id",
+        }
+
+        with (
+            patch.object(store, "_storage_options", mock_storage_options),
+            patch("azure.identity.DefaultAzureCredential") as mock_default,
+            patch("azure.identity.ClientSecretCredential") as mock_client_secret,
+            patch("mlrun.datastore.azure_blob.BlobServiceClient") as mock_blob_client,
+        ):
+            store._do_connect()
+
+        mock_client_secret.assert_called_once_with(
+            tenant_id="sp-tenant-id",
+            client_id="sp-client-id",
+            client_secret="sp-client-secret",
+        )
+        mock_default.assert_not_called()
+        _, kwargs = mock_blob_client.call_args
+        assert kwargs["credential"] is mock_client_secret.return_value

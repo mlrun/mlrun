@@ -454,7 +454,7 @@ class TestRuntimeBase(services.api.tests.unit.conftest.MockedK8sHelper):
         runtime.run(
             name=self.name,
             project=self.project,
-            artifact_path=self.artifact_path,
+            output_path=self.artifact_path,
             auth_info=mlrun.common.schemas.AuthInfo(),
             **kwargs,
         )

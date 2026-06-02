@@ -58,7 +58,7 @@ class TestAutoMount:
         runtime.run(
             name=self.name,
             project=self.project,
-            artifact_path=self.artifact_path,
+            output_path=self.artifact_path,
             watch=False,
         )
 

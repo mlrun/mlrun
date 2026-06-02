@@ -142,7 +142,7 @@ class BaseRunner(metaclass=mlrun.utils.singleton.Singleton):
         #  make sure it is safe for scheduling and project load endpoint.
         return runner.run(
             runspec=run_object,
-            artifact_path=artifact_path,
+            output_path=artifact_path,
             local=False,
             watch=False,
             auth_info=auth_info,

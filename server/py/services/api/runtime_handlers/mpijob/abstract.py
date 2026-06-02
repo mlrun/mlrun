@@ -202,11 +202,10 @@ class AbstractMPIJobRuntimeHandler(KubeRuntimeHandler, abc.ABC):
             db, db_session, name, project, run, search_run=search_run, uid=uid
         )
 
-        # The mpijob CRD reports completion for the launcher and all workers, but the run's results
-        # are committed separately by the logging worker (rank 0). Defer the completed transition
-        # while the run still has no results so monitoring does not mark it completed before its
-        # results land (ML-12650). Bounded by a grace period after the CRD completion time so a
-        # genuinely result-less run or a dead worker still terminates.
+        # The mpijob CRD reports completion for the launcher + workers, but the run's results are
+        # committed separately by the logging worker (rank 0). Defer completing the run while it
+        # still has no results so monitoring does not race ahead of them, bounded by a grace period
+        # so a result-less run or a dead worker still terminates (ML-12650).
         if self._should_wait_for_results(run, run_state, runtime_resource):
             logger.debug(
                 "Deferring mpijob completed state until worker results are persisted",
@@ -254,26 +253,12 @@ class AbstractMPIJobRuntimeHandler(KubeRuntimeHandler, abc.ABC):
     def _should_wait_for_results(
         run: dict, run_state: str, runtime_resource: dict | None
     ) -> bool:
-        """Whether monitoring should defer marking this mpijob run completed until results land.
-
-        The mpijob CRD's completion is observed independently of the logging worker (rank 0)
-        committing the run's results, so a completed transition driven by monitoring can race
-        ahead of the results (ML-12650). Defer only while the desired state is completed, the run
-        still has no results, and we are within the grace period after the CRD reported completion;
-        once the grace period elapses the run is allowed to complete regardless.
-
-        :param run:              The run record.
-        :param run_state:        The run state monitoring wants to apply.
-        :param runtime_resource: The mpijob CRD object (only monitoring provides it).
-        :return: Whether to defer the completed transition.
-        """
         run_states = mlrun.common.runtimes.constants.RunStates
         if run_state != run_states.completed:
             return False
         current_state = run.get("status", {}).get("state")
-        # Only protect a run that monitoring is about to move into completion. If the run already
-        # reached a terminal state (e.g. the logging worker already committed it), or it has no
-        # state yet to defer, there is nothing to wait for.
+        # Nothing to defer if the run already reached a terminal state (e.g. the worker already
+        # committed it) or has no state yet.
         if not current_state or current_state in run_states.terminal_states():
             return False
         if run.get("status", {}).get("results"):

@@ -735,8 +735,7 @@ def _crd_with_completion_offset(offset_seconds: float) -> dict:
     }
 
 
-# desired_state is what monitoring wants to apply; current_state is the run's state in the DB.
-# In the ML-12650 race the run is still "running" when monitoring resolves "completed" from the CRD.
+# desired_state is what monitoring wants to apply; current_state is the run's current DB state.
 @pytest.mark.parametrize(
     "desired_state,current_state,results,runtime_resource,expected",
     [
@@ -769,7 +768,7 @@ def _crd_with_completion_offset(offset_seconds: float) -> dict:
         (RunStates.completed, RunStates.running, {}, None, False),
         # CRD lacks a completion time - proceed.
         (RunStates.completed, RunStates.running, {}, {"status": {}}, False),
-        # ML-12650: monitoring wants completed, run still running with no results, within grace - defer.
+        # Monitoring wants completed, run still running with no results, within grace - defer (the race).
         (
             RunStates.completed,
             RunStates.running,
@@ -801,8 +800,7 @@ def test_mpijob_should_wait_for_results(
 
 
 def test_mpijob_ensure_run_state_defers_completed_until_results(monkeypatch):
-    # The deferral path itself: monitoring resolves completed while the run is still running with no
-    # results -> _ensure_run_state must not advance the state and must not write to the DB this cycle.
+    # While deferring, _ensure_run_state must not advance the state nor write to the DB.
     monkeypatch.setattr(mlrun.mlconf.monitoring.runs, "result_settle_grace_seconds", 30)
     handler = get_runtime_handler(RuntimeKinds.mpijob)
     run = {

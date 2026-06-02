@@ -4586,7 +4586,6 @@ class MlrunProject(ModelObj):
         selector: str | None = None,
         auto_build: bool | None = None,
         schedule: typing.Union[str, mlrun.common.schemas.ScheduleCronTrigger] = None,
-        artifact_path: str | None = None,
         notifications: list[mlrun.model.Notification] | None = None,
         returns: "list[str | mlrun.LogHint] | None" = None,
         builder_env: dict | None = None,
@@ -4636,8 +4635,6 @@ class MlrunProject(ModelObj):
                                 (which will be converted to the class using its `from_crontab` constructor),
                                 see this link for help:
                                 https://apscheduler.readthedocs.io/en/3.x/modules/triggers/cron.html#module-apscheduler.triggers.cron
-        :param artifact_path:   (deprecated) path to store artifacts, when running in a workflow this will be set
-                                automatically
         :param notifications:   list of notifications to push when the run is completed
         :param returns:         List of log hints - configurations for how to log the returning values from the
                                 handler's run (as artifacts or results). The list's length must be equal to the amount
@@ -4668,44 +4665,32 @@ class MlrunProject(ModelObj):
                                 If not provided, the default backoff delay is 30 seconds.
         :return: MLRun RunObject or PipelineNodeWrapper
         """
-        if artifact_path:
-            warnings.warn(
-                "'artifact_path' parameter is deprecated in 1.10.0 and will be removed in 1.12.0, "
-                "use 'output_path' instead.",
-                # TODO: Remove this in 1.12.0
-                FutureWarning,
-            )
-        output_path = output_path or artifact_path
-
-        # remove this filter once the artifact_path parameter is deprecated in 1.12.0
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore", category=FutureWarning)
-            return run_function(
-                function,
-                handler=handler,
-                name=name,
-                params=params,
-                hyperparams=hyperparams,
-                hyper_param_options=hyper_param_options,
-                inputs=inputs,
-                outputs=outputs,
-                workdir=workdir,
-                labels=labels,
-                base_task=base_task,
-                watch=watch,
-                local=local,
-                verbose=verbose,
-                selector=selector,
-                project_object=self,
-                auto_build=auto_build,
-                schedule=schedule,
-                output_path=output_path,
-                notifications=notifications,
-                returns=returns,
-                builder_env=builder_env,
-                reset_on_run=reset_on_run,
-                retry=retry,
-            )
+        return run_function(
+            function,
+            handler=handler,
+            name=name,
+            params=params,
+            hyperparams=hyperparams,
+            hyper_param_options=hyper_param_options,
+            inputs=inputs,
+            outputs=outputs,
+            workdir=workdir,
+            labels=labels,
+            base_task=base_task,
+            watch=watch,
+            local=local,
+            verbose=verbose,
+            selector=selector,
+            project_object=self,
+            auto_build=auto_build,
+            schedule=schedule,
+            output_path=output_path,
+            notifications=notifications,
+            returns=returns,
+            builder_env=builder_env,
+            reset_on_run=reset_on_run,
+            retry=retry,
+        )
 
     def build_function(
         self,

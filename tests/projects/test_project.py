@@ -1706,7 +1706,7 @@ def test_function_receives_project_artifact_path(
     run2 = func2.run(local=True)
     assert run2.spec.output_path == proj1.spec.artifact_path
 
-    run3 = func2.run(local=True, artifact_path="/not/tmp")
+    run3 = func2.run(local=True, output_path="/not/tmp")
     assert run3.spec.output_path == "/not/tmp"
 
     # expected to call `get_project`
@@ -1722,7 +1722,7 @@ def test_function_receives_project_artifact_path(
     run = proj1.run_function("func", local=True)
     assert run.spec.output_path == proj1.spec.artifact_path
 
-    run = proj1.run_function("func", local=True, artifact_path="/not/tmp")
+    run = proj1.run_function("func", local=True, output_path="/not/tmp")
     assert run.spec.output_path == "/not/tmp"
 
 

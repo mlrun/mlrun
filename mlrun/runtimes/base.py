@@ -14,7 +14,6 @@
 import enum
 import http
 import re
-import warnings
 from collections.abc import Callable
 from os import environ
 from typing import Union
@@ -308,9 +307,7 @@ class BaseRuntime(ModelObj):
         project: str | None = "",
         params: dict | None = None,
         inputs: dict[str, str | list | dict] | None = None,
-        out_path: str | None = "",
         workdir: str | None = "",
-        artifact_path: str | None = "",
         watch: bool | None = True,
         schedule: Union[str, mlrun.common.schemas.ScheduleCronTrigger] | None = None,
         hyperparams: dict[str, list] | None = None,
@@ -341,8 +338,6 @@ class BaseRuntime(ModelObj):
                                during runtime from `mlrun.DataItem` to the given type hint. The type hint can be given
                                in the key field of the dictionary after a colon, e.g: "<key> : <type_hint>". An input
                                can include a collection of inputs in a dict or list.
-        :param out_path:       (deprecated) Default artifact output path.
-        :param artifact_path:  (deprecated) Default artifact output path (will replace out_path).
         :param workdir:        Working directory of the executed job and the default path for artifact inputs
         :param watch:          Watch/follow run log.
         :param schedule:       ScheduleCronTrigger class instance or a standard crontab expression string
@@ -399,16 +394,6 @@ class BaseRuntime(ModelObj):
                                If not provided, the default backoff delay is 30 seconds.
         :return: Run context object (RunObject) with run metadata, results and status
         """
-        if artifact_path or out_path:
-            deprecated_param = "artifact_path" if artifact_path else "out_path"
-            warnings.warn(
-                f"'{deprecated_param}' parameter is deprecated in 1.10.0 and will be removed in 1.12.0, "
-                "use 'output_path' instead.",
-                # TODO: Remove this in 1.12.0
-                FutureWarning,
-            )
-        output_path = output_path or out_path or artifact_path
-
         launcher = mlrun.launcher.factory.LauncherFactory().create_launcher(
             self._is_remote, local=local, **launcher_kwargs
         )

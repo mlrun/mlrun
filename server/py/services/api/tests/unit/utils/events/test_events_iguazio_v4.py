@@ -368,17 +368,11 @@ def test_log_collector_event_renders_context(client):
     event = client.generate_log_collector_event(
         mlrun.common.schemas.LogCollectorEventActions.failed,
         error=RuntimeError("collector unreachable"),
-        error_category="get_logs_failed",
-        error_code=1,
-        operation="get_logs",
         run_uid="run-7",
         project="proj-a",
     )
-    assert event.details["operation"] == "get_logs"
     assert event.details["run_uid"] == "run-7"
     assert event.details["project"] == "proj-a"
-    assert event.details["error_category"] == "get_logs_failed"
-    assert event.details["error_code"] == 1
     assert event.details["error_type"] == "RuntimeError"
     assert "collector unreachable" in event.details["error"]
     # Description carries the canonical catalog text plus the truncated error.

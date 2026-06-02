@@ -59,23 +59,17 @@ def test_publish_emits_event_via_factory(monkeypatch):
     )
 
     emitted = log_collector_errors.publish_log_collector_failed(
-        operation="get_logs",
         run_uid="run-1",
         project="proj-a",
         error=RuntimeError("collector unreachable"),
-        error_code=1,
-        error_category="get_logs_failed",
     )
 
     assert emitted is True
     fake_client.generate_log_collector_event.assert_called_once()
     call_kwargs = fake_client.generate_log_collector_event.call_args.kwargs
     assert call_kwargs["action"] == mlrun.common.schemas.LogCollectorEventActions.failed
-    assert call_kwargs["operation"] == "get_logs"
     assert call_kwargs["run_uid"] == "run-1"
     assert call_kwargs["project"] == "proj-a"
-    assert call_kwargs["error_category"] == "get_logs_failed"
-    assert call_kwargs["error_code"] == 1
     fake_client.emit.assert_called_once_with(fake_event)
 
 
@@ -92,20 +86,10 @@ def test_publish_no_event_from_nop_client_does_not_consume_throttle(monkeypatch)
         unittest.mock.MagicMock(side_effect=[nop_client, real_client]),
     )
 
-    assert (
-        log_collector_errors.publish_log_collector_failed(
-            operation="get_logs", error_category="get_logs_failed"
-        )
-        is False
-    )
+    assert log_collector_errors.publish_log_collector_failed(run_uid="run-1") is False
     nop_client.emit.assert_not_called()
 
-    assert (
-        log_collector_errors.publish_log_collector_failed(
-            operation="get_logs", error_category="get_logs_failed"
-        )
-        is True
-    )
+    assert log_collector_errors.publish_log_collector_failed(run_uid="run-1") is True
     real_client.emit.assert_called_once()
 
 
@@ -125,13 +109,9 @@ def test_publish_throttled_within_interval(monkeypatch):
         log_collector_errors.throttle.time, "monotonic", lambda: fake_now["value"]
     )
 
-    assert (
-        log_collector_errors.publish_log_collector_failed(operation="get_logs") is True
-    )
+    assert log_collector_errors.publish_log_collector_failed(run_uid="run-1") is True
     fake_now["value"] += 30
-    assert (
-        log_collector_errors.publish_log_collector_failed(operation="get_logs") is False
-    )
+    assert log_collector_errors.publish_log_collector_failed(run_uid="run-1") is False
     assert fake_client.emit.call_count == 1
 
 
@@ -151,13 +131,9 @@ def test_publish_unthrottled_after_interval(monkeypatch):
         log_collector_errors.throttle.time, "monotonic", lambda: fake_now["value"]
     )
 
-    assert (
-        log_collector_errors.publish_log_collector_failed(operation="get_logs") is True
-    )
+    assert log_collector_errors.publish_log_collector_failed(run_uid="run-1") is True
     fake_now["value"] += 90  # past the throttle interval
-    assert (
-        log_collector_errors.publish_log_collector_failed(operation="get_logs") is True
-    )
+    assert log_collector_errors.publish_log_collector_failed(run_uid="run-1") is True
     assert fake_client.emit.call_count == 2
 
 
@@ -180,13 +156,9 @@ def test_publish_releases_slot_when_emit_raises(monkeypatch):
         log_collector_errors.throttle.time, "monotonic", lambda: fake_now["value"]
     )
 
-    assert (
-        log_collector_errors.publish_log_collector_failed(operation="get_logs") is False
-    )
+    assert log_collector_errors.publish_log_collector_failed(run_uid="run-1") is False
     # No advance in time: slot was released, so the next attempt can claim.
-    assert (
-        log_collector_errors.publish_log_collector_failed(operation="get_logs") is True
-    )
+    assert log_collector_errors.publish_log_collector_failed(run_uid="run-1") is True
     assert fake_client.emit.call_count == 2
 
 
@@ -198,7 +170,7 @@ def test_publish_swallows_factory_exception(monkeypatch):
     )
 
     emitted = log_collector_errors.publish_log_collector_failed(
-        operation="get_logs",
+        run_uid="run-1",
         error=RuntimeError("boom"),
     )
     assert emitted is False
@@ -225,8 +197,6 @@ def test_listener_dispatch_offloads_to_executor(monkeypatch):
 
     log_collector_errors._on_log_collector_failure(
         log_collector_client.LogCollectorFailureContext(
-            operation="get_logs",
-            error_category="get_logs_failed",
             run_uid="r",
             project="p",
         )
@@ -260,12 +230,10 @@ def test_listener_falls_back_to_inline_when_no_running_loop(monkeypatch):
 
     log_collector_errors._on_log_collector_failure(
         log_collector_client.LogCollectorFailureContext(
-            operation="start_logs",
-            error_category="start_logs_failed",
             run_uid="r",
             project="p",
         )
     )
 
     assert len(calls) == 1
-    assert calls[0]["operation"] == "start_logs"
+    assert calls[0]["run_uid"] == "r"

@@ -28,12 +28,9 @@ _slot = throttle.ThrottledSlot(
 
 
 def publish_log_collector_failed(
-    operation: str | None = None,
     run_uid: str | None = None,
     project: str | None = None,
     error: BaseException | str | None = None,
-    error_code: int | str | None = None,
-    error_category: str | None = None,
 ) -> bool:
     """
     Best-effort publish of a ``MLRun.LogCollector.Failed`` event.
@@ -51,9 +48,6 @@ def publish_log_collector_failed(
         event = client.generate_log_collector_event(
             action=mlrun.common.schemas.LogCollectorEventActions.failed,
             error=error,
-            error_category=error_category,
-            error_code=error_code,
-            operation=operation,
             run_uid=run_uid,
             project=project,
         )
@@ -67,11 +61,8 @@ def publish_log_collector_failed(
     except Exception as publish_exc:
         logger.warning(
             "Failed to publish log collector failed event",
-            operation=operation,
             run_uid=run_uid,
             project=project,
-            error_category=error_category,
-            error_code=error_code,
             exc_info=publish_exc,
         )
         return False
@@ -104,22 +95,16 @@ def _on_log_collector_failure(
         loop = asyncio.get_running_loop()
     except RuntimeError:
         publish_log_collector_failed(
-            operation=context.operation,
             run_uid=context.run_uid,
             project=context.project,
             error=context.error,
-            error_code=context.error_code,
-            error_category=context.error_category,
         )
         return
     loop.run_in_executor(
         None,
         lambda: publish_log_collector_failed(
-            operation=context.operation,
             run_uid=context.run_uid,
             project=context.project,
             error=context.error,
-            error_code=context.error_code,
-            error_category=context.error_category,
         ),
     )

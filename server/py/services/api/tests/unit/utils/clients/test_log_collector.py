@@ -399,10 +399,8 @@ class TestLogCollectorFailureListener:
 
         assert len(self.calls) == 1
         ctx = self.calls[0]
-        assert ctx.operation == "get_logs"
         assert ctx.run_uid == "r1"
         assert ctx.project == "p1"
-        assert ctx.error_category == "get_logs_failed"
 
     @pytest.mark.asyncio
     async def test_get_logs_transient_failure_then_success_does_not_notify(
@@ -450,8 +448,8 @@ class TestLogCollectorFailureListener:
 
         assert len(self.calls) == 1
         ctx = self.calls[0]
-        assert ctx.operation == "get_logs"
-        assert ctx.error_category == "get_logs_failed"
+        assert ctx.run_uid == "r1"
+        assert ctx.project == "p1"
 
     @pytest.mark.asyncio
     async def test_get_logs_log_size_not_found_does_not_notify(self):

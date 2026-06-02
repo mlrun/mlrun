@@ -29,18 +29,14 @@ import framework.utils.clients.protocols.grpc
 @dataclasses.dataclass(frozen=True)
 class LogCollectorFailureContext:
     """
-    Payload delivered to failure listeners registered on
-    :class:`LogCollectorClient`. Distinct values are passed for the operation
-    that failed and the scope it was invoked with; ``error`` and ``error_code``
-    are best-effort and may be absent on transport-level failures.
+    Payload delivered to the failure listener registered on
+    :class:`LogCollectorClient` when ``get_logs`` terminally fails to retrieve
+    a run's logs. Carries the run scope and (best-effort) the underlying error.
     """
 
-    operation: str
-    error_category: str
     run_uid: str | None = None
     project: str | None = None
     error: BaseException | str | None = None
-    error_code: int | str | None = None
 
 
 LogCollectorFailureListener = typing.Callable[[LogCollectorFailureContext], None]
@@ -238,8 +234,6 @@ class LogCollectorClient(
                 # propagating.
                 self._notify_failure(
                     LogCollectorFailureContext(
-                        operation="get_logs",
-                        error_category="get_logs_failed",
                         run_uid=run_uid,
                         project=project,
                         error=exc,
@@ -287,8 +281,6 @@ class LogCollectorClient(
                     # reach here.
                     self._notify_failure(
                         LogCollectorFailureContext(
-                            operation="get_logs",
-                            error_category="get_logs_failed",
                             run_uid=run_uid,
                             project=project,
                             error=exc,

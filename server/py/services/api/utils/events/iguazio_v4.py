@@ -240,9 +240,6 @@ class Client(base_events.BaseEventClient):
         self,
         action: mlrun.common.schemas.LogCollectorEventActions,
         error: BaseException | str | None = None,
-        error_category: str | None = None,
-        error_code: int | str | None = None,
-        operation: str | None = None,
         run_uid: str | None = None,
         project: str | None = None,
     ) -> iguazio.schemas.EventActivationSpec:
@@ -254,16 +251,10 @@ class Client(base_events.BaseEventClient):
             ) from exc
 
         details: dict = {}
-        if operation:
-            details["operation"] = operation
         if run_uid:
             details["run_uid"] = run_uid
         if project:
             details["project"] = project
-        if error_category:
-            details["error_category"] = error_category
-        if error_code is not None:
-            details["error_code"] = error_code
 
         description = self._apply_error(details, description, error)
 

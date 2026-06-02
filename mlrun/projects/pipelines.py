@@ -88,6 +88,7 @@ class WorkflowSpec(mlrun.model.ModelObj):
         cleanup_ttl: int | None = None,
         image: str | None = None,
         workflow_runner_node_selector: dict[str, str] | None = None,
+        run_setup: bool = False,
     ):
         self.engine = engine
         self.code = code
@@ -102,6 +103,7 @@ class WorkflowSpec(mlrun.model.ModelObj):
         self.schedule = schedule
         self.image = image
         self.workflow_runner_node_selector = workflow_runner_node_selector
+        self.run_setup = run_setup
 
     def get_source_file(self, context=""):
         if not self.code and not self.path:
@@ -1216,7 +1218,7 @@ def load_and_run_workflow(
                                 workflow and all its resources are deleted)
     :param wait_for_completion: wait for workflow completion before returning
     :param project_context:     project context path (used for loading the project)
-    :param run_setup:           whether the setup script should be ran (default False)
+    :param run_setup:           whether the setup script should be run (default False)
     """
     project_context = project_context or f"./{project_name}"
 
@@ -1328,7 +1330,7 @@ def pull_remote_project_files(
     :param clone:          Whether to clone the repository.
     :param schedule:       Schedule for running the workflow.
     :param workflow_name:  Name of the workflow to run.
-    :param run_setup:      whether the setup script should be ran (default True)
+    :param run_setup:      whether the setup script should be run (default True)
     """
     try:
         # Load the project to clone remote files if they exist.

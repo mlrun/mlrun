@@ -571,6 +571,7 @@ class WorkflowRunners(BaseRunner, metaclass=mlrun.utils.singleton.Singleton):
             local=workflow_request.spec.run_local,
             subpath=project.spec.subpath,
             url=source,
+            run_setup=workflow_request.spec.run_setup,
         )
 
         run_object = self._create_run_object(

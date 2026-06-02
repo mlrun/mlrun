@@ -75,6 +75,56 @@ class TestWorkflows(services.api.tests.unit.conftest.MockedK8sHelper):
             ].startswith("mlrun.notifications.")
 
     @pytest.mark.parametrize(
+        "run_setup_kwargs, expected_run_setup",
+        [
+            # default: setup is skipped on the runner pod (DB is the source of truth)
+            ({}, False),
+            ({"run_setup": False}, False),
+            # users can opt-in to running the setup script on the runner pod
+            ({"run_setup": True}, True),
+        ],
+    )
+    def test_run_workflow_run_setup_flag(
+        self,
+        db: sqlalchemy.orm.Session,
+        k8s_secrets_mock,
+        run_setup_kwargs: dict,
+        expected_run_setup: bool,
+    ):
+        project = mlrun.common.schemas.ProjectOut(
+            metadata=mlrun.common.schemas.ProjectMetadata(name="project-name"),
+            spec=mlrun.common.schemas.ProjectSpecOut(),
+        )
+        services.api.crud.Projects().create_project(db, project)
+
+        run_name = "run-name"
+        runner = services.api.crud.WorkflowRunners().create_runner(
+            run_name=run_name,
+            project=project.metadata.name,
+            db_session=db,
+            auth_info=mlrun.common.schemas.AuthInfo(),
+            image="mlrun/mlrun",
+        )
+
+        run = services.api.crud.WorkflowRunners().run(
+            runner=runner,
+            project=project,
+            workflow_request=mlrun.common.schemas.WorkflowRequest(
+                spec=mlrun.common.schemas.WorkflowSpec(
+                    name=run_name,
+                    engine="remote",
+                    image="mlrun/mlrun",
+                    **run_setup_kwargs,
+                ),
+                source="/home/mlrun/project-name/",
+                artifact_path="/home/mlrun/artifacts",
+            ),
+            auth_info=mlrun.common.schemas.AuthInfo(username="test-user"),
+        )
+
+        assert run.spec.parameters["run_setup"] == expected_run_setup
+
+    @pytest.mark.parametrize(
         "source_code_target_dir",
         [
             "/home/mlrun_code",

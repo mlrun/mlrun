@@ -538,6 +538,53 @@ def test_project_with_setup(context, op):
         assert project.spec.params == {"p1": "xyz", "p2": "123", "test123": "456"}
 
 
+@pytest.mark.parametrize("run_setup", [True, False])
+def test_load_project_run_setup_flag(context, run_setup):
+    # load_project should run the setup script only when run_setup is True, while the
+    # save/register_artifacts side effects (DB is the source of truth) always happen.
+    project_path = (
+        pathlib.Path(tests.conftest.tests_root_directory)
+        / "projects"
+        / "assets"
+        / "load_setup_test"
+    )
+    mlrun_project_cls = mlrun.projects.project.MlrunProject
+
+    # to_save = save and mlconf.dbpath, so a dbpath is required to exercise the save path
+    original_dbpath = mlrun.mlconf.dbpath
+    mlrun.mlconf.dbpath = "http://localhost:12345"
+    try:
+        with (
+            unittest.mock.patch.object(
+                mlrun_project_cls,
+                "setup",
+                autospec=True,
+                side_effect=lambda self, save=True: self,
+            ) as setup_mock,
+            unittest.mock.patch.object(
+                mlrun_project_cls, "save", autospec=True
+            ) as save_mock,
+            unittest.mock.patch.object(
+                mlrun_project_cls, "register_artifacts", autospec=True
+            ) as register_artifacts_mock,
+        ):
+            mlrun.load_project(
+                context=project_path,
+                name="projset-runsetup",
+                save=True,
+                parameters={"p2": "123"},
+                run_setup=run_setup,
+            )
+    finally:
+        mlrun.mlconf.dbpath = original_dbpath
+
+    # setup runs only when explicitly opted in
+    assert setup_mock.called is run_setup
+    # the project is still saved and its artifacts registered regardless of run_setup
+    save_mock.assert_called_once()
+    register_artifacts_mock.assert_called_once()
+
+
 @pytest.mark.parametrize(
     "setup_file_contents, exception",
     [

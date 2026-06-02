@@ -174,6 +174,22 @@ class BaseRuntime(ModelObj):
         self.verbose = False
         self._enriched_image = False
 
+    def __getstate__(self) -> dict:
+        """Exclude the live run-DB connection from copy/pickle.
+
+        ``_db_conn`` holds an ``HTTPRunDB`` with a live ``requests`` session and
+        socket pool. Cloning a runtime - e.g. ``enrich_function_object`` deep-copies
+        project functions during pipeline compilation - must not clone the
+        connection; ``_get_db`` reconnects lazily (to the cached run-DB) on the
+        copy. This avoids both cloning sockets and propagating a half-initialized
+        session (see ML-12648).
+
+        :return: The instance state to pickle/copy, with ``_db_conn`` cleared.
+        """
+        state = self.__dict__.copy()
+        state["_db_conn"] = None
+        return state
+
     def set_db_connection(self, conn):
         if not self._db_conn:
             self._db_conn = conn

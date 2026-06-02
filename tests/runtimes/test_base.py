@@ -13,8 +13,10 @@
 # limitations under the License.
 
 import base64
+import copy
 import json
 import os
+import pickle
 import shutil
 import tempfile
 
@@ -493,3 +495,27 @@ class TestAutoMount:
 
         assert runtime.spec.volumes == expected_volumes
         assert runtime.spec.volume_mounts == expected_mounts
+
+
+@pytest.mark.parametrize(
+    "clone",
+    [copy.deepcopy, lambda obj: pickle.loads(pickle.dumps(obj))],
+    ids=["deepcopy", "pickle"],
+)
+def test_runtime_copy_drops_live_db_connection(clone):
+    """A copied/pickled runtime must not carry the live run-DB connection.
+
+    The connection holds an HTTP session/socket pool; cloning it both wastes
+    sockets and (before the session fix) produced a half-initialized session.
+    ``_get_db`` recreates the connection lazily on the copy, so dropping it is
+    safe. Regression guard for the ML-12648 deepcopy path.
+    """
+    runtime = KubejobRuntime()
+    runtime.metadata.name = "copy-fn"
+    runtime._db_conn = "live-connection"  # stand-in for an HTTPRunDB
+
+    restored = clone(runtime)
+
+    assert restored._db_conn is None
+    # The original keeps its connection - only the copy is detached.
+    assert runtime._db_conn == "live-connection"

@@ -12,10 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import abc
+import os
 
 import IPython.display
 
 import mlrun
+import mlrun.client
 import mlrun.common.constants as mlrun_constants
 import mlrun.errors
 import mlrun.launcher.base as launcher
@@ -43,6 +45,21 @@ class ClientBaseLauncher(launcher.BaseLauncher, abc.ABC):
         runtime._fill_credentials()
         if project_name:
             runtime.metadata.project = project_name
+
+    @staticmethod
+    def _enrich_run_labels_with_v3io_user(run: "mlrun.run.RunObject") -> None:
+        """Stamp ``v3io_user`` from ``V3IO_USERNAME`` env, unless running inside
+        a ``mlrun.Client.session()`` (process env is the host, not the caller)
+        or the label is already set."""
+        if mlrun.client.get_active_client() is not None:
+            return
+        if (
+            "V3IO_USERNAME" in os.environ
+            and mlrun_constants.MLRunInternalLabels.v3io_user not in run.metadata.labels
+        ):
+            run.metadata.labels[mlrun_constants.MLRunInternalLabels.v3io_user] = (
+                os.environ.get("V3IO_USERNAME")
+            )
 
     @staticmethod
     def prepare_image_for_deploy(runtime: "mlrun.runtimes.BaseRuntime"):

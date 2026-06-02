@@ -20,9 +20,11 @@ import deepdiff
 import git
 import pytest
 
+import mlrun
 import mlrun.common.constants as mlrun_constants
 import mlrun.common.runtimes.constants
 import mlrun.runtimes.utils
+from mlrun import Client, Credentials
 
 
 @pytest.fixture
@@ -284,6 +286,28 @@ def test_resolve_owner_v3io_username_takes_precedence_over_ig4():
         with unittest.mock.patch("mlrun.get_run_db", return_value=mock_db):
             owner = mlrun.runtimes.utils.resolve_owner({})
             assert owner == "v3io_user"
+
+
+def test_resolve_owner_skips_env_inside_client_session(monkeypatch):
+    monkeypatch.setattr(mlrun.mlconf, "dbpath", "https://mock-server")
+    monkeypatch.setenv("V3IO_USERNAME", "process-user")
+    client = Client(credentials=Credentials(token="t"))
+    with client.session():
+        assert mlrun.runtimes.utils.resolve_owner(labels={}) is None
+
+
+def test_resolve_owner_honors_workflow_owner_to_enrich_inside_session(monkeypatch):
+    """Workflow-runner override still wins inside a session — only the
+    env/getpass *fallback* is suppressed."""
+    monkeypatch.setattr(mlrun.mlconf, "dbpath", "https://mock-server")
+    monkeypatch.setenv("V3IO_USERNAME", "process-user")
+    client = Client(credentials=Credentials(token="t"))
+    labels = {"job-type": mlrun.common.constants.JOB_TYPE_WORKFLOW_RUNNER}
+    with client.session():
+        owner = mlrun.runtimes.utils.resolve_owner(
+            labels=labels, owner_to_enrich="workflow-owner"
+        )
+    assert owner == "workflow-owner"
 
 
 def test_results_to_iter_status_resolution(rundb_mock):

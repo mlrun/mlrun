@@ -17,8 +17,12 @@ import unittest.mock
 
 import pytest
 
+import mlrun
+import mlrun.common.constants as mlrun_constants
 import mlrun.config
 import mlrun.launcher.remote
+import mlrun.runtimes.utils
+from mlrun import Client, Credentials
 
 assets_path = pathlib.Path(__file__).parent / "assets"
 func_path = assets_path / "sample_function.py"
@@ -158,3 +162,60 @@ def test_store_function_set_token_name():
     with mlrun.RuntimeConfigurationContext(auth_token_name="context-run-token"):
         launcher._store_function(runtime, run)
         assert run.spec.auth["token_name"] == "context-run-token"
+
+
+# ---------------------------------------------------------------------------
+# _enrich_run_labels_with_v3io_user lives on ClientBaseLauncher; testing via
+# ClientRemoteLauncher covers both subclasses through inheritance.
+# ---------------------------------------------------------------------------
+
+
+def _make_run() -> mlrun.run.RunObject:
+    run = mlrun.run.RunObject()
+    run.metadata.name = "r"
+    run.metadata.uid = "u"
+    return run
+
+
+def test_enrich_run_labels_with_v3io_user_skips_inside_session(monkeypatch):
+    monkeypatch.setattr(mlrun.mlconf, "dbpath", "https://mock-server")
+    monkeypatch.setenv("V3IO_USERNAME", "process-user")
+    run = _make_run()
+    client = Client(credentials=Credentials(token="t"))
+    with client.session():
+        mlrun.launcher.remote.ClientRemoteLauncher._enrich_run_labels_with_v3io_user(
+            run
+        )
+    assert mlrun_constants.MLRunInternalLabels.v3io_user not in run.metadata.labels, (
+        f"v3io_user label stamped from env inside session: {run.metadata.labels!r}"
+    )
+
+
+def test_enrich_run_labels_with_v3io_user_stamps_outside_session(monkeypatch):
+    monkeypatch.setenv("V3IO_USERNAME", "process-user")
+    run = _make_run()
+    mlrun.launcher.remote.ClientRemoteLauncher._enrich_run_labels_with_v3io_user(run)
+    assert (
+        run.metadata.labels.get(mlrun_constants.MLRunInternalLabels.v3io_user)
+        == "process-user"
+    )
+
+
+def test_enrich_run_labels_with_v3io_user_preserves_existing_label(monkeypatch):
+    """A workflow runner (or any caller) that pre-set v3io_user must not be
+    overwritten by the env value."""
+    monkeypatch.setenv("V3IO_USERNAME", "process-user")
+    run = _make_run()
+    run.metadata.labels[mlrun_constants.MLRunInternalLabels.v3io_user] = "preset-user"
+    mlrun.launcher.remote.ClientRemoteLauncher._enrich_run_labels_with_v3io_user(run)
+    assert (
+        run.metadata.labels[mlrun_constants.MLRunInternalLabels.v3io_user]
+        == "preset-user"
+    )
+
+
+def test_enrich_run_labels_with_v3io_user_no_op_without_env(monkeypatch):
+    monkeypatch.delenv("V3IO_USERNAME", raising=False)
+    run = _make_run()
+    mlrun.launcher.remote.ClientRemoteLauncher._enrich_run_labels_with_v3io_user(run)
+    assert mlrun_constants.MLRunInternalLabels.v3io_user not in run.metadata.labels

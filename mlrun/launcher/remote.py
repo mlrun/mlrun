@@ -11,13 +11,11 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import os
 from typing import Union
 
 import pandas as pd
 import requests
 
-import mlrun.common.constants as mlrun_constants
 import mlrun.common.schemas.schedule
 import mlrun.db
 import mlrun.errors
@@ -101,13 +99,7 @@ class ClientRemoteLauncher(launcher.ClientBaseLauncher):
         if runtime.verbose:
             logger.info(f"runspec:\n{run.to_yaml()}")
 
-        if (
-            "V3IO_USERNAME" in os.environ
-            and mlrun_constants.MLRunInternalLabels.v3io_user not in run.metadata.labels
-        ):
-            run.metadata.labels[mlrun_constants.MLRunInternalLabels.v3io_user] = (
-                os.environ.get("V3IO_USERNAME")
-            )
+        self._enrich_run_labels_with_v3io_user(run)
 
         logger.info(
             "Storing function",

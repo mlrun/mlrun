@@ -23,6 +23,7 @@ from sys import stderr
 import pandas as pd
 
 import mlrun
+import mlrun.client
 import mlrun.common.constants
 import mlrun.common.constants as mlrun_constants
 import mlrun.common.runtimes.constants
@@ -470,6 +471,11 @@ def resolve_owner(
         == mlrun.common.constants.JOB_TYPE_RERUN_WORKFLOW_RUNNER
     ):
         return owner_to_enrich
+
+    # Inside a ``mlrun.Client.session()``, the process env identifies the
+    # host, not the caller — let the server fill the owner from auth_info.
+    if mlrun.client.get_active_client() is not None:
+        return None
 
     # Check V3IO_USERNAME first (IG3 environments)
     if v3io_username := os.environ.get("V3IO_USERNAME"):

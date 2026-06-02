@@ -297,8 +297,7 @@ def test_resolve_owner_skips_env_inside_client_session(monkeypatch):
 
 
 def test_resolve_owner_honors_workflow_owner_to_enrich_inside_session(monkeypatch):
-    """Workflow-runner override still wins inside a session — only the
-    env/getpass *fallback* is suppressed."""
+    """Inside a session, keep workflow ``owner_to_enrich`` and skip env/getpass fallback."""
     monkeypatch.setattr(mlrun.mlconf, "dbpath", "https://mock-server")
     monkeypatch.setenv("V3IO_USERNAME", "process-user")
     client = Client(credentials=Credentials(token="t"))

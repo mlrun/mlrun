@@ -48,9 +48,7 @@ class ClientBaseLauncher(launcher.BaseLauncher, abc.ABC):
 
     @staticmethod
     def _enrich_run_labels_with_v3io_user(run: "mlrun.run.RunObject") -> None:
-        """Stamp ``v3io_user`` from ``V3IO_USERNAME`` env, unless running inside
-        a ``mlrun.Client.session()`` (process env is the host, not the caller)
-        or the label is already set."""
+        """Set ``v3io_user`` from ``V3IO_USERNAME`` unless in ``Client.session()`` or already set."""
         if mlrun.client.get_active_client() is not None:
             return
         if (

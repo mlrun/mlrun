@@ -472,8 +472,7 @@ def resolve_owner(
     ):
         return owner_to_enrich
 
-    # Inside a ``mlrun.Client.session()``, the process env identifies the
-    # host, not the caller — let the server fill the owner from auth_info.
+    # In ``Client.session()``, process env belongs to the host, so skip owner enrichment.
     if mlrun.client.get_active_client() is not None:
         return None
 

@@ -164,10 +164,7 @@ def test_store_function_set_token_name():
         assert run.spec.auth["token_name"] == "context-run-token"
 
 
-# ---------------------------------------------------------------------------
-# _enrich_run_labels_with_v3io_user lives on ClientBaseLauncher; testing via
-# ClientRemoteLauncher covers both subclasses through inheritance.
-# ---------------------------------------------------------------------------
+# Test through ClientRemoteLauncher; helper is inherited from ClientBaseLauncher.
 
 
 def _make_run() -> mlrun.run.RunObject:
@@ -202,8 +199,7 @@ def test_enrich_run_labels_with_v3io_user_stamps_outside_session(monkeypatch):
 
 
 def test_enrich_run_labels_with_v3io_user_preserves_existing_label(monkeypatch):
-    """A workflow runner (or any caller) that pre-set v3io_user must not be
-    overwritten by the env value."""
+    """Do not overwrite an existing ``v3io_user`` label."""
     monkeypatch.setenv("V3IO_USERNAME", "process-user")
     run = _make_run()
     run.metadata.labels[mlrun_constants.MLRunInternalLabels.v3io_user] = "preset-user"

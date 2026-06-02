@@ -42,7 +42,6 @@ EVENT_CLASS = "DB"
 EVENT_CLASS_LOG_COLLECTION = "LogCollection"
 EVENT_CLASS_PROJECT = "Project"
 ERROR_DETAIL_LIMIT = 1024
-ERROR_DESCRIPTION_LIMIT = 200
 TRUNCATION_SUFFIX = "...[truncated]"
 
 DB_MIGRATION_EVENTS: dict[
@@ -187,7 +186,7 @@ class Client(base_events.BaseEventClient):
             details["duration_seconds"] = round(float(duration_seconds), 3)
 
         if action == mlrun.common.schemas.MigrationEventActions.failed:
-            description = self._apply_error(details, description, error)
+            self._record_error(details, error)
 
         return iguazio.schemas.EventActivationSpec(
             config_name=config_name,
@@ -223,7 +222,7 @@ class Client(base_events.BaseEventClient):
         if dialect:
             details["dialect"] = dialect
 
-        description = self._apply_error(details, description, error)
+        self._record_error(details, error)
 
         return iguazio.schemas.EventActivationSpec(
             config_name=config_name,
@@ -256,7 +255,7 @@ class Client(base_events.BaseEventClient):
         if project:
             details["project"] = project
 
-        description = self._apply_error(details, description, error)
+        self._record_error(details, error)
 
         return iguazio.schemas.EventActivationSpec(
             config_name=config_name,
@@ -291,7 +290,7 @@ class Client(base_events.BaseEventClient):
             mlrun.common.schemas.ProjectLifecycleEventActions.creation_failed,
             mlrun.common.schemas.ProjectLifecycleEventActions.deletion_failed,
         ):
-            description = self._apply_error(details, description, error)
+            self._record_error(details, error)
 
         return iguazio.schemas.EventActivationSpec(
             config_name=config_name,
@@ -345,20 +344,21 @@ class Client(base_events.BaseEventClient):
         return value[: limit - len(TRUNCATION_SUFFIX)] + TRUNCATION_SUFFIX
 
     @classmethod
-    def _apply_error(
+    def _record_error(
         cls,
         details: dict,
-        description: str,
         error: BaseException | str | None,
-    ) -> str:
+    ) -> None:
         """
-        Append truncated error context to ``details`` and ``description``.
-        Returns the (possibly extended) description.
+        Record truncated error context in ``details``.
+
+        The event ``description`` is intentionally left untouched: it must stay
+        the generic, per-config catalog text (the events service enriches it
+        from the catalog), so per-instance specifics belong only in ``details``.
         """
         if not error:
-            return description
+            return
         error_str = error if isinstance(error, str) else mlrun.errors.err_to_str(error)
         details["error"] = cls._truncate(error_str, ERROR_DETAIL_LIMIT)
         if not isinstance(error, str):
             details["error_type"] = type(error).__name__
-        return f"{description}: {cls._truncate(error_str, ERROR_DESCRIPTION_LIMIT)}"

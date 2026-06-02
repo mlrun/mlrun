@@ -191,9 +191,11 @@ def test_failed_event_with_exception_includes_summary_and_duration(client):
     assert event.details["error"] == "schema head mismatch"
     assert event.details["error_type"] == "RuntimeError"
     assert event.details["duration_seconds"] == 4.0
-    assert "schema head mismatch" in event.description
-    # description still contains the catalog wording
-    assert "MLRun database migration failed" in event.description
+    # description stays the generic catalog wording; per-instance error lives
+    # in details only (the events service enriches description from the catalog)
+    assert event.description == (
+        "MLRun database migration failed, functionality may be impaired"
+    )
 
 
 def test_failed_event_with_string_error(client):
@@ -204,7 +206,10 @@ def test_failed_event_with_string_error(client):
     assert event.details["error"] == "boom"
     # error_type is only set for exceptions, not raw strings
     assert "error_type" not in event.details
-    assert "boom" in event.description
+    # error is recorded in details, not appended to the generic description
+    assert event.description == (
+        "MLRun database migration failed, functionality may be impaired"
+    )
 
 
 def test_failed_event_truncates_long_error(client):
@@ -216,9 +221,10 @@ def test_failed_event_truncates_long_error(client):
     assert event.details["error"].endswith("...[truncated]")
     # Truncation budget is hard — output must not exceed the documented limit
     assert len(event.details["error"]) <= iguazio_v4_events.ERROR_DETAIL_LIMIT
-    # description summary is truncated more aggressively
-    assert event.description.endswith("...[truncated]")
-    assert len(event.description) < 350
+    # description is untouched by the error — stays the generic catalog text
+    assert event.description == (
+        "MLRun database migration failed, functionality may be impaired"
+    )
 
 
 @pytest.mark.parametrize("falsy_error", ["", None])
@@ -326,8 +332,8 @@ def test_db_connection_event_renders_error(
     assert event.details["error_code"] == 1205
     assert event.details["dialect"] == "mysql"
     assert expected_error_substring in event.details["error"]
-    assert expected_error_substring in event.description
-    assert "MLRun cannot connect to its database" in event.description
+    # error goes to details only; description stays the generic catalog text
+    assert event.description == "MLRun cannot connect to its database"
     if expected_error_type is None:
         assert "error_type" not in event.details
     else:
@@ -342,7 +348,8 @@ def test_db_connection_event_truncates_long_error(client):
     )
     assert event.details["error"].endswith("...[truncated]")
     assert len(event.details["error"]) <= iguazio_v4_events.ERROR_DETAIL_LIMIT
-    assert event.description.endswith("...[truncated]")
+    # description is untouched by the error
+    assert event.description == "MLRun cannot connect to its database"
 
 
 def test_db_connection_unsupported_action_raises(client):
@@ -375,9 +382,9 @@ def test_log_collector_event_renders_context(client):
     assert event.details["project"] == "proj-a"
     assert event.details["error_type"] == "RuntimeError"
     assert "collector unreachable" in event.details["error"]
-    # Description carries the canonical catalog text plus the truncated error.
-    assert "MLRun log collector failed to retrieve logs" in event.description
-    assert "collector unreachable" in event.description
+    # Per-instance error lives in details only; description stays the generic
+    # catalog text (the events service enriches it from the catalog).
+    assert event.description == "MLRun log collector failed to retrieve logs"
 
 
 def test_log_collector_event_truncates_long_error(client):
@@ -388,7 +395,8 @@ def test_log_collector_event_truncates_long_error(client):
     )
     assert event.details["error"].endswith("...[truncated]")
     assert len(event.details["error"]) <= iguazio_v4_events.ERROR_DETAIL_LIMIT
-    assert event.description.endswith("...[truncated]")
+    # description is untouched by the error
+    assert event.description == "MLRun log collector failed to retrieve logs"
 
 
 def test_log_collector_unsupported_action_raises(client):
@@ -465,7 +473,11 @@ def test_project_lifecycle_failed_carries_error(client, failed_action):
     )
     assert event.details["error"] == "db unavailable"
     assert event.details["error_type"] == "RuntimeError"
-    assert "db unavailable" in event.description
+    # error in details only; description stays the generic per-action catalog text
+    _, _, expected_description = iguazio_v4_events.PROJECT_LIFECYCLE_EVENTS[
+        failed_action
+    ]
+    assert event.description == expected_description
 
 
 def test_project_lifecycle_failed_truncates_long_error(client):
@@ -478,7 +490,8 @@ def test_project_lifecycle_failed_truncates_long_error(client):
     )
     assert event.details["error"].endswith("...[truncated]")
     assert len(event.details["error"]) <= iguazio_v4_events.ERROR_DETAIL_LIMIT
-    assert event.description.endswith("...[truncated]")
+    # description is untouched by the error
+    assert event.description == "Project deletion failed"
 
 
 def test_project_lifecycle_succeeded_ignores_error(client):

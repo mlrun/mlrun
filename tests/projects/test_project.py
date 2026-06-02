@@ -43,13 +43,16 @@ from mlrun_pipelines.common.models import RunStatuses
 
 
 @pytest.fixture()
-def context():
-    context = pathlib.Path(tests.conftest.tests_root_directory) / "projects" / "test"
-    yield context
+def context(tmp_path):
+    return tmp_path / "test"
 
-    # clean up
-    if context.exists():
-        shutil.rmtree(context)
+
+@pytest.fixture
+def cwd_in_tmp_path(tmp_path, monkeypatch):
+    """``cwd == tmp_path`` — keeps cwd-relative writes (``log_*`` uploads,
+    local launcher per-run workdirs) out of the working tree."""
+    monkeypatch.chdir(tmp_path)
+    return tmp_path
 
 
 def assets_path():
@@ -168,19 +171,16 @@ def test_get_set_params():
     assert project.get_param("not-exist", default_value) == default_value
 
 
-def test_user_project():
+def test_user_project(monkeypatch):
     project_name = "project-name"
-    original_username = os.environ.get("V3IO_USERNAME")
     usernames = ["valid-username", "require_Normalization"]
     for username in usernames:
-        os.environ["V3IO_USERNAME"] = username
+        monkeypatch.setenv("V3IO_USERNAME", username)
         project = mlrun.new_project(project_name, user_project=True, save=False)
         assert (
             project.metadata.name
             == f"{project_name}-{inflection.dasherize(username.lower())}"
         ), "project name doesnt include user name"
-    if original_username is not None:
-        os.environ["V3IO_USERNAME"] = original_username
 
 
 def test_build_project_from_minimal_dict():
@@ -1000,7 +1000,7 @@ def test_set_function_from_object_override_tag():
     assert func.metadata.tag == "v3"
 
 
-def test_set_function_with_relative_path(context):
+def test_set_function_with_relative_path():
     project = mlrun.new_project("inline", context=str(assets_path()), save=False)
 
     project.set_function(
@@ -1045,15 +1045,15 @@ def test_set_artifact_validates_file_exists(
         )
 
 
-def test_import_artifact_using_relative_path():
-    project = mlrun.new_project("inline", context=str(assets_path()), save=False)
+def test_import_artifact_using_relative_path(tmp_path):
+    project = mlrun.new_project("inline", context=str(tmp_path), save=False)
 
     # log an artifact and save the content/body in the object (inline)
     artifact = project.log_artifact(
-        "x", body="123", is_inline=True, artifact_path=str(assets_path())
+        "x", body="123", is_inline=True, artifact_path=str(tmp_path)
     )
     assert artifact.spec.get_body() == "123"
-    artifact.export(f"{str(assets_path())}/artifact.yaml")
+    artifact.export(f"{tmp_path}/artifact.yaml")
 
     # importing the artifact using a relative path
     artifact = project.import_artifact("artifact.yaml", "y")
@@ -1178,12 +1178,13 @@ def test_replace_exported_artifact_producer(rundb_mock):
     ],
 )
 def test_artifact_owner(
-    rundb_mock, project_owner, username, monkeypatch: pytest.MonkeyPatch
+    rundb_mock, project_owner, username, tmp_path, monkeypatch: pytest.MonkeyPatch
 ):
     if username:
         monkeypatch.setenv("V3IO_USERNAME", username)
 
-    project = mlrun.new_project("artifact-owner", save=False)
+    project = mlrun.new_project("artifact-owner", save=False, context=str(tmp_path))
+    project.spec.artifact_path = str(tmp_path)
     project.spec.owner = project_owner
     artifact = project.log_artifact("x", body="123", format="txt")
     if username:
@@ -1299,11 +1300,11 @@ def test_export_to_zip(rundb_mock):
     assert mlrun.get_dataitem("memory://x.zip").stat().size
 
 
-def test_export_to_zip_downloads_store_function_code(rundb_mock, tmp_path):
+def test_export_to_zip_downloads_store_function_code(rundb_mock, cwd_in_tmp_path):
     """Zip-export: store:// function source is downloaded into the project
     context and project.yaml is rewritten to a local relative path inside
     the zip."""
-    project_dir = tmp_path / "store-zip-project"
+    project_dir = cwd_in_tmp_path / "store-zip-project"
     project_dir.mkdir(parents=True)
 
     # Local source file that will be uploaded as a CodeArtifact.
@@ -1364,11 +1365,11 @@ def test_export_to_zip_downloads_store_function_code(rundb_mock, tmp_path):
     )
 
 
-def test_export_to_yaml_keeps_store_uri(rundb_mock, tmp_path):
+def test_export_to_yaml_keeps_store_uri(rundb_mock, cwd_in_tmp_path):
     """YAML-only export does NOT download or rewrite — store:// URIs are
     preserved verbatim because same-cluster round-trip resolves them at
     load time via _init_function_from_dict."""
-    project_dir = tmp_path / "store-yaml-project"
+    project_dir = cwd_in_tmp_path / "store-yaml-project"
     project_dir.mkdir(parents=True)
 
     handler_path = project_dir / "handler_source.py"
@@ -1433,12 +1434,14 @@ def test_export_to_zip_raises_on_unresolvable_store_uri(rundb_mock, tmp_path):
     )
 
 
-def test_export_to_zip_raises_on_download_failure(rundb_mock, tmp_path, monkeypatch):
+def test_export_to_zip_raises_on_download_failure(
+    rundb_mock, cwd_in_tmp_path, monkeypatch
+):
     """Different failure path from unresolvable-artifact: the artifact IS
     resolvable but `mlrun.get_dataitem(target_path).download(...)` raises
     OSError (network/permission failure). Same fail-fast contract —
     MLRunRuntimeError aborts the export, in-memory state untouched."""
-    project_dir = tmp_path / "store-zip-download-failure"
+    project_dir = cwd_in_tmp_path / "store-zip-download-failure"
     project_dir.mkdir(parents=True)
 
     handler_path = project_dir / "handler_source.py"
@@ -1479,7 +1482,7 @@ def test_export_to_zip_raises_on_download_failure(rundb_mock, tmp_path, monkeypa
     )
 
 
-def test_export_to_zip_downloads_store_workflow_code(rundb_mock, tmp_path):
+def test_export_to_zip_downloads_store_workflow_code(rundb_mock, cwd_in_tmp_path):
     """Zip-export: store:// workflow source is downloaded into the project
     context and the embedded project.yaml's workflow path is rewritten to a
     local relative path. Same behavior as functions, but on `_workflows`.
@@ -1488,7 +1491,7 @@ def test_export_to_zip_downloads_store_workflow_code(rundb_mock, tmp_path):
     (e.g. `.py`) — `_validate_file_path` rejects suffix-less remote URLs.
     Tests that the export rewrite restores in-memory state on success.
     """
-    project_dir = tmp_path / "store-zip-workflow-project"
+    project_dir = cwd_in_tmp_path / "store-zip-workflow-project"
     project_dir.mkdir(parents=True)
 
     workflow_source = project_dir / "workflow_source.py"
@@ -1548,14 +1551,14 @@ def test_export_to_zip_downloads_store_workflow_code(rundb_mock, tmp_path):
 
 
 def test_export_to_zip_downloads_store_function_code_for_runtime_object(
-    rundb_mock, tmp_path
+    rundb_mock, cwd_in_tmp_path
 ):
     """Runtime-object branch of the export walker: function assigned via
     `project.spec.functions = [runtime_obj]` stores a BaseRuntime whose
     source lives at `spec.build.source` (separate code path from the
     dict-form `set_function(func=store_uri)`).
     """
-    project_dir = tmp_path / "store-zip-runtime"
+    project_dir = cwd_in_tmp_path / "store-zip-runtime"
     project_dir.mkdir(parents=True)
 
     handler_path = project_dir / "handler_source.py"
@@ -1610,7 +1613,7 @@ def test_export_to_zip_downloads_store_function_code_for_runtime_object(
     )
 
 
-def test_export_to_zip_keeps_context_yaml_loadable(rundb_mock, tmp_path):
+def test_export_to_zip_keeps_context_yaml_loadable(rundb_mock, cwd_in_tmp_path):
     """After `export("proj.zip")`, the on-disk `<context>/project.yaml`
     must still carry the ORIGINAL store:// URIs, not the .mlrun/code/...
     arcnames that only resolve inside the zip. Otherwise
@@ -1619,7 +1622,7 @@ def test_export_to_zip_keeps_context_yaml_loadable(rundb_mock, tmp_path):
 
     Regression guard for: zip export rewriting the on-disk yaml in place.
     """
-    project_dir = tmp_path / "store-zip-keepyaml"
+    project_dir = cwd_in_tmp_path / "store-zip-keepyaml"
     project_dir.mkdir(parents=True)
 
     handler_path = project_dir / "handler_source.py"
@@ -1677,9 +1680,11 @@ def test_export_to_zip_keeps_context_yaml_loadable(rundb_mock, tmp_path):
     )
 
 
-def test_function_receives_project_artifact_path(rundb_mock):
+def test_function_receives_project_artifact_path(
+    rundb_mock, cwd_in_tmp_path, monkeypatch
+):
     func_path = str(pathlib.Path(__file__).parent / "assets" / "handler.py")
-    mlrun.mlconf.artifact_path = "/tmp"
+    monkeypatch.setattr(mlrun.mlconf, "artifact_path", "/tmp")
     proj1 = mlrun.new_project("proj1", save=False)
 
     # expected to call `get_project`
@@ -1721,9 +1726,9 @@ def test_function_receives_project_artifact_path(rundb_mock):
     assert run.spec.output_path == "/not/tmp"
 
 
-def test_function_receives_project_default_image():
+def test_function_receives_project_default_image(cwd_in_tmp_path, monkeypatch):
     func_path = str(pathlib.Path(__file__).parent / "assets" / "handler.py")
-    mlrun.mlconf.artifact_path = "/tmp"
+    monkeypatch.setattr(mlrun.mlconf, "artifact_path", "/tmp")
     proj1 = mlrun.new_project("proj1", save=False)
     default_image = "myrepo/myimage1"
 
@@ -1776,9 +1781,9 @@ def test_function_receives_project_default_image():
     assert enriched_function.spec.image == new_default_image
 
 
-def test_function_not_enriched_with_project_default_function_node_selector():
+def test_function_not_enriched_with_project_default_function_node_selector(monkeypatch):
     func_path = str(pathlib.Path(__file__).parent / "assets" / "handler.py")
-    mlrun.mlconf.artifact_path = "/tmp"
+    monkeypatch.setattr(mlrun.mlconf, "artifact_path", "/tmp")
     proj1 = mlrun.new_project("proj1", save=False)
     default_function_node_selector = {"gpu": "true"}
 
@@ -1836,9 +1841,11 @@ def test_project_exports_default_image():
     assert imported_project.default_image == default_image
 
 
-def test_run_function_passes_project_artifact_path(rundb_mock):
+def test_run_function_passes_project_artifact_path(
+    rundb_mock, cwd_in_tmp_path, monkeypatch
+):
     func_path = str(pathlib.Path(__file__).parent / "assets" / "handler.py")
-    mlrun.mlconf.artifact_path = "/tmp"
+    monkeypatch.setattr(mlrun.mlconf, "artifact_path", "/tmp")
 
     proj1 = mlrun.new_project("proj1", save=False)
     proj1.set_function(func_path, "f1", image="mlrun/mlrun", handler="myhandler")
@@ -1855,7 +1862,7 @@ def test_run_function_passes_project_artifact_path(rundb_mock):
     run2 = proj1.run_function("f1", local=True)
     assert run2.spec.output_path == proj1.spec.artifact_path
 
-    mlrun.pipeline_context.workflow_artifact_path = "/data"
+    monkeypatch.setattr(mlrun.pipeline_context, "workflow_artifact_path", "/data")
     run3 = proj1.run_function("f1", local=True)
     assert run3.spec.output_path == mlrun.pipeline_context.workflow_artifact_path
 
@@ -1968,12 +1975,13 @@ def _workflow_entry_path(project, workflow_name):
 
 
 def test_set_workflow_accepts_store_uri_with_workflow_code_type(
-    rundb_mock, tmp_path, monkeypatch
+    rundb_mock, cwd_in_tmp_path
 ):
     """log_code_file(code_type='workflow') → set_workflow(store_uri) succeeds."""
-    monkeypatch.chdir(tmp_path)  # prevent log_code_file upload from polluting cwd
-    project = mlrun.new_project("set-wf-store-ok", context=str(tmp_path), save=False)
-    workflow_src = tmp_path / "my_pipeline.py"
+    project = mlrun.new_project(
+        "set-wf-store-ok", context=str(cwd_in_tmp_path), save=False
+    )
+    workflow_src = cwd_in_tmp_path / "my_pipeline.py"
     workflow_src.write_text("def pipeline(): pass\n")
 
     artifact = project.log_code_file(
@@ -1988,12 +1996,13 @@ def test_set_workflow_accepts_store_uri_with_workflow_code_type(
 
 
 def test_set_workflow_rejects_store_uri_with_wrong_code_type(
-    rundb_mock, tmp_path, monkeypatch
+    rundb_mock, cwd_in_tmp_path
 ):
     """log_code_file(code_type='function') → set_workflow(store_uri) raises."""
-    monkeypatch.chdir(tmp_path)  # prevent log_code_file upload from polluting cwd
-    project = mlrun.new_project("set-wf-store-bad", context=str(tmp_path), save=False)
-    func_src = tmp_path / "my_handler.py"
+    project = mlrun.new_project(
+        "set-wf-store-bad", context=str(cwd_in_tmp_path), save=False
+    )
+    func_src = cwd_in_tmp_path / "my_handler.py"
     func_src.write_text("def handler(): pass\n")
 
     artifact = project.log_code_file(
@@ -2007,13 +2016,14 @@ def test_set_workflow_rejects_store_uri_with_wrong_code_type(
 
 
 def test_set_workflow_rejects_store_uri_with_non_code_artifact(
-    rundb_mock, tmp_path, monkeypatch
+    rundb_mock, cwd_in_tmp_path
 ):
     """A store:// URI pointing at a non-code artifact (e.g. a model/dataset)
     must be rejected at set_workflow, not silently accepted."""
-    monkeypatch.chdir(tmp_path)  # prevent log_artifact upload from polluting cwd
-    project = mlrun.new_project("set-wf-non-code", context=str(tmp_path), save=False)
-    src = tmp_path / "model.pkl"
+    project = mlrun.new_project(
+        "set-wf-non-code", context=str(cwd_in_tmp_path), save=False
+    )
+    src = cwd_in_tmp_path / "model.pkl"
     src.write_bytes(b"binary model bytes")
     # log_artifact creates a generic Artifact (kind='artifact'), not a CodeArtifact.
     artifact = project.log_artifact("not_a_code_artifact", local_path=str(src))
@@ -2064,21 +2074,20 @@ def test_set_workflow_rejects_embed_with_remote_path(remote_path):
         )
 
 
-def test_workflow_spec_get_source_file_resolves_store_uri(
-    rundb_mock, tmp_path, monkeypatch
-):
+def test_workflow_spec_get_source_file_resolves_store_uri(rundb_mock, cwd_in_tmp_path):
     """WorkflowSpec(path='store://...').get_source_file resolves to local file."""
-    monkeypatch.chdir(tmp_path)  # prevent log_code_file upload from polluting cwd
-    src = tmp_path / "pipeline_v1.py"
+    src = cwd_in_tmp_path / "pipeline_v1.py"
     src.write_text("def pipeline(): return 'v1'\n")
-    project = mlrun.new_project("wf-spec-resolve", context=str(tmp_path), save=False)
+    project = mlrun.new_project(
+        "wf-spec-resolve", context=str(cwd_in_tmp_path), save=False
+    )
     artifact = project.log_code_file(
         key="my_workflow", local_path=str(src), code_type="workflow"
     )
 
     spec = mlrun.projects.pipelines.WorkflowSpec(path=artifact.uri)
     workflow_file = spec.get_source_file(
-        context=str(tmp_path), project_name="wf-spec-resolve"
+        context=str(cwd_in_tmp_path), project_name="wf-spec-resolve"
     )
 
     assert os.path.isfile(workflow_file)
@@ -2088,39 +2097,45 @@ def test_workflow_spec_get_source_file_resolves_store_uri(
 
 
 def test_workflow_spec_get_source_file_rejects_store_uri_with_wrong_code_type(
-    rundb_mock, tmp_path, monkeypatch
+    rundb_mock, cwd_in_tmp_path
 ):
     """get_source_file raises when the resolved artifact has wrong code_type."""
-    monkeypatch.chdir(tmp_path)  # prevent log_code_file upload from polluting cwd
-    src = tmp_path / "handler.py"
+    src = cwd_in_tmp_path / "handler.py"
     src.write_text("def handler(): pass\n")
-    project = mlrun.new_project("wf-spec-bad-type", context=str(tmp_path), save=False)
+    project = mlrun.new_project(
+        "wf-spec-bad-type", context=str(cwd_in_tmp_path), save=False
+    )
     artifact = project.log_code_file(
         key="not_a_workflow", local_path=str(src), code_type="function"
     )
     spec = mlrun.projects.pipelines.WorkflowSpec(path=artifact.uri)
 
     with pytest.raises(mlrun.errors.MLRunInvalidArgumentError, match="code_type"):
-        spec.get_source_file(context=str(tmp_path), project_name="wf-spec-bad-type")
+        spec.get_source_file(
+            context=str(cwd_in_tmp_path), project_name="wf-spec-bad-type"
+        )
 
 
 def test_workflow_spec_get_source_file_rejects_non_code_artifact(
-    rundb_mock, tmp_path, monkeypatch
+    rundb_mock, cwd_in_tmp_path
 ):
     """get_source_file raises when the resolved artifact is not a code artifact
     (e.g. user pointed at a model/dataset). Defense-in-depth on the runner-pod
     side; mirrors set_workflow's client-side check."""
-    monkeypatch.chdir(tmp_path)  # prevent log_artifact upload from polluting cwd
-    src = tmp_path / "model.pkl"
+    src = cwd_in_tmp_path / "model.pkl"
     src.write_bytes(b"binary model bytes")
-    project = mlrun.new_project("wf-spec-non-code", context=str(tmp_path), save=False)
+    project = mlrun.new_project(
+        "wf-spec-non-code", context=str(cwd_in_tmp_path), save=False
+    )
     artifact = project.log_artifact("not_a_code_artifact", local_path=str(src))
     spec = mlrun.projects.pipelines.WorkflowSpec(path=artifact.uri)
 
     with pytest.raises(
         mlrun.errors.MLRunInvalidArgumentError, match="expected a code artifact"
     ):
-        spec.get_source_file(context=str(tmp_path), project_name="wf-spec-non-code")
+        spec.get_source_file(
+            context=str(cwd_in_tmp_path), project_name="wf-spec-non-code"
+        )
 
 
 def test_validate_workflow_code_artifact_pure():
@@ -2328,7 +2343,7 @@ def test_run_non_existing_workflow(rundb_mock):
         proj.run("non-existing-workflow")
 
 
-def test_project_ops():
+def test_project_ops(cwd_in_tmp_path):
     # verify that project ops (run_function, ..) will use the right project (and not the pipeline_context)
     func_path = str(pathlib.Path(__file__).parent / "assets" / "handler.py")
     proj1 = mlrun.new_project("proj1", save=False)
@@ -2380,7 +2395,12 @@ def test_project_ops():
     ],
 )
 def test_validating_large_int_params(
-    rundb_mock, parameters, hyperparameters, expectation, run_saved
+    rundb_mock,
+    parameters,
+    hyperparameters,
+    expectation,
+    run_saved,
+    cwd_in_tmp_path,
 ):
     func_path = str(pathlib.Path(__file__).parent / "assets" / "handler.py")
     proj1 = mlrun.new_project("proj1")
@@ -2482,8 +2502,8 @@ def test_unauthenticated_git_action_with_remote_pristine(mock_git_repo):
     project.spec.repo.remotes["origin"].set_url.assert_not_called()
 
 
-def test_get_or_create_project_no_db():
-    mlrun.mlconf.dbpath = ""
+def test_get_or_create_project_no_db(monkeypatch):
+    monkeypatch.setattr(mlrun.mlconf, "dbpath", "")
     project_name = "project-name"
     project = mlrun.get_or_create_project(project_name, allow_cross_project=True)
     assert project.name == project_name
@@ -2734,8 +2754,9 @@ def test_create_api_gateway_valid(
     canary,
     upstreams,
     authentication_mode,
+    monkeypatch,
 ):
-    mlrun.mlconf.igz_version = "3.6.0"
+    monkeypatch.setattr(mlrun.mlconf, "igz_version", "3.6.0")
     patched_create_api_gateway.return_value = mlrun.common.schemas.APIGateway(
         metadata=mlrun.common.schemas.APIGatewayMetadata(
             name="new-gw",
@@ -3279,8 +3300,10 @@ def test_run_project_sync_functions_fails_silently(rundb_mock):
         (None, True),
     ],
 )
-def test_run_remote_engine_not_syncing_functions(rundb_mock, engine, should_call):
-    mlrun.mlconf.force_run_local = False
+def test_run_remote_engine_not_syncing_functions(
+    rundb_mock, engine, should_call, monkeypatch
+):
+    monkeypatch.setattr(mlrun.mlconf, "force_run_local", False)
     proj = mlrun.new_project("proj", save=False)
     proj.spec._function_definitions = {
         "prep-data": {

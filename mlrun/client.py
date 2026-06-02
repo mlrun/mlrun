@@ -96,8 +96,10 @@ class Client:
         # Deferred imports — see module-level comment.
         from mlrun.config import config
         from mlrun.db.httpdb import HTTPRunDB
+        from mlrun.projects.pipelines import _PipelineContext
 
         self._http_db = HTTPRunDB(config.dbpath, credentials=credentials)
+        self._pipeline_context = _PipelineContext()
 
     @contextmanager
     def session(self) -> Iterator[Client]:

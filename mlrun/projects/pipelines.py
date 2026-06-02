@@ -396,7 +396,36 @@ class _PipelineContext:
         return False
 
 
-pipeline_context = _PipelineContext()
+_legacy_pipeline_context = _PipelineContext()
+
+
+def _current_pipeline_context() -> _PipelineContext:
+    """Return the active ``Client``'s pipeline context if one is bound,
+    else the legacy module-global instance."""
+    from mlrun.client import get_active_client
+
+    client = get_active_client()
+    if client is not None:
+        return client._pipeline_context
+    return _legacy_pipeline_context
+
+
+class _PipelineContextProxy:
+    """Delegates every attribute read/write to the per-session
+    ``_PipelineContext`` returned by ``_current_pipeline_context()``.
+
+    Inside a ``client.session()`` that's the active client's own instance;
+    outside, the module-global legacy singleton (BWC).
+    """
+
+    def __getattr__(self, name):
+        return getattr(_current_pipeline_context(), name)
+
+    def __setattr__(self, name, value):
+        setattr(_current_pipeline_context(), name, value)
+
+
+pipeline_context = _PipelineContextProxy()
 
 
 def _set_function_attribute_on_kfp_pod(

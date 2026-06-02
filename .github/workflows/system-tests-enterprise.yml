@@ -137,7 +137,7 @@ jobs:
         node-version: 18
     - name: Configure AWS credentials
       id: creds
-      uses: aws-actions/configure-aws-credentials@ec61189d14ec14c8efccab744f656cffd0e33f37
+      uses: aws-actions/configure-aws-credentials@e7f100cf4c008499ea8adda475de1042d6975c7b
       with:
         role-to-assume: ${{ env.AWS_ROLE_ARN }}
         role-session-name: mlrun-system-tests-${{ github.run_id }}
@@ -416,7 +416,7 @@ jobs:
     # (aws eks get-token) and refresh tokens throughout long test runs. This prevents 401s during
     # pod-log collection on failures.
     - name: Configure AWS credentials
-      uses: aws-actions/configure-aws-credentials@ec61189d14ec14c8efccab744f656cffd0e33f37
+      uses: aws-actions/configure-aws-credentials@e7f100cf4c008499ea8adda475de1042d6975c7b
       with:
         role-to-assume: ${{ env.AWS_ROLE_ARN }}
         role-session-name: mlrun-system-tests-${{ github.run_id }}

@@ -215,9 +215,8 @@ class AzureBlobStore(DataStore):
 
         # Resolve an identity-based credential only when no connection-string / account-key / SAS /
         # explicit credential is supplied. A service principal needs both client_id and
-        # client_secret; for workload / managed identity the `storage_options` property has already
-        # dropped the secret-less client_id and set anon=False, which routes us to
-        # DefaultAzureCredential here (it exchanges AZURE_FEDERATED_TOKEN_FILE).
+        # client_secret; for workload / managed identity the storage_options property has already
+        # dropped the secret-less client_id and set anon=False, routing us to DefaultAzureCredential.
         identity_credential = None
         if credential is None and account_key is None and sas_token is None:
             if client_id is not None and client_secret is not None:

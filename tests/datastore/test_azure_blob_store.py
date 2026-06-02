@@ -729,9 +729,7 @@ class TestAzureBlobStore:
         assert options["tenant_id"] is not None
 
     def test_storage_options_workload_identity_drops_partial_triple(self):
-        """ML-12668: client_id/tenant_id injected without a secret (workload identity) must be
-        dropped and anon forced to False so adlfs routes to DefaultAzureCredential instead of
-        building a ClientSecretCredential(client_secret=None)."""
+        """ML-12668: a client_id without a secret (workload identity) is dropped and anon set False."""
         env_vars = {
             "AZURE_STORAGE_ACCOUNT_NAME": "teststorage",
             "AZURE_CLIENT_ID": "wi-client-id",
@@ -750,8 +748,7 @@ class TestAzureBlobStore:
         assert options["account_name"] == "teststorage"
 
     def test_storage_options_keeps_full_service_principal(self):
-        """An explicit service principal (client_id + client_secret + tenant_id) is preserved
-        untouched, and anon is not injected — the WI fallback must not hijack it."""
+        """A full service principal (client_id + client_secret + tenant_id) is preserved, anon untouched."""
         env_vars = {
             "AZURE_STORAGE_ACCOUNT_NAME": "teststorage",
             "AZURE_CLIENT_ID": "sp-client-id",
@@ -786,8 +783,7 @@ class TestAzureBlobStore:
         assert "anon" not in options
 
     def test_do_connect_workload_identity_uses_default_credential(self):
-        """ML-12668: with anon=False and no key/SAS/client_id/secret, the service client must be
-        built with DefaultAzureCredential (the workload-identity path), not ClientSecretCredential."""
+        """With anon=False and no key/SAS/client_id, _do_connect uses DefaultAzureCredential."""
         store = self._create_store(schema="az", endpoint="mycontainer")
         mock_storage_options = {"account_name": "teststorage", "anon": False}
 

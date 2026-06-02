@@ -728,70 +728,40 @@ class TestMPIjobRuntimeHandler(TestRuntimeHandlerBase):
         }
 
 
-def _crd_with_completion_offset(offset_seconds: float) -> dict:
-    completion_time = datetime.now(UTC) - timedelta(seconds=offset_seconds)
-    return {
-        "status": {"completionTime": completion_time.isoformat().replace("+00:00", "Z")}
-    }
-
-
 # desired_state is what monitoring wants to apply; current_state is the run's current DB state.
 @pytest.mark.parametrize(
-    "desired_state,current_state,results,runtime_resource,expected",
+    "desired_state,current_state,results,crd_present,completion_offset_seconds,expected",
     [
         # Not a completed transition - never deferred.
-        (
-            RunStates.running,
-            RunStates.running,
-            {},
-            _crd_with_completion_offset(5),
-            False,
-        ),
-        (RunStates.error, RunStates.running, {}, _crd_with_completion_offset(5), False),
+        (RunStates.running, RunStates.running, {}, True, 5, False),
+        (RunStates.error, RunStates.running, {}, True, 5, False),
         # Run already terminal (the logging worker already committed it) - nothing to wait for.
-        (
-            RunStates.completed,
-            RunStates.completed,
-            {},
-            _crd_with_completion_offset(5),
-            False,
-        ),
+        (RunStates.completed, RunStates.completed, {}, True, 5, False),
         # Results already present - proceed.
-        (
-            RunStates.completed,
-            RunStates.running,
-            {"time": 1.0},
-            _crd_with_completion_offset(5),
-            False,
-        ),
+        (RunStates.completed, RunStates.running, {"time": 1.0}, True, 5, False),
         # No CRD (e.g. pre-deletion path) - proceed.
-        (RunStates.completed, RunStates.running, {}, None, False),
+        (RunStates.completed, RunStates.running, {}, False, None, False),
         # CRD lacks a completion time - proceed.
-        (RunStates.completed, RunStates.running, {}, {"status": {}}, False),
+        (RunStates.completed, RunStates.running, {}, True, None, False),
         # Monitoring wants completed, run still running with no results, within grace - defer (the race).
-        (
-            RunStates.completed,
-            RunStates.running,
-            {},
-            _crd_with_completion_offset(5),
-            True,
-        ),
+        (RunStates.completed, RunStates.running, {}, True, 5, True),
         # Grace period elapsed - proceed (do not hang).
-        (
-            RunStates.completed,
-            RunStates.running,
-            {},
-            _crd_with_completion_offset(10_000),
-            False,
-        ),
+        (RunStates.completed, RunStates.running, {}, True, 10_000, False),
     ],
 )
 def test_mpijob_should_wait_for_results(
-    monkeypatch, desired_state, current_state, results, runtime_resource, expected
+    monkeypatch,
+    desired_state,
+    current_state,
+    results,
+    crd_present,
+    completion_offset_seconds,
+    expected,
 ):
     monkeypatch.setattr(mlrun.mlconf.monitoring.runs, "result_settle_grace_seconds", 30)
     handler = get_runtime_handler(RuntimeKinds.mpijob)
     run = {"status": {"state": current_state, "results": results}}
+    runtime_resource = _mpijob_crd(crd_present, completion_offset_seconds)
 
     assert (
         handler._should_wait_for_results(run, desired_state, runtime_resource)
@@ -818,10 +788,24 @@ def test_mpijob_ensure_run_state_defers_completed_until_results(monkeypatch):
         run_state=RunStates.completed,
         run=run,
         search_run=False,
-        runtime_resource=_crd_with_completion_offset(5),
+        runtime_resource=_mpijob_crd(crd_present=True, completion_offset_seconds=5),
     )
 
     assert updated is False
     assert state == RunStates.running  # state not advanced to completed
     assert returned_run is run
     db.update_run.assert_not_called()  # no DB write while deferring
+
+
+def _mpijob_crd(
+    crd_present: bool, completion_offset_seconds: float | None
+) -> dict | None:
+    if not crd_present:
+        return None
+    status = {}
+    if completion_offset_seconds is not None:
+        completion_time = datetime.now(UTC) - timedelta(
+            seconds=completion_offset_seconds
+        )
+        status["completionTime"] = completion_time.isoformat().replace("+00:00", "Z")
+    return {"status": status}

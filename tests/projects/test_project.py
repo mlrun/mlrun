@@ -1862,7 +1862,7 @@ def test_run_function_passes_project_artifact_path(
     run2 = proj1.run_function("f1", local=True)
     assert run2.spec.output_path == proj1.spec.artifact_path
 
-    mlrun.pipeline_context.workflow_artifact_path = "/data"
+    monkeypatch.setattr(mlrun.pipeline_context, "workflow_artifact_path", "/data")
     run3 = proj1.run_function("f1", local=True)
     assert run3.spec.output_path == mlrun.pipeline_context.workflow_artifact_path
 

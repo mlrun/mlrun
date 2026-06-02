@@ -41,6 +41,7 @@ import requests
 import yaml
 
 import mlrun.artifacts.model
+import mlrun.client
 import mlrun.common.constants
 import mlrun.common.formatters
 import mlrun.common.helpers
@@ -401,6 +402,15 @@ def load_project(
     from_db = False
     if url:
         url = str(url)  # to support path objects
+        is_db_bound = url.startswith("db://") or (
+            "://" not in url and not is_yaml_path(url)
+        )
+        if mlrun.client.get_active_client() is not None and not is_db_bound:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Loading a project from a yaml, git, or archive URL is not "
+                "supported inside client.session(); use a 'db://' URL or "
+                "pass the project name."
+            )
         if is_yaml_path(url):
             project = _load_project_file(url, name, secrets, allow_cross_project)
             project.spec.context = context
@@ -429,6 +439,11 @@ def load_project(
         repo, url = init_repo(context, url, init_git)
 
     if not project:
+        if mlrun.client.get_active_client() is not None:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"Cannot load project '{name}' inside client.session() without "
+                "a 'db://' URL or a project name resolvable from the DB."
+            )
         project = _load_project_dir(context, name, subpath, allow_cross_project)
 
     if not project.metadata.name:
@@ -560,7 +575,11 @@ def get_or_create_project(
         )
 
     spec_path = path.join(context, subpath or "", "project.yaml")
-    load_from_path = url or path.isfile(spec_path)
+    load_from_path = bool(url)
+    if not load_from_path and mlrun.client.get_active_client() is None:
+        # Inside ``client.session()``, never probe cwd for project.yaml;
+        # fall through to ``new_project`` instead.
+        load_from_path = path.isfile(spec_path)
     # do not nest under "try" or else the exceptions raised below will be logged along with the "not found" message
     if load_from_path:
         # loads a project from archive or local project.yaml
@@ -722,6 +741,13 @@ def _add_username_to_project_name_if_needed(name, user_project):
     if user_project:
         if not name:
             raise ValueError("user_project must be specified together with name")
+        if mlrun.client.get_active_client() is not None:
+            # Process env / getpass identity is meaningless in a multi-tenant
+            # client session; the caller must pass a fully-qualified name.
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "user_project=True is not supported inside client.session(); "
+                "pass the fully-qualified project name explicitly."
+            )
         username = environ.get("V3IO_USERNAME") or getpass.getuser()
         normalized_username = mlrun.utils.normalize_project_username(username.lower())
         if username != normalized_username:
@@ -4051,7 +4077,10 @@ class MlrunProject(ModelObj):
 
         :store: if True, allow updating in case project already exists
         """
-        self.export(filepath)
+        # Inside ``client.session()``, skip the on-disk ``project.yaml``
+        # write — DB is the source of truth for client-mode callers.
+        if mlrun.client.get_active_client() is None:
+            self.export(filepath)
         project: MlrunProject = self.save_to_db(store)
 
         # Update this object with the enriched project returned by the API,
@@ -6353,6 +6382,10 @@ class MlrunProject(ModelObj):
         return self._get_hexsha() or str(uuid.uuid4())
 
     def _resolve_artifact_owner(self):
+        # Inside ``client.session()``, ignore process env — the server
+        # overrides ``producer.owner`` from ``auth_info.username`` anyway.
+        if mlrun.client.get_active_client() is not None:
+            return self.spec.owner
         return os.getenv("V3IO_USERNAME") or self.spec.owner
 
     def _enrich(self, other: "MlrunProject"):

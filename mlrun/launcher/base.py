@@ -171,12 +171,6 @@ class BaseLauncher(abc.ABC):
         self._validate_run_params(run.spec.parameters)
         self._validate_output_path(runtime, run)
 
-        for image in [
-            runtime.spec.image,
-            getattr(runtime.spec.build, "base_image", None),
-        ]:
-            mlrun.utils.helpers.warn_on_deprecated_image(image)
-
         # Raise an error if retry is configured for a runtime that doesn't support retries.
         # For local runs, we intentionally skip this validation and allow the run to proceed, since they are typically
         # used for debugging purposes, and in such cases we avoid blocking their execution.

@@ -1306,6 +1306,80 @@ def test_make_kaniko_pod_command_using_build_args(
 
 
 @pytest.mark.parametrize(
+    "builder_pod_labels,expected_present,not_expected",
+    [
+        # no configured labels - pod carries only the internal mlrun/* labels
+        ({}, {}, ["azure.workload.identity/use"]),
+        # workload-identity label is plumbed onto the builder pod
+        (
+            {"azure.workload.identity/use": "true"},
+            {"azure.workload.identity/use": "true"},
+            [],
+        ),
+        # multiple labels are all applied
+        (
+            {"azure.workload.identity/use": "true", "team": "platform"},
+            {"azure.workload.identity/use": "true", "team": "platform"},
+            [],
+        ),
+    ],
+)
+def test_make_kaniko_pod_labels(builder_pod_labels, expected_present, not_expected):
+    mlrun.mlconf.httpdb.builder.pod_labels = base64.b64encode(
+        json.dumps(builder_pod_labels).encode("utf-8")
+    )
+    with unittest.mock.patch(
+        "framework.api.utils.resolve_project_service_account_details",
+        return_value=(None, None, None),
+    ):
+        function = mlrun.new_function("test", kind="job")
+        kpod = services.api.utils.builder.make_kaniko_pod(
+            project="test",
+            context="/context",
+            dest="docker-hub/",
+            dockerfile="./Dockerfile",
+            runtime_spec=function.spec,
+        )
+
+    pod_labels = kpod.pod.metadata.labels
+    for key, value in expected_present.items():
+        assert pod_labels[key] == value
+    for key in not_expected:
+        assert key not in pod_labels
+    # system-assigned mlrun/* labels are always present
+    assert pod_labels[mlrun.common.constants.MLRunInternalLabels.mlrun_class] == "build"
+    assert pod_labels[mlrun.common.constants.MLRunInternalLabels.project] == "test"
+
+
+def test_make_kaniko_pod_labels_internal_labels_take_precedence():
+    # a configured label that collides with a system-assigned mlrun/* label must not override it
+    mlrun.mlconf.httpdb.builder.pod_labels = base64.b64encode(
+        json.dumps(
+            {
+                mlrun.common.constants.MLRunInternalLabels.mlrun_class: "should-be-ignored",
+                "azure.workload.identity/use": "true",
+            }
+        ).encode("utf-8")
+    )
+    with unittest.mock.patch(
+        "framework.api.utils.resolve_project_service_account_details",
+        return_value=(None, None, None),
+    ):
+        function = mlrun.new_function("test", kind="job")
+        kpod = services.api.utils.builder.make_kaniko_pod(
+            project="test",
+            context="/context",
+            dest="docker-hub/",
+            dockerfile="./Dockerfile",
+            runtime_spec=function.spec,
+        )
+
+    pod_labels = kpod.pod.metadata.labels
+    assert pod_labels[mlrun.common.constants.MLRunInternalLabels.mlrun_class] == "build"
+    assert pod_labels["azure.workload.identity/use"] == "true"
+
+
+@pytest.mark.parametrize(
     "extra_args,expected_result",
     [
         ("--arg1 value1", {"--arg1": ["value1"]}),

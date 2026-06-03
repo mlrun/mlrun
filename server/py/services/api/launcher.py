@@ -44,7 +44,6 @@ import framework.utils.helpers
 import framework.utils.singletons.db
 import services.api.crud
 import services.api.runtime_handlers
-import services.api.utils.functions
 import services.api.utils.helpers
 
 # Configmap objects on Kubernetes have 10Mb size limit
@@ -241,10 +240,9 @@ class ServerSideLauncher(launcher.BaseLauncher):
                 project, runtime, copy_function=False, try_auto_mount=False
             )
 
-        # Merge code artifact requirements into function build spec.
-        # Must happen before requires_build() so the build decision
-        # accounts for artifact requirements.
-        services.api.utils.functions.enrich_function_from_code_artifact(
+        # Merge code-artifact reqs before requires_build() so the build decision
+        # accounts for them.
+        mlrun.runtimes.utils.enrich_function_from_code_artifact(
             runtime, runtime.metadata.project
         )
 

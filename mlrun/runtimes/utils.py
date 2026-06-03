@@ -447,6 +447,63 @@ def enrich_function_from_dict(function, function_dict):
     return function
 
 
+def enrich_function_from_code_artifact(function, project: str) -> bool:
+    """Resolve store:// code artifact and enrich the function build spec.
+
+    Validates artifact kind, merges ``spec.requirements`` into
+    ``function.spec.build.requirements`` (user reqs win), and defaults
+    ``load_source_on_run`` to True when unset. Called from both client SDK
+    (pre-auto_build) and API server (run/build enrichment).
+
+    :param function: The function object to enrich
+    :param project:  Project name for artifact resolution
+    :returns: True if the artifact carried requirements (applied to the build
+              spec); callers in build-decision paths should then re-run
+              ``prepare_image_for_deploy`` to shift image -> base_image.
+    """
+    source = function.spec.build.source or getattr(
+        function.status, "application_source", None
+    )
+    if not source or not mlrun.utils.is_store_uri(source):
+        return False
+
+    try:
+        artifact = mlrun.datastore.get_store_resource(source, project=project)
+    except mlrun.errors.MLRunBaseError:
+        raise
+    except Exception as exc:
+        raise mlrun.errors.MLRunInvalidArgumentError(
+            f"Cannot resolve code artifact {source}: {err_to_str(exc)}"
+        ) from exc
+
+    allowed_kinds = {"code"}
+    if function.kind == mlrun.runtimes.RuntimeKinds.application:
+        allowed_kinds.add("artifact")
+    if artifact.kind not in allowed_kinds:
+        raise mlrun.errors.MLRunInvalidArgumentError(
+            f"Source {source} resolves to a {artifact.kind!r} artifact; "
+            "expected a code artifact (kind='code')."
+        )
+
+    applied_artifact_requirements = False
+    artifact_requirements = getattr(artifact.spec, "requirements", None)
+    if artifact_requirements:
+        function.spec.build.requirements = mlrun.utils.merge_requirements(
+            reqs_priority=function.spec.build.requirements or [],
+            reqs_secondary=artifact_requirements,
+        )
+        applied_artifact_requirements = True
+
+    if function.spec.build.load_source_on_run is None:
+        logger.debug(
+            "Defaulting load_source_on_run=True for store:// source",
+            source=source,
+        )
+        function.spec.build.load_source_on_run = True
+
+    return applied_artifact_requirements
+
+
 def resolve_owner(
     labels: dict,
     owner_to_enrich: str | None = None,

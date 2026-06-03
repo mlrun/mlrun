@@ -180,6 +180,7 @@ class TestModelEndpointInstruction:
         d = instr.to_dict()
         assert d["name"] == "my-endpoint"
         assert d["creation_strategy"] == "inplace"
+        assert d["monitoring_mode"] == "enabled"
         assert d["input_schema"] is None
         assert d["output_schema"] is None
         assert d["function_name"] is None
@@ -188,6 +189,7 @@ class TestModelEndpointInstruction:
     def test_to_dict_all_fields(self):
         from mlrun.common.schemas.model_monitoring.constants import (
             ModelEndpointCreationStrategy,
+            ModelMonitoringMode,
         )
         from mlrun.common.schemas.model_monitoring.model_endpoints import (
             ModelEndpointInstruction,
@@ -200,6 +202,7 @@ class TestModelEndpointInstruction:
             function_name="my-fn",
             function_tag="v1",
             creation_strategy=ModelEndpointCreationStrategy.ARCHIVE,
+            monitoring_mode=ModelMonitoringMode.disabled,
         )
         d = instr.to_dict()
         assert d == {
@@ -209,11 +212,13 @@ class TestModelEndpointInstruction:
             "function_name": "my-fn",
             "function_tag": "v1",
             "creation_strategy": "archive",
+            "monitoring_mode": "disabled",
         }
 
     def test_from_dict_round_trip(self):
         from mlrun.common.schemas.model_monitoring.constants import (
             ModelEndpointCreationStrategy,
+            ModelMonitoringMode,
         )
         from mlrun.common.schemas.model_monitoring.model_endpoints import (
             ModelEndpointInstruction,
@@ -226,13 +231,16 @@ class TestModelEndpointInstruction:
             function_name="fn",
             function_tag="latest",
             creation_strategy=ModelEndpointCreationStrategy.OVERWRITE,
+            monitoring_mode=ModelMonitoringMode.disabled,
         )
         restored = ModelEndpointInstruction.from_dict(original.to_dict())
         assert restored == original
+        assert restored.monitoring_mode == ModelMonitoringMode.disabled
 
     def test_from_dict_defaults(self):
         from mlrun.common.schemas.model_monitoring.constants import (
             ModelEndpointCreationStrategy,
+            ModelMonitoringMode,
         )
         from mlrun.common.schemas.model_monitoring.model_endpoints import (
             ModelEndpointInstruction,
@@ -241,6 +249,7 @@ class TestModelEndpointInstruction:
         restored = ModelEndpointInstruction.from_dict({"name": "only-name"})
         assert restored.name == "only-name"
         assert restored.creation_strategy == ModelEndpointCreationStrategy.INPLACE
+        assert restored.monitoring_mode == ModelMonitoringMode.enabled
         assert restored.input_schema is None
 
     def test_spec_fields_excludes_none(self):

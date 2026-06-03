@@ -500,6 +500,81 @@ def test_auto_mount_raises_without_config():
         mlrun.runtimes.mounts.auto_mount()
 
 
+def test_mount_s3_does_not_override_user_set_aws_access_key():
+    """User-set plain AWS_ACCESS_KEY_ID survives mount_s3(secret_name=...).
+
+    Regression for ML-12330: on IG4 the platform auto-mounts mount_s3 with
+    secret_name='minio-credentials', which previously clobbered a user-supplied
+    AWS_ACCESS_KEY_ID (e.g. set via the UI batch-run wizard) with a secretKeyRef.
+    """
+    function = mlrun.new_function(
+        "function-name", "function-project", kind=mlrun.runtimes.RuntimeKinds.job
+    )
+    function.set_env("AWS_ACCESS_KEY_ID", "user-custom-value")
+
+    function.apply(
+        mlrun.runtimes.mounts.mount_s3(
+            secret_name="minio-credentials",
+            endpoint_url="http://seaweedfs:8333",
+        )
+    )
+
+    env_dict = {
+        var["name"]: var.get("value", var.get("valueFrom")) for var in function.spec.env
+    }
+    # User's plain value is preserved (no secretKeyRef override).
+    assert env_dict["AWS_ACCESS_KEY_ID"] == "user-custom-value"
+    # AWS_SECRET_ACCESS_KEY was not user-set, so the secretKeyRef from the
+    # modifier still wins — confirming the guard only fires per-key.
+    assert env_dict["AWS_SECRET_ACCESS_KEY"] == {
+        "secretKeyRef": {"key": "AWS_SECRET_ACCESS_KEY", "name": "minio-credentials"}
+    }
+    # Endpoint URL was not user-set, so the modifier's value wins.
+    assert env_dict["AWS_ENDPOINT_URL_S3"] == "http://seaweedfs:8333"
+
+
+def test_mount_s3_does_not_override_user_set_endpoint_url():
+    """User-set plain AWS_ENDPOINT_URL_S3 survives mount_s3()."""
+    function = mlrun.new_function(
+        "function-name", "function-project", kind=mlrun.runtimes.RuntimeKinds.job
+    )
+    function.set_env("AWS_ENDPOINT_URL_S3", "https://my-corp-s3.example.com")
+
+    function.apply(
+        mlrun.runtimes.mounts.mount_s3(
+            secret_name="minio-credentials",
+            endpoint_url="http://seaweedfs:8333",
+        )
+    )
+
+    env_dict = {
+        var["name"]: var.get("value", var.get("valueFrom")) for var in function.spec.env
+    }
+    assert env_dict["AWS_ENDPOINT_URL_S3"] == "https://my-corp-s3.example.com"
+
+
+def test_mount_s3_without_secret_does_not_override_user_set_aws_access_key():
+    """User-set plain AWS_ACCESS_KEY_ID also wins on the explicit-key path (no secret_name)."""
+    function = mlrun.new_function(
+        "function-name", "function-project", kind=mlrun.runtimes.RuntimeKinds.job
+    )
+    function.set_env("AWS_ACCESS_KEY_ID", "user-custom-value")
+
+    function.apply(
+        mlrun.runtimes.mounts.mount_s3(
+            aws_access_key="modifier-access-key",
+            aws_secret_key="modifier-secret-key",
+        )
+    )
+
+    env_dict = {
+        var["name"]: var.get("value", var.get("valueFrom")) for var in function.spec.env
+    }
+    assert env_dict["AWS_ACCESS_KEY_ID"] == "user-custom-value"
+    # The non-user-set key is still filled by the modifier.
+    assert env_dict["AWS_SECRET_ACCESS_KEY"] == "modifier-secret-key"
+
+
 def _auth_prefix() -> str:
     # Matches how the code builds the pattern: format(hashed_access_key="")
     return mlrun.mlconf.secret_stores.kubernetes.auth_secret_name.format(
@@ -564,3 +639,194 @@ def test_mount_secret_allows_regular_secret_and_sets_volume():
         )
         == {}
     )
+
+
+def test_mount_s3_marks_plain_value_writes_as_auto_mount_injected():
+    """mount_s3(secret_name=...) flags only the plain-value writes.
+
+    Regression for ML-12572: with secret_name set, only the endpoint URL is
+    written as a plain value; access/secret keys are secretKeyRefs and must NOT
+    be marked.
+    """
+    function = mlrun.new_function(
+        "function-name", "function-project", kind=mlrun.runtimes.RuntimeKinds.job
+    )
+
+    function.apply(
+        mlrun.runtimes.mounts.mount_s3(
+            secret_name="minio-credentials",
+            endpoint_url="http://seaweedfs:8333",
+            aws_region="us-east-1",
+        )
+    )
+
+    assert sorted(function.spec.auto_mount_injected_env_names) == [
+        "AWS_ENDPOINT_URL_S3",
+        "AWS_REGION",
+    ]
+
+
+def test_mount_s3_marks_plain_value_writes_on_explicit_key_path():
+    """All plain-value writes are flagged on the explicit-key path (no secret_name)."""
+    function = mlrun.new_function(
+        "function-name", "function-project", kind=mlrun.runtimes.RuntimeKinds.job
+    )
+
+    function.apply(
+        mlrun.runtimes.mounts.mount_s3(
+            aws_access_key="modifier-access-key",
+            aws_secret_key="modifier-secret-key",
+            endpoint_url="http://seaweedfs:8333",
+        )
+    )
+
+    assert sorted(function.spec.auto_mount_injected_env_names) == [
+        "AWS_ACCESS_KEY_ID",
+        "AWS_ENDPOINT_URL_S3",
+        "AWS_SECRET_ACCESS_KEY",
+    ]
+
+
+def test_has_user_set_plain_env_false_for_auto_mount_marked_env():
+    """has_user_set_plain_env yields False for an auto-mount-injected plain value.
+
+    Regression for ML-12572: the server-side project-secret resolver must be
+    able to override mount_s3's plain writes.
+    """
+    function = mlrun.new_function(
+        "function-name", "function-project", kind=mlrun.runtimes.RuntimeKinds.job
+    )
+
+    function.apply(
+        mlrun.runtimes.mounts.mount_s3(
+            secret_name="minio-credentials",
+            endpoint_url="http://seaweedfs:8333",
+        )
+    )
+
+    assert any(
+        var["name"] == "AWS_ENDPOINT_URL_S3"
+        and var.get("value") == "http://seaweedfs:8333"
+        for var in function.spec.env
+    )
+    assert function.has_user_set_plain_env("AWS_ENDPOINT_URL_S3") is False
+
+
+def test_user_set_env_after_auto_mount_clears_marker_and_wins():
+    """A user-set plain value after auto-mount reclaims user-set semantics."""
+    function = mlrun.new_function(
+        "function-name", "function-project", kind=mlrun.runtimes.RuntimeKinds.job
+    )
+
+    function.apply(
+        mlrun.runtimes.mounts.mount_s3(
+            secret_name="minio-credentials",
+            endpoint_url="http://seaweedfs:8333",
+        )
+    )
+    assert "AWS_ENDPOINT_URL_S3" in function.spec.auto_mount_injected_env_names
+
+    function.set_env("AWS_ENDPOINT_URL_S3", "https://real-s3.amazonaws.com")
+
+    assert "AWS_ENDPOINT_URL_S3" not in function.spec.auto_mount_injected_env_names
+    assert function.has_user_set_plain_env("AWS_ENDPOINT_URL_S3") is True
+
+
+def test_project_secret_value_from_clears_auto_mount_marker():
+    """Once a project secret writes a secretKeyRef for a key, the auto-mount
+    marker is dropped — the auto-mount plain value has been replaced.
+    """
+    function = mlrun.new_function(
+        "function-name", "function-project", kind=mlrun.runtimes.RuntimeKinds.job
+    )
+
+    function.apply(
+        mlrun.runtimes.mounts.mount_s3(
+            secret_name="minio-credentials",
+            endpoint_url="http://seaweedfs:8333",
+        )
+    )
+    assert "AWS_ENDPOINT_URL_S3" in function.spec.auto_mount_injected_env_names
+
+    # Simulate what add_k8s_secrets_to_spec does on the server side.
+    function.set_env_from_secret(
+        "AWS_ENDPOINT_URL_S3",
+        secret="mlrun-project-secrets-ppzdswyube",
+        secret_key="AWS_ENDPOINT_URL_S3",
+    )
+
+    assert "AWS_ENDPOINT_URL_S3" not in function.spec.auto_mount_injected_env_names
+
+    # Locate AWS_ENDPOINT_URL_S3 in spec.env; entries may be dicts (sanitized
+    # from .apply()) or V1EnvVar (direct set_env_from_secret).
+    endpoint_var = next(
+        var
+        for var in function.spec.env
+        if mlrun.runtimes.utils.get_item_name(var) == "AWS_ENDPOINT_URL_S3"
+    )
+    plain_value = mlrun.runtimes.utils.get_item_name(endpoint_var, "value")
+    assert plain_value is None
+    assert getattr(endpoint_var, "value_from", None) is not None
+    secret_key_ref = endpoint_var.value_from.secret_key_ref
+    assert secret_key_ref.key == "AWS_ENDPOINT_URL_S3"
+    assert secret_key_ref.name == "mlrun-project-secrets-ppzdswyube"
+
+
+def test_kuberesourcespec_auto_mount_injected_env_names_round_trip():
+    """The marker list survives spec serialization (SDK -> API)."""
+    function = mlrun.new_function(
+        "function-name", "function-project", kind=mlrun.runtimes.RuntimeKinds.job
+    )
+    function.apply(
+        mlrun.runtimes.mounts.mount_s3(
+            secret_name="minio-credentials",
+            endpoint_url="http://seaweedfs:8333",
+        )
+    )
+    assert "AWS_ENDPOINT_URL_S3" in function.spec.auto_mount_injected_env_names
+
+    spec_dict = function.spec.to_dict()
+    assert "auto_mount_injected_env_names" in spec_dict
+    assert "AWS_ENDPOINT_URL_S3" in spec_dict["auto_mount_injected_env_names"]
+
+    # Reconstruct a spec the way new_function(runtime=<dict>) does.
+    rebuilt = mlrun.runtimes.pod.KubeResourceSpec.from_dict(spec_dict)
+    assert "AWS_ENDPOINT_URL_S3" in rebuilt.auto_mount_injected_env_names
+
+
+def test_kuberesourcespec_defaults_auto_mount_injected_env_names_for_legacy_dict():
+    """Spec dicts that pre-date the field default to an empty list (no KeyError)."""
+    legacy_spec_dict = {
+        "env": [{"name": "FOO", "value": "bar"}],
+    }
+    rebuilt = mlrun.runtimes.pod.KubeResourceSpec.from_dict(legacy_spec_dict)
+    assert rebuilt.auto_mount_injected_env_names == []
+
+
+def test_mount_s3_marker_survives_round_trip_on_application_runtime():
+    """The actual ML-12572 reproducer: ApplicationRuntime + SDK↔API round-trip.
+
+    For nuclio/application runtimes, mount_s3 runs in the SDK *before* the
+    function spec is serialized and sent to the API server. The marker must
+    survive `to_dict` / `new_function(runtime=dict)` so the server-side
+    `has_user_set_plain_env` check sees it and project-secret injection wins.
+    """
+    function = mlrun.new_function(
+        "application-test", kind="application", image="mlrun/mlrun"
+    )
+
+    function.apply(
+        mlrun.runtimes.mounts.mount_s3(
+            secret_name="minio-credentials",
+            endpoint_url="https://minio-lab.iguazeng.com",
+        )
+    )
+    assert "AWS_ENDPOINT_URL_S3" in function.spec.auto_mount_injected_env_names
+
+    # SDK serializes the runtime; API server reconstructs it.
+    runtime_dict = function.to_dict()
+    rebuilt = mlrun.new_function(runtime=runtime_dict)
+
+    assert "AWS_ENDPOINT_URL_S3" in rebuilt.spec.auto_mount_injected_env_names
+    # And the server-side resolver's gate yields False, so project-secret wins.
+    assert rebuilt.has_user_set_plain_env("AWS_ENDPOINT_URL_S3") is False

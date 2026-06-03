@@ -34,6 +34,7 @@ import yaml
 import mlrun.common.constants as mlrun_constants
 import mlrun.common.formatters
 import mlrun.common.schemas
+import mlrun.datastore
 import mlrun.errors
 import mlrun.utils.helpers
 import mlrun_pipelines.utils

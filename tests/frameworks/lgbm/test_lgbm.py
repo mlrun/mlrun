@@ -38,7 +38,7 @@ def test_training_api_training(rundb_mock, algorithm_functionality: str):
     with tempfile.TemporaryDirectory() as test_directory:
         # Run training:
         train_run = mlrun.new_function().run(
-            artifact_path=test_directory,
+            output_path=test_directory,
             handler=LightGBMHandlers.training_api_train,
             params={"algorithm_functionality": algorithm_functionality},
         )
@@ -58,7 +58,7 @@ def test_sklearn_api_training(rundb_mock, algorithm_functionality: str):
     with tempfile.TemporaryDirectory() as test_directory:
         # Run training:
         train_run = mlrun.new_function().run(
-            artifact_path=test_directory,
+            output_path=test_directory,
             handler=LightGBMHandlers.sklearn_api_train,
             params={"algorithm_functionality": algorithm_functionality},
         )
@@ -89,14 +89,14 @@ def test_sklearn_api_evaluation(rundb_mock, algorithm_functionality: str):
     with tempfile.TemporaryDirectory() as test_directory:
         # Run training:
         train_run = mlrun.new_function().run(
-            artifact_path=test_directory,
+            output_path=test_directory,
             handler=LightGBMHandlers.sklearn_api_train,
             params={"algorithm_functionality": algorithm_functionality},
         )
 
         # Run evaluation (on the model that was just trained):
         evaluate_run = mlrun.new_function().run(
-            artifact_path=test_directory,
+            output_path=test_directory,
             handler=LightGBMHandlers.sklearn_api_evaluate,
             params={
                 "algorithm_functionality": algorithm_functionality,

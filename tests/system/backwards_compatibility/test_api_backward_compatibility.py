@@ -44,7 +44,7 @@ class TestAPIBackwardCompatibility(TestMLRunSystem):
         run = function.run(
             name="log_dataset",
             handler="log_dataset",
-            artifact_path=artifact_path,
+            output_path=artifact_path,
             params={"dataset_name": dataset_name},
         )
 

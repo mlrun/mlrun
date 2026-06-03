@@ -42,6 +42,7 @@ import requests
 import yaml
 
 import mlrun.artifacts.model
+import mlrun.client
 import mlrun.common.constants
 import mlrun.common.formatters
 import mlrun.common.helpers
@@ -168,6 +169,7 @@ def new_project(
     overwrite: bool = False,
     parameters: dict | None = None,
     default_function_node_selector: dict | None = None,
+    run_setup: bool = True,
 ) -> "MlrunProject":
     """Create a new MLRun project, optionally load it from a yaml/zip/git template.
     The project will become the active project for the current session.
@@ -236,6 +238,7 @@ def new_project(
                          if project with name exists
     :param parameters:   key/value pairs to add to the project.spec.params
     :param default_function_node_selector: defines the default node selector for scheduling functions within the project
+    :param run_setup:    whether the setup script should be run (default True)
 
     :returns: project object
     """
@@ -321,7 +324,8 @@ def new_project(
         )
 
     # Hook for initializing the project using a project_setup script
-    project = project.setup(save and mlrun.mlconf.dbpath)
+    if run_setup:
+        project = project.setup(save and mlrun.mlconf.dbpath)
 
     return project
 
@@ -339,6 +343,7 @@ def load_project(
     sync_functions: bool = False,
     parameters: dict | None = None,
     allow_cross_project: bool | None = None,
+    run_setup: bool = True,
 ) -> "MlrunProject":
     """Load an MLRun project from git or tar or dir. The project will become the active project for
     the current session.
@@ -388,6 +393,7 @@ def load_project(
     :param parameters:      key/value pairs to add to the project.spec.params
     :param allow_cross_project: if True, override the loaded project name. This flag ensures awareness of
                                 loading an existing project yaml as a baseline for a new project with a different name
+    :param run_setup:       whether the setup script should be run (default True)
 
     :returns: project object
     """
@@ -402,6 +408,15 @@ def load_project(
     from_db = False
     if url:
         url = str(url)  # to support path objects
+        is_db_bound = url.startswith("db://") or (
+            "://" not in url and not is_yaml_path(url)
+        )
+        if mlrun.client.get_active_client() is not None and not is_db_bound:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "Loading a project from a yaml, git, or archive URL is not "
+                "supported inside client.session(); use a 'db://' URL or "
+                "pass the project name."
+            )
         if is_yaml_path(url):
             project = _load_project_file(url, name, secrets, allow_cross_project)
             project.spec.context = context
@@ -430,6 +445,11 @@ def load_project(
         repo, url = init_repo(context, url, init_git)
 
     if not project:
+        if mlrun.client.get_active_client() is not None:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"Cannot load project '{name}' inside client.session() without "
+                "a 'db://' URL or a project name resolvable from the DB."
+            )
         project = _load_project_dir(context, name, subpath, allow_cross_project)
 
     if not project.metadata.name:
@@ -459,7 +479,8 @@ def load_project(
         project.save()
 
     # Hook for initializing the project using a project_setup script
-    project = project.setup(to_save)
+    if run_setup:
+        project = project.setup(to_save)
 
     if to_save:
         project.register_artifacts()
@@ -485,6 +506,7 @@ def get_or_create_project(
     save: bool = True,
     parameters: dict | None = None,
     allow_cross_project: bool | None = None,
+    run_setup: bool = True,
 ) -> "MlrunProject":
     """Load a project from MLRun DB, or create/import if it does not exist.
     The project will become the active project for the current session.
@@ -532,6 +554,7 @@ def get_or_create_project(
     :param parameters:   key/value pairs to add to the project.spec.params
     :param allow_cross_project: if True, override the loaded project name. This flag ensures awareness of
                                 loading an existing project yaml as a baseline for a new project with a different name
+    :param run_setup:    whether the setup script should be run (default True)
 
     :returns: project object
     """
@@ -552,6 +575,7 @@ def get_or_create_project(
             save=False,
             parameters=parameters,
             allow_cross_project=allow_cross_project,
+            run_setup=run_setup,
         )
         logger.info("Project loaded successfully", project_name=project.name)
         return project
@@ -561,7 +585,11 @@ def get_or_create_project(
         )
 
     spec_path = path.join(context, subpath or "", "project.yaml")
-    load_from_path = url or path.isfile(spec_path)
+    load_from_path = bool(url)
+    if not load_from_path and mlrun.client.get_active_client() is None:
+        # Inside ``client.session()``, never probe cwd for project.yaml;
+        # fall through to ``new_project`` instead.
+        load_from_path = path.isfile(spec_path)
     # do not nest under "try" or else the exceptions raised below will be logged along with the "not found" message
     if load_from_path:
         # loads a project from archive or local project.yaml
@@ -583,6 +611,7 @@ def get_or_create_project(
             save=save,
             parameters=parameters,
             allow_cross_project=allow_cross_project,
+            run_setup=run_setup,
         )
 
         logger.info(
@@ -604,6 +633,7 @@ def get_or_create_project(
         subpath=subpath,
         save=save,
         parameters=parameters,
+        run_setup=run_setup,
     )
     logger.info(
         "Project created successfully", project_name=project.name, stored_in_db=save
@@ -794,6 +824,13 @@ def _add_username_to_project_name_if_needed(name, user_project):
     if user_project:
         if not name:
             raise ValueError("user_project must be specified together with name")
+        if mlrun.client.get_active_client() is not None:
+            # Process env / getpass identity is meaningless in a multi-tenant
+            # client session; the caller must pass a fully-qualified name.
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "user_project=True is not supported inside client.session(); "
+                "pass the fully-qualified project name explicitly."
+            )
         username = environ.get("V3IO_USERNAME") or getpass.getuser()
         normalized_username = mlrun.utils.normalize_project_username(username.lower())
         if username != normalized_username:
@@ -1510,6 +1547,7 @@ class MlrunProject(ModelObj):
         schedule: typing.Union[str, mlrun.common.schemas.ScheduleCronTrigger] = None,
         ttl: int | None = None,
         image: str | None = None,
+        run_setup: bool = False,
         **args,
     ):
         """Add or update a workflow, specify a name and the code path
@@ -1548,6 +1586,9 @@ class MlrunProject(ModelObj):
                               The image must have mlrun[kfp] installed which requires python 3.9.
                               Therefore, the project default image will not be used for the workflow,
                               and the image must be specified explicitly.
+        :param run_setup:     Whether the project setup script should be run on the remote workflow runner pod.
+                              Only relevant for remote/scheduled workflows; the runner loads the project from
+                              the DB (the source of truth), so setup is skipped by default (default False).
         :param args:          Argument values (key=value, ..)
         """
 
@@ -1608,6 +1649,8 @@ class MlrunProject(ModelObj):
             workflow["ttl"] = ttl
         if image:
             workflow["image"] = image
+        if run_setup:
+            workflow["run_setup"] = run_setup
         self.spec.set_workflow(name, workflow)
 
     def set_artifact(
@@ -3929,6 +3972,7 @@ class MlrunProject(ModelObj):
         cleanup_ttl: int | None = None,
         notifications: list[mlrun.model.Notification] | None = None,
         workflow_runner_node_selector: dict[str, str] | None = None,
+        run_setup: bool | None = None,
         context: mlrun.execution.MLClientCtx | None = None,
     ) -> _PipelineRunStatus:
         """Run a workflow using kubeflow pipelines
@@ -3972,6 +4016,10 @@ class MlrunProject(ModelObj):
                           This allows you to control and specify where the workflow runner pod will be scheduled.
                           This setting is only relevant when the engine is set to 'remote' or for scheduled workflows,
                           and it will be ignored if the workflow is not run on a remote engine.
+        :param run_setup:           Whether the project setup script should be run on the remote workflow runner pod.
+                          Only relevant for remote/scheduled workflows; the runner loads the project from the DB
+                          (the source of truth), so setup is skipped by default. When not specified, the value set
+                          via `set_workflow(..., run_setup=...)` is used (default False).
         :param context:             mlrun context.
         :returns: ~py:class:`~mlrun.projects.pipelines._PipelineRunStatus` instance
         """
@@ -4012,6 +4060,8 @@ class MlrunProject(ModelObj):
             workflow_spec.merge_args(arguments)
         workflow_spec.cleanup_ttl = cleanup_ttl or workflow_spec.cleanup_ttl
         workflow_spec.run_local = local
+        if run_setup is not None:
+            workflow_spec.run_setup = run_setup
 
         name = f"{self.metadata.name}-{name}" if name else self.metadata.name
         artifact_path = artifact_path or self._enrich_artifact_path_with_workflow_uid()
@@ -4123,7 +4173,10 @@ class MlrunProject(ModelObj):
 
         :store: if True, allow updating in case project already exists
         """
-        self.export(filepath)
+        # Inside ``client.session()``, skip the on-disk ``project.yaml``
+        # write — DB is the source of truth for client-mode callers.
+        if mlrun.client.get_active_client() is None:
+            self.export(filepath)
         project: MlrunProject = self.save_to_db(store)
 
         # Update this object with the enriched project returned by the API,
@@ -4387,6 +4440,7 @@ class MlrunProject(ModelObj):
         function_name: str | None = None,
         function_tag: str | None = None,
         creation_strategy: mm_constants.ModelEndpointCreationStrategy | None = None,
+        monitoring_mode: mm_constants.ModelMonitoringMode | None = None,
         model_endpoint_instruction: ModelEndpointInstruction | None = None,
         **kwargs,
     ) -> tuple[str, str]:
@@ -4412,6 +4466,11 @@ class MlrunProject(ModelObj):
             * **archive**:
             1. If model endpoints with the same name exist, preserve them.
             2. Create a new model endpoint with the same name and set it to `latest`.
+        :param monitoring_mode:    Monitoring mode written to the endpoint ``status.monitoring_mode``.
+            Accepts a :class:`~mlrun.common.schemas.model_monitoring.constants.ModelMonitoringMode`
+            (``enabled`` or ``disabled``). Defaults to ``enabled`` when neither this param
+            nor ``model_endpoint_instruction.monitoring_mode`` is provided. Mutually exclusive
+            with ``model_endpoint_instruction``.
         :param model_endpoint_instruction: Optional instruction for the model endpoint, which can be used to provide
             data as above.
         :param kwargs:             Advanced: additional ``ModelEndpointSpec`` or ``ModelEndpointMetadata``
@@ -4427,6 +4486,7 @@ class MlrunProject(ModelObj):
                     function_name,
                     function_tag,
                     creation_strategy,
+                    monitoring_mode,
                 ]
             ):
                 raise mlrun.errors.MLRunInvalidArgumentError(
@@ -4443,6 +4503,8 @@ class MlrunProject(ModelObj):
                 output_schema=output_schema,
                 creation_strategy=creation_strategy
                 or mm_constants.ModelEndpointCreationStrategy.INPLACE,
+                monitoring_mode=monitoring_mode
+                or mm_constants.ModelMonitoringMode.enabled,
             )
 
         metadata_fields, spec_fields = self._split_endpoint_kwargs(kwargs)
@@ -4468,7 +4530,9 @@ class MlrunProject(ModelObj):
                 **metadata_fields,
             ),
             spec=mlrun.common.schemas.ModelEndpointSpec(**spec_fields),
-            status=mlrun.common.schemas.ModelEndpointStatus(),
+            status=mlrun.common.schemas.ModelEndpointStatus(
+                monitoring_mode=model_endpoint_instruction.monitoring_mode,
+            ),
         )
         db = mlrun.db.get_run_db(secrets=self._secrets)
         endpoint = db.create_model_endpoint(
@@ -4634,7 +4698,6 @@ class MlrunProject(ModelObj):
         selector: str | None = None,
         auto_build: bool | None = None,
         schedule: typing.Union[str, mlrun.common.schemas.ScheduleCronTrigger] = None,
-        artifact_path: str | None = None,
         notifications: list[mlrun.model.Notification] | None = None,
         returns: "list[str | mlrun.LogHint] | None" = None,
         builder_env: dict | None = None,
@@ -4684,8 +4747,6 @@ class MlrunProject(ModelObj):
                                 (which will be converted to the class using its `from_crontab` constructor),
                                 see this link for help:
                                 https://apscheduler.readthedocs.io/en/3.x/modules/triggers/cron.html#module-apscheduler.triggers.cron
-        :param artifact_path:   (deprecated) path to store artifacts, when running in a workflow this will be set
-                                automatically
         :param notifications:   list of notifications to push when the run is completed
         :param returns:         List of log hints - configurations for how to log the returning values from the
                                 handler's run (as artifacts or results). The list's length must be equal to the amount
@@ -4716,44 +4777,32 @@ class MlrunProject(ModelObj):
                                 If not provided, the default backoff delay is 30 seconds.
         :return: MLRun RunObject or PipelineNodeWrapper
         """
-        if artifact_path:
-            warnings.warn(
-                "'artifact_path' parameter is deprecated in 1.10.0 and will be removed in 1.12.0, "
-                "use 'output_path' instead.",
-                # TODO: Remove this in 1.12.0
-                FutureWarning,
-            )
-        output_path = output_path or artifact_path
-
-        # remove this filter once the artifact_path parameter is deprecated in 1.12.0
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore", category=FutureWarning)
-            return run_function(
-                function,
-                handler=handler,
-                name=name,
-                params=params,
-                hyperparams=hyperparams,
-                hyper_param_options=hyper_param_options,
-                inputs=inputs,
-                outputs=outputs,
-                workdir=workdir,
-                labels=labels,
-                base_task=base_task,
-                watch=watch,
-                local=local,
-                verbose=verbose,
-                selector=selector,
-                project_object=self,
-                auto_build=auto_build,
-                schedule=schedule,
-                output_path=output_path,
-                notifications=notifications,
-                returns=returns,
-                builder_env=builder_env,
-                reset_on_run=reset_on_run,
-                retry=retry,
-            )
+        return run_function(
+            function,
+            handler=handler,
+            name=name,
+            params=params,
+            hyperparams=hyperparams,
+            hyper_param_options=hyper_param_options,
+            inputs=inputs,
+            outputs=outputs,
+            workdir=workdir,
+            labels=labels,
+            base_task=base_task,
+            watch=watch,
+            local=local,
+            verbose=verbose,
+            selector=selector,
+            project_object=self,
+            auto_build=auto_build,
+            schedule=schedule,
+            output_path=output_path,
+            notifications=notifications,
+            returns=returns,
+            builder_env=builder_env,
+            reset_on_run=reset_on_run,
+            retry=retry,
+        )
 
     def build_function(
         self,
@@ -6430,6 +6479,10 @@ class MlrunProject(ModelObj):
         return self._get_hexsha() or str(uuid.uuid4())
 
     def _resolve_artifact_owner(self):
+        # Inside ``client.session()``, ignore process env — the server
+        # overrides ``producer.owner`` from ``auth_info.username`` anyway.
+        if mlrun.client.get_active_client() is not None:
+            return self.spec.owner
         return os.getenv("V3IO_USERNAME") or self.spec.owner
 
     def _enrich(self, other: "MlrunProject"):

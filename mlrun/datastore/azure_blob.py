@@ -60,7 +60,10 @@ class AzureBlobStore(DataStore):
     ======================
     - Account Key (connection_string or storage_options)
     - SAS Token (connection_string or storage_options)
-    - OAuth/Azure AD (storage_options: client_id, client_secret, tenant_id)
+    - OAuth/Azure AD service principal (storage_options: client_id, client_secret, tenant_id)
+    - Workload / managed identity (client_id without client_secret, e.g. AZURE_CLIENT_ID injected by
+      the azure-workload-identity webhook): routed to DefaultAzureCredential, which exchanges the
+      federated token (AZURE_FEDERATED_TOKEN_FILE)
 
     Accepted env-var names (in priority order):
     - account_name / AZURE_STORAGE_ACCOUNT_NAME / AZURE_STORAGE_ACCOUNT
@@ -147,6 +150,17 @@ class AzureBlobStore(DataStore):
                                     res["container"] = path_parts[0]
                                     break
 
+            # Workload / managed identity: a client_id arrives (e.g. AZURE_CLIENT_ID injected by the
+            # azure-workload-identity webhook) with no client_secret. adlfs treats any client_id as
+            # an explicit service principal and builds ClientSecretCredential(client_secret=None),
+            # which raises. Drop the partial (client_id, tenant_id) and force anon=False so adlfs
+            # falls back to DefaultAzureCredential, which exchanges AZURE_FEDERATED_TOKEN_FILE.
+            # When a client_secret is present, keep the full triple (explicit service principal wins).
+            if res.get("client_id") and not res.get("client_secret"):
+                res["client_id"] = None
+                res["tenant_id"] = None
+                res["anon"] = False
+
             self._storage_options = self._sanitize_options(res)
         return self._storage_options
 
@@ -188,7 +202,7 @@ class AzureBlobStore(DataStore):
         based on do_connect in AzureBlobFileSystem:
         https://github.com/fsspec/adlfs/blob/2023.9.0/adlfs/spec.py#L422
         """
-        from azure.identity import ClientSecretCredential
+        from azure.identity import ClientSecretCredential, DefaultAzureCredential
 
         storage_options = self.storage_options
         connection_string = storage_options.get("connection_string")
@@ -196,20 +210,23 @@ class AzureBlobStore(DataStore):
         account_key = storage_options.get("account_key")
         sas_token = storage_options.get("sas_token")
         client_id = storage_options.get("client_id")
+        client_secret = storage_options.get("client_secret")
         credential = storage_options.get("credential")
 
-        credential_from_client_id = None
-        if (
-            credential is None
-            and account_key is None
-            and sas_token is None
-            and client_id is not None
-        ):
-            credential_from_client_id = ClientSecretCredential(
-                tenant_id=storage_options.get("tenant_id"),
-                client_id=client_id,
-                client_secret=storage_options.get("client_secret"),
-            )
+        # Resolve an identity-based credential only when no connection-string / account-key / SAS /
+        # explicit credential is supplied. A service principal needs both client_id and
+        # client_secret; for workload / managed identity the storage_options property has already
+        # dropped the secret-less client_id and set anon=False, routing us to DefaultAzureCredential.
+        identity_credential = None
+        if credential is None and account_key is None and sas_token is None:
+            if client_id is not None and client_secret is not None:
+                identity_credential = ClientSecretCredential(
+                    tenant_id=storage_options.get("tenant_id"),
+                    client_id=client_id,
+                    client_secret=client_secret,
+                )
+            elif storage_options.get("anon") is False:
+                identity_credential = DefaultAzureCredential()
         try:
             if connection_string is not None:
                 self._service_client = BlobServiceClient.from_connection_string(
@@ -219,7 +236,7 @@ class AzureBlobStore(DataStore):
                 )
             elif client_name is not None:
                 account_url = f"https://{client_name}.blob.core.windows.net"
-                cred = credential_from_client_id or credential or account_key
+                cred = identity_credential or credential or account_key
                 if not cred and sas_token is not None:
                     if not sas_token.startswith("?"):
                         sas_token = f"?{sas_token}"

@@ -1896,6 +1896,7 @@ class MlrunProject(ModelObj):
         tag="",
         artifact_path=None,
         upload=True,
+        is_inline: bool = False,
         labels=None,
         target_path="",
         db_key=None,
@@ -1913,6 +1914,8 @@ class MlrunProject(ModelObj):
         :param tag:           version tag
         :param artifact_path: target artifact path (when not using the default)
         :param upload:        upload to datastore (default is True)
+        :param is_inline:     embed the body in the artifact record instead of
+                              uploading it (default False).
         :param labels:        a set of key/value labels to tag the artifact with
         :param target_path:   absolute target path (instead of using artifact_path + local_path)
         :param db_key:        the key to use in the artifact DB table
@@ -1926,6 +1929,10 @@ class MlrunProject(ModelObj):
 
         :returns: code artifact object
         """
+        if not local_path and not target_path:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "A code artifact must provide local_path or target_path."
+            )
         code = CodeArtifact(
             key,
             body=body,
@@ -1933,6 +1940,7 @@ class MlrunProject(ModelObj):
             language=language,
             code_type=code_type,
             requirements=requirements,
+            is_inline=is_inline,
             **kwargs,
         )
 

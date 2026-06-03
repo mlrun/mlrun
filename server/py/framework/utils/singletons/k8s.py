@@ -40,6 +40,7 @@ import mlrun.runtimes
 import mlrun.runtimes.pod
 from mlrun.utils import logger
 from mlrun.utils.helpers import (
+    merge_dicts_with_precedence,
     run_with_retry,
     to_non_empty_values_dict,
 )
@@ -933,13 +934,13 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
             )
         k8s_secret.data = secret_data
         if labels is not None:
-            merged_labels = (k8s_secret.metadata.labels or {}).copy()
-            merged_labels.update(labels)
-            k8s_secret.metadata.labels = merged_labels
+            k8s_secret.metadata.labels = merge_dicts_with_precedence(
+                k8s_secret.metadata.labels or {}, labels
+            )
         if annotations is not None:
-            merged_annotations = (k8s_secret.metadata.annotations or {}).copy()
-            merged_annotations.update(annotations)
-            k8s_secret.metadata.annotations = merged_annotations
+            k8s_secret.metadata.annotations = merge_dicts_with_precedence(
+                k8s_secret.metadata.annotations or {}, annotations
+            )
         try:
             self.v1api.replace_namespaced_secret(
                 secret_name,

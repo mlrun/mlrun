@@ -747,15 +747,14 @@ class TestPerEndpointBodyMappings:
         ):
             step.do(event)
 
-    @pytest.mark.parametrize("mandatory", [True, False])
-    def test_non_dict_body_with_mappings_raises(self, mandatory: bool) -> None:
-        """Non-dict body with body mappings configured raises MLRunUnprocessableEntityError (HTTP 422).
+    def test_non_dict_body_with_mandatory_mapping_raises(self) -> None:
+        """Non-dict body with a mandatory mapping raises MLRunUnprocessableEntityError (HTTP 422).
 
-        Applies regardless of whether the mappings are mandatory — once any body_map is
-        configured, the body must be a dict.
+        When body_map has at least one mandatory field, the contract can't be satisfied
+        without a dict body — so we fail fast rather than silently skip.
         """
         bm = BodyMappings()
-        bm.add_mapping("$.model", destination_path="model", mandatory=mandatory)
+        bm.add_mapping("$.model", destination_path="model", mandatory=True)
 
         config = APIHandlerConfig()
         config.add_endpoint_handler(
@@ -767,9 +766,26 @@ class TestPerEndpointBodyMappings:
 
         with pytest.raises(
             mlrun.errors.MLRunUnprocessableEntityError,
-            match=r"Body mappings configured but request body is not a dict",
+            match=r"Mandatory body mappings configured but request body is not a dict",
         ):
             step.do(event)
+
+    def test_non_dict_body_with_optional_mapping_silently_skips(self) -> None:
+        """Non-dict body with only optional mappings is silently skipped (no error)."""
+        bm = BodyMappings()
+        bm.add_mapping("$.model", destination_path="model", mandatory=False)
+
+        config = APIHandlerConfig()
+        config.add_endpoint_handler(
+            "/predict", HTTPMethod.POST, APIHandlerAction.ALLOW, input_body_mappings=bm
+        )
+
+        step = _APIHandlerStep(config=config)
+        event = MockEvent(body="not-a-dict", method="POST", path="/predict")
+
+        # Should not raise — body mapping is silently skipped when body isn't a dict
+        # and no mappings are mandatory.
+        step.do(event)
 
     @pytest.mark.parametrize("mandatory", [True, False])
     def test_mapped_field_extracted(self, mandatory: bool) -> None:

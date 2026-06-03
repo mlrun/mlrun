@@ -245,12 +245,13 @@ class _APIHandlerStep(mlrun.serving.states.TaskStep):
                             raise mlrun.errors.MLRunBadRequestError(
                                 f"Failed to process body mapping: {exc}"
                             ) from exc
-                    else:
-                        # Body mappings configured but body is not a dict — can't apply mappings.
+                    elif any(mandatory for _, mandatory in effective_map.values()):
+                        # Mandatory mappings configured but body is not a dict — can't satisfy contract.
                         raise mlrun.errors.MLRunUnprocessableEntityError(
-                            f"Body mappings configured but request body is not a dict "
+                            f"Mandatory body mappings configured but request body is not a dict "
                             f"(got {type(body).__name__})"
                         )
+                    # Non-dict body with only optional mappings: silently skip.
 
                 # Build system-injected URL params when include_url_info is enabled.
                 # mlrun_request_path holds the normalized path of the matched request.

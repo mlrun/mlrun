@@ -729,7 +729,7 @@ class TestPerEndpointBodyMappings:
     """Unit tests for per-endpoint input_body_mappings: extraction and mandatory enforcement."""
 
     def test_mandatory_field_missing_raises(self) -> None:
-        """mandatory=True raises MLRunBadRequestError when the field is absent from the body."""
+        """mandatory=True raises MLRunUnprocessableEntityError when the field is absent from the body."""
         bm = BodyMappings()
         bm.add_mapping("$.model", destination_path="model", mandatory=True)
 
@@ -742,8 +742,32 @@ class TestPerEndpointBodyMappings:
         event = MockEvent(body={"messages": ["hello"]}, method="POST", path="/predict")
 
         with pytest.raises(
-            mlrun.errors.MLRunBadRequestError,
+            mlrun.errors.MLRunUnprocessableEntityError,
             match="Mandatory field 'model' not found",
+        ):
+            step.do(event)
+
+    @pytest.mark.parametrize("mandatory", [True, False])
+    def test_non_dict_body_with_mappings_raises(self, mandatory: bool) -> None:
+        """Non-dict body with body mappings configured raises MLRunUnprocessableEntityError (HTTP 422).
+
+        Applies regardless of whether the mappings are mandatory — once any body_map is
+        configured, the body must be a dict.
+        """
+        bm = BodyMappings()
+        bm.add_mapping("$.model", destination_path="model", mandatory=mandatory)
+
+        config = APIHandlerConfig()
+        config.add_endpoint_handler(
+            "/predict", HTTPMethod.POST, APIHandlerAction.ALLOW, input_body_mappings=bm
+        )
+
+        step = _APIHandlerStep(config=config)
+        event = MockEvent(body="not-a-dict", method="POST", path="/predict")
+
+        with pytest.raises(
+            mlrun.errors.MLRunUnprocessableEntityError,
+            match=r"Body mappings configured but request body is not a dict",
         ):
             step.do(event)
 
@@ -889,7 +913,7 @@ class TestBodyMapHierarchy:
         )
 
         with pytest.raises(
-            mlrun.errors.MLRunBadRequestError,
+            mlrun.errors.MLRunUnprocessableEntityError,
             match="Mandatory field 'model' not found",
         ):
             step.do(event)
@@ -965,7 +989,7 @@ class TestBodyMapHierarchy:
         )
 
         with pytest.raises(
-            mlrun.errors.MLRunBadRequestError,
+            mlrun.errors.MLRunUnprocessableEntityError,
             match="Mandatory field 'model' not found",
         ):
             step.do(event)

@@ -677,14 +677,14 @@ def apply_body_map(
     :param fill_missing_with_none: If True, missing non-mandatory fields are included as None
         instead of being skipped. Use for output mapping where callers expect a full structure.
     :return: Dict of extracted parameters.
-    :raises mlrun.errors.MLRunBadRequestError: If a mandatory field is missing.
+    :raises mlrun.errors.MLRunUnprocessableEntityError: If a mandatory field is missing.
     """
     result = {}
     for dest_path, (compiled_expr, mandatory) in effective_map.items():
         matches = compiled_expr.find(body)
         if not matches:
             if mandatory:
-                raise mlrun.errors.MLRunBadRequestError(
+                raise mlrun.errors.MLRunUnprocessableEntityError(
                     f"Mandatory field '{dest_path}' not found in body"
                 )
             if fill_missing_with_none:

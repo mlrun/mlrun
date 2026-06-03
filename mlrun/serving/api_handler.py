@@ -237,11 +237,20 @@ class _APIHandlerStep(mlrun.serving.states.TaskStep):
                                 "Applied input body mapping",
                                 extracted_params=list(body_params.keys()),
                             )
+                        except mlrun.errors.MLRunUnprocessableEntityError as exc:
+                            raise mlrun.errors.MLRunUnprocessableEntityError(
+                                f"Failed to process body mapping: {exc}"
+                            ) from exc
                         except Exception as exc:
                             raise mlrun.errors.MLRunBadRequestError(
                                 f"Failed to process body mapping: {exc}"
                             ) from exc
-                    # Non-dict body (e.g. None, string, bytes): body mappings do not apply — silently skip.
+                    else:
+                        # Body mappings configured but body is not a dict — can't apply mappings.
+                        raise mlrun.errors.MLRunUnprocessableEntityError(
+                            f"Body mappings configured but request body is not a dict "
+                            f"(got {type(body).__name__})"
+                        )
 
                 # Build system-injected URL params when include_url_info is enabled.
                 # mlrun_request_path holds the normalized path of the matched request.

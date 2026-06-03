@@ -200,7 +200,7 @@ class TestResultHandlerMissingFields:
     def test_missing_mandatory_field_raises(self) -> None:
         handler = _make_handler("/predict", ("$.result", "answer", True))
         with pytest.raises(
-            mlrun.errors.MLRunBadRequestError,
+            mlrun.errors.MLRunUnprocessableEntityError,
             match="Mandatory field 'answer' not found",
         ):
             handler.apply(HTTPMethod.POST, "/predict", {"other": "value"})

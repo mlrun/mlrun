@@ -83,9 +83,9 @@ async def get_stream_url(
 
     status = func.get("status", {})
     state = status.get("state", "")
-    if state == mlrun.common.schemas.FunctionState.error:
+    if state in mlrun.common.schemas.FunctionState.failed_states():
         raise mlrun.errors.MLRunPreconditionFailedError(
-            f"Model monitoring stream function is in terminal error state "
+            f"Model monitoring stream function is in terminal failure state {state!r} "
             f"for project {project!r}. Re-run `project.enable_model_monitoring()` to recover."
         )
     if state != mlrun.common.schemas.FunctionState.ready:

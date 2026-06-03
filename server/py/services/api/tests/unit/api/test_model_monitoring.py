@@ -187,18 +187,21 @@ class TestGetModelMonitoringURL:
             for record in caplog.records
         ), f"expected not-ready warning, got: {[r.message for r in caplog.records]}"
 
-    def test_error_state_returns_412(self, client, mock_get_function):
-        # Terminal error state — the deploy/caller cannot rely on a broken stream,
-        # so we must raise (412) rather than silently returning the URL.
+    @pytest.mark.parametrize("state", ["error", "unhealthy"])
+    def test_failed_state_returns_412(self, client, mock_get_function, state):
+        # Terminal failure states (`error`, `unhealthy`) — the deploy/caller cannot
+        # rely on a broken stream, so we must raise (412) rather than silently
+        # returning the URL. `unhealthy` is nuclio-only and distinct from `error`.
         mock_get_function.return_value = {
             "status": {
-                "state": "error",
+                "state": state,
                 "internal_invocation_urls": ["internal:8080"],
             }
         }
         resp = client.get(self._URL_PATH)
         assert resp.status_code == HTTPStatus.PRECONDITION_FAILED, resp.text
-        assert "terminal error state" in resp.text
+        assert "terminal failure state" in resp.text
+        assert state in resp.text
 
     def test_returns_internal_url(self, client, mock_get_function):
         # Even when external_invocation_urls is populated, always use the internal URL.

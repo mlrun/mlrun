@@ -653,7 +653,7 @@ class TestGetModelMonitoringUrl:
         mock_db.get_model_monitoring_url.return_value = refreshed
         monkeypatch.setattr(mlrun.db, "get_run_db", lambda: mock_db)
 
-        with unittest.mock.patch("mlrun.run.logger") as mock_logger:
+        with unittest.mock.patch("mlrun.projects.project.logger") as mock_logger:
             url = mlrun.get_model_monitoring_url(project="my-project")
 
         assert url == refreshed
@@ -734,7 +734,7 @@ class TestGetModelMonitoringUrl:
         mock_db.get_model_monitoring_url.return_value = "http://stream/ingest"
         monkeypatch.setattr(mlrun.db, "get_run_db", lambda: mock_db)
 
-        with mock.patch("mlrun.run.logger") as mock_logger:
+        with mock.patch("mlrun.projects.project.logger") as mock_logger:
             mlrun.get_model_monitoring_url()
 
         mock_logger.warning.assert_called_once()
@@ -750,7 +750,7 @@ class TestGetModelMonitoringUrl:
         mock_db.get_model_monitoring_url.return_value = "http://stream/ingest"
         monkeypatch.setattr(mlrun.db, "get_run_db", lambda: mock_db)
 
-        with mock.patch("mlrun.run.logger") as mock_logger:
+        with mock.patch("mlrun.projects.project.logger") as mock_logger:
             mlrun.get_model_monitoring_url(project="my-project")
 
         mock_logger.warning.assert_not_called()

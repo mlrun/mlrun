@@ -704,8 +704,8 @@ class TestServingAPIHandler(tests.system.base.TestMLRunSystem):
             )
         assert exc_info.value.status_code == 422
         assert (
-            "MLRunUnprocessableEntityError: Mandatory field 'choices' not found in body"
-            in str(exc_info.value)
+            "MLRunUnprocessableEntityError: Failed to process output body mapping: "
+            "Mandatory field 'choices' not found in body" in str(exc_info.value)
         )
 
         self._logger.info("Chat completions missing mandatory output field test passed")
@@ -740,8 +740,8 @@ class TestServingAPIHandler(tests.system.base.TestMLRunSystem):
             )
         assert exc_info.value.status_code == 422
         assert (
-            "MLRunUnprocessableEntityError: Mandatory field 'id' not found in body"
-            in str(exc_info.value)
+            "MLRunUnprocessableEntityError: Failed to process output body mapping: "
+            "Mandatory field 'id' not found in body" in str(exc_info.value)
         )
 
         self._logger.info("Responses missing mandatory output field test passed")

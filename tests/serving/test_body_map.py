@@ -766,7 +766,7 @@ class TestPerEndpointBodyMappings:
 
         with pytest.raises(
             mlrun.errors.MLRunUnprocessableEntityError,
-            match=r"Mandatory body mappings configured but request body is not a dict",
+            match=r"Mandatory input body mappings configured but input body is not a dict",
         ):
             step.do(event)
 

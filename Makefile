@@ -101,7 +101,7 @@ fi
 # Verify the mount point to avoid deleting essential paths.
 # COVERAGE_MOUNT_PATH must live under the repo workspace (not /tmp), so it is
 # disjoint from the -v /tmp:/tmp mount and cannot be wiped by anything that
-# sweeps /tmp during the test run. See docs/design/coverage_combine_problem.md.
+# sweeps /tmp during the test run.
 SETUP_COVERAGE_MOUNTING = if [ "$(RUN_COVERAGE)" = "true" ]; then \
 		case "$$COVERAGE_MOUNT_PATH" in $(ROOT_DIR)coverage_reports/*) \
 			rm -rf $$COVERAGE_MOUNT_PATH && \

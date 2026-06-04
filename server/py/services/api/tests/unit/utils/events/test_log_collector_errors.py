@@ -13,17 +13,9 @@
 # limitations under the License.
 import unittest.mock
 
-import pytest
-
-import mlrun
 import mlrun.common.schemas
 
 import services.api.utils.events.log_collector_errors as log_collector_errors
-
-
-@pytest.fixture(autouse=True)
-def reset_state(monkeypatch):
-    monkeypatch.setattr(log_collector_errors._slot, "_last_emit_monotonic", 0.0)
 
 
 def _factory_returning(client):
@@ -55,93 +47,34 @@ def test_publish_emits_event_via_factory(monkeypatch):
     fake_client.emit.assert_called_once_with(fake_event)
 
 
-def test_publish_no_event_from_nop_client_does_not_consume_throttle(monkeypatch):
-    """A NopClient returns None: emit is skipped AND the slot stays free."""
+def test_publish_no_event_from_nop_client(monkeypatch):
+    """A NopClient returns None from generate_*: emit is skipped and publish
+    reports that nothing was emitted."""
     nop_client = unittest.mock.MagicMock()
     nop_client.generate_log_collector_event.return_value = None
-    real_client = unittest.mock.MagicMock()
-    real_client.generate_log_collector_event.return_value = object()
-
     monkeypatch.setattr(
         log_collector_errors.events_factory.EventsFactory,
         "get_events_client",
-        unittest.mock.MagicMock(side_effect=[nop_client, real_client]),
+        _factory_returning(nop_client),
     )
 
     assert log_collector_errors.publish_log_collector_failed(run_uid="run-1") is False
     nop_client.emit.assert_not_called()
 
-    assert log_collector_errors.publish_log_collector_failed(run_uid="run-1") is True
-    real_client.emit.assert_called_once()
 
-
-def test_publish_throttled_within_interval(monkeypatch):
+def test_publish_returns_false_when_emit_raises(monkeypatch):
+    """A raising emit (e.g. events service unreachable) is swallowed and
+    reported as not-emitted; it must never propagate into the caller."""
     fake_client = unittest.mock.MagicMock()
     fake_client.generate_log_collector_event.return_value = object()
+    fake_client.emit.side_effect = RuntimeError("events down")
     monkeypatch.setattr(
         log_collector_errors.events_factory.EventsFactory,
         "get_events_client",
         _factory_returning(fake_client),
-    )
-    monkeypatch.setattr(
-        mlrun.mlconf.events.log_collector, "min_emit_interval_seconds", 60
-    )
-    fake_now = {"value": 1000.0}
-    monkeypatch.setattr(
-        log_collector_errors.throttle.time, "monotonic", lambda: fake_now["value"]
-    )
-
-    assert log_collector_errors.publish_log_collector_failed(run_uid="run-1") is True
-    fake_now["value"] += 30
-    assert log_collector_errors.publish_log_collector_failed(run_uid="run-1") is False
-    assert fake_client.emit.call_count == 1
-
-
-def test_publish_unthrottled_after_interval(monkeypatch):
-    fake_client = unittest.mock.MagicMock()
-    fake_client.generate_log_collector_event.return_value = object()
-    monkeypatch.setattr(
-        log_collector_errors.events_factory.EventsFactory,
-        "get_events_client",
-        _factory_returning(fake_client),
-    )
-    monkeypatch.setattr(
-        mlrun.mlconf.events.log_collector, "min_emit_interval_seconds", 60
-    )
-    fake_now = {"value": 1000.0}
-    monkeypatch.setattr(
-        log_collector_errors.throttle.time, "monotonic", lambda: fake_now["value"]
-    )
-
-    assert log_collector_errors.publish_log_collector_failed(run_uid="run-1") is True
-    fake_now["value"] += 90  # past the throttle interval
-    assert log_collector_errors.publish_log_collector_failed(run_uid="run-1") is True
-    assert fake_client.emit.call_count == 2
-
-
-def test_publish_releases_slot_when_emit_raises(monkeypatch):
-    """An emit that raises (events service unreachable) frees the slot so
-    the next failure within the throttle window can retry delivery."""
-    fake_client = unittest.mock.MagicMock()
-    fake_client.generate_log_collector_event.return_value = object()
-    fake_client.emit.side_effect = [RuntimeError("events down"), None]
-    monkeypatch.setattr(
-        log_collector_errors.events_factory.EventsFactory,
-        "get_events_client",
-        _factory_returning(fake_client),
-    )
-    monkeypatch.setattr(
-        mlrun.mlconf.events.log_collector, "min_emit_interval_seconds", 60
-    )
-    fake_now = {"value": 1000.0}
-    monkeypatch.setattr(
-        log_collector_errors.throttle.time, "monotonic", lambda: fake_now["value"]
     )
 
     assert log_collector_errors.publish_log_collector_failed(run_uid="run-1") is False
-    # No advance in time: slot was released, so the next attempt can claim.
-    assert log_collector_errors.publish_log_collector_failed(run_uid="run-1") is True
-    assert fake_client.emit.call_count == 2
 
 
 def test_publish_swallows_factory_exception(monkeypatch):

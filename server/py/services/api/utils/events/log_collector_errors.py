@@ -12,16 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import mlrun
 import mlrun.common.schemas
 from mlrun.utils import logger
 
 import services.api.utils.events.events_factory as events_factory
-import services.api.utils.events.throttle as throttle
-
-_slot = throttle.ThrottledSlot(
-    lambda: mlrun.mlconf.events.log_collector.min_emit_interval_seconds
-)
 
 
 def publish_log_collector_failed(
@@ -32,13 +26,8 @@ def publish_log_collector_failed(
     """
     Best-effort publish of a ``MLRun.LogCollector.Failed`` event.
 
-    Throttled to one emission per process per
-    ``mlconf.events.log_collector.min_emit_interval_seconds``. The throttle slot
-    is consumed only on successful delivery; a no-op client (e.g. v3 environment
-    or events disabled) or a raising ``emit`` leave the slot free so the next
-    log-collector failure can retry.
-
-    :return: True if an event was emitted, False if throttled or unsupported.
+    :return: True if an event was emitted, False if unsupported (e.g. a no-op
+        client in a v3 environment or events disabled) or delivery failed.
     """
     try:
         client = events_factory.EventsFactory.get_events_client()
@@ -50,10 +39,7 @@ def publish_log_collector_failed(
         )
         if event is None:
             return False
-        with _slot.claim() as acquired:
-            if not acquired:
-                return False
-            client.emit(event)
+        client.emit(event)
         return True
     except Exception as publish_exc:
         logger.warning(

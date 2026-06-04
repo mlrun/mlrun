@@ -262,12 +262,8 @@ def load_and_prepare_secret_tokens(
     tokens_list = load_secret_tokens_from_file(raise_on_error=raise_on_error)
 
     # Resolve the token currently in use and sync just that one.
-    _, current_token_name = parse_offline_token_data(
+    current_token, current_token_name = parse_offline_token_data(
         tokens=tokens_list, raise_on_error=raise_on_error
-    )
-    current_token = next(
-        (token for token in tokens_list if token.get("name") == current_token_name),
-        None,
     )
     if not current_token:
         return []
@@ -275,8 +271,8 @@ def load_and_prepare_secret_tokens(
     validated_tokens = extract_and_validate_tokens_info(
         secret_tokens=[
             mlrun.common.schemas.SecretToken(
-                name=current_token["name"],
-                token=current_token["token"],
+                name=current_token_name,
+                token=current_token,
             )
         ],
         authenticated_id=auth_user_id,

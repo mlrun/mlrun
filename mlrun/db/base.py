@@ -1173,22 +1173,6 @@ class RunDBInterface(ABC):
         pass
 
     @abstractmethod
-    def store_secret_tokens(
-        self,
-        secret_tokens: list[mlrun.common.schemas.SecretToken],
-        log_warning: bool = True,
-        force: bool = False,
-    ) -> mlrun.common.schemas.StoreSecretTokensResponse:
-        pass
-
-    @abstractmethod
-    def list_secret_tokens(
-        self,
-        username: str | None = None,
-    ) -> mlrun.common.schemas.ListSecretTokensResponse:
-        pass
-
-    @abstractmethod
     def delete_secret_token(
         self, token_name: str, username: str | None = None
     ) -> mlrun.common.schemas.DeleteSecretTokenResponse:

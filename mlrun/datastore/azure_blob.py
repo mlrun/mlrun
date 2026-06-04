@@ -173,13 +173,22 @@ class AzureBlobStore(DataStore):
             raise ImportError("Azure adlfs not installed") from exc
 
         if not self._filesystem:
+            storage_options = self.storage_options
+            if not storage_options.get("connection_string") and not storage_options.get(
+                "account_name"
+            ):
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    "Azure Blob storage requires an account_name "
+                    "(or AZURE_STORAGE_ACCOUNT_NAME) or a connection_string, but neither "
+                    "was found."
+                )
             # in order to support az and wasbs kinds
             filesystem_class = get_filesystem_class(protocol=self.kind)
             self._filesystem = make_datastore_schema_sanitizer(
                 filesystem_class,
                 using_bucket=self.using_bucket,
                 blocksize=self.max_blocksize,
-                **self.storage_options,
+                **storage_options,
             )
         return self._filesystem
 

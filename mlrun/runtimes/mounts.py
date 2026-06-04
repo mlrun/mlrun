@@ -576,7 +576,7 @@ def set_env_variables(
 
 
 def set_env_vars_from_secret(
-    secret_name: str,
+    secret_name: str | None = None,
     keys: typing.Union[str, list[str], None] = None,
     cleartext_env: typing.Union[str, dict[str, str], None] = None,
 ) -> typing.Callable[["KubeResource"], "KubeResource"]:
@@ -584,6 +584,11 @@ def set_env_vars_from_secret(
     Modifier function to set environment variables from a Kubernetes Secret.
     If keys are given, each key is exposed as an environment variable with the same name.
     If no keys are given, all keys in the secret are mounted as env vars (via envFrom).
+
+    ``secret_name`` is optional: when it is omitted only the ``cleartext_env`` variables are
+    injected (no secret is mounted). This supports identity-based auth (e.g. Azure workload
+    identity), where the credentials arrive via a federated token rather than a Kubernetes
+    secret, but a plain config value such as the storage account name still has to be set.
 
     Performs the same secret-name validation as other secret-mount functions
     (validate_not_forbidden_secret); when using specific keys this is done via
@@ -608,7 +613,8 @@ def set_env_vars_from_secret(
             )
         )
 
-    :param secret_name: Kubernetes secret name.
+    :param secret_name: Optional. Kubernetes secret name. When omitted, no secret is mounted
+        and only ``cleartext_env`` is injected (used for identity-based auth).
     :param keys: Optional. Secret data keys to expose as env vars. Either a semicolon-delimited
         string (e.g. "key1;key2;key3") or a list of strings. If omitted, all keys in the
         secret are mounted as environment variables.
@@ -646,15 +652,24 @@ def set_env_vars_from_secret(
 
     if secret_name:
         mlrun.common.secrets.validate_not_forbidden_secret(secret_name.strip())
+    elif keys_list:
+        raise mlrun.errors.MLRunInvalidArgumentError(
+            "set_env_vars_from_secret requires a secret_name when keys are specified"
+        )
+    elif not cleartext_env_dict:
+        raise mlrun.errors.MLRunInvalidArgumentError(
+            "set_env_vars_from_secret requires either a secret_name or cleartext_env"
+        )
 
     def _set_env_vars_from_secret(runtime: "KubeResource"):
-        if not keys_list:
-            runtime.set_env_from_secret_ref(secret_name)
-        else:
-            for key in keys_list:
-                runtime.set_env_from_secret(
-                    name=key, secret=secret_name, secret_key=key
-                )
+        if secret_name:
+            if not keys_list:
+                runtime.set_env_from_secret_ref(secret_name)
+            else:
+                for key in keys_list:
+                    runtime.set_env_from_secret(
+                        name=key, secret=secret_name, secret_key=key
+                    )
         for k, v in cleartext_env_dict.items():
             runtime.set_env(k, v)
         return runtime

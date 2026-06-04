@@ -826,3 +826,37 @@ class TestAzureBlobStore:
         mock_default.assert_not_called()
         _, kwargs = mock_blob_client.call_args
         assert kwargs["credential"] is mock_client_secret.return_value
+
+    def test_filesystem_missing_account_name_and_connection_string_raises(self):
+        """ML-12692: az:// with neither account_name nor connection_string fails fast.
+
+        This is the Azure identity path: credentials are routed via anon=False, but the
+        storage account name was never supplied. Instead of letting adlfs raise its cryptic
+        'Must provide ... account_name with credentials', we raise a clear MLRun error.
+        """
+        store = self._create_store(schema="az", endpoint="data")
+        mock_storage_options = {"anon": False, "container": "data"}
+
+        with patch.object(store, "_storage_options", mock_storage_options):
+            with pytest.raises(
+                mlrun.errors.MLRunInvalidArgumentError, match="account_name"
+            ):
+                _ = store.filesystem
+
+    def test_filesystem_with_account_name_does_not_raise(self):
+        """When account_name is present, the account-name guard does not trigger."""
+        store = self._create_store(schema="az", endpoint="data")
+        mock_storage_options = {"account_name": "teststorage", "anon": False}
+
+        with (
+            patch.object(store, "_storage_options", mock_storage_options),
+            patch("mlrun.datastore.azure_blob.get_filesystem_class") as mock_get_class,
+            patch(
+                "mlrun.datastore.azure_blob.make_datastore_schema_sanitizer"
+            ) as mock_make_fs,
+        ):
+            result = store.filesystem
+
+        mock_get_class.assert_called_once()
+        mock_make_fs.assert_called_once()
+        assert result is mock_make_fs.return_value

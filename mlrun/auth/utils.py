@@ -261,9 +261,7 @@ def load_and_prepare_secret_tokens(
     """
     tokens_list = load_secret_tokens_from_file(raise_on_error=raise_on_error)
 
-    # Only sync the token that is currently in use, not every token in the file:
-    # the backend keeps a single token per user, so resolve the same token used
-    # for authentication and sync just that one.
+    # Resolve the token currently in use and sync just that one.
     _, current_token_name = parse_offline_token_data(
         tokens=tokens_list, raise_on_error=raise_on_error
     )

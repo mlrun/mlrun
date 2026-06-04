@@ -23,6 +23,7 @@ import mlrun.lists
 import mlrun.model
 import mlrun.runtime_configuration_context
 import mlrun.runtimes
+import mlrun.runtimes.utils
 import mlrun.utils
 import mlrun.utils.version
 
@@ -44,6 +45,16 @@ class ClientBaseLauncher(launcher.BaseLauncher, abc.ABC):
         if project_name:
             runtime.metadata.project = project_name
 
+        # Shift image -> base_image only when artifact reqs were just merged,
+        # so is_deployed() doesn't short-circuit to True before auto_build.
+        if (
+            runtime.metadata.project
+            and mlrun.runtimes.utils.enrich_function_from_code_artifact(
+                runtime, runtime.metadata.project
+            )
+        ):
+            runtime.prepare_image_for_deploy()
+
     @staticmethod
     def prepare_image_for_deploy(runtime: "mlrun.runtimes.BaseRuntime"):
         """
@@ -63,8 +74,6 @@ class ClientBaseLauncher(launcher.BaseLauncher, abc.ABC):
         ):
             image = mlrun.mlconf.function_defaults.image_by_kind.to_dict()[runtime.kind]
 
-        mlrun.utils.helpers.warn_on_deprecated_image(image)
-
         # TODO: need a better way to decide whether a function requires a build
         if require_build and image and not runtime.spec.build.base_image:
             # when the function require build use the image as the base_image for the build
@@ -73,7 +82,7 @@ class ClientBaseLauncher(launcher.BaseLauncher, abc.ABC):
 
     @staticmethod
     def _store_function(
-        runtime: "mlrun.runtimes.BaseRuntime", run: "mlrun.run.RunObject"
+        runtime: "mlrun.runtimes.BaseRuntime", run: "mlrun.model.RunObject"
     ):
         run.metadata.labels[mlrun_constants.MLRunInternalLabels.kind] = runtime.kind
         mlrun.runtimes.utils.enrich_run_labels(
@@ -119,7 +128,7 @@ class ClientBaseLauncher(launcher.BaseLauncher, abc.ABC):
             pass
 
     @staticmethod
-    def _log_track_results(is_child: bool, result: dict, run: "mlrun.run.RunObject"):
+    def _log_track_results(is_child: bool, result: dict, run: "mlrun.model.RunObject"):
         """
         log commands to track results
         in jupyter, displays a table widget with the result

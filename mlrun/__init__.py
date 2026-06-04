@@ -25,6 +25,8 @@ __all__ = [
     "VolumeMount",
     "sync_secret_tokens",
     "RuntimeConfigurationContext",
+    "Client",
+    "Credentials",
 ]
 
 from os import environ, path
@@ -34,6 +36,7 @@ import dotenv
 
 import mlrun.runtime_configuration_context
 
+from .client import Client, Credentials
 from .common.constants import MLRUN_ACTIVE_PROJECT
 from .config import config as mlconf
 from .datastore import DataItem, ModelProvider, store_manager
@@ -48,6 +51,7 @@ from .projects import (
     ProjectMetadata,
     build_function,
     deploy_function,
+    get_model_monitoring_url,
     get_or_create_project,
     load_project,
     new_project,

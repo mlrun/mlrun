@@ -911,10 +911,18 @@ def test_list_secret_tokens_returns_tokens():
     exp2 = datetime.datetime(2025, 9, 11, 12, 0, 0, tzinfo=datetime.UTC)
     expected_tokens = [
         mlrun.common.schemas.SecretTokenInfo(
-            name="jupyter", expiration=exp1, issued_at=iat1, user_id="user-id-123"
+            name="jupyter",
+            expiration=exp1,
+            issued_at=iat1,
+            user_id="user-id-123",
+            username="dummy-user",
         ),
         mlrun.common.schemas.SecretTokenInfo(
-            name="my-token", expiration=exp2, issued_at=iat2, user_id="user-id-123"
+            name="my-token",
+            expiration=exp2,
+            issued_at=iat2,
+            user_id="user-id-123",
+            username="dummy-user",
         ),
     ]
 
@@ -938,7 +946,7 @@ def test_list_secret_tokens_returns_tokens():
     assert response.secret_tokens[1].user_id == "user-id-123"
 
     mock_secrets_provider.list_user_token_secrets.assert_called_once_with(
-        user_id=auth_info.user_id
+        username=auth_info.username
     )
 
 
@@ -1061,12 +1069,14 @@ async def test_delete_secret_tokens_success(mock_iguazio_client):
             expiration=datetime.datetime.now(),
             issued_at=datetime.datetime.now(),
             user_id=auth_info.user_id,
+            username=auth_info.username,
         ),
         mlrun.common.schemas.SecretTokenInfo(
             name="token-2",
             expiration=datetime.datetime.now(),
             issued_at=datetime.datetime.now(),
             user_id=auth_info.user_id,
+            username=auth_info.username,
         ),
     ]
 
@@ -1084,7 +1094,7 @@ async def test_delete_secret_tokens_success(mock_iguazio_client):
     assert result.username == auth_info.username
 
     mock_secrets_provider.list_user_token_secrets.assert_called_once_with(
-        user_id=auth_info.user_id
+        username=auth_info.username
     )
 
     # Revocation is skipped in bulk delete, only K8s secrets are deleted
@@ -1113,18 +1123,21 @@ async def test_delete_secret_tokens_partial_failure(mock_iguazio_client):
             expiration=datetime.datetime.now(),
             issued_at=datetime.datetime.now(),
             user_id=auth_info.user_id,
+            username=auth_info.username,
         ),
         mlrun.common.schemas.SecretTokenInfo(
             name="token-2",
             expiration=datetime.datetime.now(),
             issued_at=datetime.datetime.now(),
             user_id=auth_info.user_id,
+            username=auth_info.username,
         ),
         mlrun.common.schemas.SecretTokenInfo(
             name="token-3",
             expiration=datetime.datetime.now(),
             issued_at=datetime.datetime.now(),
             user_id=auth_info.user_id,
+            username=auth_info.username,
         ),
     ]
 
@@ -1221,6 +1234,39 @@ def test_get_secret_token_not_found():
             token_name=token_name,
             auth_info=auth_info,
         )
+
+
+@pytest.mark.parametrize(
+    "supplied_username", ["dummy-user", "Dummy-User", "DUMMY-USER"]
+)
+def test_get_user_id_self_match_is_case_insensitive(
+    mock_iguazio_client, supplied_username
+):
+    """When the supplied username matches the authenticated user case-insensitively,
+    _get_user_id returns auth_info.user_id directly and does NOT call Iguazio
+    (Keycloak/Iguazio treat usernames case-insensitively)."""
+    auth_info = mlrun.common.schemas.AuthInfo(
+        username="dummy-user", user_id="user-id-123"
+    )
+
+    user_id = services.api.crud.Secrets()._get_user_id(auth_info, supplied_username)
+
+    assert user_id == auth_info.user_id
+    mock_iguazio_client.get_user_id_by_username.assert_not_called()
+
+
+def test_get_user_id_handles_none_auth_username(mock_iguazio_client):
+    """auth_info.username is typed str | None; _get_user_id must not crash when it's
+    None and must fall through to the Iguazio lookup."""
+    auth_info = mlrun.common.schemas.AuthInfo(username=None, user_id="user-id-123")
+    mock_iguazio_client.get_user_id_by_username.return_value = "other-user-id"
+
+    user_id = services.api.crud.Secrets()._get_user_id(auth_info, "some-user")
+
+    assert user_id == "other-user-id"
+    mock_iguazio_client.get_user_id_by_username.assert_called_once_with(
+        "some-user", auth_info
+    )
 
 
 def _generate_token(payload: dict) -> str:

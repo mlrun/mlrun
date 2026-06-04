@@ -30,7 +30,7 @@ Once a feature-set is created, its internal execution graph can be observed by c
 graph. This is very useful when running within a Jupyter notebook, and produces a graph such as the 
 following example:
 
-<br><img src="../_static/images/feature-store-graph.svg" alt="feature-store-graph" width="800"/><br>
+<br><img src="../_static/images/feature-store-graph.png" alt="feature-store-graph" width="800"/><br>
 
 This plot shows various transformations and aggregations being used as part of the feature-set processing, as well as 
 the targets where results are saved to (in this case two targets). Feature-sets can also be observed in the MLRun
@@ -159,14 +159,12 @@ All time windows are aligned to the epoch (1970-01-01T00:00:00Z).
 
 ## Built-in transformations
 
-MLRun, and the associated `storey` package, have a built-in library of [transformation functions](../serving/building-graphs.md) that can be 
+MLRun, and the associated `storey` package, have a built-in library of [transformation functions](../serving/building-graphs.md) that can be
 applied as steps in the feature-set's internal execution graph. To add steps to the graph, 
 reference them from the {py:class}`~mlrun.feature_store.FeatureSet` object by using the 
 {py:attr}`~mlrun.feature_store.FeatureSet.graph` property. Then, new steps can be added to the graph using the
 functions in {py:mod}`storey.transformations` (follow the link to browse the documentation and the 
 list of existing functions). The transformations are also accessible directly from the `storey` module.
-
-See the [built-in steps](../serving/basic-steps.ipynb).
 
 ```{admonition} Note
 Internally, MLRun makes use of functions defined in the `storey` package for various purposes. When creating a 

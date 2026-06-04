@@ -68,6 +68,7 @@ class HuggingFaceProvider(ModelProvider):
             secrets=secrets,
             default_invoke_kwargs=default_invoke_kwargs,
         )
+        self.model_location = None
         self.options = self.get_client_options()
         self._expected_operation_type = None
         self._download_model()
@@ -119,12 +120,19 @@ class HuggingFaceProvider(ModelProvider):
         """
         try:
             from huggingface_hub import snapshot_download
+            from tqdm import tqdm
 
+            # Pre-initialize tqdm's global lock to prevent AttributeError race condition
+            # when multiple threads call snapshot_download concurrently for the first time.
+            tqdm.get_lock()
             # Download the model and tokenizer files directly to the cache.
-            snapshot_download(
+            max_workers = self._get_secret_or_env("HF_MAX_WORKERS")
+            self.model_location = snapshot_download(
                 repo_id=self.model,
                 local_dir_use_symlinks=False,
                 token=self._get_secret_or_env("HF_TOKEN") or None,
+                endpoint=self._get_secret_or_env("HF_ENDPOINT") or None,
+                max_workers=int(max_workers) if max_workers is not None else None,
             )
         except ImportError as exc:
             raise ImportError("huggingface_hub package is not installed") from exc
@@ -234,12 +242,19 @@ class HuggingFaceProvider(ModelProvider):
             self.options["model_kwargs"] = self.options.get("model_kwargs", {})
             self.options["model_kwargs"]["local_files_only"] = True
             with self._client_lock:
-                self._client = pipeline(model=self.model, **self.options)
+                if self.model_location is None:
+                    raise mlrun.errors.MLRunRuntimeError(
+                        "Failed to create the pipeline because the Hugging Face model was not downloaded"
+                    )
+                self._client = pipeline(model=self.model_location, **self.options)
             self._expected_operation_type = Pipeline
         except ImportError as exc:
             raise ImportError("transformers package is not installed") from exc
 
     def get_client_options(self):
+        # HF_ENDPOINT is not passed to pipeline() — it is only used in _download_model()
+        # via snapshot_download() to support custom HuggingFace Hub endpoints.
+
         res = dict(
             task=self._get_secret_or_env("HF_TASK") or "text-generation",
             token=self._get_secret_or_env("HF_TOKEN"),

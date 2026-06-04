@@ -11,7 +11,7 @@ Learn how serving graphs can simplify complex workflows as illustrated in these 
 - [Serving function using Kafka queue and serving child function](#serving-function-using-kafka-queue-and-serving-child-function)
 
 In addition to the examples in this section, see the:
-- that illustrates how to set up a serving graph with batch processing with a Hugging Face model, including the Hugging Face profile configuration, creating model artifacts, and deploying a serving function.
+- {ref}`hf-model-batch-serving-graph` that illustrates how to set up a serving graph with batch processing with a Hugging Face model, including the Hugging Face profile configuration, creating model artifacts, and deploying a serving function.
 - [Distributed (multi-function) pipeline example](./distributed-graph.ipynb) that details how to run a pipeline that consists of multiple serverless functions (connected using streams).
 - [Advanced model serving graph notebook example](./graph-example.ipynb) that illustrates the flow, task, model, and ensemble router states; building tasks from custom handlers; classes and storey components; using custom error handlers; testing graphs locally; deploying a graph as a real-time serverless function.
 - {ref}`MLRun demos <demos>` for additional use cases and full end-to-end examples, including GenAI serving.
@@ -333,7 +333,7 @@ graph.to(name="PrintEvent", handler="print_event").to(
 
 graph.plot(rankdir="LR")
 ```
-<br><img src="../_static/images/serving-graph-kafka-queue-flows.svg" alt="graph-flow" width="800"/><br>
+<br><img src="../_static/images/serving-graph-kafka-queue-flows.png" alt="graph-flow" width="800"/><br>
 
 ```Python
 addr_serving = fn_serving.deploy()

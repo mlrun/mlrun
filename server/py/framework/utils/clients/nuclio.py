@@ -13,8 +13,10 @@
 # limitations under the License.
 
 import copy
+import datetime
 import enum
 import http
+import uuid
 
 import requests.adapters
 import requests.auth
@@ -152,6 +154,7 @@ class Client(
         labels: list[str] | None = None,
         state: mlrun.common.schemas.ProjectState = None,
         names: list[str] | None = None,
+        updated_after: datetime.datetime | None = None,
     ) -> mlrun.common.schemas.ProjectsOutput:
         if owner:
             raise NotImplementedError(
@@ -164,6 +167,10 @@ class Client(
         if state:
             raise NotImplementedError(
                 "Filtering nuclio projects by state is currently not supported"
+            )
+        if updated_after:
+            raise NotImplementedError(
+                "Filtering nuclio projects by updated_after is currently not supported"
             )
         if names:
             raise NotImplementedError(
@@ -208,6 +215,42 @@ class Client(
         response = self._send_request_to_api("GET", "versions")
         response_body = response.json()
         return response_body["dashboard"]["label"]
+
+    def prepare_create_project(
+        self,
+        project: mlrun.common.schemas.Project,
+        op_id: uuid.UUID,
+    ) -> None:
+        raise NotImplementedError
+
+    def commit_create_project(
+        self,
+        name: str,
+        op_id: uuid.UUID,
+    ) -> None:
+        raise NotImplementedError
+
+    def prepare_delete_project(
+        self,
+        name: str,
+        op_id: uuid.UUID,
+    ) -> None:
+        raise NotImplementedError
+
+    def commit_delete_project(
+        self,
+        name: str,
+        op_id: uuid.UUID,
+    ) -> None:
+        raise NotImplementedError
+
+    def update_project_follower(
+        self,
+        name: str,
+        project: mlrun.common.schemas.Project,
+        op_id: uuid.UUID,
+    ) -> None:
+        raise NotImplementedError
 
     def _get_project_from_nuclio(
         self, name, auth_info: mlrun.common.schemas.AuthInfo = None

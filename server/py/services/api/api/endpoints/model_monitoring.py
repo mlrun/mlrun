@@ -158,6 +158,14 @@ def enable_model_monitoring(
         None,
         description="Cooldown in minutes between consecutive lag events per worker.",
     ),
+    otlp_enabled: bool = Query(
+        False,
+        description=(
+            "If true, export monitoring application results/metrics via OpenTelemetry "
+            "to the operator-configured OTLP endpoint. Persisted on "
+            "`project.spec.model_monitoring.otlp_enabled`."
+        ),
+    ),
 ):
     """
     Deploy model monitoring application controller, writer and stream functions.
@@ -178,6 +186,8 @@ def enable_model_monitoring(
     :param fetch_credentials_from_sys_config: Deprecated. If true, fetch the credentials from the system configuration.
     :param lag_threshold:                     Lag threshold in minutes for writer lag detection.
     :param lag_event_cooldown:                Cooldown in minutes between consecutive lag events per worker.
+    :param otlp_enabled:                      If true, export monitoring application results/metrics via OTel.
+                                              Persisted to `project.spec.model_monitoring.otlp_enabled`.
 
     """
     commons.get_monitoring_deployment().deploy_monitoring_functions(
@@ -187,6 +197,7 @@ def enable_model_monitoring(
         fetch_credentials_from_sys_config=fetch_credentials_from_sys_config,
         lag_threshold=lag_threshold,
         lag_event_cooldown=lag_event_cooldown,
+        otlp_enabled=otlp_enabled,
     )
 
 
@@ -598,3 +609,41 @@ async def get_model_endpoint_drift_over_time(
         )
         return mlrun.common.schemas.ModelEndpointDriftValues(values=[])
     return await run_in_threadpool(tsdb_connector.get_drift_data, start, end)
+
+
+@router.get(
+    "/stream-pod-http-url",
+    status_code=http.HTTPStatus.OK.value,
+)
+async def get_model_monitoring_url(
+    project: ProjectAnnotation,
+    auth_info: mlrun.common.schemas.AuthInfo = Depends(
+        framework.api.deps.authenticate_request
+    ),
+    db_session: Session = Depends(deps.get_db_session),
+) -> str | None:
+    """
+    Get the internal cluster HTTP URL of the model monitoring stream pod for the given project.
+
+    Returns the stream pod's internal_invocation_url. The returned URL is only reachable
+    from within the Kubernetes cluster and is intended for use by other pods/functions
+    running in the same cluster (e.g. nuclio functions sending prediction data to the
+    stream pod). A non-ready stream pod still returns its URL (with a server-side warning)
+    — it may not be reachable until the pod becomes ready. A stream pod in terminal error
+    state raises so callers do not depend on a broken stream.
+
+    :param project:    The name of the project.
+    :param auth_info:  The auth info of the request.
+    :param db_session: A session that manages the current dialog with the database.
+    :return: Internal cluster HTTP URL of the stream pod, or None if no HTTP trigger is configured.
+    :raises MLRunNotFoundError: if the stream function is not deployed.
+    :raises MLRunPreconditionFailedError: if the stream function is in terminal error state.
+    """
+    await framework.utils.auth.verifier.AuthVerifier().query_project_permissions(
+        project_name=project,
+        action=mlrun.common.schemas.AuthorizationAction.read,
+        auth_info=auth_info,
+    )
+    import services.api.crud.model_monitoring.helpers as mm_crud_helpers
+
+    return await mm_crud_helpers.get_stream_url(db_session=db_session, project=project)

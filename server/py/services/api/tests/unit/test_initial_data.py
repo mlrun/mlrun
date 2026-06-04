@@ -31,6 +31,9 @@ import framework.db.sqldb.sql_session
 import framework.utils.singletons.db
 import services.api.initial_data
 
+_UUID_V4 = "550e8400-e29b-41d4-a716-446655440000"
+_UUID_V7 = "018f6c4e-7b8a-7c2e-bf3a-5e4d1c2a8b90"
+
 
 def test_add_data_version_empty_db():
     db, db_session = _initialize_db_without_migrations()
@@ -461,20 +464,27 @@ def test_add_producer_uri_to_artifact():
 
 
 @pytest.mark.parametrize(
-    "system_id_source, expected_system_id",
+    "system_id_source, configured_system_id, expected_system_id",
     [
         # when no system id is configured, a new random one should be generated
-        ("random", None),
-        # when a system id is set in mlconf, it should be used
-        ("mlconf", "123"),
+        ("random", None, None),
+        # when a non-UUID system id is set in mlconf, it should be used as-is
+        ("mlconf", "123", "123"),
+        # UUIDv4 should be stripped of hyphens and truncated to system_id_len
+        ("mlconf", _UUID_V4, "550e8400e29b"),
+        # UUIDv7 should be stripped of hyphens and truncated to system_id_len
+        ("mlconf", _UUID_V7, "018f6c4e7b8a"),
     ],
 )
 def test_init_system_id(
-    system_id_source, expected_system_id, monkeypatch: pytest.MonkeyPatch
+    system_id_source,
+    configured_system_id,
+    expected_system_id,
+    monkeypatch: pytest.MonkeyPatch,
 ):
     if system_id_source == "mlconf":
         monkeypatch.setattr(
-            mlrun.mlconf, framework.constants.SYSTEM_ID_KEY, expected_system_id
+            mlrun.mlconf, framework.constants.SYSTEM_ID_KEY, configured_system_id
         )
 
     db, db_session = _initialize_db_without_migrations()
@@ -490,7 +500,7 @@ def test_init_system_id(
 
     if system_id_source == "random":
         # ensure the generated id has the correct length
-        assert len(system_id) == 6
+        assert len(system_id) == mlrun.mlconf.system_id_len
         # ensure the generated id contains only alphanumeric characters
         assert all(char in string.ascii_lowercase + string.digits for char in system_id)
     else:
@@ -502,6 +512,30 @@ def test_init_system_id(
     services.api.initial_data._init_system_id(db_session)
     system_id_after_second_init = db.get_system_id(db_session)
     assert system_id_after_second_init == system_id
+
+
+@pytest.mark.parametrize(
+    "configured_value, expected_value",
+    [
+        # nothing configured
+        (None, None),
+        ("", None),
+        # non-UUID strings are returned as-is
+        ("123", "123"),
+        ("my-system", "my-system"),
+        # UUIDv4: hyphens stripped and truncated to system_id_len (12)
+        (_UUID_V4, "550e8400e29b"),
+        # UUIDv7: hyphens stripped and truncated to system_id_len (12)
+        (_UUID_V7, "018f6c4e7b8a"),
+    ],
+)
+def test_get_configured_system_id(
+    configured_value, expected_value, monkeypatch: pytest.MonkeyPatch
+):
+    monkeypatch.setattr(
+        mlrun.mlconf, framework.constants.SYSTEM_ID_KEY, configured_value or ""
+    )
+    assert services.api.initial_data._get_configured_system_id() == expected_value
 
 
 def test_system_id_initialized_from_scratch(monkeypatch: pytest.MonkeyPatch):

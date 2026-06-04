@@ -264,41 +264,47 @@ def mount_s3(
                     FutureWarning,
                 )
 
+        # Auto-mount fills only env vars the user did not already set as a plain value,
+        # so explicit user input (e.g. from the UI batch-run wizard) survives enrichment
+        # (ML-12330). Plain values we *do* write get flagged so server-side project-secret
+        # injection can later override them (ML-12572); value_from writes don't need the
+        # flag — has_user_set_plain_env already returns False for them.
+        def _set_if_not_user_set(name, value=None, value_from=None):
+            if runtime.has_user_set_plain_env(name):
+                return
+            runtime.set_env(name, value=value, value_from=value_from)
+            if value_from is None:
+                runtime.mark_env_auto_mount_injected(name)
+
         if _endpoint_url:
-            runtime.set_env(prefix + "AWS_ENDPOINT_URL_S3", _endpoint_url)
+            _set_if_not_user_set(prefix + "AWS_ENDPOINT_URL_S3", _endpoint_url)
         if aws_region:
-            runtime.set_env(prefix + "AWS_REGION", aws_region)
+            _set_if_not_user_set(prefix + "AWS_REGION", aws_region)
         if non_anonymous:
-            runtime.set_env(prefix + "S3_NON_ANONYMOUS", "true")
+            _set_if_not_user_set(prefix + "S3_NON_ANONYMOUS", "true")
 
         if secret_name:
-            runtime.set_envs(
-                {
-                    f"{prefix}AWS_ACCESS_KEY_ID": {
-                        "valueFrom": {
-                            "secretKeyRef": {
-                                "name": secret_name,
-                                "key": "AWS_ACCESS_KEY_ID",
-                            }
-                        }
-                    },
-                    f"{prefix}AWS_SECRET_ACCESS_KEY": {
-                        "valueFrom": {
-                            "secretKeyRef": {
-                                "name": secret_name,
-                                "key": "AWS_SECRET_ACCESS_KEY",
-                            }
-                        },
-                    },
-                }
-            )
-        else:
-            runtime.set_envs(
-                {
-                    f"{prefix}AWS_ACCESS_KEY_ID": _access_key,
-                    f"{prefix}AWS_SECRET_ACCESS_KEY": _secret_key,
+            _set_if_not_user_set(
+                f"{prefix}AWS_ACCESS_KEY_ID",
+                value_from={
+                    "secretKeyRef": {
+                        "name": secret_name,
+                        "key": "AWS_ACCESS_KEY_ID",
+                    }
                 },
             )
+            _set_if_not_user_set(
+                f"{prefix}AWS_SECRET_ACCESS_KEY",
+                value_from={
+                    "secretKeyRef": {
+                        "name": secret_name,
+                        "key": "AWS_SECRET_ACCESS_KEY",
+                    }
+                },
+            )
+        else:
+            _set_if_not_user_set(f"{prefix}AWS_ACCESS_KEY_ID", _access_key)
+            _set_if_not_user_set(f"{prefix}AWS_SECRET_ACCESS_KEY", _secret_key)
 
         return runtime
 
@@ -570,13 +576,19 @@ def set_env_variables(
 
 
 def set_env_vars_from_secret(
-    secret_name: str,
+    secret_name: str | None = None,
     keys: typing.Union[str, list[str], None] = None,
+    cleartext_env: typing.Union[str, dict[str, str], None] = None,
 ) -> typing.Callable[["KubeResource"], "KubeResource"]:
     """
     Modifier function to set environment variables from a Kubernetes Secret.
     If keys are given, each key is exposed as an environment variable with the same name.
     If no keys are given, all keys in the secret are mounted as env vars (via envFrom).
+
+    ``secret_name`` is optional: when it is omitted only the ``cleartext_env`` variables are
+    injected (no secret is mounted). This supports identity-based auth (e.g. Azure workload
+    identity), where the credentials arrive via a federated token rather than a Kubernetes
+    secret, but a plain config value such as the storage account name still has to be set.
 
     Performs the same secret-name validation as other secret-mount functions
     (validate_not_forbidden_secret); when using specific keys this is done via
@@ -592,11 +604,26 @@ def set_env_vars_from_secret(
         function.apply(set_env_vars_from_secret("my-secret"))  # mount all keys
         function.apply(set_env_vars_from_secret("my-secret", keys=["KEY1", "KEY2"]))
         function.apply(set_env_vars_from_secret("my-secret", keys="KEY1;KEY2;KEY3"))
+        function.apply(
+            set_env_vars_from_secret("my-secret", cleartext_env={"ACCT": "name"})
+        )
+        function.apply(
+            set_env_vars_from_secret(
+                "my-secret", cleartext_env="ACCT:name;REGION:eastus"
+            )
+        )
 
-    :param secret_name: Kubernetes secret name.
+    :param secret_name: Optional. Kubernetes secret name. When omitted, no secret is mounted
+        and only ``cleartext_env`` is injected (used for identity-based auth).
     :param keys: Optional. Secret data keys to expose as env vars. Either a semicolon-delimited
         string (e.g. "key1;key2;key3") or a list of strings. If omitted, all keys in the
         secret are mounted as environment variables.
+    :param cleartext_env: Optional. Plain (non-secret) key=value environment variables to inject
+        alongside the secret-backed vars. Accepts either a ``dict[str, str]`` (recommended for
+        the base64-JSON params path, supports colons in values) or a semicolon-delimited
+        ``key:value`` string (for the plain-string params path, e.g. ``"ACCT:name;REGION:eastus"``).
+        In string form the first colon in each token is the delimiter; colons in values are not
+        supported. Defaults to None (no cleartext vars injected).
     """
 
     if isinstance(keys, str):
@@ -606,17 +633,45 @@ def set_env_vars_from_secret(
     else:
         keys_list = []
 
+    if isinstance(cleartext_env, str):
+        cleartext_env_dict: dict[str, str] = {}
+        for token in cleartext_env.split(";"):
+            token = token.strip()
+            if not token:
+                continue
+            sep = token.find(":")
+            if sep == -1:
+                raise mlrun.errors.MLRunInvalidArgumentError(
+                    f"cleartext_env token missing ':' separator: {token!r}"
+                )
+            cleartext_env_dict[token[:sep].strip()] = token[sep + 1 :].strip()
+    elif cleartext_env is not None:
+        cleartext_env_dict = dict(cleartext_env)
+    else:
+        cleartext_env_dict = {}
+
     if secret_name:
         mlrun.common.secrets.validate_not_forbidden_secret(secret_name.strip())
+    elif keys_list:
+        raise mlrun.errors.MLRunInvalidArgumentError(
+            "set_env_vars_from_secret requires a secret_name when keys are specified"
+        )
+    elif not cleartext_env_dict:
+        raise mlrun.errors.MLRunInvalidArgumentError(
+            "set_env_vars_from_secret requires either a secret_name or cleartext_env"
+        )
 
     def _set_env_vars_from_secret(runtime: "KubeResource"):
-        if not keys_list:
-            runtime.set_env_from_secret_ref(secret_name)
-        else:
-            for key in keys_list:
-                runtime.set_env_from_secret(
-                    name=key, secret=secret_name, secret_key=key
-                )
+        if secret_name:
+            if not keys_list:
+                runtime.set_env_from_secret_ref(secret_name)
+            else:
+                for key in keys_list:
+                    runtime.set_env_from_secret(
+                        name=key, secret=secret_name, secret_key=key
+                    )
+        for k, v in cleartext_env_dict.items():
+            runtime.set_env(k, v)
         return runtime
 
     return _set_env_vars_from_secret

@@ -1279,6 +1279,9 @@ class SQLRunDB(RunDBInterface):
     ) -> None:
         raise NotImplementedError
 
+    def get_model_monitoring_url(self, project: str) -> str | None:
+        raise NotImplementedError
+
     def get_monitoring_function_summaries(
         self,
         project: str,

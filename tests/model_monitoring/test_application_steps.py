@@ -24,18 +24,27 @@ import pytest
 import mlrun
 import mlrun.artifacts
 import mlrun.common.schemas.model_monitoring.constants as mm_constants
+import mlrun.errors
 import mlrun.model_monitoring.applications.context as mm_context
 import mlrun.serving.states
+from mlrun.common.schemas import alert as alert_objects
 from mlrun.common.schemas.model_monitoring import ResultData
 from mlrun.model_monitoring.applications import (
     ModelMonitoringApplicationMetric,
     ModelMonitoringApplicationResult,
 )
 from mlrun.model_monitoring.applications._application_steps import (
+    _ApplicationErrorHandler,
     _PrepareMonitoringEvent,  # noqa: F401
+    _PrepareOTelEvent,
     _PushToMonitoringWriter,
 )
+from mlrun.model_monitoring.applications.results import (
+    _ModelMonitoringApplicationStats,
+)
 from mlrun.utils import Logger, logger
+
+_OTEL_BRANCH_SOURCE = "otel_exporter"
 
 
 class TestEventPreparation:
@@ -262,3 +271,205 @@ def test_push_result_to_monitoring_writer_stream(
                 "event_kind": event_kind.value,
                 "data": json.dumps(result),
             }
+
+
+class TestPrepareOTelEvent:
+    PROJECT = "my-proj"
+    APP = "my-app"
+    EP_ID = "ep-1234"
+    EP_NAME = "ep-name"
+    FUNC_NAME = "serving"
+    BASE_ATTRS = {
+        "project": PROJECT,
+        "app.name": APP,
+        "function.name": FUNC_NAME,
+        "endpoint.uid": EP_ID,
+        "endpoint.name": EP_NAME,
+    }
+
+    @classmethod
+    @pytest.fixture
+    def app_ctx(cls) -> Mock:
+        ctx = Mock(spec=mm_context.MonitoringApplicationContext)
+        ctx.project_name = cls.PROJECT
+        ctx.application_name = cls.APP
+        ctx.model_endpoint.spec.function_name = cls.FUNC_NAME
+        ctx.endpoint_id = cls.EP_ID
+        ctx.endpoint_name = cls.EP_NAME
+        return ctx
+
+    @staticmethod
+    def _by_name(metrics: list[dict[str, typing.Any]]) -> dict[str, dict]:
+        return {m["metric_name"]: m for m in metrics}
+
+    @classmethod
+    def test_result_and_metric_shape(cls, app_ctx: Mock) -> None:
+        """Results carry `result.kind` + `result.status` and the
+        `mlrun.model_monitoring.result.` prefix; metrics use the
+        `.metric.` prefix and don't get those extra attributes."""
+        results = [
+            ModelMonitoringApplicationResult(
+                name="general_drift",
+                value=0.42,
+                kind=mm_constants.ResultKindApp.data_drift,
+                status=mm_constants.ResultStatusApp.detected,
+            ),
+            ModelMonitoringApplicationMetric(name="hellinger", value=0.1),
+        ]
+        event = _PrepareOTelEvent().do((results, app_ctx))
+        by_name = cls._by_name(event["metrics"])
+
+        result_entry = by_name["mlrun.model_monitoring.result.general_drift"]
+        assert result_entry == {
+            "metric_name": "mlrun.model_monitoring.result.general_drift",
+            "value": 0.42,
+            "type": "gauge",
+            "attributes": {
+                **cls.BASE_ATTRS,
+                "result.kind": "data_drift",
+                "result.status": "detected",
+            },
+        }
+        metric_entry = by_name["mlrun.model_monitoring.metric.hellinger"]
+        assert metric_entry == {
+            "metric_name": "mlrun.model_monitoring.metric.hellinger",
+            "value": 0.1,
+            "type": "gauge",
+            "attributes": cls.BASE_ATTRS,
+        }
+
+    @classmethod
+    def test_stats_entries_skipped(cls, app_ctx: Mock) -> None:
+        """Histogram drift stats are a side payload and have no OTel
+        instrument — they're filtered out."""
+        results = [
+            _ModelMonitoringApplicationStats(
+                name=mm_constants.StatsKind.CURRENT_STATS,
+                timestamp="2026-05-14T00:00:00",
+                stats={"feat": {"mean": 0.5}},
+            ),
+            ModelMonitoringApplicationMetric(name="some_metric", value=1.0),
+        ]
+        event = _PrepareOTelEvent().do((results, app_ctx))
+        assert [m["metric_name"] for m in event["metrics"]] == [
+            "mlrun.model_monitoring.metric.some_metric"
+        ]
+
+    @classmethod
+    def test_none_attributes_stripped(cls) -> None:
+        """The OTel SDK warns on None-valued attributes; the step must
+        drop them rather than forward them."""
+        ctx = Mock(spec=mm_context.MonitoringApplicationContext)
+        ctx.project_name = cls.PROJECT
+        ctx.application_name = cls.APP
+        ctx.model_endpoint.spec.function_name = cls.FUNC_NAME
+        ctx.endpoint_id = None
+        ctx.endpoint_name = None
+        results = [ModelMonitoringApplicationMetric(name="m", value=1.0)]
+        event = _PrepareOTelEvent().do((results, ctx))
+        attrs = event["metrics"][0]["attributes"]
+        assert "endpoint.uid" not in attrs
+        assert "endpoint.name" not in attrs
+        assert attrs == {
+            "project": cls.PROJECT,
+            "app.name": cls.APP,
+            "function.name": cls.FUNC_NAME,
+        }
+
+    @classmethod
+    def test_empty_results(cls, app_ctx: Mock) -> None:
+        assert _PrepareOTelEvent().do(([], app_ctx)) == {
+            "metrics": [],
+            "endpoint_id": cls.EP_ID,
+        }
+
+
+class TestApplicationErrorHandler:
+    PROJECT = "my-proj"
+    APP = "my-app"
+
+    @classmethod
+    def _make_event(
+        cls,
+        *,
+        origin_state: str,
+        body: typing.Any = None,
+        error: Exception | None = None,
+        monitoring_context: mm_context.MonitoringApplicationContext,
+    ) -> Mock:
+        event = Mock()
+        event.body = body
+        try:
+            raise error or RuntimeError("kaboom")
+        except Exception as e:
+            event.error = e
+        event.timestamp = "2026-05-14T00:00:00"
+        event.origin_state = origin_state
+        event.body = cls._get_body(origin_state, monitoring_context)
+        return event
+
+    @classmethod
+    def _get_body(
+        cls,
+        origin_state: str,
+        monitoring_context: mm_context.MonitoringApplicationContext,
+    ) -> typing.Any:
+        if origin_state == "_PushToMonitoringWriter":
+            return [], monitoring_context
+        elif origin_state == "_PrepareOTelEvent":
+            return [], monitoring_context
+        elif origin_state == "_PrepareMonitoringEvent":
+            return {mm_constants.ApplicationEvent.ENDPOINT_ID: "test_endpoint_id"}
+        elif origin_state == "OTelMetricsExporter":
+            return {
+                "metrics": [],
+                mm_constants.ApplicationEvent.ENDPOINT_ID: "test_endpoint_id",
+            }
+        else:
+            return monitoring_context
+
+    @classmethod
+    def _captured_event(cls, generate_event: Mock) -> alert_objects.Event:
+        assert generate_event.called, "Handler did not generate an alert event"
+        return generate_event.call_args.kwargs["event_data"]
+
+    @classmethod
+    @pytest.mark.parametrize(
+        "origin_state",
+        [
+            "_PrepareOTelEvent",
+            "OTelMetricsExporter",
+            "_PrepareMonitoringEvent",
+            "_PushToMonitoringWriter",
+            "DemoMonitoringApp",
+        ],
+    )
+    def test_from_all_steps(
+        cls,
+        origin_state: str,
+        monitoring_context: mm_context.MonitoringApplicationContext,
+    ) -> None:
+        handler = _ApplicationErrorHandler(
+            project=cls.PROJECT,
+            application_name=cls.APP,
+            user_step_name="DemoMonitoringApp",
+        )
+        # Different bodies per step — neither has application_name.
+
+        event = cls._make_event(
+            origin_state=origin_state, monitoring_context=monitoring_context
+        )
+
+        with patch("mlrun.get_run_db") as get_db:
+            handler.do(event)
+        alert = cls._captured_event(get_db.return_value.generate_event)
+
+        expected_id = (
+            f"{cls.PROJECT}_{cls.APP}_{origin_state}"
+            if origin_state != "DemoMonitoringApp"
+            else f"{cls.PROJECT}_{cls.APP}"
+        )
+        assert alert.entity.ids == [expected_id]
+        assert alert.value_dict["Step Name"] == origin_state
+        assert alert.value_dict["Application Class"] == cls.APP
+        assert alert.value_dict["Endpoint ID"] == "test_endpoint_id"

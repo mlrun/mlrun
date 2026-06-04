@@ -235,6 +235,117 @@ async def test_project_permissions_update_when_exists(
 
 
 @pytest.mark.asyncio
+async def test_project_permissions_owner_short_circuits_opa_check(
+    db: Session, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """When the requester is the project owner, skip OPA and populate the owner cache."""
+    project_name = PERMISSIONS_PROJECT_NAME
+    owner_username = "project-owner"
+    auth_info = mlrun.common.schemas.AuthInfo(username=owner_username)
+    auth_verifier = framework.utils.auth.verifier.AuthVerifier()
+    query_project = AsyncMock()
+    add_allowed = Mock()
+    monkeypatch.setattr(auth_verifier, "query_project_permissions", query_project)
+    monkeypatch.setattr(auth_verifier, "add_allowed_project_for_owner", add_allowed)
+    existing_project = mlrun.common.schemas.Project(
+        metadata=mlrun.common.schemas.ProjectMetadata(name=project_name),
+        spec=mlrun.common.schemas.ProjectSpec(owner=owner_username),
+    )
+    project_member = framework.utils.singletons.project_member.get_project_member()
+    monkeypatch.setattr(
+        project_member, "get_project", Mock(return_value=existing_project)
+    )
+
+    await projects_endpoints._ensure_project_create_or_update_permissions(
+        db, project_name, auth_info
+    )
+
+    add_allowed.assert_called_once_with(project_name, auth_info)
+    query_project.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_get_project_owner_short_circuits_opa_check(
+    db: Session, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """When the requester owns the project, GET /projects/{name} skips OPA and primes the owner cache."""
+    project_name = PERMISSIONS_PROJECT_NAME
+    owner_username = "project-owner"
+    auth_info = mlrun.common.schemas.AuthInfo(username=owner_username)
+    auth_verifier = framework.utils.auth.verifier.AuthVerifier()
+    query_project = AsyncMock()
+    add_allowed = Mock()
+    monkeypatch.setattr(auth_verifier, "query_project_permissions", query_project)
+    monkeypatch.setattr(auth_verifier, "add_allowed_project_for_owner", add_allowed)
+    monkeypatch.setattr(
+        mlrun.mlconf.httpdb.authentication,
+        "mode",
+        mlrun.common.types.AuthenticationMode.IGUAZIO_V4,
+    )
+    existing_project = mlrun.common.schemas.Project(
+        metadata=mlrun.common.schemas.ProjectMetadata(name=project_name),
+        spec=mlrun.common.schemas.ProjectSpec(owner=owner_username),
+    )
+    project_member = framework.utils.singletons.project_member.get_project_member()
+    monkeypatch.setattr(
+        project_member, "get_project", Mock(return_value=existing_project)
+    )
+
+    returned = await projects_endpoints.get_project(
+        name=project_name,
+        format_=mlrun.common.formatters.ProjectFormat.full,
+        db_session=db,
+        auth_info=auth_info,
+    )
+
+    assert returned is existing_project
+    add_allowed.assert_called_once_with(project_name, auth_info)
+    query_project.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_get_project_non_owner_falls_back_to_opa(
+    db: Session, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """When the requester is not the project owner, GET /projects/{name} queries OPA as before."""
+    project_name = PERMISSIONS_PROJECT_NAME
+    auth_info = mlrun.common.schemas.AuthInfo(username="not-the-owner")
+    auth_verifier = framework.utils.auth.verifier.AuthVerifier()
+    query_project = AsyncMock()
+    add_allowed = Mock()
+    monkeypatch.setattr(auth_verifier, "query_project_permissions", query_project)
+    monkeypatch.setattr(auth_verifier, "add_allowed_project_for_owner", add_allowed)
+    monkeypatch.setattr(
+        mlrun.mlconf.httpdb.authentication,
+        "mode",
+        mlrun.common.types.AuthenticationMode.IGUAZIO_V4,
+    )
+    existing_project = mlrun.common.schemas.Project(
+        metadata=mlrun.common.schemas.ProjectMetadata(name=project_name),
+        spec=mlrun.common.schemas.ProjectSpec(owner="someone-else"),
+    )
+    project_member = framework.utils.singletons.project_member.get_project_member()
+    monkeypatch.setattr(
+        project_member, "get_project", Mock(return_value=existing_project)
+    )
+
+    returned = await projects_endpoints.get_project(
+        name=project_name,
+        format_=mlrun.common.formatters.ProjectFormat.full,
+        db_session=db,
+        auth_info=auth_info,
+    )
+
+    assert returned is existing_project
+    add_allowed.assert_not_called()
+    query_project.assert_awaited_once_with(
+        project_name,
+        mlrun.common.schemas.AuthorizationAction.read,
+        auth_info,
+    )
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize(
     "patch_body, expect_mgmt_check, expect_regular_check",
     [
@@ -566,6 +677,12 @@ async def test_list_and_get_project_summaries(
     _create_artifacts(
         client, project_name, files_count, mlrun.artifacts.PlotArtifact.kind
     )
+
+    code_files_count = 3
+    _create_artifacts(
+        client, project_name, code_files_count, mlrun.artifacts.CodeArtifact.kind
+    )
+    files_count += code_files_count
 
     # create feature sets for the project
     feature_sets_count = 9
@@ -1149,6 +1266,72 @@ def test_list_projects_leader_format(
     )
 
 
+def test_get_project_returns_status_columns(
+    db: Session, client: TestClient, project_member_mode: str
+) -> None:
+    # Verify state/op_id/phase/updated_at on the response are sourced from the model columns,
+    # so a follower polling for sync state never sees a value drifted from the pickled full_object.
+    name = f"prj-{uuid4().hex}"
+    framework.utils.singletons.db.get_db().create_project(
+        db,
+        mlrun.common.schemas.Project(
+            metadata=mlrun.common.schemas.ProjectMetadata(name=name),
+        ),
+    )
+    op_id = uuid4()
+    # SQLite drops tzinfo on DateTime round-trip — store naive UTC so equality holds without DB-specific shims.
+    updated_at = datetime.datetime.utcnow().replace(microsecond=0)
+    record = db.query(Project).filter(Project.name == name).one()
+    record.state = "creating"
+    record.op_id = op_id
+    record.phase = 1
+    record.updated_at = updated_at
+    db.commit()
+
+    response = client.get(f"projects/{name}")
+    assert response.status_code == HTTPStatus.OK.value
+    status = response.json()["status"]
+    assert status["state"] == "creating"
+    assert status["op_id"] == str(op_id)
+    assert status["phase"] == 1
+    assert datetime.datetime.fromisoformat(status["updated_at"]) == updated_at
+
+
+def test_list_projects_filter_updated_after(
+    db: Session, client: TestClient, project_member_mode: str
+) -> None:
+    old_at = datetime.datetime.now(datetime.UTC) - datetime.timedelta(hours=2)
+    recent_at = datetime.datetime.now(datetime.UTC) - datetime.timedelta(minutes=5)
+    name_old = f"old-{uuid4().hex}"
+    name_recent = f"recent-{uuid4().hex}"
+
+    for name, ts in [(name_old, old_at), (name_recent, recent_at)]:
+        framework.utils.singletons.db.get_db().create_project(
+            db,
+            mlrun.common.schemas.Project(
+                metadata=mlrun.common.schemas.ProjectMetadata(name=name),
+            ),
+        )
+        record = db.query(Project).filter(Project.name == name).one()
+        record.updated_at = ts
+        db.commit()
+
+    cutoff = (
+        datetime.datetime.now(datetime.UTC) - datetime.timedelta(minutes=30)
+    ).isoformat()
+    response = client.get(
+        "projects",
+        params={
+            "format": mlrun.common.formatters.ProjectFormat.name_only,
+            "updated_after": cutoff,
+        },
+    )
+    assert response.status_code == HTTPStatus.OK.value
+    returned = set(response.json()["projects"])
+    assert name_recent in returned
+    assert name_old not in returned
+
+
 def test_projects_crud(
     db: Session,
     client: TestClient,
@@ -1480,6 +1663,68 @@ def test_delete_project_fail_fast(
                 "Failed to delete project project-name: some error"
                 in background_task.status.error
             )
+
+
+@pytest.mark.parametrize("delete_api_version", ["v1", "v2"])
+@pytest.mark.parametrize(
+    "requester_username, expect_permission_check",
+    [
+        ("project-owner", False),
+        ("someone-else", True),
+    ],
+)
+def test_delete_project_owner_short_circuits_opa_check(
+    unversioned_client: TestClient,
+    mock_project_follower_iguazio_client,
+    mocked_k8s_helper,
+    monkeypatch: pytest.MonkeyPatch,
+    delete_api_version: str,
+    requester_username: str,
+    expect_permission_check: bool,
+) -> None:
+    """When the requester is the project owner, both delete endpoints must skip
+    the OPA permission query and prime the owner cache. Non-owners still go
+    through query_project_permissions and never prime the cache.
+    """
+    owner_username = "project-owner"
+    project = mlrun.common.schemas.Project(
+        metadata=mlrun.common.schemas.ProjectMetadata(name="owned-project"),
+        spec=mlrun.common.schemas.ProjectSpec(owner=owner_username),
+    )
+    response = unversioned_client.post("v1/projects", json=project.dict())
+    assert response.status_code == HTTPStatus.CREATED.value
+
+    auth_verifier = framework.utils.auth.verifier.AuthVerifier()
+    query_project_permissions = AsyncMock()
+    add_allowed_project_for_owner = Mock()
+    monkeypatch.setattr(
+        auth_verifier, "query_project_permissions", query_project_permissions
+    )
+    monkeypatch.setattr(
+        auth_verifier, "add_allowed_project_for_owner", add_allowed_project_for_owner
+    )
+
+    response = unversioned_client.delete(
+        f"{delete_api_version}/projects/{project.metadata.name}",
+        headers={mlrun.common.schemas.HeaderNames.remote_user: requester_username},
+    )
+    assert response.status_code in (
+        HTTPStatus.NO_CONTENT.value,
+        HTTPStatus.ACCEPTED.value,
+    )
+
+    if expect_permission_check:
+        query_project_permissions.assert_awaited_once_with(
+            project.metadata.name,
+            mlrun.common.schemas.AuthorizationAction.delete,
+            unittest.mock.ANY,
+        )
+        add_allowed_project_for_owner.assert_not_called()
+    else:
+        query_project_permissions.assert_not_awaited()
+        add_allowed_project_for_owner.assert_called_once_with(
+            project.metadata.name, unittest.mock.ANY
+        )
 
 
 def test_project_image_builder_validation(

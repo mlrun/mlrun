@@ -1078,7 +1078,7 @@ class TestProject(TestMLRunSystem):
         self.project.artifact_path = "/User/project_artifact_path"
         user_artifact_path = "/User/user_artifact_path"
 
-        run = self.project.run_function(func_name, artifact_path=user_artifact_path)
+        run = self.project.run_function(func_name, output_path=user_artifact_path)
         assert run.spec.output_path == user_artifact_path
 
     def test_set_secrets(self):

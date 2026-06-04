@@ -11,8 +11,10 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import datetime
 import tempfile
 import typing
+import uuid
 
 import httpx
 import iguazio
@@ -219,21 +221,30 @@ class Client(BaseClient, project_follower.Member):
                 )
                 result = token_file_client.get_refresh_token()
                 if not result or not result[0]:
+                    self._logger.warning(
+                        "No valid tokens found for user", user_id=user_id
+                    )
                     raise mlrun.errors.MLRunNotFoundError(
-                        f"No valid tokens found for user id '{user_id}'"
+                        "No valid tokens found for user"
                     )
                 resolved_name, _ = result
                 return resolved_name
 
             except ValueError as exc:
                 # Token not found, empty, or failed validation
+                self._logger.warning(
+                    "Token not found or invalid for user",
+                    token_name=token_name,
+                    user_id=user_id,
+                )
                 raise mlrun.errors.MLRunNotFoundError(
-                    f"Token '{token_name}' not found or invalid for user id '{user_id}'"
+                    f"Token '{token_name}' not found or invalid for user"
                 ) from exc
             except RuntimeError as exc:
                 # No valid tokens found after trying all
+                self._logger.warning("No valid tokens found for user", user_id=user_id)
                 raise mlrun.errors.MLRunNotFoundError(
-                    f"No valid tokens found for user id '{user_id}'"
+                    "No valid tokens found for user"
                 ) from exc
 
     def create_project(
@@ -365,6 +376,7 @@ class Client(BaseClient, project_follower.Member):
         labels: list[str] | None = None,
         state: mlrun.common.schemas.ProjectState = None,
         names: list[str] | None = None,
+        updated_after: datetime.datetime | None = None,
     ) -> mlrun.common.schemas.ProjectsOutput:
         # TODO: This is a placeholder implementation, as it is used for project sync. Implement this method as needed
         #       when we support the project sync functionality with Iguazio 4.
@@ -388,6 +400,42 @@ class Client(BaseClient, project_follower.Member):
         auth_info: mlrun.common.schemas.AuthInfo = mlrun.common.schemas.AuthInfo(),
     ) -> mlrun.common.schemas.ProjectSummary:
         raise NotImplementedError("Get project summary is not supported")
+
+    def prepare_create_project(
+        self,
+        project: mlrun.common.schemas.Project,
+        op_id: uuid.UUID,
+    ) -> None:
+        raise NotImplementedError
+
+    def commit_create_project(
+        self,
+        name: str,
+        op_id: uuid.UUID,
+    ) -> None:
+        raise NotImplementedError
+
+    def prepare_delete_project(
+        self,
+        name: str,
+        op_id: uuid.UUID,
+    ) -> None:
+        raise NotImplementedError
+
+    def commit_delete_project(
+        self,
+        name: str,
+        op_id: uuid.UUID,
+    ) -> None:
+        raise NotImplementedError
+
+    def update_project_follower(
+        self,
+        name: str,
+        project: mlrun.common.schemas.Project,
+        op_id: uuid.UUID,
+    ) -> None:
+        raise NotImplementedError
 
     def _project_policies_exist(
         self, project: str, auth_info: mlrun.common.schemas.AuthInfo

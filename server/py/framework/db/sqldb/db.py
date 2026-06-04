@@ -18,12 +18,14 @@ import functools
 import hashlib
 import inspect
 import pathlib
+import pickle
 import re
 import typing
 import urllib.parse
 from copy import deepcopy
 from datetime import UTC, datetime, timedelta
-from typing import Any, Union
+from typing import Any, Literal, TypeVar, Union, overload
+from uuid import UUID
 
 import fastapi.concurrency
 import mergedeep
@@ -51,6 +53,7 @@ from sqlalchemy.orm.attributes import flag_modified
 from sqlalchemy.sql.compiler import IdentifierPreparer
 from sqlalchemy.sql.elements import BinaryExpression
 from sqlalchemy.sql.functions import GenericFunction
+from uuid_utils.compat import uuid7
 
 import mlrun
 import mlrun.artifacts.base
@@ -75,6 +78,7 @@ from mlrun.common.schemas.model_monitoring import (
     ModelEndpointSchema,
     ModelMonitoringAppLabel,
 )
+from mlrun.common.schemas.project import ProjectOutput
 from mlrun.config import config
 from mlrun.errors import err_to_str
 from mlrun.lists import ArtifactList, RunList
@@ -139,6 +143,8 @@ from framework.db.sqldb.models import (
     _tagged,
     _with_notifications,
 )
+
+T = TypeVar("T")
 
 
 class now(GenericFunction):  # noqa: N801
@@ -3477,6 +3483,7 @@ class SQLDB(DBInterface):
         labels: list[str] | None = None,
         state: mlrun.common.schemas.ProjectState = None,
         names: list[str] | None = None,
+        updated_after: datetime | None = None,
     ) -> mlrun.common.schemas.ProjectsOutput:
 
         # if format is a custom selection, query only the requested columns
@@ -3502,11 +3509,22 @@ class SQLDB(DBInterface):
             query = self._add_labels_filter(session, query, Project, labels)
         if names is not None:
             query = query.filter(Project.name.in_(names))
+        if updated_after is not None:
+            query = query.filter(Project.updated_at >= updated_after)
 
         project_records = query.all()
+        return mlrun.common.schemas.ProjectsOutput(
+            projects=self._format_projects(project_records, format_)
+        )
 
+    def _format_projects(
+        self,
+        project_records: list[Project],
+        format_: framework.utils.project_formats.ProjectFormatType,
+    ) -> list[ProjectOutput]:
         # format the projects according to the requested format
         projects = []
+
         for project_record in project_records:
             if format_ == mlrun.common.formatters.ProjectFormat.name_only:
                 # can't use formatter as we haven't queried the entire object anyway
@@ -3530,7 +3548,56 @@ class SQLDB(DBInterface):
                         format_,
                     )
                 )
-        return mlrun.common.schemas.ProjectsOutput(projects=projects)
+
+        return projects
+
+    def list_stale_projects(
+        self,
+        session: Session,
+        format_: framework.utils.project_formats.ProjectFormatType,
+    ) -> mlrun.common.schemas.ProjectsOutput:
+        now_dt = datetime.now(UTC)
+        is_stale = and_(
+            Project.phase.is_not(None),
+            case(
+                (
+                    Project.state == "creating",
+                    Project.updated_at < now_dt - self._stale_resource_ttl_create,
+                ),
+                (
+                    Project.state == "online",
+                    Project.updated_at < now_dt - self._stale_resource_ttl_update,
+                ),
+                (
+                    Project.state == "deleting",
+                    Project.updated_at < now_dt - self._stale_resource_ttl_delete,
+                ),
+                else_=False,
+            ),
+        )
+
+        project_records = session.query(Project).filter(is_stale).all()
+        return mlrun.common.schemas.ProjectsOutput(
+            projects=self._format_projects(project_records, format_)
+        )
+
+    @property
+    def _stale_resource_ttl_create(self) -> timedelta:
+        return framework.utils.helpers.string_to_timedelta(
+            mlrun.mlconf.httpdb.projects.stale_resource_ttl_create
+        )
+
+    @property
+    def _stale_resource_ttl_update(self) -> timedelta:
+        return framework.utils.helpers.string_to_timedelta(
+            mlrun.mlconf.httpdb.projects.stale_resource_ttl_update
+        )
+
+    @property
+    def _stale_resource_ttl_delete(self) -> timedelta:
+        return framework.utils.helpers.string_to_timedelta(
+            mlrun.mlconf.httpdb.projects.stale_resource_ttl_delete
+        )
 
     def get_project_summary(
         self,
@@ -3668,6 +3735,9 @@ class SQLDB(DBInterface):
         dict[str, int],
         dict[str, int],
         dict[str, int],
+        dict[str, list[tuple[str, int]]],
+        dict[str, int],
+        dict[str, int],
     ]:
         results = await asyncio.gather(
             fastapi.concurrency.run_in_threadpool(
@@ -3699,6 +3769,18 @@ class SQLDB(DBInterface):
                 framework.db.session.run_function_with_new_db_session,
                 self._calculate_mep_counters,
             ),
+            fastapi.concurrency.run_in_threadpool(
+                framework.db.session.run_function_with_new_db_session,
+                self._calculate_functions_counters,
+            ),
+            fastapi.concurrency.run_in_threadpool(
+                framework.db.session.run_function_with_new_db_session,
+                self._calculate_alert_configs_counters,
+            ),
+            fastapi.concurrency.run_in_threadpool(
+                framework.db.session.run_function_with_new_db_session,
+                self._calculate_workflow_counters,
+            ),
         )
         (
             category_to_project_artifact_count,
@@ -3727,6 +3809,9 @@ class SQLDB(DBInterface):
                 project_to_real_time_mep_count,
                 project_to_batch_mep_count,
             ),
+            project_to_function_kind_counts,
+            project_to_alert_config_count,
+            project_to_workflow_count,
         ) = results
         # TODO: counters by artifact categories should be expanded to include all categories (currently only models
         #       and other)
@@ -3766,6 +3851,9 @@ class SQLDB(DBInterface):
             project_to_failed_mm_functions_count,
             project_to_real_time_mep_count,
             project_to_batch_mep_count,
+            project_to_function_kind_counts,
+            project_to_alert_config_count,
+            project_to_workflow_count,
         )
 
     @staticmethod
@@ -3781,16 +3869,77 @@ class SQLDB(DBInterface):
         return query
 
     @staticmethod
-    def _calculate_functions_counters(session) -> dict[str, int]:
-        functions_count_per_project = (
-            session.query(Function.project, func.count(distinct(Function.name)))
-            .group_by(Function.project)
+    def _calculate_functions_counters(
+        session,
+    ) -> dict[str, list[tuple[str, int]]]:
+        """Count distinct functions per project, grouped by kind.
+
+        Versions/tags are collapsed via ``COUNT(DISTINCT name)`` so each
+        logical function is counted once per kind it appears under. Backed by
+        the ``idx_function_project_kind`` index on ``(project, kind)``.
+
+        :param session: The active DB session.
+
+        :return: Mapping of project name to a list of ``(kind, count)`` pairs.
+        """
+        rows = (
+            session.query(
+                Function.project,
+                Function.kind,
+                func.count(distinct(Function.name)),
+            )
+            .group_by(Function.project, Function.kind)
             .all()
         )
-        project_to_function_count = {
-            result[0]: result[1] for result in functions_count_per_project
-        }
-        return project_to_function_count
+        project_to_kind_counts: dict[str, list[tuple[str, int]]] = (
+            collections.defaultdict(list)
+        )
+        for project, kind, count in rows:
+            project_to_kind_counts[project].append((kind or "unknown", count))
+        return project_to_kind_counts
+
+    @staticmethod
+    def _calculate_alert_configs_counters(session) -> dict[str, int]:
+        """Count distinct alert configurations per project.
+
+        Backed by the leftmost-prefix of the ``_alert_configs_uc``
+        ``(project, name)`` unique constraint, which a B-tree planner can use
+        for the GROUP BY without an extra index.
+
+        :param session: The active DB session.
+
+        :return: Mapping of project name to alert-configuration count.
+        """
+        counts = (
+            session.query(AlertConfig.project, func.count(distinct(AlertConfig.name)))
+            .group_by(AlertConfig.project)
+            .all()
+        )
+        return {project: count for project, count in counts}
+
+    @staticmethod
+    def _calculate_workflow_counters(session) -> dict[str, int]:
+        """Count workflow definitions per project.
+
+        Workflows are not a top-level table — they live inside the pickled
+        ``Project._full_object`` blob under ``spec.workflows``. We fetch only
+        the two columns we need (avoiding full ORM materialization) and
+        unpickle each row's blob to read the workflows list length.
+
+        :param session: The active DB session.
+
+        :return: Mapping of project name to workflow-definition count.
+        """
+        project_to_workflow_count: dict[str, int] = {}
+        rows = session.query(Project.name, Project._full_object).all()
+        for project_name, full_object_blob in rows:
+            if not full_object_blob:
+                project_to_workflow_count[project_name] = 0
+                continue
+            full_object = pickle.loads(full_object_blob)
+            workflows = (full_object.get("spec") or {}).get("workflows") or []
+            project_to_workflow_count[project_name] = len(workflows)
+        return project_to_workflow_count
 
     @staticmethod
     def _calculate_schedules_counters(
@@ -4184,20 +4333,45 @@ class SQLDB(DBInterface):
             return False
         return True
 
+    @overload
     def _get_project_record(
         self,
         session: Session,
         name: str | None = None,
         project_id: int | None = None,
+        *,
+        raise_on_not_found: Literal[True] = True,
+        for_update: bool = False,
+    ) -> Project: ...
+    @overload
+    def _get_project_record(
+        self,
+        session: Session,
+        name: str | None = None,
+        project_id: int | None = None,
+        *,
+        raise_on_not_found: Literal[False],
+        for_update: bool = False,
+    ) -> Project | None: ...
+    def _get_project_record(
+        self,
+        session: Session,
+        name: str | None = None,
+        project_id: int | None = None,
+        *,
         raise_on_not_found: bool = True,
+        for_update: bool = False,
     ) -> Project | None:
         if not any([project_id, name]):
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "One of 'name' or 'project_id' must be provided"
             )
-        project_record = self._query(
-            session, Project, name=name, id=project_id
-        ).one_or_none()
+
+        project_query = self._query(session, Project, name=name, id=project_id)
+        if for_update:
+            project_query = project_query.with_for_update()
+        project_record = project_query.one_or_none()
+
         if not project_record:
             if not raise_on_not_found:
                 return None
@@ -5500,7 +5674,7 @@ class SQLDB(DBInterface):
             ),
         )
 
-    def _query(self, session, cls, **kw):
+    def _query(self, session: Session, cls: type[T], **kw) -> Query[T]:
         kw = {k: v for k, v in kw.items() if v is not None}
         return session.query(cls).filter_by(**kw)
 
@@ -6285,7 +6459,15 @@ class SQLDB(DBInterface):
     def _transform_project_record_to_schema(
         self, project_record: Project
     ) -> mlrun.common.schemas.ProjectOut:
-        return mlrun.common.schemas.ProjectOut(**project_record.full_object)
+        # Source state/op_id/phase/updated_at from the model columns to avoid drift with the pickled full_object.
+        # Inject before constructing the schema so pydantic validates and coerces (e.g. str → UUID for op_id).
+        full = project_record.full_object
+        status = full.setdefault("status", {})
+        status["state"] = project_record.state
+        status["op_id"] = project_record.op_id
+        status["phase"] = project_record.phase
+        status["updated_at"] = project_record.updated_at
+        return mlrun.common.schemas.ProjectOut(**full)
 
     def _transform_notification_record_to_spec_and_status(
         self,
@@ -8613,6 +8795,23 @@ class SQLDB(DBInterface):
             partition_key_attr_name,
             interval.get_partition_key_value(datetime_value),
         )
+
+    @staticmethod
+    def _generate_op_id() -> tuple[UUID, datetime]:
+        op_id = uuid7()
+        return op_id, SQLDB._extract_uuid7_timestamp(op_id)
+
+    @staticmethod
+    def _extract_uuid7_timestamp(uuid: UUID) -> datetime:
+        if uuid.version != 7:
+            raise ValueError("uuid must have version 7")
+
+        # In uuid v7 the timestamp is stored as a millisecond precision unix
+        # timestamp in the 48 most significant bits.
+        # Since a uuid has 128 bits we can extract these by bitshifting 80 to
+        # the right.
+        timestamp = (uuid.int >> 80) / 1000
+        return datetime.fromtimestamp(timestamp, UTC)
 
 
 class SQLiteDB(SQLDB):

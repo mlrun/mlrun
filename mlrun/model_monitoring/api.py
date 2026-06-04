@@ -552,6 +552,7 @@ def _create_model_monitoring_function_base(
     requirements: typing.Union[list[str], None] = None,
     requirements_file: str = "",
     local_path: str | None = None,
+    otlp_enabled: bool = False,
     **application_kwargs,
 ) -> mlrun.runtimes.ServingRuntime:
     """
@@ -608,18 +609,30 @@ def _create_model_monitoring_function_base(
         app_step = prepare_step.to(class_name=application_class)
 
     app_step.__class__ = mlrun.serving.MonitoringApplicationStep
-
-    app_step.error_handler(
-        class_name="mlrun.model_monitoring.applications._application_steps._ApplicationErrorHandler",
-        name="ApplicationErrorHandler",
-        full_event=True,
-        project=project,
-    )
-
     app_step.to(
         class_name="mlrun.model_monitoring.applications._application_steps._PushToMonitoringWriter",
         name="PushToMonitoringWriter",
         project=project,
+    )
+
+    if otlp_enabled:
+        otel_prep = app_step.to(
+            class_name="mlrun.model_monitoring.applications._application_steps._PrepareOTelEvent",
+            name="PrepareOTelEvent",
+        )
+        otel_prep.to(
+            class_name="mlrun.serving.OTelMetricsExporter",
+            name="OTelMetricsExporter",
+            headers_source="file",
+        )
+        func_obj.spec.mount_otlp_secret = otlp_enabled
+    graph.error_handler(
+        class_name="mlrun.model_monitoring.applications._application_steps._ApplicationErrorHandler",
+        name="ApplicationErrorHandler",
+        full_event=True,
+        project=project,
+        application_name=name,
+        user_step_name=app_step.name,
     )
 
     def block_to_mock_server(*args, **kwargs) -> typing.NoReturn:

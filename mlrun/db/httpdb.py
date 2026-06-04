@@ -133,7 +133,7 @@ class HTTPRunDB(RunDBInterface):
         r"\/?user-secrets/tokens",
     ]
 
-    def __init__(self, url):
+    def __init__(self, url, *, credentials: "mlrun.client.Credentials | None" = None):
         self.server_version = ""
         self.session = None
         self._wait_for_project_terminal_state_retry_interval = 3
@@ -149,6 +149,9 @@ class HTTPRunDB(RunDBInterface):
         self.token_provider = None
         self.base_url = None
         self._parsed_url = None
+        # When provided, auth is bound to this instance and the env-/
+        # config-derived fallback paths are bypassed entirely.
+        self._explicit_credentials = credentials
 
         self._enrich_and_validate(url)
 
@@ -157,11 +160,29 @@ class HTTPRunDB(RunDBInterface):
 
         self.base_url = base_url
         self._parsed_url = parsed_url
+        if self._apply_explicit_credentials():
+            return
         self.user = parsed_url.username or config.httpdb.user
         self.password = parsed_url.password or config.httpdb.password
-        self._init_token_provider()
+        self._init_token_provider_from_env()
 
-    def _init_token_provider(self):
+    def _apply_explicit_credentials(self) -> bool:
+        """Apply ``self._explicit_credentials`` if present and not env-mode.
+
+        Returns True when explicit credentials took over (caller should
+        skip the legacy URL/env path); False otherwise.
+        """
+        c = self._explicit_credentials
+        if c is None or c.use_env:
+            return False
+        self.user = c.username
+        self.password = c.password
+        self.token_provider = (
+            mlrun.auth.StaticTokenProvider(c.token) if c.token is not None else None
+        )
+        return True
+
+    def _init_token_provider_from_env(self):
         """
         Initialize token provider according to current config.
 
@@ -698,6 +719,17 @@ class HTTPRunDB(RunDBInterface):
                 if hasattr(config.function_defaults.image_by_kind, kind):
                     setattr(config.function_defaults.image_by_kind, kind, image_value)
 
+            if server_cfg.get("telemetry_enabled") is not None:
+                config.telemetry.enabled = server_cfg["telemetry_enabled"]
+            if server_cfg.get("telemetry_otlp_endpoint") is not None:
+                config.telemetry.otlp_endpoint = server_cfg["telemetry_otlp_endpoint"]
+            if server_cfg.get("telemetry_insecure") is not None:
+                config.telemetry.insecure = server_cfg["telemetry_insecure"]
+            if server_cfg.get("telemetry_model_monitoring_interval") is not None:
+                config.telemetry.model_monitoring.interval = server_cfg[
+                    "telemetry_model_monitoring_interval"
+                ]
+
         except Exception as exc:
             logger.warning(
                 "Failed syncing config from server",
@@ -706,7 +738,7 @@ class HTTPRunDB(RunDBInterface):
             )
 
         # Initialize token provider after syncing config from server
-        self._init_token_provider()
+        self._init_token_provider_from_env()
 
         if config.is_iguazio_v4_mode() and config.auth_with_oauth_token.enabled:
             mlrun.secrets.sync_secret_tokens()
@@ -4074,6 +4106,7 @@ class HTTPRunDB(RunDBInterface):
         fetch_credentials_from_sys_config: bool = False,
         lag_threshold: int | None = None,
         lag_event_cooldown: int | None = None,
+        otlp_enabled: bool = False,
     ) -> None:
         """
         Deploy model monitoring application controller, writer and stream functions.
@@ -4094,6 +4127,9 @@ class HTTPRunDB(RunDBInterface):
         :param fetch_credentials_from_sys_config: If true, fetch the credentials from the system configuration.
         :param lag_threshold:                     Lag threshold in minutes for writer lag detection.
         :param lag_event_cooldown:                Cooldown in minutes between consecutive lag events per worker.
+        :param otlp_enabled:                      If true, monitoring application results and metrics are also
+                                                  exported via OpenTelemetry. Persisted to
+                                                  ``project.spec.model_monitoring.otlp_enabled``.
 
         """
         auth_token_name = mlrun.runtime_configuration_context.RuntimeConfigurationContext.get_auth_token_name()
@@ -4103,6 +4139,7 @@ class HTTPRunDB(RunDBInterface):
             "deploy_histogram_data_drift_app": deploy_histogram_data_drift_app,
             "fetch_credentials_from_sys_config": fetch_credentials_from_sys_config,
             "auth_token_name": auth_token_name,
+            "otlp_enabled": otlp_enabled,
         }
         # Only forward `image` when caller specified one — otherwise let the
         # API server resolve it from `function_defaults.image_by_kind.nuclio`.
@@ -4264,6 +4301,23 @@ class HTTPRunDB(RunDBInterface):
             path=f"projects/{project}/model-monitoring/metrics",
             params={"endpoint-id": endpoint_ids, "application-name": application_name},
         )
+
+    def get_model_monitoring_url(self, project: str) -> str | None:
+        """
+        Get the HTTP URL of the model monitoring stream pod for the given project.
+
+        :param project: The name of the project.
+        :return: HTTP URL of the model monitoring stream pod, or None if no HTTP trigger is configured.
+            A non-ready stream pod still returns its URL — the URL may not be reachable until
+            the pod becomes ready.
+        :raises mlrun.errors.MLRunNotFoundError: if the stream function is not deployed.
+        :raises mlrun.errors.MLRunPreconditionFailedError: if the stream function is in terminal error state.
+        """
+        resp = self.api_call(
+            method=mlrun.common.types.HTTPMethod.GET,
+            path=f"projects/{project}/model-monitoring/stream-pod-http-url",
+        )
+        return resp.json()
 
     def get_monitoring_function_summaries(
         self,

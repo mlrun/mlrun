@@ -44,10 +44,10 @@ async def store_datastore_profile(
     ),
 ):
     await run_in_threadpool(
-        framework.utils.singletons.project_member.get_project_member().get_project,
+        framework.utils.singletons.project_member.get_project_member().ensure_project,
         db_session,
         project_name,
-        auth_info,
+        auth_info=auth_info,
     )
     await (
         framework.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
@@ -116,10 +116,10 @@ async def list_datastore_profiles(
     ),
 ):
     await run_in_threadpool(
-        framework.utils.singletons.project_member.get_project_member().get_project,
+        framework.utils.singletons.project_member.get_project_member().ensure_project,
         db_session,
         project_name,
-        auth_info,
+        auth_info=auth_info,
     )
     await framework.utils.auth.verifier.AuthVerifier().query_project_permissions(
         project_name,
@@ -154,10 +154,10 @@ async def get_datastore_profile(
     ),
 ):
     await run_in_threadpool(
-        framework.utils.singletons.project_member.get_project_member().get_project,
+        framework.utils.singletons.project_member.get_project_member().ensure_project,
         db_session,
         project_name,
-        auth_info,
+        auth_info=auth_info,
     )
     await (
         framework.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(
@@ -188,10 +188,10 @@ async def delete_datastore_profile(
     ),
 ):
     await run_in_threadpool(
-        framework.utils.singletons.project_member.get_project_member().get_project,
+        framework.utils.singletons.project_member.get_project_member().ensure_project,
         db_session,
         project_name,
-        auth_info,
+        auth_info=auth_info,
     )
     await (
         framework.utils.auth.verifier.AuthVerifier().query_project_resource_permissions(

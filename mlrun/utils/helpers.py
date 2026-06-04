@@ -1058,12 +1058,6 @@ def enrich_image_url(
             if mlrun.utils.helpers.validate_component_version_compatibility(
                 "mlrun-client", "1.10.0-rc0", mlrun_client_version=tag_for_compatibility
             ):
-                warnings.warn(
-                    "'mlrun/ml-base' image is deprecated in 1.10.0 and will be removed in 1.12.0, "
-                    "use 'mlrun/mlrun' instead.",
-                    # TODO: Remove this in 1.12.0
-                    FutureWarning,
-                )
                 image_url = image_url.replace("mlrun/ml-base", "mlrun/mlrun")
         else:
             image_url = "mlrun/mlrun"
@@ -1483,6 +1477,28 @@ def get_class(class_name, namespace=None):
     except (ImportError, ValueError) as exc:
         raise ImportError(f"Failed to import {class_name}") from exc
     return class_object
+
+
+def split_handler_module_and_function(handler: str | None) -> tuple[str, str]:
+    """Split mlrun's ``"module:function"`` handler form into ``(module, function)``.
+
+    mlrun's canonical handler format on the wire is ``"<module>:<function>"`` —
+    e.g. ``"trainer:train_model"``. Internally on the runtime spec, however,
+    ``spec.handler`` typically holds JUST the function name (the module is
+    implicit in ``spec.command`` or in the loaded source file). This helper
+    bridges the two: callers split once and decide what to do with each part.
+
+    Bare function names (no colon) are returned with an empty module:
+    ``"my_func"`` -> ``("", "my_func")``.
+
+    :param handler: Handler string in either ``"module:function"`` or bare
+                    ``"function"`` form. Falsy values return ``("", "")``.
+    :returns: ``(module_name, function_name)``.
+    """
+    if not handler or ":" not in handler:
+        return "", handler or ""
+    module, _, function = handler.partition(":")
+    return module, function
 
 
 def get_function(function, namespaces, reload_modules: bool = False):
@@ -2249,23 +2265,6 @@ def join_urls(base_url: str | None, path: str | None) -> str:
     if base_url is None:
         base_url = ""
     return f"{base_url.rstrip('/')}/{path.lstrip('/')}" if path else base_url
-
-
-def warn_on_deprecated_image(image: str | None):
-    """
-    Warn if the provided image is the deprecated 'mlrun/ml-base' image.
-    This image is deprecated as of 1.10.0 and will be removed in 1.12.0.
-    """
-    deprecated_images = ["mlrun/ml-base"]
-    if image and any(
-        deprecated_image in image for deprecated_image in deprecated_images
-    ):
-        warnings.warn(
-            "'mlrun/ml-base' image is deprecated in 1.10.0 and will be replaced by 'mlrun/mlrun'. "
-            "This behavior will be removed in 1.12.0 ",
-            # TODO: Remove this in 1.12.0
-            FutureWarning,
-        )
 
 
 class Workflow:

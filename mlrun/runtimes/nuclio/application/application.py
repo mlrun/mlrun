@@ -89,8 +89,10 @@ class ApplicationSpec(nuclio_function.NuclioSpec):
         track_models=None,
         internal_application_port=None,
         application_ports=None,
+        model_endpoints_instructions=None,
         auth=None,
         env_from=None,
+        mount_otlp_secret: bool = False,
     ):
         super().__init__(
             command=command,
@@ -138,7 +140,9 @@ class ApplicationSpec(nuclio_function.NuclioSpec):
             state_thresholds=state_thresholds,
             disable_default_http_trigger=disable_default_http_trigger,
             custom_scaling_metric_specs=custom_scaling_metric_specs,
+            model_endpoints_instructions=model_endpoints_instructions,
             auth=auth,
+            mount_otlp_secret=mount_otlp_secret,
         )
 
         # Override default min/max replicas (don't assume application is stateless)
@@ -509,6 +513,7 @@ class ApplicationRuntime(nuclio_function.RemoteRuntime):
         mlrun_version_specifier=None,
         show_on_failure: bool = False,
         create_default_api_gateway: bool = True,
+        track_models: bool | None = None,
     ):
         """
         Deploy function, builds the application image if required (self.requires_build()) or force_build is True,
@@ -532,6 +537,9 @@ class ApplicationRuntime(nuclio_function.RemoteRuntime):
         :param create_default_api_gateway:  When deploy finishes the default API gateway will be created for the
                                             application. Disabling this flag means that the application will not be
                                             accessible until an API gateway is created for it.
+        :param track_models:                override state of self.spec.track_models. If not provided, uses the spec
+                                            value (False by default, True after setup_model_monitoring() is called).
+                                            When True, model endpoints are created at deployment time.
 
         :return: The default API gateway URL if created or True if the function is ready (deployed)
         """
@@ -571,6 +579,7 @@ class ApplicationRuntime(nuclio_function.RemoteRuntime):
                 tag=tag,
                 verbose=verbose,
                 builder_env=builder_env,
+                track_models=track_models,
             )
             logger.info(
                 "Successfully deployed function.",

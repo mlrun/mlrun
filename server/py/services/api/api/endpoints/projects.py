@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import datetime
 import http
 
 import fastapi
@@ -28,6 +29,7 @@ import framework.api.utils
 import framework.utils.auth.verifier
 import framework.utils.clients.chief
 import framework.utils.helpers
+import framework.utils.project_formats
 import services.api.crud
 from framework.utils.singletons.project_member import get_project_member
 
@@ -193,11 +195,18 @@ async def get_project(
         mlrun.mlconf.is_iguazio_v4_mode()
         or not framework.utils.helpers.is_request_from_leader(auth_info.projects_role)
     ):
-        await framework.utils.auth.verifier.AuthVerifier().query_project_permissions(
-            name,
-            mlrun.common.schemas.AuthorizationAction.read,
-            auth_info,
-        )
+        # If the requesting user is the project owner, populate the OPA owner
+        # cache and skip the permissions query. This mitigates the OPA manifest
+        # propagation race on multi-pod deployments.
+        verifier = framework.utils.auth.verifier.AuthVerifier()
+        if verifier.is_project_owner(auth_info, project):
+            verifier.add_allowed_project_for_owner(name, auth_info)
+        else:
+            await verifier.query_project_permissions(
+                name,
+                mlrun.common.schemas.AuthorizationAction.read,
+                auth_info,
+            )
     return project
 
 
@@ -240,11 +249,20 @@ async def delete_project(
         mlrun.mlconf.is_iguazio_v4_mode()
         or not framework.utils.helpers.is_request_from_leader(auth_info.projects_role)
     ):
-        await framework.utils.auth.verifier.AuthVerifier().query_project_permissions(
-            name,
-            mlrun.common.schemas.AuthorizationAction.delete,
-            auth_info,
-        )
+        # Owners are trusted via spec.owner; populate the OPA owner cache
+        # and skip the permissions query. This mitigates the OPA manifest
+        # propagation race on multi-pod deployments, and keeps the owner
+        # short-circuit in place for retries / follow-up calls if the
+        # delete fails.
+        verifier = framework.utils.auth.verifier.AuthVerifier()
+        if verifier.is_project_owner(auth_info, project):
+            verifier.add_allowed_project_for_owner(name, auth_info)
+        else:
+            await verifier.query_project_permissions(
+                name,
+                mlrun.common.schemas.AuthorizationAction.delete,
+                auth_info,
+            )
 
     # delete project can be responsible for deleting schedules. Schedules are running only on chief,
     # that is why we re-route requests to chief
@@ -360,6 +378,9 @@ async def list_projects(
     owner: str | None = None,
     labels: list[str] = fastapi.Query(None, alias="label"),
     state: mlrun.common.schemas.ProjectState = None,
+    updated_after: datetime.datetime | None = fastapi.Query(
+        None, alias="updated_after"
+    ),
     auth_info: mlrun.common.schemas.AuthInfo = fastapi.Depends(
         framework.api.deps.authenticate_request
     ),
@@ -381,6 +402,8 @@ async def list_projects(
             mlrun.common.formatters.ProjectFormat.name_only,
             labels,
             state,
+            None,
+            updated_after,
         )
         allowed_project_names = await framework.utils.auth.verifier.AuthVerifier().filter_projects_by_permissions(
             projects_output.projects,
@@ -395,6 +418,7 @@ async def list_projects(
         labels,
         state,
         allowed_project_names,
+        updated_after,
     )
 
 
@@ -622,21 +646,38 @@ async def _ensure_project_create_or_update_permissions(
         return
 
     try:
-        await run_in_threadpool(
+        # Fetch name + owner so we can short-circuit the OPA query when the
+        # requesting user owns the project (mirrors `ensure_project` behavior).
+        project = await run_in_threadpool(
             get_project_member().get_project,
             db_session,
             project_name,
             auth_info,
-            format_=mlrun.common.formatters.ProjectFormat.name_only,
+            format_=framework.utils.project_formats.ProjectFormatCustomSelection(
+                [
+                    framework.utils.project_formats.ProjectFormatCustom.name,
+                    framework.utils.project_formats.ProjectFormatCustom.owner,
+                ]
+            ),
         )
         project_exists = True
     except mlrun.errors.MLRunNotFoundError:
+        project = None
         project_exists = False
 
     if project_exists:
-        await framework.utils.auth.verifier.AuthVerifier().query_project_permissions(
-            project_name, mlrun.common.schemas.AuthorizationAction.update, auth_info
-        )
+        # If the requesting user is the project owner, populate the OPA owner
+        # cache and skip the permissions query. This mitigates the OPA manifest
+        # propagation race on multi-pod deployments.
+        verifier = framework.utils.auth.verifier.AuthVerifier()
+        if verifier.is_project_owner(auth_info, project):
+            verifier.add_allowed_project_for_owner(project_name, auth_info)
+        else:
+            await verifier.query_project_permissions(
+                project_name,
+                mlrun.common.schemas.AuthorizationAction.update,
+                auth_info,
+            )
         return
 
     # In Iguazio v4 mode, mlrun is the project leader and main entrypoint so we must ensure

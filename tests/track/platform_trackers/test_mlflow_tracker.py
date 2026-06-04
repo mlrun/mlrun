@@ -200,7 +200,7 @@ def test_track_run_with_experiment_name(rundb_mock, handler):
         trainer_run = func.run(
             local=True,
             handler=handler,
-            artifact_path=test_directory,
+            output_path=test_directory,
         )
 
         _validate_run(
@@ -246,7 +246,7 @@ def test_track_run_with_control_run(rundb_mock, handler):
         trainer_run = func.run(
             local=True,
             handler=handler,
-            artifact_path=test_directory,
+            output_path=test_directory,
         )
 
         _validate_run(
@@ -289,7 +289,7 @@ def test_track_run_with_match_experiment_to_runtime(rundb_mock, handler):
         trainer_run = func.run(
             local=True,
             handler=handler,
-            artifact_path=test_directory,
+            output_path=test_directory,
         )
 
         _validate_run(
@@ -334,7 +334,7 @@ def test_track_run_no_handler(rundb_mock, run_name):
         trainer_run = func.run(
             name=f"{run_name}_no_handler",
             project=project.name,
-            artifact_path=test_directory,
+            output_path=test_directory,
             params={"tracking_uri": test_directory},
             local=True,
         )
@@ -393,7 +393,7 @@ def test_track_interrupted_run(monkeypatch, rundb_mock, handler):
         trainer_run = func.run(
             local=True,
             handler=handler,
-            artifact_path=test_directory,
+            output_path=test_directory,
             watch=False,
         )
 

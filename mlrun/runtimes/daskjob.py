@@ -98,6 +98,7 @@ class DaskSpec(KubeResourceSpec):
         parameters=None,
         track_models=None,
         env_from=None,
+        mount_otlp_secret: bool = False,
     ):
         super().__init__(
             command=command,
@@ -132,6 +133,7 @@ class DaskSpec(KubeResourceSpec):
             graph=graph,
             parameters=parameters,
             track_models=track_models,
+            mount_otlp_secret=mount_otlp_secret,
         )
         self.args = args
 
@@ -495,9 +497,7 @@ class DaskCluster(KubejobRuntime):
         project: str | None = "",
         params: dict | None = None,
         inputs: dict[str, str] | None = None,
-        out_path: str | None = "",
         workdir: str | None = "",
-        artifact_path: str | None = "",
         watch: bool | None = True,
         schedule: Union[str, mlrun.common.schemas.ScheduleCronTrigger] | None = None,
         hyperparams: dict[str, list] | None = None,
@@ -527,7 +527,6 @@ class DaskCluster(KubejobRuntime):
             project=project,
             params=params,
             inputs=inputs,
-            out_path=out_path,
             workdir=workdir,
             output_path=output_path,
             watch=watch,

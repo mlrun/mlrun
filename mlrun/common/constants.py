@@ -22,7 +22,12 @@ MLRUN_SERVING_SPEC_PATH = (
 )
 DEFAULT_SOURCE_CODE_TARGET_DIR = "/home/mlrun_code"
 SOURCE_LOADER_INIT_CONTAINER_NAME = "mlrun-source-loader"
+CODE_ARTIFACT_DOWNLOAD_SUBDIR = ".mlrun/code"
 SOURCE_CODE_VOLUME_NAME = "mlrun-source-code"
+STORE_URI_HANDLER_LOADER_MODULE = "_mlrun_store_uri_loader"
+# Bump when the loader stub body changes — existing functions re-bake on
+# next deploy via the `# stub_version=<N>` marker.
+STORE_URI_LOADER_STUB_VERSION = "1"
 MLRUN_FUNCTIONS_ANNOTATION = "mlrun/mlrun-functions"
 MYSQL_MEDIUMBLOB_SIZE_BYTES = 16 * 1024 * 1024
 MLRUN_LABEL_PREFIX = "mlrun/"
@@ -48,6 +53,8 @@ MLRUN_ACTIVE_PROJECT = "MLRUN_ACTIVE_PROJECT"
 MLRUN_JOB_AUTH_SECRET_PATH = "/var/mlrun-secrets/auth"
 MLRUN_JOB_AUTH_SECRET_FILE = ".igz.yml"
 MLRUN_RUNTIME_AUTH_DEFAULT_TOKEN_NAME = "default"
+
+MLRUN_TELEMETRY_OTLP_HEADERS_PATH = "/var/mlrun-secrets/telemetry-otlp-headers"
 
 
 class MLRunInternalLabels:
@@ -113,6 +120,7 @@ class MLRunInternalLabels:
     feature_vector = "feature-vector"
 
     auth_userid = f"{MLRUN_LABEL_PREFIX}user-id"
+    auth_username = f"{MLRUN_LABEL_PREFIX}user"
     auth_token_name = f"{MLRUN_LABEL_PREFIX}token"
 
     @classmethod
@@ -143,3 +151,4 @@ class WorkflowSubmitMode(mlrun.common.types.StrEnum):
 
 class InternalAnnotations:
     auth_username = f"{MLRUN_LABEL_PREFIX}user"
+    auth_token_name = f"{MLRUN_LABEL_PREFIX}token"

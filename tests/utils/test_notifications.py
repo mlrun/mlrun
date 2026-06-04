@@ -912,6 +912,157 @@ def test_inverse_dependencies(
     assert mock_ipython_push.call_count == expected_ipython_call_amount
 
 
+def test_generate_start_message_workflow_url_when_pipeline_id(monkeypatch):
+    # Env vars feed into the commit_id fallback, so clear them for exact output.
+    monkeypatch.delenv("GITHUB_SHA", raising=False)
+    monkeypatch.delenv("CI_COMMIT_SHA", raising=False)
+
+    pusher = mlrun.utils.notifications.CustomNotificationPusher(
+        [mlrun.utils.notifications.NotificationTypes.console]
+    )
+    mock_workflow_url = unittest.mock.MagicMock(
+        return_value="http://example.com/workflow/pipeline-123"
+    )
+    mock_runs_url = unittest.mock.MagicMock(return_value="http://example.com/runs")
+    monkeypatch.setattr(mlrun.utils.helpers, "get_workflow_url", mock_workflow_url)
+    monkeypatch.setattr(mlrun.utils.helpers, "get_runs_url", mock_runs_url)
+
+    html, message = pusher.generate_start_message(
+        pipeline_id="pipeline-123", project="my-project"
+    )
+
+    mock_workflow_url.assert_called_once_with("my-project", "pipeline-123")
+    mock_runs_url.assert_not_called()
+    assert message == (
+        "Workflow started in project my-project id=pipeline-123, "
+        "check progress in http://example.com/workflow/pipeline-123"
+    )
+    assert html == (
+        "Workflow started in project my-project id=pipeline-123"
+        '<div><a href="http://example.com/workflow/pipeline-123" target="_blank">'
+        "click here to view progress</a></div>"
+    )
+
+
+def test_generate_start_message_runs_url_when_no_pipeline_id(monkeypatch):
+    monkeypatch.delenv("GITHUB_SHA", raising=False)
+    monkeypatch.delenv("CI_COMMIT_SHA", raising=False)
+
+    pusher = mlrun.utils.notifications.CustomNotificationPusher(
+        [mlrun.utils.notifications.NotificationTypes.console]
+    )
+    mock_workflow_url = unittest.mock.MagicMock(
+        return_value="http://example.com/workflow"
+    )
+    mock_runs_url = unittest.mock.MagicMock(return_value="http://example.com/runs")
+    monkeypatch.setattr(mlrun.utils.helpers, "get_workflow_url", mock_workflow_url)
+    monkeypatch.setattr(mlrun.utils.helpers, "get_runs_url", mock_runs_url)
+
+    html, message = pusher.generate_start_message(project="my-project")
+
+    mock_runs_url.assert_called_once_with("my-project")
+    mock_workflow_url.assert_not_called()
+    assert message == (
+        "Workflow started in project my-project, "
+        "check progress in http://example.com/runs"
+    )
+    assert html == (
+        "Workflow started in project my-project"
+        '<div><a href="http://example.com/runs" target="_blank">'
+        "click here to view progress</a></div>"
+    )
+
+
+def test_generate_start_message_no_url_when_helpers_return_empty(monkeypatch):
+    monkeypatch.delenv("GITHUB_SHA", raising=False)
+    monkeypatch.delenv("CI_COMMIT_SHA", raising=False)
+
+    pusher = mlrun.utils.notifications.CustomNotificationPusher(
+        [mlrun.utils.notifications.NotificationTypes.console]
+    )
+    monkeypatch.setattr(
+        mlrun.utils.helpers,
+        "get_workflow_url",
+        unittest.mock.MagicMock(return_value=""),
+    )
+    monkeypatch.setattr(
+        mlrun.utils.helpers,
+        "get_runs_url",
+        unittest.mock.MagicMock(return_value=""),
+    )
+
+    html, message = pusher.generate_start_message(
+        pipeline_id="pipeline-123", project="my-project"
+    )
+
+    assert html == ""
+    assert message == "Workflow started in project my-project id=pipeline-123"
+
+
+def test_push_pipeline_start_message_from_client_uses_workflow_url(monkeypatch):
+    monkeypatch.delenv("GITHUB_SHA", raising=False)
+    monkeypatch.delenv("CI_COMMIT_SHA", raising=False)
+
+    pusher = mlrun.utils.notifications.CustomNotificationPusher(
+        [mlrun.utils.notifications.NotificationTypes.console]
+    )
+    monkeypatch.setattr(
+        mlrun.utils.helpers,
+        "get_workflow_url",
+        unittest.mock.MagicMock(return_value="http://example.com/workflow/abc"),
+    )
+    mock_push = unittest.mock.MagicMock()
+    monkeypatch.setattr(pusher, "push", mock_push)
+
+    pusher.push_pipeline_start_message_from_client(
+        project="my-project", pipeline_id="abc"
+    )
+
+    expected_message = (
+        "Workflow started in project my-project id=abc, "
+        "check progress in http://example.com/workflow/abc"
+    )
+    expected_html = (
+        "Workflow started in project my-project id=abc"
+        '<div><a href="http://example.com/workflow/abc" target="_blank">'
+        "click here to view progress</a></div>"
+    )
+    mock_push.assert_called_once_with(
+        expected_message, "info", custom_html=expected_html
+    )
+
+
+def test_push_pipeline_start_message_from_client_falls_back_to_runs_url(monkeypatch):
+    monkeypatch.delenv("GITHUB_SHA", raising=False)
+    monkeypatch.delenv("CI_COMMIT_SHA", raising=False)
+
+    pusher = mlrun.utils.notifications.CustomNotificationPusher(
+        [mlrun.utils.notifications.NotificationTypes.console]
+    )
+    monkeypatch.setattr(
+        mlrun.utils.helpers,
+        "get_runs_url",
+        unittest.mock.MagicMock(return_value="http://example.com/runs"),
+    )
+    mock_push = unittest.mock.MagicMock()
+    monkeypatch.setattr(pusher, "push", mock_push)
+
+    pusher.push_pipeline_start_message_from_client(project="my-project")
+
+    expected_message = (
+        "Workflow started in project my-project, "
+        "check progress in http://example.com/runs"
+    )
+    expected_html = (
+        "Workflow started in project my-project"
+        '<div><a href="http://example.com/runs" target="_blank">'
+        "click here to view progress</a></div>"
+    )
+    mock_push.assert_called_once_with(
+        expected_message, "info", custom_html=expected_html
+    )
+
+
 NOTIFICATION_VALIDATION_PARMETRIZE = [
     (
         {

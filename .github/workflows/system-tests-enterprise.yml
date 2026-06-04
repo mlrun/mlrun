@@ -137,7 +137,7 @@ jobs:
         node-version: 18
     - name: Configure AWS credentials
       id: creds
-      uses: aws-actions/configure-aws-credentials@ec61189d14ec14c8efccab744f656cffd0e33f37
+      uses: aws-actions/configure-aws-credentials@e7f100cf4c008499ea8adda475de1042d6975c7b
       with:
         role-to-assume: ${{ env.AWS_ROLE_ARN }}
         role-session-name: mlrun-system-tests-${{ github.run_id }}
@@ -145,7 +145,7 @@ jobs:
         output-credentials: true
 
     - name: Install uv
-      uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # 8.1.0
+      uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # 8.2.0
       with:
         enable-cache: true
         python-version: 3.11
@@ -383,6 +383,7 @@ jobs:
         # graphviz      for generating graphs (feature store tests)
         # git-core      for cloning repos and etc, required by many suites
         # gcc, make     for installing python packages
+        # jq, openssl   for github-app-token.sh (token refresh daemon)
         apt-get update -qqy && \
           apt-get install -y \
             curl \
@@ -391,7 +392,9 @@ jobs:
             graphviz \
             git-core \
             gcc \
-            make
+            make \
+            jq \
+            openssl
 
     - name: Install aws-iam-authenticator
       # Required when kubeconfig uses exec auth with `command: aws-iam-authenticator`
@@ -413,7 +416,7 @@ jobs:
     # (aws eks get-token) and refresh tokens throughout long test runs. This prevents 401s during
     # pod-log collection on failures.
     - name: Configure AWS credentials
-      uses: aws-actions/configure-aws-credentials@ec61189d14ec14c8efccab744f656cffd0e33f37
+      uses: aws-actions/configure-aws-credentials@e7f100cf4c008499ea8adda475de1042d6975c7b
       with:
         role-to-assume: ${{ env.AWS_ROLE_ARN }}
         role-session-name: mlrun-system-tests-${{ github.run_id }}
@@ -427,7 +430,7 @@ jobs:
         ref: ${{ needs.prepare-system-tests-enterprise-ci.outputs.mlrunBranch }}
 
     - name: Install uv
-      uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # 8.1.0
+      uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # 8.2.0
       with:
         enable-cache: true
         python-version: 3.11

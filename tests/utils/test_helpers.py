@@ -16,7 +16,6 @@ import asyncio
 import json
 import re
 import unittest.mock
-import warnings
 from contextlib import nullcontext as does_not_raise
 from datetime import UTC, datetime, timedelta, timezone
 
@@ -63,7 +62,6 @@ from mlrun.utils.helpers import (
     validate_v3io_stream_consumer_group,
     verify_field_regex,
     verify_list_items_type,
-    warn_on_deprecated_image,
 )
 
 STORE_PREFIX = "store://{kind}/dummy-project/dummy-db-key"
@@ -2295,40 +2293,6 @@ def test_set_auth_user_id_works_with_run_spec():
 
 
 @pytest.mark.parametrize(
-    "image,should_warn",
-    [
-        # Exact deprecated image name
-        ("mlrun/ml-base", True),
-        # Tagged deprecated image (the core bug scenario)
-        ("mlrun/ml-base:v1.11.0", True),
-        ("mlrun/ml-base:latest", True),
-        # Registry-prefixed deprecated image
-        ("registry.example.com/mlrun/ml-base:latest", True),
-        # Non-deprecated images should NOT warn
-        ("mlrun/mlrun:latest", False),
-        ("mlrun/mlrun", False),
-        ("my-custom-image:v1", False),
-        # None and empty string should NOT warn
-        (None, False),
-        ("", False),
-    ],
-)
-def test_warn_on_deprecated_image(image, should_warn):
-    with warnings.catch_warnings(record=True) as w:
-        warnings.simplefilter("always")
-        warn_on_deprecated_image(image)
-        if should_warn:
-            assert len(w) == 1, (
-                f"Expected 1 FutureWarning for image '{image}', got {len(w)}"
-            )
-            assert issubclass(w[0].category, FutureWarning)
-        else:
-            assert len(w) == 0, (
-                f"Expected no warnings for image '{image}', got {len(w)}"
-            )
-
-
-@pytest.mark.parametrize(
     "image, expected",
     [
         # http:// prefix should be stripped
@@ -2346,3 +2310,21 @@ def test_remove_image_protocol_prefix(image, expected):
     assert result == expected, (
         f"Expected '{expected}' for image '{image}', got '{result}'"
     )
+
+
+@pytest.mark.parametrize(
+    "handler,expected",
+    [
+        ("trainer:train_model", ("trainer", "train_model")),
+        ("my_func", ("", "my_func")),
+        ("", ("", "")),
+        (None, ("", "")),
+        # only the FIRST colon splits — partition() returns
+        # ("a", ":", "b:c"), not split's ["a", "b", "c"]
+        ("a:b:c", ("a", "b:c")),
+    ],
+)
+def test_split_handler_module_and_function(handler, expected):
+    from mlrun.utils.helpers import split_handler_module_and_function
+
+    assert split_handler_module_and_function(handler) == expected

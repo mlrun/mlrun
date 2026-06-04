@@ -298,6 +298,7 @@ class BaseRuntimeHandler(ABC):
         token_name: str | None = None,
         auth_info: mlrun.common.schemas.AuthInfo | None = None,
     ):
+        mount_otlp_secret = bool(getattr(runtime.spec, "mount_otlp_secret", False))
         if runtime._secrets:
             if runtime._secrets.has_vault_source():
                 self.add_vault_params_to_spec(
@@ -313,6 +314,7 @@ class BaseRuntimeHandler(ABC):
                 project_name=project_name,
                 token_name=token_name,
                 auth_info=auth_info,
+                mount_otlp_secret=mount_otlp_secret,
             )
         else:
             self.add_k8s_secrets_to_spec(
@@ -321,6 +323,7 @@ class BaseRuntimeHandler(ABC):
                 project_name=project_name,
                 token_name=token_name,
                 auth_info=auth_info,
+                mount_otlp_secret=mount_otlp_secret,
             )
 
     @staticmethod
@@ -402,19 +405,24 @@ class BaseRuntimeHandler(ABC):
         volume_mounts = [{"name": "azure-vault-secret", "mountPath": secret_path}]
         runtime.spec.update_vols_and_mounts(volumes, volume_mounts)
 
-    @staticmethod
+    @classmethod
     def add_k8s_secrets_to_spec(
+        cls,
         secrets,
         runtime: mlrun.runtimes.pod.KubeResource,
         project_name: str | None = None,
         encode_key_names: bool = True,
         token_name: str | None = None,
         auth_info: mlrun.common.schemas.AuthInfo | None = None,
+        mount_otlp_secret: bool = False,
     ):
         # In IG4, we add auth token secret as volumes and volumes mounts
-        BaseRuntimeHandler._mount_secret_token_to_runtime(
-            runtime, token_name, auth_info
-        )
+        cls._mount_secret_token_to_runtime(runtime, token_name, auth_info)
+
+        if mount_otlp_secret:
+            # Mount OTLP telemetry headers when configured. The function pod reads
+            # them via mlrun.utils.telemetry.resolve_otlp_headers().
+            cls._mount_telemetry_headers_to_runtime(runtime)
 
         # Check if we need to add the keys of a global secret. Global secrets are intentionally added before
         # project secrets, to allow project secret keys to override them
@@ -434,9 +442,7 @@ class BaseRuntimeHandler(ABC):
                     else key
                 )
                 # Don't override user-provided plain env vars
-                if not BaseRuntimeHandler._has_user_set_plain_env(
-                    runtime, env_var_name
-                ):
+                if not runtime.has_user_set_plain_env(env_var_name):
                     runtime.set_env_from_secret(env_var_name, global_secret_name, key)
 
         # the secrets param may be an empty dictionary (asking for all secrets of that project) -
@@ -476,9 +482,7 @@ class BaseRuntimeHandler(ABC):
         for key, env_var_name in secrets.items():
             if key in existing_secret_keys:
                 # Don't override user-provided plain env vars
-                if not BaseRuntimeHandler._has_user_set_plain_env(
-                    runtime, env_var_name
-                ):
+                if not runtime.has_user_set_plain_env(env_var_name):
                     runtime.set_env_from_secret(env_var_name, secret_name, key)
 
         # Keep a list of the variables that relate to secrets, so that the MLRun context (when using nuclio:mlrun)
@@ -518,6 +522,29 @@ class BaseRuntimeHandler(ABC):
                     ],
                 )
             )
+
+    @staticmethod
+    def _mount_telemetry_headers_to_runtime(
+        runtime: mlrun.runtimes.pod.KubeResource,
+    ):
+        """Mount the OTLP telemetry headers secret as files on the function pod.
+
+        The runtime reads these via ``mlrun.utils.telemetry.resolve_otlp_headers()``
+        at exporter init. No-op when telemetry headers are not configured. Applies
+        on both IG4 and CE — the only gate is the operator setting
+        ``mlconf.telemetry.headers_secret_name``.
+        """
+        secret_name = mlrun.mlconf.telemetry.headers_secret_name
+        if not secret_name:
+            return
+
+        runtime.apply(
+            mlrun.mounts.mount_secret(
+                secret_name,
+                mount_path=mlrun.common.constants.MLRUN_TELEMETRY_OTLP_HEADERS_PATH,
+                volume_name="telemetry-otlp-headers",
+            )
+        )
 
     @staticmethod
     def are_resources_coupled_to_run_object() -> bool:
@@ -2091,22 +2118,3 @@ class BaseRuntimeHandler(ABC):
             return run_retry_count > 0
 
         return int(pod_retry_label) < run_retry_count
-
-    @staticmethod
-    def _has_user_set_plain_env(
-        runtime: mlrun.runtimes.pod.KubeResource, name: str
-    ) -> bool:
-        """Check if runtime was explicitly set with a plain-value env var.
-
-        Returns True only for env vars with a plain .value (user-set), not for
-        secret-injected vars that have .value_from. This distinction is critical
-        to preserve the project > global secret priority.
-        """
-        for env_var in runtime.spec.env:
-            if isinstance(env_var, dict):
-                if env_var.get("name") == name:
-                    return env_var.get("value") is not None
-            else:
-                if getattr(env_var, "name", None) == name:
-                    return getattr(env_var, "value", None) is not None
-        return False

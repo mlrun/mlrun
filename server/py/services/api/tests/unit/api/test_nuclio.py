@@ -13,14 +13,18 @@
 # limitations under the License.
 
 import unittest
-from unittest.mock import patch
+from http import HTTPStatus
+from unittest.mock import MagicMock, patch
 
+import fastapi
 import fastapi.testclient
 import pytest
 import sqlalchemy.orm
 
 import mlrun
 import mlrun.common.schemas
+import mlrun.errors
+import mlrun.runtimes
 import mlrun.runtimes.nuclio
 from mlrun.common.constants import MLRUN_FUNCTIONS_ANNOTATION
 from mlrun.common.types import AuthenticationMode
@@ -29,6 +33,7 @@ import framework.utils.clients.async_nuclio
 import framework.utils.clients.iguazio.v3
 import services.api.crud
 import services.api.tests.unit.api.utils
+from services.api.api.endpoints.nuclio import _deploy_nuclio_runtime
 
 PROJECT = "project-name"
 
@@ -311,3 +316,65 @@ def test_with_http_async_spec(
                 assert trigger.get("async") == expected_async_struct
             else:
                 assert "async" not in trigger
+
+
+@pytest.mark.parametrize(
+    "kind",
+    [mlrun.runtimes.RuntimeKinds.remote, mlrun.runtimes.RuntimeKinds.application],
+)
+def test_nuclio_app_track_models_raises_on_missing_credentials(kind):
+    """_deploy_nuclio_runtime must reject remote/application functions with track_models when credentials are unset."""
+    fn = mlrun.new_function(name="test-fn", kind=kind, project=PROJECT)
+    fn.spec.track_models = True
+
+    with (
+        patch(
+            "services.api.api.endpoints.nuclio.process_model_monitoring_secret",
+            return_value=None,
+        ),
+        patch(
+            "services.api.crud.model_monitoring.deployment.MonitoringDeployment.check_if_credentials_are_set",
+            side_effect=mlrun.errors.MLRunBadRequestError("credentials not set"),
+        ),
+    ):
+        with pytest.raises(fastapi.HTTPException) as exc_info:
+            _deploy_nuclio_runtime(
+                auth_info=mlrun.common.schemas.AuthInfo(),
+                builder_env=None,
+                client_python_version=None,
+                client_version=None,
+                db_session=MagicMock(),
+                fn=fn,
+            )
+    assert exc_info.value.status_code == HTTPStatus.BAD_REQUEST.value
+
+
+@pytest.mark.parametrize(
+    "kind",
+    [mlrun.runtimes.RuntimeKinds.remote, mlrun.runtimes.RuntimeKinds.application],
+)
+def test_nuclio_app_track_models_calls_credential_check(kind):
+    """_deploy_nuclio_runtime must call check_if_credentials_are_set for remote/application with track_models."""
+    fn = mlrun.new_function(name="test-fn", kind=kind, project=PROJECT)
+    fn.spec.track_models = True
+
+    with (
+        patch(
+            "services.api.api.endpoints.nuclio.process_model_monitoring_secret",
+            return_value=None,
+        ),
+        patch(
+            "services.api.crud.model_monitoring.deployment.MonitoringDeployment.check_if_credentials_are_set"
+        ) as mock_check,
+        patch("services.api.crud.runtimes.nuclio.function.deploy_nuclio_function"),
+    ):
+        _deploy_nuclio_runtime(
+            auth_info=mlrun.common.schemas.AuthInfo(),
+            builder_env=None,
+            client_python_version=None,
+            client_version=None,
+            db_session=MagicMock(),
+            fn=fn,
+        )
+
+    mock_check.assert_called_once()

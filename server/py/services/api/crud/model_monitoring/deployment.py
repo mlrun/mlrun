@@ -57,6 +57,7 @@ from mlrun.model_monitoring.db._schedules import (
 )
 from mlrun.model_monitoring.writer import ModelMonitoringWriter, WriterGraphFactory
 from mlrun.platforms.iguazio import split_path
+from mlrun.runtimes.nuclio.function import AsyncSpec
 from mlrun.utils import logger
 
 import framework.api.utils
@@ -172,6 +173,7 @@ class MonitoringDeployment:
         fetch_credentials_from_sys_config: bool = False,
         lag_threshold: int | None = None,
         lag_event_cooldown: int | None = None,
+        otlp_enabled: bool = False,
     ) -> None:
         """
         Deploy model monitoring application controller, writer and stream functions.
@@ -185,9 +187,24 @@ class MonitoringDeployment:
         :param fetch_credentials_from_sys_config: If true, fetch the credentials from the system configuration.
         :param lag_threshold:                     Lag threshold in minutes for writer lag detection.
         :param lag_event_cooldown:                Cooldown in minutes between consecutive lag events per worker.
+        :param otlp_enabled:                      If true, persist OTel export opt-in to the project spec.
         """
         if image is None:
             image = mlrun.mlconf.function_defaults.image_by_kind.nuclio
+
+        if otlp_enabled:
+            if not mlrun.mlconf.telemetry.enabled:
+                raise mlrun.errors.MLRunBadRequestError(
+                    "Cannot enable model monitoring OTel export: operator has "
+                    "disabled telemetry (mlconf.telemetry.enabled is not true)."
+                )
+            if not mlrun.mlconf.telemetry.otlp_endpoint:
+                raise mlrun.errors.MLRunBadRequestError(
+                    "Cannot enable model monitoring OTel export: operator has "
+                    "not configured an OTLP endpoint "
+                    "(mlconf.telemetry.otlp_endpoint is blank)."
+                )
+
         # check if credentials should be fetched from the system configuration or if they are already been set.
         if fetch_credentials_from_sys_config:
             self.set_credentials()
@@ -232,7 +249,46 @@ class MonitoringDeployment:
         )
         ModelMonitoringSchedulesFileChief(project=self.project).get_or_create()
         if deploy_histogram_data_drift_app:
-            self.deploy_histogram_data_drift_app(image=image)
+            self.deploy_histogram_data_drift_app(image=image, otlp_enabled=otlp_enabled)
+
+        self._persist_model_monitoring_spec(enabled=True, otlp_enabled=otlp_enabled)
+
+    def _persist_model_monitoring_spec(
+        self,
+        *,
+        enabled: bool | None = None,
+        otlp_enabled: bool | None = None,
+        stream_type: mm_constants.StreamTarget | None = None,
+        tsdb_type: mm_constants.TSDBTarget | None = None,
+    ) -> None:
+        """Patch ``project.spec.model_monitoring`` with the current MM state.
+
+        Each field is optional: only fields whose value is non-None are included
+        in the patch, so callers update one concern at a time:
+          - ``deploy_monitoring_functions``: enabled=True, otlp_enabled=<param>
+          - ``disable_model_monitoring``: enabled=False, otlp_enabled=False
+          - ``set_credentials``: stream_type=<derived>, tsdb_type=<derived>
+
+        Uses additive patch so other fields are preserved.
+        """
+        fields: dict = {}
+        if enabled is not None:
+            fields["enabled"] = bool(enabled)
+        if otlp_enabled is not None:
+            fields["otlp_enabled"] = bool(otlp_enabled)
+        if stream_type is not None:
+            fields["stream_type"] = stream_type.value
+        if tsdb_type is not None:
+            fields["tsdb_type"] = tsdb_type.value
+        if not fields:
+            return
+
+        services.api.crud.Projects().patch_project(
+            session=self.db_session,
+            name=self.project,
+            project={"spec": {"model_monitoring": fields}},
+            patch_mode=mlrun.common.schemas.PatchMode.additive,
+        )
 
     def deploy_model_monitoring_stream_processing(
         self, stream_image: str | None = None, overwrite: bool = False
@@ -792,9 +848,15 @@ class MonitoringDeployment:
             secret_provider=self._secret_provider,
         )
 
+        monitoring_stream_uri = mlrun.model_monitoring.get_stream_path(
+            project=self.project,
+            function_name=mm_constants.MonitoringFunctionNames.STREAM,
+            secret_provider=self._secret_provider,
+        )
+
         # Create monitoring serving graph
         stream_processor.apply_monitoring_serving_graph(
-            function, self._tsdb_connector, controller_stream_uri
+            function, self._tsdb_connector, controller_stream_uri, monitoring_stream_uri
         )
 
         # Set the project to the serving function
@@ -807,6 +869,10 @@ class MonitoringDeployment:
             stream_args=config.model_endpoint_monitoring.serving_stream,
             ignore_stream_already_exists_failure=True,
         )
+
+        # Add an explicit HTTP trigger so the stream pod is reachable via HTTP.
+        # async mode: stream processing is I/O bound and benefits from async + many connections.
+        function.with_http(async_spec=AsyncSpec(enabled=True))
 
         # Apply feature store run configurations on the serving function
         run_config = fstore.RunConfig(function=function, local=False)
@@ -1040,13 +1106,21 @@ class MonitoringDeployment:
         )
 
     def deploy_histogram_data_drift_app(
-        self, image: str, overwrite: bool = False
+        self,
+        image: str,
+        overwrite: bool = False,
+        otlp_enabled: bool = False,
     ) -> None:
         """
         Deploy the histogram data drift application.
 
-        :param image:       The image on with the function will run.
-        :param overwrite:   If True, the function will be overwritten.
+        :param image:        The image on with the function will run.
+        :param overwrite:    If True, the function will be overwritten.
+        :param otlp_enabled: If True, append the OTel branch
+                             (``_PrepareOTelEvent`` → ``OTelMetricsExporter``)
+                             and set ``func.spec.mount_otlp_secret`` so the
+                             runtime injector mounts the OTLP headers secret
+                             onto the function pod.
         """
         if overwrite or self._should_deploy_function(
             function_name=mm_constants.HistogramDataDriftApplicationConstants.NAME
@@ -1058,6 +1132,7 @@ class MonitoringDeployment:
                 name=mm_constants.HistogramDataDriftApplicationConstants.NAME,
                 application_class="HistogramDataDriftApplication",
                 image=image,
+                otlp_enabled=otlp_enabled,
             )
 
             if mlrun.mlconf.is_using_v3io():
@@ -1613,6 +1688,12 @@ class MonitoringDeployment:
                 )
                 tasks.append(task)
 
+        await run_in_threadpool(
+            self._persist_model_monitoring_spec,
+            enabled=False,
+            otlp_enabled=False,
+        )
+
         return mlrun.common.schemas.BackgroundTaskList(background_tasks=tasks)
 
     def _get_monitoring_application_to_delete(
@@ -1943,7 +2024,9 @@ class MonitoringDeployment:
 
         return tsdb_profile
 
-    def _validate_stream_profile(self, stream_profile_name: str) -> None:
+    def _validate_stream_profile(
+        self, stream_profile_name: str
+    ) -> mlrun.datastore.datastore_profile.DatastoreProfile:
         try:
             stream_profile = mlrun.datastore.datastore_profile.datastore_profile_read(
                 url=f"ds://{stream_profile_name}",
@@ -1970,6 +2053,37 @@ class MonitoringDeployment:
                 f"The model monitoring stream profile is of an unexpected type: '{type(stream_profile)}'\n"
                 "Expects `DatastoreProfileV3io` or `DatastoreProfileKafkaStream`."
             )
+        return stream_profile
+
+    @staticmethod
+    def _resolve_stream_target(
+        stream_profile: mlrun.datastore.datastore_profile.DatastoreProfile,
+    ) -> mm_constants.StreamTarget | None:
+        if isinstance(
+            stream_profile,
+            mlrun.datastore.datastore_profile.DatastoreProfileKafkaStream,
+        ):
+            return mm_constants.StreamTarget.KAFKA
+        if isinstance(
+            stream_profile, mlrun.datastore.datastore_profile.DatastoreProfileV3io
+        ):
+            return mm_constants.StreamTarget.V3IO
+        return None
+
+    @staticmethod
+    def _resolve_tsdb_target(
+        tsdb_profile: mlrun.datastore.datastore_profile.DatastoreProfile,
+    ) -> mm_constants.TSDBTarget | None:
+        if isinstance(
+            tsdb_profile,
+            mlrun.datastore.datastore_profile.DatastoreProfilePostgreSQL,
+        ):
+            return mm_constants.TSDBTarget.TimescaleDB
+        if isinstance(
+            tsdb_profile, mlrun.datastore.datastore_profile.DatastoreProfileV3io
+        ):
+            return mm_constants.TSDBTarget.V3IO_TSDB
+        return None
 
     def _validate_kafka_stream(
         self,
@@ -2090,11 +2204,14 @@ class MonitoringDeployment:
         secrets_dict = {}
         old_secrets_dict = self._get_monitoring_mandatory_project_secrets()
 
+        stream_profile = None
+        tsdb_profile = None
+
         stream_profile_name = stream_profile_name or old_secrets_dict.get(
             mlrun.common.schemas.model_monitoring.ProjectSecretKeys.STREAM_PROFILE_NAME
         )
         if stream_profile_name:
-            self._validate_stream_profile(stream_profile_name)
+            stream_profile = self._validate_stream_profile(stream_profile_name)
             secrets_dict[
                 mlrun.common.schemas.model_monitoring.ProjectSecretKeys.STREAM_PROFILE_NAME
             ] = stream_profile_name
@@ -2126,6 +2243,11 @@ class MonitoringDeployment:
                 provider=mlrun.common.schemas.SecretProviderName.kubernetes,
                 secrets=secrets_dict,
             ),
+        )
+
+        self._persist_model_monitoring_spec(
+            stream_type=self._resolve_stream_target(stream_profile),
+            tsdb_type=self._resolve_tsdb_target(tsdb_profile),
         )
 
     def _is_the_same_cred(
@@ -2319,6 +2441,112 @@ class MonitoringDeployment:
         )  # model endpoint, creation strategy, model path
         function.spec.graph = graph
         return model_endpoints_instructions, function.to_dict()
+
+    async def _create_model_endpoints_instructions_for_nuclio_app(
+        self,
+        db_session: sqlalchemy.orm.Session,
+        function: dict,
+        function_name: str,
+        project: str,
+    ) -> tuple[
+        list[
+            tuple[
+                mlrun.common.schemas.ModelEndpoint,
+                mm_constants.ModelEndpointCreationStrategy,
+            ]
+        ],
+        str | None,
+        dict,
+    ]:
+        """
+        Build (ModelEndpoint, strategy) pairs from spec.model_endpoint_instructions
+        for nuclio/application runtimes.
+
+        Validates instruction types, confirms the model monitoring stream is ready,
+        and resolves its HTTP URL.
+
+        :raises MLRunInvalidArgumentError: if an instruction has an invalid type.
+        :raises MLRunNotFoundError: if the model monitoring stream is not deployed.
+        :raises MLRunPreconditionFailedError: if the model monitoring stream is not ready.
+        :return: Tuple of (instructions, stream_url, function_dict).
+        """
+        import mlrun.common.schemas.model_monitoring.model_endpoints as mm_endpoints
+
+        import services.api.crud.model_monitoring.helpers as mm_crud_helpers
+
+        raw_instructions = (function.get("spec") or {}).get(
+            "model_endpoints_instructions"
+        ) or []
+
+        # Validate and normalize instructions
+        instructions: list[mm_endpoints.ModelEndpointInstruction] = []
+        for idx, item in enumerate(raw_instructions):
+            if isinstance(item, mm_endpoints.ModelEndpointInstruction):
+                instructions.append(item)
+            elif isinstance(item, dict):
+                instructions.append(
+                    mm_endpoints.ModelEndpointInstruction.from_dict(item)
+                )
+            else:
+                framework.api.utils.log_and_raise(
+                    HTTPStatus.BAD_REQUEST.value,
+                    reason=(
+                        f"model_endpoint_instructions[{idx}] must be a dict or "
+                        f"ModelEndpointInstruction, got {type(item).__name__!r}"
+                    ),
+                )
+
+        stream_url = await mm_crud_helpers.get_stream_url(
+            db_session=db_session, project=project
+        )
+        if stream_url is None:
+            logger.warning(
+                "Model monitoring stream has no HTTP trigger — MODEL_MONITORING_URL will "
+                "not be injected. HTTP trigger support was added in 1.12.0; the stream "
+                "pod may have been deployed with an older version.",
+                project=project,
+            )
+
+        function_tag = (function.get("metadata") or {}).get("tag") or "latest"
+
+        model_endpoints_dict: dict[str, str] = await run_in_threadpool(
+            framework.utils.singletons.db.get_db().list_model_endpoints,
+            project=project,
+            function_name=function_name,
+            function_tag=function_tag,
+            latest_only=True,
+            session=db_session,
+            as_dict=True,
+        )
+
+        model_endpoints_instructions = []
+        for instruction in instructions:
+            effective_function_name = instruction.function_name or function_name
+            effective_function_tag = instruction.function_tag or function_tag
+            uid = self._get_or_create_uid(
+                project=project,
+                function_name=effective_function_name,
+                function_tag=effective_function_tag,
+                model_endpoints_dict=model_endpoints_dict,
+                creation_strategy=instruction.creation_strategy,
+                endpoint_name=instruction.name,
+            )
+            model_endpoint = self._model_endpoint_draft(
+                name=instruction.name,
+                endpoint_type=mm_constants.EndpointType.USER_EP,
+                model_class=None,
+                function_name=effective_function_name,
+                function_tag=effective_function_tag,
+                track_models=True,
+                uid=uid,
+                label_names=instruction.output_schema,
+                feature_names=instruction.input_schema,
+            )
+            model_endpoints_instructions.append(
+                (model_endpoint, instruction.creation_strategy)
+            )
+
+        return model_endpoints_instructions, stream_url, function
 
     def _extract_model_endpoints_from_function_graph(
         self,
@@ -2586,6 +2814,147 @@ class MonitoringDeployment:
             else uuid.uuid4().hex
         )
         return uid
+
+    @staticmethod
+    def inject_monitoring_env_vars(
+        function: dict,
+        env_updates: dict[str, str],
+    ) -> dict:
+        """
+        Inject monitoring-related environment variables into a function spec dict.
+
+        Existing env vars whose names appear in *env_updates* are replaced;
+        new ones are appended.  The function dict is mutated in-place and returned.
+
+        :param function:    Nuclio / application function dict (top-level, with "spec" key).
+        :param env_updates: Mapping of env var name → value to inject.
+        :return: The mutated function dict.
+        """
+        spec = function.setdefault("spec", {})
+        existing_env: list = spec.get("env") or []
+        inject_names = set(env_updates)
+        spec["env"] = [
+            e
+            for e in existing_env
+            if (e.get("name") if isinstance(e, dict) else getattr(e, "name", None))
+            not in inject_names
+        ] + [{"name": k, "value": v} for k, v in env_updates.items()]
+        return function
+
+    def _build_and_inject_monitoring_env_vars(
+        self,
+        function: dict,
+        model_endpoints_instructions: list[
+            tuple[
+                mlrun.common.schemas.ModelEndpoint,
+                mm_constants.ModelEndpointCreationStrategy,
+            ]
+        ],
+        stream_url: str | None,
+    ) -> dict:
+        """
+        Build monitoring env vars from *model_endpoints_instructions* and *stream_url*
+        and inject them into the function spec dict.
+
+        Injected variables:
+        - MODEL_MONITORING_URL  — HTTP URL of the stream pod (when available).
+        - MODEL_ENDPOINT_UID    — UID of the first (primary) model endpoint.
+        - MODEL_ENDPOINTS_MAP   — JSON ``{name: uid}`` map (only when >1 endpoint).
+
+        :return: The updated function dict.
+        """
+        if not model_endpoints_instructions:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "_build_and_inject_monitoring_env_vars called with empty or malformed model_endpoints_instructions"
+            )
+        env_updates: dict[str, str] = {}
+        if stream_url:
+            env_updates[mm_constants.NuclioMonitoringEnvVars.MODEL_MONITORING_URL] = (
+                stream_url
+            )
+        first_uid, first_name = (
+            (
+                model_endpoints_instructions[0][0].metadata.uid,
+                model_endpoints_instructions[0][0].metadata.name,
+            )
+            if len(model_endpoints_instructions[0]) > 1
+            else ("", "")
+        )
+        env_updates[mm_constants.NuclioMonitoringEnvVars.MODEL_ENDPOINT_UID] = first_uid
+        env_updates[mm_constants.NuclioMonitoringEnvVars.MODEL_ENDPOINT_NAME] = (
+            first_name
+        )
+        if len(model_endpoints_instructions) > 1:
+            env_updates[mm_constants.NuclioMonitoringEnvVars.MODEL_ENDPOINTS_MAP] = (
+                json.dumps(
+                    {
+                        me.metadata.name: me.metadata.uid
+                        for (me, _) in model_endpoints_instructions
+                    }
+                )
+            )
+        return self.inject_monitoring_env_vars(function, env_updates)
+
+    async def _create_nuclio_app_model_endpoint_background_task(
+        self,
+        db_session: sqlalchemy.orm.Session,
+        background_tasks: BackgroundTasks,
+        function: dict,
+        function_name: str,
+        project: str,
+    ) -> tuple[
+        list[
+            tuple[
+                mlrun.common.schemas.ModelEndpoint,
+                mm_constants.ModelEndpointCreationStrategy,
+            ]
+        ],
+        dict,
+    ]:
+        """
+        Full model-endpoint creation flow for nuclio/application runtimes.
+
+        1. Builds (ModelEndpoint, strategy) pairs from spec.model_endpoint_instructions.
+        2. Injects MODEL_MONITORING_URL, MODEL_ENDPOINT_UID, MODEL_ENDPOINTS_MAP env vars.
+        3. Registers a background task that persists the endpoints to the DB.
+
+        :return: Tuple of (model_endpoints_instructions, updated_function_dict).
+        """
+        (
+            model_endpoints_instructions,
+            stream_url,
+            function,
+        ) = await self._create_model_endpoints_instructions_for_nuclio_app(
+            db_session=db_session,
+            function=function,
+            function_name=function_name,
+            project=project,
+        )
+
+        if not model_endpoints_instructions:
+            return model_endpoints_instructions, function
+
+        function = self._build_and_inject_monitoring_env_vars(
+            function=function,
+            model_endpoints_instructions=model_endpoints_instructions,
+            stream_url=stream_url,
+        )
+
+        logger.info(
+            "Creating background task for model endpoints creation",
+            project=project,
+            function=function_name,
+        )
+        self._create_model_endpoint_background_task(
+            db_session=db_session,
+            background_tasks=background_tasks,
+            project_name=project,
+            function_name=function_name,
+            function_tag=(function.get("metadata") or {}).get("tag") or "latest",
+            model_endpoints_instructions=model_endpoints_instructions,
+        )
+
+        return model_endpoints_instructions, function
 
     def _model_endpoint_draft(
         self,

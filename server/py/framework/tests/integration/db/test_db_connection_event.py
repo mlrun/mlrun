@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """
-Integration tests for ``Platform.MLRun.DB.Connection.Failed`` against a real
+Integration tests for ``MLRun.DB.Connection.Failed`` against a real
 MySQL or PostgreSQL container. Selected via ``MLRUN_TEST_DB={mysql,postgres}``.
 
 The mapping is intentionally conservative: only true "cannot connect"
@@ -61,7 +61,7 @@ def stub_events_client(monkeypatch):
         "get_events_client",
         unittest.mock.MagicMock(return_value=client),
     )
-    monkeypatch.setattr(db_errors, "_last_emit_monotonic", 0.0)
+    monkeypatch.setattr(db_errors._slot, "_last_emit_monotonic", 0.0)
     db_errors._registered_engines.clear()
     yield emitted
     db_errors._registered_engines.clear()

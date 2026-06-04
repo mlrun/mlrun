@@ -1082,6 +1082,7 @@ class RunDBInterface(ABC):
         fetch_credentials_from_sys_config: bool = False,
         lag_threshold: int | None = None,
         lag_event_cooldown: int | None = None,
+        otlp_enabled: bool = False,
     ) -> None:
         pass
 
@@ -1119,6 +1120,10 @@ class RunDBInterface(ABC):
         application_name: str,
         endpoint_ids: list[str] | None = None,
     ) -> None:
+        pass
+
+    @abstractmethod
+    def get_model_monitoring_url(self, project: str) -> str | None:
         pass
 
     @abstractmethod

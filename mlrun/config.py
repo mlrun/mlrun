@@ -132,6 +132,11 @@ default_config = {
             # k8s resource by default the interval will be - (monitoring.runs.interval * 2 ), if set will override the
             # default
             "missing_runtime_resources_debouncing_interval": None,
+            # Grace period (seconds) for which monitoring defers marking a run "completed" after its
+            # runtime resource reports completion while the run still has no results - used by
+            # self-reporting runtimes (e.g. mpijob) to avoid completing before results are committed;
+            # past the grace the run completes regardless.
+            "result_settle_grace_seconds": 90,
             # max number of parallel abort run jobs in runs monitoring
             "concurrent_abort_stale_runs_workers": 10,
             "list_runs_time_period_in_days": 7,  # days
@@ -215,6 +220,10 @@ default_config = {
     },
     # default node selector to be applied to all functions - json string base64 encoded format
     "default_function_node_selector": "e30=",
+    # default pod labels to be applied to all functions - json string base64 encoded format.
+    # service-level defaults are the lowest precedence layer: they're overridden by
+    # function.metadata.labels and by system-assigned mlrun/* labels.
+    "default_function_pod_labels": "e30=",
     # default priority class to be applied to functions running on k8s cluster
     "default_function_priority_class_name": "",
     # valid options for priority classes - separated by a comma
@@ -357,6 +366,7 @@ default_config = {
                     "start_logs": "enabled",
                     "stop_logs": "enabled",
                     "retry_jobs": "enabled",
+                    "project_sync_2pc": "disabled",
                 },
             },
             "worker": {
@@ -551,6 +561,9 @@ default_config = {
                 "list_pipelines_time_period_in_days": 2,
             },
             "resource_deletion_batch_size": 10000,
+            "stale_resource_ttl_create": "2 minutes",
+            "stale_resource_ttl_update": "2 minutes",
+            "stale_resource_ttl_delete": "10 minutes",
         },
         # The API needs to know what is its k8s svc url so it could enrich it in the jobs it creates
         "api_url": "",
@@ -583,6 +596,11 @@ default_config = {
             "kaniko_image_push_retry": "3",
             # additional docker build args in json encoded base64 format
             "build_args": "",
+            # labels to be applied to builder pods - json string base64 encoded format.
+            # used (for example) to attach the azure.workload.identity/use label so the Azure
+            # workload-identity webhook injects credentials into the builder pod for pushing to ACR.
+            # system-assigned mlrun/* labels take precedence over these.
+            "pod_labels": "e30=",
             "pip_ca_secret_name": "",
             "pip_ca_secret_key": "",
             "pip_ca_path": "/etc/ssl/certs/mlrun/pip-ca-certificates.crt",
@@ -973,7 +991,32 @@ default_config = {
             "refresh_interval": "30",
         }
     },
+    "telemetry": {
+        # Master kill-switch for all OTel telemetry features. When "false", no telemetry is exported.
+        "enabled": False,
+        # Shared OTLP endpoint (gRPC or HTTP) used by every telemetry feature below.
+        # Blank = telemetry disabled regardless of `enabled`.
+        "otlp_endpoint": "",
+        # gRPC without TLS.
+        "insecure": True,
+        # Name of the K8s secret holding OTLP auth headers (one key per header,
+        # e.g. Authorization, X-Scope-OrgID). Blank = no auth headers.
+        "headers_secret_name": "",
+        "system_counters": {
+            # PeriodicExportingMetricReader interval for inventory gauges, expressed
+            # as a multiple of ``monitoring.projects.summaries.cache_interval`` so
+            # the exporter samples a freshly-refreshed gauge every Nth cache cycle.
+            # Default 10 × 60s = 600s = 10 minutes. Must be >= 1.
+            "export_interval_multiplier": 10,
+        },
+        # ML-12344 — model monitoring application Results/Metrics OTel export.
+        "model_monitoring": {
+            # 0 = manual flush per do() (ManualMetricReader); >0 = PeriodicExportingMetricReader interval (seconds).
+            "interval": 60,
+        },
+    },
     "system_id": "",
+    "system_id_len": 12,
 }
 _is_running_as_api = None
 
@@ -1140,6 +1183,16 @@ class Config:
     def get_default_function_node_selector(self) -> dict:
         return self.decode_base64_config_and_load_to_object(
             "default_function_node_selector", dict
+        )
+
+    def get_default_function_pod_labels(self) -> dict:
+        return self.decode_base64_config_and_load_to_object(
+            "default_function_pod_labels", dict
+        )
+
+    def get_builder_pod_labels(self) -> dict:
+        return self.decode_base64_config_and_load_to_object(
+            "httpdb.builder.pod_labels", dict
         )
 
     def get_preemptible_node_selector(self) -> dict:
@@ -1594,6 +1647,11 @@ def _validate_config(config):
 
     config.verify_security_context_enrichment_mode_is_allowed()
     config.validate_object_retentions()
+    # Fail-fast on malformed base64/JSON in default_function_pod_labels so the
+    # API pod doesn't start with config that would crash every function deploy.
+    config.get_default_function_pod_labels()
+    # Fail-fast on malformed base64/JSON in the builder pod labels for the same reason.
+    config.get_builder_pod_labels()
 
 
 def _verify_gpu_requests_and_limits(

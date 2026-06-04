@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import asyncio
-import dataclasses
 import enum
 import http
 import re
@@ -24,22 +23,6 @@ from mlrun.config import config
 from mlrun.utils import logger
 
 import framework.utils.clients.protocols.grpc
-
-
-@dataclasses.dataclass(frozen=True)
-class LogCollectorFailureContext:
-    """
-    Payload delivered to the failure listener registered on
-    :class:`LogCollectorClient` when ``get_logs`` terminally fails to retrieve
-    a run's logs. Carries the run scope and (best-effort) the underlying error.
-    """
-
-    run_uid: str | None = None
-    project: str | None = None
-    error: BaseException | str | None = None
-
-
-LogCollectorFailureListener = typing.Callable[[LogCollectorFailureContext], None]
 
 
 class LogCollectorErrorCode(enum.Enum):
@@ -89,55 +72,12 @@ class LogCollectorClient(
     framework.utils.clients.protocols.grpc.BaseGRPCClient,
     metaclass=mlrun.utils.singleton.Singleton,
 ):
-    """
-    gRPC client for the log-collector sidecar.
-
-    A failure listener (see :meth:`set_failure_listener`) is invoked when
-    ``get_logs`` *terminally* fails to retrieve a run's logs — either because
-    the log-size pre-check gives up or the streaming retries are exhausted.
-    Transient single-attempt failures (e.g. pods not yet scheduled) are
-    retried internally and do not notify, and other RPCs (``start_logs``,
-    standalone ``get_log_size``, ``stop_logs``, ``delete_logs``,
-    ``list_runs_in_progress``) intentionally do not notify either — they are
-    not the "could not retrieve logs" signal the event represents. This hook
-    is the only inbound coupling from telemetry: keeping it out of the data
-    path lets ``services.api.utils.events`` register a publisher without the
-    framework layer depending on services-layer modules.
-    """
-
     name = "log_collector"
 
     def __init__(self, address: str | None = None):
         self._initialize_proto_client_imports()
         self.stub_class = self._log_collector_pb2_grpc.LogCollectorStub
-        self._failure_listener: LogCollectorFailureListener | None = None
         super().__init__(address=address or mlrun.mlconf.log_collector.address)
-
-    def set_failure_listener(self, listener: LogCollectorFailureListener) -> None:
-        """
-        Install the callback to be notified when a log-retrieval RPC fails.
-        The callback receives a :class:`LogCollectorFailureContext` describing
-        the failed operation, its scope, and (best-effort) the underlying
-        error. Calling again replaces the previously installed listener.
-
-        :param listener: callable invoked synchronously after each
-            retrieval-RPC failure; must not raise. Exceptions are caught and
-            logged.
-        """
-        self._failure_listener = listener
-
-    def _notify_failure(self, context: LogCollectorFailureContext) -> None:
-        """Invoke the registered failure listener; never raise."""
-        listener = self._failure_listener
-        if listener is None:
-            return
-        try:
-            listener(context)
-        except Exception as exc:
-            logger.warning(
-                "Log collector failure listener raised, ignoring",
-                exc=mlrun.errors.err_to_str(exc),
-            )
 
     def _initialize_proto_client_imports(self):
         # Importing the proto client classes here and not at the top of the file to avoid raising an import error
@@ -229,16 +169,6 @@ class LogCollectorClient(
                 "Failed to check if run has logs to collect", run_uid=run_uid
             )
             if raise_on_error:
-                # Terminal failure of the retrieval: we couldn't even determine
-                # whether the run has logs. Surface the system event before
-                # propagating.
-                self._notify_failure(
-                    LogCollectorFailureContext(
-                        run_uid=run_uid,
-                        project=project,
-                        error=exc,
-                    )
-                )
                 raise mlrun.errors.MLRunInternalServerError(
                     f"Failed to check if run has logs to collect for {run_uid}. exception= {exc}"
                 )
@@ -275,17 +205,6 @@ class LogCollectorClient(
                     exc=mlrun.errors.err_to_str(exc),
                 )
                 if try_count == config.log_collector.get_logs.max_retries:
-                    # Retries exhausted — this is the terminal "could not
-                    # retrieve logs" signal support cares about. Transient
-                    # single-attempt failures were retried above and do not
-                    # reach here.
-                    self._notify_failure(
-                        LogCollectorFailureContext(
-                            run_uid=run_uid,
-                            project=project,
-                            error=exc,
-                        )
-                    )
                     raise mlrun.errors.err_for_status_code(
                         http.HTTPStatus.INTERNAL_SERVER_ERROR.value,
                         mlrun.errors.err_to_str(exc),

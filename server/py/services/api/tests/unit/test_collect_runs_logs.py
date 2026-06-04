@@ -414,6 +414,14 @@ class TestCollectRunSLogs:
             "list_runs",
             list_runs_mock,
         )
+        # Giving up on a run after exhausting consecutive start-log attempts is
+        # the terminal "logs will never be collected" signal — it publishes the
+        # MLRun.LogCollector.Failed system event.
+        publish_mock = unittest.mock.MagicMock()
+        monkeypatch.setattr(
+            "services.api.utils.events.log_collector_errors.publish_log_collector_failed",
+            publish_mock,
+        )
 
         for i in range(3):
             await daemon.service._initiate_logs_collection(self.start_log_limit)
@@ -421,6 +429,18 @@ class TestCollectRunSLogs:
         assert update_runs_requested_logs_mock.call_count == 2
         # verify that `failure_uid` is also updated in the second call
         assert failure_uid in update_runs_requested_logs_mock.call_args[1]["uids"]
+
+        # the event fires for the run we gave up on (failure_uid) and never for
+        # success_uid, whose counter was reset on its successful attempt
+        assert publish_mock.call_count >= 1
+        emitted_run_uids = {
+            call.kwargs["run_uid"] for call in publish_mock.call_args_list
+        }
+        assert emitted_run_uids == {failure_uid}
+        assert all(
+            call.kwargs["project"] == project_name
+            for call in publish_mock.call_args_list
+        )
 
     @pytest.mark.asyncio
     async def test_collect_logs_with_runs_fails(

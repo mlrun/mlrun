@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import asyncio
 import unittest.mock
 
 import pytest
@@ -19,29 +18,12 @@ import pytest
 import mlrun
 import mlrun.common.schemas
 
-import framework.utils.clients.log_collector as log_collector_client
 import services.api.utils.events.log_collector_errors as log_collector_errors
 
 
 @pytest.fixture(autouse=True)
 def reset_state(monkeypatch):
     monkeypatch.setattr(log_collector_errors._slot, "_last_emit_monotonic", 0.0)
-
-    # `register_for_log_collector` constructs the LogCollectorClient singleton,
-    # which imports a generated grpc stub module that requires `make schemas`;
-    # stub out the proto wiring so the suite runs without generated protos.
-    # Singleton instances themselves are wiped between tests by the autouse
-    # `config_test_base` fixture in tests/common_fixtures.py, so we don't need
-    # to pop them here.
-    def _stub_proto_init(self):
-        self._log_collector_pb2 = unittest.mock.MagicMock()
-        self._log_collector_pb2_grpc = unittest.mock.MagicMock()
-
-    monkeypatch.setattr(
-        log_collector_client.LogCollectorClient,
-        "_initialize_proto_client_imports",
-        _stub_proto_init,
-    )
 
 
 def _factory_returning(client):
@@ -174,66 +156,3 @@ def test_publish_swallows_factory_exception(monkeypatch):
         error=RuntimeError("boom"),
     )
     assert emitted is False
-
-
-def test_listener_dispatch_offloads_to_executor(monkeypatch):
-    """
-    The framework client fires `_notify_failure` from an `async def`. The
-    listener must not run the synchronous HTTP publish inline (would block the
-    event loop). With a running loop, the listener dispatches via
-    `run_in_executor` and the publish never executes on the loop thread.
-    """
-    publish_called_inline = {"yes": False}
-
-    def fake_publish(**_kwargs):
-        publish_called_inline["yes"] = True
-
-    monkeypatch.setattr(
-        log_collector_errors, "publish_log_collector_failed", fake_publish
-    )
-
-    fake_loop = unittest.mock.MagicMock()
-    monkeypatch.setattr(asyncio, "get_running_loop", lambda: fake_loop)
-
-    log_collector_errors._on_log_collector_failure(
-        log_collector_client.LogCollectorFailureContext(
-            run_uid="r",
-            project="p",
-        )
-    )
-
-    # Inline publish would block; dispatch must have gone through the executor.
-    assert publish_called_inline["yes"] is False
-    fake_loop.run_in_executor.assert_called_once()
-    # First positional arg to run_in_executor is the executor (None == default).
-    args, _kwargs = fake_loop.run_in_executor.call_args
-    assert args[0] is None
-
-
-def test_listener_falls_back_to_inline_when_no_running_loop(monkeypatch):
-    """Outside an async context (e.g. unit tests calling the listener directly)
-    the publish should still happen — inline, since there is no loop to defer
-    to."""
-    calls = []
-
-    def fake_publish(**kwargs):
-        calls.append(kwargs)
-
-    monkeypatch.setattr(
-        log_collector_errors, "publish_log_collector_failed", fake_publish
-    )
-
-    def raises_no_loop():
-        raise RuntimeError("no running event loop")
-
-    monkeypatch.setattr(asyncio, "get_running_loop", raises_no_loop)
-
-    log_collector_errors._on_log_collector_failure(
-        log_collector_client.LogCollectorFailureContext(
-            run_uid="r",
-            project="p",
-        )
-    )
-
-    assert len(calls) == 1
-    assert calls[0]["run_uid"] == "r"

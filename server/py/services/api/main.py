@@ -148,9 +148,6 @@ class Service(framework.service.Service):
         # Attach the DB connection-failed event listener before any DB work so
         # we capture connection issues that surface during initial migrations.
         services.api.utils.events.db_errors.register_for_default_engine()
-        # Attach the log-collector failure listener so retrieval-RPC failures
-        # publish a MLRun.LogCollector.Failed system event.
-        services.api.utils.events.log_collector_errors.register_for_log_collector()
         await mlrun.utils.run_in_threadpool(self._initialize_chief)
 
     async def _custom_teardown_service(self):
@@ -389,6 +386,21 @@ class Service(framework.service.Service):
                     "Run reached max consecutive start log requests, marking it as requested logs collection",
                     run_uid=run_uid,
                     requests_count=_run_uid_start_log_request_counters[run_uid],
+                )
+                # We exhausted the grace period of attempts to start collecting
+                # this run's logs and are now giving up — its logs will never be
+                # collected. This is the terminal failure the system event
+                # signals. Offloaded to a thread so the (synchronous, throttled)
+                # emit does not block the event loop.
+                await mlrun.utils.run_in_threadpool(
+                    services.api.utils.events.log_collector_errors.publish_log_collector_failed,
+                    run_uid=run_uid,
+                    project=run.get("metadata", {}).get("project", None),
+                    error=(
+                        "Reached max consecutive start-log requests "
+                        f"({_run_uid_start_log_request_counters[run_uid]}); "
+                        "giving up on collecting this run's logs"
+                    ),
                 )
                 runs_to_mark_as_requested_logs.append(run_uid)
                 continue

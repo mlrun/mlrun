@@ -12,13 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import asyncio
-
 import mlrun
 import mlrun.common.schemas
 from mlrun.utils import logger
 
-import framework.utils.clients.log_collector as log_collector_client
 import services.api.utils.events.events_factory as events_factory
 import services.api.utils.events.throttle as throttle
 
@@ -66,45 +63,3 @@ def publish_log_collector_failed(
             exc_info=publish_exc,
         )
         return False
-
-
-def register_for_log_collector() -> None:
-    """
-    Install the log-collector failure listener on the (singleton) framework
-    client. Safe to call multiple times — re-installing the same listener is
-    effectively a no-op. Constructing the singleton here means the listener
-    is in place before any RPC fires.
-    """
-    log_collector_client.LogCollectorClient().set_failure_listener(
-        _on_log_collector_failure
-    )
-
-
-def _on_log_collector_failure(
-    context: log_collector_client.LogCollectorFailureContext,
-) -> None:
-    """
-    Failure listener registered on the framework log-collector client.
-
-    The framework client is exercised from ``async def`` retrieval RPCs, so this
-    listener offloads the (synchronous) HTTP emit to the default executor to
-    avoid blocking the event loop. Falls back to an inline publish when there is
-    no running loop (e.g. tests invoking the listener directly).
-    """
-    try:
-        loop = asyncio.get_running_loop()
-    except RuntimeError:
-        publish_log_collector_failed(
-            run_uid=context.run_uid,
-            project=context.project,
-            error=context.error,
-        )
-        return
-    loop.run_in_executor(
-        None,
-        lambda: publish_log_collector_failed(
-            run_uid=context.run_uid,
-            project=context.project,
-            error=context.error,
-        ),
-    )

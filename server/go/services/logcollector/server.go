@@ -76,6 +76,22 @@ type Server struct {
 	monitoringInterval time.Duration
 
 	listRunsChunkSize int
+
+	// streamersMu is held only across map mutations to avoid inverting lock order
+	// with stateManifest/currentState.
+	streamersMu sync.Mutex
+	streamers   map[string]map[string]*streamerHandle
+
+	// drainTimeout bounds how long StopLogs / DeleteLogs wait for streamers to exit.
+	drainTimeout time.Duration
+}
+
+// streamerHandle lets the drain path cancel an in-flight streamer and wait for it.
+// cancel unblocks the in-flight stream.Read inside streamPodLogs (via the ctx-aware
+// kube client); done is closed by the streamer's deferred cleanup on exit.
+type streamerHandle struct {
+	cancel context.CancelFunc
+	done   chan struct{}
 }
 
 // NewLogCollectorServer creates a new log collector server
@@ -174,7 +190,108 @@ func NewLogCollectorServer(logger logger.Logger,
 		startLogsFindingPodsTimeout:  15 * time.Second,
 		advancedLogLevel:             advancedLogLevel,
 		listRunsChunkSize:            listRunsChunkSize,
+		streamers:                    make(map[string]map[string]*streamerHandle),
+		drainTimeout:                 10 * time.Second,
 	}, nil
+}
+
+// registerStreamer returns the cancellable context the streamer must use.
+// StartLog's isLogCollectionRunning check normally prevents duplicates, but a
+// double-registration is still possible between AddLogItem and currentState
+// AddLogItem; the existing handle is cancelled to avoid leaking it.
+func (s *Server) registerStreamer(parentCtx context.Context, project, runUID string) (context.Context, *streamerHandle) {
+	streamCtx, cancel := context.WithCancel(parentCtx)
+	handle := &streamerHandle{
+		cancel: cancel,
+		done:   make(chan struct{}),
+	}
+
+	s.streamersMu.Lock()
+	projectStreamers, ok := s.streamers[project]
+	if !ok {
+		projectStreamers = make(map[string]*streamerHandle)
+		s.streamers[project] = projectStreamers
+	}
+	if existing, dup := projectStreamers[runUID]; dup {
+		existing.cancel()
+	}
+	projectStreamers[runUID] = handle
+	s.streamersMu.Unlock()
+
+	return streamCtx, handle
+}
+
+// unregisterStreamer is a no-op if the handle has already been replaced.
+func (s *Server) unregisterStreamer(project, runUID string, handle *streamerHandle) {
+	s.streamersMu.Lock()
+	defer s.streamersMu.Unlock()
+	projectStreamers, ok := s.streamers[project]
+	if !ok {
+		return
+	}
+	if current, exists := projectStreamers[runUID]; exists && current == handle {
+		delete(projectStreamers, runUID)
+		if len(projectStreamers) == 0 {
+			delete(s.streamers, project)
+		}
+	}
+}
+
+// snapshotProjectStreamers returns the project's handles without removing them
+// from the registry; each streamer self-unregisters on exit.
+func (s *Server) snapshotProjectStreamers(project string) []*streamerHandle {
+	s.streamersMu.Lock()
+	defer s.streamersMu.Unlock()
+	projectStreamers, ok := s.streamers[project]
+	if !ok || len(projectStreamers) == 0 {
+		return nil
+	}
+	handles := make([]*streamerHandle, 0, len(projectStreamers))
+	for _, h := range projectStreamers {
+		handles = append(handles, h)
+	}
+	return handles
+}
+
+func (s *Server) snapshotRunStreamer(project, runUID string) *streamerHandle {
+	s.streamersMu.Lock()
+	defer s.streamersMu.Unlock()
+	projectStreamers, ok := s.streamers[project]
+	if !ok {
+		return nil
+	}
+	return projectStreamers[runUID]
+}
+
+// drainHandles cancels each handle and waits for it to exit under a single
+// drainTimeout budget. Returns runUIDs that did not drain in time so the caller
+// can log them; deletion must not wedge indefinitely on a stuck streamer.
+func (s *Server) drainHandles(ctx context.Context, handles []*streamerHandle, runUIDsForLog []string) []string {
+	if len(handles) == 0 {
+		return nil
+	}
+	// fire cancellations first so streamers unwind in parallel
+	for _, h := range handles {
+		h.cancel()
+	}
+	deadline := time.After(s.drainTimeout)
+	var leaked []string
+	for i, h := range handles {
+		select {
+		case <-h.done:
+		case <-deadline:
+			if i < len(runUIDsForLog) {
+				leaked = append(leaked, runUIDsForLog[i:]...)
+			}
+			return leaked
+		case <-ctx.Done():
+			if i < len(runUIDsForLog) {
+				leaked = append(leaked, runUIDsForLog[i:]...)
+			}
+			return leaked
+		}
+	}
+	return nil
 }
 
 // OnBeforeStart is called before the server starts
@@ -307,8 +424,16 @@ func (s *Server) StartLog(ctx context.Context,
 		}, err
 	}
 
+	// Register the streamer before AddLogItem so any concurrent StopLogs that sees
+	// the state-store entry also sees a cancellable handle. The streamer ctx is
+	// derived from Background; it must outlive the request ctx.
+	streamCtx, handle := s.registerStreamer(context.Background(), request.ProjectName, request.RunUID)
+
 	// write log item in progress to state store
 	if err := s.stateManifest.AddLogItem(ctx, request.RunUID, request.Selector, request.ProjectName); err != nil {
+		handle.cancel()
+		close(handle.done)
+		s.unregisterStreamer(request.ProjectName, request.RunUID, handle)
 		err := errors.Wrapf(err, "Failed to add run id %s to state file", request.RunUID)
 		return &protologcollector.BaseResponse{
 			Success:      false,
@@ -320,12 +445,13 @@ func (s *Server) StartLog(ctx context.Context,
 	startedStreamingGoroutine := make(chan bool, 1)
 
 	// stream logs to file
-	go s.startLogStreaming(context.WithoutCancel(ctx),
+	go s.startLogStreaming(streamCtx,
 		request.RunUID,
 		pod.Name,
 		request.ProjectName,
 		request.LastLogTime,
-		startedStreamingGoroutine)
+		startedStreamingGoroutine,
+		handle)
 
 	// wait for the streaming goroutine to start
 	<-startedStreamingGoroutine
@@ -542,6 +668,10 @@ func (s *Server) StopLogs(ctx context.Context, request *protologcollector.StopLo
 	// if no run uids were provided, remove the entire project from the state
 	if len(request.RunUIDs) == 0 {
 
+		// drain streamers before state mutation so no writer is mid-flight when
+		// the state entries (and later, the log dir in DeleteLogs) go away
+		s.drainProjectStreamers(ctx, request.Project)
+
 		// remove entire project from state manifest
 		if err := s.stateManifest.RemoveProject(request.Project); err != nil {
 			message := fmt.Sprintf("Failed to remove project %s from state manifest", request.Project)
@@ -570,6 +700,10 @@ func (s *Server) StopLogs(ctx context.Context, request *protologcollector.StopLo
 		"project", request.Project,
 		"numRunIDs", len(request.RunUIDs))
 
+	// drain the named streamers before state mutation; unknown runs are a no-op
+	// since StopLogs is best-effort from the orchestrator and monitoring loop
+	s.drainRunStreamers(ctx, request.Project, request.RunUIDs)
+
 	// remove each run uid from the state
 	for _, runUID := range request.RunUIDs {
 
@@ -597,6 +731,64 @@ func (s *Server) StopLogs(ctx context.Context, request *protologcollector.StopLo
 	return s.successfulBaseResponse(), nil
 }
 
+func (s *Server) drainProjectStreamers(ctx context.Context, project string) {
+	handles := s.snapshotProjectStreamers(project)
+	if len(handles) == 0 {
+		return
+	}
+	runUIDs := s.runUIDsForHandles(project, handles)
+	leaked := s.drainHandles(ctx, handles, runUIDs)
+	if len(leaked) > 0 {
+		s.Logger.WarnWithCtx(ctx,
+			"Streamer drain timed out; proceeding with state removal",
+			"project", project,
+			"leakedRunUIDs", leaked,
+			"drainTimeout", s.drainTimeout)
+	}
+}
+
+func (s *Server) drainRunStreamers(ctx context.Context, project string, runUIDs []string) {
+	var handles []*streamerHandle
+	var presentRunUIDs []string
+	for _, runUID := range runUIDs {
+		if h := s.snapshotRunStreamer(project, runUID); h != nil {
+			handles = append(handles, h)
+			presentRunUIDs = append(presentRunUIDs, runUID)
+		}
+	}
+	if len(handles) == 0 {
+		return
+	}
+	leaked := s.drainHandles(ctx, handles, presentRunUIDs)
+	if len(leaked) > 0 {
+		s.Logger.WarnWithCtx(ctx,
+			"Streamer drain timed out; proceeding with state removal",
+			"project", project,
+			"leakedRunUIDs", leaked,
+			"drainTimeout", s.drainTimeout)
+	}
+}
+
+// runUIDsForHandles returns runUIDs aligned with the given handles slice. A slot
+// is "" if the handle has already been replaced or removed.
+func (s *Server) runUIDsForHandles(project string, handles []*streamerHandle) []string {
+	s.streamersMu.Lock()
+	defer s.streamersMu.Unlock()
+	projectStreamers, ok := s.streamers[project]
+	if !ok {
+		return make([]string, len(handles))
+	}
+	reverse := make(map[*streamerHandle]string, len(projectStreamers))
+	for runUID, h := range projectStreamers {
+		reverse[h] = runUID
+	}
+	result := make([]string, len(handles))
+	for i, h := range handles {
+		result[i] = reverse[h]
+	}
+	return result
+}
+
 // DeleteLogs deletes the log file for a given run id or project
 func (s *Server) DeleteLogs(ctx context.Context, request *protologcollector.StopLogsRequest) (*protologcollector.BaseResponse, error) {
 
@@ -617,6 +809,10 @@ func (s *Server) DeleteLogs(ctx context.Context, request *protologcollector.Stop
 		s.Logger.DebugWithCtx(ctx,
 			"Deleting all project logs",
 			"project", request.Project)
+
+		// drain streamers before os.RemoveAll — otherwise concurrent writers
+		// can leave the dir non-empty on NFS/SMB-backed storage
+		s.drainProjectStreamers(ctx, request.Project)
 
 		// remove entire project from persistent state
 		if err := s.deleteProjectLogs(request.Project); err != nil {
@@ -639,6 +835,9 @@ func (s *Server) DeleteLogs(ctx context.Context, request *protologcollector.Stop
 		"Deleting logs",
 		"project", request.Project,
 		"numRunIDs", len(request.RunUIDs))
+
+	// drain the named streamers before deleting their log files
+	s.drainRunStreamers(ctx, request.Project, request.RunUIDs)
 
 	errGroup, _ := errgroup.WithContext(ctx)
 	errGroup.SetLimit(10)
@@ -750,28 +949,39 @@ func (s *Server) startLogStreaming(ctx context.Context,
 	podName,
 	projectName string,
 	lastLogTime int64,
-	startedStreamingGoroutine chan bool) {
+	startedStreamingGoroutine chan bool,
+	handle *streamerHandle) {
 
 	// in case of a panic, remove this goroutine from the current state, so the
 	// monitoring loop will start logging again for this runUID.
 	defer func() {
+		// signal drain waiters and unregister even on panic
+		defer func() {
+			s.unregisterStreamer(projectName, runUID, handle)
+			close(handle.done)
+		}()
 
-		// update last log time in state manifest, so we can start from the last log time
-		if err := s.stateManifest.UpdateLastLogTime(runUID, projectName, lastLogTime); err != nil {
-			// if the pod ended properly, the run will be removed from the state file and the update will fail
-			// we can ignore this error and continue
-			s.Logger.WarnWithCtx(ctx,
-				"Failed to update last log time, run may have ended",
-				"runUID", runUID,
-				"err", err.Error())
-		}
+		// if cancelled by StopLogs/DeleteLogs the caller is tearing down state;
+		// skip the deferred touches to avoid a noisy warning
+		if ctx.Err() == nil {
 
-		// remove this goroutine from in-current state
-		if err := s.currentState.RemoveLogItem(ctx, runUID, projectName); err != nil {
-			s.Logger.WarnWithCtx(ctx,
-				"Failed to remove item from in memory state",
-				"runUID", runUID,
-				"err", err.Error())
+			// update last log time in state manifest, so we can start from the last log time
+			if err := s.stateManifest.UpdateLastLogTime(runUID, projectName, lastLogTime); err != nil {
+				// if the pod ended properly, the run will be removed from the state file and the update will fail
+				// we can ignore this error and continue
+				s.Logger.WarnWithCtx(ctx,
+					"Failed to update last log time, run may have ended",
+					"runUID", runUID,
+					"err", err.Error())
+			}
+
+			// remove this goroutine from in-current state
+			if err := s.currentState.RemoveLogItem(ctx, runUID, projectName); err != nil {
+				s.Logger.WarnWithCtx(ctx,
+					"Failed to remove item from in memory state",
+					"runUID", runUID,
+					"err", err.Error())
+			}
 		}
 
 		if err := recover(); err != nil {
@@ -856,13 +1066,19 @@ func (s *Server) startLogStreaming(ctx context.Context,
 	defer stream.Close() // nolint: errcheck
 
 	for keepLogging {
+		select {
+		case <-ctx.Done():
+			return
+		default:
+		}
+
 		keepLogging, err = s.streamPodLogs(ctx, runUID, podName, file, stream, &lastLogTime, projectName, &bytesSinceLogTimeUpdate)
 		if err != nil {
 			// if the pod is still running, it means the logs were rotated, so we need to get a new stream
-			// by bailing out
+			// by bailing out. context.Canceled means StopLogs/DeleteLogs drained us — expected, not a warning.
 			if !errors.Is(err, common.PodStillRunningError{
 				PodName: podName,
-			}) {
+			}) && !errors.Is(err, context.Canceled) {
 				s.Logger.WarnWithCtx(ctx,
 					"An error occurred while streaming pod logs",
 					"err", common.GetErrorStack(err, common.DefaultErrorStackDepth))
@@ -878,7 +1094,11 @@ func (s *Server) startLogStreaming(ctx context.Context,
 
 		// breathe
 		// stream pod logs might return fast when there is nothing to read and no error occurred
-		time.Sleep(100 * time.Millisecond)
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(100 * time.Millisecond):
+		}
 	}
 
 	// remove run from state file

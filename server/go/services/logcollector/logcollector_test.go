@@ -23,6 +23,7 @@ import (
 	"path"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -209,12 +210,17 @@ func (suite *LogCollectorTestSuite) TestStreamPodLogs() {
 	startedChan := make(chan bool)
 
 	// stream pod logs
+	handle := &streamerHandle{
+		cancel: func() {},
+		done:   make(chan struct{}),
+	}
 	go suite.logCollectorServer.startLogStreaming(context.WithoutCancel(suite.ctx),
 		runId,
 		pod.Name,
 		suite.projectName,
 		0,
-		startedChan)
+		startedChan,
+		handle)
 
 	// wait for log streaming to start
 	started := <-startedChan
@@ -796,6 +802,231 @@ func (suite *LogCollectorTestSuite) TestDeleteProjectLogs() {
 	dirEntries, err = os.ReadDir(dirPath)
 	suite.Require().NoError(err, "Failed to read dir")
 	suite.Require().Equal(1, len(dirEntries), "Expected logs to be deleted")
+}
+
+// TestStopLogsDrainsActiveWriter asserts that StopLogs blocks until the
+// streaming goroutine has observed cancellation and unwound, and that no
+// writes occur after it returns.
+func (suite *LogCollectorTestSuite) TestStopLogsDrainsActiveWriter() {
+	projectName := "drains-active-writer"
+	runUID := uuid.New().String()
+	selector := fmt.Sprintf("mlrun/uid=%s", runUID)
+
+	logFilePath := suite.logCollectorServer.resolveRunLogFilePath(projectName, runUID)
+	suite.Require().NoError(os.MkdirAll(path.Dir(logFilePath), 0o755))
+	logFile, err := os.OpenFile(logFilePath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
+	suite.Require().NoError(err, "Failed to open log file")
+	defer logFile.Close() // nolint: errcheck
+
+	suite.Require().NoError(suite.logCollectorServer.stateManifest.AddLogItem(suite.ctx, runUID, selector, projectName))
+	suite.Require().NoError(suite.logCollectorServer.currentState.AddLogItem(suite.ctx, runUID, selector, projectName))
+	defer func() {
+		_ = suite.logCollectorServer.stateManifest.RemoveProject(projectName)
+		_ = suite.logCollectorServer.currentState.RemoveProject(projectName)
+	}()
+
+	streamCtx, handle := suite.logCollectorServer.registerStreamer(context.Background(), projectName, runUID)
+
+	// model the real streamer: write continuously, take ~50ms to unwind on cancel
+	const writerResidualTime = 50 * time.Millisecond
+	var writesAfterStop int64
+	stopReturned := make(chan struct{})
+	go func() {
+		defer func() {
+			suite.logCollectorServer.unregisterStreamer(projectName, runUID, handle)
+			close(handle.done)
+		}()
+		for {
+			select {
+			case <-streamCtx.Done():
+				time.Sleep(writerResidualTime)
+				return
+			default:
+			}
+			if _, werr := logFile.Write([]byte("streamed log line\n")); werr != nil {
+				return
+			}
+			select {
+			case <-stopReturned:
+				atomic.AddInt64(&writesAfterStop, 1)
+			default:
+			}
+			time.Sleep(5 * time.Millisecond)
+		}
+	}()
+
+	time.Sleep(50 * time.Millisecond)
+
+	stopStart := time.Now()
+	stopResp, err := suite.logCollectorServer.StopLogs(suite.ctx, &protologcollector.StopLogsRequest{
+		Project: projectName,
+		RunUIDs: []string{runUID},
+	})
+	stopDuration := time.Since(stopStart)
+	close(stopReturned)
+	suite.Require().NoError(err, "StopLogs RPC returned an error")
+	suite.Require().True(stopResp.Success, "StopLogs returned non-success")
+
+	time.Sleep(100 * time.Millisecond)
+
+	suite.Require().GreaterOrEqual(stopDuration, writerResidualTime,
+		"StopLogs returned in %s — too fast to have drained the writer (expected >= %s).",
+		stopDuration, writerResidualTime)
+	suite.Require().Equal(int64(0), atomic.LoadInt64(&writesAfterStop),
+		"writer continued to write after StopLogs returned")
+
+	select {
+	case <-handle.done:
+	default:
+		suite.Require().Fail("streamer handle.done was not closed by StopLogs return")
+	}
+
+	suite.logCollectorServer.streamersMu.Lock()
+	_, present := suite.logCollectorServer.streamers[projectName]
+	suite.logCollectorServer.streamersMu.Unlock()
+	suite.Require().False(present, "registry still has entries for project after StopLogs")
+}
+
+// TestStopLogs_NoActiveStreamer_NoOp verifies StopLogs succeeds for a run that
+// was never started (no entry in the cancel registry).
+func (suite *LogCollectorTestSuite) TestStopLogs_NoActiveStreamer_NoOp() {
+	projectName := fmt.Sprintf("no-streamer-%s", uuid.New().String())
+	runUID := uuid.New().String()
+
+	// per-run path: state present but no registry entry
+	suite.Require().NoError(suite.logCollectorServer.stateManifest.AddLogItem(suite.ctx, runUID, "sel", projectName))
+	suite.Require().NoError(suite.logCollectorServer.currentState.AddLogItem(suite.ctx, runUID, "sel", projectName))
+	defer func() {
+		_ = suite.logCollectorServer.stateManifest.RemoveProject(projectName)
+		_ = suite.logCollectorServer.currentState.RemoveProject(projectName)
+	}()
+
+	resp, err := suite.logCollectorServer.StopLogs(suite.ctx, &protologcollector.StopLogsRequest{
+		Project: projectName,
+		RunUIDs: []string{runUID},
+	})
+	suite.Require().NoError(err, "StopLogs (no streamer) returned an error")
+	suite.Require().True(resp.Success, "StopLogs (no streamer) returned non-success")
+
+	// project-scope path: no registry entry at all
+	emptyProject := fmt.Sprintf("no-streamer-empty-%s", uuid.New().String())
+	resp2, err := suite.logCollectorServer.StopLogs(suite.ctx, &protologcollector.StopLogsRequest{
+		Project: emptyProject,
+		RunUIDs: nil,
+	})
+	suite.Require().NoError(err, "StopLogs (project-scope, no streamer) returned an error")
+	suite.Require().True(resp2.Success, "StopLogs (project-scope, no streamer) returned non-success")
+}
+
+// TestDeleteLogs_ProjectWide_DrainsAllStreamers asserts that project-scope
+// DeleteLogs waits for every streamer to exit before removing the log dir.
+func (suite *LogCollectorTestSuite) TestDeleteLogs_ProjectWide_DrainsAllStreamers() {
+	projectName := fmt.Sprintf("delete-project-drain-%s", uuid.New().String())
+	const numStreamers = 3
+
+	type streamerInstance struct {
+		runUID string
+		handle *streamerHandle
+	}
+	streamers := make([]streamerInstance, 0, numStreamers)
+	for i := 0; i < numStreamers; i++ {
+		runUID := uuid.New().String()
+		logFilePath := suite.logCollectorServer.resolveRunLogFilePath(projectName, runUID)
+		suite.Require().NoError(os.MkdirAll(path.Dir(logFilePath), 0o755))
+		suite.Require().NoError(common.WriteToFile(logFilePath, []byte("log\n"), false))
+
+		streamCtx, handle := suite.logCollectorServer.registerStreamer(context.Background(), projectName, runUID)
+		streamers = append(streamers, streamerInstance{runUID: runUID, handle: handle})
+
+		go func(p, r string, h *streamerHandle, sc context.Context) {
+			defer func() {
+				suite.logCollectorServer.unregisterStreamer(p, r, h)
+				close(h.done)
+			}()
+			<-sc.Done()
+		}(projectName, runUID, handle, streamCtx)
+	}
+
+	dirPath := path.Join(suite.logCollectorServer.baseDir, projectName)
+	entries, err := os.ReadDir(dirPath)
+	suite.Require().NoError(err)
+	suite.Require().Equal(numStreamers, len(entries))
+
+	resp, err := suite.logCollectorServer.DeleteLogs(suite.ctx, &protologcollector.StopLogsRequest{
+		Project: projectName,
+		RunUIDs: nil,
+	})
+	suite.Require().NoError(err, "DeleteLogs returned an error")
+	suite.Require().True(resp.Success, "DeleteLogs returned non-success")
+
+	for _, s := range streamers {
+		select {
+		case <-s.handle.done:
+		default:
+			suite.Require().Failf("streamer not drained", "runUID=%s done channel not closed", s.runUID)
+		}
+	}
+
+	_, err = os.Stat(dirPath)
+	suite.Require().True(os.IsNotExist(err), "project dir should be removed, got err=%v", err)
+
+	suite.logCollectorServer.streamersMu.Lock()
+	_, present := suite.logCollectorServer.streamers[projectName]
+	suite.logCollectorServer.streamersMu.Unlock()
+	suite.Require().False(present, "registry still has entries for project after DeleteLogs")
+}
+
+// TestStopLogs_DrainTimeout asserts that a wedged streamer does not pin StopLogs
+// forever — it returns after drainTimeout and state entries are still removed.
+func (suite *LogCollectorTestSuite) TestStopLogs_DrainTimeout() {
+	projectName := fmt.Sprintf("drain-timeout-%s", uuid.New().String())
+	runUID := uuid.New().String()
+
+	originalTimeout := suite.logCollectorServer.drainTimeout
+	suite.logCollectorServer.drainTimeout = 200 * time.Millisecond
+	defer func() { suite.logCollectorServer.drainTimeout = originalTimeout }()
+
+	suite.Require().NoError(suite.logCollectorServer.stateManifest.AddLogItem(suite.ctx, runUID, "sel", projectName))
+	suite.Require().NoError(suite.logCollectorServer.currentState.AddLogItem(suite.ctx, runUID, "sel", projectName))
+	defer func() {
+		_ = suite.logCollectorServer.stateManifest.RemoveProject(projectName)
+		_ = suite.logCollectorServer.currentState.RemoveProject(projectName)
+	}()
+
+	// wedged streamer: never closes done. released at end of test so it does not
+	// leak into subsequent cases.
+	_, handle := suite.logCollectorServer.registerStreamer(context.Background(), projectName, runUID)
+	releaseWedge := make(chan struct{})
+	go func() {
+		<-releaseWedge
+		suite.logCollectorServer.unregisterStreamer(projectName, runUID, handle)
+		close(handle.done)
+	}()
+	defer close(releaseWedge)
+
+	stopStart := time.Now()
+	resp, err := suite.logCollectorServer.StopLogs(suite.ctx, &protologcollector.StopLogsRequest{
+		Project: projectName,
+		RunUIDs: []string{runUID},
+	})
+	stopDuration := time.Since(stopStart)
+	suite.Require().NoError(err, "StopLogs returned an error")
+	suite.Require().True(resp.Success, "StopLogs returned non-success")
+
+	suite.Require().Less(stopDuration, suite.logCollectorServer.drainTimeout+500*time.Millisecond,
+		"StopLogs took too long under drainTimeout=%s: actual=%s",
+		suite.logCollectorServer.drainTimeout, stopDuration)
+	suite.Require().GreaterOrEqual(stopDuration, suite.logCollectorServer.drainTimeout,
+		"StopLogs returned before drainTimeout elapsed: %s < %s",
+		stopDuration, suite.logCollectorServer.drainTimeout)
+
+	logItemsInProgress, err := suite.logCollectorServer.stateManifest.GetItemsInProgress()
+	suite.Require().NoError(err)
+	if projectMap, ok := logItemsInProgress.Load(projectName); ok {
+		runs := projectMap.(*sync.Map)
+		_, stillThere := runs.Load(runUID)
+		suite.Require().False(stillThere, "state manifest still has run entry after timeout drain")
+	}
 }
 
 func (suite *LogCollectorTestSuite) TestGetLogFilePath() {

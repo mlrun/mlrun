@@ -19,6 +19,8 @@ package common
 import (
 	"os"
 	"path"
+	"runtime"
+	"strconv"
 	"testing"
 	"time"
 
@@ -46,6 +48,47 @@ func (suite *WriteToFileTestSuite) TestWriteToFile() {
 
 	// verify file content
 	suite.Require().Equal("test", string(fileBytes))
+}
+
+type EnsureFileExistsTestSuite struct {
+	suite.Suite
+}
+
+// TestNoFDLeak guards against re-introducing the leak where os.Create's
+// returned *os.File was discarded — on NFS that pinned the inode and caused
+// project log delete to silly-rename and EBUSY (ML-10980 follow-up).
+func (suite *EnsureFileExistsTestSuite) TestNoFDLeak() {
+	if runtime.GOOS != "linux" {
+		suite.T().Skip("FD-count check requires /proc/self/fd (Linux only)")
+	}
+
+	tmpDir, err := os.MkdirTemp("", "ensure-noleak-*")
+	suite.Require().NoError(err)
+	defer os.RemoveAll(tmpDir) // nolint: errcheck
+
+	const iterations = 100
+	before := countOpenFDs(suite.T())
+	for i := 0; i < iterations; i++ {
+		err := EnsureFileExists(path.Join(tmpDir, "f-"+strconv.Itoa(i)))
+		suite.Require().NoError(err)
+	}
+	after := countOpenFDs(suite.T())
+
+	// Pre-fix this leaked one FD per new file (until GC finalizer). Allow a small
+	// slack for unrelated allocations on the side, but a 100-iteration leak
+	// would jump the count by ~100.
+	suite.Require().LessOrEqualf(after-before, 10,
+		"FD count grew from %d to %d after %d EnsureFileExists calls (expected <=10 growth)",
+		before, after, iterations)
+}
+
+func countOpenFDs(t *testing.T) int {
+	t.Helper()
+	entries, err := os.ReadDir("/proc/self/fd")
+	if err != nil {
+		t.Fatalf("read /proc/self/fd: %v", err)
+	}
+	return len(entries)
 }
 
 type RetryUntilSuccessfulTestSuite struct {
@@ -86,5 +129,6 @@ func (suite *RetryUntilSuccessfulTestSuite) TestRetryWithResult() {
 
 func TestHelperTestSuite(t *testing.T) {
 	suite.Run(t, new(WriteToFileTestSuite))
+	suite.Run(t, new(EnsureFileExistsTestSuite))
 	suite.Run(t, new(RetryUntilSuccessfulTestSuite))
 }

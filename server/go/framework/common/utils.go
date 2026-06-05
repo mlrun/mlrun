@@ -92,8 +92,6 @@ func EnsureFileExists(filePath string) error {
 		if err := EnsureDirExists(dirPath, os.ModePerm); err != nil {
 			return errors.Wrapf(err, "Failed to create directory - %s", dirPath)
 		}
-		// close explicitly — on NFS, a live FD silly-renames the file to .nfs*
-		// on unlink and blocks project log deletion.
 		f, err := os.Create(filePath)
 		if err != nil {
 			return errors.Wrapf(err, "Failed to create file - %s", filePath)

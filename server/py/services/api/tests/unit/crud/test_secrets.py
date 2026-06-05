@@ -13,7 +13,6 @@
 # limitations under the License.
 
 import collections
-import datetime
 import json
 import unittest.mock
 
@@ -901,53 +900,13 @@ def test_store_secret_tokens_refresh_access_tokens_failure(mock_iguazio_client):
     mock_iguazio_client.refresh_access_tokens.assert_called_once_with(secret_tokens)
 
 
-def test_list_secret_tokens_returns_tokens():
+def test_list_secret_tokens_not_implemented():
+    # A single token is stored per user, so listing is no longer supported.
     auth_info = mlrun.common.schemas.AuthInfo(
         username="dummy-user", user_id="user-id-123"
     )
-    iat1 = datetime.datetime(2025, 6, 26, 22, 6, 31, tzinfo=datetime.UTC)
-    exp1 = datetime.datetime(2025, 6, 26, 23, 6, 31, tzinfo=datetime.UTC)
-    iat2 = datetime.datetime(2025, 9, 11, 11, 0, 0, tzinfo=datetime.UTC)
-    exp2 = datetime.datetime(2025, 9, 11, 12, 0, 0, tzinfo=datetime.UTC)
-    expected_tokens = [
-        mlrun.common.schemas.SecretTokenInfo(
-            name="jupyter",
-            expiration=exp1,
-            issued_at=iat1,
-            user_id="user-id-123",
-            username="dummy-user",
-        ),
-        mlrun.common.schemas.SecretTokenInfo(
-            name="my-token",
-            expiration=exp2,
-            issued_at=iat2,
-            user_id="user-id-123",
-            username="dummy-user",
-        ),
-    ]
-
-    mock_secrets_provider = unittest.mock.Mock()
-    services.api.crud.Secrets().secrets_provider = mock_secrets_provider
-    services.api.crud.Secrets().secrets_provider.list_user_token_secrets = (
-        unittest.mock.Mock(return_value=expected_tokens)
-    )
-
-    response = services.api.crud.Secrets().list_secret_tokens(auth_info=auth_info)
-
-    assert isinstance(response, mlrun.common.schemas.ListSecretTokensResponse)
-    assert len(response.secret_tokens) == 2
-    assert response.secret_tokens[0].name == "jupyter"
-    assert response.secret_tokens[0].expiration == exp1
-    assert response.secret_tokens[0].issued_at == iat1
-    assert response.secret_tokens[0].user_id == "user-id-123"
-    assert response.secret_tokens[1].name == "my-token"
-    assert response.secret_tokens[1].expiration == exp2
-    assert response.secret_tokens[1].issued_at == iat2
-    assert response.secret_tokens[1].user_id == "user-id-123"
-
-    mock_secrets_provider.list_user_token_secrets.assert_called_once_with(
-        username=auth_info.username
-    )
+    with pytest.raises(NotImplementedError):
+        services.api.crud.Secrets().list_secret_tokens(auth_info=auth_info)
 
 
 def test_delete_secret_token_success(mock_iguazio_client):
@@ -1050,145 +1009,16 @@ def test_delete_secret_token_k8s_delete_failure(mock_iguazio_client):
 
 
 @pytest.mark.asyncio
-async def test_delete_secret_tokens_success(mock_iguazio_client):
-    """Test bulk delete of all tokens for a user.
-
-    Bulk delete skips token revocation (used during user deletion flow where the
-    user is already deactivated), so only K8s secret deletion should occur.
-    """
-    request_headers = {
-        mlrun.common.schemas.HeaderNames.authorization: f"{mlrun.common.schemas.AuthorizationHeaderPrefixes.bearer}123",
-    }
-    auth_info = mlrun.common.schemas.AuthInfo(
-        username="dummy-user", user_id="user-id-123", request_headers=request_headers
-    )
-
-    token_infos = [
-        mlrun.common.schemas.SecretTokenInfo(
-            name="token-1",
-            expiration=datetime.datetime.now(),
-            issued_at=datetime.datetime.now(),
-            user_id=auth_info.user_id,
-            username=auth_info.username,
-        ),
-        mlrun.common.schemas.SecretTokenInfo(
-            name="token-2",
-            expiration=datetime.datetime.now(),
-            issued_at=datetime.datetime.now(),
-            user_id=auth_info.user_id,
-            username=auth_info.username,
-        ),
-    ]
-
-    mock_secrets_provider = unittest.mock.Mock()
-    services.api.crud.Secrets().secrets_provider = mock_secrets_provider
-    mock_secrets_provider.list_user_token_secrets.return_value = token_infos
-
-    result = await services.api.crud.Secrets().delete_secret_tokens(
-        username=auth_info.username,
-        auth_info=auth_info,
-    )
-
-    assert result.deleted_count == 2
-    assert result.failed_tokens == []
-    assert result.username == auth_info.username
-
-    mock_secrets_provider.list_user_token_secrets.assert_called_once_with(
-        username=auth_info.username
-    )
-
-    # Revocation is skipped in bulk delete, only K8s secrets are deleted
-    assert mock_secrets_provider.delete_user_token_secret.call_count == 2
-    mock_secrets_provider.get_user_token_secret_value.assert_not_called()
-    mock_iguazio_client.revoke_offline_token.assert_not_called()
-
-
-@pytest.mark.asyncio
-async def test_delete_secret_tokens_partial_failure(mock_iguazio_client):
-    """Test bulk delete where some tokens fail to delete.
-
-    Verifies that a failure on one token does not prevent others from being
-    deleted, and that deleted_count + len(failed_tokens) == total tokens.
-    """
-    request_headers = {
-        mlrun.common.schemas.HeaderNames.authorization: f"{mlrun.common.schemas.AuthorizationHeaderPrefixes.bearer}123",
-    }
-    auth_info = mlrun.common.schemas.AuthInfo(
-        username="dummy-user", user_id="user-id-123", request_headers=request_headers
-    )
-
-    token_infos = [
-        mlrun.common.schemas.SecretTokenInfo(
-            name="token-1",
-            expiration=datetime.datetime.now(),
-            issued_at=datetime.datetime.now(),
-            user_id=auth_info.user_id,
-            username=auth_info.username,
-        ),
-        mlrun.common.schemas.SecretTokenInfo(
-            name="token-2",
-            expiration=datetime.datetime.now(),
-            issued_at=datetime.datetime.now(),
-            user_id=auth_info.user_id,
-            username=auth_info.username,
-        ),
-        mlrun.common.schemas.SecretTokenInfo(
-            name="token-3",
-            expiration=datetime.datetime.now(),
-            issued_at=datetime.datetime.now(),
-            user_id=auth_info.user_id,
-            username=auth_info.username,
-        ),
-    ]
-
-    mock_secrets_provider = unittest.mock.Mock()
-    services.api.crud.Secrets().secrets_provider = mock_secrets_provider
-    mock_secrets_provider.list_user_token_secrets.return_value = token_infos
-
-    # token-2 fails to delete, others succeed
-    def delete_side_effect(user_id, token_name):
-        if token_name == "token-2":
-            raise Exception("K8s API error")
-
-    mock_secrets_provider.delete_user_token_secret.side_effect = delete_side_effect
-
-    result = await services.api.crud.Secrets().delete_secret_tokens(
-        username=auth_info.username,
-        auth_info=auth_info,
-    )
-
-    assert result.deleted_count == 2
-    assert result.failed_tokens == ["token-2"]
-    assert result.deleted_count + len(result.failed_tokens) == len(token_infos)
-    assert result.username == auth_info.username
-
-    # All three tokens should have been attempted
-    assert mock_secrets_provider.delete_user_token_secret.call_count == 3
-
-
-@pytest.mark.asyncio
-async def test_delete_secret_tokens_no_tokens(mock_iguazio_client):
-    """Test bulk delete when user has no tokens."""
+async def test_delete_secret_tokens_not_implemented(mock_iguazio_client):
+    # A single token is stored per user, so bulk delete is no longer supported.
     auth_info = mlrun.common.schemas.AuthInfo(
         username="dummy-user", user_id="user-id-123"
     )
-
-    mock_secrets_provider = unittest.mock.Mock()
-    services.api.crud.Secrets().secrets_provider = mock_secrets_provider
-    mock_secrets_provider.list_user_token_secrets.return_value = []
-
-    result = await services.api.crud.Secrets().delete_secret_tokens(
-        username=auth_info.username,
-        auth_info=auth_info,
-    )
-
-    assert result.deleted_count == 0
-    assert result.failed_tokens == []
-    assert result.username == auth_info.username
-
-    # Verify no delete calls were made
-    mock_secrets_provider.delete_user_token_secret.assert_not_called()
-    mock_iguazio_client.revoke_offline_token.assert_not_called()
+    with pytest.raises(NotImplementedError):
+        await services.api.crud.Secrets().delete_secret_tokens(
+            username=auth_info.username,
+            auth_info=auth_info,
+        )
 
 
 def test_get_secret_token_success():

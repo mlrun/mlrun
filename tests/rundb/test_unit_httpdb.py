@@ -348,6 +348,8 @@ def test_resolve_page_params(params, expected_page_params):
     "method_name",
     [
         "store_secret_token",
+        "store_secret_tokens",
+        "list_secret_tokens",
         "delete_secret_token",
     ],
 )

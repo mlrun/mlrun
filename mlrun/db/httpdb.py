@@ -5419,6 +5419,27 @@ class HTTPRunDB(RunDBInterface):
         return response
 
     @mlrun.utils.iguazio_v4_only
+    def store_secret_tokens(
+        self,
+        secret_tokens: list[mlrun.common.schemas.SecretToken],
+        log_warning: bool = True,
+        force: bool = False,
+    ) -> mlrun.common.schemas.StoreSecretTokensResponse:
+        raise NotImplementedError(
+            "Storing multiple secret tokens is not supported; a single token is "
+            "stored per user. Use `store_secret_token` instead."
+        )
+
+    @mlrun.utils.iguazio_v4_only
+    def list_secret_tokens(
+        self,
+        username: str | None = None,
+    ) -> mlrun.common.schemas.ListSecretTokensResponse:
+        raise NotImplementedError(
+            "Listing secret tokens is not supported; a single token is stored per user."
+        )
+
+    @mlrun.utils.iguazio_v4_only
     def delete_secret_token(
         self, token_name: str, username: str | None = None
     ) -> mlrun.common.schemas.DeleteSecretTokenResponse:
@@ -5450,6 +5471,15 @@ class HTTPRunDB(RunDBInterface):
                 username=result.username,
             )
         return result
+
+    @mlrun.utils.iguazio_v4_only
+    def delete_secret_tokens(
+        self, username: str | None = None
+    ) -> mlrun.common.schemas.DeleteSecretTokensResponse:
+        raise NotImplementedError(
+            "Deleting multiple secret tokens is not supported; a single token is "
+            "stored per user. Use `delete_secret_token` instead."
+        )
 
     @mlrun.utils.iguazio_v4_only
     def get_secret_token(

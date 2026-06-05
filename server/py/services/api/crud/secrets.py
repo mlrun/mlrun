@@ -12,14 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import asyncio
 import enum
 import json
 import typing
 import uuid
 from collections import defaultdict
-
-from fastapi.concurrency import run_in_threadpool
 
 import mlrun.auth.utils
 import mlrun.common
@@ -506,26 +503,8 @@ class Secrets(
         auth_info: mlrun.common.schemas.AuthInfo,
         username: str | None = None,
     ) -> mlrun.common.schemas.ListSecretTokensResponse:
-        """
-        List offline token secrets stored in Kubernetes.
-
-        By default, this lists tokens for the authenticated user.
-        Admins can list tokens for other users by providing a username.
-
-        :param auth_info: Authentication information of the requesting user.
-        :param username: Target username to list tokens for. If None or matches
-                         auth_info.username, lists the authenticated user's tokens.
-                         Use "*" to list all users' tokens (admin only).
-        :return: ListSecretTokensResponse containing token names and expirations.
-        """
-        target_username = self._get_target_username(auth_info, username)
-
-        secret_tokens = self.secrets_provider.list_user_token_secrets(
-            username=target_username,
-        )
-
-        return mlrun.common.schemas.ListSecretTokensResponse(
-            secret_tokens=secret_tokens
+        raise NotImplementedError(
+            "Listing secret tokens is not supported; a single token is stored per user."
         )
 
     def _delete_single_token(
@@ -653,102 +632,9 @@ class Secrets(
         username: str,
         auth_info: mlrun.common.schemas.AuthInfo,
     ) -> mlrun.common.schemas.DeleteSecretTokensResponse:
-        """
-        Delete all Kubernetes secrets storing tokens for a user.
-
-        Deletes each token's K8s secret in parallel (bounded by
-        secret_stores.kubernetes.concurrent_token_deletions).
-        Failures are collected and returned without stopping other deletions.
-
-        Token revocation is intentionally skipped — this endpoint is designed for the
-        user-deletion flow where the user is already deactivated and Keycloak removal
-        invalidates all tokens. If this endpoint is ever reused outside that flow,
-        skip_revocation should become a caller-controlled flag.
-
-        :param username:
-            The username of the user whose tokens should be deleted.
-            For regular users, this must be their own username.
-            For system admins, this can be any user's username.
-        :param auth_info:
-            Authentication information of the requesting user.
-        :return: DeleteSecretTokensResponse with deleted_count and any failed_tokens.
-        """
-        target_username = self._get_target_username(auth_info, username)
-
-        logger.debug(
-            "Deleting all secret tokens for user",
-            target_username=target_username,
-            requesting_user=auth_info.username,
-        )
-
-        tokens: list[mlrun.common.schemas.SecretTokenInfo] = await run_in_threadpool(
-            self.secrets_provider.list_user_token_secrets,
-            username=target_username,
-        )
-
-        if not tokens:
-            return mlrun.common.schemas.DeleteSecretTokensResponse(
-                deleted_count=0, failed_tokens=[], username=target_username
-            )
-
-        # TODO: move init iguazio_client (ML-11077)
-        iguazio_client = framework.utils.clients.iguazio.v4.Client()
-
-        # TODO: Replace per-token deletion with delete_collection_namespaced_secret
-        # This would reduce N K8s API calls to a single collection delete. (IG4-1510)
-        semaphore = asyncio.Semaphore(
-            mlrun.mlconf.secret_stores.kubernetes.concurrent_token_deletions
-        )
-
-        async def _delete_with_semaphore(
-            token_info: mlrun.common.schemas.SecretTokenInfo,
-        ):
-            async with semaphore:
-                await run_in_threadpool(
-                    self._delete_single_token,
-                    target_user_id=token_info.user_id,
-                    target_username=token_info.username,
-                    token_name=token_info.name,
-                    iguazio_client=iguazio_client,
-                    request_headers=auth_info.request_headers,
-                    # User is already deactivated and Keycloak removal invalidates tokens
-                    skip_revocation=True,
-                )
-
-        results = await asyncio.gather(
-            *[_delete_with_semaphore(token_info) for token_info in tokens],
-            return_exceptions=True,
-        )
-
-        deleted_count = 0
-        failed_tokens: list[str] = []
-
-        for i, result in enumerate(results):
-            token_name = tokens[i].name
-            if isinstance(result, Exception):
-                failed_tokens.append(token_name)
-            else:
-                deleted_count += 1
-
-        if failed_tokens:
-            logger.warning(
-                "Some tokens failed to delete",
-                target_username=target_username,
-                deleted_count=deleted_count,
-                failed_count=len(failed_tokens),
-            )
-
-        logger.debug(
-            "Finished deleting secret tokens for user",
-            target_username=target_username,
-            deleted_count=deleted_count,
-            failed_count=len(failed_tokens),
-        )
-
-        return mlrun.common.schemas.DeleteSecretTokensResponse(
-            deleted_count=deleted_count,
-            failed_tokens=failed_tokens,
-            username=target_username,
+        raise NotImplementedError(
+            "Deleting multiple secret tokens is not supported; a single token is "
+            "stored per user. Use `delete_secret_token` instead."
         )
 
     def get_secret_token(
@@ -811,20 +697,6 @@ class Secrets(
         # Different user - fetch user_id from Iguazio API
         iguazio_client = framework.utils.clients.iguazio.v4.Client()
         return iguazio_client.get_user_id_by_username(username, auth_info)
-
-    def _get_target_username(
-        self,
-        auth_info: mlrun.common.schemas.AuthInfo,
-        username: str | None,
-    ) -> str:
-        if username:
-            return username
-        elif auth_info.username:
-            return auth_info.username
-        else:
-            raise mlrun.errors.MLRunInvalidArgumentError(
-                "secret token handling is only supported in enterprise where auth_info.username should always be filled"
-            )
 
     def _resolve_project_secret_key(
         self,

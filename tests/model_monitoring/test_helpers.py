@@ -15,7 +15,7 @@
 import datetime
 from collections.abc import Iterator
 from typing import NamedTuple, Union
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 import nuclio
 import numpy as np
@@ -44,6 +44,7 @@ from mlrun.datastore.datastore_profile import (
 )
 from mlrun.db.nopdb import NopDB
 from mlrun.model_monitoring.controller import (
+    MonitoringApplicationController,
     _BatchWindow,
     _BatchWindowGenerator,
     _Interval,
@@ -381,7 +382,6 @@ class TestBatchWindowGenerator:
         last_updated = _BatchWindowGenerator._get_last_updated_time(
             last_request=last_request,
             endpoint_mode=EndpointMode.REAL_TIME,
-            not_old_batch_endpoint=True,
         )
         assert last_updated
         assert last_updated < last_request.timestamp(), (
@@ -391,13 +391,44 @@ class TestBatchWindowGenerator:
         last_updated = _BatchWindowGenerator._get_last_updated_time(
             last_request=last_request,
             endpoint_mode=EndpointMode.BATCH,
-            not_old_batch_endpoint=False,
         )
 
         assert last_updated
         assert last_updated == last_request.timestamp(), (
             "The last updated time should similar to the last request time for batch endpoints"
         )
+
+
+class TestControllerLegacyEndpoints:
+    @staticmethod
+    def test_legacy_batch_endpoints_warn_and_are_not_processed(monkeypatch) -> None:
+        controller = MonitoringApplicationController.__new__(
+            MonitoringApplicationController
+        )
+        controller.project = "test-project"
+
+        def _list_model_endpoints(*, modes, **kwargs):
+            is_legacy = modes == [EndpointMode.BATCH_LEGACY]
+            return Mock(endpoints=[Mock()] if is_legacy else [])
+
+        controller.project_obj = Mock()
+        controller.project_obj.list_model_endpoints.side_effect = _list_model_endpoints
+
+        warnings_seen: list[tuple[str, dict]] = []
+        monkeypatch.setattr(
+            mlrun.model_monitoring.controller.logger,
+            "warning",
+            lambda msg, *args, **kwargs: warnings_seen.append((msg, kwargs)),
+        )
+
+        controller.push_regular_event_to_controller_stream()
+
+        assert len(warnings_seen) == 1
+        message, fields = warnings_seen[0]
+        assert "no longer monitored" in message
+        assert fields["count"] == 1
+        # No real-time endpoints -> the scan returns before processing any endpoint
+        controller.project_obj.list_model_monitoring_functions.assert_not_called()
 
 
 class TestBumpModelEndpointLastRequest:

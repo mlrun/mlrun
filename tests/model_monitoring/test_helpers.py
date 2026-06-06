@@ -33,8 +33,7 @@ from mlrun.common.model_monitoring.helpers import (
     pad_features_hist,
     pad_hist,
 )
-from mlrun.common.schemas import EndpointMode, EndpointType, ModelEndpoint
-from mlrun.common.schemas.model_monitoring.constants import EventFieldType
+from mlrun.common.schemas import EndpointMode
 from mlrun.datastore import KafkaOutputStream, OutputStream
 from mlrun.datastore.datastore_profile import (
     DatastoreProfile,
@@ -58,7 +57,6 @@ from mlrun.model_monitoring.helpers import (
     get_invocations_fqn,
     get_output_stream,
     get_start_end,
-    update_model_endpoint_last_request,
 )
 
 TIMESTAMP_RESOLUTION_MICRO = 1e-6  # 0.000001 seconds or 1 microsecond
@@ -431,7 +429,7 @@ class TestControllerLegacyEndpoints:
         controller.project_obj.list_model_monitoring_functions.assert_not_called()
 
 
-class TestBumpModelEndpointLastRequest:
+class TestGetMonitoringTimeWindow:
     @staticmethod
     @pytest.fixture
     def project() -> str:
@@ -444,67 +442,8 @@ class TestBumpModelEndpointLastRequest:
 
     @staticmethod
     @pytest.fixture
-    def empty_model_endpoint() -> ModelEndpoint:
-        return ModelEndpoint(
-            metadata=mlrun.common.schemas.ModelEndpointMetadata(
-                name="test", project="test-project"
-            ),
-            spec=mlrun.common.schemas.ModelEndpointSpec(),
-            status=mlrun.common.schemas.ModelEndpointStatus(),
-        )
-
-    @staticmethod
-    @pytest.fixture
-    def last_request() -> str:
-        return "2023-12-05 18:17:50.255143"
-
-    @staticmethod
-    @pytest.fixture
-    def model_endpoint(
-        empty_model_endpoint: ModelEndpoint, last_request: str
-    ) -> ModelEndpoint:
-        empty_model_endpoint.status.last_request = last_request
-        return empty_model_endpoint
-
-    @staticmethod
-    @pytest.fixture
     def function() -> mlrun.runtimes.ServingRuntime:
         return TemplateFunction()
-
-    @staticmethod
-    def test_update_last_request(
-        project: str,
-        model_endpoint: ModelEndpoint,
-        db: NopDB,
-        last_request: str,
-        function: mlrun.runtimes.ServingRuntime,
-    ) -> None:
-        with patch.object(db, "patch_model_endpoint") as patch_patch_model_endpoint:
-            with patch.object(db, "get_function", return_value=function):
-                update_model_endpoint_last_request(
-                    project=project,
-                    model_endpoint=model_endpoint,
-                    current_request=datetime.datetime.fromisoformat(last_request),
-                    db=db,
-                )
-        patch_patch_model_endpoint.assert_called_once()
-        assert patch_patch_model_endpoint.call_args.kwargs["attributes"][
-            EventFieldType.LAST_REQUEST
-        ] == datetime.datetime.fromisoformat(last_request)
-        model_endpoint.metadata.endpoint_type = EndpointType.BATCH_EP
-
-        with patch.object(db, "patch_model_endpoint") as patch_patch_model_endpoint:
-            with patch.object(db, "get_function", return_value=function):
-                update_model_endpoint_last_request(
-                    project=project,
-                    model_endpoint=model_endpoint,
-                    current_request=datetime.datetime.fromisoformat(last_request),
-                    db=db,
-                )
-        patch_patch_model_endpoint.assert_called_once()
-        assert patch_patch_model_endpoint.call_args.kwargs["attributes"][
-            EventFieldType.LAST_REQUEST
-        ] == datetime.datetime.fromisoformat(last_request)
 
     @staticmethod
     def test_get_monitoring_time_window_from_controller_run(

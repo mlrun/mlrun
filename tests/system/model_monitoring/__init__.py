@@ -24,7 +24,6 @@ import mlrun.model_monitoring.helpers
 from mlrun import MlrunProject
 from mlrun.datastore.datastore_profile import (
     DatastoreProfile,
-    DatastoreProfileKafkaSource,
     DatastoreProfileKafkaStream,
     DatastoreProfilePostgreSQL,
     DatastoreProfileV3io,
@@ -35,7 +34,6 @@ _ProfilesMap: TypeAlias = dict[str, type[DatastoreProfile]]
 
 _DS_TYPE_TO_DS_PROFILE: _ProfilesMap = {
     "v3io": DatastoreProfileV3io,
-    "kafka_source": DatastoreProfileKafkaSource,
     "postgresql": DatastoreProfilePostgreSQL,
     "kafka_stream": DatastoreProfileKafkaStream,
 }
@@ -71,7 +69,7 @@ class TestMLRunSystemModelMonitoring(TestMLRunSystem):
             profile_data,
             {
                 type_: _DS_TYPE_TO_DS_PROFILE[type_]
-                for type_ in ("v3io", "kafka_source", "kafka_stream")
+                for type_ in ("v3io", "kafka_stream")
             },
         )
         if isinstance(profile, DatastoreProfileV3io):

@@ -45,7 +45,7 @@ import mlrun.runtimes.mounts
 from mlrun.config import config
 from mlrun.data_types.data_types import InferOptions, ValueType
 from mlrun.datastore.datastore_profile import (
-    DatastoreProfileKafkaTarget,
+    DatastoreProfileKafkaStream,
     DatastoreProfileRedis,
     DatastoreProfileV3io,
     register_temporary_client_datastore_profile,
@@ -3535,8 +3535,8 @@ class TestFeatureStore(TestMLRunSystem):
         not kafka_brokers, reason="MLRUN_SYSTEM_TESTS_KAFKA_BROKERS must be set"
     )
     def test_kafka_target_datastore_profile(self, kafka_consumer):
-        profile = DatastoreProfileKafkaTarget(
-            name="dskafkatarget", brokers=kafka_brokers, topic=kafka_topic
+        profile = DatastoreProfileKafkaStream(
+            name="dskafkatarget", brokers=kafka_brokers, topics=[kafka_topic]
         )
         register_temporary_client_datastore_profile(profile)
 

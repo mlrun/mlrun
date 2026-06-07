@@ -510,11 +510,37 @@ def _deploy_function(
         logger.info("Resolved function", fn=fn.to_yaml())
     except Exception as err:
         logger.error(traceback.format_exc())
+        # Failing before Nuclio leaves the build phase's premature "ready" state
+        # uncorrected (the deploy-status poller never runs).
+        _mark_function_deploy_error(db_session, project, name, fn)
         framework.api.utils.log_and_raise(
             HTTPStatus.BAD_REQUEST.value,
             reason=f"Runtime error: {mlrun.errors.err_to_str(err)}",
         )
     return fn
+
+
+def _mark_function_deploy_error(
+    db_session: sqlalchemy.orm.Session,
+    project: str,
+    name: str,
+    fn: mlrun.runtimes.RemoteRuntime | None,
+):
+    tag = fn.metadata.tag if fn is not None else ""
+    try:
+        services.api.crud.Functions().update_function(
+            db_session,
+            function={"metadata": {"name": name, "tag": tag}},
+            project=project,
+            updates={"status.state": mlrun.common.schemas.FunctionState.error},
+        )
+    except Exception as exc:
+        logger.warning(
+            "Failed to mark function as errored after deploy failure",
+            project=project,
+            name=name,
+            error=mlrun.errors.err_to_str(exc),
+        )
 
 
 def _deploy_nuclio_runtime(

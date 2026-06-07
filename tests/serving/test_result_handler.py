@@ -254,7 +254,7 @@ class TestResultHandlerNonDictResponse:
         handler = _make_handler("/predict", ("$.result", "answer", True))
         with pytest.raises(
             mlrun.errors.MLRunUnprocessableEntityError,
-            match=r"Failed to process output body mapping",
+            match=r"Failed to process output body mapping: Mandatory field 'answer' not found in body",
         ):
             handler.apply(HTTPMethod.POST, "/predict", {"other": "value"})
 

@@ -1,7 +1,7 @@
 (code-artifacts)=
 # Code artifacts
 
-A code artifact (`kind="code"`) stores a function or workflow source file (or an archive of files) as a versioned MLRun artifact. Once logged, the artifact can be referenced by a `store://` URI as the source for {py:meth}`~mlrun.projects.MlrunProject.set_function` or {py:meth}`~mlrun.projects.MlrunProject.set_workflow`, instead of a local path or git source. The code is downloaded by the runner pod at runtime — the client never resolves the URI.
+A code artifact (`kind="code"`) stores a function or workflow source file (or an archive of files) as a versioned MLRun artifact. Once logged, the artifact can be referenced by a `store://` URI as the source for {py:meth}`~mlrun.projects.MlrunProject.set_function` or {py:meth}`~mlrun.projects.MlrunProject.set_workflow`, in addition to a local path, git source, or remote URL. The code is downloaded by the runner pod at runtime — the client never resolves the URI.
 
 **In this section**
 - [Log a code artifact](#log-a-code-artifact)
@@ -50,9 +50,17 @@ project.log_code_file("my_func_code", body=b"def main():\n    return 'ok'\n")
 
 # Archive containing multiple source files; extracted on resolution
 project.log_code_file("my_pkg_code", local_path="./my_pkg.zip")
+
+# With an explicit code_type and pip dependencies
+project.log_code_file(
+    "my_workflow_code",
+    local_path="./my_workflow.py",
+    code_type="workflow",
+    requirements=["pandas>=2.0"],
+)
 ```
 
-`language` is auto-derived from the file suffix when omitted (`.py` / `.ipynb` → `"python"`). `code_type` defaults to `"function"`.
+`language` is auto-derived from the file suffix when omitted (`.py` / `.ipynb` → `"python"`). `code_type` defaults to `"function"`. See [function vs workflow code_type](#function-vs-workflow-code_type) and [Requirements and rebuild behavior](#requirements-and-rebuild-behavior) for those parameters.
 
 ## Run a function from a code artifact
 
@@ -69,9 +77,9 @@ fn = project.set_function(
 fn.run(params={"p1": 5})
 ```
 
-The `store://` URI is stored as-is on the function and in the MLRun DB. The runner pod resolves the artifact and downloads the code at startup — no client-side resolution.
+The `store://` URI is stored as-is in the function and in the MLRun DB. The runner pod resolves the artifact and downloads the code at startup ("pull at runtime").
 
-For Nuclio and serving functions, the default is **build-time** mode: the server downloads the code at deploy and embeds it in the processor image. Set `load_source_on_run=True` on the function spec to switch to **runtime** mode, where an init container fetches the code at pod startup (no image rebuild on code-only changes). See [function storage](../runtimes/function-storage.md) for the general source-loading mechanism.
+For Nuclio and serving functions, the default is "pull at buildtime" mode: the server downloads the code at deploy and embeds it in the processor image. Set `load_source_on_run=True` on the function spec to switch to "pull at runtime" mode, where an init container fetches the code at pod startup (no image rebuild on code-only changes). See [function storage](../runtimes/function-storage.md) for the general source-loading mechanism.
 
 When running locally (`fn.run(local=True)`), the client resolves the artifact and must have datastore credentials configured.
 
@@ -135,13 +143,18 @@ project.log_code_file(
 
 At deploy or run time the server merges the artifact's `requirements` into `function.spec.build.requirements`. User-set requirements (via `func.with_requirements()`) take priority over artifact requirements, and deduplication is case-insensitive.
 
-Changing requirements always requires a re-deploy that rebuilds the image. Changing only the code has different costs:
+A change to the artifact's `requirements` is not detected automatically — MLRun does not rebuild the image just because the artifact's dependencies changed, so you must force a rebuild:
+
+- Job / KFP — {py:func}`~mlrun.projects.build_function` with `force_build=True` (see {ref}`build-function-image`).
+- Nuclio / serving / application — redeploy the function with `function.deploy()`, which rebuilds the image.
+
+The cost of changing only the code (no requirements change) depends on the runtime:
 
 | Runtime | Code-only update |
 |---|---|
 | Job / KFP | Next `run()` picks up the latest artifact version |
-| Nuclio / serving, runtime mode (`load_source_on_run=True`) | Re-deploy, no image rebuild |
-| Nuclio / serving, build-time mode (default) | Re-deploy with image rebuild |
+| Nuclio / serving, "pull at runtime" (`load_source_on_run=True`) | Re-deploy, no image rebuild |
+| Nuclio / serving, "pull at buildtime" (default) | Re-deploy with image rebuild |
 | Application | Re-deploy, no image rebuild (init container fetches code) |
 
 ## function vs workflow code_type

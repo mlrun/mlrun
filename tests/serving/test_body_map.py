@@ -788,7 +788,8 @@ class TestPerEndpointBodyMappings:
         ):
             step.do(event)
 
-    def test_non_dict_body_with_mandatory_mapping_raises(self) -> None:
+    @pytest.mark.parametrize("body", ["not-a-dict", None])
+    def test_non_dict_body_with_mandatory_mapping_raises(self, body) -> None:
         """Non-dict body with a mandatory mapping raises MLRunUnprocessableEntityError (HTTP 422).
 
         When body_map has at least one mandatory field, the contract can't be satisfied
@@ -803,7 +804,7 @@ class TestPerEndpointBodyMappings:
         )
 
         step = _APIHandlerStep(config=config)
-        event = MockEvent(body="not-a-dict", method="POST", path="/predict")
+        event = MockEvent(body=body, method="POST", path="/predict")
 
         with pytest.raises(
             mlrun.errors.MLRunUnprocessableEntityError,
@@ -811,7 +812,8 @@ class TestPerEndpointBodyMappings:
         ):
             step.do(event)
 
-    def test_non_dict_body_with_optional_mapping_silently_skips(self) -> None:
+    @pytest.mark.parametrize("body", ["not-a-dict", None])
+    def test_non_dict_body_with_optional_mapping_silently_skips(self, body) -> None:
         """Non-dict body with only optional mappings is silently skipped (no error)."""
         bm = BodyMappings()
         bm.add_mapping("$.model", destination_path="model", mandatory=False)
@@ -822,7 +824,7 @@ class TestPerEndpointBodyMappings:
         )
 
         step = _APIHandlerStep(config=config)
-        event = MockEvent(body="not-a-dict", method="POST", path="/predict")
+        event = MockEvent(body=body, method="POST", path="/predict")
 
         # Should not raise — body mapping is silently skipped when body isn't a dict
         # and no mappings are mandatory.

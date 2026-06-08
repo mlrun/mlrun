@@ -44,8 +44,8 @@ The predefined event types ({py:class}`~mlrun.common.schemas.alert.EventKind`) a
 - `concept-drift-suspected` &mdash; A suspected change, over time, of  statistical properties of the target variable (what the model is predicting). 
 - `data-drift-detected` &mdash; A detected change in model input data that potentially leads to model performance degradation. 
 - `data-drift-suspected` &mdash; A suspected change in model input data that potentially leads to model performance degradation. 
-- `mm-app-anomaly-detected` &mdash; An alert based on user-defined metrics/results.
-- `mm-app-anomaly-suspected` &mdash; An alert based on user-defined metrics/results.
+- `mm-app-anomaly-detected` &mdash; A detected alert based on user-defined metrics/results.
+- `mm-app-anomaly-suspected` &mdash; A suspoected alert based on user-defined metrics/results.
 - `mm-app-failed` &mdash; A model monitoring app failed.
 - `model-monitoring-lag-detected` &mdash; The monitoring writer falls behind the processing of inference events.
 - `model-performance-detected` &mdash; A detected change of the overall model performance and/or feature-level performance. 
@@ -72,19 +72,21 @@ run_id = run.metadata.name
 ```
 See all of the {py:class}`~mlrun.alerts.alert.AlertConfig` parameters. 
 
+
+
 ### Cooldown period
 
 The `cooldown_period` parameter of `AlertConfig` can be used to delay resetting an alert. 
-The alert remains active for the duration of the `cooldown_period`, and incoming events are ignored. 
+When the `cooldown_period` is active, the alert remains active for its duration, but incoming events are ignored:
+**you do not receive continuous alerts for an ongoing situation**.
 After the cooldown period expires and the alert is reset, it can be triggered again by new events.
 The reset timing is approximate: reset happens when a periodic task runs, by default, every ~15s. 
 By default, the `cooldown_period` is not set.
 
 Guidelines:
 - The `reset_policy` must be set to `auto`.
-- The `cooldown_period` must be >0. (If set to 0, alerts are reset immediately.)
+- The `cooldown_period` must be >0 and >`cooldown_reset_interval`. See [System configuration](#system-configuration). (When `cooldown_period` is not set or set to 0, alerts are reset immediately.)
 - Cooldown periods can be set as, for example, 1d, 3h, 5m, 15s, etc.
-- `cooldown_period` must be at least `cooldown_reset_interval`. See [System configuration](#system-configuration).
 
 You can manually reset an alert at any time ({py:func}`~mlrun.projects.MlrunProject.reset_alert_config`), whether or not the `cooldown_period` is active.
 

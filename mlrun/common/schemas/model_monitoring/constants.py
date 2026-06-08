@@ -262,8 +262,10 @@ class OTelMonitoringAttribute(MonitoringStrEnum):
     Dot-separated naming follows the OpenTelemetry semantic-conventions
     convention. ``project``, ``app.name``, ``function.name``,
     ``endpoint.uid``, ``endpoint.name`` are shared by every entry in a
-    batch; ``result.kind`` and ``result.status`` apply only to entries
-    coming from a :class:`ModelMonitoringApplicationResult`.
+    batch. ``result.name``, ``result.kind`` and ``result.status`` apply only
+    to entries coming from a :class:`ModelMonitoringApplicationResult`;
+    ``metric.name`` applies only to entries coming from a
+    :class:`ModelMonitoringApplicationMetric`.
     """
 
     PROJECT = "project"
@@ -271,18 +273,29 @@ class OTelMonitoringAttribute(MonitoringStrEnum):
     FUNCTION_NAME = "function.name"
     ENDPOINT_UID = "endpoint.uid"
     ENDPOINT_NAME = "endpoint.name"
+    RESULT_NAME = "result.name"
     RESULT_KIND = "result.kind"
     RESULT_STATUS = "result.status"
+    METRIC_NAME = "metric.name"
 
 
-class OTelMonitoringMetricNamePrefix(MonitoringStrEnum):
-    """OTel instrument-name prefixes for model-monitoring application
-    outputs. The full metric name is ``<prefix><result-or-metric name>``,
-    e.g. ``mlrun.model_monitoring.result.general_drift``.
+class OTelMonitoringMetricName(MonitoringStrEnum):
+    """OTel instrument names for model-monitoring application outputs.
+
+    One fixed instrument name covers all results and another covers all
+    metrics; the specific result/metric name is carried as the
+    ``result.name`` / ``metric.name`` attribute (see
+    :class:`OTelMonitoringAttribute`) rather than being encoded in the
+    instrument name. This keeps every result under one metric family
+    (exported as ``mlrun_model_monitoring_result``) so dashboards and queries
+    can filter and aggregate by the ``result_name`` label instead of matching
+    a distinct per-result metric name, and bounds the number of OTel
+    instruments to two regardless of how many result/metric names a project
+    produces.
     """
 
-    RESULT = "mlrun.model_monitoring.result."
-    METRIC = "mlrun.model_monitoring.metric."
+    RESULT = "mlrun.model_monitoring.result"
+    METRIC = "mlrun.model_monitoring.metric"
 
 
 class EventLiveStats:

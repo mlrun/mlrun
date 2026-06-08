@@ -487,8 +487,10 @@ class TestRuntimeHandlerBase:
     @staticmethod
     def _mock_read_namespaced_pod_log():
         log = "Some log string"
+        # `logs()` reads the raw response (`_preload_content=False`) and decodes `.data`,
+        # so the mock must expose the body as bytes rather than a plain str.
         get_k8s_helper().v1api.read_namespaced_pod_log = unittest.mock.Mock(
-            return_value=log
+            return_value=unittest.mock.Mock(data=log.encode())
         )
         return log
 
@@ -598,6 +600,7 @@ class TestRuntimeHandlerBase:
                 name=logger_pod_name,
                 namespace=get_k8s_helper().resolve_namespace(),
                 _request_timeout=unittest.mock.ANY,
+                _preload_content=False,
             )
         _, logs = await services.api.crud.Logs().get_logs(
             db, project, uid, source=LogSources.PERSISTENCY

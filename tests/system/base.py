@@ -537,12 +537,17 @@ class TestMLRunSystem:
         :returns: Pod logs or error message
         """
         try:
-            logs = self.kube_client.read_namespaced_pod_log(
+            # `_preload_content=False` + manual decode avoids kubernetes-client 36.0.1
+            # handing back `str(bytes)` (the repr `"b'\x1b...'"`) instead of the decoded
+            # log - same root cause as ML-12667.
+            resp = self.kube_client.read_namespaced_pod_log(
                 name=pod_name,
                 namespace=namespace,
                 tail_lines=tail_lines,
                 since_seconds=since_seconds,
+                _preload_content=False,
             )
+            logs = resp.data.decode("utf-8")
             self._logger.debug(
                 f"Collected logs from {pod_name}",
                 lines=len(logs.splitlines()) if logs else 0,

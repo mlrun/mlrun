@@ -241,7 +241,7 @@ class AlertActivation(pydantic.v1.BaseModel):
     def group_key(self, attributes: list[str]) -> Union[Any, tuple]:
         """
         Dynamically create a key for grouping based on the provided attributes.
-        
+
         - If there's only one attribute, return the value directly (not a single-element tuple).
         - If there are multiple attributes, return them as a tuple for grouping.
 

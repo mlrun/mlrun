@@ -512,16 +512,21 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
 
     def logs(self, name, namespace=None):
         try:
+            # `_preload_content=False` returns the raw urllib3 response and skips the client's
+            # primitive-string deserialization. Since kubernetes-client 36.0.1 that step no
+            # longer decodes the body, so `read_namespaced_pod_log` would otherwise hand back
+            # `str(bytes)` - the repr `"b'\x1b...'"` instead of the decoded log (ML-12667).
             resp = self.v1api.read_namespaced_pod_log(
                 name=name,
                 namespace=self.resolve_namespace(namespace),
                 _request_timeout=self._resolve_k8s_timeout(K8S_TIMEOUT_LOGS),
+                _preload_content=False,
             )
         except k8s_client_rest.ApiException as exc:
             logger.error("Failed to get pod logs", exc=mlrun.errors.err_to_str(exc))
             raise exc
 
-        return resp
+        return resp.data.decode("utf-8")
 
     def get_logger_pods(self, project, uid, run_kind, namespace=""):
         namespace = self.resolve_namespace(namespace)

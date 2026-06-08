@@ -814,6 +814,30 @@ def test_code_artifact_create_with_requirements():
 
 
 @pytest.mark.parametrize(
+    "requirements",
+    [
+        "pandas>=1.0",  # ML-12563 reproducer: string passed instead of list
+        ("pandas",),  # tuple is not a list
+        123,  # not iterable
+        ["pandas", 123],  # list with non-str item
+        ["pandas", None],
+    ],
+)
+def test_code_artifact_invalid_requirements_raises(requirements):
+    with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
+        mlrun.artifacts.CodeArtifact(key="bad", requirements=requirements)
+
+
+@pytest.mark.parametrize(
+    "requirements",
+    [None, [], ["pandas"], ["pandas>=2.0", "numpy"]],
+)
+def test_code_artifact_valid_requirements_accepted(requirements):
+    artifact = mlrun.artifacts.CodeArtifact(key="ok", requirements=requirements)
+    assert artifact.spec.requirements == requirements
+
+
+@pytest.mark.parametrize(
     "target_path,src_path,language,expected",
     [
         # suffix → "python"

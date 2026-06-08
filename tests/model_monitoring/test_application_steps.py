@@ -390,6 +390,20 @@ class TestPrepareOTelEvent:
         assert event["metrics"][0]["attributes"]["metric.name"] == "some_metric"
 
     @classmethod
+    def test_unexpected_entry_type_skipped(cls, app_ctx: Mock) -> None:
+        """Entries that are neither a result, metric, nor stats are not
+        silently coerced into a metric — they're skipped (and logged)."""
+        results = [
+            object(),  # unexpected type
+            ModelMonitoringApplicationMetric(name="some_metric", value=1.0),
+        ]
+        event = _PrepareOTelEvent().do((results, app_ctx))
+        assert [m["metric_name"] for m in event["metrics"]] == [
+            "mlrun.model_monitoring.metric"
+        ]
+        assert event["metrics"][0]["attributes"]["metric.name"] == "some_metric"
+
+    @classmethod
     def test_none_attributes_stripped(cls) -> None:
         """The OTel SDK warns on None-valued attributes; the step must
         drop them rather than forward them."""

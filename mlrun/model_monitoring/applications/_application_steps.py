@@ -189,9 +189,15 @@ class _PrepareOTelEvent(StepToDict):
                 attributes[attr.RESULT_NAME.value] = entry.name
                 attributes[attr.RESULT_KIND.value] = entry.kind.name
                 attributes[attr.RESULT_STATUS.value] = entry.status.name
-            else:
+            elif isinstance(entry, ModelMonitoringApplicationMetric):
                 metric_name = metric_name_enum.METRIC.value
                 attributes[attr.METRIC_NAME.value] = entry.name
+            else:
+                logger.warning(
+                    "Skipping unexpected entry type in OTel event preparer",
+                    entry_type=type(entry).__name__,
+                )
+                continue
             metrics.append(
                 {
                     "metric_name": metric_name,

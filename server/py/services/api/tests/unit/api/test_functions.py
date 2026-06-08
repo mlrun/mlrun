@@ -1138,8 +1138,6 @@ def test_build_status_events_and_logs(
         unittest.mock.patch.object(
             framework.utils.singletons.k8s.get_k8s_helper().v1api,
             "read_namespaced_pod_log",
-            # `logs()` reads the raw response (`_preload_content=False`) and decodes
-            # `.data`, so the build-log body must be bytes (ML-12667).
             return_value=unittest.mock.Mock(data=b"log"),
         ),
     ):

@@ -379,8 +379,6 @@ class TestRuntimeBase(services.api.tests.unit.conftest.MockedK8sHelper):
         get_k8s_helper().v1api.list_namespaced_pod = unittest.mock.Mock(
             return_value=client.V1PodList(items=[])
         )
-        # `logs()` reads the raw response (`_preload_content=False`) and decodes `.data`,
-        # so the mock must expose the body as bytes rather than a plain str.
         get_k8s_helper().v1api.read_namespaced_pod_log = unittest.mock.Mock(
             return_value=unittest.mock.Mock(data=b"Mocked pod logs")
         )

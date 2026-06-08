@@ -133,7 +133,7 @@ class HTTPRunDB(RunDBInterface):
         r"\/?user-secrets/tokens",
     ]
 
-    def __init__(self, url):
+    def __init__(self, url, *, credentials: "mlrun.client.Credentials | None" = None):
         self.server_version = ""
         self.session = None
         self._wait_for_project_terminal_state_retry_interval = 3
@@ -149,6 +149,9 @@ class HTTPRunDB(RunDBInterface):
         self.token_provider = None
         self.base_url = None
         self._parsed_url = None
+        # When provided, auth is bound to this instance and the env-/
+        # config-derived fallback paths are bypassed entirely.
+        self._explicit_credentials = credentials
 
         self._enrich_and_validate(url)
 
@@ -157,11 +160,29 @@ class HTTPRunDB(RunDBInterface):
 
         self.base_url = base_url
         self._parsed_url = parsed_url
+        if self._apply_explicit_credentials():
+            return
         self.user = parsed_url.username or config.httpdb.user
         self.password = parsed_url.password or config.httpdb.password
-        self._init_token_provider()
+        self._init_token_provider_from_env()
 
-    def _init_token_provider(self):
+    def _apply_explicit_credentials(self) -> bool:
+        """Apply ``self._explicit_credentials`` if present and not env-mode.
+
+        Returns True when explicit credentials took over (caller should
+        skip the legacy URL/env path); False otherwise.
+        """
+        c = self._explicit_credentials
+        if c is None or c.use_env:
+            return False
+        self.user = c.username
+        self.password = c.password
+        self.token_provider = (
+            mlrun.auth.StaticTokenProvider(c.token) if c.token is not None else None
+        )
+        return True
+
+    def _init_token_provider_from_env(self):
         """
         Initialize token provider according to current config.
 
@@ -717,7 +738,7 @@ class HTTPRunDB(RunDBInterface):
             )
 
         # Initialize token provider after syncing config from server
-        self._init_token_provider()
+        self._init_token_provider_from_env()
 
         if config.is_iguazio_v4_mode() and config.auth_with_oauth_token.enabled:
             mlrun.secrets.sync_secret_tokens()
@@ -4287,8 +4308,10 @@ class HTTPRunDB(RunDBInterface):
 
         :param project: The name of the project.
         :return: HTTP URL of the model monitoring stream pod, or None if no HTTP trigger is configured.
+            A non-ready stream pod still returns its URL — the URL may not be reachable until
+            the pod becomes ready.
         :raises mlrun.errors.MLRunNotFoundError: if the stream function is not deployed.
-        :raises mlrun.errors.MLRunPreconditionFailedError: if the stream function is not in ready state.
+        :raises mlrun.errors.MLRunPreconditionFailedError: if the stream function is in terminal error state.
         """
         resp = self.api_call(
             method=mlrun.common.types.HTTPMethod.GET,

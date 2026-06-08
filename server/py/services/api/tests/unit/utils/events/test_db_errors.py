@@ -27,7 +27,7 @@ import services.api.utils.events.db_errors as db_errors
 
 @pytest.fixture(autouse=True)
 def reset_state(monkeypatch):
-    monkeypatch.setattr(db_errors, "_last_emit_monotonic", 0.0)
+    monkeypatch.setattr(db_errors._slot, "_last_emit_monotonic", 0.0)
     db_errors._registered_engines.clear()
     yield
     db_errors._registered_engines.clear()
@@ -291,7 +291,7 @@ def test_publish_releases_slot_when_emit_raises(monkeypatch):
         mlrun.mlconf.events.db_connection, "min_emit_interval_seconds", 60
     )
     fake_now = {"value": 1000.0}
-    monkeypatch.setattr(db_errors.time, "monotonic", lambda: fake_now["value"])
+    monkeypatch.setattr(db_errors.throttle.time, "monotonic", lambda: fake_now["value"])
 
     err = pymysql.err.OperationalError(2013, "Lost connection")
     # First emit fails; slot must be released so we are not locked out.
@@ -320,7 +320,7 @@ def test_publish_keeps_slot_after_success(monkeypatch):
         mlrun.mlconf.events.db_connection, "min_emit_interval_seconds", 60
     )
     fake_now = {"value": 1000.0}
-    monkeypatch.setattr(db_errors.time, "monotonic", lambda: fake_now["value"])
+    monkeypatch.setattr(db_errors.throttle.time, "monotonic", lambda: fake_now["value"])
 
     err = pymysql.err.OperationalError(2013, "Lost connection")
     assert (
@@ -361,7 +361,7 @@ def test_publish_throttles_within_interval(monkeypatch):
         mlrun.mlconf.events.db_connection, "min_emit_interval_seconds", 60
     )
     fake_now = {"value": 1000.0}
-    monkeypatch.setattr(db_errors.time, "monotonic", lambda: fake_now["value"])
+    monkeypatch.setattr(db_errors.throttle.time, "monotonic", lambda: fake_now["value"])
 
     err = pymysql.err.OperationalError(2013, "Lost connection")
     assert (
@@ -396,7 +396,7 @@ def test_publish_throttle_interval_is_configurable(monkeypatch):
         mlrun.mlconf.events.db_connection, "min_emit_interval_seconds", 5
     )
     fake_now = {"value": 1000.0}
-    monkeypatch.setattr(db_errors.time, "monotonic", lambda: fake_now["value"])
+    monkeypatch.setattr(db_errors.throttle.time, "monotonic", lambda: fake_now["value"])
 
     err = pymysql.err.OperationalError(2013, "Lost connection")
     assert (

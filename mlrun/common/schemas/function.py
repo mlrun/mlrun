@@ -36,6 +36,9 @@ class FunctionState:
     unknown = "unknown"
     ready = "ready"
     error = "error"  # represents deployment error
+    # nuclio-only: pod is up but failing health checks. Distinct from `error` —
+    # nuclio reports it as a raw string and does not map it to FunctionState.error.
+    unhealthy = "unhealthy"
 
     deploying = "deploying"
     # there is currently an abuse usage of the builder (lower) pod state as the function state, ideally these two would
@@ -65,6 +68,13 @@ class FunctionState:
             cls.ready,
             cls.error,
             cls.skipped,
+        ]
+
+    @classmethod
+    def failed_states(cls):
+        return [
+            cls.error,
+            cls.unhealthy,
         ]
 
 

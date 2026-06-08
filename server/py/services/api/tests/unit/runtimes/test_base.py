@@ -245,6 +245,176 @@ def test_user_plain_var_wins_over_both_global_and_project_secrets(monkeypatch):
     )
 
 
+def test_auto_mount_injected_plain_env_overridden_by_project_secret(monkeypatch):
+    """An auto-mount plain value is replaced by the project secret's secretKeyRef.
+
+    Regression for ML-12572: on IG4 the SDK applies mount_s3 client-side, which
+    writes AWS_ENDPOINT_URL_S3 as a plain value (the minio endpoint). The server
+    then runs add_k8s_secrets_to_spec; that plain value must NOT be mistaken for
+    a user-set value, so the project secret's secretKeyRef takes over.
+    """
+
+    runtime = mlrun.runtimes.KubejobRuntime()
+    shared_key = "AWS_ENDPOINT_URL_S3"
+    auto_mount_value = "https://minio-lab.iguazeng.com"
+
+    # Simulate what mount_s3 does on the SDK side: plain write + marker.
+    runtime.set_env(shared_key, auto_mount_value)
+    runtime.mark_env_auto_mount_injected(shared_key)
+
+    project_name = "test-project"
+    project_secret_keys = [shared_key]
+
+    mock_k8s = MagicMock()
+    mock_k8s.get_secret_data.return_value = {}  # no global secrets
+    mock_k8s.get_project_secret_name.return_value = "mlrun-project-secrets-test"
+    mock_k8s.get_project_secret_keys.return_value = project_secret_keys
+
+    monkeypatch.setattr(
+        mlconf.secret_stores.kubernetes,
+        "global_function_env_secret_name",
+        "",
+    )
+    monkeypatch.setattr(
+        mlconf.secret_stores.kubernetes,
+        "auto_add_project_secrets",
+        True,
+    )
+    with patch(
+        "services.api.runtime_handlers.base.framework.utils.singletons.k8s.get_k8s_helper",
+        return_value=mock_k8s,
+    ):
+        BaseRuntimeHandler.add_k8s_secrets_to_spec(
+            secrets=None,
+            runtime=runtime,
+            project_name=project_name,
+            encode_key_names=False,
+        )
+
+    env_var = find_env_var(runtime, shared_key)
+    assert env_var is not None
+    assert env_var.value_from is not None, (
+        f"REGRESSION (ML-12572): '{shared_key}' should be a secretKeyRef from "
+        f"the project secret, but the auto-mount plain value "
+        f"value={env_var.value!r} survived."
+    )
+    assert env_var.value is None
+    secret_ref = env_var.value_from.secret_key_ref
+    assert secret_ref.name == "mlrun-project-secrets-test"
+    assert secret_ref.key == shared_key
+    # Marker is consumed once the project secret replaces the value.
+    assert shared_key not in runtime.spec.auto_mount_injected_env_names
+
+
+def test_auto_mount_injected_plain_env_overridden_by_global_secret(monkeypatch):
+    """Symmetric to the project-secret case for the global-function-env path."""
+
+    runtime = mlrun.runtimes.KubejobRuntime()
+    shared_key = "AWS_ENDPOINT_URL_S3"
+    auto_mount_value = "https://minio-lab.iguazeng.com"
+
+    runtime.set_env(shared_key, auto_mount_value)
+    runtime.mark_env_auto_mount_injected(shared_key)
+
+    global_secret_name = "global-secret"
+    mock_k8s = MagicMock()
+    mock_k8s.get_secret_data.return_value = {shared_key: "ignored"}
+
+    monkeypatch.setattr(
+        mlconf.secret_stores.kubernetes,
+        "global_function_env_secret_name",
+        global_secret_name,
+    )
+    with patch(
+        "services.api.runtime_handlers.base.framework.utils.singletons.k8s.get_k8s_helper",
+        return_value=mock_k8s,
+    ):
+        BaseRuntimeHandler.add_k8s_secrets_to_spec(
+            secrets=None,
+            runtime=runtime,
+            project_name=None,
+            encode_key_names=False,
+        )
+
+    env_var = find_env_var(runtime, shared_key)
+    assert env_var is not None
+    assert env_var.value_from is not None
+    assert env_var.value is None
+    secret_ref = env_var.value_from.secret_key_ref
+    assert secret_ref.name == global_secret_name
+
+
+def test_mount_s3_on_application_runtime_overridden_by_project_secret(monkeypatch):
+    """End-to-end ML-12572 reproducer on ApplicationRuntime.
+
+    Walks the actual buggy code path: SDK applies mount_s3 to an
+    ApplicationRuntime, the spec is serialized and reconstructed (as it would
+    be when sent to the API server), and then `add_k8s_secrets_to_spec` runs.
+    The project secret's secretKeyRef must replace the auto-mount plain value.
+    """
+    import mlrun.runtimes.mounts
+
+    # SDK side: build an ApplicationRuntime and apply mount_s3, mirroring the
+    # IG4 auto_mount_type=s3 configuration that triggered the bug.
+    sdk_function = mlrun.new_function(
+        "application-test", kind="application", image="mlrun/mlrun"
+    )
+    shared_key = "AWS_ENDPOINT_URL_S3"
+    auto_mount_value = "https://minio-lab.iguazeng.com"
+    sdk_function.apply(
+        mlrun.runtimes.mounts.mount_s3(
+            secret_name="minio-credentials",
+            endpoint_url=auto_mount_value,
+        )
+    )
+
+    # API server side: reconstruct the runtime from the serialized dict.
+    runtime = mlrun.new_function(runtime=sdk_function.to_dict())
+    assert shared_key in runtime.spec.auto_mount_injected_env_names
+
+    project_name = "test-project"
+    project_secret_keys = [shared_key]
+
+    mock_k8s = MagicMock()
+    mock_k8s.get_secret_data.return_value = {}  # no global secrets
+    mock_k8s.get_project_secret_name.return_value = "mlrun-project-secrets-test"
+    mock_k8s.get_project_secret_keys.return_value = project_secret_keys
+
+    monkeypatch.setattr(
+        mlconf.secret_stores.kubernetes,
+        "global_function_env_secret_name",
+        "",
+    )
+    monkeypatch.setattr(
+        mlconf.secret_stores.kubernetes,
+        "auto_add_project_secrets",
+        True,
+    )
+    with patch(
+        "services.api.runtime_handlers.base.framework.utils.singletons.k8s.get_k8s_helper",
+        return_value=mock_k8s,
+    ):
+        BaseRuntimeHandler.add_k8s_secrets_to_spec(
+            secrets=None,
+            runtime=runtime,
+            project_name=project_name,
+            encode_key_names=False,
+        )
+
+    env_var = find_env_var(runtime, shared_key)
+    assert env_var is not None
+    assert env_var.value_from is not None, (
+        f"REGRESSION (ML-12572): on ApplicationRuntime, '{shared_key}' should be a "
+        f"secretKeyRef from the project secret, but the auto-mount plain value "
+        f"value={env_var.value!r} survived the SDK↔API round-trip and the resolver."
+    )
+    assert env_var.value is None
+    secret_ref = env_var.value_from.secret_key_ref
+    assert secret_ref.name == "mlrun-project-secrets-test"
+    assert secret_ref.key == shared_key
+    assert shared_key not in runtime.spec.auto_mount_injected_env_names
+
+
 def find_env_var(runtime, name):
     """Find an env var by name in the runtime spec."""
 

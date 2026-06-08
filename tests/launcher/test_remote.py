@@ -14,6 +14,7 @@
 
 import pathlib
 import unittest.mock
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -108,6 +109,58 @@ def test_prepare_image_for_deploy(
     launcher.prepare_image_for_deploy(runtime)
     assert runtime.spec.build.base_image == expected_base_image
     assert runtime.spec.image == expected_image
+
+
+def test_enrich_runtime_resolves_code_artifact_and_shifts_image(rundb_mock):
+    """image=X + code-artifact with reqs must shift image->base_image."""
+    launcher = mlrun.launcher.remote.ClientRemoteLauncher()
+    runtime = mlrun.new_function(name="test", kind="job", image="some/image:tag")
+    runtime.metadata.project = "proj"
+    runtime.spec.build.source = "store://artifacts/proj/my_code"
+
+    artifact = MagicMock()
+    artifact.kind = "code"
+    artifact.spec.requirements = ["opentelemetry-api"]
+
+    with patch("mlrun.datastore.get_store_resource", return_value=artifact):
+        launcher.enrich_runtime(runtime, project_name="proj")
+
+    assert runtime.spec.build.requirements == ["opentelemetry-api"]
+    assert runtime.spec.build.base_image == "some/image:tag"
+    assert runtime.spec.image == ""
+    assert runtime.requires_build() is True
+
+
+def test_enrich_runtime_no_store_source_skips_artifact_resolution(rundb_mock):
+    launcher = mlrun.launcher.remote.ClientRemoteLauncher()
+    runtime = mlrun.new_function(name="test", kind="job", image="some/image:tag")
+    runtime.metadata.project = "proj"
+    runtime.spec.build.source = ""
+
+    with patch("mlrun.datastore.get_store_resource") as mock_get:
+        launcher.enrich_runtime(runtime, project_name="proj")
+        mock_get.assert_not_called()
+
+    assert runtime.spec.image == "some/image:tag"
+    assert runtime.spec.build.base_image is None
+
+
+def test_enrich_runtime_artifact_without_requirements_keeps_image(rundb_mock):
+    launcher = mlrun.launcher.remote.ClientRemoteLauncher()
+    runtime = mlrun.new_function(name="test", kind="job", image="some/image:tag")
+    runtime.metadata.project = "proj"
+    runtime.spec.build.source = "store://artifacts/proj/my_code"
+
+    artifact = MagicMock()
+    artifact.kind = "code"
+    artifact.spec.requirements = None
+
+    with patch("mlrun.datastore.get_store_resource", return_value=artifact):
+        launcher.enrich_runtime(runtime, project_name="proj")
+
+    assert not runtime.spec.build.requirements
+    assert runtime.spec.image == "some/image:tag"
+    assert runtime.spec.build.base_image is None
 
 
 def test_run_error_status(rundb_mock):

@@ -142,7 +142,7 @@ class BaseRunner(metaclass=mlrun.utils.singleton.Singleton):
         #  make sure it is safe for scheduling and project load endpoint.
         return runner.run(
             runspec=run_object,
-            artifact_path=artifact_path,
+            output_path=artifact_path,
             local=False,
             watch=False,
             auth_info=auth_info,
@@ -571,6 +571,7 @@ class WorkflowRunners(BaseRunner, metaclass=mlrun.utils.singleton.Singleton):
             local=workflow_request.spec.run_local,
             subpath=project.spec.subpath,
             url=source,
+            run_setup=workflow_request.spec.run_setup,
         )
 
         run_object = self._create_run_object(

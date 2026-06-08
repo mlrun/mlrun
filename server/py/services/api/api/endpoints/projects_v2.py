@@ -27,6 +27,7 @@ import framework.utils.auth.verifier
 import framework.utils.background_tasks
 import framework.utils.clients.chief
 import framework.utils.helpers
+import framework.utils.project_formats
 import services.api.crud
 from framework.utils.singletons.project_member import get_project_member
 
@@ -56,10 +57,21 @@ async def delete_project(
         framework.api.deps.get_db_session
     ),
 ):
-    # check if project exists
+    # check if project exists; fetch only the columns we actually need below
+    # (existence, owner for the short-circuit, state for the archived fallback)
     try:
         project = await run_in_threadpool(
-            get_project_member().get_project, db_session, name, auth_info
+            get_project_member().get_project,
+            db_session,
+            name,
+            auth_info,
+            format_=framework.utils.project_formats.ProjectFormatCustomSelection(
+                [
+                    framework.utils.project_formats.ProjectFormatCustom.name,
+                    framework.utils.project_formats.ProjectFormatCustom.owner,
+                    framework.utils.project_formats.ProjectFormatCustom.state,
+                ]
+            ),
         )
     except mlrun.errors.MLRunNotFoundError:
         logger.info("Project not found, nothing to delete", project=name)
@@ -88,27 +100,35 @@ async def delete_project(
         mlrun.mlconf.is_iguazio_v4_mode()
         or not framework.utils.helpers.is_request_from_leader(auth_info.projects_role)
     ):
-        skip_permission_check = False
-        if project.status.state == mlrun.common.schemas.ProjectState.archived:
-            try:
-                await run_in_threadpool(
-                    get_project_member().get_project,
-                    db_session,
-                    name,
-                    auth_info,
-                    from_leader=True,
-                )
-            except mlrun.errors.MLRunNotFoundError:
-                skip_permission_check = True
+        verifier = framework.utils.auth.verifier.AuthVerifier()
+        if verifier.is_project_owner(auth_info, project):
+            # Owners are trusted via spec.owner; populate the OPA owner cache
+            # and skip both the archived-state leader fallback and the OPA
+            # permission query. This mitigates the OPA manifest propagation
+            # race on multi-pod deployments, avoids the redundant follower
+            # round-trip for owners, and keeps the short-circuit in place
+            # for retries / follow-up calls if the delete fails.
+            verifier.add_allowed_project_for_owner(name, auth_info)
+        else:
+            skip_permission_check = False
+            if project.status.state == mlrun.common.schemas.ProjectState.archived:
+                try:
+                    await run_in_threadpool(
+                        get_project_member().get_project,
+                        db_session,
+                        name,
+                        auth_info,
+                        from_leader=True,
+                    )
+                except mlrun.errors.MLRunNotFoundError:
+                    skip_permission_check = True
 
-        if not skip_permission_check:
-            await (
-                framework.utils.auth.verifier.AuthVerifier().query_project_permissions(
+            if not skip_permission_check:
+                await verifier.query_project_permissions(
                     name,
                     mlrun.common.schemas.AuthorizationAction.delete,
                     auth_info,
                 )
-            )
 
     # we need to implement the verify_project_is_empty, since we don't want
     # to spawn a background task for this, only to return a response

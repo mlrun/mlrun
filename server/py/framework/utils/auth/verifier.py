@@ -363,6 +363,24 @@ class AuthVerifier(metaclass=mlrun.utils.singleton.Singleton):
         return resource
 
     @staticmethod
+    def is_project_owner(
+        auth_info: schemas.AuthInfo,
+        project: schemas.Project | None,
+    ) -> bool:
+        """Whether auth_info matches project.spec.owner.
+
+        Used to short-circuit OPA permission checks via the owner cache
+        (see `add_allowed_project_for_owner`). Tolerant of partial-format
+        projects that omit `spec`.
+        """
+        return bool(
+            auth_info.username
+            and getattr(project, "spec", None)
+            and project.spec.owner
+            and auth_info.username == project.spec.owner
+        )
+
+    @staticmethod
     def _basic_auth_configured():
         return mlrun.mlconf.httpdb.authentication.mode == AuthenticationMode.BASIC and (
             mlrun.mlconf.httpdb.authentication.basic.username

@@ -21,6 +21,7 @@ from fastapi.concurrency import run_in_threadpool
 import mlrun.common.schemas
 import mlrun.common.schemas.model_monitoring.constants as mm_constants
 import mlrun.errors
+from mlrun.utils import logger
 
 import services.api.crud.functions
 import services.api.crud.projects
@@ -61,27 +62,38 @@ async def get_stream_url(
     :param db_session: A session that manages the current dialog with the database.
     :param project:    Project name.
     :return: Internal cluster HTTP URL of the stream pod, or None when no HTTP trigger is configured.
+        A non-ready stream pod (e.g. mid-deploy, scaling) still returns its URL with a warning —
+        the URL may not be reachable until the pod becomes ready. A stream pod in terminal
+        error state raises (the deploy cannot rely on a broken stream).
     :raises MLRunNotFoundError: if the stream function is not deployed.
-    :raises MLRunPreconditionFailedError: if the stream function is not in ready state.
+    :raises MLRunPreconditionFailedError: if the stream function is in terminal error state.
     """
-    func = await run_in_threadpool(
-        services.api.crud.functions.Functions().get_function,
-        db_session,
-        mm_constants.MonitoringFunctionNames.STREAM,
-        project,
-    )
-    if not func:
+    try:
+        func = await run_in_threadpool(
+            services.api.crud.functions.Functions().get_function,
+            db_session,
+            mm_constants.MonitoringFunctionNames.STREAM,
+            project,
+        )
+    except mlrun.errors.MLRunNotFoundError as exc:
         raise mlrun.errors.MLRunNotFoundError(
             f"Model monitoring stream function not found for project {project!r}. "
             f"Run `project.enable_model_monitoring()` first."
-        )
+        ) from exc
 
     status = func.get("status", {})
     state = status.get("state", "")
-    if state != "ready":
+    if state in mlrun.common.schemas.FunctionState.failed_states():
         raise mlrun.errors.MLRunPreconditionFailedError(
-            f"Model monitoring stream function is not ready "
-            f"(state={state!r}) for project {project!r}."
+            f"Model monitoring stream function is in terminal failure state {state!r} "
+            f"for project {project!r}. Re-run `project.enable_model_monitoring()` to recover."
+        )
+    if state != mlrun.common.schemas.FunctionState.ready:
+        logger.warning(
+            "Model monitoring stream function is not in ready state — "
+            "MODEL_MONITORING_URL may not be reachable until the stream pod becomes ready.",
+            project=project,
+            state=state,
         )
 
     internal_urls = status.get("internal_invocation_urls") or []

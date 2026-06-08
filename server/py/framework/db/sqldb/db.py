@@ -18,6 +18,7 @@ import functools
 import hashlib
 import inspect
 import pathlib
+import pickle
 import re
 import typing
 import urllib.parse
@@ -3734,6 +3735,9 @@ class SQLDB(DBInterface):
         dict[str, int],
         dict[str, int],
         dict[str, int],
+        dict[str, list[tuple[str, int]]],
+        dict[str, int],
+        dict[str, int],
     ]:
         results = await asyncio.gather(
             fastapi.concurrency.run_in_threadpool(
@@ -3765,6 +3769,18 @@ class SQLDB(DBInterface):
                 framework.db.session.run_function_with_new_db_session,
                 self._calculate_mep_counters,
             ),
+            fastapi.concurrency.run_in_threadpool(
+                framework.db.session.run_function_with_new_db_session,
+                self._calculate_functions_counters,
+            ),
+            fastapi.concurrency.run_in_threadpool(
+                framework.db.session.run_function_with_new_db_session,
+                self._calculate_alert_configs_counters,
+            ),
+            fastapi.concurrency.run_in_threadpool(
+                framework.db.session.run_function_with_new_db_session,
+                self._calculate_workflow_counters,
+            ),
         )
         (
             category_to_project_artifact_count,
@@ -3793,6 +3809,9 @@ class SQLDB(DBInterface):
                 project_to_real_time_mep_count,
                 project_to_batch_mep_count,
             ),
+            project_to_function_kind_counts,
+            project_to_alert_config_count,
+            project_to_workflow_count,
         ) = results
         # TODO: counters by artifact categories should be expanded to include all categories (currently only models
         #       and other)
@@ -3832,6 +3851,9 @@ class SQLDB(DBInterface):
             project_to_failed_mm_functions_count,
             project_to_real_time_mep_count,
             project_to_batch_mep_count,
+            project_to_function_kind_counts,
+            project_to_alert_config_count,
+            project_to_workflow_count,
         )
 
     @staticmethod
@@ -3847,16 +3869,77 @@ class SQLDB(DBInterface):
         return query
 
     @staticmethod
-    def _calculate_functions_counters(session) -> dict[str, int]:
-        functions_count_per_project = (
-            session.query(Function.project, func.count(distinct(Function.name)))
-            .group_by(Function.project)
+    def _calculate_functions_counters(
+        session,
+    ) -> dict[str, list[tuple[str, int]]]:
+        """Count distinct functions per project, grouped by kind.
+
+        Versions/tags are collapsed via ``COUNT(DISTINCT name)`` so each
+        logical function is counted once per kind it appears under. Backed by
+        the ``idx_function_project_kind`` index on ``(project, kind)``.
+
+        :param session: The active DB session.
+
+        :return: Mapping of project name to a list of ``(kind, count)`` pairs.
+        """
+        rows = (
+            session.query(
+                Function.project,
+                Function.kind,
+                func.count(distinct(Function.name)),
+            )
+            .group_by(Function.project, Function.kind)
             .all()
         )
-        project_to_function_count = {
-            result[0]: result[1] for result in functions_count_per_project
-        }
-        return project_to_function_count
+        project_to_kind_counts: dict[str, list[tuple[str, int]]] = (
+            collections.defaultdict(list)
+        )
+        for project, kind, count in rows:
+            project_to_kind_counts[project].append((kind or "unknown", count))
+        return project_to_kind_counts
+
+    @staticmethod
+    def _calculate_alert_configs_counters(session) -> dict[str, int]:
+        """Count distinct alert configurations per project.
+
+        Backed by the leftmost-prefix of the ``_alert_configs_uc``
+        ``(project, name)`` unique constraint, which a B-tree planner can use
+        for the GROUP BY without an extra index.
+
+        :param session: The active DB session.
+
+        :return: Mapping of project name to alert-configuration count.
+        """
+        counts = (
+            session.query(AlertConfig.project, func.count(distinct(AlertConfig.name)))
+            .group_by(AlertConfig.project)
+            .all()
+        )
+        return {project: count for project, count in counts}
+
+    @staticmethod
+    def _calculate_workflow_counters(session) -> dict[str, int]:
+        """Count workflow definitions per project.
+
+        Workflows are not a top-level table — they live inside the pickled
+        ``Project._full_object`` blob under ``spec.workflows``. We fetch only
+        the two columns we need (avoiding full ORM materialization) and
+        unpickle each row's blob to read the workflows list length.
+
+        :param session: The active DB session.
+
+        :return: Mapping of project name to workflow-definition count.
+        """
+        project_to_workflow_count: dict[str, int] = {}
+        rows = session.query(Project.name, Project._full_object).all()
+        for project_name, full_object_blob in rows:
+            if not full_object_blob:
+                project_to_workflow_count[project_name] = 0
+                continue
+            full_object = pickle.loads(full_object_blob)
+            workflows = (full_object.get("spec") or {}).get("workflows") or []
+            project_to_workflow_count[project_name] = len(workflows)
+        return project_to_workflow_count
 
     @staticmethod
     def _calculate_schedules_counters(

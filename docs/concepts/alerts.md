@@ -82,7 +82,7 @@ By default, the `cooldown_period` is not set.
 
 Guidelines:
 - The `reset_policy` must be set to `auto`.
-- The `cooldown_period` must be >0. (If set to 0, alarms are reset immediately.)
+- The `cooldown_period` must be >0. (If set to 0, alerts are reset immediately.)
 - Cooldown periods can be set as, for example, 1d, 3h, 5m, 15s, etc.
 - `cooldown_period` must be at least `cooldown_reset_interval`. See [System configuration](#system-configuration).
 

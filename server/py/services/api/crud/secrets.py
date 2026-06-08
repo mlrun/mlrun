@@ -506,8 +506,26 @@ class Secrets(
         auth_info: mlrun.common.schemas.AuthInfo,
         username: str | None = None,
     ) -> mlrun.common.schemas.ListSecretTokensResponse:
-        raise NotImplementedError(
-            "Listing secret tokens is not supported; a single token is stored per user."
+        """
+        List offline token secrets stored in Kubernetes.
+
+        By default, this lists tokens for the authenticated user.
+        Admins can list tokens for other users by providing a username.
+
+        :param auth_info: Authentication information of the requesting user.
+        :param username: Target username to list tokens for. If None or matches
+                         auth_info.username, lists the authenticated user's tokens.
+                         Use "*" to list all users' tokens (admin only).
+        :return: ListSecretTokensResponse containing token names and expirations.
+        """
+        target_username = self._get_target_username(auth_info, username)
+
+        secret_tokens = self.secrets_provider.list_user_token_secrets(
+            username=target_username,
+        )
+
+        return mlrun.common.schemas.ListSecretTokensResponse(
+            secret_tokens=secret_tokens
         )
 
     def _delete_single_token(

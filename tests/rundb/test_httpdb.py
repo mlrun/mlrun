@@ -1502,16 +1502,9 @@ def test_store_secret_token_invalid_inputs(create_server):
         db.store_secret_token(None)
 
 
-@pytest.mark.parametrize(
-    "call",
-    [
-        lambda db: db.store_secret_tokens([]),
-        lambda db: db.list_secret_tokens(),
-    ],
-)
-def test_bulk_secret_token_methods_not_implemented(create_server, call):
-    # Only a single token is stored per user, so store/list of multiple tokens are
-    # kept for API compatibility but no longer supported.
+def test_store_secret_tokens_not_implemented(create_server):
+    # Storing multiple tokens cannot apply to a single-token-per-user model, so the
+    # bulk store is kept for API compatibility but no longer supported.
     server: Server = create_server()
     db: HTTPRunDB = server.conn
     mlrun.mlconf.httpdb.authentication.mode = (
@@ -1519,7 +1512,7 @@ def test_bulk_secret_token_methods_not_implemented(create_server, call):
     )
 
     with pytest.raises(NotImplementedError):
-        call(db)
+        db.store_secret_tokens([])
 
 
 # TODO add test for force parameter when IG4 mode is enabled for integration test (ML-11332)

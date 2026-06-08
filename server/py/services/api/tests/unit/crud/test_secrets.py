@@ -901,13 +901,53 @@ def test_store_secret_tokens_refresh_access_tokens_failure(mock_iguazio_client):
     mock_iguazio_client.refresh_access_tokens.assert_called_once_with(secret_tokens)
 
 
-def test_list_secret_tokens_not_implemented():
-    # A single token is stored per user, so listing is no longer supported.
+def test_list_secret_tokens_returns_tokens():
     auth_info = mlrun.common.schemas.AuthInfo(
         username="dummy-user", user_id="user-id-123"
     )
-    with pytest.raises(NotImplementedError):
-        services.api.crud.Secrets().list_secret_tokens(auth_info=auth_info)
+    iat1 = datetime.datetime(2025, 6, 26, 22, 6, 31, tzinfo=datetime.UTC)
+    exp1 = datetime.datetime(2025, 6, 26, 23, 6, 31, tzinfo=datetime.UTC)
+    iat2 = datetime.datetime(2025, 9, 11, 11, 0, 0, tzinfo=datetime.UTC)
+    exp2 = datetime.datetime(2025, 9, 11, 12, 0, 0, tzinfo=datetime.UTC)
+    expected_tokens = [
+        mlrun.common.schemas.SecretTokenInfo(
+            name="jupyter",
+            expiration=exp1,
+            issued_at=iat1,
+            user_id="user-id-123",
+            username="dummy-user",
+        ),
+        mlrun.common.schemas.SecretTokenInfo(
+            name="my-token",
+            expiration=exp2,
+            issued_at=iat2,
+            user_id="user-id-123",
+            username="dummy-user",
+        ),
+    ]
+
+    mock_secrets_provider = unittest.mock.Mock()
+    services.api.crud.Secrets().secrets_provider = mock_secrets_provider
+    services.api.crud.Secrets().secrets_provider.list_user_token_secrets = (
+        unittest.mock.Mock(return_value=expected_tokens)
+    )
+
+    response = services.api.crud.Secrets().list_secret_tokens(auth_info=auth_info)
+
+    assert isinstance(response, mlrun.common.schemas.ListSecretTokensResponse)
+    assert len(response.secret_tokens) == 2
+    assert response.secret_tokens[0].name == "jupyter"
+    assert response.secret_tokens[0].expiration == exp1
+    assert response.secret_tokens[0].issued_at == iat1
+    assert response.secret_tokens[0].user_id == "user-id-123"
+    assert response.secret_tokens[1].name == "my-token"
+    assert response.secret_tokens[1].expiration == exp2
+    assert response.secret_tokens[1].issued_at == iat2
+    assert response.secret_tokens[1].user_id == "user-id-123"
+
+    mock_secrets_provider.list_user_token_secrets.assert_called_once_with(
+        username=auth_info.username
+    )
 
 
 def test_delete_secret_token_success(mock_iguazio_client):

@@ -75,7 +75,7 @@ See all of the {py:class}`~mlrun.alerts.alert.AlertConfig` parameters.
 ### Cooldown period
 
 The `cooldown_period` parameter of `AlertConfig` can be used to delay resetting an alert. 
-The alert remains active for the duration of the `cooldown_period`, and incoming events are ignored. 
+The alert remains active for the duration of the `cooldown_period`, and incoming events are ignored (no additional notifications are sent). 
 After the cooldown period expires and the alert is reset, it can be triggered again by new events.
 The reset timing is approximate: reset happens when a periodic task runs, by default, every ~15s. 
 By default, the `cooldown_period` is not set.

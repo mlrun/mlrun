@@ -124,8 +124,10 @@ class AlertConfig(ModelObj):
                                   if it is set).
 
         :param cooldown_period: Period during which the alert remains active after being triggered before it
-                               is automatically reset. Only applicable when reset_policy=auto and
-                               cooldown_period > 0. If not set or set to zero, the alert resets
+                               is automatically reset. Only applicable when reset_policy=auto,
+                               cooldown_period > 0, and cooldown_period > the server's cooldown_reset_interval
+                               (15s by default, modifiable by Support).
+                               If not set or set to zero, the alert resets
                                immediately. Format: e.g. 1d, 3h, 5m, 15s.
         :param notifications:  List of notifications to invoke once the alert is triggered
         :param entities:       Entities that the event relates to. The entity object will contain fields that

@@ -1507,12 +1507,11 @@ def test_store_secret_token_invalid_inputs(create_server):
     [
         lambda db: db.store_secret_tokens([]),
         lambda db: db.list_secret_tokens(),
-        lambda db: db.delete_secret_tokens(),
     ],
 )
 def test_bulk_secret_token_methods_not_implemented(create_server, call):
-    # Only a single token is stored per user, so the bulk operations are kept for
-    # API compatibility but no longer supported.
+    # Only a single token is stored per user, so store/list of multiple tokens are
+    # kept for API compatibility but no longer supported.
     server: Server = create_server()
     db: HTTPRunDB = server.conn
     mlrun.mlconf.httpdb.authentication.mode = (

@@ -5476,10 +5476,39 @@ class HTTPRunDB(RunDBInterface):
     def delete_secret_tokens(
         self, username: str | None = None
     ) -> mlrun.common.schemas.DeleteSecretTokensResponse:
-        raise NotImplementedError(
-            "Deleting multiple secret tokens is not supported; a single token is "
-            "stored per user. Use `delete_secret_token` instead."
+        """
+        Delete the user's stored secret token, if one exists. Only system-administrators
+        can delete tokens for other users.
+
+        A single token is stored per user, so this deletes that token when present.
+
+        :param username: Optional; the username of the token owner. If None, deletes the
+            caller's own token.
+        :return: A ``DeleteSecretTokensResponse`` with deleted_count and any failed_tokens.
+        """
+        endpoint_path = "user-secrets/tokens"
+        params = {"username": username} if username else None
+        response = self.api_call(
+            mlrun.common.types.HTTPMethod.DELETE,
+            endpoint_path,
+            "delete user secret tokens",
+            params=params,
         )
+        result = mlrun.common.schemas.DeleteSecretTokensResponse(**response.json())
+        if result.failed_tokens:
+            logger.warning(
+                "Tokens deletion completed with failures",
+                username=result.username,
+                deleted_count=result.deleted_count,
+                failed_count=len(result.failed_tokens),
+            )
+        else:
+            logger.debug(
+                "Tokens deletion completed",
+                username=result.username,
+                deleted_count=result.deleted_count,
+            )
+        return result
 
     @mlrun.utils.iguazio_v4_only
     def get_secret_token(

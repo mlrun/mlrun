@@ -122,7 +122,7 @@ alert_data = mlrun.alerts.alert.AlertConfig(
     ),
     trigger=alert_objects.AlertTrigger(events=[event_name]),
     criteria=alert_objects.AlertCriteria(period="10m", count=3),
-    cooldown_period=30s,
+    cooldown_period="30s",
     notifications=notifications,
 )
 

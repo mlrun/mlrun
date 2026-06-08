@@ -1149,7 +1149,7 @@ def test_list_user_token_secrets_invalid_expiration(k8s_helper):
         username=username,
     )
     k8s_helper.resolve_namespace = mock.MagicMock(return_value="default")
-    k8s_helper.list_secrets = mock.MagicMock(return_value=[bad_secret])
+    k8s_helper.v1api.read_namespaced_secret = mock.MagicMock(return_value=bad_secret)
 
     result = k8s_helper.list_user_token_secrets(username=username, namespace="default")
     assert len(result) == 0
@@ -1167,7 +1167,7 @@ def test_list_user_token_secrets_invalid_issued_at(k8s_helper):
         username=username,
     )
     k8s_helper.resolve_namespace = mock.MagicMock(return_value="default")
-    k8s_helper.list_secrets = mock.MagicMock(return_value=[bad_secret])
+    k8s_helper.v1api.read_namespaced_secret = mock.MagicMock(return_value=bad_secret)
 
     result = k8s_helper.list_user_token_secrets(username=username, namespace="default")
     assert len(result) == 0
@@ -1190,7 +1190,9 @@ def test_get_user_token_secret_value_valid(k8s_helper):
     )
 
     k8s_helper.resolve_namespace = mock.MagicMock(return_value="default")
-    k8s_helper.list_secrets = mock.MagicMock(return_value=[existing_secret])
+    k8s_helper.v1api.read_namespaced_secret = mock.MagicMock(
+        return_value=existing_secret
+    )
 
     token_value_from_k8s = k8s_helper.get_user_token_secret_value(
         user_id=user_id,
@@ -1199,7 +1201,76 @@ def test_get_user_token_secret_value_valid(k8s_helper):
     )
 
     assert token_value_from_k8s == token_value
-    k8s_helper.list_secrets.assert_called_once()
+    k8s_helper.v1api.read_namespaced_secret.assert_called_once()
+
+
+def test_get_user_token_secret_value_resolves_by_user_id_ignoring_token_name(
+    k8s_helper,
+):
+    # A single token is stored per user, so a caller that pinned an older token name
+    # (e.g. a schedule created before the user rotated their token) still resolves to
+    # the user's current token. The secret is keyed on user_id, not the token name.
+    user_id = "test-user-id"
+    stored_token_name = "token-b"  # the user's current token after rotation
+    pinned_token_name = "token-a"  # the name a schedule was created with
+    token_value = "current-token-value"
+
+    secret_name = k8s_helper._resolve_auth_secret_name(user_id, stored_token_name)
+    existing_secret = _make_user_token_secret(
+        secret_name,
+        token_name=stored_token_name,
+        token_value=token_value,
+        issued_at=1,
+        expiration=9999,
+        user_id=user_id,
+    )
+
+    k8s_helper.resolve_namespace = mock.MagicMock(return_value="default")
+    k8s_helper.v1api.read_namespaced_secret = mock.MagicMock(
+        return_value=existing_secret
+    )
+
+    token_value_from_k8s = k8s_helper.get_user_token_secret_value(
+        user_id=user_id,
+        token_name=pinned_token_name,
+        namespace="default",
+    )
+
+    assert token_value_from_k8s == token_value
+    # The secret is read by the user_id-based name regardless of the requested name.
+    assert secret_name in k8s_helper.v1api.read_namespaced_secret.call_args.args
+
+
+def test_get_user_secret_tokens_as_igz_yml_data_resolves_current_token_after_rotation(
+    k8s_helper,
+):
+    # The job/schedule mount path requests the pinned token name but receives the
+    # user's current token, so a rotated token keeps existing jobs working.
+    user_id = "test-user-id"
+    stored_token_name = "token-b"
+    pinned_token_name = "token-a"
+    token_value = "current-token-value"
+
+    secret_name = k8s_helper._resolve_auth_secret_name(user_id, stored_token_name)
+    existing_secret = _make_user_token_secret(
+        secret_name,
+        token_name=stored_token_name,
+        token_value=token_value,
+        issued_at=1,
+        expiration=9999,
+        user_id=user_id,
+    )
+
+    k8s_helper.resolve_namespace = mock.MagicMock(return_value="default")
+    k8s_helper.v1api.read_namespaced_secret = mock.MagicMock(
+        return_value=existing_secret
+    )
+
+    result = k8s_helper.get_user_secret_tokens_as_igz_yml_data(
+        user_id=user_id, token_name=pinned_token_name
+    )
+
+    assert result == [{"name": pinned_token_name, "token": token_value}]
 
 
 def test_get_user_token_secret_value_not_found(k8s_helper):
@@ -1207,7 +1278,9 @@ def test_get_user_token_secret_value_not_found(k8s_helper):
     token_name = "my-token"
 
     k8s_helper.resolve_namespace = mock.MagicMock(return_value="default")
-    k8s_helper.list_secrets = mock.MagicMock(return_value=[])
+    k8s_helper.v1api.read_namespaced_secret = mock.MagicMock(
+        side_effect=k8s_client_rest.ApiException(status=404)
+    )
 
     with pytest.raises(mlrun.errors.MLRunNotFoundError):
         k8s_helper.get_user_token_secret_value(user_id, token_name, namespace="default")
@@ -1241,7 +1314,7 @@ def test_get_user_token_secret_value_invalid_base64(k8s_helper):
     bad_secret.data["tokenExpiration"] = base64.b64encode(b"9999").decode()
 
     k8s_helper.resolve_namespace = mock.MagicMock(return_value="default")
-    k8s_helper.list_secrets = mock.MagicMock(return_value=[bad_secret])
+    k8s_helper.v1api.read_namespaced_secret = mock.MagicMock(return_value=bad_secret)
 
     with pytest.raises(mlrun.errors.MLRunRuntimeError):
         k8s_helper.get_user_token_secret_value(
@@ -1272,7 +1345,7 @@ def test_get_user_token_secret_value_invalid_yaml(k8s_helper):
     )
     bad_secret.data["tokensFile"] = bad_yaml
     k8s_helper.resolve_namespace = mock.MagicMock(return_value="default")
-    k8s_helper.list_secrets = mock.MagicMock(return_value=[bad_secret])
+    k8s_helper.v1api.read_namespaced_secret = mock.MagicMock(return_value=bad_secret)
 
     with pytest.raises(mlrun.errors.MLRunRuntimeError):
         k8s_helper.get_user_token_secret_value(user_id, token_name, namespace="default")
@@ -1392,7 +1465,9 @@ def test_get_user_secret_tokens_as_igz_yml_data_single_token(k8s_helper):
         expiration=9999,
         user_id=user_id,
     )
-    k8s_helper.list_secrets = mock.MagicMock(return_value=[existing_secret])
+    k8s_helper.v1api.read_namespaced_secret = mock.MagicMock(
+        return_value=existing_secret
+    )
 
     result = k8s_helper.get_user_secret_tokens_as_igz_yml_data(
         user_id=user_id, token_name=token_name
@@ -1406,7 +1481,9 @@ def test_get_user_secret_tokens_as_igz_yml_data_single_token_not_found(k8s_helpe
     user_id = "test-user-id"
     token_name = "missing-token"
 
-    k8s_helper.list_secrets = mock.MagicMock(return_value=[])
+    k8s_helper.v1api.read_namespaced_secret = mock.MagicMock(
+        side_effect=k8s_client_rest.ApiException(status=404)
+    )
 
     with pytest.raises(mlrun.errors.MLRunBadRequestError):
         k8s_helper.get_user_secret_tokens_as_igz_yml_data(
@@ -1542,7 +1619,7 @@ def test_get_user_secret_tokens_as_igz_yml_data_all_fail(k8s_helper):
     )
     bad_secret.data.pop("tokensFile", None)
 
-    k8s_helper.list_secrets = mock.MagicMock(return_value=[bad_secret])
+    k8s_helper.v1api.read_namespaced_secret = mock.MagicMock(return_value=bad_secret)
 
     with pytest.raises(
         mlrun.errors.MLRunBadRequestError,

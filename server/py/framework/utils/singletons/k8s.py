@@ -1955,26 +1955,22 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
         token_name: str,
         namespace: str | None = None,
     ):
+        # A single token is stored per user, so the secret is resolved by user_id
+        # alone (token_name is intentionally ignored, see _resolve_auth_secret_name).
+        # This keeps jobs and schedules that pinned an older token name working after
+        # the user rotates their token — they resolve to the user's current token.
         namespace = self.resolve_namespace(namespace)
-        labels = {
-            mlrun_constants.MLRunInternalLabels.auth_userid: user_id,
-            mlrun_constants.MLRunInternalLabels.auth_token_name: self._hash_label(
-                token_name
-            ),
-        }
-
-        k8s_secrets = self.list_secrets(namespace=namespace, labels=labels)
-
-        for k8s_secret in k8s_secrets:
-            annotations = k8s_secret.metadata.annotations or {}
-            # We verify the token name here as well to filter out hash collisions
-            if (
-                annotations.get(mlrun_constants.InternalAnnotations.auth_token_name)
-                == token_name
-            ):
-                return k8s_secret
-
-        return None
+        secret_name = self._resolve_auth_secret_name(user_id, token_name)
+        try:
+            return self.v1api.read_namespaced_secret(
+                secret_name,
+                namespace,
+                _request_timeout=self._resolve_k8s_timeout(),
+            )
+        except k8s_client_rest.ApiException as exc:
+            if exc.status != 404:
+                raise
+            return None
 
     @staticmethod
     def _resolve_k8s_timeout(timeout_type: str = K8S_TIMEOUT_DEFAULT) -> int | None:

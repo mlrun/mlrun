@@ -12,11 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import abc
+from datetime import UTC, datetime, timedelta
 
 from kubernetes import client
 from sqlalchemy.orm import Session
 
 import mlrun.common.constants as mlrun_constants
+import mlrun.common.runtimes.constants
 import mlrun.common.schemas
 import mlrun.k8s_utils
 import mlrun.utils.helpers
@@ -196,6 +198,22 @@ class AbstractMPIJobRuntimeHandler(KubeRuntimeHandler, abc.ABC):
         search_run: bool = True,
         runtime_resource: dict | None = None,
     ) -> tuple[bool, str, dict]:
+        run = self._ensure_run(
+            db, db_session, name, project, run, search_run=search_run, uid=uid
+        )
+
+        # The mpijob CRD reports completion for the launcher + workers, but the run's results are
+        # committed separately by the logging worker (rank 0). Defer completing the run while it
+        # still has no results so monitoring does not race ahead of them, bounded by a grace period
+        # so a result-less run or a dead worker still terminates (ML-12650).
+        if self._should_wait_for_results(run, run_state, runtime_resource):
+            logger.debug(
+                "Deferring mpijob completed state until worker results are persisted",
+                project=project,
+                uid=uid,
+            )
+            return False, run.get("status", {}).get("state"), run
+
         _, run_state, run = super()._ensure_run_state(
             db,
             db_session,
@@ -204,8 +222,8 @@ class AbstractMPIJobRuntimeHandler(KubeRuntimeHandler, abc.ABC):
             name,
             run_state,
             run,
-            search_run,
-            runtime_resource,
+            search_run=False,
+            runtime_resource=runtime_resource,
         )
 
         execution = mlrun.execution.MLClientCtx.from_dict(run, store_run=False)
@@ -230,3 +248,27 @@ class AbstractMPIJobRuntimeHandler(KubeRuntimeHandler, abc.ABC):
                 project=project,
             )
         return True, run_state, run
+
+    @staticmethod
+    def _should_wait_for_results(
+        run: dict, run_state: str, runtime_resource: dict | None
+    ) -> bool:
+        run_states = mlrun.common.runtimes.constants.RunStates
+        if run_state != run_states.completed:
+            return False
+        current_state = run.get("status", {}).get("state")
+        # Nothing to defer if the run already reached a terminal state (e.g. the worker already
+        # committed it) or has no state yet.
+        if not current_state or current_state in run_states.terminal_states():
+            return False
+        if run.get("status", {}).get("results"):
+            return False
+        if not runtime_resource:
+            return False
+        completion_time = runtime_resource.get("status", {}).get("completionTime")
+        if not completion_time:
+            return False
+
+        completion_time = datetime.fromisoformat(completion_time.replace("Z", "+00:00"))
+        grace_seconds = float(mlrun.mlconf.monitoring.runs.result_settle_grace_seconds)
+        return datetime.now(UTC) - completion_time < timedelta(seconds=grace_seconds)

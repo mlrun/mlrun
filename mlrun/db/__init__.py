@@ -26,8 +26,15 @@ def get_or_set_dburl(default=""):
 
 def get_run_db(url="", secrets=None, force_reconnect=False) -> RunDBInterface:
     """Returns the runtime database"""
-    # import here to avoid circular import
+
+    # import here to avoid circular imports
+    import mlrun.client
     import mlrun.db.factory
+
+    # If a Client.session() is active, route through that client's
+    # per-instance HTTPRunDB instead of the process singleton.
+    if (active_client := mlrun.client.get_active_client()) is not None:
+        return active_client._http_db
 
     run_db_factory = mlrun.db.factory.RunDBFactory()
     return run_db_factory.create_run_db(url, secrets, force_reconnect)

@@ -18,8 +18,7 @@ import pytest
 
 import mlrun
 import mlrun.errors
-
-from services.api.utils.functions import enrich_function_from_code_artifact
+from mlrun.runtimes.utils import enrich_function_from_code_artifact
 
 
 def _mock_code_artifact(requirements=None):

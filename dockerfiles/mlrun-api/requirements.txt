@@ -18,3 +18,5 @@ aiosmtplib~=3.0
 pydantic>=1,<2
 mlrun-pipelines-kfp-v1-8~=0.7.1
 iguazio~=0.0.1
+opentelemetry-sdk~=1.42
+opentelemetry-exporter-otlp-proto-grpc~=1.42

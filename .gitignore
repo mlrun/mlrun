@@ -4,6 +4,7 @@ __pycache__/
 
 # Python virtual environments and environment files
 *venv*
+uv.lock
 
 # Jupyter Notebook checkpoints
 .ipynb_checkpoints/

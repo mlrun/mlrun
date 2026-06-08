@@ -393,14 +393,15 @@ class ProcessHTTPEvent(storey.MapClass):
             TTLCache(maxsize=_CACHE_MAX_ENDPOINTS, ttl=_CACHE_TTL_SECONDS)
         )
 
-    def _get_endpoint_schema(
+    async def _get_endpoint_schema(
         self, endpoint_id: str, name: str
     ) -> tuple[list | None, list | None, str]:
         """Return (feature_names, label_names, function_uri) for the given endpoint."""
         if endpoint_id not in self._schema_cache or self._schema_cache[endpoint_id][
             :2
         ] == (None, None):
-            ep = mlrun.db.get_run_db().get_model_endpoint(
+            ep = await mlrun.utils.run_in_threadpool(
+                mlrun.db.get_run_db().get_model_endpoint,
                 name=name,
                 project=self.project,
                 endpoint_id=endpoint_id,
@@ -413,7 +414,7 @@ class ProcessHTTPEvent(storey.MapClass):
             )
         return self._schema_cache[endpoint_id]
 
-    def do(self, event: dict) -> dict:
+    async def do(self, event: dict) -> dict:
         endpoint_id = event.get(MonitoringHTTPPayload.MODEL_ENDPOINT_UID)
         name = event.get(MonitoringHTTPPayload.MODEL_ENDPOINT_NAME)
         inputs = event.get(MonitoringHTTPPayload.INPUTS)
@@ -422,7 +423,9 @@ class ProcessHTTPEvent(storey.MapClass):
         if error := self._validate_event_fields(endpoint_id, name, inputs, outputs):
             return error
 
-        return self._process_event_content(event, endpoint_id, name, inputs, outputs)
+        return await self._process_event_content(
+            event, endpoint_id, name, inputs, outputs
+        )
 
     def _validate_event_fields(
         self,
@@ -459,7 +462,7 @@ class ProcessHTTPEvent(storey.MapClass):
             return {_HTTP_ERROR_KEY: f"missing required fields: {', '.join(missing)}"}
         return None
 
-    def _process_event_content(
+    async def _process_event_content(
         self,
         event: dict,
         endpoint_id: str,
@@ -478,9 +481,11 @@ class ProcessHTTPEvent(storey.MapClass):
         """
         try:
             # Resolve schema from DB; dict key order used when schema is absent
-            db_feature_names, db_label_names, function_uri = self._get_endpoint_schema(
-                endpoint_id, name
-            )
+            (
+                db_feature_names,
+                db_label_names,
+                function_uri,
+            ) = await self._get_endpoint_schema(endpoint_id, name)
         except mlrun.errors.MLRunNotFoundError:
             logger.error(
                 "Model endpoint not found",
@@ -651,7 +656,7 @@ class ProcessEndpointEvent(mlrun.feature_store.steps.MapClass):
         # Set of endpoints in the current events
         self.endpoints: set[str] = set()
 
-    def do(self, full_event):
+    async def do(self, full_event):
         event = full_event.body
         if event.get(ControllerEvent.KIND, "") == ControllerEventKind.NOP_EVENT:
             logger.debug(
@@ -670,7 +675,7 @@ class ProcessEndpointEvent(mlrun.feature_store.steps.MapClass):
         endpoint_id = event[EventFieldType.ENDPOINT_ID]
 
         # In case this process fails, resume state from existing record
-        self.resume_state(
+        await self.resume_state(
             endpoint_id=endpoint_id,
             endpoint_name=full_event.body.get(EventFieldType.MODEL),
         )
@@ -793,21 +798,19 @@ class ProcessEndpointEvent(mlrun.feature_store.steps.MapClass):
         full_event.body = events
         return full_event
 
-    def resume_state(self, endpoint_id, endpoint_name):
+    async def resume_state(self, endpoint_id, endpoint_name):
         # Make sure process is resumable, if process fails for any reason, be able to pick things up close to where we
         # left them
         if endpoint_id not in self.endpoints:
             logger.info("Trying to resume state", endpoint_id=endpoint_id)
-            endpoint_record = (
-                mlrun.db.get_run_db()
-                .get_model_endpoint(
-                    project=self.project,
-                    endpoint_id=endpoint_id,
-                    name=endpoint_name,
-                    tsdb_metrics=False,
-                )
-                .flat_dict()
+            endpoint = await mlrun.utils.run_in_threadpool(
+                mlrun.db.get_run_db().get_model_endpoint,
+                project=self.project,
+                endpoint_id=endpoint_id,
+                name=endpoint_name,
+                tsdb_metrics=False,
             )
+            endpoint_record = endpoint.flat_dict()
 
             # If model endpoint found, get first_request & last_request values
             if endpoint_record:
@@ -905,7 +908,7 @@ class MapFeatureNames(mlrun.feature_store.steps.MapClass):
             return self.label_columns[endpoint_id]
         return None
 
-    def do(self, event: dict):
+    async def do(self, event: dict):
         if event.get(ControllerEvent.KIND, "") == ControllerEventKind.NOP_EVENT:
             return event
         endpoint_id = event[EventFieldType.ENDPOINT_ID]
@@ -922,16 +925,14 @@ class MapFeatureNames(mlrun.feature_store.steps.MapClass):
         endpoint_record = None
         # Get feature names and label columns
         if endpoint_id not in self.feature_names:
-            endpoint_record = (
-                mlrun.db.get_run_db()
-                .get_model_endpoint(
-                    project=self.project,
-                    endpoint_id=endpoint_id,
-                    name=event[EventFieldType.ENDPOINT_NAME],
-                    tsdb_metrics=False,
-                )
-                .flat_dict()
+            endpoint = await mlrun.utils.run_in_threadpool(
+                mlrun.db.get_run_db().get_model_endpoint,
+                project=self.project,
+                endpoint_id=endpoint_id,
+                name=event[EventFieldType.ENDPOINT_NAME],
+                tsdb_metrics=False,
             )
+            endpoint_record = endpoint.flat_dict()
             feature_names = endpoint_record.get(EventFieldType.FEATURE_NAMES)
 
             label_columns = endpoint_record.get(EventFieldType.LABEL_NAMES)
@@ -955,7 +956,8 @@ class MapFeatureNames(mlrun.feature_store.steps.MapClass):
                 attributes_to_update[EventFieldType.FEATURE_NAMES] = feature_names
 
                 if endpoint_type != EndpointType.ROUTER.value:
-                    update_monitoring_feature_set(
+                    await mlrun.utils.run_in_threadpool(
+                        update_monitoring_feature_set,
                         endpoint_record=endpoint_record,
                         feature_names=feature_names,
                         feature_values=feature_values,
@@ -975,7 +977,8 @@ class MapFeatureNames(mlrun.feature_store.steps.MapClass):
                 ]
                 attributes_to_update[EventFieldType.LABEL_NAMES] = label_columns
                 if endpoint_type != EndpointType.ROUTER.value:
-                    update_monitoring_feature_set(
+                    await mlrun.utils.run_in_threadpool(
+                        update_monitoring_feature_set,
                         endpoint_record=endpoint_record,
                         feature_names=label_columns,
                         feature_values=label_values,
@@ -996,16 +999,15 @@ class MapFeatureNames(mlrun.feature_store.steps.MapClass):
 
         # Update the first request time in the endpoint record
         if endpoint_id not in self.first_request:
-            endpoint_record = endpoint_record or (
-                mlrun.db.get_run_db()
-                .get_model_endpoint(
+            if endpoint_record is None:
+                endpoint = await mlrun.utils.run_in_threadpool(
+                    mlrun.db.get_run_db().get_model_endpoint,
                     project=self.project,
                     endpoint_id=endpoint_id,
                     name=event[EventFieldType.ENDPOINT_NAME],
                     tsdb_metrics=False,
                 )
-                .flat_dict()
-            )
+                endpoint_record = endpoint.flat_dict()
             if not endpoint_record.get(EventFieldType.FIRST_REQUEST):
                 attributes_to_update[EventFieldType.FIRST_REQUEST] = (
                     mlrun.utils.enrich_datetime_with_tz_info(
@@ -1020,7 +1022,8 @@ class MapFeatureNames(mlrun.feature_store.steps.MapClass):
                 endpoint_id=endpoint_id,
                 attributes=attributes_to_update,
             )
-            update_endpoint_record(
+            await mlrun.utils.run_in_threadpool(
+                update_endpoint_record,
                 project=self.project,
                 endpoint_id=endpoint_id,
                 attributes=attributes_to_update,
@@ -1103,17 +1106,23 @@ class InferSchema(mlrun.feature_store.steps.MapClass):
         self.table = table
         self.keys = set()
 
-    def do(self, event: dict):
+    async def do(self, event: dict):
         key_set = set(event.keys())
         if not key_set.issubset(self.keys):
             import mlrun.utils.v3io_clients
 
             self.keys.update(key_set)
-            # Apply infer_schema on the kv table for generating the schema file
-            mlrun.utils.v3io_clients.get_frames_client(
+            frames_client = mlrun.utils.v3io_clients.get_frames_client(
                 container=self.container,
                 address=self.v3io_framesd,
-            ).execute(backend="kv", table=self.table, command="infer_schema")
+            )
+            # Apply infer_schema on the kv table for generating the schema file
+            await mlrun.utils.run_in_threadpool(
+                frames_client.execute,
+                backend="kv",
+                table=self.table,
+                command="infer_schema",
+            )
 
         return event
 

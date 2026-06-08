@@ -154,7 +154,7 @@ def test_packager_pack(rundb_mock, tester: type[PackagerTester], test: PackTest)
             handler=test.pack_handler,
             params=test.pack_parameters,
             returns=[test.log_hint],
-            artifact_path=test_directory.name,
+            output_path=test_directory.name,
             local=True,
         )
 
@@ -216,7 +216,7 @@ def test_packager_unpack(rundb_mock, tester: type[PackagerTester], test: UnpackT
             handler=test.unpack_handler,
             inputs={"obj": input_path},
             params=test.unpack_parameters,
-            artifact_path=test_directory.name,
+            output_path=test_directory.name,
             local=True,
         )
     except Exception as exception:
@@ -259,7 +259,7 @@ def test_packager_pack_to_unpack(
             handler=test.pack_handler,
             params=test.pack_parameters,
             returns=[test.log_hint],
-            artifact_path=test_directory.name,
+            output_path=test_directory.name,
             local=True,
         )
 
@@ -298,7 +298,7 @@ def test_packager_pack_to_unpack(
                 handler=test.unpack_handler,
                 inputs={"obj": pack_run.outputs[log_hint.key]},
                 params=test.unpack_parameters,
-                artifact_path=test_directory.name,
+                output_path=test_directory.name,
                 local=True,
             )
         else:
@@ -338,7 +338,7 @@ def test_packager_pack_to_unpack(
                 handler=test.unpack_handler,
                 inputs={"obj": pack_run.outputs[log_hint.key]},
                 params=test.unpack_parameters,
-                artifact_path=test_directory.name,
+                output_path=test_directory.name,
                 local=True,
             )
     except Exception as exception:

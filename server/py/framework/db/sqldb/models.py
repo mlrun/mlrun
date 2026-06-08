@@ -439,6 +439,7 @@ with warnings.catch_warnings():
         __table_args__ = (
             UniqueConstraint("name", "project", "uid", name="_functions_uc"),
             Index("idx_project_state", "project", "state"),
+            Index("idx_function_project_kind", "project", "kind"),
         )
 
         id = Column(Integer, primary_key=True)

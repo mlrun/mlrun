@@ -238,6 +238,20 @@ def make_kaniko_pod(
         if gpu_resources:
             resources["limits"] = gpu_resources
 
+    # apply the configured builder pod labels (e.g. the azure.workload.identity/use label that lets the
+    # Azure workload-identity webhook inject ACR push credentials into the builder pod).
+    # these platform-level labels are the lowest-precedence layer: mlrun's own internal labels
+    # (mlrun/class, mlrun/project, etc., set by BasePod and the call site) must never be clobbered by them.
+    configured_pod_labels = {
+        key: value
+        for key, value in config.get_builder_pod_labels().items()
+        if key not in mlrun_constants.MLRunInternalLabels.all()
+    }
+    extra_labels = mlrun.utils.helpers.merge_dicts_with_precedence(
+        configured_pod_labels,
+        extra_labels or {},
+    )
+
     kpod = framework.utils.singletons.k8s.BasePod(
         name or "mlrun-build",
         config.httpdb.builder.kaniko_image,

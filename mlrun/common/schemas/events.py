@@ -48,6 +48,10 @@ class DBConnectionEventActions(mlrun.common.types.StrEnum):
     failed = "failed"
 
 
+class LogCollectorEventActions(mlrun.common.types.StrEnum):
+    failed = "failed"
+
+
 class ProjectLifecycleEventActions(mlrun.common.types.StrEnum):
     creation_succeeded = "creation_succeeded"
     creation_failed = "creation_failed"

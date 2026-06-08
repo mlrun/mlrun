@@ -35,6 +35,7 @@ class WorkflowSpec(pydantic.v1.BaseModel):
     image: str | None = None
     workflow_runner_node_selector: dict[str, str] | None = None
     auth_token_name: str | None = None
+    run_setup: bool = False
 
 
 class WorkflowRequest(pydantic.v1.BaseModel):

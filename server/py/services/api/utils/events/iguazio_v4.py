@@ -30,6 +30,8 @@ DB_MIGRATION_COMPLETED = "MLRun.DB.Migration.Completed"
 DB_MIGRATION_FAILED = "MLRun.DB.Migration.Failed"
 DB_CONNECTION_FAILED = "MLRun.DB.Connection.Failed"
 
+LOG_COLLECTOR_FAILED = "MLRun.LogCollector.Failed"
+
 PROJECT_CREATION_SUCCEEDED = "MLRun.Project.Creation.Succeeded"
 PROJECT_CREATION_FAILED = "MLRun.Project.Creation.Failed"
 PROJECT_DELETION_SUCCEEDED = "MLRun.Project.Deletion.Succeeded"
@@ -37,9 +39,9 @@ PROJECT_DELETION_FAILED = "MLRun.Project.Deletion.Failed"
 
 EVENT_KIND = "system"
 EVENT_CLASS = "DB"
+EVENT_CLASS_LOG_COLLECTION = "LogCollection"
 EVENT_CLASS_PROJECT = "Project"
 ERROR_DETAIL_LIMIT = 1024
-ERROR_DESCRIPTION_LIMIT = 200
 TRUNCATION_SUFFIX = "...[truncated]"
 
 DB_MIGRATION_EVENTS: dict[
@@ -76,6 +78,20 @@ DB_CONNECTION_EVENTS: dict[
         DB_CONNECTION_FAILED,
         iguazio.schemas.Severity.CRITICAL,
         "MLRun cannot connect to its database",
+    ),
+}
+
+# Description text is kept identical to the orca catalog entry for
+# MLRun.LogCollector.Failed so the canonical event description stays in lockstep
+# across producer and catalog; per-operation context is attached to ``details``.
+LOG_COLLECTOR_EVENTS: dict[
+    mlrun.common.schemas.LogCollectorEventActions,
+    tuple[str, iguazio.schemas.Severity, str],
+] = {
+    mlrun.common.schemas.LogCollectorEventActions.failed: (
+        LOG_COLLECTOR_FAILED,
+        iguazio.schemas.Severity.MAJOR,
+        "MLRun log collector failed to retrieve logs",
     ),
 }
 
@@ -170,7 +186,7 @@ class Client(base_events.BaseEventClient):
             details["duration_seconds"] = round(float(duration_seconds), 3)
 
         if action == mlrun.common.schemas.MigrationEventActions.failed:
-            description = self._apply_error(details, description, error)
+            self._record_error(details, error)
 
         return iguazio.schemas.EventActivationSpec(
             config_name=config_name,
@@ -206,7 +222,7 @@ class Client(base_events.BaseEventClient):
         if dialect:
             details["dialect"] = dialect
 
-        description = self._apply_error(details, description, error)
+        self._record_error(details, error)
 
         return iguazio.schemas.EventActivationSpec(
             config_name=config_name,
@@ -214,6 +230,39 @@ class Client(base_events.BaseEventClient):
             kind=EVENT_KIND,
             severity=severity,
             class_=EVENT_CLASS,
+            entity_name=self._entity_name,
+            description=description,
+            details=details,
+        )
+
+    def generate_log_collector_event(
+        self,
+        action: mlrun.common.schemas.LogCollectorEventActions,
+        error: BaseException | str | None = None,
+        run_uid: str | None = None,
+        project: str | None = None,
+    ) -> iguazio.schemas.EventActivationSpec:
+        try:
+            config_name, severity, description = LOG_COLLECTOR_EVENTS[action]
+        except KeyError as exc:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                f"Unsupported log collector action {action}"
+            ) from exc
+
+        details: dict = {}
+        if run_uid:
+            details["run_uid"] = run_uid
+        if project:
+            details["project"] = project
+
+        self._record_error(details, error)
+
+        return iguazio.schemas.EventActivationSpec(
+            config_name=config_name,
+            source="",
+            kind=EVENT_KIND,
+            severity=severity,
+            class_=EVENT_CLASS_LOG_COLLECTION,
             entity_name=self._entity_name,
             description=description,
             details=details,
@@ -241,7 +290,7 @@ class Client(base_events.BaseEventClient):
             mlrun.common.schemas.ProjectLifecycleEventActions.creation_failed,
             mlrun.common.schemas.ProjectLifecycleEventActions.deletion_failed,
         ):
-            description = self._apply_error(details, description, error)
+            self._record_error(details, error)
 
         return iguazio.schemas.EventActivationSpec(
             config_name=config_name,
@@ -295,20 +344,21 @@ class Client(base_events.BaseEventClient):
         return value[: limit - len(TRUNCATION_SUFFIX)] + TRUNCATION_SUFFIX
 
     @classmethod
-    def _apply_error(
+    def _record_error(
         cls,
         details: dict,
-        description: str,
         error: BaseException | str | None,
-    ) -> str:
+    ) -> None:
         """
-        Append truncated error context to ``details`` and ``description``.
-        Returns the (possibly extended) description.
+        Record truncated error context in ``details``.
+
+        The event ``description`` is intentionally left untouched: it must stay
+        the generic, per-config catalog text (the events service enriches it
+        from the catalog), so per-instance specifics belong only in ``details``.
         """
         if not error:
-            return description
+            return
         error_str = error if isinstance(error, str) else mlrun.errors.err_to_str(error)
         details["error"] = cls._truncate(error_str, ERROR_DETAIL_LIMIT)
         if not isinstance(error, str):
             details["error_type"] = type(error).__name__
-        return f"{description}: {cls._truncate(error_str, ERROR_DESCRIPTION_LIMIT)}"

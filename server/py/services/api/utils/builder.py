@@ -28,6 +28,9 @@ import mlrun.common.constants as mlrun_constants
 import mlrun.common.schemas
 import mlrun.errors
 import mlrun.model
+import mlrun.runtimes
+import mlrun.runtimes.mounts
+import mlrun.runtimes.pod
 import mlrun.runtimes.utils
 import mlrun.utils
 from mlrun.config import config
@@ -36,6 +39,22 @@ from mlrun.utils.helpers import remove_image_protocol_prefix
 
 import framework.utils.helpers
 import framework.utils.singletons.k8s
+
+# mlrun datastore schemes kaniko cannot resolve as --context. explicit
+# allow-list so unknown schemes fail fast in the existing branches rather
+# than being silently routed through the fetch path.
+_FETCH_SUPPORTED_SCHEMES = frozenset(
+    {"az", "wasb", "wasbs", "abfs", "abfss", "ds", "dbfs"}
+)
+
+# matches the set ``mlrun load-source`` actually extracts.
+_FETCHABLE_ARCHIVE_EXTENSIONS = (".tar.gz", ".zip")
+
+_FETCHED_SOURCE_SUBDIR = "source"
+
+# anchored as a literal (not config.default_base_image) so the builder is not
+# coupled to the SDK-side default-image knob.
+_DEFAULT_SOURCE_FETCH_IMAGE = "mlrun/mlrun"
 
 
 def make_dockerfile(
@@ -463,6 +482,7 @@ def build_image(
     parsed_url = urlparse(source)
     source_to_copy = None
     source_dir_to_mount = None
+    needs_source_fetch_init_container = False
     if inline_code or runtime_spec.build.load_source_on_run or not source:
         context = "/empty"
 
@@ -470,7 +490,14 @@ def build_image(
     elif is_http_source:
         source_to_copy = source
 
-    # source is remote
+    # source is in a scheme kaniko cannot resolve; fetch in a dedicated init container
+    elif source and _needs_source_fetch_init_container(source):
+        _validate_source_fetch_archive(source)
+        context = "/empty"
+        source_to_copy = f"./{_FETCHED_SOURCE_SUBDIR}"
+        needs_source_fetch_init_container = True
+
+    # source is remote (kaniko-native)
     elif source and "://" in source and not is_v3io_source:
         if source.startswith("git://"):
             # if the user provided branch (w/o refs/..) we add the "refs/.."
@@ -575,6 +602,14 @@ def build_image(
             mount_path="/context",
             access_key=access_key,
             user=username,
+        )
+
+    if needs_source_fetch_init_container:
+        _append_source_fetch_init_container(
+            kpod=kpod,
+            source=source,
+            builder_env_list=builder_env_list,
+            project_secrets=project_secrets,
         )
 
     k8s = framework.utils.singletons.k8s.get_k8s_helper(silent=False)
@@ -919,6 +954,91 @@ def resolve_image_target(image_target: str, registry: str | None = None) -> str:
 
     image_target = remove_image_protocol_prefix(image_target)
     return image_target
+
+
+def _needs_source_fetch_init_container(source: str) -> bool:
+    return urlparse(source).scheme in _FETCH_SUPPORTED_SCHEMES
+
+
+def _validate_source_fetch_archive(source: str) -> None:
+    if not source.lower().endswith(_FETCHABLE_ARCHIVE_EXTENSIONS):
+        scheme = urlparse(source).scheme
+        raise mlrun.errors.MLRunInvalidArgumentError(
+            f"Source {source} uses scheme '{scheme}://' which is not natively "
+            "supported as a kaniko build context. Provide the source as an "
+            f"archive ending in one of: {', '.join(_FETCHABLE_ARCHIVE_EXTENSIONS)}"
+        )
+
+
+def _append_source_fetch_init_container(
+    kpod,
+    source: str,
+    builder_env_list: list,
+    project_secrets: list,
+) -> None:
+    """Run ``mlrun load-source`` in an init container that extracts ``source``
+    into ``/empty/<_FETCHED_SOURCE_SUBDIR>`` for kaniko to consume as --context.
+
+    Env precedence (later layers do not overwrite earlier ones):
+    builder_env_list > project_secrets > storage.auto_mount_params.
+    """
+    image = config.httpdb.builder.kaniko_source_fetch_init_container_image
+    if not image:
+        image = mlrun.utils.enrich_image_url(_DEFAULT_SOURCE_FETCH_IMAGE)
+
+    target_dir = f"/empty/{_FETCHED_SOURCE_SUBDIR}"
+    args = ["-m", "mlrun", "load-source", source, "--target", target_dir]
+
+    env_list = list(builder_env_list or []) + list(project_secrets or [])
+    already_set = {env_var.name for env_var in env_list}
+    for env_var in _resolve_storage_auto_mount_env():
+        if env_var.name in already_set:
+            continue
+        env_list.append(env_var)
+        already_set.add(env_var.name)
+
+    mlrun.utils.logger.debug(
+        "Adding source-fetch init container",
+        image=image,
+        source=source,
+        target=target_dir,
+    )
+    kpod.append_init_container(
+        image,
+        command=["python"],
+        args=args,
+        env=env_list,
+        name="fetch-source",
+    )
+
+
+def _resolve_storage_auto_mount_env() -> list:
+    """Harvest env vars the configured storage auto-mount would apply to user pods.
+
+    Only env-style modifiers are honored. Mount-style modifiers (PVC, V3IO
+    FUSE, S3) mutate ``spec.volumes`` / ``spec.volume_mounts`` rather than
+    ``spec.env``, so they would be silently dropped by this harvest — and the
+    fetch step needs only credentials to call ``mlrun.get_dataitem(...).download``,
+    not a fuse-mounted filesystem.
+    """
+    auto_mount_type = mlrun.runtimes.pod.AutoMountType(
+        mlrun.mlconf.storage.auto_mount_type
+    )
+    modifier = auto_mount_type.get_modifier()
+    if modifier is None:
+        return []
+    env_style_modifiers = {
+        mlrun.runtimes.mounts.set_env_vars_from_secret,
+        mlrun.runtimes.mounts.set_env_variables,
+        mlrun.runtimes.mounts.v3io_cred,
+    }
+    if modifier not in env_style_modifiers:
+        return []
+    mount_params = mlrun.mlconf.get_storage_auto_mount_params()
+    mount_params = mlrun.runtimes.pod._filter_modifier_params(modifier, mount_params)
+    scratch = mlrun.runtimes.KubejobRuntime()
+    modifier(**mount_params)(scratch)
+    return list(scratch.spec.env or [])
 
 
 def _generate_builder_env(

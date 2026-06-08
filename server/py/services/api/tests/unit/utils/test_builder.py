@@ -1747,3 +1747,321 @@ def _mock_default_service_account(monkeypatch, service_account):
         "resolve_project_service_account_details",
         resolve_project_service_account_details_mock,
     )
+
+
+# --- ML-12710: kaniko-incompatible archive sources via fetch-source init container ----------------
+
+
+def _build_with_source(source: str) -> None:
+    """Drive build_runtime end-to-end with the given source and the standard mocks."""
+    function = mlrun.new_function(
+        "some-function",
+        "some-project",
+        "some-tag",
+        image="mlrun/mlrun",
+        kind=RuntimeKinds.job,
+    )
+    function.spec.build.source = source
+    services.api.utils.builder.build_runtime(
+        mlrun.common.schemas.AuthInfo(),
+        function,
+    )
+
+
+def _kaniko_context_arg() -> str:
+    args = _create_pod_mock_pod_spec().containers[0].args
+    return args[args.index("--context") + 1]
+
+
+def _init_container_by_name(name: str):
+    for container in _create_pod_mock_pod_spec().init_containers or []:
+        if container.name == name:
+            return container
+    return None
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        "az://data/iguazio/naipi-artifacts/project.tar.gz",
+        "wasbs://container@account.blob.core.windows.net/path/project.tar.gz",
+        "abfss://container@account.dfs.core.windows.net/path/project.zip",
+        "ds://my-profile/path/project.tar.gz",
+        "dbfs://path/to/project.tar.gz",
+    ],
+)
+def test_build_runtime_kaniko_incompatible_source_uses_fetch_init_container(
+    monkeypatch, source
+):
+    _patch_k8s_helper(monkeypatch)
+    config.httpdb.builder.docker_registry = "default.docker.registry/default-repository"
+    _build_with_source(source)
+
+    # kaniko's context is now the local empty-dir, not the raw URI
+    assert _kaniko_context_arg() == "/empty"
+
+    fetch_container = _init_container_by_name("fetch-source")
+    assert fetch_container is not None, "fetch-source init container missing"
+    assert fetch_container.args == [
+        "-m",
+        "mlrun",
+        "load-source",
+        source,
+        "--target",
+        "/empty/source",
+    ]
+    assert fetch_container.command == ["python"]
+
+
+def test_build_runtime_kaniko_incompatible_source_dockerfile_adds_extracted_dir(
+    monkeypatch,
+):
+    """The dockerfile must ADD the extracted subdir (./source) into the image
+    so that the user's project code is actually present at runtime."""
+    _patch_k8s_helper(monkeypatch)
+    config.httpdb.builder.docker_registry = "default.docker.registry/default-repository"
+    with unittest.mock.patch(
+        "services.api.utils.builder.make_kaniko_pod", new=unittest.mock.MagicMock()
+    ):
+        _build_with_source("az://container/path/project.tar.gz")
+        dockerfile = services.api.utils.builder.make_kaniko_pod.call_args[1][
+            "dockertext"
+        ]
+    assert "ADD ./source /home/mlrun_code" in dockerfile
+
+
+def test_build_runtime_kaniko_incompatible_source_applies_storage_auto_mount_env(
+    monkeypatch,
+):
+    """Whatever storage.auto_mount_params already declares for user pods must
+    also reach the fetch-source init container. The builder code never names
+    Azure (or any other) env vars explicitly — it just respects the same
+    auto-mount config the chart already maintains for user pods."""
+    _patch_k8s_helper(monkeypatch)
+    config.httpdb.builder.docker_registry = "default.docker.registry/default-repository"
+    monkeypatch.setattr(config.storage, "auto_mount_type", "secret_env")
+    # mirrors the lab wiring: a single cleartext storage-account env name+value
+    monkeypatch.setattr(
+        config.storage,
+        "auto_mount_params",
+        "cleartext_env=STORAGE_ACCOUNT:smoke-account",
+    )
+
+    _build_with_source("az://container/path/project.tar.gz")
+
+    fetch_container = _init_container_by_name("fetch-source")
+    env_by_name = {env_var.name: env_var.value for env_var in fetch_container.env or []}
+    assert env_by_name.get("STORAGE_ACCOUNT") == "smoke-account"
+
+
+def test_build_runtime_kaniko_incompatible_source_auto_mount_none_adds_no_env(
+    monkeypatch,
+):
+    """auto_mount_type=none must not push any extra env onto the fetch-source
+    init container — operators that opt out of auto-mount opt out everywhere."""
+    _patch_k8s_helper(monkeypatch)
+    config.httpdb.builder.docker_registry = "default.docker.registry/default-repository"
+    monkeypatch.setattr(config.storage, "auto_mount_type", "none")
+    monkeypatch.setattr(config.storage, "auto_mount_params", "")
+
+    _build_with_source("az://container/path/project.tar.gz")
+
+    fetch_container = _init_container_by_name("fetch-source")
+    env_names = [env_var.name for env_var in fetch_container.env or []]
+    # only the project-secret-backed env from _patch_k8s_helper remains
+    assert env_names == ["KEY"]
+
+
+def test_build_runtime_kaniko_incompatible_source_project_secret_wins_over_auto_mount(
+    monkeypatch,
+):
+    """When a project secret already exposes the same env name auto-mount
+    declares, the project-secret entry must win — auto-mount is a default,
+    project-level config is more specific."""
+    _patch_k8s_helper(monkeypatch)
+    helper = framework.utils.singletons.k8s.get_k8s_helper()
+    helper.get_project_secret_keys = unittest.mock.Mock(
+        side_effect=lambda project, filter_internal: ["STORAGE_ACCOUNT"]
+    )
+    config.httpdb.builder.docker_registry = "default.docker.registry/default-repository"
+    monkeypatch.setattr(config.storage, "auto_mount_type", "secret_env")
+    monkeypatch.setattr(
+        config.storage,
+        "auto_mount_params",
+        "cleartext_env=STORAGE_ACCOUNT:from-auto-mount-should-not-win",
+    )
+
+    _build_with_source("az://container/path/project.tar.gz")
+
+    fetch_container = _init_container_by_name("fetch-source")
+    storage_entries = [
+        env_var
+        for env_var in fetch_container.env or []
+        if env_var.name == "STORAGE_ACCOUNT"
+    ]
+    assert len(storage_entries) == 1
+    # the surviving entry must be the project-secret-backed one (value_from),
+    # not the plain-value copy from auto_mount_params
+    assert storage_entries[0].value is None
+    assert storage_entries[0].value_from is not None
+
+
+def test_build_runtime_kaniko_incompatible_source_skips_mount_style_auto_mount(
+    monkeypatch,
+):
+    """Mount-style auto-mounts (PVC, V3IO FUSE, S3) target shared filesystems
+    the kaniko pod does not participate in. The helper must skip them rather
+    than crashing on params the modifier doesn't understand."""
+    _patch_k8s_helper(monkeypatch)
+    config.httpdb.builder.docker_registry = "default.docker.registry/default-repository"
+    monkeypatch.setattr(config.storage, "auto_mount_type", "pvc")
+    monkeypatch.setattr(
+        config.storage, "auto_mount_params", "pvc_name=my-pvc,volume_mount_path=/data"
+    )
+
+    _build_with_source("az://container/path/project.tar.gz")
+
+    fetch_container = _init_container_by_name("fetch-source")
+    env_names = [env_var.name for env_var in fetch_container.env or []]
+    assert env_names == ["KEY"]
+
+
+def test_build_runtime_kaniko_incompatible_source_passes_secrets_to_fetcher(
+    monkeypatch,
+):
+    """Project secrets the kaniko container sees must also reach the fetcher,
+    otherwise the fetch step has no Azure / data-store credentials."""
+    _patch_k8s_helper(monkeypatch)
+    config.httpdb.builder.docker_registry = "default.docker.registry/default-repository"
+    _build_with_source("az://container/path/project.tar.gz")
+
+    fetch_container = _init_container_by_name("fetch-source")
+    env_names = [env.name for env in fetch_container.env or []]
+    # _patch_k8s_helper exposes a single project secret key named "KEY"
+    assert "KEY" in env_names
+
+
+def test_build_runtime_kaniko_incompatible_source_honours_image_override(monkeypatch):
+    _patch_k8s_helper(monkeypatch)
+    config.httpdb.builder.docker_registry = "default.docker.registry/default-repository"
+    custom_image = "my-registry.example.com/custom-fetcher:1.0"
+    monkeypatch.setattr(
+        config.httpdb.builder,
+        "kaniko_source_fetch_init_container_image",
+        custom_image,
+    )
+    _build_with_source("az://container/path/project.tar.gz")
+
+    assert _init_container_by_name("fetch-source").image == custom_image
+
+
+def test_build_runtime_kaniko_incompatible_source_default_image_is_mlrun(monkeypatch):
+    _patch_k8s_helper(monkeypatch)
+    config.httpdb.builder.docker_registry = "default.docker.registry/default-repository"
+    monkeypatch.setattr(
+        config.httpdb.builder,
+        "kaniko_source_fetch_init_container_image",
+        "",
+    )
+    _build_with_source("az://container/path/project.tar.gz")
+
+    image = _init_container_by_name("fetch-source").image
+    # enrich_image_url anchors the bare name and may attach a registry/tag;
+    # the test only asserts the canonical mlrun/mlrun repo is in there.
+    assert "mlrun/mlrun" in image
+
+
+def test_build_runtime_kaniko_incompatible_source_rejects_non_archive(monkeypatch):
+    _patch_k8s_helper(monkeypatch)
+    config.httpdb.builder.docker_registry = "default.docker.registry/default-repository"
+    with pytest.raises(mlrun.errors.MLRunInvalidArgumentError, match="archive"):
+        _build_with_source("az://container/path/handler.py")
+
+
+@pytest.mark.parametrize(
+    "source,expected_context",
+    [
+        # kaniko-native: URL is the build context
+        ("s3://bucket/path/project.tar.gz", "s3://bucket/path/project.tar.gz"),
+        ("gs://bucket/path/project.tar.gz", "gs://bucket/path/project.tar.gz"),
+        (
+            "git://github.com/mlrun/example.git#main",
+            "git://github.com/mlrun/example.git#refs/heads/main",
+        ),
+        # http/https are routed via Dockerfile ADD; context stays at the default /context
+        ("https://example.com/project.tar.gz", "/context"),
+        ("http://example.com/project.tar.gz", "/context"),
+    ],
+)
+def test_build_runtime_kaniko_native_source_no_fetch_init_container(
+    monkeypatch, source, expected_context
+):
+    _patch_k8s_helper(monkeypatch)
+    config.httpdb.builder.docker_registry = "default.docker.registry/default-repository"
+    _build_with_source(source)
+
+    assert _kaniko_context_arg() == expected_context
+    assert _init_container_by_name("fetch-source") is None
+
+
+def test_build_runtime_v3io_source_unchanged_by_fix(monkeypatch):
+    _patch_k8s_helper(monkeypatch)
+    config.httpdb.builder.docker_registry = "default.docker.registry/default-repository"
+    _build_with_source("v3io:///some/path/project.tar.gz")
+
+    # v3io continues to mount the volume; context remains /empty (legacy)
+    # and no fetch-source init container is added.
+    assert _init_container_by_name("fetch-source") is None
+
+
+@pytest.mark.parametrize(
+    "source,expected",
+    [
+        ("az://x/y.tar.gz", True),
+        ("wasb://x/y.tar.gz", True),
+        ("wasbs://x@a.blob.core.windows.net/y.tar.gz", True),
+        ("abfs://x/y.tar.gz", True),
+        ("abfss://x/y.tar.gz", True),
+        ("ds://profile/path/y.tar.gz", True),
+        ("dbfs://path/y.tar.gz", True),
+        ("s3://x/y.tar.gz", False),
+        ("gs://x/y.tar.gz", False),
+        ("git://x/y", False),
+        ("https://x/y.tar.gz", False),
+        ("http://x/y.tar.gz", False),
+        ("v3io://x/y", False),
+        ("file:///x/y.tar.gz", False),
+        ("/absolute/path/y.tar.gz", False),
+        ("relative/path", False),
+        ("", False),
+    ],
+)
+def test_needs_source_fetch_init_container_allowlist(source, expected):
+    assert (
+        services.api.utils.builder._needs_source_fetch_init_container(source)
+        is expected
+    )
+
+
+@pytest.mark.parametrize(
+    "source,raises",
+    [
+        # accepted: the same archive formats `mlrun load-source` handles
+        ("az://x/y.tar.gz", False),
+        ("az://x/y.zip", False),
+        ("az://x/y.TAR.GZ", False),
+        # rejected: extensions mlrun load-source does not support
+        ("az://x/y.tgz", True),
+        ("az://x/y.tar.bz2", True),
+        ("az://x/y.tar", True),
+        ("az://x/y.py", True),
+        ("az://x/y.notes", True),
+        ("az://x/y", True),
+    ],
+)
+def test_validate_source_fetch_archive(source, raises):
+    if raises:
+        with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
+            services.api.utils.builder._validate_source_fetch_archive(source)
+    else:
+        services.api.utils.builder._validate_source_fetch_archive(source)

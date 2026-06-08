@@ -589,6 +589,9 @@ default_config = {
             "kaniko_init_container_image": "alpine:3.20",
             # image for kaniko init container when docker registry is ECR
             "kaniko_aws_cli_image": "amazon/aws-cli:2.17.16",
+            # image for the kaniko init container that fetches sources kaniko cannot resolve
+            # natively (az://, wasb(s)://, abfs(s)://, ds://, dbfs://). Empty derives from the mlrun image.
+            "kaniko_source_fetch_init_container_image": "",
             # kaniko sometimes fails to get filesystem from image, this is a workaround to retry the process
             # a known issue in Kaniko - https://github.com/GoogleContainerTools/kaniko/issues/1717
             "kaniko_image_fs_extraction_retries": "3",

@@ -167,8 +167,7 @@ def _mock_nuclio_deploy(function):
 
 
 def test_nuclio_deploy_wait_false_skips_wait_and_enrich():
-    """``deploy(wait=False)`` submits and returns ``self`` without waiting or
-    enriching — the caller drives the build wait externally."""
+    """``deploy(wait=False)`` submits, returns ``self``, and skips wait/enrich."""
     function: mlrun.runtimes.RemoteRuntime = mlrun.new_function("tst", kind="nuclio")
     _mock_nuclio_deploy(function)
 
@@ -180,9 +179,7 @@ def test_nuclio_deploy_wait_false_skips_wait_and_enrich():
 
 
 def test_serving_deploy_forwards_wait():
-    """``ServingRuntime.deploy`` overrides the base — it must forward ``wait``
-    to ``super().deploy`` (regression: serving deploys raised
-    'unexpected keyword argument wait')."""
+    """``ServingRuntime.deploy`` must forward ``wait`` to ``super().deploy``."""
     function = mlrun.new_function("tst", kind="serving")
     function.set_topology("router")
 
@@ -195,8 +192,7 @@ def test_serving_deploy_forwards_wait():
 
 
 def test_nuclio_deploy_wait_true_waits_and_enriches():
-    """``deploy(wait=True)`` (default) preserves today's behavior: it waits for
-    readiness and returns the enriched invocation command (BC regression guard)."""
+    """``deploy(wait=True)`` preserves the legacy wait+enrich behavior."""
     function: mlrun.runtimes.RemoteRuntime = mlrun.new_function("tst", kind="nuclio")
     _mock_nuclio_deploy(function)
 

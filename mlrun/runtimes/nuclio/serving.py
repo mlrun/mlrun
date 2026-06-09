@@ -759,9 +759,8 @@ class ServingRuntime(nuclio_function.RemoteRuntime):
         :param verbose:   verbose logging
         :param builder_env: env vars dict for source archive config/credentials e.g. builder_env={"GIT_TOKEN": token}
         :param force_build: set True for force building the image
-        :param wait:      when True (default) block until ready and return the
-            invocation command (``str``); when False, submit and return ``self``
-            immediately for the caller to poll. See ``RemoteRuntime.deploy``.
+        :param wait:      when True (default), block until ready and return the invocation command (``str``).
+            When ``False``, submit and return ``self`` so the caller can poll. See ``RemoteRuntime.deploy``.
         """
 
         load_mode = self.spec.load_mode

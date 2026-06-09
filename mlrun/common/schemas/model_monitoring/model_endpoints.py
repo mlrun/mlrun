@@ -286,8 +286,12 @@ class ModelEndpointInstruction(BaseModel):
     :param name:               Name of the model endpoint.
     :param input_schema:       List of input feature names.
     :param output_schema:      List of output / label names.
-    :param function_name:      Name of an associated MLRun function (optional).
-    :param function_tag:       Tag of the associated function (optional).
+    :param function_name:      Name of the associated MLRun function. Optional — when used with
+                               ``setup_model_monitoring``, defaults to the function's ``metadata.name``.
+                               If set to a different value, an ``MLRunInvalidArgumentError`` is raised.
+    :param function_tag:       Tag of the associated MLRun function. Optional — when used with
+                               ``setup_model_monitoring``, defaults to the function's ``metadata.tag``.
+                               If set to a different value, an ``MLRunInvalidArgumentError`` is raised.
     :param creation_strategy: Strategy for creating or updating the model endpoint:
             * **overwrite**:
             1. If model endpoints with the same name exist, delete the `latest` one.

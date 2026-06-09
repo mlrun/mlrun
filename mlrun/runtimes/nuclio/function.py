@@ -403,6 +403,11 @@ class RemoteRuntime(KubeResource):
         when this function is deployed. Calling this method sets the ``track_models``
         flag on the spec so the deployment stage knows to create the endpoints.
 
+        On every instruction, ``function_name`` and ``function_tag`` default to the runtime's
+        ``metadata.name`` and ``metadata.tag`` when omitted, so the endpoint is always linked
+        to the deployed function. If they are set to a different value than the function's
+        name/tag, an ``MLRunInvalidArgumentError`` is raised.
+
         :param general_model_endpoint_instructions: Optional ModelEndpointInstruction parameter for main model endpoint
             instructions, if not provided a default one will be created with the USER_EP endpoint type and the default
             name f'{function_name}_model_endpoint'.

@@ -961,7 +961,10 @@ def _needs_source_fetch_init_container(source: str) -> bool:
 
 
 def _validate_source_fetch_archive(source: str) -> None:
-    if not source.lower().endswith(_FETCHABLE_ARCHIVE_EXTENSIONS):
+    # match ``load_source_code``'s case-sensitive extension check, so uppercased
+    # variants (.TAR.GZ, .ZIP) are rejected at the API boundary instead of slipping
+    # through and failing inside the init container with a worse error.
+    if not source.endswith(_FETCHABLE_ARCHIVE_EXTENSIONS):
         scheme = urlparse(source).scheme
         raise mlrun.errors.MLRunInvalidArgumentError(
             f"Source {source} uses scheme '{scheme}://' which is not natively "

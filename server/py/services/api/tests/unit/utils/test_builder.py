@@ -1812,6 +1812,18 @@ def test_build_runtime_kaniko_incompatible_source_uses_fetch_init_container(
     ]
     assert fetch_container.command == ["python"]
 
+    # the fetch-source container must share the kaniko empty-dir so its
+    # writes at /empty/source are visible to the kaniko main container as
+    # part of the build context
+    rendered = _create_pod_mock_pod_spec()
+    rendered_fetch = next(
+        ic for ic in rendered.init_containers if ic.name == "fetch-source"
+    )
+    fetch_mounts = {
+        (vm.name, vm.mount_path) for vm in rendered_fetch.volume_mounts or []
+    }
+    assert ("empty", "/empty") in fetch_mounts
+
 
 def test_build_runtime_kaniko_incompatible_source_dockerfile_adds_extracted_dir(
     monkeypatch,
@@ -2049,7 +2061,10 @@ def test_needs_source_fetch_init_container_allowlist(source, expected):
         # accepted: the same archive formats `mlrun load-source` handles
         ("az://x/y.tar.gz", False),
         ("az://x/y.zip", False),
-        ("az://x/y.TAR.GZ", False),
+        # rejected: case-sensitive match against load_source_code; uppercased
+        # extensions would not be picked up by the runtime extractor either,
+        # so we reject at the API boundary for a clearer error
+        ("az://x/y.TAR.GZ", True),
         # rejected: extensions mlrun load-source does not support
         ("az://x/y.tgz", True),
         ("az://x/y.tar.bz2", True),

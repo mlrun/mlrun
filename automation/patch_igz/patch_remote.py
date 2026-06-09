@@ -190,9 +190,7 @@ class MLRunPatcher:
         # Consult docker context if DOCKER_HOST is unset (as docker CLI does)
         if not os.environ.get("DOCKER_HOST"):
             try:
-                from docker.context.api import ContextAPI
-
-                ctx = ContextAPI.get_current_context()
+                ctx = docker.ContextAPI.get_current_context()
                 if ctx and ctx.Host and ctx.Name != "default":
                     return docker.DockerClient(base_url=ctx.Host)
             except Exception as exc:

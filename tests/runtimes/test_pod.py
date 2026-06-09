@@ -599,3 +599,28 @@ def test_validate_service(
         spec.validate_service_account(
             allowed_service_accounts, forbidden_service_accounts
         )
+
+
+def test_auto_mount_type_env_style_modifiers():
+    """Locks the policy: only modifiers that contribute env vars / envFrom and
+    no volumes or volume mounts may appear in this set. Callers (e.g. builder
+    `_resolve_storage_auto_mount_env`) rely on this to safely harvest env via
+    `spec.env` without silently dropping volume side-effects."""
+    import mlrun.runtimes.mounts
+
+    expected = {
+        mlrun.runtimes.mounts.set_env_variables,
+        mlrun.runtimes.mounts.set_env_vars_from_secret,
+        mlrun.runtimes.mounts.v3io_cred,
+        mlrun.runtimes.mounts.mount_s3,
+    }
+    assert mlrun.runtimes.pod.AutoMountType.env_style_modifiers() == expected
+
+    # mount-style modifiers must stay out: they mutate spec.volumes /
+    # spec.volume_mounts which the env-only harvester would silently drop.
+    forbidden = {
+        mlrun.runtimes.mounts.mount_v3io,
+        mlrun.runtimes.mounts.mount_pvc,
+        mlrun.runtimes.mounts.auto_mount,
+    }
+    assert forbidden.isdisjoint(mlrun.runtimes.pod.AutoMountType.env_style_modifiers())

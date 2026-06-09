@@ -40,12 +40,13 @@ from mlrun.utils.helpers import remove_image_protocol_prefix
 import framework.utils.helpers
 import framework.utils.singletons.k8s
 
-# mlrun datastore schemes kaniko cannot resolve as --context. explicit
-# allow-list so unknown schemes fail fast in the existing branches rather
-# than being silently routed through the fetch path.
-_FETCH_SUPPORTED_SCHEMES = frozenset(
-    {"az", "wasb", "wasbs", "abfs", "abfss", "ds", "dbfs"}
-)
+# curated set of mlrun datastore schemes kaniko cannot resolve as --context,
+# aligned with `mlrun.datastore.datastore.schema_to_store`. excludes schemes
+# kaniko handles natively (s3, gs/gcs, http/https) and v3io/v3ios (handled
+# elsewhere via FUSE mount). explicit allow-list so unknown schemes fail fast
+# in the existing branches rather than being silently routed through the fetch
+# path (mlrun load-source can only extract .tar.gz/.zip).
+_FETCH_SUPPORTED_SCHEMES = frozenset({"az", "wasb", "wasbs", "ds", "oss"})
 
 # matches the set ``mlrun load-source`` actually extracts.
 _FETCHABLE_ARCHIVE_EXTENSIONS = (".tar.gz", ".zip")
@@ -184,6 +185,8 @@ def make_kaniko_pod(
     project_secrets=None,
     project_default_fucntion_node_selector=None,
     auth_info: mlrun.common.schemas.AuthInfo = None,
+    *,
+    source_to_fetch: str | None = None,
 ):
     extra_runtime_spec = {}
     if not registry:
@@ -347,6 +350,14 @@ def make_kaniko_pod(
     elif secret_name:
         items = [{"key": ".dockerconfigjson", "path": "config.json"}]
         kpod.mount_secret(secret_name, "/kaniko/.docker", items=items)
+
+    if source_to_fetch:
+        _append_source_fetch_init_container(
+            kpod=kpod,
+            source=source_to_fetch,
+            builder_env_list=builder_env,
+            project_secrets=project_secrets,
+        )
 
     return kpod
 
@@ -594,6 +605,7 @@ def build_image(
         },
         project_default_fucntion_node_selector=project_default_function_node_selector,
         auth_info=auth_info,
+        source_to_fetch=source if needs_source_fetch_init_container else None,
     )
 
     if to_mount:
@@ -602,14 +614,6 @@ def build_image(
             mount_path="/context",
             access_key=access_key,
             user=username,
-        )
-
-    if needs_source_fetch_init_container:
-        _append_source_fetch_init_container(
-            kpod=kpod,
-            source=source,
-            builder_env_list=builder_env_list,
-            project_secrets=project_secrets,
         )
 
     k8s = framework.utils.singletons.k8s.get_k8s_helper(silent=False)
@@ -1018,30 +1022,37 @@ def _append_source_fetch_init_container(
 def _resolve_storage_auto_mount_env() -> list:
     """Harvest env vars the configured storage auto-mount would apply to user pods.
 
-    Only env-style modifiers are honored. Mount-style modifiers (PVC, V3IO
-    FUSE, S3) mutate ``spec.volumes`` / ``spec.volume_mounts`` rather than
-    ``spec.env``, so they would be silently dropped by this harvest — and the
-    fetch step needs only credentials to call ``mlrun.get_dataitem(...).download``,
-    not a fuse-mounted filesystem.
+    Gates on ``AutoMountType.env_style_modifiers()`` so mount-style outputs
+    (volumes / volume_mounts that this env-only harvester would silently drop)
+    are skipped. ``auto`` is resolved via ``get_modifier()`` first; the resolved
+    function ref - not the enum - is what we classify.
+
+    ``KubeResource.apply`` sanitizes ``spec.env`` to plain dicts during
+    ``try_auto_mount_based_on_config``; convert them back to ``V1EnvVar`` so
+    the caller can rely on attribute access (``.name``) like every other
+    builder env source.
     """
     auto_mount_type = mlrun.runtimes.pod.AutoMountType(
         mlrun.mlconf.storage.auto_mount_type
     )
     modifier = auto_mount_type.get_modifier()
-    if modifier is None:
+    if (
+        modifier is None
+        or modifier not in mlrun.runtimes.pod.AutoMountType.env_style_modifiers()
+    ):
         return []
-    env_style_modifiers = {
-        mlrun.runtimes.mounts.set_env_vars_from_secret,
-        mlrun.runtimes.mounts.set_env_variables,
-        mlrun.runtimes.mounts.v3io_cred,
-    }
-    if modifier not in env_style_modifiers:
-        return []
-    mount_params = mlrun.mlconf.get_storage_auto_mount_params()
-    mount_params = mlrun.runtimes.pod._filter_modifier_params(modifier, mount_params)
     scratch = mlrun.runtimes.KubejobRuntime()
-    modifier(**mount_params)(scratch)
-    return list(scratch.spec.env or [])
+    scratch.try_auto_mount_based_on_config()
+    return [
+        client.V1EnvVar(
+            name=env_var["name"],
+            value=env_var.get("value"),
+            value_from=env_var.get("valueFrom"),
+        )
+        if isinstance(env_var, dict)
+        else env_var
+        for env_var in scratch.spec.env or []
+    ]
 
 
 def _generate_builder_env(

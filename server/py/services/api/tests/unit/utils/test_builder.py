@@ -1784,10 +1784,10 @@ def _init_container_by_name(name: str):
     "source",
     [
         "az://data/iguazio/naipi-artifacts/project.tar.gz",
+        "wasb://container@account.blob.core.windows.net/path/project.tar.gz",
         "wasbs://container@account.blob.core.windows.net/path/project.tar.gz",
-        "abfss://container@account.dfs.core.windows.net/path/project.zip",
         "ds://my-profile/path/project.tar.gz",
-        "dbfs://path/to/project.tar.gz",
+        "oss://bucket/path/project.tar.gz",
     ],
 )
 def test_build_runtime_kaniko_incompatible_source_uses_fetch_init_container(
@@ -1921,9 +1921,9 @@ def test_build_runtime_kaniko_incompatible_source_project_secret_wins_over_auto_
 def test_build_runtime_kaniko_incompatible_source_skips_mount_style_auto_mount(
     monkeypatch,
 ):
-    """Mount-style auto-mounts (PVC, V3IO FUSE, S3) target shared filesystems
-    the kaniko pod does not participate in. The helper must skip them rather
-    than crashing on params the modifier doesn't understand."""
+    """Mount-style auto-mounts (PVC, V3IO FUSE) target shared filesystems the
+    kaniko pod does not participate in. The helper must skip them rather than
+    crashing on params the modifier doesn't understand."""
     _patch_k8s_helper(monkeypatch)
     config.httpdb.builder.docker_registry = "default.docker.registry/default-repository"
     monkeypatch.setattr(config.storage, "auto_mount_type", "pvc")
@@ -1936,6 +1936,23 @@ def test_build_runtime_kaniko_incompatible_source_skips_mount_style_auto_mount(
     fetch_container = _init_container_by_name("fetch-source")
     env_names = [env_var.name for env_var in fetch_container.env or []]
     assert env_names == ["KEY"]
+
+
+def test_build_runtime_kaniko_incompatible_source_applies_s3_auto_mount_env(
+    monkeypatch,
+):
+    """S3 auto-mount is env-style (no volumes), so its env vars must reach the
+    fetch-source init container — same contract as the secret_env case."""
+    _patch_k8s_helper(monkeypatch)
+    config.httpdb.builder.docker_registry = "default.docker.registry/default-repository"
+    monkeypatch.setattr(config.storage, "auto_mount_type", "s3")
+    monkeypatch.setattr(config.storage, "auto_mount_params", "aws_region=us-east-1")
+
+    _build_with_source("az://container/path/project.tar.gz")
+
+    fetch_container = _init_container_by_name("fetch-source")
+    env_by_name = {env_var.name: env_var.value for env_var in fetch_container.env or []}
+    assert env_by_name.get("AWS_REGION") == "us-east-1"
 
 
 def test_build_runtime_kaniko_incompatible_source_passes_secrets_to_fetcher(
@@ -1965,6 +1982,50 @@ def test_build_runtime_kaniko_incompatible_source_honours_image_override(monkeyp
     _build_with_source("az://container/path/project.tar.gz")
 
     assert _init_container_by_name("fetch-source").image == custom_image
+
+
+def test_build_runtime_kaniko_incompatible_source_combines_init_containers(
+    monkeypatch,
+):
+    """When the kaniko pod needs both the create-dockerfile init container
+    (always present when dockertext is set) and the fetch-source init container,
+    both must be rendered and both must share the `empty` volume mount that the
+    kaniko main container reads. Ordering between them is irrelevant for
+    correctness as long as both finish before main."""
+    _patch_k8s_helper(monkeypatch)
+    config.httpdb.builder.docker_registry = "default.docker.registry/default-repository"
+    _build_with_source("az://container/path/project.tar.gz")
+
+    pod_spec = _create_pod_mock_pod_spec()
+    init_names = {ic.name for ic in pod_spec.init_containers or []}
+    assert {"create-dockerfile", "fetch-source"}.issubset(init_names)
+
+    # both helpers write into /empty (Dockerfile and source/ respectively), so
+    # both init containers must mount the shared `empty` volume; otherwise the
+    # main kaniko container would not see the writes.
+    for name in ("create-dockerfile", "fetch-source"):
+        container = _init_container_by_name(name)
+        mounts = {(vm.name, vm.mount_path) for vm in container.volume_mounts or []}
+        assert ("empty", "/empty") in mounts, (
+            f"{name} init container missing /empty mount"
+        )
+
+
+def test_build_runtime_kaniko_incompatible_source_combines_with_ecr_init_container(
+    monkeypatch,
+):
+    """ECR destinations add a `create-repos` init container alongside
+    `create-dockerfile`. Combined with a kaniko-incompatible source, all three
+    init containers must be present in the rendered pod."""
+    _patch_k8s_helper(monkeypatch)
+    mlrun.mlconf.httpdb.builder.docker_registry = (
+        "aws_account_id.dkr.ecr.region.amazonaws.com"
+    )
+    _build_with_source("az://container/path/project.tar.gz")
+
+    pod_spec = _create_pod_mock_pod_spec()
+    init_names = {ic.name for ic in pod_spec.init_containers or []}
+    assert {"create-dockerfile", "fetch-source", "create-repos"}.issubset(init_names)
 
 
 def test_build_runtime_kaniko_incompatible_source_default_image_is_mlrun(monkeypatch):
@@ -2032,12 +2093,16 @@ def test_build_runtime_v3io_source_unchanged_by_fix(monkeypatch):
         ("az://x/y.tar.gz", True),
         ("wasb://x/y.tar.gz", True),
         ("wasbs://x@a.blob.core.windows.net/y.tar.gz", True),
-        ("abfs://x/y.tar.gz", True),
-        ("abfss://x/y.tar.gz", True),
         ("ds://profile/path/y.tar.gz", True),
-        ("dbfs://path/y.tar.gz", True),
+        ("oss://bucket/path/y.tar.gz", True),
+        # kaniko-native or otherwise handled out-of-band - must NOT be routed
+        # through the fetch init container.
+        ("abfs://x/y.tar.gz", False),
+        ("abfss://x/y.tar.gz", False),
+        ("dbfs://path/y.tar.gz", False),
         ("s3://x/y.tar.gz", False),
         ("gs://x/y.tar.gz", False),
+        ("gcs://x/y.tar.gz", False),
         ("git://x/y", False),
         ("https://x/y.tar.gz", False),
         ("http://x/y.tar.gz", False),

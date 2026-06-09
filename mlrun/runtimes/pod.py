@@ -687,6 +687,22 @@ class AutoMountType(StrEnum):
             mlrun.runtimes.mounts.set_env_vars_from_secret.__name__,
         ]
 
+    # Modifiers that contribute only env vars / envFrom and no volumes or volume mounts -
+    # i.e. safe to harvest by reading spec.env after applying them to a scratch runtime.
+    # Callers must resolve `AutoMountType.auto` via `get_modifier()` first - `auto` is a
+    # dispatcher whose resolved modifier (v3io_cred / mount_pvc / None) is what gets
+    # classified here. `mount_v3io` is deliberately excluded: it sets v3io creds on the
+    # runtime via an inner `v3io_cred` call but also calls `with_volume`/`with_volume_mounts`,
+    # so the volume side-effect would be silently dropped by an env-only harvester.
+    @classmethod
+    def env_style_modifiers(cls) -> set:
+        return {
+            mlrun.runtimes.mounts.set_env_variables,
+            mlrun.runtimes.mounts.set_env_vars_from_secret,
+            mlrun.runtimes.mounts.v3io_cred,
+            mlrun.runtimes.mounts.mount_s3,
+        }
+
     @classmethod
     def is_auto_modifier(cls, modifier):
         # Check if modifier is one of the known mount modifiers. We need to use startswith since the modifier itself is

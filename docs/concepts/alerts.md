@@ -85,7 +85,7 @@ By default, the `cooldown_period` is not set.
 
 Guidelines:
 - The `reset_policy` must be set to `auto`.
-- The `cooldown_period` must be >0 and >`cooldown_reset_interval`. See [System configuration](#system-configuration). (When `cooldown_period` is not set or set to 0, alerts are reset immediately.)
+- The `cooldown_period` must be >0 and >=`cooldown_reset_interval`. See [System configuration](#system-configuration). (When `cooldown_period` is not set or set to 0, alerts are reset immediately.)
 - Cooldown periods can be set as, for example, 1d, 3h, 5m, 15s, etc.
 
 You can manually reset an alert at any time ({py:func}`~mlrun.projects.MlrunProject.reset_alert_config`), whether or not the `cooldown_period` is active.

@@ -40,21 +40,17 @@ from mlrun.utils.helpers import remove_image_protocol_prefix
 import framework.utils.helpers
 import framework.utils.singletons.k8s
 
-# curated set of mlrun datastore schemes kaniko cannot resolve as --context,
-# aligned with `mlrun.datastore.datastore.schema_to_store`. excludes schemes
-# kaniko handles natively (s3, gs/gcs, http/https) and v3io/v3ios (handled
-# elsewhere via FUSE mount). explicit allow-list so unknown schemes fail fast
-# in the existing branches rather than being silently routed through the fetch
-# path (mlrun load-source can only extract .tar.gz/.zip).
+# mlrun datastore schemes kaniko cannot resolve as --context.
+# excludes kaniko-native schemes (s3, gs/gcs, http/https) and v3io (igz FUSE-mount).
+# aligned with `mlrun.datastore.datastore.schema_to_store`.
 _FETCH_SUPPORTED_SCHEMES = frozenset({"az", "wasb", "wasbs", "ds", "oss"})
 
-# matches the set ``mlrun load-source`` actually extracts.
+# matches what ``mlrun load-source`` extracts.
+# TODO: support .tgz
 _FETCHABLE_ARCHIVE_EXTENSIONS = (".tar.gz", ".zip")
 
 _FETCHED_SOURCE_SUBDIR = "source"
 
-# anchored as a literal (not config.default_base_image) so the builder is not
-# coupled to the SDK-side default-image knob.
 _DEFAULT_SOURCE_FETCH_IMAGE = "mlrun/mlrun"
 
 
@@ -983,12 +979,8 @@ def _append_source_fetch_init_container(
     builder_env_list: list,
     project_secrets: list,
 ) -> None:
-    """Run ``mlrun load-source`` in an init container that extracts ``source``
-    into ``/empty/<_FETCHED_SOURCE_SUBDIR>`` for kaniko to consume as --context.
-
-    Env precedence (later layers do not overwrite earlier ones):
-    builder_env_list > project_secrets > storage.auto_mount_params.
-    """
+    # Env precedence: builder_env_list > project_secrets > storage.auto_mount_params.
+    # First-write wins so caller-supplied values are not overwritten by auto-mount defaults.
     image = config.httpdb.builder.kaniko_source_fetch_init_container_image
     if not image:
         image = mlrun.utils.enrich_image_url(_DEFAULT_SOURCE_FETCH_IMAGE)
@@ -1020,18 +1012,9 @@ def _append_source_fetch_init_container(
 
 
 def _resolve_storage_auto_mount_env() -> list:
-    """Harvest env vars the configured storage auto-mount would apply to user pods.
-
-    Gates on ``AutoMountType.env_style_modifiers()`` so mount-style outputs
-    (volumes / volume_mounts that this env-only harvester would silently drop)
-    are skipped. ``auto`` is resolved via ``get_modifier()`` first; the resolved
-    function ref - not the enum - is what we classify.
-
-    ``KubeResource.apply`` sanitizes ``spec.env`` to plain dicts during
-    ``try_auto_mount_based_on_config``; convert them back to ``V1EnvVar`` so
-    the caller can rely on attribute access (``.name``) like every other
-    builder env source.
-    """
+    # Gate on env_style_modifiers so mount-style outputs (volumes/volume_mounts) are
+    # not silently dropped. KubeResource.apply sanitizes spec.env to plain dicts, so
+    # rebuild V1EnvVar for callers that rely on attribute access.
     auto_mount_type = mlrun.runtimes.pod.AutoMountType(
         mlrun.mlconf.storage.auto_mount_type
     )

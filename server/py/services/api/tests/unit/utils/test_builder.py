@@ -1753,7 +1753,6 @@ def _mock_default_service_account(monkeypatch, service_account):
 
 
 def _build_with_source(source: str) -> None:
-    """Drive build_runtime end-to-end with the given source and the standard mocks."""
     function = mlrun.new_function(
         "some-function",
         "some-project",
@@ -1797,11 +1796,10 @@ def test_build_runtime_kaniko_incompatible_source_uses_fetch_init_container(
     config.httpdb.builder.docker_registry = "default.docker.registry/default-repository"
     _build_with_source(source)
 
-    # kaniko's context is now the local empty-dir, not the raw URI
     assert _kaniko_context_arg() == "/empty"
 
     fetch_container = _init_container_by_name("fetch-source")
-    assert fetch_container is not None, "fetch-source init container missing"
+    assert fetch_container is not None
     assert fetch_container.args == [
         "-m",
         "mlrun",
@@ -1812,15 +1810,10 @@ def test_build_runtime_kaniko_incompatible_source_uses_fetch_init_container(
     ]
     assert fetch_container.command == ["python"]
 
-    # the fetch-source container must share the kaniko empty-dir so its
-    # writes at /empty/source are visible to the kaniko main container as
-    # part of the build context
-    rendered = _create_pod_mock_pod_spec()
-    rendered_fetch = next(
-        ic for ic in rendered.init_containers if ic.name == "fetch-source"
-    )
+    # fetch-source writes to /empty/source; without the shared mount kaniko cannot
+    # see those writes as part of its build context.
     fetch_mounts = {
-        (vm.name, vm.mount_path) for vm in rendered_fetch.volume_mounts or []
+        (vm.name, vm.mount_path) for vm in fetch_container.volume_mounts or []
     }
     assert ("empty", "/empty") in fetch_mounts
 
@@ -1828,8 +1821,6 @@ def test_build_runtime_kaniko_incompatible_source_uses_fetch_init_container(
 def test_build_runtime_kaniko_incompatible_source_dockerfile_adds_extracted_dir(
     monkeypatch,
 ):
-    """The dockerfile must ADD the extracted subdir (./source) into the image
-    so that the user's project code is actually present at runtime."""
     _patch_k8s_helper(monkeypatch)
     config.httpdb.builder.docker_registry = "default.docker.registry/default-repository"
     with unittest.mock.patch(
@@ -1845,14 +1836,9 @@ def test_build_runtime_kaniko_incompatible_source_dockerfile_adds_extracted_dir(
 def test_build_runtime_kaniko_incompatible_source_applies_storage_auto_mount_env(
     monkeypatch,
 ):
-    """Whatever storage.auto_mount_params already declares for user pods must
-    also reach the fetch-source init container. The builder code never names
-    Azure (or any other) env vars explicitly — it just respects the same
-    auto-mount config the chart already maintains for user pods."""
     _patch_k8s_helper(monkeypatch)
     config.httpdb.builder.docker_registry = "default.docker.registry/default-repository"
     monkeypatch.setattr(config.storage, "auto_mount_type", "secret_env")
-    # mirrors the lab wiring: a single cleartext storage-account env name+value
     monkeypatch.setattr(
         config.storage,
         "auto_mount_params",
@@ -1880,16 +1866,12 @@ def test_build_runtime_kaniko_incompatible_source_auto_mount_none_adds_no_env(
 
     fetch_container = _init_container_by_name("fetch-source")
     env_names = [env_var.name for env_var in fetch_container.env or []]
-    # only the project-secret-backed env from _patch_k8s_helper remains
     assert env_names == ["KEY"]
 
 
 def test_build_runtime_kaniko_incompatible_source_project_secret_wins_over_auto_mount(
     monkeypatch,
 ):
-    """When a project secret already exposes the same env name auto-mount
-    declares, the project-secret entry must win — auto-mount is a default,
-    project-level config is more specific."""
     _patch_k8s_helper(monkeypatch)
     helper = framework.utils.singletons.k8s.get_k8s_helper()
     helper.get_project_secret_keys = unittest.mock.Mock(
@@ -1912,7 +1894,7 @@ def test_build_runtime_kaniko_incompatible_source_project_secret_wins_over_auto_
         if env_var.name == "STORAGE_ACCOUNT"
     ]
     assert len(storage_entries) == 1
-    # the surviving entry must be the project-secret-backed one (value_from),
+    # surviving entry must be the project-secret-backed one (value_from),
     # not the plain-value copy from auto_mount_params
     assert storage_entries[0].value is None
     assert storage_entries[0].value_from is not None
@@ -1921,9 +1903,6 @@ def test_build_runtime_kaniko_incompatible_source_project_secret_wins_over_auto_
 def test_build_runtime_kaniko_incompatible_source_skips_mount_style_auto_mount(
     monkeypatch,
 ):
-    """Mount-style auto-mounts (PVC, V3IO FUSE) target shared filesystems the
-    kaniko pod does not participate in. The helper must skip them rather than
-    crashing on params the modifier doesn't understand."""
     _patch_k8s_helper(monkeypatch)
     config.httpdb.builder.docker_registry = "default.docker.registry/default-repository"
     monkeypatch.setattr(config.storage, "auto_mount_type", "pvc")
@@ -1941,8 +1920,6 @@ def test_build_runtime_kaniko_incompatible_source_skips_mount_style_auto_mount(
 def test_build_runtime_kaniko_incompatible_source_applies_s3_auto_mount_env(
     monkeypatch,
 ):
-    """S3 auto-mount is env-style (no volumes), so its env vars must reach the
-    fetch-source init container — same contract as the secret_env case."""
     _patch_k8s_helper(monkeypatch)
     config.httpdb.builder.docker_registry = "default.docker.registry/default-repository"
     monkeypatch.setattr(config.storage, "auto_mount_type", "s3")
@@ -1958,15 +1935,12 @@ def test_build_runtime_kaniko_incompatible_source_applies_s3_auto_mount_env(
 def test_build_runtime_kaniko_incompatible_source_passes_secrets_to_fetcher(
     monkeypatch,
 ):
-    """Project secrets the kaniko container sees must also reach the fetcher,
-    otherwise the fetch step has no Azure / data-store credentials."""
     _patch_k8s_helper(monkeypatch)
     config.httpdb.builder.docker_registry = "default.docker.registry/default-repository"
     _build_with_source("az://container/path/project.tar.gz")
 
     fetch_container = _init_container_by_name("fetch-source")
     env_names = [env.name for env in fetch_container.env or []]
-    # _patch_k8s_helper exposes a single project secret key named "KEY"
     assert "KEY" in env_names
 
 
@@ -1987,11 +1961,6 @@ def test_build_runtime_kaniko_incompatible_source_honours_image_override(monkeyp
 def test_build_runtime_kaniko_incompatible_source_combines_init_containers(
     monkeypatch,
 ):
-    """When the kaniko pod needs both the create-dockerfile init container
-    (always present when dockertext is set) and the fetch-source init container,
-    both must be rendered and both must share the `empty` volume mount that the
-    kaniko main container reads. Ordering between them is irrelevant for
-    correctness as long as both finish before main."""
     _patch_k8s_helper(monkeypatch)
     config.httpdb.builder.docker_registry = "default.docker.registry/default-repository"
     _build_with_source("az://container/path/project.tar.gz")
@@ -2000,9 +1969,8 @@ def test_build_runtime_kaniko_incompatible_source_combines_init_containers(
     init_names = {ic.name for ic in pod_spec.init_containers or []}
     assert {"create-dockerfile", "fetch-source"}.issubset(init_names)
 
-    # both helpers write into /empty (Dockerfile and source/ respectively), so
-    # both init containers must mount the shared `empty` volume; otherwise the
-    # main kaniko container would not see the writes.
+    # both write into /empty (Dockerfile and source/), so both must mount the shared
+    # `empty` volume - otherwise the main kaniko container would not see the writes.
     for name in ("create-dockerfile", "fetch-source"):
         container = _init_container_by_name(name)
         mounts = {(vm.name, vm.mount_path) for vm in container.volume_mounts or []}
@@ -2014,9 +1982,6 @@ def test_build_runtime_kaniko_incompatible_source_combines_init_containers(
 def test_build_runtime_kaniko_incompatible_source_combines_with_ecr_init_container(
     monkeypatch,
 ):
-    """ECR destinations add a `create-repos` init container alongside
-    `create-dockerfile`. Combined with a kaniko-incompatible source, all three
-    init containers must be present in the rendered pod."""
     _patch_k8s_helper(monkeypatch)
     mlrun.mlconf.httpdb.builder.docker_registry = (
         "aws_account_id.dkr.ecr.region.amazonaws.com"
@@ -2038,9 +2003,8 @@ def test_build_runtime_kaniko_incompatible_source_default_image_is_mlrun(monkeyp
     )
     _build_with_source("az://container/path/project.tar.gz")
 
+    # enrich_image_url may prefix a registry and/or attach a tag; only assert the repo.
     image = _init_container_by_name("fetch-source").image
-    # enrich_image_url anchors the bare name and may attach a registry/tag;
-    # the test only asserts the canonical mlrun/mlrun repo is in there.
     assert "mlrun/mlrun" in image
 
 
@@ -2082,8 +2046,6 @@ def test_build_runtime_v3io_source_unchanged_by_fix(monkeypatch):
     config.httpdb.builder.docker_registry = "default.docker.registry/default-repository"
     _build_with_source("v3io:///some/path/project.tar.gz")
 
-    # v3io continues to mount the volume; context remains /empty (legacy)
-    # and no fetch-source init container is added.
     assert _init_container_by_name("fetch-source") is None
 
 

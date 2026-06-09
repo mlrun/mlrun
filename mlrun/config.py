@@ -589,11 +589,9 @@ default_config = {
             "kaniko_init_container_image": "alpine:3.20",
             # image for kaniko init container when docker registry is ECR
             "kaniko_aws_cli_image": "amazon/aws-cli:2.17.16",
-            # image for the kaniko init container that fetches sources kaniko cannot resolve
-            # natively (az://, wasb(s)://, ds://, oss://). Empty derives from the mlrun image.
-            # An override is supported for clients running hardened images instead of mlrun/mlrun;
-            # the replacement image MUST have `python` installed and the `mlrun` package importable,
-            # since the init container runs `python -m mlrun load-source ...`.
+            # init container image that runs ``python -m mlrun load-source`` for sources
+            # kaniko cannot resolve natively (az://, wasb(s)://, ds://, oss://). Empty
+            # derives from the mlrun image; override must have python and the mlrun package.
             "kaniko_source_fetch_init_container_image": "",
             # kaniko sometimes fails to get filesystem from image, this is a workaround to retry the process
             # a known issue in Kaniko - https://github.com/GoogleContainerTools/kaniko/issues/1717

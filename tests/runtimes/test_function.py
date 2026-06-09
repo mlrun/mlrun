@@ -155,6 +155,58 @@ def test_nuclio_deploy_set_token_name():
         assert function.spec.auth["token_name"] == "context-nuclio-token"
 
 
+def _mock_nuclio_deploy(function):
+    """Wire a nuclio function so ``deploy()`` submits without a live cluster."""
+    db = mlrun.get_run_db()
+    db.deploy_nuclio_function = MagicMock(
+        return_value={"data": {"status": {}, "spec": function.spec}}
+    )
+    function._wait_for_function_deployment = MagicMock()
+    function._update_credentials_from_remote_build = MagicMock()
+    function._enrich_command_from_status = MagicMock(return_value="http://invocation")
+
+
+def test_nuclio_deploy_wait_false_skips_wait_and_enrich():
+    """``deploy(wait=False)`` submits and returns ``self`` without waiting or
+    enriching — the caller drives the build wait externally."""
+    function: mlrun.runtimes.RemoteRuntime = mlrun.new_function("tst", kind="nuclio")
+    _mock_nuclio_deploy(function)
+
+    result = function.deploy(wait=False)
+
+    assert result is function
+    function._wait_for_function_deployment.assert_not_called()
+    function._enrich_command_from_status.assert_not_called()
+
+
+def test_serving_deploy_forwards_wait():
+    """``ServingRuntime.deploy`` overrides the base — it must forward ``wait``
+    to ``super().deploy`` (regression: serving deploys raised
+    'unexpected keyword argument wait')."""
+    function = mlrun.new_function("tst", kind="serving")
+    function.set_topology("router")
+
+    with patch.object(
+        mlrun.runtimes.nuclio.function.RemoteRuntime, "deploy", return_value="cmd"
+    ) as super_deploy:
+        function.deploy(wait=False)
+
+    assert super_deploy.call_args.kwargs.get("wait") is False
+
+
+def test_nuclio_deploy_wait_true_waits_and_enriches():
+    """``deploy(wait=True)`` (default) preserves today's behavior: it waits for
+    readiness and returns the enriched invocation command (BC regression guard)."""
+    function: mlrun.runtimes.RemoteRuntime = mlrun.new_function("tst", kind="nuclio")
+    _mock_nuclio_deploy(function)
+
+    result = function.deploy()
+
+    function._wait_for_function_deployment.assert_called_once()
+    function._enrich_command_from_status.assert_called_once()
+    assert result == "http://invocation"
+
+
 def test_v3io_stream_trigger():
     function: mlrun.runtimes.RemoteRuntime = mlrun.new_function("tst", kind="nuclio")
     function.add_v3io_stream_trigger(

@@ -925,6 +925,7 @@ class RemoteRuntime(KubeResource):
         builder_env: dict | None = None,
         force_build: bool = False,
         track_models: bool | None = None,
+        wait: bool = True,
     ):
         """Deploy the nuclio function to the cluster
 
@@ -936,6 +937,15 @@ class RemoteRuntime(KubeResource):
         :param track_models: override state of self.spec.track_models. If not provided, uses the spec value (False
             by default, True after setup_model_monitoring() is called). When True, model endpoints are created at
             deployment time.
+        :param wait:       when True (default) block until the function is ready,
+            then enrich and return the invocation command (``str``). When False,
+            submit the deploy and return immediately with ``self`` (still in a
+            non-terminal state) — the caller is responsible for polling
+            ``db.get_nuclio_deploy_status`` to terminal. Use this to drive the
+            build wait externally (the API server submits this way).
+
+        :return: the invocation command (``str``) when ``wait=True``; the
+            function object (``self``) when ``wait=False``.
         """
 
         old_http_session = getattr(self, "_http_session", None)
@@ -977,6 +987,12 @@ class RemoteRuntime(KubeResource):
         self.spec = data["data"].get("spec")
 
         self._update_credentials_from_remote_build(data["data"])
+
+        if not wait:
+            # Caller drives the build wait externally (e.g. polls
+            # ``db.get_nuclio_deploy_status``). Return the submitted function;
+            # status/enrichment happen once the caller observes readiness.
+            return self
 
         # when a function is deployed, we wait for it to be ready by default
         # this also means that the function object will be updated with the function status

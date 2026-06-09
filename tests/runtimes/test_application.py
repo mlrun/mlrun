@@ -40,6 +40,18 @@ def igz_version_mock():
     mlrun.mlconf.igz_version = original_igz_version
 
 
+def test_application_deploy_rejects_wait_false():
+    """Application deploy can't drive the build wait externally (it does
+    readiness-dependent post-deploy steps), so wait=False must raise."""
+    fn: mlrun.runtimes.ApplicationRuntime = mlrun.new_function(
+        "application-test", kind="application", image="mlrun/mlrun"
+    )
+    with pytest.raises(
+        mlrun.errors.MLRunInvalidArgumentError, match="does not support wait=False"
+    ):
+        fn.deploy(wait=False)
+
+
 def test_ensure_reverse_proxy_configurations():
     fn: mlrun.runtimes.ApplicationRuntime = mlrun.new_function(
         "application-test", kind="application", image="mlrun/mlrun"

@@ -1,7 +1,8 @@
 (change-log)=
 # Change log
 
-The change log lists updates per version, open issues, limitations, and deprecations.
+The change log lists updates per version, open issues, limitations, and deprecations:
+- [v1.12.0](#v1-12-0)
 - [v1.11.0](#v1110)
 - [v1.10.3](#v1103) | [v1.10.2](#v1102) | [v1.10.1](#v1101) | [v1.10.0](#v1100)
 - [v1.9.2](#v192) | [v1.9.1](#v191) | [v1.9.0](#v190)
@@ -24,6 +25,12 @@ Upgrading these three MLRun dependencies spans several releases.  The upgrades a
 - Pydantic: from version 1 to 2.
 
 See a full description of KFP, Python, and the workflow engines in {ref}`local-remote`. Specific changes are listed under the relevant versions.
+
+(#v1-12-0)=
+## v1.12.0 (July 2026)
+
+
+
 (v1110)=
 ## v1.11.0 (May 2026)
 
@@ -1583,14 +1590,14 @@ with a drill-down to view the steps and their details. [Tech Preview]
 
 ## Deprecations and removed code
 
-| In    |ID     |Description                                                                                                                                                                                                                         |
-|--------|---------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| v1.11.0 |Use of underscore '_' in function names will be deprecated. Use dashes '-' instead.|
-| v1.11.0 |TDEngine support will be removed in v1.11.0. MLRun will support TimescaleDB instead. Data will not be migrated.|
-|v1.10.0 |SQLtargets are no longer supported.|
-| v1.10.0 |`project="default"` is deprecated. See [Breaking changes](#1.10.0-breaking).
-| v1.10.0 |The Docker image `mlrun/ml-base` is deprecated. Use `mlrun/mlrun` instead.|
-| v1.10.0 |Python 3.9 is deprecated and will be removed in MLRun 1.11.0.|
+| In    |ID     |Description                                                   |
+|--------|---------|-----------------------------------------|
+| v1.11.0 |NA  |Use of underscore '_' in function names will be deprecated. Use dashes '-' instead.|
+| v1.11.0 |NA  |TDEngine support will be removed in v1.11.0. MLRun will support TimescaleDB instead. Data will not be migrated.|
+| v1.10.0 |NA  |SQLtargets are no longer supported.|
+| v1.10.0 |NA  |`project="default"` is deprecated. See [Breaking changes](#1.10.0-breaking).
+| v1.10.0 |NA  |The Docker image `mlrun/ml-base` is deprecated. Use `mlrun/mlrun` instead.|
+| v1.10.0 |NA  |Python 3.9 is deprecated and will be removed in MLRun 1.11.0.|
 | v1.6.0 |ML-5137|The Create/edit function pane was removed from the UI.|
 | v1.5.0 |ML-4075|Python 3.7                                                     |
 | v1.5.0 |ML-4366 |MLRun images `mlrun/ml-models` and `mlrun/ml-models-gpu`   |
@@ -1599,26 +1606,33 @@ with a drill-down to view the steps and their details. [Tech Preview]
 
 ## Deprecated APIs  
 
-| Will be removed|Deprecated|API                                                                                |Use instead                                                                                                                                                 |
-|---------------|------------|----------------------------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| v1.12.0| v1.10.0 |`GET /projects/{project}/runs?state` | `states` |
-| v1.12.0| v1.10.0 |`artifact_path` in `MlrunProject.run_function`| `output path`|
-| v1.12.0| v1.10.0 |`artifact_path` in `mlrun.projects.operations.run_function`| `output path`|
-| v1.12.0| v1.10.0 |`artifact_path` and `out_path` in `BaseRuntime.run`| `output path`|
-| v1.12.0| v1.10.0 |`auth_info` in `RemoteRuntime.get_url`|NA|
-| v1.12.0| v1.10.0 |When using underscores as a name, the code no longer replaces them with dashes. |Use dashes|
-| v1.12.0| v1.10.0 |`any `mlrun.api.schemas.*`  import |`mlrun.common.schemas.*`| 
-| v1.12.0| v1.10.0 |key name `S3_ENDPOINT_URL`                                             |`AWS_ENDPOINT_URL_S3`|
-| v1.12.0| v1.10.0 |Datastore class: `DatastoreProfileKafkaSource`, `DatastoreProfileKafkaTarget`    |`DatastoreProfileKafkaStream`|
-| v1.12.0| v1.10.0 |processing old batch model endpoint in `mlrun.model_monitoring.controller `  |NA|
-| v1.12.0| v1.10.0 |`fetch_credentials_from_sys_config`                                       |NA|
+| Will be removed|Deprecated|API                                                                       |Use instead |
+|----------------|---------|----------------------------------------------------------------------------------|----------------------------------|
 
-
-
+|  
+|  
 ## Removed APIs
 
-| Version|API                                                    |Use instead                                                                  |
-|---------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|------------------------------------------------------------------------------|
+| Version|API                                       |Use instead                       |
+|---------|------------------------------------------|------------------------------------|
+| v1.12.0|`state` query param                          |`states` query param |
+| v1.12.0|'get_or_create_model_endpoint()` function |Deploy monitored serving function|
+| v1.12.0|'record_results()` function               |Run monitored serving fn as a job|
+| v1.12.0|Real-time processing of model endpoints (the branch)|NA (job-based serving)|
+| v1.12.0|Deprecated route                          |GET /projects/{project}/model-monitoring/metrics|
+
+
+| v1.12.0|`GET /projects/{project}/runs?state` | `states` |
+| v1.12.0|`artifact_path` in `MlrunProject.run_function`| `output path`|
+| v1.12.0|`artifact_path` in `mlrun.projects.operations.run_function`| `output path`|
+| v1.12.0 |`artifact_path` and `out_path` in `BaseRuntime.run`| `output path`|
+| v1.12.0 |`auth_info` param in `RemoteRuntime.get_url`|NA|
+| v1.12.0 |When using underscores as a name, the code no longer replaces them with dashes. |Use dashes|
+| v1.12.0 |any `mlrun.api.schemas.*`  import        |`mlrun.common.schemas.*`| 
+| v1.12.0 |key name `S3_ENDPOINT_URL`                    |`AWS_ENDPOINT_URL_S3`|
+| v1.12.0 |Datastore class: `DatastoreProfileKafkaSource`, `DatastoreProfileKafkaTarget`    |`DatastoreProfileKafkaStream`|
+| v1.12.0 |processing old batch model endpoint in `mlrun.model_monitoring.controller `  |NA|
+| v1.12.0 |`fetch_credentials_from_sys_config`                                       |NA|
 | v1.11.0|TDEngine support is removed in v1.11.0. Data is not migrated.|MLRun supports TimescaleDB instead.|
 | v1.11.0|`get_cached_artifact` of MLClientCtx                                              |`get_artifact`|
 | v1.11.0|`remove_function` of MLrunProject                            |`delete_function`|
@@ -1646,7 +1660,7 @@ with a drill-down to view the steps and their details. [Tech Preview]
 | v1.10.0|`overwrite_build_params` in `mlrun.projects.operations.build_function` |Default value changed to `True` |
 | v1.10.0|`overwrite` in `KubejobRuntime.build_config` |Default value changed to `True` |
 | v1.10.0|`mlrun.utils.helpers.is_legacy_artifact`                                 |NA|
-| v1.10.0|`mlrun.artifacts.base.convert_legacy_artifact_to_new_format`           |NA. Make sure to save the artifact/project in the new format.|
+| v1.10.0|`mlrun.artifacts.base.convert_legacy_artifact_to_new_format`      |NA. Make sure to save the artifact/project in the new format.|
 | v1.10.0|`allow_cross_project` in `mlrun.load_project`                           |Project name differs from the name specified in the context's project YAML. This functionality is no longer supported. If you want to enable this behavior, take one of the following actions:<ul><li>Set `allow_cross_project=True` when loading the project. (Previously, when `allow_cross_project` was not set (`None`), it implicitly behaved as if it were `True`, with a warning. Now, if you want this functionality, you must explicitly set `allow_cross_project=True`.)</li><li>Delete the existing project YAML, or ensure its `name` field matches the actual project name.</li><li>Use a different project context directory.</li></ul>
 | v1.10.0|`bootstrap_servers` in `mlrun.datastore.targets.KafkaTarget`            |`brokers`|
 | v1.10.0|`schema` in `mlrun.datastore.sources.SnowflakeSource`                   |`db_schema`|
@@ -1656,7 +1670,7 @@ with a drill-down to view the steps and their details. [Tech Preview]
 | v1.10.0|`artifacts_tag`, `default_batch_image` in `mlrun.model_monitoring.api.record_results`  |NA|
 | v1.10.0|`mlrun.model_monitoring.tracking_policy.TrackingPolicy`                          |NA| 
 | v1.10.0|`default_controller_image` in `MlrunProject.enable_model_monitoring()`            |`image`|
-| v1.10.0|`MlrunProject.remove_model_monitoring_function()`                               |`MlrunProject.delete_model_monitoring_function()`|
+| v1.10.0|`MlrunProject.remove_model_monitoring_function()`                      |`MlrunProject.delete_model_monitoring_function()`|
 | v1.10.0|`tracking_policy` in `mlrun.runtimes.nuclio.serving.set_tracking`                |Set the model monitoring time window and schedule with the `base_period` argument in `project.enable_model_monitoring()`|
 | v1.10.0|Class: `mlrunn.common.schemas.RunsFormat`                                 |`mlrun.common.formatters.RunFormat`          |
 | v1.10.0|Class: `mlrunn.common.schemas.ArtifactsFormat`                            |`mlrun.common.formatters.ArtifactFormat`          |
@@ -1677,52 +1691,56 @@ with a drill-down to view the steps and their details. [Tech Preview]
 | v1.8.0 |Aborting runs by update request                                                           |Abort run API|
 | v1.8.0 |HTTPDB: `last` parameter of `list_runs`                                              | NA. Was not used.|
 | v1.8.0 |Feature store: `get_offline_features`                                                |`FeatureVector.get_offline_features()`|
-| v1.8.0 |Feature store: `get_online_feature_service`                                          |`FeatureVector.get_online_feature_service()`|
+| v1.8.0 |Feature store: `get_online_feature_service`                             |`FeatureVector.get_online_feature_service()`|
 | v1.8.0 |Feature store: `preview`                                                             |`FeatureSet.preview()`|
 | v1.8.0 |Feature store: `ingest`                                                              |`FeatureSet.ingest()`|
 | v1.8.0 |Artifacts: `uid` parameter of `store_artifact`                                       |`tree` parameter of `store_artifact` (artifact uid is generated in the backend)|
 | v1.8.0 |Runtimes: `with_requirements` &mdash; `requirements` param as a requirements file    |`requirements_file` param  |
-| v1.7.0 |Function: `mlrun.utils.helpers.parse_versioned_object_uri`                                  |`mlrun.common.helpers.parse_versioned_object_uri`         |
-| v1.7.0 |`func_info`                                                                       |`ast_func_info`                                                |
+| v1.7.0 |Function: `mlrun.utils.helpers.parse_versioned_object_uri`  |`mlrun.common.helpers.parse_versioned_object_uri`         |
+| v1.7.0 |`func_info` |`ast_func_info`   |
 | v1.7.0 |Class: `MpiRuntimeV1Alpha1`                                                         |`MpiRuntimeV1`          |
 | v1.7.0 |Feature store: `deploy_ingestion_service`                                         |`deploy_ingestion_service_v2`|
-| v1.7.0 |`skip_deployed` parameter of `mlrun.projects.project.MlrunProject.build_image`    |NA. The parameter was ignored.                                                                                                                               |
-| v1.7.0 |API endpoint GET: `/files` and `/filestat`                                        |`/projects/{project}/filestat`                                                                                                                              |
+| v1.7.0 |`skip_deployed` parameter of `mlrun.projects.project.MlrunProject.build_image`    |NA. The parameter was ignored.|
+| v1.7.0 |API endpoint GET: `/files` and `/filestat`|`/projects/{project}/filestat`   |
 | v1.7.0 |`LegacyArtifact` and all legacy artifact types that inherit from it (`LegacyArtifact`, `LegacyDirArtifact`, `LegacyLinkArtifact`, `LegacyPlotArtifact`, `LegacyChartArtifact`, `LegacyTableArtifact`, `LegacyModelArtifact`, `LegacyDatasetArtifact`, `LegacyPlotlyArtifact`, `LegacyBokehArtifact`, `BokehArtifact`, `LegacyArtifact`)|`Artifact` or other artifact classes that inherit from it                    |
-| v1.7.0 |Parameter of mlrun.feature_store.feature_set.FeatureSet.set_targets `default_final_state`   |`default_final_step`                                                                                                                                          |
+| v1.7.0 |Parameter of mlrun.feature_store.feature_set.FeatureSet.set_targets `default_final_state`   |`default_final_step` |
 | v1.6.2 |`dashboard` parameter of the RemoteRuntime `invoke`                             |NA. The parameter was ignored. |
 | v1.6.0 |`dashboard` parameter of `project.deploy_function`, `RemoteRuntime.deploy`, `RemoteRuntime.get_nuclio_deploy_status`, `ServingRuntime.with_secrets`| NA. The parameter was ignored.         |
 | v1.6.0 |`MLRunProject.clear_context()`                                                      |NA |
 |v1.6.0  |Runtimes: `with_requirements` &mdash; `requirements` param as a requirements file    |`requirements_file` param  |
-| v1.6.0 |MLRunProject object legacy parameters                                              |metadata and spec                                                                                                                                           |
-| v1.6.0 |`BaseRuntime.with_commands` and `KubejobRuntime.build_config` `verify_base_image` param|`prepare_image_for_deploy`                                                                                                                                 |
-| v1.6.0 |`run_local`                                                                          |`function.run(local=True)`                                                                                                                                   |
-| v1.6.0 |CSVSource's `time_fields` parameter                                                   |Use `parse_dates` to parse timestamps                                                                                                                         |
-| v1.6.0 |`new_pipe_meta`                                                                      |`new_pipe_metadata`                                                                                                                                      |
-| v1.6.0 |ttl param from pipeline                                                            |`cleanup_ttl`                                                                                                                                              |
+| v1.6.0 |MLRunProject object legacy parameters         |metadata and spec  |
+| v1.6.0 |`BaseRuntime.with_commands` and `KubejobRuntime.build_config` `verify_base_image` param|`prepare_image_for_deploy`   |
+| v1.6.0 |`run_local`                                                                          |`function.run(local=True)` |
+| v1.6.0 |CSVSource's `time_fields` parameter                                                   |Use `parse_dates` to parse timestamps  |
+| v1.6.0 |`new_pipe_meta`                                                                      |`new_pipe_metadata` |
+| v1.6.0 |ttl param from pipeline                                                            |`cleanup_ttl`  |
 | v1.6.0 |objects methods from artifacts list                                                |`to_objects`                
 | v1.5.0 |user_project- and project-related parameters of `set_environment`. (Global-related parameters are not deprecated.) |The same parameters in project-related APIs, such as `get_or_create_project` |
-| v1.5.0 |`KubeResource.gpus`                                                                                                                                                                                                                                                                                 |`with_limits`                                                                |
-| v1.5.0 |Dask `gpus`                                                                                                                                                                                                                                                                                         |`with_scheduler_limits` / `with_worker_limits`                               |
-| v1.5.0 |`ExecutorTypes`                                                                                                                                                                                                                                                                                     |`ParallelRunnerModes`                                                        |
-| v1.5.0 |Spark runtime `gpus`                                                                                                                                                                                                                                                                                |`with_driver_limits` / `with_executor_limits`                                |
-| v1.5.0 |`mount_v3io_legacy` (mount_v3io no longer calls it)                                                                                                                                                                                                                                                 |`mount_v3io`                                                                 |
-| v1.5.0 |`mount_v3io_extended`                                                                                                                                                                                                                                                                               |`mount_v3io`                                                                 |
-| v1.5.0 |`init_functions` in pipelines                                                                                                                                                                                                                                                                       |Add the function initialization to the pipeline code instead                 |
-| v1.5.0 |The entire `mlrun/mlutils` library                                                                                                                                                                                                                                                                  |`mlrun.framework`                                                            |
-| v1.5.0 |`run_pipeline`                                                                                                                                                                                                                                                                                      |`project.run`                                                                |
+| v1.5.0 |`KubeResource.gpus`      |`with_limits`  |
+| v1.5.0 |Dask `gpus` |`with_scheduler_limits` / `with_worker_limits`    |
+| v1.5.0 |`ExecutorTypes`    |`ParallelRunnerModes`                                                        |
+| v1.5.0 |Spark runtime `gpus`    |`with_driver_limits` / `with_executor_limits`                                |
+| v1.5.0 |`mount_v3io_legacy` (mount_v3io no longer calls it)    |`mount_v3io`    |
+| v1.5.0 |`mount_v3io_extended`   |`mount_v3io`                                                                 |
+| v1.5.0 |`init_functions` in pipelines    |Add the function initialization to the pipeline code instead                 |
+| v1.5.0 |The entire `mlrun/mlutils` library  |`mlrun.framework`                                                            |
+| v1.5.0 |`run_pipeline`    |
 | v1.5.0 |Unused artifact types: BokehArtifact, ChartArtifact      |NA|
-| v1.3.0 |`project.functions`                                                                                                                                                                                                                                                                                 |`project.get_function`, `project.set_function`, `project.list_function`      |
-| v1.3.0 |`project.artifacts`                                                                                                                                                                                                                                                                                 |`project.get_artifact`, `project.set_artifact`, `project.list_artifact`      |
-| v1.3.0 |`project.func()`                                                                                                                                                                                                                                                                                    |`project.get_function()`                                                     |
-| v1.3.0 |`project.create_vault_secrets()`                                                                                                                                                                                                                                                                    |NA                                                                           |
-| v1.3.0 |`project.get_vault_secret()`                                                                                                                                                                                                                                                                        |NA                                                                           |
-| v1.3.0 |`MlrunProjectLegacy` class                                                                                                                                                                                                                                                                          |`MlrunProject`                                                               |
-| v1.3.0 |Feature-store: usage of state in graph. For example: `add_writer_state`, and the `after_state` parameter in `_init_` methods.                                                                                                                                                                       |`step`                                                                       |
-| v1.3.0 |`mount_path` parameter in mount_v3io()                                                                                                                                                                                                                                                              |`volume_mounts`                                                              |
-| v1.3.0 |`NewTask`                                                                                                                                                                                                                                                                                           |`new_task()`                                                                 |
-| v1.3.0 |Dask `with_limits`                                                                                                                                                                                                                                                                                  |`with_scheduler_limits` / `with_worker_limits`                               |
-| v1.3.0 |Dask `with_requests`                                                                                                                                                                                                                                                                                |`with_scheduler_requests` / `with_worker_requests`                           |
+| v1.3.0 |`project.functions`   |`project.get_function`, `project.set_function`, `project.list_function`      |
+| v1.3.0 |`project.artifacts`  |`project.get_artifact`, `project.set_artifact`, `project.list_artifact`      |
+| v1.3.0 |`project.func()|`project.get_function()`    |
+| v1.3.0 |`project.create_vault_secrets()`     |NA      |
+| v1.3.0 |`project.get_vault_secret()`     |NA        |
+| v1.3.0 |`MlrunProjectLegacy` class     |`MlrunProject` |
+| v1.3.0 |Feature-store: usage of state in graph. For example: `add_writer_state`, and the `after_state` parameter in `_init_` methods.|`step`|
+| v1.3.0 |`mount_path` parameter in mount_v3io()  |`volume_mounts`          |
+| v1.3.0 |`NewTask`   |`new_task()`             |
+| v1.3.0 |Dask `with_limits`   |`with_scheduler_limits` / `with_worker_limits`     |
+| v1.3.0 |Dask `with_requests`   |`with_scheduler_requests` / `with_worker_requests`      |
+
+
+
+
 
 ## Removed CLIs 
 

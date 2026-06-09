@@ -630,7 +630,7 @@ class TestSetupModelMonitoring:
         ):
             fn.setup_model_monitoring(extra_model_endpoint_instructions=extra)
 
-    def test_extra_instructions_no_tag_skips_tag_check(self):
+    def test_extra_instructions_no_tag_backfills_from_metadata(self):
         from mlrun.common.schemas.model_monitoring.model_endpoints import (
             ModelEndpointInstruction,
         )
@@ -639,8 +639,10 @@ class TestSetupModelMonitoring:
         fn.metadata.tag = "v1"
         extra = [ModelEndpointInstruction(name="my-fn")]  # function_tag=None
         fn.setup_model_monitoring(extra_model_endpoint_instructions=extra)
-        names = [i.name for i in fn.spec.model_endpoints_instructions]
-        assert "my-fn" in names
+        stored_extra = fn.spec.model_endpoints_instructions[-1]
+        assert stored_extra.name == "my-fn"
+        assert stored_extra.function_name == "my-fn"
+        assert stored_extra.function_tag == "v1"
 
     def test_function_name_mismatch_raises(self):
         from mlrun.common.schemas.model_monitoring.model_endpoints import (
@@ -690,7 +692,7 @@ class TestSetupModelMonitoring:
         fn.setup_model_monitoring(general_model_endpoint_instructions=instruction)
         assert fn.spec.model_endpoints_instructions[0].function_tag == "v1"
 
-    def test_no_function_tag_skips_tag_check(self):
+    def test_no_function_tag_backfills_from_metadata(self):
         from mlrun.common.schemas.model_monitoring.model_endpoints import (
             ModelEndpointInstruction,
         )
@@ -699,4 +701,57 @@ class TestSetupModelMonitoring:
         fn.metadata.tag = "v1"
         instruction = ModelEndpointInstruction(name="my-fn")  # function_tag=None
         fn.setup_model_monitoring(general_model_endpoint_instructions=instruction)
-        assert fn.spec.model_endpoints_instructions[0].name == "my-fn"
+        stored = fn.spec.model_endpoints_instructions[0]
+        assert stored.name == "my-fn"
+        assert stored.function_tag == "v1"
+
+    def test_no_function_name_backfills_from_metadata(self):
+        # Reproduces ML-12727: ModelEndpointInstruction passed without function_name
+        # must still be linked to the function so the endpoint appears in the UI.
+        from mlrun.common.schemas.model_monitoring.model_endpoints import (
+            ModelEndpointInstruction,
+        )
+
+        fn = self._nuclio_fn(name="my-fn")
+        fn.metadata.tag = "v2"
+        instruction = ModelEndpointInstruction(
+            name="my-ep",
+            input_schema=["age", "income"],
+            output_schema=["approved"],
+        )  # function_name=None, function_tag=None
+        fn.setup_model_monitoring(general_model_endpoint_instructions=instruction)
+        stored = fn.spec.model_endpoints_instructions[0]
+        assert stored.function_name == "my-fn"
+        assert stored.function_tag == "v2"
+
+    def test_extra_instructions_no_function_name_backfills_from_metadata(self):
+        from mlrun.common.schemas.model_monitoring.model_endpoints import (
+            ModelEndpointInstruction,
+        )
+
+        fn = self._nuclio_fn(name="my-fn")
+        fn.metadata.tag = "v2"
+        extra = [
+            ModelEndpointInstruction(name="ep-a"),
+            ModelEndpointInstruction(name="ep-b", function_name="my-fn"),
+        ]
+        fn.setup_model_monitoring(extra_model_endpoint_instructions=extra)
+        # primary default + 2 extras
+        assert len(fn.spec.model_endpoints_instructions) == 3
+        for instr in fn.spec.model_endpoints_instructions:
+            assert instr.function_name == "my-fn"
+            assert instr.function_tag == "v2"
+
+    def test_function_name_mismatch_error_includes_endpoint_and_values(self):
+        from mlrun.common.schemas.model_monitoring.model_endpoints import (
+            ModelEndpointInstruction,
+        )
+
+        fn = self._nuclio_fn(name="my-fn")
+        instruction = ModelEndpointInstruction(name="my-ep", function_name="wrong-fn")
+        with pytest.raises(mlrun.errors.MLRunInvalidArgumentError) as exc_info:
+            fn.setup_model_monitoring(general_model_endpoint_instructions=instruction)
+        msg = str(exc_info.value)
+        assert "my-ep" in msg
+        assert "wrong-fn" in msg
+        assert "my-fn" in msg

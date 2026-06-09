@@ -16,8 +16,7 @@ import pytest
 import mlrun
 import mlrun.errors
 from mlrun.common.types import AuthenticationMode
-
-import framework.utils.runtimes.mpijob
+from mlrun.runtimes import MpiRuntimeV1
 
 
 @pytest.mark.parametrize(
@@ -29,23 +28,17 @@ import framework.utils.runtimes.mpijob
         AuthenticationMode.IGUAZIO,
     ],
 )
-def test_validate_mpijob_runtime_supported_passes_when_not_iguazio_v4(
-    monkeypatch, auth_mode
-):
+def test_mpijob_validate_passes_when_not_iguazio_v4(monkeypatch, auth_mode):
     monkeypatch.setattr(mlrun.mlconf.httpdb.authentication, "mode", auth_mode)
 
-    # MPIJob is supported outside IG4
-    framework.utils.runtimes.mpijob.validate_mpijob_runtime_supported()
+    # MPIJob is supported outside IG4 - validate() must not raise
+    MpiRuntimeV1().validate()
 
 
-def test_validate_mpijob_runtime_supported_raises_in_iguazio_v4(monkeypatch):
+def test_mpijob_validate_raises_in_iguazio_v4(monkeypatch):
     monkeypatch.setattr(
         mlrun.mlconf.httpdb.authentication, "mode", AuthenticationMode.IGUAZIO_V4
     )
 
-    with pytest.raises(mlrun.errors.MLRunBadRequestError) as exc_info:
-        framework.utils.runtimes.mpijob.validate_mpijob_runtime_supported()
-
-    assert framework.utils.runtimes.mpijob.mpijob_runtime_unsupported_message in str(
-        exc_info.value
-    )
+    with pytest.raises(mlrun.errors.MLRunBadRequestError):
+        MpiRuntimeV1().validate()

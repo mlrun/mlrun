@@ -26,6 +26,7 @@ from mlrun.runtimes.base import RuntimeClassMode
 from mlrun.runtimes.mpijob import AbstractMPIJobRuntime
 from mlrun.utils import logger
 
+import framework.utils.runtimes.mpijob
 import framework.utils.singletons.k8s
 from framework.db.base import DBInterface
 from services.api.runtime_handlers import KubeRuntimeHandler
@@ -44,6 +45,9 @@ class AbstractMPIJobRuntimeHandler(KubeRuntimeHandler, abc.ABC):
         execution: mlrun.execution.MLClientCtx,
         auth_info: mlrun.common.schemas.AuthInfo = None,
     ):
+        # fail fast with a clear error on systems where the MPIJob runtime is not supported (IG4).
+        framework.utils.runtimes.mpijob.validate_mpijob_runtime_supported()
+
         if run.metadata.iteration:
             runtime.store_run(run)
 

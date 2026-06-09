@@ -24,6 +24,8 @@ from sqlalchemy.orm import Session
 import mlrun
 import mlrun.common.constants as mlrun_constants
 import mlrun.common.schemas
+import mlrun.common.types
+import mlrun.errors
 from mlrun.common.runtimes.constants import PodPhases, RunStates
 from mlrun.runtimes import RuntimeKinds
 
@@ -108,6 +110,24 @@ class TestMPIjobRuntimeHandler(TestRuntimeHandlerBase):
         self.pod_label_selector = self._generate_get_logger_pods_label_selector(
             self.runtime_handler
         )
+
+    def test_run_raises_when_mpijob_runtime_unsupported(
+        self, monkeypatch, db: Session, client: TestClient
+    ):
+        # On IG4 the MPIJob runtime is unsupported - run() must fail fast with a clear
+        # MLRunBadRequestError before attempting to submit the CRD.
+        monkeypatch.setattr(
+            mlrun.mlconf.httpdb.authentication,
+            "mode",
+            mlrun.common.types.AuthenticationMode.IGUAZIO_V4,
+        )
+
+        with pytest.raises(mlrun.errors.MLRunBadRequestError):
+            self.runtime_handler.run(
+                runtime=unittest.mock.MagicMock(),
+                run=unittest.mock.MagicMock(),
+                execution=unittest.mock.MagicMock(),
+            )
 
     def test_list_resources(self, db: Session, client: TestClient):
         mocked_responses = self._mock_list_namespaced_crds([[self.succeeded_crd_dict]])

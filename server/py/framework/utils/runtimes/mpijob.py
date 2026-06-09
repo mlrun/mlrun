@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import mlrun.common.constants as mlrun_constants
+import mlrun.errors
 import mlrun.k8s_utils
 import mlrun.utils.helpers
 from mlrun.common.runtimes.constants import MPIJobCRDVersions
@@ -20,6 +21,12 @@ from mlrun.config import config
 import framework.utils.singletons.k8s
 
 cached_mpijob_crd_version = None
+
+# The MPIJob runtime is not supported on Iguazio v4 (IG4) systems, where the mpi-operator is no
+# longer deployed.
+mpijob_runtime_unsupported_message = (
+    "The MPIJob runtime is not supported on this system."
+)
 
 
 def resolve_mpijob_crd_version():
@@ -47,6 +54,18 @@ def resolve_mpijob_crd_version():
         cached_mpijob_crd_version = mpijob_crd_version
 
     return cached_mpijob_crd_version
+
+
+def validate_mpijob_runtime_supported():
+    """
+    Ensure the MPIJob runtime is supported on this system, raising a clear error if it isn't.
+
+    The MPIJob runtime is not supported on Iguazio v4 (IG4) systems.
+
+    :raises mlrun.errors.MLRunBadRequestError: on systems where the MPIJob runtime is not supported.
+    """
+    if config.is_iguazio_v4_mode():
+        raise mlrun.errors.MLRunBadRequestError(mpijob_runtime_unsupported_message)
 
 
 def _resolve_mpijob_crd_version_best_effort():

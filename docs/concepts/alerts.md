@@ -42,10 +42,10 @@ The SDK supports these alert operations:
 The predefined event types ({py:class}`~mlrun.common.schemas.alert.EventKind`) are:
 - `concept-drift-detected` &mdash; A detected change, over time, of  statistical properties of the target variable (what the model is predicting). 
 - `concept-drift-suspected` &mdash; A suspected change, over time, of  statistical properties of the target variable (what the model is predicting). 
-- `data-drift-detected` &mdash; A detected change in model input data that potentially leads to model performance degradation. 
-- `data-drift-suspected` &mdash; A suspected change in model input data that potentially leads to model performance degradation. 
+- `data-drift-detected` &mdash; An alert triggered by a detected change in model input data that potentially leads to model performance degradation. 
+- `data-drift-suspected` &mdash; An alert triggered by a suspected change in model input data that potentially leads to model performance degradation. 
 - `mm-app-anomaly-detected` &mdash; An alert triggered by a detected anomaly in user-defined metrics/results.
-- `mm-app-anomaly-suspected` &mdash; A suspected alert based on user-defined metrics/results.
+- `mm-app-anomaly-suspected` &mdash; An alert triggered by a suspected anomaly in user-defined metrics/results.
 - `mm-app-failed` &mdash; A model monitoring app failed.
 - `model-monitoring-lag-detected` &mdash; The monitoring writer falls behind the processing of inference events.
 - `model-performance-detected` &mdash; A detected change of the overall model performance and/or feature-level performance. 

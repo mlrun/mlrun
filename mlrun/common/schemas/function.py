@@ -47,6 +47,7 @@ class FunctionState:
     pending = "pending"
     # same goes for the build which is not coming from the pod, but is used and we can't just omit it for BC reasons
     build = "build"
+    building = "building"
 
     # for pipeline steps
     skipped = "skipped"

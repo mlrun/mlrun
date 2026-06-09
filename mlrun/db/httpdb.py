@@ -147,6 +147,10 @@ class HTTPRunDB(RunDBInterface):
         self.user = None
         self.password = None
         self.token_provider = None
+        # Default headers attached to every request (e.g. an authenticator-kind
+        # hint). Populated from explicit ``Credentials.extra_headers``; stays
+        # empty on the env/URL credential path.
+        self._default_headers: dict[str, str] = {}
         self.base_url = None
         self._parsed_url = None
         # When provided, auth is bound to this instance and the env-/
@@ -180,6 +184,7 @@ class HTTPRunDB(RunDBInterface):
         self.token_provider = (
             mlrun.auth.StaticTokenProvider(c.token) if c.token is not None else None
         )
+        self._default_headers = dict(c.extra_headers or {})
         return True
 
     def _init_token_provider_from_env(self):
@@ -317,6 +322,12 @@ class HTTPRunDB(RunDBInterface):
                     mlrun.common.schemas.HeaderNames.python_version: self.python_version,
                 }
             )
+
+        # Default headers from explicit credentials (e.g. authenticator-kind).
+        # setdefault per key so a per-call header and the Authorization header
+        # set above always win over a default.
+        for header_name, header_value in self._default_headers.items():
+            kw.setdefault("headers", {}).setdefault(header_name, header_value)
 
         # requests no longer supports header values to be enum (https://github.com/psf/requests/pull/6154)
         # convert to strings. Do the same for params for niceness

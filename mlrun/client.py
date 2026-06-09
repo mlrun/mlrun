@@ -19,7 +19,7 @@ from __future__ import annotations
 from collections.abc import Iterator
 from contextlib import contextmanager
 from contextvars import ContextVar
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import mlrun.errors
 
@@ -34,12 +34,22 @@ class Credentials:
 
     One of: ``token=``, ``username=/password=``, or ``use_env=True``
     for legacy env/config/file resolution.
+
+    ``extra_headers`` augments an auth mode (it is not one): a dict of default
+    headers attached to every request this client makes — e.g.
+    ``{"X-IGZ-Authenticator-Kind": "sa"}`` to identify a service-account token.
+    Per-call ``headers=`` and the ``Authorization`` header always win over a
+    default. Excluded from equality/hashing so the frozen dataclass stays
+    hashable.
     """
 
     token: str | None = None
     username: str | None = None
     password: str | None = None
     use_env: bool = False
+    extra_headers: dict[str, str] | None = field(
+        default=None, compare=False, hash=False
+    )
 
     def __post_init__(self):
         if (self.username is None) != (self.password is None):

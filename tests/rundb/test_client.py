@@ -61,6 +61,41 @@ def test_session_carries_client_credentials_to_requests():
     assert headers.get("authorization") == "Bearer my-token"
 
 
+def test_session_carries_extra_headers_to_requests():
+    """``Credentials.extra_headers`` are attached to every request."""
+    client = Client(
+        credentials=Credentials(
+            token="my-token", extra_headers={"X-IGZ-Authenticator-Kind": "sa"}
+        )
+    )
+    client._http_db.session = unittest.mock.Mock()
+
+    with client.session():
+        mlrun.get_run_db().api_call("GET", "some-path")
+
+    headers = client._http_db.session.request.call_args[1].get("headers", {})
+    assert headers.get("X-IGZ-Authenticator-Kind") == "sa"
+    assert headers.get("authorization") == "Bearer my-token"
+
+
+def test_per_call_header_overrides_default_extra_header():
+    """A per-call ``headers=`` value wins over a ``Credentials`` default."""
+    client = Client(
+        credentials=Credentials(
+            token="my-token", extra_headers={"X-IGZ-Authenticator-Kind": "sa"}
+        )
+    )
+    client._http_db.session = unittest.mock.Mock()
+
+    with client.session():
+        mlrun.get_run_db().api_call(
+            "GET", "some-path", headers={"X-IGZ-Authenticator-Kind": "override"}
+        )
+
+    headers = client._http_db.session.request.call_args[1].get("headers", {})
+    assert headers.get("X-IGZ-Authenticator-Kind") == "override"
+
+
 def test_credentials_use_env_matches_legacy_singleton_auth(monkeypatch):
     """``Credentials(use_env=True)`` resolves auth like the legacy singleton."""
     monkeypatch.setenv("V3IO_ACCESS_KEY", "host-process-token")
@@ -88,6 +123,12 @@ def test_credentials_empty_is_rejected():
     """Bare ``Credentials()`` has no auth mode and must error fast."""
     with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
         Credentials()
+
+
+def test_credentials_extra_headers_only_is_rejected():
+    """``extra_headers`` augments an auth mode; alone it is still no auth mode."""
+    with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
+        Credentials(extra_headers={"X-IGZ-Authenticator-Kind": "sa"})
 
 
 def test_credentials_mixed_modes_are_rejected():

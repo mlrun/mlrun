@@ -1138,7 +1138,7 @@ def test_build_status_events_and_logs(
         unittest.mock.patch.object(
             framework.utils.singletons.k8s.get_k8s_helper().v1api,
             "read_namespaced_pod_log",
-            return_value="log",
+            return_value=unittest.mock.Mock(data=b"log"),
         ),
     ):
         response = client.get(

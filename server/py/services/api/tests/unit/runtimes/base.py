@@ -380,7 +380,7 @@ class TestRuntimeBase(services.api.tests.unit.conftest.MockedK8sHelper):
             return_value=client.V1PodList(items=[])
         )
         get_k8s_helper().v1api.read_namespaced_pod_log = unittest.mock.Mock(
-            return_value="Mocked pod logs"
+            return_value=unittest.mock.Mock(data=b"Mocked pod logs")
         )
 
     def _mock_create_namespaced_custom_object(self):

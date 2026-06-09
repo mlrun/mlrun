@@ -44,7 +44,7 @@ The predefined event types ({py:class}`~mlrun.common.schemas.alert.EventKind`) a
 - `concept-drift-suspected` &mdash; A suspected change, over time, of  statistical properties of the target variable (what the model is predicting). 
 - `data-drift-detected` &mdash; A detected change in model input data that potentially leads to model performance degradation. 
 - `data-drift-suspected` &mdash; A suspected change in model input data that potentially leads to model performance degradation. 
-- `mm-app-anomaly-detected` &mdash; A detected alert based on user-defined metrics/results.
+- `mm-app-anomaly-detected` &mdash; An alert triggered by a detected anomaly in user-defined metrics/results.
 - `mm-app-anomaly-suspected` &mdash; A suspected alert based on user-defined metrics/results.
 - `mm-app-failed` &mdash; A model monitoring app failed.
 - `model-monitoring-lag-detected` &mdash; The monitoring writer falls behind the processing of inference events.

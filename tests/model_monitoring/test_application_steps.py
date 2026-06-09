@@ -304,9 +304,10 @@ class TestPrepareOTelEvent:
 
     @classmethod
     def test_result_and_metric_shape(cls, app_ctx: Mock) -> None:
-        """Results carry `result.kind` + `result.status` and the
-        `mlrun.model_monitoring.result.` prefix; metrics use the
-        `.metric.` prefix and don't get those extra attributes."""
+        """Results carry `result.name` + `result.kind` + `result.status` under
+        the single `mlrun.model_monitoring.result` instrument name; metrics
+        carry `metric.name` under `mlrun.model_monitoring.metric` and don't get
+        the result-only attributes."""
         results = [
             ModelMonitoringApplicationResult(
                 name="general_drift",
@@ -319,24 +320,56 @@ class TestPrepareOTelEvent:
         event = _PrepareOTelEvent().do((results, app_ctx))
         by_name = cls._by_name(event["metrics"])
 
-        result_entry = by_name["mlrun.model_monitoring.result.general_drift"]
+        result_entry = by_name["mlrun.model_monitoring.result"]
         assert result_entry == {
-            "metric_name": "mlrun.model_monitoring.result.general_drift",
+            "metric_name": "mlrun.model_monitoring.result",
             "value": 0.42,
             "type": "gauge",
             "attributes": {
                 **cls.BASE_ATTRS,
+                "result.name": "general_drift",
                 "result.kind": "data_drift",
                 "result.status": "detected",
             },
         }
-        metric_entry = by_name["mlrun.model_monitoring.metric.hellinger"]
+        metric_entry = by_name["mlrun.model_monitoring.metric"]
         assert metric_entry == {
-            "metric_name": "mlrun.model_monitoring.metric.hellinger",
+            "metric_name": "mlrun.model_monitoring.metric",
             "value": 0.1,
             "type": "gauge",
-            "attributes": cls.BASE_ATTRS,
+            "attributes": {**cls.BASE_ATTRS, "metric.name": "hellinger"},
         }
+
+    @classmethod
+    def test_multiple_results_share_one_metric_name(cls, app_ctx: Mock) -> None:
+        """Distinct result names share the single `mlrun.model_monitoring.result`
+        instrument name and are distinguished only by the `result.name`
+        attribute — keeping all results under one metric family and bounding
+        the OTel instrument count regardless of how many results exist."""
+        results = [
+            ModelMonitoringApplicationResult(
+                name="general_drift",
+                value=0.42,
+                kind=mm_constants.ResultKindApp.data_drift,
+                status=mm_constants.ResultStatusApp.detected,
+            ),
+            ModelMonitoringApplicationResult(
+                name="concept_drift",
+                value=0.13,
+                kind=mm_constants.ResultKindApp.concept_drift,
+                status=mm_constants.ResultStatusApp.no_detection,
+            ),
+        ]
+        event = _PrepareOTelEvent().do((results, app_ctx))
+
+        assert [m["metric_name"] for m in event["metrics"]] == [
+            "mlrun.model_monitoring.result",
+            "mlrun.model_monitoring.result",
+        ]
+        assert [m["attributes"]["result.name"] for m in event["metrics"]] == [
+            "general_drift",
+            "concept_drift",
+        ]
 
     @classmethod
     def test_stats_entries_skipped(cls, app_ctx: Mock) -> None:
@@ -352,8 +385,23 @@ class TestPrepareOTelEvent:
         ]
         event = _PrepareOTelEvent().do((results, app_ctx))
         assert [m["metric_name"] for m in event["metrics"]] == [
-            "mlrun.model_monitoring.metric.some_metric"
+            "mlrun.model_monitoring.metric"
         ]
+        assert event["metrics"][0]["attributes"]["metric.name"] == "some_metric"
+
+    @classmethod
+    def test_unexpected_entry_type_skipped(cls, app_ctx: Mock) -> None:
+        """Entries that are neither a result, metric, nor stats are not
+        silently coerced into a metric — they're skipped (and logged)."""
+        results = [
+            object(),  # unexpected type
+            ModelMonitoringApplicationMetric(name="some_metric", value=1.0),
+        ]
+        event = _PrepareOTelEvent().do((results, app_ctx))
+        assert [m["metric_name"] for m in event["metrics"]] == [
+            "mlrun.model_monitoring.metric"
+        ]
+        assert event["metrics"][0]["attributes"]["metric.name"] == "some_metric"
 
     @classmethod
     def test_none_attributes_stripped(cls) -> None:
@@ -374,6 +422,7 @@ class TestPrepareOTelEvent:
             "project": cls.PROJECT,
             "app.name": cls.APP,
             "function.name": cls.FUNC_NAME,
+            "metric.name": "m",
         }
 
     @classmethod

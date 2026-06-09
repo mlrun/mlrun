@@ -1414,6 +1414,35 @@ def test_get_user_secret_tokens_as_igz_yml_data_all_fail(k8s_helper):
         )
 
 
+def test_logs_decodes_raw_bytes_response(k8s_helper):
+    """logs() decodes the raw pod-log body to text (regression for ML-12667)."""
+    log_text = "\x1b[0mbuilding image\nmlrun version: 1.12.0\n"
+    k8s_helper.v1api.read_namespaced_pod_log.return_value = mock.Mock(
+        data=log_text.encode("utf-8")
+    )
+
+    result = k8s_helper.logs("build-pod")
+
+    assert result == log_text
+    k8s_helper.v1api.read_namespaced_pod_log.assert_called_once_with(
+        name="build-pod",
+        namespace=k8s_helper.resolve_namespace(),
+        _request_timeout=mock.ANY,
+        _preload_content=False,
+    )
+
+
+def test_logs_reraises_api_exception(k8s_helper):
+    """logs() re-raises ApiException unchanged so callers' error handling keeps working."""
+    api_exception = k8s_client_rest.ApiException(status=404, reason="Not Found")
+    k8s_helper.v1api.read_namespaced_pod_log.side_effect = api_exception
+
+    with pytest.raises(k8s_client_rest.ApiException) as exc_info:
+        k8s_helper.logs("missing-pod")
+
+    assert exc_info.value is api_exception
+
+
 def _make_user_token_secret(
     secret_name,
     token_name="my-token",

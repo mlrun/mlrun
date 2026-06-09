@@ -124,7 +124,7 @@ PROJECT_LIFECYCLE_EVENTS: dict[
 
 class Client(base_events.BaseEventClient):
     """
-    Events client for Iguazio v4. Publishes events through the Iguazio (orca)
+    Events client for Iguazio v4. Publishes events through  the
     SDK using catalog event configs.
     """
 
@@ -310,9 +310,7 @@ class Client(base_events.BaseEventClient):
         action: mlrun.common.schemas.AuthSecretEventActions,
     ):
         # TODO: map v3 auth-secret events onto the v4 catalog (separate change).
-        raise NotImplementedError(
-            "Auth secret events are not yet supported on Iguazio v4"
-        )
+        pass
 
     def generate_project_secret_event(
         self,
@@ -322,9 +320,7 @@ class Client(base_events.BaseEventClient):
         action: mlrun.common.schemas.SecretEventActions = mlrun.common.schemas.SecretEventActions.created,
     ):
         # TODO: map v3 project-secret events onto the v4 catalog (separate change).
-        raise NotImplementedError(
-            "Project secret events are not yet supported on Iguazio v4"
-        )
+        pass
 
     @staticmethod
     def _resolve_entity_name() -> str:

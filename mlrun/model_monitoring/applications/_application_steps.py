@@ -113,9 +113,13 @@ class _PrepareOTelEvent(StepToDict):
             ]
         }
 
-    Naming convention:
-        * ``mlrun.model_monitoring.result.<name>`` for results
-        * ``mlrun.model_monitoring.metric.<name>`` for metrics
+    Naming convention — a single fixed instrument name per family, with the
+    specific result/metric name carried as an attribute rather than encoded
+    in the instrument name:
+        * ``mlrun.model_monitoring.result`` for results, with the result name
+          in the ``result.name`` attribute
+        * ``mlrun.model_monitoring.metric`` for metrics, with the metric name
+          in the ``metric.name`` attribute
 
     Both are emitted as gauges — raw value flows through, and
     ``result.status`` is the normalized signal for alerting / dashboarding.
@@ -128,8 +132,12 @@ class _PrepareOTelEvent(StepToDict):
         * ``endpoint.name``
 
     Result-only attributes:
+        * ``result.name``   (e.g. ``"general_drift"``)
         * ``result.kind``   (e.g. ``"data_drift"``)
         * ``result.status`` (e.g. ``"detected"``)
+
+    Metric-only attributes:
+        * ``metric.name``   (e.g. ``"hellinger"``)
 
     Attribute key names live in
     :class:`mlrun.common.schemas.model_monitoring.constants.OTelMonitoringAttribute`
@@ -158,7 +166,7 @@ class _PrepareOTelEvent(StepToDict):
     ) -> dict[str, Any]:
         results, ctx = event
         attr = mm_constants.OTelMonitoringAttribute
-        prefix = mm_constants.OTelMonitoringMetricNamePrefix
+        metric_name_enum = mm_constants.OTelMonitoringMetricName
         base_attributes = {
             attr.PROJECT.value: ctx.project_name,
             attr.APP_NAME.value: ctx.application_name,
@@ -177,11 +185,19 @@ class _PrepareOTelEvent(StepToDict):
                 continue
             attributes = dict(base_attributes)
             if isinstance(entry, ModelMonitoringApplicationResult):
-                metric_name = f"{prefix.RESULT.value}{entry.name}"
+                metric_name = metric_name_enum.RESULT.value
+                attributes[attr.RESULT_NAME.value] = entry.name
                 attributes[attr.RESULT_KIND.value] = entry.kind.name
                 attributes[attr.RESULT_STATUS.value] = entry.status.name
+            elif isinstance(entry, ModelMonitoringApplicationMetric):
+                metric_name = metric_name_enum.METRIC.value
+                attributes[attr.METRIC_NAME.value] = entry.name
             else:
-                metric_name = f"{prefix.METRIC.value}{entry.name}"
+                logger.warning(
+                    "Skipping unexpected entry type in OTel event preparer",
+                    entry_type=type(entry).__name__,
+                )
+                continue
             metrics.append(
                 {
                     "metric_name": metric_name,

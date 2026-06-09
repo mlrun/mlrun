@@ -4078,6 +4078,11 @@ class SQLDB(DBInterface):
     def _calculate_artifact_counters_by_category(
         session: Session,
     ) -> dict[str, dict[str, int]]:
+        # These are approximate project-resource counts, not a consistent read.
+        # On scaled systems artifacts_v2 can be large and high-churn, where a
+        # consistent-read snapshot stalls InnoDB purge and amplifies the scan
+        # into a multi-hour wedge. Read under READ UNCOMMITTED (no read-view).
+        session.connection(execution_options={"isolation_level": "READ UNCOMMITTED"})
         query = session.query(
             ArtifactV2.project, ArtifactV2.kind, func.count(distinct(ArtifactV2.key))
         ).group_by(ArtifactV2.project, ArtifactV2.kind)
@@ -4112,6 +4117,11 @@ class SQLDB(DBInterface):
             - A dictionary of recently failed or aborted runs (last 24h) per project.
             - A dictionary of currently running runs (non-terminal states) per project.
         """
+        # On scaled systems ``runs`` can be large and high-churn, where a
+        # consistent-read snapshot stalls InnoDB purge and slows the scan.
+        # Approximate counts, so read under READ UNCOMMITTED (set once; covers
+        # all queries below).
+        session.connection(execution_options={"isolation_level": "READ UNCOMMITTED"})
         running_runs_count_per_project = (
             session.query(Run.project, func.count())
             .filter(Run.iteration == 0)

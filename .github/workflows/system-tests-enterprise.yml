@@ -151,19 +151,31 @@ jobs:
         python-version: 3.11
         cache-dependency-glob: "**/*requirements*.txt"
 
-    - name: Copy state branch file from remote
+    - name: Ensure persistent CI dir exists on data node
       run: |
         sshpass \
           -p "${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_SSH_PASSWORD }}" \
+          ssh \
+          -o StrictHostKeyChecking=no \
+          ${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_SSH_USERNAME }}@${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_IP }} \
+          mkdir -p /home/iguazio/ci
+
+    - name: Copy state branch file from remote
+      run: |
+        if ! sshpass \
+          -p "${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_SSH_PASSWORD }}" \
           scp \
           -o StrictHostKeyChecking=no \
-          ${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_SSH_USERNAME }}@${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_IP }}:/tmp/system-tests-branches-list.txt \
-          system-tests-branches-list.txt
+          ${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_SSH_USERNAME }}@${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_IP }}:/home/iguazio/ci/system-tests-branches-list.txt \
+          system-tests-branches-list.txt 2>/dev/null; then
+          echo "remote branch list not found - seeding from repo default automation/system_test/system-tests-branches-list.txt"
+          cp automation/system_test/system-tests-branches-list.txt system-tests-branches-list.txt
+        fi
 
     - name: Resolve Branch To Run System Tests
       id: current-branch
       shell: bash
-      # we store a file named /tmp/system-tests-branches-list.txt which contains a list of branches to run system tests
+      # we store a file named /home/iguazio/ci/system-tests-branches-list.txt which contains a list of branches to run system tests
       # on the branches are separated with commas, so each run we pop the first branch in the list and append it to the
       # end of the list.
       # This mechanism allows us to run on multiple branches without the need to modify the file or secrets each time
@@ -206,7 +218,7 @@ jobs:
           -p "${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_SSH_PASSWORD }}" \
           scp \
           -o StrictHostKeyChecking=no system-tests-branches-list.txt \
-          ${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_SSH_USERNAME }}@${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_IP }}:/tmp/
+          ${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_SSH_USERNAME }}@${{ secrets.LATEST_SYSTEM_TEST_DATA_CLUSTER_IP }}:/home/iguazio/ci/
 
     # checking out to base branch and not the target(resolved) branch, to be able to run the changed preparation code
     # before merging the changes to upstream.

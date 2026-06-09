@@ -125,7 +125,7 @@ class AlertConfig(ModelObj):
 
         :param cooldown_period: Period during which the alert remains active after being triggered before it
                                is automatically reset. Only applicable when reset_policy=auto,
-                               cooldown_period > 0, and cooldown_period > the server's cooldown_reset_interval
+                               cooldown_period > 0, and cooldown_period >= the server's cooldown_reset_interval
                                (15s by default, modifiable by Support).
                                If not set or set to zero, the alert resets
                                immediately. Format: e.g. 1d, 3h, 5m, 15s.

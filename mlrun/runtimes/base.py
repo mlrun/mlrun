@@ -224,6 +224,14 @@ class BaseRuntime(ModelObj):
     def set_categories(self, categories: list[str]):
         self.metadata.categories = mlrun.utils.helpers.as_list(categories)
 
+    def validate(self):
+        """
+        Validate that this runtime is allowed to run on the current system.
+
+        Subclasses override this to enforce runtime-specific preconditions (raising an
+        ``mlrun.errors`` exception when violated).
+        """
+
     @property
     def uri(self):
         return self._function_uri()

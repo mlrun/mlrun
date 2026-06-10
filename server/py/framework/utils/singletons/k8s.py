@@ -13,6 +13,7 @@
 # limitations under the License.
 import base64
 import hashlib
+import http
 import json
 import random
 import string
@@ -40,6 +41,7 @@ import mlrun.runtimes
 import mlrun.runtimes.pod
 from mlrun.utils import logger
 from mlrun.utils.helpers import (
+    merge_dicts_with_precedence,
     run_with_retry,
     to_non_empty_values_dict,
 )
@@ -310,12 +312,54 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
                     time.sleep(retry_interval)
                     continue
 
+                # Transient admission-webhook dial failure (e.g. an AKS konnectivity blip
+                # where the apiserver can't reach a mutating webhook). The pod is rejected
+                # at admission *before* it is persisted, so re-creating it has no side
+                # effect and is safe to retry.
+                if self._is_transient_admission_webhook_error(exc):
+                    logger.warning(
+                        "Failed to create pod due to transient admission-webhook error, "
+                        "sleeping and retrying",
+                        retry_interval=retry_interval,
+                    )
+                    retry_count += 1
+                    time.sleep(retry_interval)
+                    continue
+
                 raise mlrun.errors.err_for_status_code(
                     exc.status, message=mlrun.errors.err_to_str(exc)
                 ) from exc
             else:
                 logger.info("Pod created", pod_name=resp.metadata.name)
                 return resp.metadata.name, resp.metadata.namespace
+
+    @staticmethod
+    def _is_transient_admission_webhook_error(
+        exc: k8s_client_rest.ApiException,
+    ) -> bool:
+        """Return True only for transient k8s admission-webhook *dial* failures.
+
+        These mean the apiserver could not reach a mutating/validating webhook (e.g. an
+        AKS konnectivity tunnel blip). With ``failurePolicy: Fail`` the create call is
+        rejected at admission *before* the object is persisted, so it has no side effect
+        and is safe to retry. Deterministic webhook *denials* and non-500 errors are
+        never matched.
+
+        :param exc: The k8s ``ApiException`` raised by the create call.
+        :return:    True if the error matches the transient dial-failure signature.
+        """
+        if exc.status != http.HTTPStatus.INTERNAL_SERVER_ERROR.value:
+            return False
+        body = mlrun.errors.err_to_str(exc).lower()
+        # a webhook that was reached and *denied* the request is deterministic — never retry
+        if "denied the request" in body:
+            return False
+        if "failed calling webhook" not in body:
+            return False
+        return any(
+            cause in body
+            for cause in ("proxy error", "while dialing", "context deadline exceeded")
+        )
 
     def delete_pod(
         self,
@@ -906,13 +950,17 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
         secrets: dict[str, str],
         namespace: str = "",
         encoded: bool = False,
+        labels: dict[str, str] | None = None,
+        annotations: dict[str, str] | None = None,
     ):
         """
         Update an existing Kubernetes Secret with new or updated key/value pairs.
 
-        Existing keys in the secret are preserved unless they are overwritten by
-        keys provided in the `secrets` dictionary. By default, values in `secrets`
-        are expected to be plain strings; they will be base64-encoded before storing
+        Existing keys in the secret's data, labels, and annotations are preserved
+        unless they are overwritten by keys in the corresponding input parameter;
+        any other keys on the secret (e.g. set by admission controllers or
+        operators) are left untouched. By default, values in `secrets` are
+        expected to be plain strings; they will be base64-encoded before storing
         in the secret's `data` field. If `encoded` is True, the values are assumed
         to be already base64-encoded.
 
@@ -921,6 +969,8 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
         :param secrets: Dictionary of key/value pairs to add or update in the secret.
         :param namespace: Kubernetes namespace of the secret. Defaults to the current namespace if empty.
         :param encoded: Whether the secret values are already base64-encoded. Defaults to False.
+        :param labels: Optional dictionary of labels to merge into the secret's metadata.
+        :param annotations: Optional dictionary of annotations to merge into the secret's metadata.
         """
 
         logger.debug("Updating secret", secret_name=secret_name)
@@ -931,6 +981,14 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
                 value if encoded else base64.b64encode(value.encode()).decode("utf-8")
             )
         k8s_secret.data = secret_data
+        if labels is not None:
+            k8s_secret.metadata.labels = merge_dicts_with_precedence(
+                k8s_secret.metadata.labels or {}, labels
+            )
+        if annotations is not None:
+            k8s_secret.metadata.annotations = merge_dicts_with_precedence(
+                k8s_secret.metadata.annotations or {}, annotations
+            )
         try:
             self.v1api.replace_namespaced_secret(
                 secret_name,
@@ -1425,18 +1483,28 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
             mlrun_constants.InternalAnnotations.auth_token_name: token_name,
         }
 
-        create = False
-        k8s_secret = self._get_user_token_secret(user_id, token_name, namespace)
-        if not k8s_secret:
-            create = True
+        # Look up the destination secret directly by name. A label-based lookup
+        # keyed on the incoming token_name could miss an existing secret that
+        # the new token should replace, leading to a 409 on create.
+        namespace = self.resolve_namespace(namespace)
+        secret_name = self._resolve_auth_secret_name(user_id, token_name)
+        try:
+            k8s_secret = self.v1api.read_namespaced_secret(
+                secret_name,
+                namespace,
+                _request_timeout=self._resolve_k8s_timeout(),
+            )
+        except k8s_client_rest.ApiException as exc:
+            if exc.status != 404:
+                raise
+            k8s_secret = None
 
-        if create:
-            # Secret does not exist (or labels mismatch) → create it
+        if k8s_secret is None:
             self._create_secret(
                 labels=labels,
                 annotations=annotations,
                 namespace=namespace,
-                secret_name=self._resolve_auth_secret_name(user_id, token_name),
+                secret_name=secret_name,
                 secrets=self._encode_user_token(
                     token_name, token, expiration, issued_at
                 ),
@@ -1444,15 +1512,32 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
             )
             return mlrun.common.schemas.SecretEventActions.created
 
-        # Update if force or if expiration is newer
-        if force or self._should_update_token_secret(k8s_secret, expiration, issued_at):
+        # Stale labels/annotations on the existing secret are a reason to
+        # update on their own — the expiration guard only protects the data.
+        # We iterate the keys WE manage instead of comparing dicts directly:
+        # admission controllers and operators often add labels/annotations of
+        # their own, and we don't want their presence to count as drift on
+        # our own metadata.
+        existing_labels = k8s_secret.metadata.labels or {}
+        existing_annotations = k8s_secret.metadata.annotations or {}
+        metadata_stale = any(
+            existing_labels.get(k) != v for k, v in labels.items()
+        ) or any(existing_annotations.get(k) != v for k, v in annotations.items())
+
+        if (
+            force
+            or metadata_stale
+            or self._should_update_token_secret(k8s_secret, expiration, issued_at)
+        ):
             self._update_secret(
                 k8s_secret=k8s_secret,
                 namespace=namespace,
-                secret_name=self._resolve_auth_secret_name(user_id, token_name),
+                secret_name=secret_name,
                 secrets=self._encode_user_token(
                     token_name, token, expiration, issued_at
                 ),
+                labels=labels,
+                annotations=annotations,
                 encoded=True,
             )
             return mlrun.common.schemas.SecretEventActions.updated
@@ -1460,10 +1545,10 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
         return None
 
     def _resolve_auth_secret_name(self, user_id: str, token_name: str) -> str:
+        # token name is not used to enforce one token per user until we properly
+        # mitigate the revocation issues
         return mlrun.mlconf.secret_stores.kubernetes.auth_secret_name.format(
-            hashed_access_key=hashlib.sha224(
-                (user_id + token_name).encode()
-            ).hexdigest()
+            hashed_access_key=hashlib.sha224(user_id.encode()).hexdigest()
         )
 
     def _encode_user_token(
@@ -1918,26 +2003,22 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
         token_name: str,
         namespace: str | None = None,
     ):
+        # A single token is stored per user, so the secret is resolved by user_id
+        # alone (token_name is intentionally ignored, see _resolve_auth_secret_name).
+        # This keeps jobs and schedules that pinned an older token name working after
+        # the user rotates their token — they resolve to the user's current token.
         namespace = self.resolve_namespace(namespace)
-        labels = {
-            mlrun_constants.MLRunInternalLabels.auth_userid: user_id,
-            mlrun_constants.MLRunInternalLabels.auth_token_name: self._hash_label(
-                token_name
-            ),
-        }
-
-        k8s_secrets = self.list_secrets(namespace=namespace, labels=labels)
-
-        for k8s_secret in k8s_secrets:
-            annotations = k8s_secret.metadata.annotations or {}
-            # We verify the token name here as well to filter out hash collisions
-            if (
-                annotations.get(mlrun_constants.InternalAnnotations.auth_token_name)
-                == token_name
-            ):
-                return k8s_secret
-
-        return None
+        secret_name = self._resolve_auth_secret_name(user_id, token_name)
+        try:
+            return self.v1api.read_namespaced_secret(
+                secret_name,
+                namespace,
+                _request_timeout=self._resolve_k8s_timeout(),
+            )
+        except k8s_client_rest.ApiException as exc:
+            if exc.status != 404:
+                raise
+            return None
 
     @staticmethod
     def _resolve_k8s_timeout(timeout_type: str = K8S_TIMEOUT_DEFAULT) -> int | None:

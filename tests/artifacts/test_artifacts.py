@@ -680,6 +680,29 @@ def test_inline_body(new_project_factory):
     assert artifact.metadata.key == "y"
 
 
+def test_log_code_file_body_requires_path(new_project_factory):
+    project = new_project_factory("code-body", save=False)
+
+    # a body with no local_path/target_path cannot name its file -> rejected
+    with pytest.raises(
+        mlrun.errors.MLRunInvalidArgumentError,
+        match="must provide local_path or target_path",
+    ):
+        project.log_code_file("c", body="def f(): pass")
+
+    # is_inline=True embeds the body in the record (no upload needed)
+    artifact = project.log_code_file(
+        "c",
+        body="def f(): pass",
+        local_path="c.py",
+        is_inline=True,
+        upload=False,
+        artifact_path=results_dir,
+    )
+    assert artifact.spec.get_body() == "def f(): pass"
+    assert artifact.spec._is_inline is True
+
+
 def test_register_artifacts(rundb_mock, new_project_factory):
     project_name = "my-projects"
     project = new_project_factory(project_name)
@@ -917,6 +940,7 @@ def test_log_code_file_via_project(new_project_factory):
     project = new_project_factory("test-code-proj", save=False)
     artifact = project.log_code_file(
         "my-func",
+        local_path="my-func.py",
         body="def handler(): pass",
         language="python:3.11",
         code_type="function",
@@ -936,6 +960,7 @@ def test_log_code_file_via_context(ensure_project):
     context = mlrun.get_or_create_ctx("test")
     artifact = context.log_code_file(
         "my-func",
+        local_path="my-func.py",
         body="def handler(): pass",
         language="python:3.11",
         code_type="workflow",

@@ -621,6 +621,8 @@ class ServerSideLauncher(launcher.BaseLauncher):
                 f"This runtime kind ({runtime.kind}) must have a valid image"
             )
 
+        runtime.validate()
+
         super()._validate_run(runtime, run)
 
     @staticmethod

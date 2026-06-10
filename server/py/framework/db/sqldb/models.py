@@ -473,6 +473,16 @@ with warnings.catch_warnings():
                 "start_time",
                 "name",
             ),
+            # Serves runs queries that filter on state over a wide start_time range
+            # (e.g. UI Runs page with state=completed, dates=pastMonth) - ML-12590.
+            # Equality columns first, range column (start_time) last.
+            Index(
+                "idx_runs_project_iter_state_start",
+                "project",
+                "iteration",
+                "state",
+                "start_time",
+            ),
         )
 
         id = Column(Integer, primary_key=True)

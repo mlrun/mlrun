@@ -14,9 +14,10 @@
 
 import time
 import unittest.mock
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 import pytest
+import sqlalchemy as sa
 
 import mlrun.common.runtimes.constants
 import mlrun.common.schemas
@@ -254,6 +255,70 @@ class TestRuns(TestDatabaseBase):
         )
         assert len(runs) == 1
         assert runs[0]["metadata"]["uid"] == run_uid_completed
+
+    def test_list_runs_state_and_start_time_filter(self):
+        # Reproduces the ML-12590 access pattern: filter on state over a wide
+        # start_time window. Only completed runs within the window must come back,
+        # ordered by start_time desc - the index must not change these semantics.
+        project = "project"
+        now = datetime.now(UTC)
+        recent_completed = "recent-completed"
+        old_completed = "old-completed"
+        recent_running = "recent-running"
+        mid_completed = "mid-completed"
+        self._create_new_run(
+            project,
+            name=recent_completed,
+            uid=recent_completed,
+            state=mlrun.common.runtimes.constants.RunStates.completed,
+            start_time=now - timedelta(days=1),
+        )
+        self._create_new_run(
+            project,
+            name=old_completed,
+            uid=old_completed,
+            state=mlrun.common.runtimes.constants.RunStates.completed,
+            start_time=now - timedelta(days=60),
+        )
+        self._create_new_run(
+            project,
+            name=recent_running,
+            uid=recent_running,
+            state=mlrun.common.runtimes.constants.RunStates.running,
+            start_time=now - timedelta(days=1),
+        )
+        self._create_new_run(
+            project,
+            name=mid_completed,
+            uid=mid_completed,
+            state=mlrun.common.runtimes.constants.RunStates.completed,
+            start_time=now - timedelta(days=10),
+        )
+
+        runs = self._db.list_runs(
+            self._db_session,
+            project=project,
+            states=[mlrun.common.runtimes.constants.RunStates.completed],
+            start_time_from=now - timedelta(days=30),
+        )
+
+        # old_completed is outside the window; recent_running is the wrong state.
+        returned_uids = [run["metadata"]["uid"] for run in runs]
+        assert returned_uids == [recent_completed, mid_completed]
+
+    def test_runs_table_has_state_start_time_index(self):
+        # Guards against the ML-12590 index being silently dropped from the model.
+        inspector = sa.inspect(self._db_session.get_bind())
+        indexes = {
+            index["name"]: index["column_names"]
+            for index in inspector.get_indexes("runs")
+        }
+        assert indexes.get("idx_runs_project_iter_state_start") == [
+            "project",
+            "iteration",
+            "state",
+            "start_time",
+        ]
 
     def test_store_run_overriding_start_time(self):
         # First store - fills the start_time
@@ -641,7 +706,11 @@ class TestRuns(TestDatabaseBase):
         uid="run-uid",
         iteration=0,
         state=mlrun.common.runtimes.constants.RunStates.created,
+        start_time=None,
     ):
+        status = {"state": state}
+        if start_time is not None:
+            status["start_time"] = start_time.isoformat()
         run = {
             "metadata": {
                 "name": name,
@@ -649,7 +718,7 @@ class TestRuns(TestDatabaseBase):
                 "project": project,
                 "iter": iteration,
             },
-            "status": {"state": state},
+            "status": status,
         }
 
         self._db.store_run(self._db_session, run, uid, project, iter=iteration)

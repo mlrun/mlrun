@@ -168,6 +168,12 @@ class _APIHandlerStep(mlrun.serving.states.TaskStep):
 
         :param event: Event object (Nuclio event or MockEvent)
         :return: Original event or RequestContext with extracted parameters
+        :raises mlrun.errors.MLRunBadRequestError: Missing method/path, or unsupported HTTP method.
+        :raises mlrun.errors.MLRunNotFoundError: No configured endpoint matches the request path (404).
+        :raises mlrun.errors.MLRunMethodNotAllowedError: Path matches an endpoint but the method is not allowed (405).
+        :raises mlrun.errors.MLRunUnprocessableEntityError: Body mapping failed or mandatory mappings on non-dict body.
+        :raises mlrun.errors.MLRunAccessDeniedError: Matched endpoint is configured with action=FORBID.
+        :raises mlrun.errors.MLRunInternalServerError: Matched endpoint has an unknown action.
         """
         try:
             method = getattr(event, "method", None)
@@ -228,20 +234,17 @@ class _APIHandlerStep(mlrun.serving.states.TaskStep):
                 body_params = {}
                 if effective_map:
                     body = event.body if hasattr(event, "body") else event
-                    if isinstance(body, dict):
-                        try:
-                            body_params = endpoint_mapping.apply_body_map(
-                                body, effective_map
-                            )
-                            mlrun.utils.logger.debug(
-                                "Applied input body mapping",
-                                extracted_params=list(body_params.keys()),
-                            )
-                        except Exception as exc:
-                            raise mlrun.errors.MLRunBadRequestError(
-                                f"Failed to process body mapping: {exc}"
-                            ) from exc
-                    # Non-dict body (e.g. None, string, bytes): body mappings do not apply — silently skip.
+                    body_params = endpoint_mapping.apply_body_map_with_dict_check(
+                        body,
+                        effective_map,
+                    )
+                    if body_params is not None:
+                        mlrun.utils.logger.debug(
+                            "Applied input body mapping",
+                            extracted_params=list(body_params.keys()),
+                        )
+                    else:
+                        body_params = {}
 
                 # Build system-injected URL params when include_url_info is enabled.
                 # mlrun_request_path holds the normalized path of the matched request.

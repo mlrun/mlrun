@@ -302,8 +302,8 @@ class TestServingAPIHandler(tests.system.base.TestMLRunSystem):
 
         self._logger.info("Body map inheritance and HTTP method isolation test passed")
 
-    def test_api_handler_mandatory_field_missing_returns_400(self) -> None:
-        """Test that a missing mandatory field returns HTTP 400."""
+    def test_api_handler_mandatory_field_missing_returns_422(self) -> None:
+        """Test that a missing mandatory field returns HTTP 422."""
         self._logger.info("Testing mandatory field enforcement")
 
         bm = BodyMappings()
@@ -329,8 +329,8 @@ class TestServingAPIHandler(tests.system.base.TestMLRunSystem):
         self._logger.debug("Deploying function for mandatory field test")
         function.deploy()
 
-        # Missing mandatory field → expect 400
-        with pytest.raises(RuntimeError, match="400"):
+        # Missing mandatory field → expect 422
+        with pytest.raises(RuntimeError, match="422"):
             function.invoke(
                 path="/api/v1/predict",
                 method="POST",
@@ -514,8 +514,8 @@ class TestServingAPIHandler(tests.system.base.TestMLRunSystem):
 
         self._logger.info("Output body mapping test passed")
 
-    def test_output_body_mapping_mandatory_missing_returns_400(self) -> None:
-        """Missing mandatory output field raises HTTP 400."""
+    def test_output_body_mapping_mandatory_missing_returns_422(self) -> None:
+        """Missing mandatory output field raises HTTP 422."""
         out_bm = BodyMappings()
         out_bm.add_mapping(
             "$.nonexistent", destination_path="output_result", mandatory=True
@@ -540,7 +540,7 @@ class TestServingAPIHandler(tests.system.base.TestMLRunSystem):
 
         with pytest.raises(
             RuntimeError,
-            match=r"bad function response 400:.*MLRunBadRequestError.*Mandatory field 'output_result' not found",  # noqa: E501
+            match=r"bad function response 422:.*MLRunUnprocessableEntityError.*Mandatory field 'output_result' not found",  # noqa: E501
         ):
             function.invoke(path="/predict", body={"model": "gpt-4"})
 
@@ -702,10 +702,10 @@ class TestServingAPIHandler(tests.system.base.TestMLRunSystem):
                 model="gpt-4",
                 messages=[{"role": "user", "content": "Hello"}],
             )
-        assert exc_info.value.status_code == 400
+        assert exc_info.value.status_code == 422
         assert (
-            "MLRunBadRequestError: Mandatory field 'choices' not found in body"
-            in str(exc_info.value)
+            "MLRunUnprocessableEntityError: Failed to process output body mapping: "
+            "Mandatory field 'choices' not found in body" in str(exc_info.value)
         )
 
         self._logger.info("Chat completions missing mandatory output field test passed")
@@ -738,9 +738,10 @@ class TestServingAPIHandler(tests.system.base.TestMLRunSystem):
                 model="gpt-4",
                 input="Hello",
             )
-        assert exc_info.value.status_code == 400
-        assert "MLRunBadRequestError: Mandatory field 'id' not found in body" in str(
-            exc_info.value
+        assert exc_info.value.status_code == 422
+        assert (
+            "MLRunUnprocessableEntityError: Failed to process output body mapping: "
+            "Mandatory field 'id' not found in body" in str(exc_info.value)
         )
 
         self._logger.info("Responses missing mandatory output field test passed")

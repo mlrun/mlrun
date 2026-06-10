@@ -669,6 +669,47 @@ class TestBodyMapMockServer:
         finally:
             server.wait_for_completion()
 
+    @staticmethod
+    def test_missing_mandatory_input_field_returns_422() -> None:
+        """End-to-end: missing mandatory input field surfaces as HTTP 422 to the caller."""
+
+        def echo_handler(body, **kwargs):
+            return kwargs
+
+        fn = cast(
+            ServingRuntime,
+            mlrun.new_function("test-body-map-422", kind="serving"),
+        )
+
+        bm = BodyMappings()
+        bm.add_mapping("$.model", destination_path="model", mandatory=True)
+
+        config = APIHandlerConfig()
+        config.add_endpoint_handler(
+            "/predict",
+            HTTPMethod.POST,
+            APIHandlerAction.ALLOW,
+            input_body_mappings=bm,
+        )
+        fn.set_api_handler_config(config)
+
+        graph = fn.set_topology("flow", engine="sync")
+        graph.to(name="echo", handler=echo_handler).respond()
+
+        server = fn.to_mock_server()
+        try:
+            with pytest.raises(
+                RuntimeError,
+                match=r"failed \(422\):.*Mandatory field 'model' not found",
+            ):
+                server.test(
+                    "/predict",
+                    method="POST",
+                    body={"messages": ["hello"]},  # 'model' missing
+                )
+        finally:
+            server.wait_for_completion()
+
 
 def test_api_handler_with_body_map_and_processing_step(rundb_mock):
     """Test API handler with input_body_mappings followed by a processing step in the graph."""
@@ -729,7 +770,7 @@ class TestPerEndpointBodyMappings:
     """Unit tests for per-endpoint input_body_mappings: extraction and mandatory enforcement."""
 
     def test_mandatory_field_missing_raises(self) -> None:
-        """mandatory=True raises MLRunBadRequestError when the field is absent from the body."""
+        """mandatory=True raises MLRunUnprocessableEntityError when the field is absent from the body."""
         bm = BodyMappings()
         bm.add_mapping("$.model", destination_path="model", mandatory=True)
 
@@ -742,10 +783,52 @@ class TestPerEndpointBodyMappings:
         event = MockEvent(body={"messages": ["hello"]}, method="POST", path="/predict")
 
         with pytest.raises(
-            mlrun.errors.MLRunBadRequestError,
+            mlrun.errors.MLRunUnprocessableEntityError,
             match="Mandatory field 'model' not found",
         ):
             step.do(event)
+
+    @pytest.mark.parametrize("body", ["not-a-dict", None])
+    def test_non_dict_body_with_mandatory_mapping_raises(self, body) -> None:
+        """Non-dict body with a mandatory mapping raises MLRunUnprocessableEntityError (HTTP 422).
+
+        When body_map has at least one mandatory field, the contract can't be satisfied
+        without a dict body — so we fail fast rather than silently skip.
+        """
+        bm = BodyMappings()
+        bm.add_mapping("$.model", destination_path="model", mandatory=True)
+
+        config = APIHandlerConfig()
+        config.add_endpoint_handler(
+            "/predict", HTTPMethod.POST, APIHandlerAction.ALLOW, input_body_mappings=bm
+        )
+
+        step = _APIHandlerStep(config=config)
+        event = MockEvent(body=body, method="POST", path="/predict")
+
+        with pytest.raises(
+            mlrun.errors.MLRunUnprocessableEntityError,
+            match=r"Mandatory input body mappings configured but input body is not a dict",
+        ):
+            step.do(event)
+
+    @pytest.mark.parametrize("body", ["not-a-dict", None])
+    def test_non_dict_body_with_optional_mapping_silently_skips(self, body) -> None:
+        """Non-dict body with only optional mappings is silently skipped (no error)."""
+        bm = BodyMappings()
+        bm.add_mapping("$.model", destination_path="model", mandatory=False)
+
+        config = APIHandlerConfig()
+        config.add_endpoint_handler(
+            "/predict", HTTPMethod.POST, APIHandlerAction.ALLOW, input_body_mappings=bm
+        )
+
+        step = _APIHandlerStep(config=config)
+        event = MockEvent(body=body, method="POST", path="/predict")
+
+        # Should not raise — body mapping is silently skipped when body isn't a dict
+        # and no mappings are mandatory.
+        step.do(event)
 
     @pytest.mark.parametrize("mandatory", [True, False])
     def test_mapped_field_extracted(self, mandatory: bool) -> None:
@@ -889,7 +972,7 @@ class TestBodyMapHierarchy:
         )
 
         with pytest.raises(
-            mlrun.errors.MLRunBadRequestError,
+            mlrun.errors.MLRunUnprocessableEntityError,
             match="Mandatory field 'model' not found",
         ):
             step.do(event)
@@ -965,7 +1048,7 @@ class TestBodyMapHierarchy:
         )
 
         with pytest.raises(
-            mlrun.errors.MLRunBadRequestError,
+            mlrun.errors.MLRunUnprocessableEntityError,
             match="Mandatory field 'model' not found",
         ):
             step.do(event)

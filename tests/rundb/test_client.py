@@ -96,6 +96,22 @@ def test_per_call_header_overrides_default_extra_header():
     assert headers.get("X-IGZ-Authenticator-Kind") == "override"
 
 
+def test_extra_header_cannot_override_authorization():
+    """An ``extra_headers`` default must not displace the real auth header."""
+    client = Client(
+        credentials=Credentials(
+            token="my-token", extra_headers={"Authorization": "Bearer spoofed"}
+        )
+    )
+    client._http_db.session = unittest.mock.Mock()
+
+    with client.session():
+        mlrun.get_run_db().api_call("GET", "some-path")
+
+    headers = client._http_db.session.request.call_args[1].get("headers", {})
+    assert headers.get("authorization") == "Bearer my-token"
+
+
 def test_credentials_use_env_matches_legacy_singleton_auth(monkeypatch):
     """``Credentials(use_env=True)`` resolves auth like the legacy singleton."""
     monkeypatch.setenv("V3IO_ACCESS_KEY", "host-process-token")

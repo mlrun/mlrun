@@ -70,9 +70,7 @@ SENSITIVE_PATHS_IN_TRIGGER_CONFIG = {
     "attributes/sasl/oauth/clientsecret",
 }
 
-# A single failed deploy-status poll (network blip, 5xx) must not fail the
-# deploy; only persistent failure should. Cap consecutive poll errors tolerated
-# before giving up.
+# Allow transient deploy-status poll failures before failing.
 _NUCLIO_DEPLOY_MAX_CONSECUTIVE_POLL_ERRORS = 5
 
 
@@ -942,9 +940,11 @@ class RemoteRuntime(KubeResource):
         :param track_models: override state of self.spec.track_models. If not provided, uses the spec value (False
             by default, True after setup_model_monitoring() is called). When True, model endpoints are created at
             deployment time.
-        :param wait:       when True (default), block until the function is ready,
-            then enrich and return the invocation command (``str``). When ``False``, submit and return ``self``;
-            caller must poll ``db.get_nuclio_deploy_status`` to terminal. This enables externally-driven build waits.
+        :param wait:       when ``True`` (default), wait for readiness and
+            return the invocation command (``str``). When ``False``, submit and
+            return ``self`` so the caller can later call
+            ``wait_for_deployment()`` or poll
+            ``db.get_nuclio_deploy_status``.
 
         :return: the invocation command (``str``) when ``wait=True``; the
             function object (``self``) when ``wait=False``.
@@ -990,41 +990,32 @@ class RemoteRuntime(KubeResource):
 
         self._update_credentials_from_remote_build(data["data"])
 
-        # Stash model-endpoint background tasks from the submit response so the
-        # post-submit flow can process them whether the caller waits inline
-        # (below) or externally via ``wait_for_deployment()``.
+        # Save submit-time model-endpoint tasks for wait_for_deployment().
         self._deploy_background_tasks = data.get(
             "background_tasks", {"background_tasks": []}
         )
 
         if not wait:
-            # Caller drives the build wait externally — call
-            # ``wait_for_deployment()`` (encapsulating wait + model-endpoint
-            # creation + command enrichment), or poll
-            # ``db.get_nuclio_deploy_status`` directly.
+            # Caller handles wait/finalization explicitly.
             return self
 
         return self.wait_for_deployment(verbose=verbose)
 
     def wait_for_deployment(self, verbose: bool = False) -> str:
-        """Wait for a submitted Nuclio deploy to become ready, then finalize.
+        """Finalize a submitted Nuclio deploy.
 
-        Encapsulates the post-submit half of :meth:`deploy`: it waits for the
-        build to reach a terminal state, creates any model-endpoint background
-        tasks, enriches the invocation command from status, and returns it
-        (``str``). ``deploy(wait=True)`` calls this directly; a caller that
-        submitted with ``deploy(wait=False)`` can call it to drive the wait
-        itself and get identical finalization.
+        Waits for terminal deploy status, handles model-endpoint tasks,
+        enriches the invocation command from status, and returns it.
+        ``deploy(wait=True)`` calls this directly; callers that used
+        ``deploy(wait=False)`` can call it explicitly.
 
         :param verbose: set True for verbose build-log output
         :return: the function's invocation command
         """
         db = self._get_db()
-        # when a function is deployed, we wait for it to be ready by default
-        # this also means that the function object will be updated with the function status
+        # Wait for readiness and refresh function status.
         self._wait_for_function_deployment(db, verbose=verbose)
-        # check if there are any background tasks related to creating model endpoints.
-        # Pop so a repeat wait_for_deployment() doesn't re-process stale tasks.
+        # Consume submit-captured model-endpoint tasks at most once.
         model_endpoints_creation_background_tasks = (
             mlrun.common.schemas.BackgroundTaskList(
                 **getattr(self, "_deploy_background_tasks", None)
@@ -1082,9 +1073,7 @@ class RemoteRuntime(KubeResource):
                     self, last_log_timestamp=last_log_timestamp, verbose=verbose
                 )
             except Exception as exc:
-                # Tolerate transient status-poll failures; only give up after a
-                # run of consecutive failures (a persistent RunDBError keeps its
-                # historical "not found" message).
+                # Retry on poll error
                 consecutive_errors += 1
                 if consecutive_errors > _NUCLIO_DEPLOY_MAX_CONSECUTIVE_POLL_ERRORS:
                     if isinstance(exc, mlrun.db.RunDBError):

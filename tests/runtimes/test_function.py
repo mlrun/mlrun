@@ -157,7 +157,7 @@ def test_nuclio_deploy_set_token_name():
 
 
 def _mock_nuclio_deploy(function):
-    """Wire a nuclio function so ``deploy()`` submits without a live cluster."""
+    """Mock deploy internals for submit-only tests."""
     db = mlrun.get_run_db()
     db.deploy_nuclio_function = MagicMock(
         return_value={"data": {"status": {}, "spec": function.spec}}
@@ -168,7 +168,7 @@ def _mock_nuclio_deploy(function):
 
 
 def test_nuclio_deploy_wait_false_skips_wait_and_enrich():
-    """``deploy(wait=False)`` submits, returns ``self``, and skips wait/enrich."""
+    """``deploy(wait=False)`` submits and skips wait/enrich."""
     function: mlrun.runtimes.RemoteRuntime = mlrun.new_function("tst", kind="nuclio")
     _mock_nuclio_deploy(function)
 
@@ -193,7 +193,7 @@ def test_serving_deploy_forwards_wait():
 
 
 def test_nuclio_deploy_wait_true_waits_and_enriches():
-    """``deploy(wait=True)`` preserves the legacy wait+enrich behavior."""
+    """``deploy(wait=True)`` keeps legacy wait+enrich behavior."""
     function: mlrun.runtimes.RemoteRuntime = mlrun.new_function("tst", kind="nuclio")
     _mock_nuclio_deploy(function)
 
@@ -205,11 +205,7 @@ def test_nuclio_deploy_wait_true_waits_and_enriches():
 
 
 def test_wait_for_deployment_finalizes_after_submit():
-    """``deploy(wait=False)`` then ``wait_for_deployment()`` finalizes identically.
-
-    The submit must not wait/enrich; the explicit ``wait_for_deployment()``
-    runs the wait and enrichment and returns the invocation command.
-    """
+    """``deploy(wait=False)`` + ``wait_for_deployment()`` finalizes normally."""
     function: mlrun.runtimes.RemoteRuntime = mlrun.new_function("tst", kind="nuclio")
     _mock_nuclio_deploy(function)
 
@@ -225,7 +221,7 @@ def test_wait_for_deployment_finalizes_after_submit():
 
 
 def test_wait_for_deployment_tolerates_transient_poll_error(monkeypatch):
-    """A single transient deploy-status poll failure is retried, not fatal."""
+    """A single poll failure is retried and not fatal."""
     function: mlrun.runtimes.RemoteRuntime = mlrun.new_function("tst", kind="nuclio")
     db = mlrun.get_run_db()
     monkeypatch.setattr("mlrun.runtimes.nuclio.function.sleep", lambda *_: None)
@@ -248,7 +244,7 @@ def test_wait_for_deployment_tolerates_transient_poll_error(monkeypatch):
 
 
 def test_wait_for_deployment_gives_up_after_consecutive_errors(monkeypatch):
-    """Persistent deploy-status poll failures abort after the retry cap."""
+    """Persistent poll failures abort after the retry cap."""
     function: mlrun.runtimes.RemoteRuntime = mlrun.new_function("tst", kind="nuclio")
     db = mlrun.get_run_db()
     monkeypatch.setattr("mlrun.runtimes.nuclio.function.sleep", lambda *_: None)
@@ -259,7 +255,7 @@ def test_wait_for_deployment_gives_up_after_consecutive_errors(monkeypatch):
 
 
 def test_wait_for_deployment_clears_background_tasks_after_processing():
-    """Model-endpoint bg-tasks are consumed once; a repeat call is a no-op."""
+    """Model-endpoint background tasks are consumed once."""
     function: mlrun.runtimes.RemoteRuntime = mlrun.new_function("tst", kind="nuclio")
     function._wait_for_function_deployment = MagicMock()
     function._enrich_command_from_status = MagicMock(return_value="http://invocation")

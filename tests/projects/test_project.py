@@ -3146,6 +3146,26 @@ def test_set_source():
     assert project.spec.workdir == "/y"
 
 
+def test_set_source_length_validation():
+    # ML-12709: a source longer than the DB `source` column (VARCHAR(255)) used to reach
+    # the DB and fail with a 500. set_source must reject it up front instead.
+    max_length = mlrun_constants.MAX_PROJECT_FIELD_LENGTH
+    prefix = "https://"
+    project = mlrun.new_project("project1", save=False)
+
+    # exactly the max length is accepted
+    max_source = prefix + "a" * (max_length - len(prefix))
+    assert len(max_source) == max_length
+    project.set_source(max_source)
+    assert project.spec.source == max_source
+
+    # one over the max length is rejected before it can be stored
+    too_long_source = prefix + "a" * (max_length - len(prefix) + 1)
+    assert len(too_long_source) == max_length + 1
+    with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
+        project.set_source(too_long_source)
+
+
 @pytest.mark.parametrize(
     "source_url, pull_at_runtime, base_image, image_name, target_dir",
     [

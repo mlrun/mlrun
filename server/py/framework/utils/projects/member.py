@@ -20,6 +20,7 @@ import sqlalchemy.orm
 import mlrun.common.formatters
 import mlrun.common.schemas
 import mlrun.k8s_utils
+import mlrun.utils.helpers
 import mlrun.utils.singleton
 
 import framework.utils.auth.verifier
@@ -193,6 +194,11 @@ class Member(abc.ABC):
     def _validate_project(self, project: mlrun.common.schemas.Project):
         mlrun.projects.ProjectMetadata.validate_project_name(project.metadata.name)
         mlrun.projects.ProjectMetadata.validate_project_labels(project.metadata.labels)
+        mlrun.utils.helpers.validate_project_field_length("source", project.spec.source)
+        mlrun.utils.helpers.validate_project_field_length(
+            "description", project.spec.description
+        )
+        mlrun.utils.helpers.validate_project_field_length("owner", project.spec.owner)
         mlrun.k8s_utils.validate_node_selectors(
             project.spec.default_function_node_selector
         )

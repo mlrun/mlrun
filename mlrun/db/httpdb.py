@@ -147,9 +147,7 @@ class HTTPRunDB(RunDBInterface):
         self.user = None
         self.password = None
         self.token_provider = None
-        # Default headers attached to every request (e.g. an authenticator-kind
-        # hint). Populated from explicit ``Credentials.extra_headers``; stays
-        # empty on the env/URL credential path.
+        # Default per-request headers from explicit Credentials.extra_headers.
         self._default_headers: dict[str, str] = {}
         self.base_url = None
         self._parsed_url = None
@@ -323,9 +321,7 @@ class HTTPRunDB(RunDBInterface):
                 }
             )
 
-        # Default headers from explicit credentials (e.g. authenticator-kind).
-        # setdefault per key so a per-call header and the Authorization header
-        # set above always win over a default.
+        # Apply defaults only when not set by auth logic or per-call headers.
         for header_name, header_value in self._default_headers.items():
             kw.setdefault("headers", {}).setdefault(header_name, header_value)
 

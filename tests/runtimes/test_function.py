@@ -220,40 +220,6 @@ def test_wait_for_deployment_finalizes_after_submit():
     assert result == "http://invocation"
 
 
-def test_wait_for_deployment_tolerates_transient_poll_error(monkeypatch):
-    """A single poll failure is retried and not fatal."""
-    function: mlrun.runtimes.RemoteRuntime = mlrun.new_function("tst", kind="nuclio")
-    db = mlrun.get_run_db()
-    monkeypatch.setattr("mlrun.runtimes.nuclio.function.sleep", lambda *_: None)
-
-    calls = {"n": 0}
-
-    def flaky_status(fn, last_log_timestamp=1, verbose=False):
-        calls["n"] += 1
-        if calls["n"] == 1:
-            raise ConnectionError("blip")
-        fn.status.state = "ready"
-        return "", 1
-
-    db.get_nuclio_deploy_status = flaky_status
-
-    function._wait_for_function_deployment(db)
-
-    assert calls["n"] == 2
-    assert function.status.state == "ready"
-
-
-def test_wait_for_deployment_gives_up_after_consecutive_errors(monkeypatch):
-    """Persistent poll failures abort after the retry cap."""
-    function: mlrun.runtimes.RemoteRuntime = mlrun.new_function("tst", kind="nuclio")
-    db = mlrun.get_run_db()
-    monkeypatch.setattr("mlrun.runtimes.nuclio.function.sleep", lambda *_: None)
-    db.get_nuclio_deploy_status = MagicMock(side_effect=ConnectionError("down"))
-
-    with pytest.raises(ConnectionError):
-        function._wait_for_function_deployment(db)
-
-
 def test_wait_for_deployment_clears_background_tasks_after_processing():
     """Model-endpoint background tasks are consumed once."""
     function: mlrun.runtimes.RemoteRuntime = mlrun.new_function("tst", kind="nuclio")

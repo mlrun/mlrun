@@ -70,9 +70,6 @@ SENSITIVE_PATHS_IN_TRIGGER_CONFIG = {
     "attributes/sasl/oauth/clientsecret",
 }
 
-# Allow transient deploy-status poll failures before failing.
-_NUCLIO_DEPLOY_MAX_CONSECUTIVE_POLL_ERRORS = 5
-
 
 def validate_nuclio_version_compatibility(*min_versions):
     """
@@ -1063,7 +1060,6 @@ class RemoteRuntime(KubeResource):
     def _wait_for_function_deployment(self, db, verbose=False):
         state = ""
         last_log_timestamp = 1
-        consecutive_errors = 0
         while state not in ["ready", "error", "unhealthy"]:
             sleep(
                 int(mlrun.mlconf.httpdb.logs.nuclio.pull_deploy_status_default_interval)
@@ -1072,21 +1068,8 @@ class RemoteRuntime(KubeResource):
                 text, last_log_timestamp = db.get_nuclio_deploy_status(
                     self, last_log_timestamp=last_log_timestamp, verbose=verbose
                 )
-            except Exception as exc:
-                # Retry on poll error
-                consecutive_errors += 1
-                if consecutive_errors > _NUCLIO_DEPLOY_MAX_CONSECUTIVE_POLL_ERRORS:
-                    if isinstance(exc, mlrun.db.RunDBError):
-                        raise ValueError("function or deploy process not found")
-                    raise
-                logger.warning(
-                    "Nuclio deploy status poll failed, retrying",
-                    attempt=consecutive_errors,
-                    max_attempts=_NUCLIO_DEPLOY_MAX_CONSECUTIVE_POLL_ERRORS,
-                    error=err_to_str(exc),
-                )
-                continue
-            consecutive_errors = 0
+            except mlrun.db.RunDBError:
+                raise ValueError("function or deploy process not found")
             state = self.status.state
             if text:
                 print(text)

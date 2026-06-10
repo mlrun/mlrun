@@ -514,6 +514,7 @@ class ApplicationRuntime(nuclio_function.RemoteRuntime):
         show_on_failure: bool = False,
         create_default_api_gateway: bool = True,
         track_models: bool | None = None,
+        wait: bool = True,
     ):
         """
         Deploy function, builds the application image if required (self.requires_build()) or force_build is True,
@@ -540,9 +541,19 @@ class ApplicationRuntime(nuclio_function.RemoteRuntime):
         :param track_models:                override state of self.spec.track_models. If not provided, uses the spec
                                             value (False by default, True after setup_model_monitoring() is called).
                                             When True, model endpoints are created at deployment time.
+        :param wait:                        must be True for application functions. Application deploy performs
+                                            readiness-dependent post-deploy steps (API gateway and sidecar), so
+                                            external wait orchestration is unsupported; passing ``False`` raises
+                                            ``MLRunInvalidArgumentError``.
 
         :return: The default API gateway URL if created or True if the function is ready (deployed)
         """
+        if not wait:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "ApplicationRuntime.deploy(wait=False) is not supported. "
+                "Application deploy performs readiness-dependent post-deploy "
+                "steps (API gateway, sidecar). Deploy with wait=True."
+            )
         # Upload local source as artifact. The server needs the store:// URI to configure the init container, but we
         # restore the local path afterward, so subsequent deploys re-upload the file.
         original_local_source, artifact_uri = self._upload_source_as_artifact()

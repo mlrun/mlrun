@@ -37,46 +37,37 @@ PROJECT_CREATION_FAILED = "MLRun.Project.Creation.Failed"
 PROJECT_DELETION_SUCCEEDED = "MLRun.Project.Deletion.Succeeded"
 PROJECT_DELETION_FAILED = "MLRun.Project.Deletion.Failed"
 
-EVENT_KIND = "system"
-EVENT_CLASS = "DB"
-EVENT_CLASS_LOG_COLLECTION = "LogCollection"
-EVENT_CLASS_PROJECT = "Project"
 ERROR_DETAIL_LIMIT = 1024
 TRUNCATION_SUFFIX = "...[truncated]"
 
 DB_MIGRATION_EVENTS: dict[
     mlrun.common.schemas.MigrationEventActions,
-    tuple[str, iguazio.schemas.Severity, str],
+    tuple[str, str],
 ] = {
     mlrun.common.schemas.MigrationEventActions.required: (
         DB_MIGRATION_REQUIRED,
-        iguazio.schemas.Severity.CRITICAL,
         "MLRun database migration required, functionality may be impaired",
     ),
     mlrun.common.schemas.MigrationEventActions.started: (
         DB_MIGRATION_STARTED,
-        iguazio.schemas.Severity.INFO,
         "MLRun database migration started",
     ),
     mlrun.common.schemas.MigrationEventActions.completed: (
         DB_MIGRATION_COMPLETED,
-        iguazio.schemas.Severity.INFO,
         "MLRun database migration completed successfully",
     ),
     mlrun.common.schemas.MigrationEventActions.failed: (
         DB_MIGRATION_FAILED,
-        iguazio.schemas.Severity.CRITICAL,
         "MLRun database migration failed, functionality may be impaired",
     ),
 }
 
 DB_CONNECTION_EVENTS: dict[
     mlrun.common.schemas.DBConnectionEventActions,
-    tuple[str, iguazio.schemas.Severity, str],
+    tuple[str, str],
 ] = {
     mlrun.common.schemas.DBConnectionEventActions.failed: (
         DB_CONNECTION_FAILED,
-        iguazio.schemas.Severity.CRITICAL,
         "MLRun cannot connect to its database",
     ),
 }
@@ -86,37 +77,32 @@ DB_CONNECTION_EVENTS: dict[
 # across producer and catalog; per-operation context is attached to ``details``.
 LOG_COLLECTOR_EVENTS: dict[
     mlrun.common.schemas.LogCollectorEventActions,
-    tuple[str, iguazio.schemas.Severity, str],
+    tuple[str, str],
 ] = {
     mlrun.common.schemas.LogCollectorEventActions.failed: (
         LOG_COLLECTOR_FAILED,
-        iguazio.schemas.Severity.MAJOR,
         "MLRun log collector failed to retrieve logs",
     ),
 }
 
 PROJECT_LIFECYCLE_EVENTS: dict[
     mlrun.common.schemas.ProjectLifecycleEventActions,
-    tuple[str, iguazio.schemas.Severity, str],
+    tuple[str, str],
 ] = {
     mlrun.common.schemas.ProjectLifecycleEventActions.creation_succeeded: (
         PROJECT_CREATION_SUCCEEDED,
-        iguazio.schemas.Severity.INFO,
         "Project was successfully created",
     ),
     mlrun.common.schemas.ProjectLifecycleEventActions.creation_failed: (
         PROJECT_CREATION_FAILED,
-        iguazio.schemas.Severity.WARNING,
         "Project creation failed",
     ),
     mlrun.common.schemas.ProjectLifecycleEventActions.deletion_succeeded: (
         PROJECT_DELETION_SUCCEEDED,
-        iguazio.schemas.Severity.INFO,
         "Project was successfully deleted",
     ),
     mlrun.common.schemas.ProjectLifecycleEventActions.deletion_failed: (
         PROJECT_DELETION_FAILED,
-        iguazio.schemas.Severity.WARNING,
         "Project deletion failed",
     ),
 }
@@ -169,7 +155,7 @@ class Client(base_events.BaseEventClient):
         versions: dict | None = None,
     ) -> iguazio.schemas.EventActivationSpec:
         try:
-            config_name, severity, description = DB_MIGRATION_EVENTS[action]
+            config_name, description = DB_MIGRATION_EVENTS[action]
         except KeyError as exc:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 f"Unsupported DB migration action {action}"
@@ -190,10 +176,6 @@ class Client(base_events.BaseEventClient):
 
         return iguazio.schemas.EventActivationSpec(
             config_name=config_name,
-            source="",
-            kind=EVENT_KIND,
-            severity=severity,
-            class_=EVENT_CLASS,
             entity_name=self._entity_name,
             description=description,
             details=details,
@@ -208,7 +190,7 @@ class Client(base_events.BaseEventClient):
         dialect: str | None = None,
     ) -> iguazio.schemas.EventActivationSpec:
         try:
-            config_name, severity, description = DB_CONNECTION_EVENTS[action]
+            config_name, description = DB_CONNECTION_EVENTS[action]
         except KeyError as exc:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 f"Unsupported DB connection action {action}"
@@ -226,10 +208,6 @@ class Client(base_events.BaseEventClient):
 
         return iguazio.schemas.EventActivationSpec(
             config_name=config_name,
-            source="",
-            kind=EVENT_KIND,
-            severity=severity,
-            class_=EVENT_CLASS,
             entity_name=self._entity_name,
             description=description,
             details=details,
@@ -243,7 +221,7 @@ class Client(base_events.BaseEventClient):
         project: str | None = None,
     ) -> iguazio.schemas.EventActivationSpec:
         try:
-            config_name, severity, description = LOG_COLLECTOR_EVENTS[action]
+            config_name, description = LOG_COLLECTOR_EVENTS[action]
         except KeyError as exc:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 f"Unsupported log collector action {action}"
@@ -259,10 +237,6 @@ class Client(base_events.BaseEventClient):
 
         return iguazio.schemas.EventActivationSpec(
             config_name=config_name,
-            source="",
-            kind=EVENT_KIND,
-            severity=severity,
-            class_=EVENT_CLASS_LOG_COLLECTION,
             entity_name=self._entity_name,
             description=description,
             details=details,
@@ -276,7 +250,7 @@ class Client(base_events.BaseEventClient):
         error: BaseException | str | None = None,
     ) -> iguazio.schemas.EventActivationSpec:
         try:
-            config_name, severity, description = PROJECT_LIFECYCLE_EVENTS[action]
+            config_name, description = PROJECT_LIFECYCLE_EVENTS[action]
         except KeyError as exc:
             raise mlrun.errors.MLRunInvalidArgumentError(
                 f"Unsupported project lifecycle action {action}"
@@ -294,10 +268,6 @@ class Client(base_events.BaseEventClient):
 
         return iguazio.schemas.EventActivationSpec(
             config_name=config_name,
-            source="",
-            kind=EVENT_KIND,
-            severity=severity,
-            class_=EVENT_CLASS_PROJECT,
             entity_name=self._entity_name,
             description=description,
             details=details,

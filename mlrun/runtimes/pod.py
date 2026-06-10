@@ -687,6 +687,17 @@ class AutoMountType(StrEnum):
             mlrun.runtimes.mounts.set_env_vars_from_secret.__name__,
         ]
 
+    # Modifiers that contribute only env vars / envFrom (no volumes) - safe to harvest
+    # by reading spec.env after applying them.
+    @classmethod
+    def env_style_modifiers(cls) -> set:
+        return {
+            mlrun.runtimes.mounts.set_env_variables,
+            mlrun.runtimes.mounts.set_env_vars_from_secret,
+            mlrun.runtimes.mounts.v3io_cred,
+            mlrun.runtimes.mounts.mount_s3,
+        }
+
     @classmethod
     def is_auto_modifier(cls, modifier):
         # Check if modifier is one of the known mount modifiers. We need to use startswith since the modifier itself is

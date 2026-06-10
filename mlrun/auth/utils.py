@@ -240,28 +240,40 @@ def load_and_prepare_secret_tokens(
     raise_on_error: bool = True,
 ) -> list[mlrun.common.schemas.SecretToken]:
     """
-    Load, validate, and translate secret tokens from a file into SecretToken objects.
+    Load, validate, and translate the secret token currently in use into a SecretToken object.
 
     Steps performed:
       1. Load the secret tokens from the configured file.
-      2. Validate each token for required fields and uniqueness.
-      3. Translate validated token dictionaries into SecretToken objects.
+      2. Resolve the single token currently being used (the same one used for
+         authentication, see :func:`parse_offline_token_data`).
+      3. Validate it for required fields and ownership by the authenticated user.
+      4. Translate the validated token into a SecretToken object.
 
-    :param auth_user_id: The user ID to filter the tokens by.
+    The backend stores a single token per user, so only the token currently in
+    use is synced rather than every token present in the file.
+
+    :param auth_user_id: The user ID to filter the token by.
     :param raise_on_error: Whether to raise exceptions or log warnings on failure.
-                           Also controls whether invalid tokens are skipped
+                           Also controls whether an invalid token is skipped
                            (``skip_invalid=not raise_on_error``).
-    :return: List of SecretToken objects.
+    :return: List containing the resolved SecretToken, or an empty list if none resolved.
     :rtype: list[mlrun.common.schemas.SecretToken]
     """
     tokens_list = load_secret_tokens_from_file(raise_on_error=raise_on_error)
+
+    # Resolve the token currently in use and sync just that one.
+    current_token, current_token_name = parse_offline_token_data(
+        tokens=tokens_list, raise_on_error=raise_on_error
+    )
+    if not current_token:
+        return []
+
     validated_tokens = extract_and_validate_tokens_info(
         secret_tokens=[
             mlrun.common.schemas.SecretToken(
-                name=token["name"],
-                token=token["token"],
+                name=current_token_name,
+                token=current_token,
             )
-            for token in tokens_list
         ],
         authenticated_id=auth_user_id,
         filter_by_authenticated_id=True,

@@ -95,7 +95,7 @@ class MLRunPatcher:
         self._no_build = no_build
         self._no_push = no_push
         self._namespace = self._resolve_namespace(namespace)
-        self._docker_client = docker.from_env()
+        self._docker_client = self._make_docker_client()
         self._ssh_client: paramiko.SSHClient | None = None
         self._migrate = migrate
         if self._skip_patch_api and self._patch_alerts:
@@ -184,6 +184,18 @@ class MLRunPatcher:
         logger.info(
             "Deployed branch successfully! (Note: This may not survive system restarts)"
         )
+
+    @staticmethod
+    def _make_docker_client() -> docker.DockerClient:
+        # Consult docker context if DOCKER_HOST is unset (as docker CLI does)
+        if not os.environ.get("DOCKER_HOST"):
+            try:
+                ctx = docker.ContextAPI.get_current_context()
+                if ctx and ctx.Host and ctx.Name != "default":
+                    return docker.DockerClient(base_url=ctx.Host)
+            except Exception as exc:
+                logger.debug("Falling back to docker.from_env(): %s", exc)
+        return docker.from_env()
 
     def _docker_login_if_configured(self):
         registry_username = self._config.get("REGISTRY_USERNAME")

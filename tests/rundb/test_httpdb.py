@@ -1510,21 +1510,20 @@ def test_store_secret_token_invalid_inputs(create_server):
         db.store_secret_token(None)
 
 
-# TODO add test for force parameter when IG4 mode is enabled for integration test (ML-11332)
-
-
-@pytest.mark.parametrize("secret_tokens", [None, []])
-def test_store_secret_tokens_invalid_inputs(create_server, secret_tokens):
+def test_store_secret_tokens_not_implemented(create_server):
+    # Storing multiple tokens cannot apply to a single-token-per-user model, so the
+    # bulk store is kept for API compatibility but no longer supported.
     server: Server = create_server()
     db: HTTPRunDB = server.conn
     mlrun.mlconf.httpdb.authentication.mode = (
         mlrun.common.types.AuthenticationMode.IGUAZIO_V4
     )
 
-    with pytest.raises(
-        mlrun.errors.MLRunInvalidArgumentError, match="No secret tokens provided"
-    ):
-        db.store_secret_tokens(secret_tokens)
+    with pytest.raises(NotImplementedError):
+        db.store_secret_tokens([])
+
+
+# TODO add test for force parameter when IG4 mode is enabled for integration test (ML-11332)
 
 
 def test_enable_model_monitoring_passes_auth_token_from_context():

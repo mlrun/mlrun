@@ -70,6 +70,11 @@ SENSITIVE_PATHS_IN_TRIGGER_CONFIG = {
     "attributes/sasl/oauth/clientsecret",
 }
 
+# A single failed deploy-status poll (network blip, 5xx) must not fail the
+# deploy; only persistent failure should. Cap consecutive poll errors tolerated
+# before giving up.
+_NUCLIO_DEPLOY_MAX_CONSECUTIVE_POLL_ERRORS = 5
+
 
 def validate_nuclio_version_compatibility(*min_versions):
     """
@@ -985,19 +990,48 @@ class RemoteRuntime(KubeResource):
 
         self._update_credentials_from_remote_build(data["data"])
 
+        # Stash model-endpoint background tasks from the submit response so the
+        # post-submit flow can process them whether the caller waits inline
+        # (below) or externally via ``wait_for_deployment()``.
+        self._deploy_background_tasks = data.get(
+            "background_tasks", {"background_tasks": []}
+        )
+
         if not wait:
-            # Caller drives build wait externally (for example by polling ``db.get_nuclio_deploy_status``).
+            # Caller drives the build wait externally — call
+            # ``wait_for_deployment()`` (encapsulating wait + model-endpoint
+            # creation + command enrichment), or poll
+            # ``db.get_nuclio_deploy_status`` directly.
             return self
 
+        return self.wait_for_deployment(verbose=verbose)
+
+    def wait_for_deployment(self, verbose: bool = False) -> str:
+        """Wait for a submitted Nuclio deploy to become ready, then finalize.
+
+        Encapsulates the post-submit half of :meth:`deploy`: it waits for the
+        build to reach a terminal state, creates any model-endpoint background
+        tasks, enriches the invocation command from status, and returns it
+        (``str``). ``deploy(wait=True)`` calls this directly; a caller that
+        submitted with ``deploy(wait=False)`` can call it to drive the wait
+        itself and get identical finalization.
+
+        :param verbose: set True for verbose build-log output
+        :return: the function's invocation command
+        """
+        db = self._get_db()
         # when a function is deployed, we wait for it to be ready by default
         # this also means that the function object will be updated with the function status
         self._wait_for_function_deployment(db, verbose=verbose)
-        # check if there are any background tasks related to creating model endpoints
+        # check if there are any background tasks related to creating model endpoints.
+        # Pop so a repeat wait_for_deployment() doesn't re-process stale tasks.
         model_endpoints_creation_background_tasks = (
             mlrun.common.schemas.BackgroundTaskList(
-                **data.pop("background_tasks", {"background_tasks": []})
+                **getattr(self, "_deploy_background_tasks", None)
+                or {"background_tasks": []}
             ).background_tasks
         )
+        self._deploy_background_tasks = {"background_tasks": []}
         if model_endpoints_creation_background_tasks:
             self._check_model_endpoint_task_state(
                 db=db,
@@ -1038,6 +1072,7 @@ class RemoteRuntime(KubeResource):
     def _wait_for_function_deployment(self, db, verbose=False):
         state = ""
         last_log_timestamp = 1
+        consecutive_errors = 0
         while state not in ["ready", "error", "unhealthy"]:
             sleep(
                 int(mlrun.mlconf.httpdb.logs.nuclio.pull_deploy_status_default_interval)
@@ -1046,8 +1081,23 @@ class RemoteRuntime(KubeResource):
                 text, last_log_timestamp = db.get_nuclio_deploy_status(
                     self, last_log_timestamp=last_log_timestamp, verbose=verbose
                 )
-            except mlrun.db.RunDBError:
-                raise ValueError("function or deploy process not found")
+            except Exception as exc:
+                # Tolerate transient status-poll failures; only give up after a
+                # run of consecutive failures (a persistent RunDBError keeps its
+                # historical "not found" message).
+                consecutive_errors += 1
+                if consecutive_errors > _NUCLIO_DEPLOY_MAX_CONSECUTIVE_POLL_ERRORS:
+                    if isinstance(exc, mlrun.db.RunDBError):
+                        raise ValueError("function or deploy process not found")
+                    raise
+                logger.warning(
+                    "Nuclio deploy status poll failed, retrying",
+                    attempt=consecutive_errors,
+                    max_attempts=_NUCLIO_DEPLOY_MAX_CONSECUTIVE_POLL_ERRORS,
+                    error=err_to_str(exc),
+                )
+                continue
+            consecutive_errors = 0
             state = self.status.state
             if text:
                 print(text)

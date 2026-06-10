@@ -13,6 +13,7 @@
 # limitations under the License.
 import base64
 import hashlib
+import http
 import json
 import random
 import string
@@ -310,12 +311,54 @@ class K8sHelper(mlsecrets.SecretProviderInterface):
                     time.sleep(retry_interval)
                     continue
 
+                # Transient admission-webhook dial failure (e.g. an AKS konnectivity blip
+                # where the apiserver can't reach a mutating webhook). The pod is rejected
+                # at admission *before* it is persisted, so re-creating it has no side
+                # effect and is safe to retry.
+                if self._is_transient_admission_webhook_error(exc):
+                    logger.warning(
+                        "Failed to create pod due to transient admission-webhook error, "
+                        "sleeping and retrying",
+                        retry_interval=retry_interval,
+                    )
+                    retry_count += 1
+                    time.sleep(retry_interval)
+                    continue
+
                 raise mlrun.errors.err_for_status_code(
                     exc.status, message=mlrun.errors.err_to_str(exc)
                 ) from exc
             else:
                 logger.info("Pod created", pod_name=resp.metadata.name)
                 return resp.metadata.name, resp.metadata.namespace
+
+    @staticmethod
+    def _is_transient_admission_webhook_error(
+        exc: k8s_client_rest.ApiException,
+    ) -> bool:
+        """Return True only for transient k8s admission-webhook *dial* failures.
+
+        These mean the apiserver could not reach a mutating/validating webhook (e.g. an
+        AKS konnectivity tunnel blip). With ``failurePolicy: Fail`` the create call is
+        rejected at admission *before* the object is persisted, so it has no side effect
+        and is safe to retry. Deterministic webhook *denials* and non-500 errors are
+        never matched.
+
+        :param exc: The k8s ``ApiException`` raised by the create call.
+        :return:    True if the error matches the transient dial-failure signature.
+        """
+        if exc.status != http.HTTPStatus.INTERNAL_SERVER_ERROR.value:
+            return False
+        body = mlrun.errors.err_to_str(exc).lower()
+        # a webhook that was reached and *denied* the request is deterministic — never retry
+        if "denied the request" in body:
+            return False
+        if "failed calling webhook" not in body:
+            return False
+        return any(
+            cause in body
+            for cause in ("proxy error", "while dialing", "context deadline exceeded")
+        )
 
     def delete_pod(
         self,

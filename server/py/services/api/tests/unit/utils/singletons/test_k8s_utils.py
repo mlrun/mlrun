@@ -1557,3 +1557,105 @@ class TestK8sTimeouts:
 
         with pytest.raises(urllib3.exceptions.MaxRetryError):
             fake_k8s_call()
+
+
+# The 500 body an AKS konnectivity blip produces: the apiserver could not dial the webhook.
+_WEBHOOK_DIAL_BODY = (
+    "Internal error occurred: failed calling webhook "
+    '"mutation.azure-workload-identity.io": failed to call webhook: '
+    "proxy error from localhost:9443 while dialing 10.244.1.211:9443, code 500"
+)
+
+
+def _api_exception(status, body=""):
+    exc = k8s_client_rest.ApiException(status=status, reason="err")
+    exc.body = body
+    return exc
+
+
+@pytest.mark.parametrize(
+    "exc, expected",
+    [
+        # transient webhook *dial* failures — rejected pre-persistence, safe to retry
+        (_api_exception(500, _WEBHOOK_DIAL_BODY), True),
+        (
+            _api_exception(
+                500,
+                'failed calling webhook "x": failed to call webhook: '
+                "context deadline exceeded",
+            ),
+            True,
+        ),
+        # deterministic webhook denial — never retry
+        (_api_exception(500, 'admission webhook "x" denied the request: nope'), False),
+        # generic 500 with no webhook signature
+        (
+            _api_exception(500, "Internal error occurred: etcdserver: leader changed"),
+            False,
+        ),
+        # right body, wrong status
+        (_api_exception(400, _WEBHOOK_DIAL_BODY), False),
+    ],
+)
+def test_is_transient_admission_webhook_error(exc, expected):
+    assert (
+        framework.utils.singletons.k8s.K8sHelper._is_transient_admission_webhook_error(
+            exc
+        )
+        is expected
+    )
+
+
+@pytest.fixture
+def _no_k8s_sleep():
+    """Skip the create_pod retry backoff so tests stay fast."""
+    with mock.patch("framework.utils.singletons.k8s.time.sleep"):
+        yield
+
+
+def _pod_mock(namespace="test-namespace"):
+    pod = mock.MagicMock()
+    pod.metadata.namespace = namespace
+    return pod
+
+
+def test_create_pod_retries_transient_webhook_error_then_succeeds(
+    k8s_helper, _no_k8s_sleep
+):
+    """A transient admission-webhook 500 is retried and the next attempt succeeds."""
+    created = mock.MagicMock()
+    created.metadata.name = "created-pod"
+    created.metadata.namespace = "test-namespace"
+    k8s_helper.v1api.create_namespaced_pod.side_effect = [
+        _api_exception(500, _WEBHOOK_DIAL_BODY),
+        created,
+    ]
+
+    name, namespace = k8s_helper.create_pod(_pod_mock())
+
+    assert (name, namespace) == ("created-pod", "test-namespace")
+    assert k8s_helper.v1api.create_namespaced_pod.call_count == 2
+
+
+def test_create_pod_does_not_retry_webhook_denial(k8s_helper, _no_k8s_sleep):
+    """A deterministic webhook *denial* is raised immediately, not retried."""
+    k8s_helper.v1api.create_namespaced_pod.side_effect = _api_exception(
+        500, 'admission webhook "x" denied the request: not allowed'
+    )
+
+    with pytest.raises(mlrun.errors.MLRunHTTPError):
+        k8s_helper.create_pod(_pod_mock())
+
+    assert k8s_helper.v1api.create_namespaced_pod.call_count == 1
+
+
+def test_create_pod_does_not_retry_non_webhook_500(k8s_helper, _no_k8s_sleep):
+    """A 500 without the webhook-dial signature is raised immediately, not retried."""
+    k8s_helper.v1api.create_namespaced_pod.side_effect = _api_exception(
+        500, "Internal error occurred: etcdserver: leader changed"
+    )
+
+    with pytest.raises(mlrun.errors.MLRunHTTPError):
+        k8s_helper.create_pod(_pod_mock())
+
+    assert k8s_helper.v1api.create_namespaced_pod.call_count == 1

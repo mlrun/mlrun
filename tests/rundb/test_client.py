@@ -62,12 +62,7 @@ def test_session_carries_client_credentials_to_requests():
 
 
 def test_jwt_token_routes_as_bearer_not_session():
-    """A signed JWT is sent as an ``Authorization`` bearer, not a session cookie.
-
-    Guards the ``is_iguazio_session`` classifier at the request-routing layer:
-    ``api_call`` must emit the bearer header (and no ``session`` cookie) for a
-    JWT, while an Iguazio access key / control session still routes as a cookie.
-    """
+    """JWT -> bearer header, access key/session -> session cookie."""
     jwt = "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJzdmMtYWNjdCJ9.ab-cd_ef"
     client = Client(credentials=Credentials(token=jwt))
     client._http_db.session = unittest.mock.Mock()
@@ -79,7 +74,7 @@ def test_jwt_token_routes_as_bearer_not_session():
     assert request_kwargs.get("headers", {}).get("authorization") == f"Bearer {jwt}"
     assert "cookies" not in request_kwargs
 
-    # Contrast: an Iguazio access key / control session still routes as a cookie.
+    # Access key/control session still routes as a cookie.
     access_key = "946b0749-5c40-4837-a4ac-341d295bfaf7"
     session_client = Client(credentials=Credentials(token=access_key))
     session_client._http_db.session = unittest.mock.Mock()

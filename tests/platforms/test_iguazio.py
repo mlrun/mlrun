@@ -100,14 +100,12 @@ def test_is_iguazio_session_cookie():
 
 
 def test_is_iguazio_session():
-    # A JWT (header.payload.signature, "eyJ" prefix) is a bearer token, not an
-    # Iguazio control session / access key — even though it is long and contains
-    # "-". It must NOT be routed through the session-cookie path.
+    # JWTs are bearer tokens, not Iguazio sessions.
     jwt = "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJzdmMtYWNjdCJ9.ab-cd_ef"
     assert is_iguazio_session(jwt) is False
-    # An Iguazio access key / control session (UUID-like) is a session.
+    # UUID-like control sessions/access keys are sessions.
     assert is_iguazio_session("946b0749-5c40-4837-a4ac-341d295bfaf7") is True
-    # Too short, or no hyphen — not a session.
+    # Too short or missing hyphen -> not a session.
     assert is_iguazio_session("short") is False
     assert is_iguazio_session("nohyphenbutquitelongvalue123") is False
 

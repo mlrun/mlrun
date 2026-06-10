@@ -22,7 +22,7 @@ import mlrun
 import mlrun.errors
 from mlrun import mlconf
 from mlrun.platforms import add_or_refresh_credentials
-from mlrun.platforms.iguazio import min_iguazio_versions
+from mlrun.platforms.iguazio import is_iguazio_session, min_iguazio_versions
 from mlrun.utils import logger
 
 
@@ -97,6 +97,19 @@ def test_is_iguazio_session_cookie():
         is True
     )
     assert mlrun.platforms.is_iguazio_session_cookie("dummy") is False
+
+
+def test_is_iguazio_session():
+    # A JWT (header.payload.signature, "eyJ" prefix) is a bearer token, not an
+    # Iguazio control session / access key — even though it is long and contains
+    # "-". It must NOT be routed through the session-cookie path.
+    jwt = "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJzdmMtYWNjdCJ9.ab-cd_ef"
+    assert is_iguazio_session(jwt) is False
+    # An Iguazio access key / control session (UUID-like) is a session.
+    assert is_iguazio_session("946b0749-5c40-4837-a4ac-341d295bfaf7") is True
+    # Too short, or no hyphen — not a session.
+    assert is_iguazio_session("short") is False
+    assert is_iguazio_session("nohyphenbutquitelongvalue123") is False
 
 
 @pytest.mark.parametrize(

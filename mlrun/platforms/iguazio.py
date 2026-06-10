@@ -316,6 +316,11 @@ def is_iguazio_endpoint(endpoint_url: str) -> bool:
 
 
 def is_iguazio_session(value: str) -> bool:
+    # A JWT (header.payload.signature, base64url, "eyJ" prefix) is a bearer
+    # token, not an Iguazio control session / access key — route it as a bearer
+    # even though it is long and contains "-".
+    if value.count(".") == 2 and value.startswith("eyJ"):
+        return False
     # TODO: find a better heuristic
     return len(value) > 20 and "-" in value
 

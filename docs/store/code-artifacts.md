@@ -143,19 +143,9 @@ project.log_code_file(
 
 At deploy or run time the server merges the artifact's `requirements` into `function.spec.build.requirements`. User-set requirements (via `func.with_requirements()`) take priority over artifact requirements, and deduplication is case-insensitive.
 
-A change to the artifact's `requirements` is not detected automatically — MLRun does not rebuild the image just because the artifact's dependencies changed, so you must force a rebuild:
+A change to the artifact's `requirements` is a build-configuration change, and like any other such change it is not detected automatically (`auto_build` does not pick it up). Rebuild the image as described in {ref}`build-function-image`.
 
-- Job / KFP — {py:func}`~mlrun.projects.build_function` with `force_build=True` (see {ref}`build-function-image`).
-- Nuclio / serving / application — redeploy the function with `function.deploy()`, which rebuilds the image.
-
-The cost of changing only the code (no requirements change) depends on the runtime:
-
-| Runtime | Code-only update |
-|---|---|
-| Job / KFP | Next `run()` picks up the latest artifact version |
-| Nuclio / serving, "pull at runtime" (`load_source_on_run=True`) | Re-deploy, no image rebuild |
-| Nuclio / serving, "pull at buildtime" (default) | Re-deploy with image rebuild |
-| Application | Re-deploy, no image rebuild (init container fetches code) |
+A change to the code only (no requirements change) depends on the source-loading mode described in [Run a function from a code artifact](#run-a-function-from-a-code-artifact). When the code is resolved at build time it is embedded in the image, so a code change is also a build-configuration change and the image must be rebuilt. When the code is resolved at runtime it is fetched by the pod at startup, so a code change is not a build-configuration change and no rebuild is needed. For job and KFP functions the next `run()` picks up the latest artifact version.
 
 ## function vs workflow code_type
 

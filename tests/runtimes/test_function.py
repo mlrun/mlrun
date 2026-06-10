@@ -617,97 +617,66 @@ class TestSetupModelMonitoring:
         with pytest.raises(mlrun.errors.MLRunInvalidArgumentError, match="mix"):
             fn.setup_model_monitoring(extra_model_endpoint_instructions=mixed)
 
-    def test_extra_instructions_tag_mismatch_raises(self):
+    def test_function_name_provided_raises(self):
         from mlrun.common.schemas.model_monitoring.model_endpoints import (
             ModelEndpointInstruction,
         )
 
         fn = self._nuclio_fn(name="my-fn")
-        fn.metadata.tag = "v1"
-        extra = [ModelEndpointInstruction(name="my-fn", function_tag="v2")]
+        # Providing function_name is rejected, even when it matches metadata.name.
+        instruction = ModelEndpointInstruction(name="my-ep", function_name="my-fn")
         with pytest.raises(
-            mlrun.errors.MLRunInvalidArgumentError, match="tag mismatch"
-        ):
-            fn.setup_model_monitoring(extra_model_endpoint_instructions=extra)
-
-    def test_extra_instructions_no_tag_backfills_from_metadata(self):
-        from mlrun.common.schemas.model_monitoring.model_endpoints import (
-            ModelEndpointInstruction,
-        )
-
-        fn = self._nuclio_fn(name="my-fn")
-        fn.metadata.tag = "v1"
-        extra = [ModelEndpointInstruction(name="my-fn")]  # function_tag=None
-        fn.setup_model_monitoring(extra_model_endpoint_instructions=extra)
-        stored_extra = fn.spec.model_endpoints_instructions[-1]
-        assert stored_extra.name == "my-fn"
-        assert stored_extra.function_name == "my-fn"
-        assert stored_extra.function_tag == "v1"
-
-    def test_function_name_mismatch_raises(self):
-        from mlrun.common.schemas.model_monitoring.model_endpoints import (
-            ModelEndpointInstruction,
-        )
-
-        fn = self._nuclio_fn(name="my-fn")
-        instruction = ModelEndpointInstruction(name="my-ep", function_name="wrong-fn")
-        with pytest.raises(
-            mlrun.errors.MLRunInvalidArgumentError, match="function_name mismatch"
+            mlrun.errors.MLRunInvalidArgumentError,
+            match="function_name must not be set",
         ):
             fn.setup_model_monitoring(general_model_endpoint_instructions=instruction)
 
-    def test_extra_instructions_function_name_mismatch_raises(self):
-        from mlrun.common.schemas.model_monitoring.model_endpoints import (
-            ModelEndpointInstruction,
-        )
-
-        fn = self._nuclio_fn(name="my-fn")
-        extra = [ModelEndpointInstruction(name="my-ep", function_name="wrong-fn")]
-        with pytest.raises(
-            mlrun.errors.MLRunInvalidArgumentError, match="function_name mismatch"
-        ):
-            fn.setup_model_monitoring(extra_model_endpoint_instructions=extra)
-
-    def test_function_tag_mismatch_raises(self):
+    def test_function_tag_provided_raises(self):
         from mlrun.common.schemas.model_monitoring.model_endpoints import (
             ModelEndpointInstruction,
         )
 
         fn = self._nuclio_fn(name="my-fn")
         fn.metadata.tag = "v1"
-        instruction = ModelEndpointInstruction(name="my-fn", function_tag="v2")
+        # Providing function_tag is rejected, even when it matches metadata.tag.
+        instruction = ModelEndpointInstruction(name="my-ep", function_tag="v1")
         with pytest.raises(
-            mlrun.errors.MLRunInvalidArgumentError, match="tag mismatch"
+            mlrun.errors.MLRunInvalidArgumentError,
+            match="function_tag must not be set",
         ):
             fn.setup_model_monitoring(general_model_endpoint_instructions=instruction)
 
-    def test_matching_tag_does_not_raise(self):
+    def test_extra_instructions_function_name_provided_raises(self):
+        from mlrun.common.schemas.model_monitoring.model_endpoints import (
+            ModelEndpointInstruction,
+        )
+
+        fn = self._nuclio_fn(name="my-fn")
+        extra = [ModelEndpointInstruction(name="my-ep", function_name="my-fn")]
+        with pytest.raises(
+            mlrun.errors.MLRunInvalidArgumentError,
+            match="function_name must not be set",
+        ):
+            fn.setup_model_monitoring(extra_model_endpoint_instructions=extra)
+
+    def test_extra_instructions_function_tag_provided_raises(self):
         from mlrun.common.schemas.model_monitoring.model_endpoints import (
             ModelEndpointInstruction,
         )
 
         fn = self._nuclio_fn(name="my-fn")
         fn.metadata.tag = "v1"
-        instruction = ModelEndpointInstruction(name="my-fn", function_tag="v1")
-        fn.setup_model_monitoring(general_model_endpoint_instructions=instruction)
-        assert fn.spec.model_endpoints_instructions[0].function_tag == "v1"
+        extra = [ModelEndpointInstruction(name="my-ep", function_tag="v1")]
+        with pytest.raises(
+            mlrun.errors.MLRunInvalidArgumentError,
+            match="function_tag must not be set",
+        ):
+            fn.setup_model_monitoring(extra_model_endpoint_instructions=extra)
 
-    def test_no_function_tag_backfills_from_metadata(self):
-        from mlrun.common.schemas.model_monitoring.model_endpoints import (
-            ModelEndpointInstruction,
-        )
-
-        fn = self._nuclio_fn(name="my-fn")
-        fn.metadata.tag = "v1"
-        instruction = ModelEndpointInstruction(name="my-fn")  # function_tag=None
-        fn.setup_model_monitoring(general_model_endpoint_instructions=instruction)
-        stored = fn.spec.model_endpoints_instructions[0]
-        assert stored.name == "my-fn"
-        assert stored.function_tag == "v1"
-
-    def test_no_function_name_backfills_from_metadata(self):
-        # Reproduces ML-12727: ModelEndpointInstruction passed without function_name
-        # must still be linked to the function so the endpoint appears in the UI.
+    def test_no_function_identity_kept_none(self):
+        # Reproduces ML-12727: omitting function_name/function_tag is the supported usage.
+        # The instruction is stored as-is with None values; the deployment side derives them
+        # from the function's metadata.
         from mlrun.common.schemas.model_monitoring.model_endpoints import (
             ModelEndpointInstruction,
         )
@@ -718,13 +687,14 @@ class TestSetupModelMonitoring:
             name="my-ep",
             input_schema=["age", "income"],
             output_schema=["approved"],
-        )  # function_name=None, function_tag=None
+        )
         fn.setup_model_monitoring(general_model_endpoint_instructions=instruction)
         stored = fn.spec.model_endpoints_instructions[0]
-        assert stored.function_name == "my-fn"
-        assert stored.function_tag == "v2"
+        assert stored.name == "my-ep"
+        assert stored.function_name is None
+        assert stored.function_tag is None
 
-    def test_extra_instructions_no_function_name_backfills_from_metadata(self):
+    def test_extra_instructions_no_function_identity_kept_none(self):
         from mlrun.common.schemas.model_monitoring.model_endpoints import (
             ModelEndpointInstruction,
         )
@@ -733,25 +703,24 @@ class TestSetupModelMonitoring:
         fn.metadata.tag = "v2"
         extra = [
             ModelEndpointInstruction(name="ep-a"),
-            ModelEndpointInstruction(name="ep-b", function_name="my-fn"),
+            ModelEndpointInstruction(name="ep-b"),
         ]
         fn.setup_model_monitoring(extra_model_endpoint_instructions=extra)
         # primary default + 2 extras
         assert len(fn.spec.model_endpoints_instructions) == 3
-        for instr in fn.spec.model_endpoints_instructions:
-            assert instr.function_name == "my-fn"
-            assert instr.function_tag == "v2"
+        # The primary default still carries the function identity (set explicitly when
+        # generated). Extras intentionally stay None — the deployment side fills them in.
+        for instr in fn.spec.model_endpoints_instructions[1:]:
+            assert instr.function_name is None
+            assert instr.function_tag is None
 
-    def test_function_name_mismatch_error_includes_endpoint_and_values(self):
+    def test_function_name_provided_error_includes_endpoint(self):
         from mlrun.common.schemas.model_monitoring.model_endpoints import (
             ModelEndpointInstruction,
         )
 
         fn = self._nuclio_fn(name="my-fn")
-        instruction = ModelEndpointInstruction(name="my-ep", function_name="wrong-fn")
+        instruction = ModelEndpointInstruction(name="my-ep", function_name="anything")
         with pytest.raises(mlrun.errors.MLRunInvalidArgumentError) as exc_info:
             fn.setup_model_monitoring(general_model_endpoint_instructions=instruction)
-        msg = str(exc_info.value)
-        assert "my-ep" in msg
-        assert "wrong-fn" in msg
-        assert "my-fn" in msg
+        assert "my-ep" in str(exc_info.value)

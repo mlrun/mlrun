@@ -403,10 +403,9 @@ class RemoteRuntime(KubeResource):
         when this function is deployed. Calling this method sets the ``track_models``
         flag on the spec so the deployment stage knows to create the endpoints.
 
-        On every instruction, ``function_name`` and ``function_tag`` default to the runtime's
-        ``metadata.name`` and ``metadata.tag`` when omitted, so the endpoint is always linked
-        to the deployed function. If they are set to a different value than the function's
-        name/tag, an ``MLRunInvalidArgumentError`` is raised.
+        Instructions must not set ``function_name`` or ``function_tag``; both are
+        derived from the runtime's ``metadata.name`` / ``metadata.tag`` at deployment
+        time. Setting either raises ``MLRunInvalidArgumentError``.
 
         :param general_model_endpoint_instructions: Optional ModelEndpointInstruction parameter for main model endpoint
             instructions, if not provided a default one will be created with the USER_EP endpoint type and the default
@@ -437,26 +436,17 @@ class RemoteRuntime(KubeResource):
                     general_model_endpoint_instructions
                 )
             )
-            general_model_endpoint_instructions.function_name = (
-                general_model_endpoint_instructions.function_name or self.metadata.name
-            )
-            general_model_endpoint_instructions.function_tag = (
-                general_model_endpoint_instructions.function_tag or self.metadata.tag
-            )
-            if general_model_endpoint_instructions.function_name != self.metadata.name:
+            if general_model_endpoint_instructions.function_name is not None:
                 raise mlrun.errors.MLRunInvalidArgumentError(
-                    "Model endpoint function_name mismatch, instruction function_name must be the same as the "
-                    f"function name (endpoint={general_model_endpoint_instructions.name}, "
-                    f"got {general_model_endpoint_instructions.function_name}, "
-                    f"expected {self.metadata.name})"
+                    "function_name must not be set on ModelEndpointInstruction; "
+                    "it is derived from the function's metadata.name "
+                    f"(endpoint={general_model_endpoint_instructions.name})"
                 )
-
-            if general_model_endpoint_instructions.function_tag != self.metadata.tag:
+            if general_model_endpoint_instructions.function_tag is not None:
                 raise mlrun.errors.MLRunInvalidArgumentError(
-                    "Model endpoint tag mismatch, instruction function_tag must be the same as the function tag "
-                    f"(endpoint={general_model_endpoint_instructions.name}, "
-                    f"got {general_model_endpoint_instructions.function_tag}, "
-                    f"expected {self.metadata.tag})"
+                    "function_tag must not be set on ModelEndpointInstruction; "
+                    "it is derived from the function's metadata.tag "
+                    f"(endpoint={general_model_endpoint_instructions.name})"
                 )
             self.spec.model_endpoints_instructions = [
                 general_model_endpoint_instructions
@@ -476,25 +466,17 @@ class RemoteRuntime(KubeResource):
                     "ModelEndpointInstruction objects or dicts, not a mix of both."
                 )
             for extra_instruction in extra_model_endpoint_instructions:
-                extra_instruction.function_name = (
-                    extra_instruction.function_name or self.metadata.name
-                )
-                extra_instruction.function_tag = (
-                    extra_instruction.function_tag or self.metadata.tag
-                )
-                if extra_instruction.function_name != self.metadata.name:
+                if extra_instruction.function_name is not None:
                     raise mlrun.errors.MLRunInvalidArgumentError(
-                        "Model endpoint function_name mismatch, all instruction function_names must be the same as the "
-                        f"function name (endpoint={extra_instruction.name}, "
-                        f"got {extra_instruction.function_name}, "
-                        f"expected {self.metadata.name})"
+                        "function_name must not be set on ModelEndpointInstruction; "
+                        "it is derived from the function's metadata.name "
+                        f"(endpoint={extra_instruction.name})"
                     )
-                if extra_instruction.function_tag != self.metadata.tag:
+                if extra_instruction.function_tag is not None:
                     raise mlrun.errors.MLRunInvalidArgumentError(
-                        "Model endpoint tag mismatch, all instruction function_tags must be the same as the "
-                        f"function tag (endpoint={extra_instruction.name}, "
-                        f"got {extra_instruction.function_tag}, "
-                        f"expected {self.metadata.tag})"
+                        "function_tag must not be set on ModelEndpointInstruction; "
+                        "it is derived from the function's metadata.tag "
+                        f"(endpoint={extra_instruction.name})"
                     )
 
             self.spec.model_endpoints_instructions.extend(

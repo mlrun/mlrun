@@ -451,6 +451,7 @@ class TestCreateModelEndpointsInstructionsForNuclioApp:
                 db_session=Mock(spec=mm_dep.sqlalchemy.orm.Session),
                 function=fn_dict,
                 function_name="my-fn",
+                function_tag="latest",
                 project="proj",
             )
 
@@ -475,6 +476,7 @@ class TestCreateModelEndpointsInstructionsForNuclioApp:
                 db_session=Mock(spec=mm_dep.sqlalchemy.orm.Session),
                 function=fn_dict,
                 function_name="my-fn",
+                function_tag="latest",
                 project="proj",
             )
 
@@ -506,12 +508,17 @@ class TestCreateModelEndpointsInstructionsForNuclioApp:
                 db_session=Mock(spec=mm_dep.sqlalchemy.orm.Session),
                 function=fn_dict,
                 function_name="my-fn",
+                function_tag="latest",
                 project="proj",
             )
 
         assert len(instructions) == 1
         ep, _ = instructions[0]
         assert ep.metadata.name == "ep-obj"
+        # Instruction has function_name=None/function_tag=None; the deployment-supplied
+        # values are what get stored on the created ModelEndpoint (ML-12727).
+        assert ep.spec.function_name == "my-fn"
+        assert ep.spec.function_tag == "latest"
 
     @pytest.mark.asyncio
     async def test_stream_url_none_logs_warning(self):
@@ -532,6 +539,7 @@ class TestCreateModelEndpointsInstructionsForNuclioApp:
                 db_session=Mock(spec=mm_dep.sqlalchemy.orm.Session),
                 function=fn_dict,
                 function_name="my-fn",
+                function_tag="latest",
                 project="proj",
             )
 
@@ -552,6 +560,7 @@ class TestCreateModelEndpointsInstructionsForNuclioApp:
                 db_session=Mock(spec=mm_dep.sqlalchemy.orm.Session),
                 function=fn_dict,
                 function_name="my-fn",
+                function_tag="latest",
                 project="proj",
             )
 

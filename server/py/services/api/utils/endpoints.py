@@ -82,6 +82,7 @@ async def start_model_endpoint_creation_background_task(
             background_tasks=background_tasks,
             function=function,
             function_name=name,
+            function_tag=function.get("metadata", {}).get("tag") or "latest",
             project=project,
         )
 

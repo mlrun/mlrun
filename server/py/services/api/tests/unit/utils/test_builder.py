@@ -1787,8 +1787,7 @@ def _init_container_by_name(name: str):
         "wasbs://container@account.blob.core.windows.net/path/project.tar.gz",
         "ds://my-profile/path/project.tar.gz",
         "oss://bucket/path/project.tar.gz",
-        # gs/gcs are kaniko-native, but GCP needs file-based creds the storage-blind
-        # kaniko container never gets, so we route them through the init container too.
+        # gs/gcs are kaniko-native but routed through fetch for GCP's file-based creds
         "gs://bucket/path/project.tar.gz",
         "gcs://bucket/path/project.tar.gz",
     ],
@@ -2060,8 +2059,7 @@ def test_build_runtime_v3io_source_unchanged_by_fix(monkeypatch):
         ("wasbs://x@a.blob.core.windows.net/y.tar.gz", True),
         ("ds://profile/path/y.tar.gz", True),
         ("oss://bucket/path/y.tar.gz", True),
-        # gs/gcs are kaniko-native but routed through the init container so GCP's
-        # file-based creds are resolved by `mlrun load-source`, not the kaniko container.
+        # gs/gcs are kaniko-native but routed through fetch for GCP's file-based creds
         ("gs://x/y.tar.gz", True),
         ("gcs://x/y.tar.gz", True),
         # kaniko-native or otherwise handled out-of-band - must NOT be routed

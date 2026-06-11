@@ -41,11 +41,10 @@ import framework.utils.helpers
 import framework.utils.singletons.k8s
 
 # mlrun datastore schemes routed through the fetch-source init container instead of being
-# handed to kaniko as --context. Covers schemes kaniko cannot resolve (az, wasb, wasbs, ds,
-# oss) plus gs/gcs: kaniko resolves gs:// natively, but GCP expects its credentials mounted
-# as a file, which kaniko's storage-blind main container never gets - routing gs/gcs through
-# the init container lets `mlrun load-source` authenticate via the usual datastore secrets.
-# Excludes s3 and http(s) (kaniko-native, no file-based creds) and v3io (igz FUSE-mount).
+# handed to kaniko as --context: schemes kaniko cannot resolve (az, wasb, wasbs, ds, oss),
+# plus gs/gcs - kaniko resolves gs:// natively but GCP wants file-based creds its
+# storage-blind container never gets, so we let `mlrun load-source` fetch them instead.
+# excludes s3/http(s) (kaniko-native) and v3io (igz FUSE-mount).
 # aligned with `mlrun.datastore.datastore.schema_to_store`.
 _FETCH_SUPPORTED_SCHEMES = frozenset({"az", "wasb", "wasbs", "ds", "oss", "gs", "gcs"})
 

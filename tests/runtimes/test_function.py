@@ -222,22 +222,20 @@ def test_wait_for_deployment_finalizes_after_submit():
 
 
 def test_wait_for_deployment_times_out():
-    """A deploy that never reaches a terminal state fails after ``timeout``
-    instead of polling forever (e.g. an image stuck in ImagePullBackOff)."""
+    """A non-terminal deploy fails after ``timeout`` instead of polling forever."""
     function: mlrun.runtimes.RemoteRuntime = mlrun.new_function("tst", kind="nuclio")
     function.status.state = "building"  # never reaches a terminal state
     db = MagicMock()
     db.get_nuclio_deploy_status = MagicMock(return_value=("", 1))
 
-    # monotonic: deadline calc (100 -> deadline 110), iter1 check (100, ok),
-    # iter2 check (120 > 110 -> time out).
+    # deadline=110; second loop check (120) times out.
     with (
         patch("mlrun.runtimes.nuclio.function.sleep"),
         patch(
             "mlrun.runtimes.nuclio.function.monotonic",
             side_effect=[100.0, 100.0, 120.0],
         ),
-        pytest.raises(RunError, match="did not reach a terminal state within 10s"),
+        pytest.raises(RunError, match="timed out after 10s"),
     ):
         function._wait_for_function_deployment(db, timeout=10)
 

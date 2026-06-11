@@ -1005,20 +1005,19 @@ class RemoteRuntime(KubeResource):
 
         Waits for terminal deploy status, handles model-endpoint tasks,
         enriches the invocation command from status, and returns it.
-        ``deploy(wait=True)`` calls this directly; callers that used
+        ``deploy(wait=True)`` calls this directly; callers of
         ``deploy(wait=False)`` can call it explicitly.
 
-        :param verbose: set True for verbose build-log output
-        :param timeout: overall deadline (seconds) for reaching a terminal
-            deploy state. ``None`` (default) waits indefinitely; a value fails
-            with a :class:`RunError` if the deploy never becomes ready (e.g. an
-            image that never pulls), instead of polling forever.
+        :param verbose: print verbose build logs
+        :param timeout: optional deadline in seconds for reaching a terminal
+            deploy state. ``None`` waits indefinitely. Raises
+            :class:`RunError` on timeout.
         :return: the function's invocation command
         """
         db = self._get_db()
-        # Wait for readiness and refresh function status.
+        # Wait for terminal state and refresh status.
         self._wait_for_function_deployment(db, verbose=verbose, timeout=timeout)
-        # Consume submit-captured model-endpoint tasks at most once.
+        # Consume submit-time model-endpoint tasks once.
         model_endpoints_creation_background_tasks = (
             mlrun.common.schemas.BackgroundTaskList(
                 **getattr(self, "_deploy_background_tasks", None)
@@ -1070,13 +1069,13 @@ class RemoteRuntime(KubeResource):
         while state not in ["ready", "error", "unhealthy"]:
             if deadline is not None and monotonic() > deadline:
                 logger.error(
-                    "Nuclio function deploy timed out",
+                    "Nuclio deploy timed out",
                     function_state=state,
                     timeout=timeout,
                 )
                 raise RunError(
-                    f"Function {self.metadata.name} deployment did not reach a "
-                    f"terminal state within {timeout}s (last state={state!r})"
+                    f"Function {self.metadata.name} deployment timed out after "
+                    f"{timeout}s (last state={state!r})"
                 )
             sleep(
                 int(mlrun.mlconf.httpdb.logs.nuclio.pull_deploy_status_default_interval)

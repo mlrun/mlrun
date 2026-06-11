@@ -357,4 +357,3 @@ class _ApplicationErrorHandler(StepToDict):
             name=alert_objects.EventKind.MM_APP_FAILED, event_data=event_data
         )
         logger.info("Event generated successfully")
-        return event

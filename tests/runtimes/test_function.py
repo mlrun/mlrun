@@ -25,7 +25,6 @@ import mlrun.common.schemas
 import mlrun.errors
 from mlrun import code_to_function
 from mlrun.datastore.datastore_profile import DatastoreProfileRabbitMQ
-from mlrun.runtimes.utils import RunError
 from mlrun.utils.helpers import resolve_git_reference_from_source
 from tests.runtimes.test_base import TestAutoMount
 
@@ -193,6 +192,30 @@ def test_serving_deploy_forwards_wait():
     assert super_deploy.call_args.kwargs.get("wait") is False
 
 
+def test_deploy_forwards_timeout():
+    """``deploy(wait=True, timeout=...)`` forwards the deadline to wait_for_deployment."""
+    function: mlrun.runtimes.RemoteRuntime = mlrun.new_function("tst", kind="nuclio")
+    _mock_nuclio_deploy(function)
+    function.wait_for_deployment = MagicMock(return_value="http://invocation")
+
+    function.deploy(timeout=30)
+
+    assert function.wait_for_deployment.call_args.kwargs.get("timeout") == 30
+
+
+def test_serving_deploy_forwards_timeout():
+    """``ServingRuntime.deploy`` must forward ``timeout`` to ``super().deploy``."""
+    function = mlrun.new_function("tst", kind="serving")
+    function.set_topology("router")
+
+    with patch.object(
+        mlrun.runtimes.nuclio.function.RemoteRuntime, "deploy", return_value="cmd"
+    ) as super_deploy:
+        function.deploy(wait=False, timeout=30)
+
+    assert super_deploy.call_args.kwargs.get("timeout") == 30
+
+
 def test_nuclio_deploy_wait_true_waits_and_enriches():
     """``deploy(wait=True)`` keeps legacy wait+enrich behavior."""
     function: mlrun.runtimes.RemoteRuntime = mlrun.new_function("tst", kind="nuclio")
@@ -235,7 +258,7 @@ def test_wait_for_deployment_times_out():
             "mlrun.runtimes.nuclio.function.monotonic",
             side_effect=[100.0, 100.0, 120.0],
         ),
-        pytest.raises(RunError, match="timed out after 10s"),
+        pytest.raises(mlrun.errors.MLRunTimeoutError, match="timed out after 10s"),
     ):
         function._wait_for_function_deployment(db, timeout=10)
 

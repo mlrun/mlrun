@@ -926,6 +926,7 @@ class RemoteRuntime(KubeResource):
         force_build: bool = False,
         track_models: bool | None = None,
         wait: bool = True,
+        timeout: int | None = None,
     ):
         """Deploy the nuclio function to the cluster
 
@@ -942,6 +943,9 @@ class RemoteRuntime(KubeResource):
             return ``self`` so the caller can later call
             ``wait_for_deployment()`` or poll
             ``db.get_nuclio_deploy_status``.
+        :param timeout:    optional deadline in seconds for the readiness wait
+            when ``wait=True``; forwarded to ``wait_for_deployment``. ``None``
+            waits indefinitely. Ignored when ``wait=False``.
 
         :return: the invocation command (``str``) when ``wait=True``; the
             function object (``self``) when ``wait=False``.
@@ -996,7 +1000,7 @@ class RemoteRuntime(KubeResource):
             # Caller handles wait/finalization explicitly.
             return self
 
-        return self.wait_for_deployment(verbose=verbose)
+        return self.wait_for_deployment(verbose=verbose, timeout=timeout)
 
     def wait_for_deployment(
         self, verbose: bool = False, timeout: int | None = None
@@ -1011,7 +1015,9 @@ class RemoteRuntime(KubeResource):
         :param verbose: print verbose build logs
         :param timeout: optional deadline in seconds for reaching a terminal
             deploy state. ``None`` waits indefinitely. Raises
-            :class:`RunError` on timeout.
+            :class:`mlrun.errors.MLRunTimeoutError` on timeout. The deadline is
+            checked once per status poll, so the wait may overshoot ``timeout``
+            by up to one poll interval.
         :return: the function's invocation command
         """
         db = self._get_db()
@@ -1062,7 +1068,9 @@ class RemoteRuntime(KubeResource):
 
         return self.spec.command
 
-    def _wait_for_function_deployment(self, db, verbose=False, timeout=None):
+    def _wait_for_function_deployment(
+        self, db, verbose=False, timeout: int | None = None
+    ):
         state = ""
         last_log_timestamp = 1
         deadline = monotonic() + timeout if timeout is not None else None
@@ -1073,7 +1081,7 @@ class RemoteRuntime(KubeResource):
                     function_state=state,
                     timeout=timeout,
                 )
-                raise RunError(
+                raise mlrun.errors.MLRunTimeoutError(
                     f"Function {self.metadata.name} deployment timed out after "
                     f"{timeout}s (last state={state!r})"
                 )

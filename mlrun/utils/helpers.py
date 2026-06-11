@@ -329,7 +329,7 @@ def validate_project_field_length(field_name: str, value: str | None) -> None:
 
     Project fields stored in dedicated columns (``source``, ``description``, ``owner``)
     are ``VARCHAR(255)``; a longer value fails at the database with an opaque 500.
-    Validating up front lets us reject it with a clear 400 before the write (see ML-12709).
+    Validating up front lets us reject it with a clear 400 before write.
 
     :param field_name:  name of the project field being validated (used in the error)
     :param value:       the value to validate (``None``/empty is a no-op)

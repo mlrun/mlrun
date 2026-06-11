@@ -608,13 +608,21 @@ Message: {event.message}
             # begin from the offset number and then encode
             out = resp[offset:].encode()
 
+    # Persist `building` for an in-progress application build instead of `running`/`pending`
+    persisted_function_state = normalized_pod_function_state
+    if fn.get("kind") == RuntimeKinds.application and normalized_pod_function_state in (
+        mlrun.common.schemas.FunctionState.running,
+        mlrun.common.schemas.FunctionState.pending,
+    ):
+        persisted_function_state = mlrun.common.schemas.FunctionState.building
+
     # check if the previous function state is different from the current build pod state, if that is the case then
     # update the function and store to the database
-    if function_state != normalized_pod_function_state:
-        update_in(fn, "status.state", normalized_pod_function_state)
+    if function_state != persisted_function_state:
+        update_in(fn, "status.state", persisted_function_state)
 
         versioned = False
-        if normalized_pod_function_state == mlrun.common.schemas.FunctionState.ready:
+        if persisted_function_state == mlrun.common.schemas.FunctionState.ready:
             update_in(fn, "spec.image", image)
             versioned = True
 

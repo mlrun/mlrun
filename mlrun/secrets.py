@@ -263,10 +263,10 @@ def sync_secret_tokens() -> None:
 
     This function:
       1. Reads the local token file (defaults to `mlrun.mlconf.auth_with_oauth_token.token_file` value).
-      2. Validates its content and converts validated tokens into `SecretToken` objects.
-      3. Uploads the tokens to the backend.
-      4. Logs a warning if any tokens were updated on the backend due to newer
-         expiration times found locally.
+      2. Validates its content and resolves the token currently in use into a `SecretToken` object.
+      3. Uploads the token to the backend.
+      4. Logs a warning if the token was updated on the backend due to a newer
+         expiration time found locally.
     """
 
     # Do not sync tokens from the file when using the offline token environment variable.
@@ -286,8 +286,8 @@ def sync_secret_tokens() -> None:
 
     if not secret_tokens:
         raise mlrun.errors.MLRunRuntimeError(
-            "Authentication succeeded, but tokens were not synced to the backend "
-            "since no valid tokens were found after validation. "
+            "Authentication succeeded, but the token was not synced to the backend "
+            "since no valid token was found after validation. "
             "Check your token file for malformed, expired, or mismatched tokens: "
             f"{mlrun.mlconf.auth_with_oauth_token.token_file}"
         )
@@ -295,4 +295,4 @@ def sync_secret_tokens() -> None:
     # The log_warning=False flag ensures the SDK doesn't log
     # unnecessary warnings about local file updates, since
     # this method reads from the file, not updates it.
-    get_run_db().store_secret_tokens(secret_tokens, log_warning=False)
+    get_run_db().store_secret_token(secret_tokens[0], log_warning=False)

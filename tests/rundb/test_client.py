@@ -61,6 +61,83 @@ def test_session_carries_client_credentials_to_requests():
     assert headers.get("authorization") == "Bearer my-token"
 
 
+def test_session_carries_extra_headers_to_requests():
+    """``Credentials.extra_headers`` are added to each request."""
+    client = Client(
+        credentials=Credentials(
+            token="my-token", extra_headers={"X-IGZ-Authenticator-Kind": "sa"}
+        )
+    )
+    client._http_db.session = unittest.mock.Mock()
+
+    with client.session():
+        mlrun.get_run_db().api_call("GET", "some-path")
+
+    headers = client._http_db.session.request.call_args[1].get("headers", {})
+    assert headers.get("X-IGZ-Authenticator-Kind") == "sa"
+    assert headers.get("authorization") == "Bearer my-token"
+
+
+def test_per_call_header_overrides_default_extra_header():
+    """Per-call ``headers=`` values override ``Credentials`` defaults."""
+    client = Client(
+        credentials=Credentials(
+            token="my-token", extra_headers={"X-IGZ-Authenticator-Kind": "sa"}
+        )
+    )
+    client._http_db.session = unittest.mock.Mock()
+
+    with client.session():
+        mlrun.get_run_db().api_call(
+            "GET", "some-path", headers={"X-IGZ-Authenticator-Kind": "override"}
+        )
+
+    headers = client._http_db.session.request.call_args[1].get("headers", {})
+    assert headers.get("X-IGZ-Authenticator-Kind") == "override"
+
+
+def test_extra_header_cannot_override_authorization():
+    """``extra_headers`` must not override the auth header."""
+    client = Client(
+        credentials=Credentials(
+            token="my-token", extra_headers={"Authorization": "Bearer spoofed"}
+        )
+    )
+    client._http_db.session = unittest.mock.Mock()
+
+    with client.session():
+        mlrun.get_run_db().api_call("GET", "some-path")
+
+    headers = client._http_db.session.request.call_args[1].get("headers", {})
+    assert headers.get("authorization") == "Bearer my-token"
+
+
+def test_jwt_token_routes_as_bearer_not_session():
+    """JWT -> bearer header, access key/session -> session cookie."""
+    jwt = "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJzdmMtYWNjdCJ9.ab-cd_ef"
+    client = Client(credentials=Credentials(token=jwt))
+    client._http_db.session = unittest.mock.Mock()
+
+    with client.session():
+        mlrun.get_run_db().api_call("GET", "some-path")
+
+    request_kwargs = client._http_db.session.request.call_args[1]
+    assert request_kwargs.get("headers", {}).get("authorization") == f"Bearer {jwt}"
+    assert "cookies" not in request_kwargs
+
+    # Access key/control session still routes as a cookie.
+    access_key = "946b0749-5c40-4837-a4ac-341d295bfaf7"
+    session_client = Client(credentials=Credentials(token=access_key))
+    session_client._http_db.session = unittest.mock.Mock()
+
+    with session_client.session():
+        mlrun.get_run_db().api_call("GET", "some-path")
+
+    session_kwargs = session_client._http_db.session.request.call_args[1]
+    assert "session" in session_kwargs.get("cookies", {})
+    assert session_kwargs.get("headers", {}).get("authorization") is None
+
+
 def test_credentials_use_env_matches_legacy_singleton_auth(monkeypatch):
     """``Credentials(use_env=True)`` resolves auth like the legacy singleton."""
     monkeypatch.setenv("V3IO_ACCESS_KEY", "host-process-token")
@@ -88,6 +165,12 @@ def test_credentials_empty_is_rejected():
     """Bare ``Credentials()`` has no auth mode and must error fast."""
     with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
         Credentials()
+
+
+def test_credentials_extra_headers_only_is_rejected():
+    """``extra_headers`` alone is not a valid auth mode."""
+    with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
+        Credentials(extra_headers={"X-IGZ-Authenticator-Kind": "sa"})
 
 
 def test_credentials_mixed_modes_are_rejected():

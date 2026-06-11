@@ -12,6 +12,7 @@ The main kinds of artifacts are:
 - Datasets — Any data, such as tables and DataFrames
 - Models — All trained models
 - Feature Store Objects — Feature sets and feature vectors
+- Code — Source code for a function or workflow. See {ref}`code-artifacts`.
 
 Artifacts metadata is stored in the MLRun database. 
 

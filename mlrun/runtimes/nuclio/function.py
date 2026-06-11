@@ -403,6 +403,10 @@ class RemoteRuntime(KubeResource):
         when this function is deployed. Calling this method sets the ``track_models``
         flag on the spec so the deployment stage knows to create the endpoints.
 
+        Instructions must not set ``function_name`` or ``function_tag``; both are
+        derived from the runtime's ``metadata.name`` / ``metadata.tag`` at deployment
+        time. Setting either raises ``MLRunInvalidArgumentError``.
+
         :param general_model_endpoint_instructions: Optional ModelEndpointInstruction parameter for main model endpoint
             instructions, if not provided a default one will be created with the USER_EP endpoint type and the default
             name f'{function_name}_model_endpoint'.
@@ -432,18 +436,17 @@ class RemoteRuntime(KubeResource):
                     general_model_endpoint_instructions
                 )
             )
-            if general_model_endpoint_instructions.function_name is not None and (
-                general_model_endpoint_instructions.function_name != self.metadata.name
-            ):
+            if general_model_endpoint_instructions.function_name is not None:
                 raise mlrun.errors.MLRunInvalidArgumentError(
-                    "Model endpoint function_name mismatch, instruction function_name must be the same as the function "
-                    "name"
+                    "function_name must not be set on ModelEndpointInstruction; "
+                    "it is derived from the function's metadata.name "
+                    f"(endpoint={general_model_endpoint_instructions.name})"
                 )
-            if general_model_endpoint_instructions.function_tag is not None and (
-                general_model_endpoint_instructions.function_tag != self.metadata.tag
-            ):
+            if general_model_endpoint_instructions.function_tag is not None:
                 raise mlrun.errors.MLRunInvalidArgumentError(
-                    "Model endpoint tag mismatch, instruction function_tag must be the same as the function tag"
+                    "function_tag must not be set on ModelEndpointInstruction; "
+                    "it is derived from the function's metadata.tag "
+                    f"(endpoint={general_model_endpoint_instructions.name})"
                 )
             self.spec.model_endpoints_instructions = [
                 general_model_endpoint_instructions
@@ -462,23 +465,20 @@ class RemoteRuntime(KubeResource):
                     "extra_model_endpoint_instructions must be a uniform list of "
                     "ModelEndpointInstruction objects or dicts, not a mix of both."
                 )
-            if any(
-                extra_instruction.function_name is not None
-                and extra_instruction.function_name != self.metadata.name
-                for extra_instruction in extra_model_endpoint_instructions
-            ):
-                raise mlrun.errors.MLRunInvalidArgumentError(
-                    "Model endpoint function_name mismatch, all instruction function_names must be the same as the "
-                    "function name"
-                )
-            if any(
-                extra_instruction.function_tag is not None
-                and (extra_instruction.function_tag != self.metadata.tag)
-                for extra_instruction in extra_model_endpoint_instructions
-            ):
-                raise mlrun.errors.MLRunInvalidArgumentError(
-                    "Model endpoint tag mismatch, all instruction function_tags must be the same as the function tag"
-                )
+            for extra_instruction in extra_model_endpoint_instructions:
+                if extra_instruction.function_name is not None:
+                    raise mlrun.errors.MLRunInvalidArgumentError(
+                        "function_name must not be set on ModelEndpointInstruction; "
+                        "it is derived from the function's metadata.name "
+                        f"(endpoint={extra_instruction.name})"
+                    )
+                if extra_instruction.function_tag is not None:
+                    raise mlrun.errors.MLRunInvalidArgumentError(
+                        "function_tag must not be set on ModelEndpointInstruction; "
+                        "it is derived from the function's metadata.tag "
+                        f"(endpoint={extra_instruction.name})"
+                    )
+
             self.spec.model_endpoints_instructions.extend(
                 extra_model_endpoint_instructions
             )
@@ -925,6 +925,7 @@ class RemoteRuntime(KubeResource):
         builder_env: dict | None = None,
         force_build: bool = False,
         track_models: bool | None = None,
+        wait: bool = True,
     ):
         """Deploy the nuclio function to the cluster
 
@@ -936,6 +937,14 @@ class RemoteRuntime(KubeResource):
         :param track_models: override state of self.spec.track_models. If not provided, uses the spec value (False
             by default, True after setup_model_monitoring() is called). When True, model endpoints are created at
             deployment time.
+        :param wait:       when ``True`` (default), wait for readiness and
+            return the invocation command (``str``). When ``False``, submit and
+            return ``self`` so the caller can later call
+            ``wait_for_deployment()`` or poll
+            ``db.get_nuclio_deploy_status``.
+
+        :return: the invocation command (``str``) when ``wait=True``; the
+            function object (``self``) when ``wait=False``.
         """
 
         old_http_session = getattr(self, "_http_session", None)
@@ -978,15 +987,39 @@ class RemoteRuntime(KubeResource):
 
         self._update_credentials_from_remote_build(data["data"])
 
-        # when a function is deployed, we wait for it to be ready by default
-        # this also means that the function object will be updated with the function status
+        # Save submit-time model-endpoint tasks for wait_for_deployment().
+        self._deploy_background_tasks = data.get(
+            "background_tasks", {"background_tasks": []}
+        )
+
+        if not wait:
+            # Caller handles wait/finalization explicitly.
+            return self
+
+        return self.wait_for_deployment(verbose=verbose)
+
+    def wait_for_deployment(self, verbose: bool = False) -> str:
+        """Finalize a submitted Nuclio deploy.
+
+        Waits for terminal deploy status, handles model-endpoint tasks,
+        enriches the invocation command from status, and returns it.
+        ``deploy(wait=True)`` calls this directly; callers that used
+        ``deploy(wait=False)`` can call it explicitly.
+
+        :param verbose: set True for verbose build-log output
+        :return: the function's invocation command
+        """
+        db = self._get_db()
+        # Wait for readiness and refresh function status.
         self._wait_for_function_deployment(db, verbose=verbose)
-        # check if there are any background tasks related to creating model endpoints
+        # Consume submit-captured model-endpoint tasks at most once.
         model_endpoints_creation_background_tasks = (
             mlrun.common.schemas.BackgroundTaskList(
-                **data.pop("background_tasks", {"background_tasks": []})
+                **getattr(self, "_deploy_background_tasks", None)
+                or {"background_tasks": []}
             ).background_tasks
         )
+        self._deploy_background_tasks = {"background_tasks": []}
         if model_endpoints_creation_background_tasks:
             self._check_model_endpoint_task_state(
                 db=db,

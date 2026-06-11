@@ -49,6 +49,7 @@ Table of Contents
    concepts/runs-workflows
    serving/serving-graph
    runtimes/load-from-hub
+   concepts/counters
    feature-store/feature-store
      
 .. toctree::

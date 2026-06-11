@@ -147,6 +147,8 @@ class HTTPRunDB(RunDBInterface):
         self.user = None
         self.password = None
         self.token_provider = None
+        # Default per-request headers from explicit Credentials.extra_headers.
+        self._default_headers: dict[str, str] = {}
         self.base_url = None
         self._parsed_url = None
         # When provided, auth is bound to this instance and the env-/
@@ -180,6 +182,7 @@ class HTTPRunDB(RunDBInterface):
         self.token_provider = (
             mlrun.auth.StaticTokenProvider(c.token) if c.token is not None else None
         )
+        self._default_headers = dict(c.extra_headers or {})
         return True
 
     def _init_token_provider_from_env(self):
@@ -317,6 +320,10 @@ class HTTPRunDB(RunDBInterface):
                     mlrun.common.schemas.HeaderNames.python_version: self.python_version,
                 }
             )
+
+        # Apply defaults only when not set by auth logic or per-call headers.
+        for header_name, header_value in self._default_headers.items():
+            kw.setdefault("headers", {}).setdefault(header_name, header_value)
 
         # requests no longer supports header values to be enum (https://github.com/psf/requests/pull/6154)
         # convert to strings. Do the same for params for niceness
@@ -4308,8 +4315,10 @@ class HTTPRunDB(RunDBInterface):
 
         :param project: The name of the project.
         :return: HTTP URL of the model monitoring stream pod, or None if no HTTP trigger is configured.
+            A non-ready stream pod still returns its URL — the URL may not be reachable until
+            the pod becomes ready.
         :raises mlrun.errors.MLRunNotFoundError: if the stream function is not deployed.
-        :raises mlrun.errors.MLRunPreconditionFailedError: if the stream function is not in ready state.
+        :raises mlrun.errors.MLRunPreconditionFailedError: if the stream function is in terminal error state.
         """
         resp = self.api_call(
             method=mlrun.common.types.HTTPMethod.GET,
@@ -5446,44 +5455,10 @@ class HTTPRunDB(RunDBInterface):
         log_warning: bool = True,
         force: bool = False,
     ) -> mlrun.common.schemas.StoreSecretTokensResponse:
-        """
-        Store or update multiple secret tokens in the MLRun backend.
-
-        Example::
-
-            from mlrun.common.schemas import SecretToken
-
-            tokens = [
-                SecretToken(name="token1", token="dummy-token-1"),
-                SecretToken(name="token2", token="dummy-token-2"),
-            ]
-            db.store_secret_tokens(tokens)
-
-        :param secret_tokens: List of SecretToken objects with 'name' and 'token' fields.
-        :param force: Whether to force update tokens if they already exist. Defaults to False.
-        :param log_warning: Whether to log a warning about local config file sync. Defaults to True.
-        :return: StoreSecretTokensResponse object indicating which tokens were created, updated, or skipped.
-        """
-        if not secret_tokens:
-            raise MLRunInvalidArgumentError("No secret tokens provided")
-
-        response = self._store_secret_tokens(
-            secret_tokens=secret_tokens,
-            force=force,
-            error="store multiple user secret tokens",
+        raise NotImplementedError(
+            "Storing multiple secret tokens is not supported; a single token is "
+            "stored per user. Use `store_secret_token` instead."
         )
-
-        # Only log a warning if at least one token was actually created or updated
-        if log_warning and (response.created_tokens or response.updated_tokens):
-            affected_tokens = response.created_tokens + response.updated_tokens
-            token_names = "', '".join(affected_tokens)
-            logger.warning(
-                f"Tokens '{token_names}' were stored in the backend, "
-                f"but the local configuration file ({mlrun.mlconf.auth_with_oauth_token.token_file}) was not "
-                "updated. Update it manually or run `mlrun.sync_secret_tokens()` to sync your local environment."
-            )
-
-        return response
 
     @mlrun.utils.iguazio_v4_only
     def list_secret_tokens(
@@ -5565,19 +5540,14 @@ class HTTPRunDB(RunDBInterface):
         self, username: str | None = None
     ) -> mlrun.common.schemas.DeleteSecretTokensResponse:
         """
-        Delete all secret tokens for a user. Only system-administrators can delete tokens for other users.
+        Delete the user's stored secret token, if one exists. Only system-administrators
+        can delete tokens for other users.
 
-        :param username: Optional; the username of the token owner. If None, deletes the caller's own tokens.
+        A single token is stored per user, so this deletes that token when present.
+
+        :param username: Optional; the username of the token owner. If None, deletes the
+            caller's own token.
         :return: A ``DeleteSecretTokensResponse`` with deleted_count and any failed_tokens.
-
-        Example::
-
-            # Delete all your own tokens
-            response = db.delete_secret_tokens()
-            print(f"Deleted {response.deleted_count} tokens")
-
-            # As a system admin, delete all tokens for a specific user
-            response = db.delete_secret_tokens(username="john_doe")
         """
         endpoint_path = "user-secrets/tokens"
         params = {"username": username} if username else None

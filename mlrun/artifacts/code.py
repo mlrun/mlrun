@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import mlrun.common.types
+import mlrun.errors
 
 from .base import Artifact, ArtifactSpec
 
@@ -124,6 +125,7 @@ class CodeArtifact(Artifact):
         self.spec.code_type = CodeArtifactCodeType(
             code_type or CodeArtifactCodeType.function
         )
+        _validate_requirements(requirements)
         self.spec.requirements = requirements
 
     @property
@@ -150,3 +152,14 @@ def _derive_language_from_path(path: str | None) -> str | None:
     if path.lower().endswith(_PYTHON_SUFFIXES):
         return "python"
     return ""
+
+
+def _validate_requirements(requirements: list[str] | None) -> None:
+    if requirements is None:
+        return
+    if not isinstance(requirements, list) or any(
+        not isinstance(item, str) for item in requirements
+    ):
+        raise mlrun.errors.MLRunInvalidArgumentError(
+            f"requirements must be a list of strings, got: {requirements!r}"
+        )

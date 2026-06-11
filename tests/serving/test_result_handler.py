@@ -200,7 +200,7 @@ class TestResultHandlerMissingFields:
     def test_missing_mandatory_field_raises(self) -> None:
         handler = _make_handler("/predict", ("$.result", "answer", True))
         with pytest.raises(
-            mlrun.errors.MLRunBadRequestError,
+            mlrun.errors.MLRunUnprocessableEntityError,
             match="Mandatory field 'answer' not found",
         ):
             handler.apply(HTTPMethod.POST, "/predict", {"other": "value"})
@@ -218,7 +218,49 @@ class TestResultHandlerMissingFields:
 
 
 # ---------------------------------------------------------------------------
-# Group 5 — http_trigger guard (end-to-end via to_mock_server())
+# Group 5 — Non-dict response handling
+# ---------------------------------------------------------------------------
+class TestResultHandlerNonDictResponse:
+    """Non-dict responses: silently pass through unless any mapping is mandatory."""
+
+    def test_non_dict_string_response_with_optional_mapping_passes_through(
+        self,
+    ) -> None:
+        """Non-dict response + all-optional mappings → return unchanged."""
+        handler = _make_handler("/predict", ("$.result", "answer", False))
+        response = "plain string"
+        assert handler.apply(HTTPMethod.POST, "/predict", response) is response
+
+    def test_non_dict_response_with_mandatory_mapping_raises(self) -> None:
+        """Non-dict response + any mandatory mapping → raise with output body wording."""
+        handler = _make_handler("/predict", ("$.result", "answer", True))
+        with pytest.raises(
+            mlrun.errors.MLRunUnprocessableEntityError,
+            match=r"Mandatory output body mappings configured but output body is not a dict",
+        ):
+            handler.apply(HTTPMethod.POST, "/predict", "plain string")
+
+    def test_non_dict_response_error_includes_actual_type(self) -> None:
+        """Error message includes the actual response type to aid debugging."""
+        handler = _make_handler("/predict", ("$.result", "answer", True))
+        with pytest.raises(
+            mlrun.errors.MLRunUnprocessableEntityError,
+            match=r"got list",
+        ):
+            handler.apply(HTTPMethod.POST, "/predict", [1, 2, 3])
+
+    def test_missing_mandatory_field_error_wrapped_with_output_prefix(self) -> None:
+        """Mandatory-field-missing errors from apply_body_map gain an output-body prefix."""
+        handler = _make_handler("/predict", ("$.result", "answer", True))
+        with pytest.raises(
+            mlrun.errors.MLRunUnprocessableEntityError,
+            match=r"Failed to process output body mapping: Mandatory field 'answer' not found in body",
+        ):
+            handler.apply(HTTPMethod.POST, "/predict", {"other": "value"})
+
+
+# ---------------------------------------------------------------------------
+# Group 6 — http_trigger guard (end-to-end via to_mock_server())
 # ---------------------------------------------------------------------------
 class TestResultHandlerHttpTriggerGuard:
     """Exit mapping is only applied when http_trigger=True on GraphServer."""
@@ -302,5 +344,40 @@ class TestResultHandlerHttpTriggerGuard:
                 body={"prediction": "dog"},
             )
             assert resp == {"label": "dog", "score": None}
+        finally:
+            server.wait_for_completion()
+
+    def test_e2e_non_dict_response_with_mandatory_returns_422(self) -> None:
+        """End-to-end: handler returns a non-dict response with mandatory output mapping → HTTP 422."""
+
+        def broken_handler(body, **kwargs):
+            # Returns a non-dict so the output mapping can't apply at all.
+            return "not-a-dict"
+
+        bm = BodyMappings()
+        bm.add_mapping("$.prediction", destination_path="label", mandatory=True)
+
+        fn = cast(
+            ServingRuntime,
+            mlrun.new_function("test-result-handler-422", kind="serving"),
+        )
+        config = APIHandlerConfig()
+        config.add_endpoint_handler(
+            "/predict",
+            HTTPMethod.POST,
+            APIHandlerAction.ALLOW,
+            output_body_mappings=bm,
+        )
+        fn.set_api_handler_config(config)
+        graph = fn.set_topology("flow", engine="sync")
+        graph.to(name="broken", handler=broken_handler).respond()
+
+        server = fn.to_mock_server()
+        try:
+            with pytest.raises(
+                RuntimeError,
+                match=r"failed \(422\):.*Mandatory output body mappings configured but output body is not a dict",
+            ):
+                server.test("/predict", method="POST", body={"any": "input"})
         finally:
             server.wait_for_completion()

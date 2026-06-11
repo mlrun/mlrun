@@ -21,7 +21,6 @@ import sys
 import tempfile
 import time
 import typing
-import urllib.parse
 import uuid
 from base64 import b64decode
 from copy import deepcopy
@@ -35,7 +34,6 @@ import yaml
 import mlrun.common.constants as mlrun_constants
 import mlrun.common.formatters
 import mlrun.common.schemas
-import mlrun.common.schemas.model_monitoring.constants as mm_constants
 import mlrun.datastore
 import mlrun.errors
 import mlrun.utils.helpers
@@ -1318,43 +1316,6 @@ def wait_for_runs_completion(
         runs = running
 
     return completed
-
-
-def get_model_monitoring_url(project: str | None = None) -> str | None:
-    """
-    Retrieve the HTTP URL of the model monitoring stream pod for the given project.
-
-    Checks the ``MODEL_MONITORING_URL`` environment variable first (set automatically
-    by MLRun when deploying a Nuclio function with model monitoring).  If the variable
-    is not set, fetches the URL from the MLRun API and caches it in the environment for
-    subsequent calls.
-
-    :param project: optional name of the project, if not provided will use active project
-    :return: HTTP URL of the model monitoring stream pod, or None if no HTTP trigger is configured
-    :raises mlrun.errors.MLRunNotFoundError: if the stream function is not deployed
-    :raises mlrun.errors.MLRunPreconditionFailedError: if the stream function is not in ready state
-    """
-
-    env_var = mm_constants.NuclioMonitoringEnvVars.MODEL_MONITORING_URL
-    url = mlrun.get_secret_or_env(env_var)
-    if url:
-        if project is not None:
-            hostname = urllib.parse.urlparse(url).hostname or ""
-            if project not in hostname.split("."):
-                raise mlrun.errors.MLRunInvalidArgumentError(
-                    f"Cached model monitoring URL does not match the provided project: {project}."
-                )
-        return url
-    if project is None:
-        project = mlrun.get_secret_or_env("MLRUN_ACTIVE_PROJECT")
-        logger.warning(
-            "No project specified; resolving from MLRUN_ACTIVE_PROJECT",
-            project=project,
-        )
-    url = mlrun.db.get_run_db().get_model_monitoring_url(project)
-    if url:
-        os.environ[env_var] = url
-    return url
 
 
 def _ensure_path_confined_to_base_dir(

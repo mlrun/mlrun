@@ -4250,6 +4250,52 @@ def test_get_model_monitoring_url_module_level(mock_get):
     mock_get.assert_called_once_with("my-project")
 
 
+def _nuclio_stream_url(project: str) -> str:
+    return (
+        f"http://nuclio-{project}-model-monitoring-stream"
+        f".default-tenant.svc.cluster.local:8080"
+    )
+
+
+@unittest.mock.patch.object(mlrun.db.nopdb.NopDB, "get_model_monitoring_url")
+def test_project_get_model_monitoring_url_delegates_to_module(
+    mock_get, monkeypatch: pytest.MonkeyPatch
+):
+    """Project.get_model_monitoring_url() goes through mlrun.run.get_model_monitoring_url
+    and reaches the DB layer with the project name."""
+    monkeypatch.delenv(
+        mm_consts.NuclioMonitoringEnvVars.MODEL_MONITORING_URL, raising=False
+    )
+    expected = _nuclio_stream_url("my-project")
+    mock_get.return_value = expected
+
+    project = mlrun.new_project("my-project", save=False)
+    url = project.get_model_monitoring_url()
+
+    assert url == expected
+    mock_get.assert_called_once_with("my-project")
+
+
+@unittest.mock.patch.object(mlrun.db.nopdb.NopDB, "get_model_monitoring_url")
+def test_project_get_model_monitoring_url_caches_across_calls(
+    mock_get, monkeypatch: pytest.MonkeyPatch
+):
+    """Two Project.get_model_monitoring_url() calls for the same project hit the cache,
+    so the DB is only queried once."""
+    env_var = mm_consts.NuclioMonitoringEnvVars.MODEL_MONITORING_URL
+    monkeypatch.delenv(env_var, raising=False)
+    expected = _nuclio_stream_url("my-project")
+    mock_get.return_value = expected
+
+    project = mlrun.new_project("my-project", save=False)
+    first = project.get_model_monitoring_url()
+    second = project.get_model_monitoring_url()
+
+    assert first == second == expected
+    assert os.environ.get(env_var) == expected
+    mock_get.assert_called_once_with("my-project")
+
+
 @pytest.mark.parametrize(
     "kind, handler, expected_runtime_kind",
     [

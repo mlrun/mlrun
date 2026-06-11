@@ -53,6 +53,7 @@ import services.api.initial_data
 import services.api.runtime_handlers
 import services.api.utils.db.partitioner
 import services.api.utils.events.db_errors
+import services.api.utils.events.log_collector_errors
 import services.api.utils.telemetry.inventory
 from framework.db.session import close_session, create_session
 from framework.utils.periodic import (
@@ -385,6 +386,21 @@ class Service(framework.service.Service):
                     "Run reached max consecutive start log requests, marking it as requested logs collection",
                     run_uid=run_uid,
                     requests_count=_run_uid_start_log_request_counters[run_uid],
+                )
+                # We exhausted the grace period of attempts to start collecting
+                # this run's logs and are now giving up — its logs will never be
+                # collected. This is the terminal failure the system event
+                # signals. Offloaded to a thread so the (synchronous, throttled)
+                # emit does not block the event loop.
+                await mlrun.utils.run_in_threadpool(
+                    services.api.utils.events.log_collector_errors.publish_log_collector_failed,
+                    run_uid=run_uid,
+                    project=run.get("metadata", {}).get("project", None),
+                    error=(
+                        "Reached max consecutive start-log requests "
+                        f"({_run_uid_start_log_request_counters[run_uid]}); "
+                        "giving up on collecting this run's logs"
+                    ),
                 )
                 runs_to_mark_as_requested_logs.append(run_uid)
                 continue

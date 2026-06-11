@@ -22,7 +22,7 @@ from mlrun.serving.endpoint_mapping import (
     APIHandlerConfig,
     EndpointConfig,
     EndpointMatch,
-    apply_body_map,
+    apply_body_map_with_dict_check,
     collect_endpoint_matches,
     compile_body_map,
     compile_dynamic_path_patterns,
@@ -60,15 +60,20 @@ class ResultHandler:
     def apply(self, method: HTTPMethod | str, path: str, response: Any) -> Any:
         """Apply output body mappings to reshape the graph response.
 
+        Mirrors the input-side mapping contract: when output mappings are
+        configured for the matched endpoint, raise only when the mapping cannot
+        be applied to a response it was expected to apply to. Non-dict response
+        with only optional mappings silently passes through, mirroring the
+        input handler's behavior for non-dict bodies with optional mappings.
+
         :param method: HTTP method of the request.
         :param path: Request path.
         :param response: Graph response to reshape.
-        :return: Reshaped response, or original response if no mapping applies.
+        :return: Reshaped response, or the original response if no mapping applies.
+        :raises mlrun.errors.MLRunUnprocessableEntityError: Non-dict response with mandatory mapping, or apply error.
+        :raises mlrun.errors.MLRunBadRequestError: Other failure during mapping apply.
         """
         if not self._parsed_output_body_map:
-            return response
-
-        if not isinstance(response, dict):
             return response
 
         if isinstance(method, str):
@@ -91,4 +96,9 @@ class ResultHandler:
         if not effective_map:
             return response
 
-        return apply_body_map(response, effective_map, fill_missing_with_none=True)
+        reshaped = apply_body_map_with_dict_check(
+            response,
+            effective_map,
+            input_body=False,
+        )
+        return reshaped if reshaped is not None else response

@@ -25,6 +25,7 @@ import pathlib
 import shutil
 import tempfile
 import typing
+import urllib.parse
 import uuid
 import warnings
 import zipfile
@@ -638,6 +639,77 @@ def get_or_create_project(
         "Project created successfully", project_name=project.name, stored_in_db=save
     )
     return project
+
+
+def get_model_monitoring_url(project: str | None = None) -> str | None:
+    """
+    Retrieve the HTTP URL of the model monitoring stream pod for the given project.
+
+    Checks the ``MODEL_MONITORING_URL`` environment variable first (set automatically
+    by MLRun when deploying a Nuclio function with model monitoring).  If the variable
+    is not set, fetches the URL from the MLRun API and caches it in the environment for
+    subsequent calls.
+
+    :param project: optional name of the project, if not provided will use active project.
+        If the cached URL belongs to a different project, the cache is refreshed from the
+        MLRun API for the requested project (a warning is logged).
+    :return: HTTP URL of the model monitoring stream pod, or None if no HTTP trigger is configured.
+        A non-ready stream pod still returns its URL — the URL may not be reachable until
+        the pod becomes ready (a warning is logged on the server side).
+    :raises mlrun.errors.MLRunNotFoundError: if the stream function is not deployed
+    :raises mlrun.errors.MLRunPreconditionFailedError: if the stream function is in terminal error state
+    """
+
+    env_var = mm_constants.NuclioMonitoringEnvVars.MODEL_MONITORING_URL
+    url = mlrun.get_secret_or_env(env_var)
+    if url:
+        if project is not None:
+            cached_project = _extract_project_from_stream_url(url)
+            if cached_project != project:
+                logger.warning(
+                    "Cached model monitoring URL belongs to a different project; "
+                    "refreshing from the MLRun API for the requested project",
+                    cached_project=cached_project,
+                    requested_project=project,
+                )
+                url = mlrun.db.get_run_db().get_model_monitoring_url(project)
+                if url:
+                    os.environ[env_var] = url
+        return url
+    if project is None:
+        project = mlrun.get_secret_or_env("MLRUN_ACTIVE_PROJECT")
+        logger.warning(
+            "No project specified; resolving from MLRUN_ACTIVE_PROJECT",
+            project=project,
+        )
+    url = mlrun.db.get_run_db().get_model_monitoring_url(project)
+    if url:
+        os.environ[env_var] = url
+    return url
+
+
+def _extract_project_from_stream_url(url: str) -> str | None:
+    """
+    Parse the project name from a model-monitoring stream nuclio service URL.
+
+    Expects the nuclio service-name pattern
+    ``nuclio-<project>-model-monitoring-stream.<namespace>.svc.cluster.local:<port>``.
+    Returns ``None`` if the URL doesn't match — e.g. the service name was
+    truncated and hash-suffixed because ``<project>`` is long enough to push
+    the DNS label past the 63-char limit. Callers treat ``None`` as a
+    mismatch and refresh from the MLRun API.
+    """
+    hostname = urllib.parse.urlparse(url).hostname or ""
+    service_name = hostname.split(".", 1)[0]
+    prefix = "nuclio-"
+    suffix = f"-{mm_constants.MonitoringFunctionNames.STREAM}"
+    if not (
+        service_name.startswith(prefix)
+        and service_name.endswith(suffix)
+        and len(service_name) > len(prefix) + len(suffix)
+    ):
+        return None
+    return service_name[len(prefix) : -len(suffix)]
 
 
 def _run_project_setup(
@@ -1913,6 +1985,7 @@ class MlrunProject(ModelObj):
         tag="",
         artifact_path=None,
         upload=True,
+        is_inline: bool = False,
         labels=None,
         target_path="",
         db_key=None,
@@ -1930,6 +2003,8 @@ class MlrunProject(ModelObj):
         :param tag:           version tag
         :param artifact_path: target artifact path (when not using the default)
         :param upload:        upload to datastore (default is True)
+        :param is_inline:     embed the body in the artifact record instead of
+                              uploading it (default False).
         :param labels:        a set of key/value labels to tag the artifact with
         :param target_path:   absolute target path (instead of using artifact_path + local_path)
         :param db_key:        the key to use in the artifact DB table
@@ -1943,6 +2018,10 @@ class MlrunProject(ModelObj):
 
         :returns: code artifact object
         """
+        if not local_path and not target_path:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "A code artifact must provide local_path or target_path."
+            )
         code = CodeArtifact(
             key,
             body=body,
@@ -1950,6 +2029,7 @@ class MlrunProject(ModelObj):
             language=language,
             code_type=code_type,
             requirements=requirements,
+            is_inline=is_inline,
             **kwargs,
         )
 
@@ -4348,12 +4428,17 @@ class MlrunProject(ModelObj):
         """
         Get the HTTP URL of the model monitoring stream pod for this project.
 
+        Delegates to :func:`mlrun.get_model_monitoring_url`, which serves the URL
+        from the ``MODEL_MONITORING_URL`` env-var cache when available and
+        refreshes the cache if it belongs to a different project.
+
         :return: HTTP URL of the model monitoring stream pod, or None if no HTTP trigger is configured.
+            A non-ready stream pod still returns its URL — the URL may not be reachable until
+            the pod becomes ready.
         :raises mlrun.errors.MLRunNotFoundError: if the stream function is not deployed.
-        :raises mlrun.errors.MLRunPreconditionFailedError: if the stream function is not in ready state.
+        :raises mlrun.errors.MLRunPreconditionFailedError: if the stream function is in terminal error state.
         """
-        db = mlrun.db.get_run_db(secrets=self._secrets)
-        return db.get_model_monitoring_url(project=self.name)
+        return get_model_monitoring_url(project=self.name)
 
     def create_user_model_endpoint(
         self,

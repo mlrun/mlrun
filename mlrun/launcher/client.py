@@ -74,8 +74,6 @@ class ClientBaseLauncher(launcher.BaseLauncher, abc.ABC):
         ):
             image = mlrun.mlconf.function_defaults.image_by_kind.to_dict()[runtime.kind]
 
-        mlrun.utils.helpers.warn_on_deprecated_image(image)
-
         # TODO: need a better way to decide whether a function requires a build
         if require_build and image and not runtime.spec.build.base_image:
             # when the function require build use the image as the base_image for the build

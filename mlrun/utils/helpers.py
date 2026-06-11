@@ -1058,12 +1058,6 @@ def enrich_image_url(
             if mlrun.utils.helpers.validate_component_version_compatibility(
                 "mlrun-client", "1.10.0-rc0", mlrun_client_version=tag_for_compatibility
             ):
-                warnings.warn(
-                    "'mlrun/ml-base' image is deprecated in 1.10.0 and will be removed in 1.12.0, "
-                    "use 'mlrun/mlrun' instead.",
-                    # TODO: Remove this in 1.12.0
-                    FutureWarning,
-                )
                 image_url = image_url.replace("mlrun/ml-base", "mlrun/mlrun")
         else:
             image_url = "mlrun/mlrun"
@@ -2271,23 +2265,6 @@ def join_urls(base_url: str | None, path: str | None) -> str:
     if base_url is None:
         base_url = ""
     return f"{base_url.rstrip('/')}/{path.lstrip('/')}" if path else base_url
-
-
-def warn_on_deprecated_image(image: str | None):
-    """
-    Warn if the provided image is the deprecated 'mlrun/ml-base' image.
-    This image is deprecated as of 1.10.0 and will be removed in 1.12.0.
-    """
-    deprecated_images = ["mlrun/ml-base"]
-    if image and any(
-        deprecated_image in image for deprecated_image in deprecated_images
-    ):
-        warnings.warn(
-            "'mlrun/ml-base' image is deprecated in 1.10.0 and will be replaced by 'mlrun/mlrun'. "
-            "This behavior will be removed in 1.12.0 ",
-            # TODO: Remove this in 1.12.0
-            FutureWarning,
-        )
 
 
 class Workflow:

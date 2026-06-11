@@ -17,6 +17,7 @@ import deepdiff
 import pytest
 
 import mlrun
+import mlrun.errors
 import mlrun.platforms
 import mlrun.runtimes.mounts
 
@@ -429,6 +430,53 @@ def test_auto_mount_secret_env(with_keys, with_cleartext):
         cleartext_keys = set(cleartext.keys())
         overlap = cleartext_keys & set(plain_env.keys())
         assert not overlap, f"Expected no cleartext env vars but found: {overlap}"
+
+
+def test_auto_mount_secret_env_cleartext_only_no_secret():
+    """secret_env auto-mount with only cleartext_env (no secret_name) injects a plain env var.
+
+    This is the Azure workload-identity path (ML-12692): the federated token arrives via the
+    WI webhook, so only the storage account name needs to be set, with no secret mounted.
+    """
+    mlrun.mlconf.storage.auto_mount_type = "secret_env"
+    mlrun.mlconf.storage.auto_mount_params = (
+        "cleartext_env=AZURE_STORAGE_ACCOUNT:teststorage"
+    )
+
+    function = mlrun.new_function(
+        "function-name", "function-project", kind=mlrun.runtimes.RuntimeKinds.job
+    )
+    function.apply(mlrun.runtimes.mounts.auto_mount())
+
+    # No secret is mounted (neither envFrom nor secretKeyRef env vars).
+    assert len(function.spec.env_from) == 0
+    plain_env = {}
+    for item in function.spec.env:
+        if isinstance(item, dict):
+            assert "valueFrom" not in item, f"unexpected secret-backed env: {item}"
+            plain_env[item["name"]] = item.get("value")
+        else:
+            assert getattr(item, "value_from", None) is None, (
+                f"unexpected secret-backed env: {item}"
+            )
+            plain_env[item.name] = item.value
+    assert plain_env.get("AZURE_STORAGE_ACCOUNT") == "teststorage"
+
+
+def test_set_env_vars_from_secret_requires_secret_or_cleartext():
+    """Calling without a secret_name and without cleartext_env is a usage error."""
+    with pytest.raises(
+        mlrun.errors.MLRunInvalidArgumentError, match="secret_name or cleartext_env"
+    ):
+        mlrun.runtimes.mounts.set_env_vars_from_secret()
+
+
+def test_set_env_vars_from_secret_keys_without_secret_name_raises():
+    """Keys make no sense without a secret to read them from."""
+    with pytest.raises(
+        mlrun.errors.MLRunInvalidArgumentError, match="secret_name when keys"
+    ):
+        mlrun.runtimes.mounts.set_env_vars_from_secret(keys="KEY_A;KEY_B")
 
 
 @pytest.mark.parametrize(

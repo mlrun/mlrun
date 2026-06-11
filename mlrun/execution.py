@@ -828,6 +828,7 @@ class MLClientCtx:
         tag="",
         artifact_path=None,
         upload=True,
+        is_inline: bool = False,
         labels=None,
         target_path="",
         db_key=None,
@@ -844,6 +845,8 @@ class MLClientCtx:
         :param tag:           Version tag
         :param artifact_path: Target artifact path (when not using the default)
         :param upload:        Upload to datastore (default is True)
+        :param is_inline:     Embed the body in the artifact record instead of
+                              uploading it (default False).
         :param labels:        A set of key/value labels to tag the artifact with
         :param target_path:   Absolute target path (instead of using artifact_path + local_path)
         :param db_key:        The key to use in the artifact DB table
@@ -857,6 +860,10 @@ class MLClientCtx:
 
         :returns: Code artifact object
         """
+        if not local_path and not target_path:
+            raise mlrun.errors.MLRunInvalidArgumentError(
+                "A code artifact must provide local_path or target_path."
+            )
         code = CodeArtifact(
             key,
             body=body,
@@ -864,6 +871,7 @@ class MLClientCtx:
             language=language,
             code_type=code_type,
             requirements=requirements,
+            is_inline=is_inline,
             **kwargs,
         )
 

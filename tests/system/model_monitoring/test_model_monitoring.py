@@ -3036,17 +3036,48 @@ class TestGetModelMonitoringURL(TestMLRunSystemModelMonitoring):
         )
 
 
-def _assert_endpoint_exists(project, name: str) -> None:
-    endpoints = project.list_model_endpoints(names=name)
-    assert len(endpoints.endpoints) >= 1, (
-        f"Expected at least one model endpoint named {name!r}"
+def _assert_endpoint_exists(
+    project,
+    name: str,
+    function_name: str | None = None,
+    function_tag: str = "latest",
+) -> None:
+    endpoints = project.list_model_endpoints(names=name).endpoints
+    assert len(endpoints) >= 1, f"Expected at least one model endpoint named {name!r}"
+    if function_name is not None:
+        ep = endpoints[0]
+        assert ep.spec.function_name == function_name, (
+            f"Endpoint {name!r} not linked to function: "
+            f"spec.function_name={ep.spec.function_name!r}, expected {function_name!r}"
+        )
+        assert ep.spec.function_tag == function_tag, (
+            f"Endpoint {name!r} not linked to function tag: "
+            f"spec.function_tag={ep.spec.function_tag!r}, expected {function_tag!r}"
+        )
+
+
+def _assert_endpoints_exist(
+    project,
+    names: set,
+    function_name: str | None = None,
+    function_tag: str = "latest",
+) -> None:
+    endpoints = project.list_model_endpoints().endpoints
+    by_name = {ep.metadata.name: ep for ep in endpoints}
+    assert names.issubset(by_name.keys()), (
+        f"Expected {names} in DB, found: {set(by_name)}"
     )
-
-
-def _assert_endpoints_exist(project, names: set) -> None:
-    endpoints = project.list_model_endpoints()
-    ep_names = {ep.metadata.name for ep in endpoints.endpoints}
-    assert names.issubset(ep_names), f"Expected {names} in DB, found: {ep_names}"
+    if function_name is not None:
+        for n in names:
+            ep = by_name[n]
+            assert ep.spec.function_name == function_name, (
+                f"Endpoint {n!r} not linked to function: "
+                f"spec.function_name={ep.spec.function_name!r}, expected {function_name!r}"
+            )
+            assert ep.spec.function_tag == function_tag, (
+                f"Endpoint {n!r} not linked to function tag: "
+                f"spec.function_tag={ep.spec.function_tag!r}, expected {function_tag!r}"
+            )
 
 
 @TestMLRunSystemModelMonitoring.skip_test_if_env_not_configured
@@ -3139,7 +3170,7 @@ class TestNuclioAppModelEndpointCreation(TestMLRunSystemModelMonitoring):
                 name=fn_name,
                 kind=kind,
                 project=self.project_name,
-                image=self.image or os.environ.get("MLRUN_TEST_IMAGE", "mlrun/mlrun"),
+                image="python:3.11",
             )
             fn.spec.command = "python"
             fn.spec.args = ["-m", "http.server", "8050"]
@@ -3221,7 +3252,9 @@ class TestNuclioAppModelEndpointCreation(TestMLRunSystemModelMonitoring):
         # then retry the check every 30s until the endpoint appears in the DB.
         self._wait_for_model_endpoint_background_task()
         self.wait_for_condition(
-            lambda: _assert_endpoint_exists(self.project, "ep1"),
+            lambda: _assert_endpoint_exists(
+                self.project, "ep1", function_name=fn_name, function_tag="latest"
+            ),
             retry_interval=30.0,
             timeout=120.0,
             condition_description="model endpoint 'ep1' to exist in DB",
@@ -3265,7 +3298,12 @@ class TestNuclioAppModelEndpointCreation(TestMLRunSystemModelMonitoring):
         # then retry the check every 30s until both endpoints appear in the DB.
         self._wait_for_model_endpoint_background_task()
         self.wait_for_condition(
-            lambda: _assert_endpoints_exist(self.project, {"ep1", "ep2"}),
+            lambda: _assert_endpoints_exist(
+                self.project,
+                {"ep1", "ep2"},
+                function_name=fn_name,
+                function_tag="latest",
+            ),
             retry_interval=30.0,
             timeout=120.0,
             condition_description="model endpoints 'ep1' and 'ep2' to exist in DB",
@@ -3287,6 +3325,7 @@ class TestApplicationRuntimeModelEndpointCreation(TestNuclioAppModelEndpointCrea
     """
 
     project_name = "pr-app-me-creation"
+    image: str | None = None
 
     @pytest.mark.timeout(600)
     def test_single_endpoint_env_vars_injected(self) -> None:
@@ -3316,7 +3355,9 @@ class TestApplicationRuntimeModelEndpointCreation(TestNuclioAppModelEndpointCrea
 
         self._wait_for_model_endpoint_background_task()
         self.wait_for_condition(
-            lambda: _assert_endpoint_exists(self.project, "ep1"),
+            lambda: _assert_endpoint_exists(
+                self.project, "ep1", function_name=fn_name, function_tag="latest"
+            ),
             retry_interval=30.0,
             timeout=120.0,
             condition_description="model endpoint 'ep1' to exist in DB",
@@ -3351,7 +3392,12 @@ class TestApplicationRuntimeModelEndpointCreation(TestNuclioAppModelEndpointCrea
 
         self._wait_for_model_endpoint_background_task()
         self.wait_for_condition(
-            lambda: _assert_endpoints_exist(self.project, {"ep1", "ep2"}),
+            lambda: _assert_endpoints_exist(
+                self.project,
+                {"ep1", "ep2"},
+                function_name=fn_name,
+                function_tag="latest",
+            ),
             retry_interval=30.0,
             timeout=120.0,
             condition_description="model endpoints 'ep1' and 'ep2' to exist in DB",

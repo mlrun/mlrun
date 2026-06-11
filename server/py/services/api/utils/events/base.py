@@ -101,6 +101,23 @@ class BaseEventClient:
         """
         return None
 
+    def generate_log_collector_event(
+        self,
+        action: mlrun.common.schemas.LogCollectorEventActions,
+        error: BaseException | str | None = None,
+        run_uid: str | None = None,
+        project: str | None = None,
+    ) -> typing.Any | None:
+        """
+        Generate a log-collector lifecycle event
+        :param action: ``failed``
+        :param error: optional underlying exception or string
+        :param run_uid: run uid whose logs could not be retrieved, if known
+        :param project: project name the run belongs to, if known
+        :return: event object to emit, or None if the client doesn't support this event
+        """
+        return None
+
     def generate_project_lifecycle_event(
         self,
         action: mlrun.common.schemas.ProjectLifecycleEventActions,

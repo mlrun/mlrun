@@ -566,6 +566,14 @@ class TestGetModelMonitoringUrl:
 
     _ACTIVE_PROJECT_VAR = "MLRUN_ACTIVE_PROJECT"
 
+    @staticmethod
+    def _stream_url(project: str) -> str:
+        """Build a realistic nuclio model-monitoring-stream service URL for *project*."""
+        return (
+            f"http://nuclio-{project}-model-monitoring-stream"
+            f".default-tenant.svc.cluster.local:8080"
+        )
+
     def setup_method(self):
         os.environ.pop(self._ENV_VAR, None)
         os.environ.pop(self._ACTIVE_PROJECT_VAR, None)
@@ -576,7 +584,7 @@ class TestGetModelMonitoringUrl:
 
     def test_returns_env_var_without_db_call(self, monkeypatch: pytest.MonkeyPatch):
         """When the env var is already set the DB must not be called."""
-        cached = "http://model-monitoring-stream.my-project.svc.cluster.local:8080"
+        cached = self._stream_url("my-project")
         os.environ[self._ENV_VAR] = cached
 
         mock_db = pytest.importorskip("unittest.mock").MagicMock()
@@ -614,7 +622,7 @@ class TestGetModelMonitoringUrl:
 
     def test_second_call_uses_cache_not_db(self, monkeypatch: pytest.MonkeyPatch):
         """A second call must use the cached env var and skip the DB entirely."""
-        stream_url = "http://model-monitoring-stream.my-project.svc.cluster.local:8080"
+        stream_url = self._stream_url("my-project")
         mock_db = pytest.importorskip("unittest.mock").MagicMock()
         mock_db.get_model_monitoring_url.return_value = stream_url
         monkeypatch.setattr(mlrun.db, "get_run_db", lambda: mock_db)
@@ -636,38 +644,73 @@ class TestGetModelMonitoringUrl:
         assert url is None
         assert self._ENV_VAR not in os.environ
 
-    def test_raises_when_cached_url_project_mismatch(
+    def test_refreshes_cache_when_cached_url_project_mismatch(
         self, monkeypatch: pytest.MonkeyPatch
     ):
-        """MLRunInvalidArgumentError is raised when the cached URL belongs to a different project."""
-        os.environ[self._ENV_VAR] = (
-            "http://model-monitoring-stream.other-project.svc.cluster.local:8080"
-        )
+        """When the cached URL belongs to a different project the cache is refreshed from the DB and a warning is
+        logged."""
+        os.environ[self._ENV_VAR] = self._stream_url("other-project")
+        refreshed = self._stream_url("my-project")
+        mock_db = unittest.mock.MagicMock()
+        mock_db.get_model_monitoring_url.return_value = refreshed
+        monkeypatch.setattr(mlrun.db, "get_run_db", lambda: mock_db)
 
-        with pytest.raises(mlrun.errors.MLRunInvalidArgumentError, match="my-project"):
-            mlrun.get_model_monitoring_url(project="my-project")
+        with unittest.mock.patch("mlrun.projects.project.logger") as mock_logger:
+            url = mlrun.get_model_monitoring_url(project="my-project")
+
+        assert url == refreshed
+        assert os.environ[self._ENV_VAR] == refreshed
+        mock_db.get_model_monitoring_url.assert_called_once_with("my-project")
+        mock_logger.warning.assert_called_once()
+        assert "my-project" in str(mock_logger.warning.call_args)
 
     def test_no_error_when_cached_url_matches_project(
         self, monkeypatch: pytest.MonkeyPatch
     ):
-        """No error is raised when the cached URL namespace label matches the project."""
-        cached = "http://model-monitoring-stream.my-project.svc.cluster.local:8080"
+        """No refetch happens when the cached URL's service segment encodes the requested project."""
+        cached = self._stream_url("my-project")
         os.environ[self._ENV_VAR] = cached
+        mock_db = unittest.mock.MagicMock()
+        monkeypatch.setattr(mlrun.db, "get_run_db", lambda: mock_db)
 
         url = mlrun.get_model_monitoring_url(project="my-project")
 
         assert url == cached
+        mock_db.get_model_monitoring_url.assert_not_called()
 
     def test_no_false_positive_for_project_name_prefix(
         self, monkeypatch: pytest.MonkeyPatch
     ):
-        """'project' must not match a URL whose namespace is 'project-1' (substring false positive)."""
-        os.environ[self._ENV_VAR] = (
-            "http://model-monitoring-stream.project-1.svc.cluster.local:8080"
-        )
+        """'project' must not match a URL encoding 'project-1' (substring false positive) — cache is refreshed."""
+        os.environ[self._ENV_VAR] = self._stream_url("project-1")
+        refreshed = self._stream_url("project")
+        mock_db = unittest.mock.MagicMock()
+        mock_db.get_model_monitoring_url.return_value = refreshed
+        monkeypatch.setattr(mlrun.db, "get_run_db", lambda: mock_db)
 
-        with pytest.raises(mlrun.errors.MLRunInvalidArgumentError, match="project"):
-            mlrun.get_model_monitoring_url(project="project")
+        url = mlrun.get_model_monitoring_url(project="project")
+
+        assert url == refreshed
+        mock_db.get_model_monitoring_url.assert_called_once_with("project")
+
+    def test_refreshes_when_cached_url_does_not_match_nuclio_pattern(
+        self, monkeypatch: pytest.MonkeyPatch
+    ):
+        """A cached URL that doesn't follow nuclio-<project>-model-monitoring-stream
+        (e.g. DNS-truncated with a hash) is treated as a mismatch and refreshed."""
+        os.environ[self._ENV_VAR] = (
+            "http://nuclio-very-long-project-name-mod-abc12345"
+            ".default-tenant.svc.cluster.local:8080"
+        )
+        refreshed = self._stream_url("my-project")
+        mock_db = unittest.mock.MagicMock()
+        mock_db.get_model_monitoring_url.return_value = refreshed
+        monkeypatch.setattr(mlrun.db, "get_run_db", lambda: mock_db)
+
+        url = mlrun.get_model_monitoring_url(project="my-project")
+
+        assert url == refreshed
+        mock_db.get_model_monitoring_url.assert_called_once_with("my-project")
 
     def test_uses_active_project_when_no_project_given(
         self, monkeypatch: pytest.MonkeyPatch
@@ -693,7 +736,7 @@ class TestGetModelMonitoringUrl:
         mock_db.get_model_monitoring_url.return_value = "http://stream/ingest"
         monkeypatch.setattr(mlrun.db, "get_run_db", lambda: mock_db)
 
-        with mock.patch("mlrun.run.logger") as mock_logger:
+        with mock.patch("mlrun.projects.project.logger") as mock_logger:
             mlrun.get_model_monitoring_url()
 
         mock_logger.warning.assert_called_once()
@@ -709,7 +752,7 @@ class TestGetModelMonitoringUrl:
         mock_db.get_model_monitoring_url.return_value = "http://stream/ingest"
         monkeypatch.setattr(mlrun.db, "get_run_db", lambda: mock_db)
 
-        with mock.patch("mlrun.run.logger") as mock_logger:
+        with mock.patch("mlrun.projects.project.logger") as mock_logger:
             mlrun.get_model_monitoring_url(project="my-project")
 
         mock_logger.warning.assert_not_called()

@@ -25,6 +25,7 @@ import mlrun.common.schemas
 import mlrun.errors
 from mlrun import code_to_function
 from mlrun.datastore.datastore_profile import DatastoreProfileRabbitMQ
+from mlrun.runtimes.utils import RunError
 from mlrun.utils.helpers import resolve_git_reference_from_source
 from tests.runtimes.test_base import TestAutoMount
 
@@ -218,6 +219,27 @@ def test_wait_for_deployment_finalizes_after_submit():
     function._wait_for_function_deployment.assert_called_once()
     function._enrich_command_from_status.assert_called_once()
     assert result == "http://invocation"
+
+
+def test_wait_for_deployment_times_out():
+    """A deploy that never reaches a terminal state fails after ``timeout``
+    instead of polling forever (e.g. an image stuck in ImagePullBackOff)."""
+    function: mlrun.runtimes.RemoteRuntime = mlrun.new_function("tst", kind="nuclio")
+    function.status.state = "building"  # never reaches a terminal state
+    db = MagicMock()
+    db.get_nuclio_deploy_status = MagicMock(return_value=("", 1))
+
+    # monotonic: deadline calc (100 -> deadline 110), iter1 check (100, ok),
+    # iter2 check (120 > 110 -> time out).
+    with (
+        patch("mlrun.runtimes.nuclio.function.sleep"),
+        patch(
+            "mlrun.runtimes.nuclio.function.monotonic",
+            side_effect=[100.0, 100.0, 120.0],
+        ),
+        pytest.raises(RunError, match="did not reach a terminal state within 10s"),
+    ):
+        function._wait_for_function_deployment(db, timeout=10)
 
 
 def test_wait_for_deployment_clears_background_tasks_after_processing():

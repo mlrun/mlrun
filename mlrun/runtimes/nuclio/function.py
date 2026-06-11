@@ -19,7 +19,7 @@ import typing
 import warnings
 from dataclasses import dataclass
 from datetime import datetime
-from time import sleep
+from time import monotonic, sleep
 
 import inflection
 import nuclio
@@ -998,7 +998,9 @@ class RemoteRuntime(KubeResource):
 
         return self.wait_for_deployment(verbose=verbose)
 
-    def wait_for_deployment(self, verbose: bool = False) -> str:
+    def wait_for_deployment(
+        self, verbose: bool = False, timeout: int | None = None
+    ) -> str:
         """Finalize a submitted Nuclio deploy.
 
         Waits for terminal deploy status, handles model-endpoint tasks,
@@ -1007,11 +1009,15 @@ class RemoteRuntime(KubeResource):
         ``deploy(wait=False)`` can call it explicitly.
 
         :param verbose: set True for verbose build-log output
+        :param timeout: overall deadline (seconds) for reaching a terminal
+            deploy state. ``None`` (default) waits indefinitely; a value fails
+            with a :class:`RunError` if the deploy never becomes ready (e.g. an
+            image that never pulls), instead of polling forever.
         :return: the function's invocation command
         """
         db = self._get_db()
         # Wait for readiness and refresh function status.
-        self._wait_for_function_deployment(db, verbose=verbose)
+        self._wait_for_function_deployment(db, verbose=verbose, timeout=timeout)
         # Consume submit-captured model-endpoint tasks at most once.
         model_endpoints_creation_background_tasks = (
             mlrun.common.schemas.BackgroundTaskList(
@@ -1057,10 +1063,21 @@ class RemoteRuntime(KubeResource):
 
         return self.spec.command
 
-    def _wait_for_function_deployment(self, db, verbose=False):
+    def _wait_for_function_deployment(self, db, verbose=False, timeout=None):
         state = ""
         last_log_timestamp = 1
+        deadline = monotonic() + timeout if timeout is not None else None
         while state not in ["ready", "error", "unhealthy"]:
+            if deadline is not None and monotonic() > deadline:
+                logger.error(
+                    "Nuclio function deploy timed out",
+                    function_state=state,
+                    timeout=timeout,
+                )
+                raise RunError(
+                    f"Function {self.metadata.name} deployment did not reach a "
+                    f"terminal state within {timeout}s (last state={state!r})"
+                )
             sleep(
                 int(mlrun.mlconf.httpdb.logs.nuclio.pull_deploy_status_default_interval)
             )

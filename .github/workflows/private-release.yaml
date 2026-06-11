@@ -35,7 +35,7 @@ on:
       artifactory_docker_repo:
         description: 'Artifactory docker repository name'
         required: false
-        default: 'mlrun-docker-local/mlrun-staging'
+        default: 'mlrun-staging'
         type: string
       artifactory_pypi_repo:
         description: 'Artifactory PyPI repository name'
@@ -160,7 +160,7 @@ jobs:
     runs-on: mlrun-release
     needs: prepare-inputs
     env:
-      DOCKER_REGISTRY: "${{ secrets.PRI_ARTIFACTORY_URL }}/${{ inputs.artifactory_docker_repo }}/"
+      DOCKER_REGISTRY: "${{ secrets.PRIVATE_ARTIFACTORY_DOCKER_URL }}/${{ inputs.artifactory_docker_repo }}/"
     steps:
       - name: Generate GitHub App Token for ui repo
         id: ui-app-token
@@ -184,7 +184,7 @@ jobs:
     name: Publish package to Artifactory PyPI
     runs-on: mlrun-release
     env:
-      PYPI_REPO_URL: "https://${{ secrets.PRI_ARTIFACTORY_URL }}/artifactory/api/pypi/${{ inputs.artifactory_pypi_repo }}"
+      PYPI_REPO_URL: "https://${{ secrets.PRIVATE_ARTIFACTORY_URL }}/artifactory/api/pypi/${{ inputs.artifactory_pypi_repo }}"
 
     # skip releasing to pypi for feature branches
     # pypi do not allow local version identifier (https://peps.python.org/pep-0440/#local-version-identifiers)
@@ -208,6 +208,6 @@ jobs:
         env:
           MLRUN_VERSION: ${{ needs.prepare-inputs.outputs.version }}
           UV_PUBLISH_URL: ${{ env.PYPI_REPO_URL }}
-          UV_PUBLISH_USERNAME: ${{ secrets.PRI_ARTIFACTORY_USERNAME }}
-          UV_PUBLISH_PASSWORD: ${{ secrets.PRI_ARTIFACTORY_PASSWORD }}
+          UV_PUBLISH_USERNAME: ${{ secrets.PRIVATE_ARTIFACTORY_USERNAME }}
+          UV_PUBLISH_PASSWORD: ${{ secrets.PRIVATE_ARTIFACTORY_PASSWORD }}
         run: uv run --no-project --with packaging~=25.0 make publish-package

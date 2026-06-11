@@ -45,7 +45,7 @@ on:
       source_artifactory_docker_repo:
         description: 'Source Artifactory Docker repository name'
         required: false
-        default: 'mlrun-docker-local/mlrun-staging/mlrun'
+        default: 'mlrun-staging/mlrun'
         type: string
       target_docker_registries:
         description: 'Comma separated list of target docker registries to push promoted images to (e.g., ghcr.io/,quay.io/,registry.hub.docker.com/)'
@@ -207,9 +207,9 @@ jobs:
           AUTHFILE="$GITHUB_WORKSPACE/.skopeo/auth.json"
           
           # Login to source registry (Artifactory)
-          skopeo login "${{ secrets.PRI_ARTIFACTORY_URL }}" \
-            -u "${{ secrets.PRI_ARTIFACTORY_USERNAME }}" \
-            -p "${{ secrets.PRI_ARTIFACTORY_PASSWORD }}" \
+          skopeo login "${{ secrets.PRIVATE_ARTIFACTORY_DOCKER_URL }}" \
+            -u "${{ secrets.PRIVATE_ARTIFACTORY_USERNAME }}" \
+            -p "${{ secrets.PRIVATE_ARTIFACTORY_PASSWORD }}" \
             --authfile "$AUTHFILE"
           
           # Login to target registries
@@ -250,7 +250,7 @@ jobs:
             python_version_suffix="-py$(echo '${{ matrix.python-version }}' | tr -d '.')"
           fi
           
-          SOURCE_IMAGE="docker://${{ secrets.PRI_ARTIFACTORY_URL }}/${{ github.event.inputs.source_artifactory_docker_repo }}/${image_name}:${{ needs.prepare-inputs.outputs.version }}${python_version_suffix}"
+          SOURCE_IMAGE="docker://${{ secrets.PRIVATE_ARTIFACTORY_DOCKER_URL }}/${{ github.event.inputs.source_artifactory_docker_repo }}/${image_name}:${{ needs.prepare-inputs.outputs.version }}${python_version_suffix}"
           
           echo "Source image: $SOURCE_IMAGE"
           
@@ -309,7 +309,7 @@ jobs:
           mkdir -p dist
           pip download \
             --no-deps \
-            --index-url https://${{ secrets.PRI_ARTIFACTORY_USERNAME }}:${{ secrets.PRI_ARTIFACTORY_PASSWORD }}@${{ secrets.PRI_ARTIFACTORY_URL }}/artifactory/api/pypi/${{ github.event.inputs.source_artifactory_pypi_repo }}/simple \
+            --index-url https://${{ secrets.PRIVATE_ARTIFACTORY_USERNAME }}:${{ secrets.PRIVATE_ARTIFACTORY_PASSWORD }}@${{ secrets.PRIVATE_ARTIFACTORY_URL }}/artifactory/api/pypi/${{ github.event.inputs.source_artifactory_pypi_repo }}/simple \
             --dest dist \
             mlrun==${{ needs.prepare-inputs.outputs.version }}
           

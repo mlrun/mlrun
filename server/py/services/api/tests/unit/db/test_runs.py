@@ -592,7 +592,7 @@ class TestRuns(TestDatabaseBase):
         assert runs[0]["status"]["end_time"].endswith(".000000+00:00")
 
     def test_list_runs_empty_project_list_returns_empty(self):
-        # ML-12404: cross-project listing (project="*") for a user with no accessible projects
+        # Cross-project listing (project="*") for a user with no accessible projects
         # resolves to an empty project list. That must yield an empty result, not an error.
         self._create_new_run(project="some-project")
 

@@ -546,9 +546,11 @@ class SQLDB(DBInterface):
         offset: int | None = None,
         limit: int | None = None,
     ) -> RunList:
-        # An empty list is valid (user with no accessible projects). Only a missing project
-        # (None / "") is an error, since that would apply no project filter at all.
-        if not project and not isinstance(project, list):
+        # Empty list (user with no accessible projects) matches nothing, so skip the
+        # DB query. A missing project (None / "") applies no filter, so it's an error.
+        if isinstance(project, list) and not project:
+            return RunList()
+        if not project:
             raise mlrun.errors.MLRunMissingProjectError()
         query = self._find_runs(session, uid, project, labels)
         if name is not None:
@@ -2550,6 +2552,10 @@ class SQLDB(DBInterface):
         since: datetime | None = None,
         until: datetime | None = None,
     ) -> list[dict]:
+        # Empty list (user with no accessible projects) matches nothing, so skip the
+        # DB query. A missing project (None / "") applies no filter, so it's an error.
+        if isinstance(project, list) and not project:
+            return []
         if not project:
             raise mlrun.errors.MLRunMissingProjectError()
         functions = []

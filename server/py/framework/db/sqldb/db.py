@@ -546,7 +546,10 @@ class SQLDB(DBInterface):
         offset: int | None = None,
         limit: int | None = None,
     ) -> RunList:
-        if not project:
+        # An empty list is a valid project filter (e.g. cross-project listing for a user with no
+        # accessible projects) and yields an empty result via `.in_([])`. Only a missing project
+        # (None / "") is an error, since that would apply no project filter at all.
+        if not project and not isinstance(project, list):
             raise mlrun.errors.MLRunMissingProjectError()
         query = self._find_runs(session, uid, project, labels)
         if name is not None:

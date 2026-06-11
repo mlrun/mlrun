@@ -280,7 +280,8 @@ def test_project_over_long_field_rejected_on_all_write_paths(
         project.spec.source = too_long_source
         with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
             projects_follower.store_project(db, project.metadata.name, project)
-    else:  # patch an existing, valid project with an over-long source
+    else:
+        # patch an existing, valid project with an over-long source
         project = _generate_project()
         projects_follower.store_project(db, project.metadata.name, project)
         with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):

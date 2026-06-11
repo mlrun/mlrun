@@ -3159,10 +3159,12 @@ def test_set_source_length_validation():
     project.set_source(max_source)
     assert project.spec.source == max_source
 
-    # one over the max length is rejected before it can be stored
+    # one over the max length is rejected before it can be stored.
     too_long_source = prefix + "a" * (max_length - len(prefix) + 1)
     assert len(too_long_source) == max_length + 1
-    with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
+    with pytest.raises(
+        mlrun.errors.MLRunInvalidArgumentError, match="exceeds the maximum"
+    ):
         project.set_source(too_long_source)
 
 

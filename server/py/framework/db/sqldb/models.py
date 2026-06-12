@@ -466,22 +466,29 @@ with warnings.catch_warnings():
         __table_args__ = (
             UniqueConstraint("uid", "project", "iteration", name="_runs_uc"),
             Index("idx_runs_project_id", "id", "project", unique=True),
+            # Covering indexes for the Monitor Jobs "latest run per (project, name)"
+            # query - row_number() OVER (PARTITION BY project, name ORDER BY updated).
+            # Including `name` and `updated` lets the partition/window run index-only
+            # instead of a clustered-index lookup per row, which is what made the page
+            # time out over wide time ranges - ML-12590.
+            # Without the status filter (supersedes the former idx_runs_project_iter_start):
             Index(
-                "idx_runs_project_iter_start",
+                "idx_runs_project_iter_start_updated",
                 "project",
                 "iteration",
                 "start_time",
                 "name",
+                "updated",
             ),
-            # Serves runs queries that filter on state over a wide start_time range
-            # (e.g. UI Runs page with state=completed, dates=pastMonth) - ML-12590.
-            # Equality columns first, range column (start_time) last.
+            # With the status filter (state as an equality column before the range):
             Index(
-                "idx_runs_project_iter_state_start",
+                "idx_runs_project_iter_state_start_updated",
                 "project",
                 "iteration",
                 "state",
                 "start_time",
+                "name",
+                "updated",
             ),
         )
 

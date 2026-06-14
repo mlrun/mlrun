@@ -81,7 +81,7 @@ class NotificationBase:
 
     def load_notification(
         self,
-        params: dict[str, str],
+        params: dict[str, typing.Any],
     ) -> None:
         self.params = params or {}
 

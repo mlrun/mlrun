@@ -928,6 +928,16 @@ def test_webhook_notification_verify_ssl_status(verify_ssl, expected_status):
         notification_pusher.push()
 
         assert notification_object.status == expected_status
+        if (
+            expected_status
+            == mlrun.common.schemas.notification.NotificationStatus.ERROR
+        ):
+            # make sure the failure is the SSL rejection we expect, not an
+            # unrelated error (port in use, connection refused, thread crash, ...).
+            reason = (notification_object.reason or "").lower()
+            assert "ssl" in reason or "certificate" in reason, (
+                notification_object.reason
+            )
 
 
 @pytest.mark.parametrize(

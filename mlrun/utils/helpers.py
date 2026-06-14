@@ -324,24 +324,6 @@ def validate_builder_source(
         )
 
 
-def validate_project_field_length(field_name: str, value: str | None) -> None:
-    """Validate that a project text field does not exceed the DB column limit.
-
-    Project fields stored in dedicated columns (``source``, ``description``, ``owner``)
-    are ``VARCHAR(255)``; a longer value fails at the database with an opaque 500.
-    Validating up front lets us reject it with a clear 400 before write.
-
-    :param field_name:  name of the project field being validated (used in the error)
-    :param value:       the value to validate (``None``/empty is a no-op)
-    :raises mlrun.errors.MLRunInvalidArgumentError: if the value exceeds the max length
-    """
-    if value and len(value) > mlrun_constants.MAX_PROJECT_FIELD_LENGTH:
-        raise mlrun.errors.MLRunInvalidArgumentError(
-            f"Project '{field_name}' length ({len(value)}) exceeds the maximum allowed "
-            f"length of {mlrun_constants.MAX_PROJECT_FIELD_LENGTH} characters"
-        )
-
-
 def validate_tag_name(
     tag_name: str, field_name: str, raise_on_failure: bool = True
 ) -> bool:

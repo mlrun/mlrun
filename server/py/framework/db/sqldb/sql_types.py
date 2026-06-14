@@ -87,6 +87,11 @@ class Utf8BinText(TypeDecorator):
     impl = Text
     cache_ok = True
 
+    # Logical max length for values stored in this type, enforced uniformly across dialects
+    # so data stays portable between backends. MySQL enforces it physically as VARCHAR(255)
+    # Postgres/SQLite map to unbounded Text and rely on callers validating against this attribute.
+    max_length = 255
+
     def load_dialect_impl(
         self,
         dialect: Dialect,
@@ -95,7 +100,7 @@ class Utf8BinText(TypeDecorator):
             return dialect.type_descriptor(
                 sqlalchemy.dialects.mysql.VARCHAR(
                     collation="utf8_bin",
-                    length=255,
+                    length=self.max_length,
                 )
             )
         if dialect.name == mlrun.common.db.dialects.Dialects.POSTGRESQL:

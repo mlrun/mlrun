@@ -42,9 +42,6 @@ MLRUN_INTERNAL_ARTIFACT_PATH = "+/.mlrun/sources"
 # Kubernetes DNS-1123 label name length limit
 K8S_DNS_1123_LABEL_MAX_LENGTH = 63
 
-# Maximum length of the project text fields
-MAX_PROJECT_FIELD_LENGTH = 255
-
 
 RESERVED_BATCH_JOB_SUFFIX = "-batch"
 

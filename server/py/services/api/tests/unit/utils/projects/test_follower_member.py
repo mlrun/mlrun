@@ -21,13 +21,13 @@ import deepdiff
 import pytest
 import sqlalchemy.orm
 
-import mlrun.common.constants as mlrun_constants
 import mlrun.common.formatters
 import mlrun.common.schemas
 import mlrun.config
 import mlrun.errors
 import mlrun.utils
 
+import framework.db.sqldb.models
 import framework.utils.background_tasks
 import framework.utils.projects.follower
 import framework.utils.projects.remotes.leader
@@ -232,7 +232,8 @@ def test_store_project_field_at_max_length(
     field: str,
 ):
     # ML-12709 boundary: a field exactly at its DB column width is accepted and stored.
-    max_value = "a" * mlrun_constants.MAX_PROJECT_FIELD_LENGTH
+    max_length = getattr(framework.db.sqldb.models.Project, field).type.max_length
+    max_value = "a" * max_length
     project = _generate_project()
     setattr(project.spec, field, max_value)
     stored_project, _ = projects_follower.store_project(
@@ -251,7 +252,8 @@ def test_store_project_field_too_long_is_rejected(
     # ML-12709 regression: a project text field longer than its VARCHAR(255) column used to
     # reach the DB and fail with a 500. Each such field must be rejected with a 400
     # (MLRunInvalidArgumentError) before the write.
-    too_long_value = "a" * (mlrun_constants.MAX_PROJECT_FIELD_LENGTH + 1)
+    max_length = getattr(framework.db.sqldb.models.Project, field).type.max_length
+    too_long_value = "a" * (max_length + 1)
     project = _generate_project()
     setattr(project.spec, field, too_long_value)
     with pytest.raises(mlrun.errors.MLRunInvalidArgumentError):
@@ -268,7 +270,8 @@ def test_project_over_long_field_rejected_on_all_write_paths(
     # ML-12709: every API write path must reject an over-long field before the write.
     # Uses `source` as the representative field; patch is covered because it routes
     # through store_project -> _validate_project.
-    too_long_source = "a" * (mlrun_constants.MAX_PROJECT_FIELD_LENGTH + 1)
+    max_length = framework.db.sqldb.models.Project.source.type.max_length
+    too_long_source = "a" * (max_length + 1)
 
     if write_path == "create":
         project = _generate_project()

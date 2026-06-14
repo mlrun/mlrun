@@ -1407,7 +1407,6 @@ class MlrunProject(ModelObj):
         :param workdir:         workdir path relative to the context dir or absolute
         """
         mlrun.utils.helpers.validate_builder_source(source, pull_at_runtime, workdir)
-        mlrun.utils.helpers.validate_project_field_length("source", source)
 
         self.spec.load_source_on_run = pull_at_runtime
 

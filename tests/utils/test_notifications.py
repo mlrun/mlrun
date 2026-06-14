@@ -884,33 +884,6 @@ async def test_webhook_notification(monkeypatch, test_method):
     )
 
 
-@pytest.mark.asyncio
-@pytest.mark.parametrize(
-    "verify_ssl,url,expected_ssl",
-    [
-        # On HTTPS urls, only an explicit verify_ssl=False maps to ssl=False (skip
-        # validation). verify_ssl=True is normalized to ssl=None (aiohttp default,
-        # validation on), same as not setting it at all.
-        (True, "https://test-url", None),
-        (False, "https://test-url", False),
-        (None, "https://test-url", None),
-        # On non-HTTPS urls verify_ssl is irrelevant and ssl is always None.
-        (True, "http://test-url", None),
-        (False, "http://test-url", None),
-        (None, "http://test-url", None),
-    ],
-)
-async def test_webhook_notification_verify_ssl_argument(
-    monkeypatch, verify_ssl, url, expected_ssl
-):
-    requests_mock = _mock_async_response(monkeypatch, "get", None)
-    await mlrun.utils.notifications.webhook.WebhookNotification(
-        "webhook",
-        {"url": url, "method": "GET", "verify_ssl": verify_ssl},
-    ).push("test-message", "info")
-    assert requests_mock.call_args.kwargs["ssl"] is expected_ssl
-
-
 @pytest.mark.parametrize(
     "verify_ssl,expected_status",
     [
@@ -2382,9 +2355,16 @@ async def test_override_values(
 @pytest.mark.parametrize(
     "url, verify_ssl, expected_ssl",
     [
+        # On HTTPS urls only an explicit verify_ssl=False maps to ssl=False (skip
+        # validation); verify_ssl=True is normalized to ssl=None (aiohttp default,
+        # validation on), same as not setting it at all.
         ("https://example.com", None, None),
+        ("https://example.com", True, None),
         ("https://example.com", False, False),
+        # On non-HTTPS urls verify_ssl is irrelevant and ssl is always None.
+        ("http://example.com", None, None),
         ("http://example.com", True, None),
+        ("http://example.com", False, None),
     ],
 )
 async def test_ssl_logic(

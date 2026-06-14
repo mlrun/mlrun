@@ -414,6 +414,33 @@ class TestFunctions(TestDatabaseBase):
                 assert function["metadata"]["tag"] == ""
                 assert function["status"] is None
 
+    def test_list_functions_empty_project_list_returns_empty(self):
+        # Cross-project listing for a user with no accessible projects resolves to an
+        # empty project list. That must yield an empty result, not an error.
+        self._db.store_function(
+            self._db_session,
+            function={"metadata": {"name": "some-function"}},
+            name="some-function",
+            project=self.project,
+            tag="latest",
+            versioned=True,
+        )
+
+        functions = self._db.list_functions(self._db_session, project=[])
+        assert len(functions) == 0
+
+        # A populated project list still filters normally (the empty-list relaxation doesn't
+        # weaken the list path).
+        functions = self._db.list_functions(self._db_session, project=[self.project])
+        assert len(functions) == 1
+
+    @pytest.mark.parametrize("project", [None, ""])
+    def test_list_functions_missing_project_raises(self, project):
+        # A truly missing project (None / "") applies no project filter, so it must keep
+        # raising rather than silently listing across all projects.
+        with pytest.raises(mlrun.errors.MLRunMissingProjectError):
+            self._db.list_functions(self._db_session, project=project)
+
     def test_list_functions_by_tag(self):
         tag = "function_name_1"
 

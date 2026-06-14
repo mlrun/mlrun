@@ -546,6 +546,10 @@ class SQLDB(DBInterface):
         offset: int | None = None,
         limit: int | None = None,
     ) -> RunList:
+        # Empty list (user with no accessible projects) matches nothing, so skip the
+        # DB query. A missing project (None / "") applies no filter, so it's an error.
+        if isinstance(project, list) and not project:
+            return RunList()
         if not project:
             raise mlrun.errors.MLRunMissingProjectError()
         query = self._find_runs(session, uid, project, labels)
@@ -2548,6 +2552,10 @@ class SQLDB(DBInterface):
         since: datetime | None = None,
         until: datetime | None = None,
     ) -> list[dict]:
+        # Empty list (user with no accessible projects) matches nothing, so skip the
+        # DB query. A missing project (None / "") applies no filter, so it's an error.
+        if isinstance(project, list) and not project:
+            return []
         if not project:
             raise mlrun.errors.MLRunMissingProjectError()
         functions = []
@@ -4078,6 +4086,11 @@ class SQLDB(DBInterface):
     def _calculate_artifact_counters_by_category(
         session: Session,
     ) -> dict[str, dict[str, int]]:
+        # These are approximate project-resource counts, not a consistent read.
+        # On scaled systems artifacts_v2 can be large and high-churn, where a
+        # consistent-read snapshot stalls InnoDB purge and amplifies the scan
+        # into a multi-hour wedge. Read under READ UNCOMMITTED (no read-view).
+        session.connection(execution_options={"isolation_level": "READ UNCOMMITTED"})
         query = session.query(
             ArtifactV2.project, ArtifactV2.kind, func.count(distinct(ArtifactV2.key))
         ).group_by(ArtifactV2.project, ArtifactV2.kind)
@@ -4112,6 +4125,11 @@ class SQLDB(DBInterface):
             - A dictionary of recently failed or aborted runs (last 24h) per project.
             - A dictionary of currently running runs (non-terminal states) per project.
         """
+        # On scaled systems ``runs`` can be large and high-churn, where a
+        # consistent-read snapshot stalls InnoDB purge and slows the scan.
+        # Approximate counts, so read under READ UNCOMMITTED (set once; covers
+        # all queries below).
+        session.connection(execution_options={"isolation_level": "READ UNCOMMITTED"})
         running_runs_count_per_project = (
             session.query(Run.project, func.count())
             .filter(Run.iteration == 0)

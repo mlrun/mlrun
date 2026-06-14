@@ -1010,8 +1010,8 @@ default_config = {
             # PeriodicExportingMetricReader interval for inventory gauges, expressed
             # as a multiple of ``monitoring.projects.summaries.cache_interval`` so
             # the exporter samples a freshly-refreshed gauge every Nth cache cycle.
-            # Default 10 × 60s = 600s = 10 minutes. Must be >= 1.
-            "export_interval_multiplier": 10,
+            # Default 1 × 60s = 60s = emit on every cache cycle. Must be >= 1.
+            "export_interval_multiplier": 1,
         },
         # ML-12344 — model monitoring application Results/Metrics OTel export.
         "model_monitoring": {

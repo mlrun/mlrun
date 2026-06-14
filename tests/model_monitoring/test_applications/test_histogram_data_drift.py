@@ -29,12 +29,16 @@ from mlrun.common.schemas.model_monitoring.constants import (
     ResultKindApp,
     ResultStatusApp,
 )
+from mlrun.model_monitoring.applications._application_steps import (
+    _ApplicationErrorHandler,
+)
 from mlrun.model_monitoring.applications.histogram_data_drift import (
     DataDriftClassifier,
     HistogramDataDriftApplication,
     InvalidMetricValueError,
     InvalidThresholdValueError,
 )
+from mlrun.serving.server import MockEvent
 
 assets_folder = Path(__file__).parent / "assets"
 
@@ -276,4 +280,30 @@ class TestMetricsPerFeature:
         }, "Different metrics than expected"
         assert set(metrics_per_feature.index) == set(feature_stats.columns), (
             "The features are different than expected"
+        )
+
+
+class TestApplicationErrorHandler:
+    """ML-12380 secondary issue: _ApplicationErrorHandler.do() must return the event."""
+
+    @staticmethod
+    def test_do_returns_event() -> None:
+        handler = _ApplicationErrorHandler(project="test-project")
+
+        event = MockEvent()
+        event.body = Mock(endpoint_id="ep-123", application_name="test-app")
+        event.error = ValueError("test error")
+        event.timestamp = "2024-01-01T00:00:00"
+
+        with pytest.MonkeyPatch.context() as mp:
+            mock_db = Mock()
+            mp.setattr(
+                "mlrun.model_monitoring.applications._application_steps.mlrun.get_run_db",
+                lambda: mock_db,
+            )
+            result = handler.do(event)
+
+        assert result is event, (
+            "_ApplicationErrorHandler.do() must return the event to avoid "
+            "passing None downstream in the serving graph"
         )

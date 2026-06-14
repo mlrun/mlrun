@@ -713,6 +713,10 @@ default_config = {
             "parquet_batching_max_events": 10,
             "parquet_batching_timeout_secs": 30,
         },
+        "stream_graph": {
+            "max_events": 1000,
+            "flush_after_seconds": 30,
+        },
         "lag_detection": {
             "min_lag_threshold_minutes": 5,
             "default_lag_threshold_minutes": 60,
@@ -729,7 +733,7 @@ default_config = {
         # storage such as the parquet file which is generated from the monitoring stream function for the drift analysis
         "offline_storage_path": "model-endpoints/{kind}",
         "parquet_batching_max_events": 10_000,
-        "parquet_batching_timeout_secs": timedelta(minutes=1).total_seconds(),
+        "parquet_batching_timeout_secs": 30,
         "model_endpoint_creation_check_period": 15,
         # TSDB (TimescaleDB) configuration
         "tsdb": {

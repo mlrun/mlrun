@@ -230,6 +230,12 @@ class MonitoringApplicationContext:
                 time_column=mm_constants.EventFieldType.TIMESTAMP,
                 storage_options=self.storage_options,
             )
+            if df.empty:
+                raise mlrun.errors.MLRunValueError(
+                    "The sample dataframe is empty, which may indicate that there are no features logged in the "
+                    "model endpoint during the specified time window. Please check that your model endpoint is logging "
+                    "features correctly, and that the time window is correct."
+                )
             self._sample_df = df.reset_index(drop=True)
         return self._sample_df
 

@@ -2606,7 +2606,7 @@ class TestFeatureStore(TestMLRunSystem):
         reason="mlrun.mlconf.redis.url is not set, skipping until testing against real redis",
     )
     @pytest.mark.parametrize(
-        "target_redis, ", ["", "redis://:aaa@localhost:6379", "ds://dsname"]
+        "target_redis", ["", "redis://:aaa@localhost:6379", "ds://dsname"]
     )
     def test_purge_redis(self, target_redis):
         key = "patient_id"

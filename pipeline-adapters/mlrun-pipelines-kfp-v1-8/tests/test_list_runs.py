@@ -38,7 +38,7 @@ def test_list_runs_no_matching_experiments_does_not_scan_all_runs(client, monkey
     monkeypatch.setattr(
         client,
         "_get_candidate_experiments_for_projects",
-        lambda project_names: [],
+        lambda project_names, **_: [],
     )
 
     paginate_runs_mock = unittest.mock.MagicMock(
